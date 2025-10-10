@@ -55,6 +55,7 @@ function Assert-PortFree {
 
 if (-not $SkipExe) {
     $launcherPath = Join-Path $repoRoot "Start CRM.exe"
+    $launcherPlaceholderPath = Join-Path $repoRoot "Start CRM.exe_"
     if (Test-Path $launcherPath) {
         Write-Host "Testing Start CRM.exe"
         $stdoutPath = New-TempFilePath
@@ -71,6 +72,8 @@ if (-not $SkipExe) {
             if (Test-Path $stdoutPath) { Remove-Item $stdoutPath -ErrorAction SilentlyContinue }
             if (Test-Path $stderrPath) { Remove-Item $stderrPath -ErrorAction SilentlyContinue }
         }
+    } elseif (Test-Path $launcherPlaceholderPath) {
+        Write-Warning "Start CRM.exe not found, but Start CRM.exe_ is present. Restore it with tools/restore_exe.ps1 before running the self-test."
     } else {
         Write-Warning "Start CRM.exe not found. Build the launcher first."
     }
