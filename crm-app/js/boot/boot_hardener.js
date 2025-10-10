@@ -99,7 +99,10 @@ export async function ensureCoreThenPatches({ CORE, PATCHES, REQUIRED }) {
     await importList(CORE, state);
   }
   if (!corePrereqsReady(w) || state.fatal) {
-    console.error('[BOOT] core prerequisites missing or required import failed');
+    const lastFailure = state.failed[state.failed.length - 1] || null;
+    const modPath = lastFailure?.path || '(unknown module)';
+    const err = lastFailure?.err || '(prerequisite missing)';
+    console.error('[BOOT] core prerequisites missing or required import failed:', modPath, err);
     return finalizeFail(state, 'core_prereqs');
   }
 
