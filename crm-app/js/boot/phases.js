@@ -152,9 +152,9 @@ export const CONTRACTS = {
     },
     'notifications panel usable': () => {
       try {
-        return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true;
+        return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel');
       } catch {
-        return true;
+        return false;
       }
     },
     // Health probes for migrated modules — never fail hard; just inform
@@ -167,3 +167,5 @@ export const CONTRACTS = {
     }
   }
 };
+
+// No top-level DOM queries or immediate probe invocations; module must be side-effect free on import.
