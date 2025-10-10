@@ -28,7 +28,7 @@ import {
     el.textContent = value ?? '';
   }
   function html(el, v){ if(el) el.innerHTML = v; }
-  function money(n){ try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0)); }catch(_){ return '$'+(Number(n||0).toFixed(0)); } }
+  function money(n){ try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0)); }catch (_) { return '$'+(Number(n||0).toFixed(0)); } }
   function fullName(c){ return [c.first,c.last].filter(Boolean).join(' ') || c.name || '—'; }
   function safe(v){ return String(v==null?'':v).replace(/[&<>]/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch])); }
   function attr(v){ return String(v==null?'':v).replace(/[&<>"']/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch])); }
@@ -219,7 +219,7 @@ import {
       if(!proto) return;
       let desc;
       try{ desc = Object.getOwnPropertyDescriptor(proto, key); }
-      catch(_err){ return; }
+      catch (_err) { return; }
       if(!desc || desc.configurable === false) return;
       const next = {
         configurable: true,
@@ -234,7 +234,7 @@ import {
       try{
         Object.defineProperty(proto, key, next);
         restorers.push(()=>{ Object.defineProperty(proto, key, desc); });
-      }catch(_err){}
+      }catch (_err) {}
     };
     wrapMethod(Element.prototype, 'getBoundingClientRect', markRead);
     if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
@@ -268,7 +268,7 @@ import {
       while(restorers.length){
         const restore = restorers.pop();
         try{ restore(); }
-        catch(_err){}
+        catch (_err) {}
       }
       if(violations >= 5 && console && typeof console.info === 'function'){
         console.info(`[LAYOUT] possible thrash at ${moduleName} (x${violations})`);
@@ -281,7 +281,7 @@ import {
       }
       finalize();
       return result;
-    }catch(err){
+    }catch (err) {
       finalize();
       throw err;
     }
@@ -330,7 +330,7 @@ import {
         const canonical = window.canonicalizeStage(raw);
         if(canonical) return String(canonical);
       }
-    }catch(_err){}
+    }catch (_err) {}
     if(!stringValue.trim()) return DEFAULT_STAGE_KEY;
     return stageKeyFromLabel(stringValue);
   }
@@ -546,7 +546,7 @@ import {
       if(typeof window.exportCustomEventsToIcs !== 'function'){ notify('ICS export unavailable'); return; }
       await window.exportCustomEventsToIcs(events, `crm-${source}.ics`);
       notify('ICS file generated');
-    }catch(err){
+    }catch (err) {
       console.warn('widget ics', err);
       notify('ICS export failed');
     }
@@ -1169,7 +1169,7 @@ import {
 
     if(typeof window.applyFilters==='function'){
       try{ window.applyFilters(); }
-      catch(err){ console && console.warn && console.warn('applyFilters', err); }
+      catch (err) { console && console.warn && console.warn('applyFilters', err); }
     }
 
     });
@@ -1182,7 +1182,7 @@ import {
     renderPartnersTable(partners);
     if(typeof window.applyFilters==='function'){
       try{ window.applyFilters(); }
-      catch(err){ console && console.warn && console.warn('applyFilters', err); }
+      catch (err) { console && console.warn && console.warn('applyFilters', err); }
     }
   };
 })();

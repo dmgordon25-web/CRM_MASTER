@@ -164,7 +164,7 @@ import { createFormFooter } from './ui/form_footer.js';
         summaryMetric.textContent = linked.length ? `${linked.length}` : '—';
         summaryMetric.dataset.count = summaryMetric.textContent;
       }
-    }catch(err){
+    }catch (err) {
       console.warn('renderLinkedCustomers', err);
     }
   }
@@ -230,7 +230,7 @@ import { createFormFooter } from './ui/form_footer.js';
 
     const closeDialog = ()=>{
       try{ dlg.close(); }
-      catch(_){ dlg.removeAttribute('open'); dlg.style.display='none'; }
+      catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; }
     };
 
     let footerHandle = dlg.__partnerFooter;
@@ -362,7 +362,7 @@ import { createFormFooter } from './ui/form_footer.js';
     }
 
     try{ dlg.showModal(); }
-    catch(_){ dlg.setAttribute('open',''); dlg.style.display='block'; }
+    catch (_) { dlg.setAttribute('open',''); dlg.style.display='block'; }
     const shell = dlg.querySelector('.dlg');
     if(shell && typeof shell.focus==='function'){
       shell.focus({preventScroll:true});
@@ -392,7 +392,7 @@ import { createFormFooter } from './ui/form_footer.js';
     delete window.__PARTNER_MODAL_QUEUE__;
     pending.forEach(id => {
       try{ window.renderPartnerModal(id); }
-      catch(err){ console.warn('partner modal pending open failed', err); }
+      catch (err) { console.warn('partner modal pending open failed', err); }
     });
   }
 })();

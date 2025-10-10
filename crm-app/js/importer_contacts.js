@@ -71,11 +71,11 @@
   async function loadStore(store){
     if (typeof window.dbGetAll === 'function'){
       try { return await window.dbGetAll(store); }
-      catch(_err){}
+      catch (_err) {}
     }
     if (window.db && typeof window.db.getAll === 'function'){
       try { return await window.db.getAll(store); }
-      catch(_err){}
+      catch (_err) {}
     }
     return [];
   }
@@ -121,11 +121,11 @@
     if (!id) return null;
     if (typeof window.dbGet === 'function'){
       try { return await window.dbGet('partners', id); }
-      catch(_err){}
+      catch (_err) {}
     }
     if (window.db && typeof window.db.get === 'function'){
       try { return await window.db.get('partners', id); }
-      catch(_err){}
+      catch (_err) {}
     }
     return null;
   }

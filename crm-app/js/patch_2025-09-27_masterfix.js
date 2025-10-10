@@ -98,7 +98,7 @@ function runPatch(){
               return;
             }
             try{ base.apply(ctx, args); }
-            catch(err){ console && console.warn && console.warn('dispatchAppDataChanged deferred', err); }
+            catch (err) { console && console.warn && console.warn('dispatchAppDataChanged deferred', err); }
           });
           return;
         }
@@ -127,7 +127,7 @@ function runPatch(){
           }
           exit();
           return result;
-        }catch(err){
+        }catch (err) {
           exit();
           throw err;
         }
@@ -273,12 +273,12 @@ function runPatch(){
         }
         if(typeof svc.syncChecks === 'function'){
           try{ svc.syncChecks(); }
-          catch(err){ console && console.warn && console.warn('select-all sync', err); }
+          catch (err) { console && console.warn && console.warn('select-all sync', err); }
         }
         queueMicro(()=>{
           const detail = { type: svc.type || 'contacts', ids: Array.from(svc.ids) };
           try{ document.dispatchEvent(new CustomEvent('selection:changed', { detail })); }
-          catch(err){ console && console.warn && console.warn('selection dispatch', err); }
+          catch (err) { console && console.warn && console.warn('selection dispatch', err); }
         });
       }, { capture: true });
     }
@@ -448,7 +448,7 @@ function runPatch(){
             }
           }
         }
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('convertLongShot docs', err);
       }
 
@@ -634,7 +634,7 @@ function runPatch(){
       try{
         if(typeof window.toast === 'function') window.toast(message);
         else console && console.log && console.log(message);
-      }catch(_){ console && console.log && console.log(message); }
+      }catch (_) { console && console.log && console.log(message); }
     }
 
     async function loadQueueRecord(){
@@ -642,7 +642,7 @@ function runPatch(){
       await openDB();
       let record = null;
       try{ record = await dbGet('meta', QUEUE_META_ID); }
-      catch(err){ console && console.warn && console.warn('automation queue load', err); }
+      catch (err) { console && console.warn && console.warn('automation queue load', err); }
       const items = Array.isArray(record?.items) ? record.items.slice() : [];
       return { record: record || { id: QUEUE_META_ID, items: items.slice() }, items };
     }
@@ -651,7 +651,7 @@ function runPatch(){
       if(typeof dbPut !== 'function') return;
       const payload = Object.assign({}, record || { id: QUEUE_META_ID }, { items });
       try{ await dbPut('meta', payload); }
-      catch(err){ console && console.warn && console.warn('automation queue persist', err); }
+      catch (err) { console && console.warn && console.warn('automation queue persist', err); }
     }
 
     const contactCache = new Map();
@@ -663,7 +663,7 @@ function runPatch(){
       await openDB();
       let record = null;
       try{ record = await dbGet('contacts', key); }
-      catch(err){ console && console.warn && console.warn('automation contact load', err); }
+      catch (err) { console && console.warn && console.warn('automation contact load', err); }
       if(record && (!record.extras || typeof record.extras !== 'object')) record.extras = {};
       if(record && !Array.isArray(record.extras.timeline)) record.extras.timeline = [];
       contactCache.set(key, record || null);
@@ -673,7 +673,7 @@ function runPatch(){
     async function writeContact(contact){
       if(!contact || typeof dbPut !== 'function') return;
       try{ await dbPut('contacts', contact); }
-      catch(err){ console && console.warn && console.warn('automation contact save', err); }
+      catch (err) { console && console.warn && console.warn('automation contact save', err); }
     }
 
     function ensureEmailModal(){
@@ -687,14 +687,14 @@ function runPatch(){
         if(evt.target && evt.target.closest('[data-close]')){
           evt.preventDefault();
           try{ modal.close(); }
-          catch(_){ modal.removeAttribute('open'); modal.style.display='none'; }
+          catch (_) { modal.removeAttribute('open'); modal.style.display='none'; }
         }
         if(evt.target && evt.target.closest('[data-open-mail]')){
           evt.preventDefault();
           const href = modal.dataset.mailto || '';
           if(!href) return;
           try{ window.location.href = href; }
-          catch(_){ window.open(href, '_self'); }
+          catch (_) { window.open(href, '_self'); }
         }
         if(evt.target && evt.target.closest('[data-copy]')){
           evt.preventDefault();
@@ -713,7 +713,7 @@ function runPatch(){
               document.body.removeChild(ta);
               toastSafe('Copied to clipboard');
             }
-          }catch(_){ toastSafe('Copy failed — select text manually.'); }
+          }catch (_) { toastSafe('Copy failed — select text manually.'); }
         }
       });
       modal.addEventListener('close', ()=>{ modal.removeAttribute('open'); modal.style.display='none'; });
@@ -732,7 +732,7 @@ function runPatch(){
       if(bodyField) bodyField.value = body || '';
       modal.style.display = 'block';
       try{ modal.showModal(); }
-      catch(_){ modal.setAttribute('open',''); }
+      catch (_) { modal.setAttribute('open',''); }
     }
 
     function prepEmail(to, subject, body){
@@ -743,7 +743,7 @@ function runPatch(){
       const content = body || '';
       const href = `mailto:${encodeURIComponent(toStr)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(content)}`;
       try{ window.open(href, '_self'); }
-      catch(_){ window.location.href = href; }
+      catch (_) { window.location.href = href; }
       showEmailModal({ to: toStr, subject: subj, body: content, href });
     }
 
@@ -806,7 +806,7 @@ function runPatch(){
         item.completedAt = now;
         document.dispatchEvent(new CustomEvent('automation:executed', { detail: { id: item.id, contactId: item.contactId } }));
         return { ok:true };
-      }catch(err){
+      }catch (err) {
         item.status = 'error';
         item.error = err && err.message ? err.message : String(err);
         item.completedAt = now;
@@ -861,13 +861,13 @@ function runPatch(){
       let lastDaily = 0;
       const DAILY_KEY = 'automation:lastMasterfixDaily';
       try{ lastDaily = Number(localStorage.getItem(DAILY_KEY)||0); }
-      catch(_){ lastDaily = 0; }
+      catch (_) { lastDaily = 0; }
       function maybeDaily(force){
         const now = Date.now();
         if(force || !lastDaily || (now - lastDaily) > 86400000){
           lastDaily = now;
           try{ localStorage.setItem(DAILY_KEY, String(now)); }
-          catch(_){ }
+          catch (_) { }
           scheduleAutomationRunner();
         }
       }
@@ -911,7 +911,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_masterfix'] = 'ok';
     log('[patch_2025-09-27_masterfix.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_masterfix'] = 'error';
     error('[patch_2025-09-27_masterfix.init] failed', e);
   }

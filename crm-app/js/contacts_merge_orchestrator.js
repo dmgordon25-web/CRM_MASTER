@@ -195,18 +195,18 @@ export async function openContactsMergeByIds(idA, idB) {
         // Clear selection and repaint once
         try {
           if (typeof window.Selection?.clear === "function") window.Selection.clear("merge");
-        } catch(_) {}
+        } catch (_) {}
         try {
           if (typeof window.SelectionService?.clear === "function") window.SelectionService.clear("merge");
-        } catch(_) {}
+        } catch (_) {}
         try {
           const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge" }});
           window.dispatchEvent(evt);
-        } catch(_) {}
+        } catch (_) {}
         try {
           const detail = { source: "contacts:merge", winnerId, loserId, rewired };
           window.dispatchAppDataChanged?.(detail);
-        } catch(_) {}
+        } catch (_) {}
 
         finish({ status: "ok", winnerId, loserId, merged, rewired });
       } catch (err) {
@@ -221,12 +221,12 @@ export async function openContactsMergeByIds(idA, idB) {
           await dbDeleteSafe("contacts", loserId);
 
           // Clear selection and repaint once
-          try { window.Selection?.clear?.(); } catch(_) {}
+          try { window.Selection?.clear?.(); } catch (_) {}
           try {
             const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge" }});
             window.dispatchEvent(evt);
-          } catch(_) {}
-          try { window.dispatchAppDataChanged?.("contacts:merge"); } catch(_) {}
+          } catch (_) {}
+          try { window.dispatchAppDataChanged?.("contacts:merge"); } catch (_) {}
 
           finish({ status: "ok", winnerId, loserId, merged });
         } catch (err) {

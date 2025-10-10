@@ -4,7 +4,7 @@ const EVT = "notifications:changed";
 const KEY = "notifications:queue";
 
 function safeParse(json) {
-  try { return JSON.parse(json); } catch(_) { return null; }
+  try { return JSON.parse(json); } catch (_) { return null; }
 }
 
 function readStorage() {
@@ -12,11 +12,11 @@ function readStorage() {
     const raw = localStorage.getItem(KEY);
     const arr = safeParse(raw);
     return Array.isArray(arr) ? arr : [];
-  } catch(_) { return []; }
+  } catch (_) { return []; }
 }
 
 function writeStorage(list) {
-  try { localStorage.setItem(KEY, JSON.stringify(list || [])); } catch(_) {}
+  try { localStorage.setItem(KEY, JSON.stringify(list || [])); } catch (_) {}
 }
 
 function normalizeItem(x) {
@@ -39,7 +39,7 @@ const Notifier = (function() {
 
   function emit() {
     writeStorage(queue);
-    try { window.dispatchEvent(new CustomEvent(EVT)); } catch(_) {}
+    try { window.dispatchEvent(new CustomEvent(EVT)); } catch (_) {}
   }
 
   return {
@@ -73,8 +73,8 @@ const Notifier = (function() {
       emit(); return n;
     },
     onChanged(handler) {
-      try { window.addEventListener(EVT, handler); } catch(_) {}
-      return () => { try { window.removeEventListener(EVT, handler); } catch(_) {} };
+      try { window.addEventListener(EVT, handler); } catch (_) {}
+      return () => { try { window.removeEventListener(EVT, handler); } catch (_) {} };
     }
   };
 })();

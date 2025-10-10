@@ -10,7 +10,7 @@
         debug = true;
       }
     }
-  }catch(_err){ debug = false; }
+  }catch (_err) { debug = false; }
   const existing = global.__ENV__ && typeof global.__ENV__ === 'object'
     ? global.__ENV__
     : {};
@@ -22,7 +22,7 @@
     if(global.location && typeof global.location.search === 'string'){
       params = new URLSearchParams(global.location.search);
     }
-  }catch(_err){ params = null; }
+  }catch (_err) { params = null; }
 
   const hasDevProp = Object.prototype.hasOwnProperty.call(existing, 'DEV');
   if(!hasDevProp || existing.DEV === undefined || existing.DEV === null){
@@ -44,7 +44,7 @@
     let workbenchStorage = null;
     try{
       workbenchStorage = store ? store.getItem('WORKBENCH') : null;
-    }catch(_err){ workbenchStorage = null; }
+    }catch (_err) { workbenchStorage = null; }
     const workbenchFromStorage = isTruthyFlag(workbenchStorage);
     const workbenchQuery = params && params.has('workbench')
       ? isTruthyFlag(params.get('workbench'))

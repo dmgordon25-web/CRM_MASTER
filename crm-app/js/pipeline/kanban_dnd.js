@@ -47,7 +47,7 @@ function cards(){
   const list = Array.from(root.querySelectorAll('[data-id].kanban-card, [data-id][data-type="contact"], .kanban-card [data-id]'))
     .map(el => el.closest('[data-id]'));
   // make draggable
-  list.forEach(el => { try{ el.setAttribute('draggable','true'); }catch(_){ } });
+  list.forEach(el => { try{ el.setAttribute('draggable','true'); }catch (_) { } });
   return list.filter(Boolean);
 }
 
@@ -89,7 +89,7 @@ async function persistStage(contactId, newStage){
   let dbm = null;
   try {
     dbm = await import('/js/db.js');
-  } catch(_err) {
+  } catch (_err) {
     dbm = null;
   }
 
@@ -131,7 +131,7 @@ async function persistStage(contactId, newStage){
   let row = null;
   try {
     row = await get(contactId);
-  } catch(_err) {
+  } catch (_err) {
     row = null;
   }
   if(!row) return false;
@@ -142,7 +142,7 @@ async function persistStage(contactId, newStage){
   row.updatedAt = Date.now();
   try {
     await put(row);
-  } catch(_err) {
+  } catch (_err) {
     return false;
   }
   pending.add(contactId);
@@ -187,10 +187,10 @@ function installDnD(){
         if(card && lane){
           const list = lane.querySelector('[data-list], .lane-list, .kanban-list, .cards');
           if(list) list.appendChild(card);
-          try{ card.dataset.stage = laneKey; }catch(_){ }
+          try{ card.dataset.stage = laneKey; }catch (_) { }
         }
       }
-    }catch(_){ }
+    }catch (_) { }
   });
 }
 
@@ -213,5 +213,5 @@ try {
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
     window.RenderGuard.registerHook(() => wireKanbanDnD());
   }
-} catch(_) {}
+} catch (_) {}
 

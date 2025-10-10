@@ -392,7 +392,7 @@
       const search=container.querySelector('#f-q');
       if(search){
         try{ search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
-        catch(_err){}
+        catch (_err) {}
       }
     });
   }

@@ -65,7 +65,7 @@
           await dbPut('partners', { id, name:'None', bps:0, createdAt: new Date().toISOString() });
         }
         return id;
-      }catch(e){ console && console.warn && console.warn('ensureNonePartner failed', e); return 'partner-none'; }
+      }catch (e) { console && console.warn && console.warn('ensureNonePartner failed', e); return 'partner-none'; }
     }
 
     // Add Contact fallback
@@ -112,8 +112,8 @@
           await dbPut('contacts', c);
           root.classList.add('hidden');
           document.dispatchEvent(new Event('app:data:changed'));
-          if (typeof renderAll === 'function') try { await renderAll(); } catch(_){}
-        }catch(e){ console && console.error && console.error('Add contact failed', e); }
+          if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
+        }catch (e) { console && console.error && console.error('Add contact failed', e); }
       });
       foot.appendChild(cancel); foot.appendChild(save);
     }
@@ -175,7 +175,7 @@
           root.classList.add('hidden');
           if(typeof renderAll === 'function'){
             try{ await renderAll(); }
-            catch(_err){}
+            catch (_err) {}
           }
           if(typeof window.softDelete !== 'function'){
             const detail = {
@@ -197,7 +197,7 @@
               });
             }
           }
-        }catch(e){
+        }catch (e) {
           console && console.error && console.error('Delete partner failed', e);
         }
       });
@@ -208,8 +208,8 @@
           await dbPut('partners', p);
           root.classList.add('hidden');
           document.dispatchEvent(new Event('app:data:changed'));
-          if (typeof renderAll === 'function') try { await renderAll(); } catch(_){}
-        }catch(e){ console && console.error && console.error('Save partner failed', e); }
+          if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
+        }catch (e) { console && console.error && console.error('Save partner failed', e); }
       });
       foot.appendChild(cancel); foot.appendChild(del); foot.appendChild(save);
     }
@@ -229,5 +229,5 @@
       if(btn){ const id = btn.getAttribute('data-edit-partner'); if(id) openEditPartner(id); }
     });
 
-  }catch(e){ try{ console.error('ui_shims error', e); }catch(_u){} }
+  }catch (e) { try{ console.error('ui_shims error', e); }catch (_u) {} }
 })();

@@ -84,10 +84,10 @@ function runPatch(){
             const store = tx.objectStore(REL_STORE);
             let result;
             try{ result = handler(store); }
-            catch(err){ reject(err); return; }
+            catch (err) { reject(err); return; }
             tx.oncomplete = ()=> resolve(result);
             tx.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -108,7 +108,7 @@ function runPatch(){
               resolve(rows.map(cloneEdge).filter(Boolean));
             };
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -126,7 +126,7 @@ function runPatch(){
               resolve(row ? cloneEdge(row) : null);
             };
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -139,7 +139,7 @@ function runPatch(){
             const request = store.add(payload);
             request.onsuccess = ()=> resolve(cloneEdge(payload));
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -152,7 +152,7 @@ function runPatch(){
             const request = store.put(payload);
             request.onsuccess = ()=> resolve(cloneEdge(payload));
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -166,7 +166,7 @@ function runPatch(){
             const request = store.delete(key);
             request.onsuccess = ()=> resolve(true);
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -179,7 +179,7 @@ function runPatch(){
             const request = index.count(value);
             request.onsuccess = ()=> resolve(Number(request.result) || 0);
             request.onerror = e => reject(e && e.target && e.target.error || e);
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
     }
@@ -194,7 +194,7 @@ function runPatch(){
             }else{
               document.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
             }
-          }catch(err){
+          }catch (err) {
             if(console && console.warn) console.warn('relationships dispatch failed', err);
           }
           resolve();
@@ -213,7 +213,7 @@ function runPatch(){
       try{
         const payload = Object.assign({ summary, ts: now(), topic: 'relationships' }, meta || {});
         logger(payload);
-      }catch(err){
+      }catch (err) {
         if(console && console.warn) console.warn('relationships log failed', err);
       }
     }
@@ -342,7 +342,7 @@ function runPatch(){
               handle(fromIndex.getAll(id), id, true);
               handle(toIndex.getAll(id), id, false);
             });
-          }catch(err){ reject(err); }
+          }catch (err) { reject(err); }
         });
       });
       return map;
@@ -464,7 +464,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_contact_linking_5A'] = 'ok';
     log('[patch_2025-09-27_contact_linking_5A.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_contact_linking_5A'] = 'error';
     error('[patch_2025-09-27_contact_linking_5A.init] failed', e);
   }

@@ -22,7 +22,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
           : console.log;
       try{
         (log || console.log).call(console, `[selftest] ${kind}`, message);
-      }catch(_err){
+      }catch (_err) {
         console.log('[selftest]', kind, message);
       }
     }
@@ -148,7 +148,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
     if(window.__BOOT_DONE__ && typeof window.__BOOT_DONE__.then === 'function'){
       try{
         return await window.__BOOT_DONE__;
-      }catch(err){
+      }catch (err) {
         console.error('Selftest: boot failed', err);
         addDiagnostic('fail', 'Boot failed — see console for details.');
         throw err;
@@ -162,7 +162,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
     const issues = [];
     try{
       await waitForBootCompletion();
-    }catch(_){
+    }catch (_) {
       ok = false;
       issues.push('Boot did not complete successfully.');
     }
@@ -443,7 +443,7 @@ async function assertSingleRepaintOnDataChanged(){
     }
 
     addDiagnostic(kind, message);
-  }catch(err){
+  }catch (err) {
     addDiagnostic('fail','Repaint tripwire failed: ' + (err && err.message || err));
   }finally{
     if(canObserveFlush){
@@ -467,7 +467,7 @@ async function assertSeedEmitsOne(){
     }else{
       addDiagnostic('skip','SeedDemoData not available; seed tripwire skipped');
     }
-  }catch(err){ addDiagnostic('fail','Seed tripwire failed: ' + (err && err.message || err)); }
+  }catch (err) { addDiagnostic('fail','Seed tripwire failed: ' + (err && err.message || err)); }
   finally{ window.dispatchAppDataChanged = orig;
   }
 }
@@ -483,17 +483,17 @@ async function assertImporterCoalescesOnce(){
       count===1 ? 'Importer batch emitted one app:data:changed'
                 : (count>1 ? `Importer emitted ${count}`
                             : 'Importer did not emit any changes'));
-  }catch(err){ addDiagnostic('warn','Importer tripwire indeterminate: ' + (err && err.message || err)); }
+  }catch (err) { addDiagnostic('warn','Importer tripwire indeterminate: ' + (err && err.message || err)); }
   finally{ window.dispatchAppDataChanged = orig; }
 }
 
 // Run new tripwires in sequence (no flakes)
 (async ()=>{
-  try{ await assertModuleScriptsAreModules(); }catch(_){}
-  try{ assertRenderAll(); }catch(_){}
-  try{ await assertSingleRepaintOnDataChanged(); }catch(_){}
-  try{ await assertSeedEmitsOne(); }catch(_){}
-  try{ await assertImporterCoalescesOnce(); }catch(_){}
+  try{ await assertModuleScriptsAreModules(); }catch (_) {}
+  try{ assertRenderAll(); }catch (_) {}
+  try{ await assertSingleRepaintOnDataChanged(); }catch (_) {}
+  try{ await assertSeedEmitsOne(); }catch (_) {}
+  try{ await assertImporterCoalescesOnce(); }catch (_) {}
 // ==== End Self-Test 2.0 — append-above ====
 // ==== End Self-Test 2.0 — append-above this file’s final “})();” ====
 })();

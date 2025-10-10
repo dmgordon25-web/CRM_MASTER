@@ -57,7 +57,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-10-03_calendar_ics_button'] = 'ok';
     log('[patch_2025-10-03_calendar_ics_button.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-10-03_calendar_ics_button'] = 'error';
     error('[patch_2025-10-03_calendar_ics_button.init] failed', e);
   }

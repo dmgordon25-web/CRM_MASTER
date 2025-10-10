@@ -72,7 +72,7 @@ function runPatch(){
           }else{
             document.dispatchEvent(new CustomEvent('app:data:changed',{detail:payload}));
           }
-        }catch(err){
+        }catch (err) {
           console.warn('linked rollup dispatch failed', err);
         }
       };
@@ -113,7 +113,7 @@ function runPatch(){
       await openDB();
       let rows = [];
       try{ rows = await dbGetAll('contacts'); }
-      catch(err){ console.warn('linked rollup load contacts', err); rows = []; }
+      catch (err) { console.warn('linked rollup load contacts', err); rows = []; }
       const map = new Map();
       const lookup = new Set(ids);
       rows.forEach(row => {
@@ -129,7 +129,7 @@ function runPatch(){
       await openDB();
       let rows = [];
       try{ rows = await dbGetAll('tasks'); }
-      catch(err){ console.warn('linked rollup load tasks', err); rows = []; }
+      catch (err) { console.warn('linked rollup load tasks', err); rows = []; }
       const lookup = new Set(ids.map(normalizeId));
       return rows.filter(row => lookup.has(normalizeId(row && row.contactId)));
     }
@@ -139,7 +139,7 @@ function runPatch(){
       await openDB();
       let record = null;
       try{ record = await dbGet('meta', 'automationsQueue'); }
-      catch(err){ console.warn('linked rollup load queue', err); }
+      catch (err) { console.warn('linked rollup load queue', err); }
       const items = Array.isArray(record && record.items) ? record.items : [];
       const lookup = new Set(ids.map(normalizeId));
       return items.filter(item => lookup.has(normalizeId(item && item.contactId)));
@@ -444,7 +444,7 @@ function runPatch(){
         }
         renderTimeline(timelineList, timelineRows);
         renderTasks(taskList, tasksRows);
-      }catch(err){
+      }catch (err) {
         console.warn('linked rollup apply failed', err);
       }finally{
         state.pendingApply = false;
@@ -621,7 +621,7 @@ function runPatch(){
               }
               if(!winnerId || !loserId || winnerId === loserId) return;
               await emitDataChanged({ topic:'merge:contacts', source:'relationships:merge-wrapper', winnerId, loserId });
-            }catch(err){ console.warn('merge repoint detect failed', err); }
+            }catch (err) { console.warn('merge repoint detect failed', err); }
           });
         }
         return result;
@@ -649,7 +649,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_contact_linking_5C'] = 'ok';
     log('[patch_2025-09-27_contact_linking_5C.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_contact_linking_5C'] = 'error';
     error('[patch_2025-09-27_contact_linking_5C.init] failed', e);
   }

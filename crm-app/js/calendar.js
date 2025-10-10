@@ -84,7 +84,7 @@
     requestAnimationFrame(async ()=>{
       queued = false;
       try{ await renderNow(); }
-      catch(err){ console && console.warn && console.warn('calendar render failed', err); }
+      catch (err) { console && console.warn && console.warn('calendar render failed', err); }
       finally { updateControls(); }
     });
     if(!implReady) showPlaceholder();

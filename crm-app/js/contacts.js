@@ -11,7 +11,7 @@ import { createFormFooter } from './ui/form_footer.js';
   const notify = (msg)=>{
     try{
       if(window.toast) window.toast(msg); else console.log('[contacts]', msg);
-    }catch(_){ console.log('[contacts]', msg); }
+    }catch (_) { console.log('[contacts]', msg); }
   };
 
   const STAGES = [
@@ -160,7 +160,7 @@ import { createFormFooter } from './ui/form_footer.js';
     }
     if(!dlg.__wired){
       dlg.__wired = true;
-      dlg.addEventListener('click', (e)=>{ if(e.target.matches('[data-close]')){ e.preventDefault(); try{ dlg.close(); }catch(_){ dlg.removeAttribute('open'); dlg.style.display='none'; } }});
+      dlg.addEventListener('click', (e)=>{ if(e.target.matches('[data-close]')){ e.preventDefault(); try{ dlg.close(); }catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; } }});
       dlg.addEventListener('close', ()=>{ dlg.removeAttribute('open'); dlg.style.display='none'; });
     }
     return dlg;
@@ -168,12 +168,12 @@ import { createFormFooter } from './ui/form_footer.js';
 
   window.renderContactModal = async function(contactId){
     const dlg = ensureModal();
-    if(dlg.hasAttribute('open')){ try{ dlg.close(); }catch(_){} }
+    if(dlg.hasAttribute('open')){ try{ dlg.close(); }catch (_) {} }
     dlg.style.display='block';
 
     const closeDialog = ()=>{
       try{ dlg.close(); }
-      catch(_){ dlg.removeAttribute('open'); dlg.style.display='none'; }
+      catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; }
     };
 
     await openDB();
@@ -475,7 +475,7 @@ import { createFormFooter } from './ui/form_footer.js';
       let required = [];
       try{
         required = typeof window.requiredDocsFor === 'function' ? await window.requiredDocsFor(loanType) : [];
-      }catch(err){ console.warn('requiredDocsFor', err); }
+      }catch (err) { console.warn('requiredDocsFor', err); }
       let persisted = null;
       let docs = [];
       let missing = '';
@@ -488,7 +488,7 @@ import { createFormFooter } from './ui/form_footer.js';
             docs = (allDocs||[]).filter(d=> String(d.contactId)===String(contactId));
             missing = persisted.missingDocs || '';
           }
-        }catch(err){ console.warn('doc checklist load', err); }
+        }catch (err) { console.warn('doc checklist load', err); }
       }
 
       if(!required.length){
@@ -563,7 +563,7 @@ import { createFormFooter } from './ui/form_footer.js';
         } else if(!options.silent){
           notify('Save this contact to generate the document checklist.');
         }
-      }catch(err){ console.warn('sync docs', err); }
+      }catch (err) { console.warn('sync docs', err); }
       await renderDocChecklist();
     }
 
@@ -588,8 +588,8 @@ import { createFormFooter } from './ui/form_footer.js';
           const bodyText = `${greeting}\n\nTo keep your ${loanLabel} moving, please send the following documents:\n\n${bullets}\n\nYou can upload them to the secure portal or email them back to me.\n\nThank you!`;
           const subject = `Document Request for your ${loanLabel}`;
           const href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
-          try{ window.open(href, '_self'); }catch(_){ window.location.href = href; }
-        }catch(err){ console.warn('email docs', err); notify('Unable to build document request email.'); }
+          try{ window.open(href, '_self'); }catch (_) { window.location.href = href; }
+        }catch (err) { console.warn('email docs', err); notify('Unable to build document request email.'); }
       });
     }
 
@@ -673,7 +673,7 @@ import { createFormFooter } from './ui/form_footer.js';
       try{
         if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
         if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
-      }catch(err){ console.warn('post-save doc sync', err); }
+      }catch (err) { console.warn('post-save doc sync', err); }
       const detail = {
         scope:'contacts',
         contactId:String(u.id||''),
@@ -699,7 +699,7 @@ import { createFormFooter } from './ui/form_footer.js';
       }
     }
     document.dispatchEvent(new CustomEvent('contact:modal:ready',{detail:{dialog:dlg, body}}));
-    try{ dlg.showModal(); }catch(_){ dlg.setAttribute('open',''); }
+    try{ dlg.showModal(); }catch (_) { dlg.setAttribute('open',''); }
   };
 
   document.addEventListener('click', (e)=>{

@@ -70,7 +70,7 @@ function runPatch(){
       try{
         const value = localStorage.getItem('dashboard:mode');
         return value === 'all' ? 'all' : (value === 'today' ? 'today' : null);
-      }catch(_err){
+      }catch (_err) {
         return null;
       }
     }
@@ -79,7 +79,7 @@ function runPatch(){
       if(typeof localStorage === 'undefined') return;
       try{
         if(mode) localStorage.setItem('dashboard:mode', mode);
-      }catch(_err){}
+      }catch (_err) {}
     }
 
     const state = {
@@ -151,7 +151,7 @@ function runPatch(){
     function formatMoney(value){
       try{
         return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(value||0));
-      }catch(_){
+      }catch (_) {
         return '$' + Number(value||0).toFixed(0);
       }
     }
@@ -223,7 +223,7 @@ function runPatch(){
             const record = await dbGet('settings', 'app:settings');
             state.dashboard = normalizeDashboardSettings(record && record.dashboard);
           }
-        }catch(err){
+        }catch (err) {
           console && console.warn && console.warn('dashboard settings load failed', err);
           state.dashboard = normalizeDashboardSettings(null);
         }
@@ -727,7 +727,7 @@ function runPatch(){
       if(!(date instanceof Date)) return 'Anytime';
       try{
         return date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-      }catch(_err){
+      }catch (_err) {
         return date.toISOString().slice(11,16);
       }
     }
@@ -736,7 +736,7 @@ function runPatch(){
       if(!(date instanceof Date)) return '—';
       try{
         return date.toLocaleDateString();
-      }catch(_err){
+      }catch (_err) {
         return date.toISOString().slice(0,10);
       }
     }
@@ -1211,7 +1211,7 @@ function runPatch(){
         if(typeof window.dispatchAppDataChanged === 'function'){
           window.dispatchAppDataChanged({source:'dashboard', action:'task-done', taskId});
         }
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('task done', err);
         if(typeof window.toast === 'function') window.toast('Unable to update task');
       }
@@ -1232,7 +1232,7 @@ function runPatch(){
         if(window.Settings && typeof window.Settings.save === 'function'){
           await window.Settings.save({ dashboard: { mode: normalized } });
         }
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('dashboard mode save failed', err);
       }
     }
@@ -1366,7 +1366,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-26_phase3_dashboard_reports'] = 'ok';
     log('[patch_2025-09-26_phase3_dashboard_reports.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-26_phase3_dashboard_reports'] = 'error';
     error('[patch_2025-09-26_phase3_dashboard_reports.init] failed', e);
   }

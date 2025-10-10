@@ -9,7 +9,7 @@ if (!window.__BOOT_LOADER_MAIN__) {
       await ensureCoreThenPatches({ CORE, PATCHES });
     } catch (err) {
       console.error("[boot/loader] unrecoverable boot failure", err);
-      try { window.showDiagnosticsOverlay && window.showDiagnosticsOverlay(err); } catch(_) {}
+      try { window.showDiagnosticsOverlay && window.showDiagnosticsOverlay(err); } catch (_) {}
     }
   })();
 }

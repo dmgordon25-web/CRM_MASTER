@@ -53,7 +53,7 @@ function runPatch(){
         try{
           const duration = (perfNow() - start).toFixed(2);
           console.debug(`[paint:${type}]${suffix} ${duration}ms`);
-        }catch(err){ console.warn('[paint:debug]', err); }
+        }catch (err) { console.warn('[paint:debug]', err); }
       });
     }
 
@@ -78,7 +78,7 @@ function runPatch(){
         }
         restore();
         return result;
-      }catch(err){
+      }catch (err) {
         restore();
         throw err;
       }
@@ -132,7 +132,7 @@ function runPatch(){
         const next = pendingRenderTasks.shift();
         if(next){
           try{ next(); }
-          catch(err){ console.warn('[render queue]', err); }
+          catch (err) { console.warn('[render queue]', err); }
         }
         if(pendingRenderTasks.length) flushQueue();
       });
@@ -157,7 +157,7 @@ function runPatch(){
             try{
               const result = typeof fn === 'function' ? await fn() : undefined;
               resolve(result);
-            }catch(err){
+            }catch (err) {
               reject(err);
             }finally{
               finalize();
@@ -191,7 +191,7 @@ function runPatch(){
         const entry = {ts: now(), name, detail: detail!=null ? JSON.parse(JSON.stringify(detail)) : null};
         eventLog.push(entry);
         if(eventLog.length > MAX_EVENT_LOG) eventLog.splice(0, eventLog.length - MAX_EVENT_LOG);
-      }catch(_){ eventLog.push({ts: now(), name, detail}); if(eventLog.length > MAX_EVENT_LOG) eventLog.shift(); }
+      }catch (_) { eventLog.push({ts: now(), name, detail}); if(eventLog.length > MAX_EVENT_LOG) eventLog.shift(); }
     }
 
     const listenerMap = new Map();
@@ -201,7 +201,7 @@ function runPatch(){
       if(typeof fn !== 'function') return origAdd(name, fn, opts);
       const wrapped = function(){
         try{ return fn.apply(this, arguments); }
-        catch(err){ console.warn('[listener]', name, err); }
+        catch (err) { console.warn('[listener]', name, err); }
       };
       listenerMap.set(fn, wrapped);
       if(!listenersByEvent.has(name)) listenersByEvent.set(name, new Set());
@@ -224,7 +224,7 @@ function runPatch(){
       try{
         const params = new URLSearchParams(window.location.search || '');
         return params.get('debug') === '1';
-      }catch(_){ return false; }
+      }catch (_) { return false; }
     })();
 
     function logListenerDiagnosticsOnce(){
@@ -289,7 +289,7 @@ function runPatch(){
       window.__SKIP_GLOBAL_RENDER__ = true;
       try{
         document.dispatchEvent(new CustomEvent('app:data:changed',{detail:payload}));
-      }catch(err){ console.warn('[partial:data]', err); }
+      }catch (err) { console.warn('[partial:data]', err); }
       finally{
         queueMicro(()=>{ window.__SKIP_GLOBAL_RENDER__ = prevSkip; });
         if(lanes.length) logPaint('lane', lanes.join('|'), start);
@@ -325,7 +325,7 @@ function runPatch(){
       if(name === EVT.stageChanged) rememberStageMutation(payload);
       try{
         document.dispatchEvent(new CustomEvent(name,{detail:payload}));
-      }catch(err){ console.warn('[dispatch]', name, err); }
+      }catch (err) { console.warn('[dispatch]', name, err); }
     }
     window.dispatchTypedEvent = dispatch;
 
@@ -469,7 +469,7 @@ function runPatch(){
         pendingSync = raf(()=>{
           pendingSync = null;
           try{ originalSync(); }
-          catch(err){ console.warn('[selection sync]', err); }
+          catch (err) { console.warn('[selection sync]', err); }
         });
       }
       svc.emit = function(){
@@ -510,7 +510,7 @@ function runPatch(){
       if(!navBtn) return;
       const view = navBtn.getAttribute('data-nav') || '';
       try{ document.dispatchEvent(new CustomEvent('app:navigate',{detail:{view}})); }
-      catch(err){ console.warn('[app:navigate]', err); }
+      catch (err) { console.warn('[app:navigate]', err); }
       if(window.SelectionService && typeof window.SelectionService.clear === 'function'){
         window.SelectionService.clear();
       }
@@ -583,7 +583,7 @@ function runPatch(){
       window.enqueueAutomation = async function(){
         try{
           return await originalEnqueue.apply(this, arguments);
-        }catch(err){
+        }catch (err) {
           toastSafe('That didn’t stick—rolled back');
           throw err;
         }
@@ -610,7 +610,7 @@ function runPatch(){
             await openDB();
             let queueRecord = null;
             try{ queueRecord = await dbGet('meta', QUEUE_META_ID); }
-            catch(err){ console.warn('automation queue load', err); }
+            catch (err) { console.warn('automation queue load', err); }
             const nowTs = Date.now();
             const items = Array.isArray(queueRecord?.items) ? queueRecord.items.slice() : [];
             const filtered = [];
@@ -641,7 +641,7 @@ function runPatch(){
             if(mutated && typeof dbPut === 'function'){
               const nextRecord = Object.assign({}, queueRecord || {id:QUEUE_META_ID}, {items: filtered});
               try{ await dbPut('meta', nextRecord); }
-              catch(err){ console.warn('automation queue prune', err); }
+              catch (err) { console.warn('automation queue prune', err); }
             }
             if(shouldKick && !kickDetail){
               kickDetail = {source:'phase4:queue'};
@@ -661,14 +661,14 @@ function runPatch(){
           shouldKick = true;
           dueCount = (dueCount || 0) + 1;
           kickDetail = {source:'phase4:scheduled'};
-        }catch(err){ console.warn('automation catch-up', err); }
+        }catch (err) { console.warn('automation catch-up', err); }
         finally{
           try{
             if(shouldKick){
               const detail = Object.assign({due: dueCount, ts: Date.now()}, kickDetail || {source:'phase4'});
               document.dispatchEvent(new CustomEvent('automation:catchup',{detail}));
             }
-          }catch(err){ console.warn('automation catch-up notify', err); }
+          }catch (err) { console.warn('automation catch-up notify', err); }
           triggerCatchUp.__running = false;
         }
       }
@@ -681,7 +681,7 @@ function runPatch(){
             localStorage.setItem(DAILY_KEY, String(nowTs));
             triggerCatchUp();
           }
-        }catch(err){ console.warn('automation daily tick', err); }
+        }catch (err) { console.warn('automation daily tick', err); }
       }
 
       ensureDailyTick(true);
@@ -697,7 +697,7 @@ function runPatch(){
       try{
         if(new URLSearchParams(location.search).get('dev')==='1') return true;
         if(localStorage.getItem('APP_DEV') === '1') return true;
-      }catch(err){ console.warn('dev detect', err); }
+      }catch (err) { console.warn('dev detect', err); }
       return false;
     }
 
@@ -712,7 +712,7 @@ function runPatch(){
         try{
           await fn();
           results.push({name, ok:true});
-        }catch(err){
+        }catch (err) {
           results.push({name, ok:false, error:err});
           throw err;
         }
@@ -810,11 +810,11 @@ function runPatch(){
           }finally{
             if(partnerRemoved){
               try{ await dbPut('partners', partnerRecord); }
-              catch(err){ console.warn('smoke partner restore', err); }
+              catch (err) { console.warn('smoke partner restore', err); }
             }
             if(contactMutated){
               try{ await dbPut('contacts', linked); }
-              catch(err){ console.warn('smoke contact restore', err); }
+              catch (err) { console.warn('smoke contact restore', err); }
             }
           }
         });
@@ -829,7 +829,7 @@ function runPatch(){
           assert(after !== '', 'Dashboard KPIs empty after repaint');
           assert(before !== after || host.childElementCount > 0, 'Dashboard KPIs did not refresh');
         });
-      }catch(err){ /* fallthrough for reporting */ }
+      }catch (err) { /* fallthrough for reporting */ }
 
       const failed = results.filter(r=>!r.ok);
       toastSafe(failed.length ? `Smoke tests failed: ${failed.map(r=>r.name).join(', ')}` : 'Smoke tests passed');
@@ -894,7 +894,7 @@ function runPatch(){
       window[name] = async function(){
         try{
           return await fn.apply(this, arguments);
-        }catch(err){
+        }catch (err) {
           toastSafe('That didn’t stick—rolled back');
           console.warn(name, err);
           throw err;
@@ -926,7 +926,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-26_phase4_polish_regression'] = 'ok';
     log('[patch_2025-09-26_phase4_polish_regression.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-26_phase4_polish_regression'] = 'error';
     error('[patch_2025-09-26_phase4_polish_regression.init] failed', e);
   }

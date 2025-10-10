@@ -55,14 +55,14 @@ function runPatch(){
         if(typeof window.toast === 'function') window.toast(message);
         else if(typeof window.notify === 'function') window.notify(message);
         else console.log('[doccenter2]', message);
-      }catch(err){ console.warn('doccenter2 notify failed', err); }
+      }catch (err) { console.warn('doccenter2 notify failed', err); }
     }
 
     function logActivityNote(contactId, summary){
       const logger = window.logActivity || window.addActivity || window.recordActivity || window.activityLog;
       if(typeof logger === 'function'){
         try{ logger({ contactId, summary, ts: Date.now() }); }
-        catch(err){ console.warn('doccenter2 activity log failed', err); }
+        catch (err) { console.warn('doccenter2 activity log failed', err); }
       }
     }
 
@@ -79,7 +79,7 @@ function runPatch(){
               const key = trimmed.toLowerCase();
               if(!names.has(key)) names.set(key, trimmed);
             });
-          }catch(err){ console.warn('doccenter2 catalog fetch', err); }
+          }catch (err) { console.warn('doccenter2 catalog fetch', err); }
         }
       }
       try{
@@ -91,7 +91,7 @@ function runPatch(){
           const key = trimmed.toLowerCase();
           if(!names.has(key)) names.set(key, trimmed);
         });
-      }catch(err){ console.warn('doccenter2 catalog documents', err); }
+      }catch (err) { console.warn('doccenter2 catalog documents', err); }
       return names;
     }
 
@@ -108,7 +108,7 @@ function runPatch(){
         try{
           const dt = new Date(doc.updatedAt);
           if(!Number.isNaN(dt.getTime())) parts.push(`Updated ${dt.toLocaleString()}`);
-        }catch(_){ /* noop */ }
+        }catch (_) { /* noop */ }
       }
       if(doc.source){
         const label = String(doc.source).trim();
@@ -123,7 +123,7 @@ function runPatch(){
       try{
         const all = await dbGetAll('documents');
         list = (all||[]).filter(doc => doc && String(doc.contactId) === String(contactId));
-      }catch(err){ console.warn('doccenter2 load docs', err); }
+      }catch (err) { console.warn('doccenter2 load docs', err); }
       return list.map(raw => ({
         id: String(raw && raw.id || makeId()),
         contactId: raw ? raw.contactId : contactId,
@@ -140,7 +140,7 @@ function runPatch(){
       if(!contactId) return false;
       let contact = null;
       try{ contact = await dbGet('contacts', contactId); }
-      catch(err){ console.warn('doccenter2 contact fetch', err); }
+      catch (err) { console.warn('doccenter2 contact fetch', err); }
       if(!contact) return false;
       const options = Object.assign({ recomputeMissing:true, touch:false }, opts||{});
       let touched = false;
@@ -152,7 +152,7 @@ function runPatch(){
             contact.updatedAt = Date.now();
             touched = true;
           }
-        }catch(err){ console.warn('doccenter2 compute missing', err); }
+        }catch (err) { console.warn('doccenter2 compute missing', err); }
       }
       if(options.touch){
         contact.updatedAt = Date.now();
@@ -160,7 +160,7 @@ function runPatch(){
       }
       if(touched){
         try{ await dbPut('contacts', contact); }
-        catch(err){ console.warn('doccenter2 contact update', err); }
+        catch (err) { console.warn('doccenter2 contact update', err); }
       }
       return touched;
     }
@@ -303,7 +303,7 @@ function runPatch(){
         clearKeyboardDrag(state);
         state.refresh({ docs, focusDocId: doc.id });
         logActivityNote(state.contactId(), `${doc.name} marked ${STATUS_LABELS[targetStatus]}`);
-      }catch(err){
+      }catch (err) {
         console.warn('doccenter2 keyboard drop', err);
         inform('Unable to move document.');
         clearKeyboardDrag(state);
@@ -364,7 +364,7 @@ function runPatch(){
           if(prevStatus !== nextStatus){
             logActivityNote(state.contactId(), `${current.name} marked ${STATUS_LABELS[nextStatus]}`);
           }
-        }catch(err){
+        }catch (err) {
           console.warn('doccenter2 status change', err);
           inform('Unable to update document status.');
           current.status = prevStatus;
@@ -484,7 +484,7 @@ function runPatch(){
           const docs = await updateDoc(state, doc, { status: nextStatus }, { touchContact:true, recompute:true });
           state.refresh({ docs, focusDocId: doc.id });
           logActivityNote(state.contactId(), `${doc.name} marked ${STATUS_LABELS[nextStatus]}`);
-        }catch(err){
+        }catch (err) {
           console.warn('doccenter2 drop', err);
           inform('Unable to move document.');
         }
@@ -684,13 +684,13 @@ function runPatch(){
         let contact = opts && opts.contact ? opts.contact : null;
         if(!contact){
           try{ contact = await dbGet('contacts', contactId); }
-          catch(err){ console.warn('doccenter2 load contact', err); contact = null; }
+          catch (err) { console.warn('doccenter2 load contact', err); contact = null; }
         }
         state.docs = docs;
         state.contact = contact;
         state.loading = false;
         renderBoard(state, opts);
-      }catch(err){
+      }catch (err) {
         state.loading = false;
         throw err;
       }
@@ -786,7 +786,7 @@ function runPatch(){
           const docs = await insertDoc(state, newDoc);
           input.value = '';
           await state.refresh({ docs, focusDocId: newDoc.id });
-        }catch(err){
+        }catch (err) {
           console.warn('doccenter2 add', err);
           inform('Unable to add document.');
         }
@@ -933,7 +933,7 @@ function runPatch(){
           if(contact && contact.id && result > 0){
             dispatchDataChanged({ store:'documents', contactId: contact.id, ensured: result });
           }
-        }catch(err){ console.warn('doccenter2 ensureRequiredDocs dispatch', err); }
+        }catch (err) { console.warn('doccenter2 ensureRequiredDocs dispatch', err); }
         return result;
       };
       wrapped.__doccenter2Wrapped = true;
@@ -958,7 +958,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_doccenter2'] = 'ok';
     log('[patch_2025-09-27_doccenter2.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_doccenter2'] = 'error';
     error('[patch_2025-09-27_doccenter2.init] failed', e);
   }

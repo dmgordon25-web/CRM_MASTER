@@ -35,7 +35,7 @@
       const settings = await dbGetAll('settings').catch(()=>[]);
       const record = (Array.isArray(settings) ? settings : []).find(row => row && row.id === 'docRules');
       if(record && record.rules && typeof record.rules === 'object') return record.rules;
-    }catch(err){ console && console.warn && console.warn('doc rules overrides', err); }
+    }catch (err) { console && console.warn && console.warn('doc rules overrides', err); }
     return null;
   }
 
@@ -78,7 +78,7 @@
 
   function nextDocId(contactId){
     try{ if(typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); }
-    catch(_){ /* noop */ }
+    catch (_) { /* noop */ }
     const rand = Math.random().toString(16).slice(2, 10);
     return `doc-${contactId}-${Date.now()}-${rand}`;
   }
@@ -117,7 +117,7 @@
       try{
         await openDB();
         await dbBulkPut('documents', toCreate);
-      }catch(err){ console && console.warn && console.warn('ensureRequiredDocs bulk', err); }
+      }catch (err) { console && console.warn && console.warn('ensureRequiredDocs bulk', err); }
     }
     if(options.returnDetail || options.useCache || Array.isArray(options.docs)){
       return {created: toCreate.length, docs};
@@ -159,7 +159,7 @@
         try{
           await openDB();
           await dbPut('contacts', contact);
-        }catch(err){ console && console.warn && console.warn('doccenter missing docs put', err); }
+        }catch (err) { console && console.warn && console.warn('doccenter missing docs put', err); }
       }
       result.missingChanged = true;
     }
@@ -189,7 +189,7 @@
       if((contact.missingDocs || '') !== normalized){
         const updated = Object.assign({}, contact, {missingDocs: normalized, updatedAt: Date.now()});
         try{ await dbPut('contacts', updated); writes++; }
-        catch(err){ console && console.warn && console.warn('doccenter missing docs persist', err); }
+        catch (err) { console && console.warn && console.warn('doccenter missing docs persist', err); }
       }
     }
     return writes;
@@ -212,7 +212,7 @@
     for(const contact of contacts || []){
       if(!contact || !contact.loanType) continue;
       try{ await syncContactDocChecklist(contact, grouped.get(String(contact.id)) || []); }
-      catch(err){ console && console.warn && console.warn('doccenter hydrate contact', err); }
+      catch (err) { console && console.warn && console.warn('doccenter hydrate contact', err); }
     }
   }
 
@@ -231,7 +231,7 @@
       window.renderAll = async function(){
         const result = await originalRenderAll.apply(this, arguments);
         try{ await hydrateAllContacts(); }
-        catch(err){ console && console.warn && console.warn('doccenter renderAll hydrate', err); }
+        catch (err) { console && console.warn && console.warn('doccenter renderAll hydrate', err); }
         return result;
       };
     }

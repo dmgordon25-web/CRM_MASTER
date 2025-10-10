@@ -77,7 +77,7 @@
     if(tagEl) tagEl.value = '';
     if(dateEl){
       try{ dateEl.value = new Date().toISOString().slice(0,10); }
-      catch(_err){}
+      catch (_err) {}
     }
     if(saveBtn) saveBtn.disabled = true;
     dlg.classList.remove('hidden');
@@ -130,7 +130,7 @@
           const count = await bulkAppendLog(list, text, when, tag);
           toast(`Logged to ${count} contact${count===1?'':'s'}`);
           finish({ status:'ok', count, detail:{ scope:'contacts', action:'bulk-log', count, ids: list.slice().map(val => String(val)) } });
-        }catch(err){
+        }catch (err) {
           console.error('bulkAppendLog', err);
           toast('Failed to log activity');
           finish({ status:'error', error: err });
