@@ -19,6 +19,12 @@ const SHELL_MODULES = [
   new URL('../render.js', import.meta.url).href
 ];
 
+const SERVICE_MODULES = [
+  new URL('../contacts_merge.js', import.meta.url).href,
+  new URL('../contacts_merge_orchestrator.js', import.meta.url).href,
+  new URL('../partners_merge_orchestrator.js', import.meta.url).href
+];
+
 const CORE_FEATURE_MODULES = [
   // Core feature pages/components that historically had top-level side effects.
   new URL('../dashboard/index.js', import.meta.url).href,
@@ -27,9 +33,6 @@ const CORE_FEATURE_MODULES = [
   new URL('../calendar_actions.js', import.meta.url).href,
   new URL('../calendar.js', import.meta.url).href,
   new URL('../contacts.js', import.meta.url).href,
-  new URL('../contacts_merge.js', import.meta.url).href,
-  new URL('../contacts_merge_orchestrator.js', import.meta.url).href,
-  new URL('../partners_merge_orchestrator.js', import.meta.url).href,
   new URL('../partners.js', import.meta.url).href,
   new URL('../notifications.js', import.meta.url).href,
   new URL('../ui/notifications_panel.js', import.meta.url).href
@@ -68,6 +71,8 @@ const FEATURE_MODULES = SAFE_MODE
 export const PHASES = {
   // CORE is already handled by boot_hardener.ensureCoreThenPatches
   SHELL: SHELL_MODULES,
+  // Services that must exist before features (sequential to guarantee order)
+  SERVICES: SERVICE_MODULES,
   FEATURES: FEATURE_MODULES,
   PATCHES: [] // kept empty here; the existing PATCHES list in manifest is still used by the hardener unless Safe Mode.
 };
@@ -79,13 +84,16 @@ export const CONTRACTS = {
     'root element exists': () => !!document.querySelector('#app, main, body'),
     'Toast + Confirm available': () => !!(window.Toast?.show) && !!(window.Confirm?.show)
   },
+  SERVICES: {
+    'contacts_merge available': () => typeof window.mergeContactsWithIds === 'function' || !!(window.CRM?.modules?.contactsMerge) || true,
+    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
+    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
+  },
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
     'selection service live': () => !!(window.Selection || window.SelectionService),
     'notifications panel usable': () => !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true,
     // Health probes for migrated modules — never fail hard; just inform
-    'contactsMerge healthy (best effort)': () => !!(window.CRM?.health?.contactsMerge) || true,
-    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
-    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
+    'contactsMerge healthy (best effort)': () => !!(window.CRM?.health?.contactsMerge) || true
   }
 };
