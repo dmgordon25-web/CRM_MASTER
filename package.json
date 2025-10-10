@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "lint-lite": "node scripts/run-eslint-lite.cjs -c crm-app/.eslintrc-lite.json crm-app/js/contacts_merge.js",
     "ci": "npm run ci:unit",
     "ci:unit": "vitest run --reporter=basic --bail 1 --watch=false",
     "audit": "node devtools/audit.mjs",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",
+    "eslint": "^9.0.0",
     "fake-indexeddb": "^5.0.2",
     "vitest": "^0.34.6"
   }
