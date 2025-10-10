@@ -328,7 +328,7 @@ async function assertModuleScriptsAreModules(){
   scripts.forEach(s => {
     const src = s.getAttribute('src') || '';
     if(!src) return;
-    let u; try { u = new URL(src, baseUrl); } catch { return; }
+    let u; try { u = new URL(src, baseUrl); } catch (e) { return; }
     const same = u.origin === baseUrl.origin;
     const path = (u.pathname || '').toLowerCase();
     const ours = same && (path.includes('/js/') || path.includes('/patches/'));

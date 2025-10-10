@@ -15,7 +15,7 @@
     if (Array.isArray(ids) && ids.length){
       for (const id of ids){
         let ev = null;
-        try { ev = await window.db?.get?.("events", id); } catch {}
+        try { ev = await window.db?.get?.("events", id); } catch (e) {}
         if (ev) list.push(ev);
       }
       return list;

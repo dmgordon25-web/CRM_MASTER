@@ -11,7 +11,7 @@ const postLog = (kind, payload) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind, ts: Date.now(), ...payload })
     }).catch(()=>{});
-  } catch {}
+  } catch (e) {}
 };
 
 const splash = {
@@ -29,7 +29,7 @@ function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
     return truthyFlag(q.get('safe')) || truthyFlag(localStorage.getItem('SAFE'));
-  } catch { return false; }
+  } catch (e) { return false; }
 }
 
 function corePrereqsReady(w) {

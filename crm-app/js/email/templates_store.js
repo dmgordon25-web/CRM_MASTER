@@ -21,7 +21,7 @@ function load() {
         STATE = parsed;
       }
     }
-  } catch {}
+  } catch (e) {}
   if (!Array.isArray(STATE.items)) STATE.items = [];
   sortItems();
 }
@@ -31,7 +31,7 @@ function saveDebounced() {
   writeTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(STATE));
-    } catch {}
+    } catch (e) {}
   }, 200);
 }
 
@@ -39,7 +39,7 @@ function emit({ persist = true } = {}) {
   SUBSCRIBERS.forEach((fn) => {
     try {
       fn(STATE);
-    } catch {}
+    } catch (e) {}
   });
   if (persist) saveDebounced();
 }
@@ -100,7 +100,7 @@ export const Templates = {
     SUBSCRIBERS.add(fn);
     try {
       fn(STATE);
-    } catch {}
+    } catch (e) {}
     return () => SUBSCRIBERS.delete(fn);
   },
   exportJSON() {
@@ -116,7 +116,7 @@ export const Templates = {
       sortItems();
       emit();
       return true;
-    } catch {
+    } catch (e) {
       return false;
     }
   },

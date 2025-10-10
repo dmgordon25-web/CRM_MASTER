@@ -1,26 +1,49 @@
 import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from '/js/pipeline/stages.js';
 
+// Normalize a kanban stage/key to a safe, comparable form.
+function normalizeKey(x) {
+  return String(x || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')        // strip accents consistently
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w ]/g, '')
+    .replace(/\s/g, '_');
+}
+
 let WIRED = false;
 let WIRED_BOARD = null;
 
 const STAGE_LABEL_SET = new Set(PIPELINE_STAGES);
 const KEY_TO_LABEL = new Map();
 PIPELINE_STAGES.forEach((label) => {
-  KEY_TO_LABEL.set(stageKeyFromLabel(label), label);
+  const stageKey = stageKeyFromLabel(label);
+  KEY_TO_LABEL.set(stageKey, label);
+  KEY_TO_LABEL.set(normalizeKey(label), label);
+  KEY_TO_LABEL.set(label.toLowerCase(), label);
 });
 
 function normStage(s){
   if(!s) return null;
   const raw = String(s).trim();
   if(!raw) return null;
+
   const normalized = NORMALIZE_STAGE(raw);
-  if(STAGE_LABEL_SET.has(normalized)) return normalized;
+  if (normalized && STAGE_LABEL_SET.has(normalized)) return normalized;
+
+  const normalizedKey = normalizeKey(raw);
+  if(KEY_TO_LABEL.has(normalizedKey)) return KEY_TO_LABEL.get(normalizedKey);
+
+  const stageKey = stageKeyFromLabel(raw);
+  if(stageKey && KEY_TO_LABEL.has(stageKey)) return KEY_TO_LABEL.get(stageKey);
+
   const lowered = raw.toLowerCase();
   if(KEY_TO_LABEL.has(lowered)) return KEY_TO_LABEL.get(lowered);
+
   const slug = lowered.replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-+|-+$/g,'');
   if(KEY_TO_LABEL.has(slug)) return KEY_TO_LABEL.get(slug);
-  const normalized = NORMALIZE_STAGE(raw);
-  if(STAGE_LABEL_SET.has(normalized)) return normalized;
+
   return null;
 }
 

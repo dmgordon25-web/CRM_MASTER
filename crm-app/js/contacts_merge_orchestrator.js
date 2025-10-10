@@ -183,52 +183,31 @@ export async function openContactsMergeByIds(idA, idB) {
           const loserRec  = winner === "A" ? b : a;
           const winnerId  = winnerRec.id ?? idA;
           const loserId   = loserRec.id  ?? idB;
-
-        const merged = mergeContacts(a, b, picks);
-        // Preserve primary key of winner
-        merged.id = winnerId;
-
-        await dbPutSafe("contacts", merged, winnerId);
-        const rewired = await reassignDependentRecords(winnerId, loserId);
-        await dbDeleteSafe("contacts", loserId);
-
-        // Clear selection and repaint once
-        try {
-          if (typeof window.Selection?.clear === "function") window.Selection.clear("merge");
-        } catch (_) {}
-        try {
-          if (typeof window.SelectionService?.clear === "function") window.SelectionService.clear("merge");
-        } catch (_) {}
-        try {
-          const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge" }});
-          window.dispatchEvent(evt);
-        } catch (_) {}
-        try {
-          const detail = { source: "contacts:merge", winnerId, loserId, rewired };
-          window.dispatchAppDataChanged?.(detail);
-        } catch (_) {}
-
-        finish({ status: "ok", winnerId, loserId, merged, rewired });
-      } catch (err) {
-        console.error("[merge] failed", err);
-        finish({ status: "error", error: err });
-      }
           const merged = mergeContacts(a, b, picks);
           // Preserve primary key of winner
           merged.id = winnerId;
 
           await dbPutSafe("contacts", merged, winnerId);
+          const rewired = await reassignDependentRecords(winnerId, loserId);
           await dbDeleteSafe("contacts", loserId);
 
           // Clear selection and repaint once
-          try { window.Selection?.clear?.(); } catch (_) {}
+          try {
+            if (typeof window.Selection?.clear === "function") window.Selection.clear("merge");
+          } catch (_) {}
+          try {
+            if (typeof window.SelectionService?.clear === "function") window.SelectionService.clear("merge");
+          } catch (_) {}
           try {
             const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge" }});
             window.dispatchEvent(evt);
           } catch (_) {}
-          try { window.dispatchAppDataChanged?.("contacts:merge"); } catch (_) {}
+          try {
+            const detail = { source: "contacts:merge", winnerId, loserId, rewired };
+            window.dispatchAppDataChanged?.(detail);
+          } catch (_) {}
 
-          finish({ status: "ok", winnerId, loserId, merged });
+          finish({ status: "ok", winnerId, loserId, merged, rewired });
         } catch (err) {
           console.error("[merge] failed", err);
           finish({ status: "error", error: err });

@@ -4,7 +4,7 @@
     try {
       fetch('/__log', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ kind, ts: Date.now(), ...payload }) }).catch(()=>{});
-    } catch {}
+    } catch (e) {}
   }
   function showSplash(){
     const el = document.getElementById('diagnostics-splash');

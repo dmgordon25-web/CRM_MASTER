@@ -29,8 +29,6 @@ export const CORE = [
   '../email/merge_vars.js',
   '../contact_stage_tracker.js',
   '../contacts.js',
-  '../contacts_merge.js',
-  '../contacts_merge_orchestrator.js',
   '../partners.js',
   '../partners_modal.js',
   '../partners_merge.js',
@@ -53,7 +51,6 @@ export const CORE = [
   '../services/pipelineStages.js',
   '../services/softDelete.js',
   '../pipeline/stages.js',
-  '../pipeline/kanban_dnd.js',
   '../pages/workbench.js',
   '../pages/email_templates.js',
   '../pages/notifications.js',
@@ -81,7 +78,10 @@ export const PATCHES = [
   '../patch_2025-10-02_medium_nice.js',
   '../patch_2025-10-03_calendar_ics_button.js',
   '../patch_2025-10-03_quick_add_partner.js',
-  '../patch_2025-10-03_automation_seed.js'
+  '../patch_2025-10-03_automation_seed.js',
+  '../contacts_merge.js',
+  '../contacts_merge_orchestrator.js',
+  '../pipeline/kanban_dnd.js'
 ];
 
 export const REQUIRED = new Set([

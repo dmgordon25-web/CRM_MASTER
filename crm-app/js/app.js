@@ -48,7 +48,7 @@
     }
 
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => maybe()); } catch {}
+      try { window.RenderGuard.registerHook(() => maybe()); } catch (e) {}
     }
   })();
 
@@ -307,7 +307,7 @@
     else maybe();
 
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
-      try { window.RenderGuard.registerHook(() => maybe()); } catch {}
+      try { window.RenderGuard.registerHook(() => maybe()); } catch (e) {}
     }
   })();
   const listenerRegistry = window.__LISTENERS__ = window.__LISTENERS__ || { __count: 0 };

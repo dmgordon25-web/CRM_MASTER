@@ -35,10 +35,10 @@ function ensureId(tile){
 
 function readLayout(){
   try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)) || []; }
-  catch { return []; }
+  catch (e) { return []; }
 }
 function writeLayout(order){
-  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(order)); } catch {}
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(order)); } catch (e) {}
 }
 
 function currentOrder(){
@@ -82,14 +82,14 @@ function installDnD(){
   const host = container(); if (!host) return;
   // If the dashboard container changed (re-render), rewire
   if (WIRED && WIRED_HOST && WIRED_HOST !== host) {
-    try { WIRED_HOST.removeEventListener?.('dragstart', noop); } catch {}
+    try { WIRED_HOST.removeEventListener?.('dragstart', noop); } catch (e) {}
     WIRED = false;
   }
 
   // Ensure every tile has identifiers and draggable wiring on each pass
   directChildren(host).forEach(tile => {
     ensureId(tile);
-    try { tile.setAttribute('draggable','true'); } catch {}
+    try { tile.setAttribute('draggable','true'); } catch (e) {}
   });
 
   if (WIRED) return; WIRED = true; WIRED_HOST = host;
@@ -102,7 +102,7 @@ function installDnD(){
     if (!tile) return;
     dragEl = tile;
     e.dataTransfer?.setData('text/plain', ensureId(tile));
-    try { e.dataTransfer?.setDragImage?.(tile, 10, 10); } catch {}
+    try { e.dataTransfer?.setDragImage?.(tile, 10, 10); } catch (e) {}
     // Create placeholder after the dragged element
     ph = placeholder();
     dragEl.after(ph);
@@ -139,7 +139,7 @@ function installDnD(){
         if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function') {
           window.RenderGuard.requestRender();
         }
-      } catch {}
+      } catch (e) {}
     });
     dragEl = null;
   });
@@ -149,7 +149,7 @@ function installDnD(){
 export const DashLayout = {
   apply: applyOrder,
   reset(){
-    try { localStorage.removeItem(LAYOUT_KEY); } catch {}
+    try { localStorage.removeItem(LAYOUT_KEY); } catch (e) {}
     qmt(() => { applyOrder(); });
   }
 };
@@ -170,6 +170,6 @@ try {
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
     window.RenderGuard.registerHook(() => wireWidgetsDnD());
   }
-} catch {}
+} catch (e) {}
 // Expose for console ops
 window.DashLayout = Object.assign(window.DashLayout || {}, DashLayout);

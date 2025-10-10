@@ -6,7 +6,7 @@ export function dot(obj, path, fallback = '') {
         .reduce((acc, key) => ((acc && acc[key] != null) ? acc[key] : undefined), obj)
       ?? fallback
     );
-  } catch {
+  } catch (e) {
     return String(fallback);
   }
 }
@@ -41,6 +41,6 @@ export async function sampleData() {
         res.partner = (partners && partners[0]) || {};
       }
     }
-  } catch {}
+  } catch (e) {}
   return res;
 }

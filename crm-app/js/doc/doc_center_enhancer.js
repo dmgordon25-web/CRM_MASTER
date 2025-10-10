@@ -6,10 +6,10 @@
   const ROW_SELECTOR = '[data-doc-row], .doc-row, [role="row"], li[data-id], tr[data-id], [data-id][data-doc]';
 
   function loadFilters(){
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; }
   }
   function saveFilters(f){
-    try { localStorage.setItem(LS_KEY, JSON.stringify(f||{})); } catch {}
+    try { localStorage.setItem(LS_KEY, JSON.stringify(f||{})); } catch (e) {}
   }
 
   function findHost(){
@@ -157,7 +157,7 @@
         if (r.hidden) r.setAttribute('aria-hidden','true'); else r.removeAttribute('aria-hidden');
       });
       // coalesce a repaint
-      try { window.RenderGuard?.requestRender?.(); } catch {}
+      try { window.RenderGuard?.requestRender?.(); } catch (e) {}
     }
 
     bar.addEventListener('input', apply);
@@ -191,7 +191,7 @@
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
       window.RenderGuard.registerHook(() => setTimeout(sweep, 0));
     }
-  } catch {}
+  } catch (e) {}
 
   // Refresh when docs change
   document.addEventListener('app:data:changed', (e)=>{

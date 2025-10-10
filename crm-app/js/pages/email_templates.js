@@ -169,7 +169,7 @@ export function renderEmailTemplates(root) {
         if (typeof pushNotification === 'function') {
           pushNotification({ type: 'templates', title: 'Template saved' });
         }
-      } catch {}
+      } catch (e) {}
     }
     if (action === 'preview') {
       const data = await sampleData();
