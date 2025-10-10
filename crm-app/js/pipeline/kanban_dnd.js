@@ -1,12 +1,28 @@
 import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from '/js/pipeline/stages.js';
 
+const CAN_UNICODE_NORMALIZE = typeof String.prototype.normalize === 'function';
+const DIACRITIC_RE = (() => {
+  try {
+    return new RegExp('\\p{Diacritic}', 'gu');
+  } catch (err) {
+    return /[\u0300-\u036f]/g;
+  }
+})();
+
 // Normalize a kanban stage/key to a safe, comparable form.
 function normalizeKey(x) {
-  return String(x || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFKD')        // strip accents consistently
-    .replace(/\p{Diacritic}/gu, '')
+  let value = String(x || '').trim().toLowerCase();
+
+  if (CAN_UNICODE_NORMALIZE) {
+    try {
+      value = value.normalize('NFKD');
+    } catch (err) {
+      // ignore normalization errors and continue with the raw value
+    }
+  }
+
+  return value
+    .replace(DIACRITIC_RE, '')
     .replace(/\s+/g, ' ')
     .replace(/[^\w ]/g, '')
     .replace(/\s/g, '_');
