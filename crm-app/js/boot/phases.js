@@ -18,6 +18,8 @@ export const PHASES = {
     new URL('../calendar.js', import.meta.url).href,
     new URL('../contacts.js', import.meta.url).href,
     new URL('../contacts_merge.js', import.meta.url).href,
+    new URL('../contacts_merge_orchestrator.js', import.meta.url).href,
+    new URL('../partners_merge_orchestrator.js', import.meta.url).href,
     new URL('../partners.js', import.meta.url).href,
     new URL('../notifications.js', import.meta.url).href,
     new URL('../ui/notifications_panel.js', import.meta.url).href
@@ -33,6 +35,8 @@ export const CONTRACTS = {
   },
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM && window.CRM.dashboard) || true,
-    'contactsMerge healthy (best effort)': () => !!(window.CRM && window.CRM.health && window.CRM.health.contactsMerge) || true
+    'contactsMerge healthy (best effort)': () => !!(window.CRM && window.CRM.health && window.CRM.health.contactsMerge) || true,
+    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
+    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
   }
 };

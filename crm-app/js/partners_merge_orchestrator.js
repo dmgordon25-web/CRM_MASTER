@@ -2,6 +2,38 @@
 import { openMergeModal } from "/js/ui/merge_modal.js";
 import { mergePartners, pickWinnerPartner } from "/js/merge/merge_core.js";
 
+// === Phase 1.6 Migration: partners_merge_orchestrator ===
+let __wired = false;
+function domReady() {
+  if (["complete", "interactive"].includes(document.readyState)) return Promise.resolve();
+  return new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+}
+function ensureCRM() {
+  window.CRM = window.CRM || {};
+  window.CRM.health = window.CRM.health || {};
+  window.CRM.modules = window.CRM.modules || {};
+}
+
+export async function init(ctx) {
+  ensureCRM();
+  const log = (ctx?.logger?.log) || console.log;
+  const error = (ctx?.logger?.error) || console.error;
+  if (__wired) {
+    log("[partners_merge_orchestrator.init] already wired");
+    window.CRM.health.partnersMergeOrchestrator ??= "ok";
+    return;
+  }
+  __wired = true;
+  try {
+    await domReady();
+    window.CRM.health.partnersMergeOrchestrator = "ok";
+    log("[partners_merge_orchestrator.init] complete");
+  } catch (e) {
+    window.CRM.health.partnersMergeOrchestrator = "error";
+    error("[partners_merge_orchestrator.init] failed", e);
+  }
+}
+
 // ---- Minimal DB helpers (match contacts orchestrator patterns) ----
 async function dbGetSafe(store, id) {
   if (typeof window.dbGet === "function") return window.dbGet(store, id);
@@ -143,3 +175,8 @@ export async function openPartnersMergeByIds(idA, idB) {
     });
   });
 }
+
+ensureCRM();
+window.CRM.modules.partnersMergeOrchestrator = window.CRM.modules.partnersMergeOrchestrator || {};
+window.CRM.modules.partnersMergeOrchestrator.init = init;
+window.CRM.modules.partnersMergeOrchestrator.openPartnersMergeByIds = openPartnersMergeByIds;
