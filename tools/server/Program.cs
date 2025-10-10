@@ -1,28 +1,34 @@
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace ServerApp;
 
 internal static class Program
 {
+    [STAThread]
     public static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-        var logManager = LogManager.Create();
+        using var logManager = LogManager.Create();
         var logger = logManager.Logger;
 
         try
         {
             var executableDirectory = Path.GetDirectoryName(Environment.ProcessPath) ?? Directory.GetCurrentDirectory();
-            var options = LauncherOptions.Parse(args, executableDirectory);
+            var defaultRoot = Path.Combine(executableDirectory, "crm-app");
+            var options = LauncherOptions.Parse(args, defaultRoot);
             var rootDirectory = Path.GetFullPath(options.RootDirectory);
 
             if (!Directory.Exists(rootDirectory))
@@ -40,8 +46,6 @@ internal static class Program
 
             logger.LogInfo($"Serving static content from {rootDirectory}");
 
-            logger.LogInfo($"Binding to http://localhost:{options.Port}/");
-
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 Args = Array.Empty<string>(),
@@ -53,7 +57,8 @@ internal static class Program
             {
                 serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5);
                 serverOptions.Limits.MaxRequestBodySize = 0;
-                serverOptions.ListenLocalhost(options.Port);
+                var port = options.Port;
+                serverOptions.Listen(IPAddress.Loopback, port > 0 ? port : 0);
             });
 
             var fileProvider = new PhysicalFileProvider(rootDirectory);
@@ -82,10 +87,11 @@ internal static class Program
                     t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     body
                 });
-                await System.IO.File.AppendAllTextAsync(Path.Combine(LogsDir(), "frontend.log"), line + "\n");
+                await File.AppendAllTextAsync(Path.Combine(LogsDir(), "frontend.log"), line + "\n");
                 return Results.NoContent();
             });
 
+            app.MapGet("/healthz", () => Results.Text("ok"));
 
             if (options.EnableCors)
             {
@@ -121,8 +127,10 @@ internal static class Program
             app.UseDefaultFiles(defaultFilesOptions);
             app.UseStaticFiles(staticFileOptions);
 
-            var indexPhysicalPath = Path.Combine(rootDirectory, "index.html");
             var indexFileInfo = fileProvider.GetFileInfo("index.html");
+            var indexPhysicalPath = indexFileInfo.Exists
+                ? indexFileInfo.PhysicalPath ?? Path.Combine(rootDirectory, "index.html")
+                : Path.Combine(rootDirectory, "index.html");
 
             app.MapFallback(async context =>
             {
@@ -171,12 +179,23 @@ internal static class Program
             }
             catch (Exception startEx)
             {
-                logger.LogError($"Failed to start server on port {options.Port}: {startEx.Message}");
+                logger.LogError($"Failed to start server: {startEx.Message}");
+                logger.LogDebug(startEx.ToString());
                 await app.DisposeAsync();
                 return 1;
             }
 
-            var baseUri = new Uri($"http://localhost:{options.Port}/");
+            var address = app.Urls.FirstOrDefault();
+            if (string.IsNullOrEmpty(address))
+            {
+                logger.LogError("Unable to determine server address.");
+                await app.StopAsync(TimeSpan.FromSeconds(5));
+                await app.DisposeAsync();
+                return 1;
+            }
+
+            var baseUri = new Uri(address);
+            logger.LogInfo($"Listening at {baseUri}");
 
             if (!await ConfirmHealthAsync(baseUri, logger))
             {
@@ -188,16 +207,18 @@ internal static class Program
 
             logger.LogInfo($"LAUNCH OK : {baseUri}");
 
+            var lifetime = app.Lifetime;
+
             void HandleCancel(object? sender, ConsoleCancelEventArgs eventArgs)
             {
                 eventArgs.Cancel = true;
                 logger.LogInfo("Shutdown requested. Stopping server...");
-                app.Lifetime.StopApplication();
+                lifetime.StopApplication();
             }
 
             void HandleProcessExit(object? _, EventArgs __)
             {
-                app.Lifetime.StopApplication();
+                lifetime.StopApplication();
             }
 
             Console.CancelKeyPress += HandleCancel;
@@ -205,7 +226,12 @@ internal static class Program
 
             try
             {
-                await app.WaitForShutdownAsync();
+                var shellTask = Shell.RunAsync(baseUri.ToString(), logger, lifetime, lifetime.ApplicationStopping);
+
+                await Task.WhenAll(app.WaitForShutdownAsync(), shellTask);
+
+                logger.LogInfo("Server stopped cleanly.");
+                return 0;
             }
             finally
             {
@@ -214,9 +240,6 @@ internal static class Program
                 await app.StopAsync(TimeSpan.FromSeconds(5));
                 await app.DisposeAsync();
             }
-
-            logger.LogInfo("Server stopped cleanly.");
-            return 0;
         }
         catch (ArgumentException ex)
         {
@@ -228,10 +251,6 @@ internal static class Program
             logger.LogError($"Unhandled exception: {ex.Message}");
             logger.LogDebug(ex.ToString());
             return 1;
-        }
-        finally
-        {
-            logManager.Dispose();
         }
     }
 
@@ -266,7 +285,8 @@ internal static class Program
         var targets = new[]
         {
             new Uri(baseUri, "/"),
-            new Uri(baseUri, "/index.html")
+            new Uri(baseUri, "/index.html"),
+            new Uri(baseUri, "/healthz")
         };
 
         for (var attempt = 0; attempt < 20; attempt++)
@@ -299,6 +319,7 @@ internal static class Program
             await Task.Delay(250);
         }
 
+        logger.LogWarn("Timed out waiting for server readiness.");
         return false;
     }
 }
@@ -321,7 +342,7 @@ internal sealed class LauncherOptions
     public static LauncherOptions Parse(string[] args, string defaultRoot)
     {
         var root = defaultRoot;
-        var port = 8080;
+        var port = 0;
         var enableCors = false;
 
         var queue = new Queue<string>(args);
