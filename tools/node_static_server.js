@@ -28,31 +28,126 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+const LOG_MAX_BYTES = 1024 * 1024;
+
 function appDataLogsDir() {
-  const local = process.env.LOCALAPPDATA || process.env.APPDATA;
-  const base = local ? path.join(local, 'CRM', 'logs') : path.join(process.cwd(), 'logs');
-  fs.mkdirSync(base, { recursive: true });
-  return base;
+  const bases = [process.env.LOCALAPPDATA, process.env.APPDATA, __dirname];
+  for (const candidate of bases) {
+    if (!candidate) {
+      continue;
+    }
+    const dir = path.join(candidate, 'CRM', 'logs');
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      return dir;
+    } catch (err) {
+      // try next candidate
+    }
+  }
+  const fallback = path.join(__dirname, 'CRM', 'logs');
+  fs.mkdirSync(fallback, { recursive: true });
+  return fallback;
+}
+
+function appendLogLine(entry) {
+  if (process.env.CRM_QUIET_LOG) {
+    return true;
+  }
+  try {
+    const target = path.join(appDataLogsDir(), 'frontend.log');
+    fs.appendFileSync(target, entry, 'utf8');
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function handleLog(req, res) {
+  const origin = req.headers.origin || (req.headers.host ? `http://${req.headers.host}` : undefined);
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.writeHead(405);
+    res.end();
+    return;
+  }
+
   let body = '';
-  req.on('data', chunk => { body += chunk; });
-  req.on('end', () => {
-    try {
-      const line = JSON.stringify({
-        t: Date.now(),
-        ip: req.socket && req.socket.remoteAddress,
-        body: JSON.parse(body || '{}')
-      }) + '\n';
-      const target = path.join(appDataLogsDir(), 'frontend.log');
-      fs.appendFileSync(target, line);
-      res.writeHead(204);
-      res.end();
-    } catch (err) {
-      res.writeHead(400);
-      res.end('bad json');
+  let received = 0;
+  let finished = false;
+  req.setEncoding('utf8');
+
+  function finish(status, message) {
+    if (finished) {
+      return;
     }
+    finished = true;
+    if (message) {
+      res.statusCode = status;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end(message);
+    } else {
+      res.writeHead(status);
+      res.end();
+    }
+  }
+
+  req.on('data', (chunk) => {
+    if (finished) {
+      return;
+    }
+    received += chunk.length;
+    if (received > LOG_MAX_BYTES) {
+      finish(413, 'Payload Too Large');
+      req.destroy();
+      return;
+    }
+    body += chunk;
+  });
+
+  req.on('error', () => {
+    finish(400, 'Invalid request');
+  });
+
+  req.on('end', () => {
+    if (finished) {
+      return;
+    }
+    let parsed;
+    if (!body.trim()) {
+      parsed = {};
+    } else {
+      try {
+        parsed = JSON.parse(body);
+      } catch (err) {
+        finish(400, 'Invalid JSON');
+        return;
+      }
+    }
+
+    const entry = JSON.stringify({
+      t: Date.now(),
+      ip: req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : null,
+      body: parsed
+    }) + '\n';
+
+    if (!appendLogLine(entry)) {
+      finish(500, 'Failed to write log');
+      return;
+    }
+
+    finish(204);
   });
 }
 
@@ -74,9 +169,12 @@ function resolvePath(urlPath) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && (req.url || '').split('?')[0] === '/__log') {
-    return handleLog(req, res);
+  const cleanPath = (req.url || '').split('?')[0];
+  if (cleanPath === '/__log') {
+    handleLog(req, res);
+    return;
   }
+
   const url = req.url || '/';
   const filePath = resolvePath(url);
   if (!filePath) {

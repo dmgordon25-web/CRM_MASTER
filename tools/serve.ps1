@@ -47,8 +47,109 @@ try {
   function Start-HttpListener {
     try {
       $job = Start-Job -ScriptBlock {
-        param($root,$p)
+        param($root,$p,$scriptRoot)
         try { Add-Type -AssemblyName System.Web } catch {}
+        $logMaxBytes = 1024 * 1024
+        function Get-CrmLogsDir {
+          param()
+          $base = $env:LOCALAPPDATA
+          if (-not $base -and $env:APPDATA) { $base = $env:APPDATA }
+          if (-not $base) { $base = $scriptRoot }
+          $dir = Join-Path (Join-Path $base 'CRM') 'logs'
+          try { New-Item -ItemType Directory -Force -Path $dir | Out-Null } catch {}
+          return $dir
+        }
+        function Set-CorsHeaders {
+          param($resp,$req)
+          $origin = $req.Headers['Origin']
+          if (-not $origin) {
+            $host = $req.Headers['Host']
+            if ($host) { $origin = "http://$host" }
+          }
+          if ($origin) { $resp.Headers['Access-Control-Allow-Origin'] = $origin }
+          $resp.Headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+          $resp.Headers['Access-Control-Allow-Headers'] = 'Content-Type'
+          $resp.Headers['Vary'] = 'Origin'
+        }
+        function Handle-LogRequest {
+          param($ctx,$logFilePath,$quiet,$logMax)
+          $req = $ctx.Request
+          $resp = $ctx.Response
+          Set-CorsHeaders -resp $resp -req $req
+          if ($req.HttpMethod -eq 'OPTIONS') {
+            $resp.StatusCode = 204
+            try { $resp.ContentLength64 = 0 } catch {}
+            $resp.Close()
+            return $true
+          }
+          if ($req.HttpMethod -ne 'POST') {
+            $resp.StatusCode = 405
+            try { $resp.ContentLength64 = 0 } catch {}
+            $resp.Close()
+            return $true
+          }
+          $buffer = New-Object byte[] 65536
+          $stream = New-Object System.IO.MemoryStream
+          while ($true) {
+            $read = $req.InputStream.Read($buffer, 0, $buffer.Length)
+            if ($read -le 0) { break }
+            $stream.Write($buffer, 0, $read)
+            if ($stream.Length -gt $logMax) {
+              $resp.StatusCode = 413
+              try { $resp.ContentLength64 = 0 } catch {}
+              $resp.Close()
+              return $true
+            }
+          }
+          $text = [System.Text.Encoding]::UTF8.GetString($stream.ToArray())
+          if ([string]::IsNullOrWhiteSpace($text)) {
+            $bodyObject = @{}
+          } else {
+            try {
+              $bodyObject = $text | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+              $resp.StatusCode = 400
+              $bytes = [System.Text.Encoding]::UTF8.GetBytes('Invalid JSON')
+              $resp.ContentType = 'text/plain; charset=utf-8'
+              try { $resp.ContentLength64 = $bytes.Length } catch {}
+              $resp.OutputStream.Write($bytes,0,$bytes.Length)
+              $resp.OutputStream.Flush()
+              $resp.Close()
+              return $true
+            }
+          }
+          if ($quiet) {
+            $resp.StatusCode = 204
+            try { $resp.ContentLength64 = 0 } catch {}
+            $resp.Close()
+            return $true
+          }
+          $logObject = [ordered]@{
+            t = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+            ip = if ($req.RemoteEndPoint) { $req.RemoteEndPoint.Address.ToString() } else { $null }
+            body = $bodyObject
+          }
+          try {
+            $json = ConvertTo-Json -InputObject $logObject -Depth 20 -Compress
+          } catch {
+            $resp.StatusCode = 500
+            try { $resp.ContentLength64 = 0 } catch {}
+            $resp.Close()
+            return $true
+          }
+          try {
+            [System.IO.File]::AppendAllText($logFilePath, $json + [Environment]::NewLine, [System.Text.Encoding]::UTF8)
+          } catch {
+            $resp.StatusCode = 500
+            try { $resp.ContentLength64 = 0 } catch {}
+            $resp.Close()
+            return $true
+          }
+          $resp.StatusCode = 204
+          try { $resp.ContentLength64 = 0 } catch {}
+          $resp.Close()
+          return $true
+        }
         $mimeMap = @{
           ".html"="text/html; charset=utf-8"; ".htm"="text/html; charset=utf-8";
           ".js"="text/javascript; charset=utf-8"; ".mjs"="text/javascript; charset=utf-8"; ".cjs"="text/javascript; charset=utf-8";
@@ -59,6 +160,9 @@ try {
         $listener = New-Object System.Net.HttpListener
         $listener.Prefixes.Add("http://127.0.0.1:$p/")
         $listener.Start()
+        $quietLog = [bool]$env:CRM_QUIET_LOG
+        $logDir = if ($quietLog) { $null } else { Get-CrmLogsDir }
+        $logFile = if ($quietLog) { $null } else { Join-Path $logDir 'frontend.log' }
         try {
           while ($listener.IsListening) {
             try {
@@ -66,6 +170,10 @@ try {
               $rawPath = $ctx.Request.Url.AbsolutePath
               if ([string]::IsNullOrWhiteSpace($rawPath)) { $rawPath = '/' }
               $decoded = [System.Uri]::UnescapeDataString($rawPath)
+              if ($decoded -eq '/__log') {
+                Handle-LogRequest -ctx $ctx -logFilePath $logFile -quiet $quietLog -logMax $logMaxBytes | Out-Null
+                continue
+              }
               $safeRel = $decoded.TrimStart('/') -replace '/','\'
               $candidate = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($root, $safeRel))
               if (-not $candidate.StartsWith([System.IO.Path]::GetFullPath($root))) {
@@ -101,7 +209,7 @@ try {
           try { $listener.Stop() } catch {}
           try { $listener.Close() } catch {}
         }
-      } -ArgumentList $WorkingDirectory,$Port
+      } -ArgumentList $WorkingDirectory,$Port,$PSScriptRoot
       $script:ServerJob = $job
       return 'HttpListener'
     } catch {
@@ -113,142 +221,13 @@ try {
     }
   }
 
-  function Write-NodeServerScript {
-    param([string]$Path)
-    $nodeScript = @"
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-
-const port = parseInt(process.argv[2], 10) || 8080;
-const root = path.resolve(process.argv[3] || process.cwd());
-
-const mime = {
-  '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.cjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.map': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
-};
-
-function safeJoin(rootDir, reqPath) {
-  const decoded = decodeURIComponent(reqPath || '/');
-  const normalized = path.normalize(decoded).replace(/^\\+/, '').replace(/^\/+/, '');
-  const target = path.join(rootDir, normalized);
-  if (!target.startsWith(rootDir)) {
-    return null;
-  }
-  return target;
-}
-
-const server = http.createServer((req, res) => {
-  const joined = safeJoin(root, req.url ? req.url.split('?')[0] : '/');
-  if (!joined) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-  let filePath = joined;
-  let stat;
-  try {
-    stat = fs.statSync(filePath);
-  } catch (err) {
-    res.writeHead(404);
-    res.end('Not found');
-    return;
-  }
-  if (stat.isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
-    try {
-      stat = fs.statSync(filePath);
-    } catch (err) {
-      res.writeHead(404);
-      res.end('Not found');
-      return;
-    }
-  }
-  try {
-    const buffer = fs.readFileSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const type = mime[ext] ?? 'application/octet-stream';
-    res.statusCode = 200;
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Type', type);
-    res.setHeader('Content-Length', buffer.length);
-    res.end(buffer);
-  } catch (err) {
-    res.writeHead(500);
-    res.end('Server error');
-  }
-});
-
-server.listen(port, '127.0.0.1');
-
-const shutdown = () => {
-  server.close(() => process.exit(0));
-};
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-"@
-    Set-Content -Path $Path -Value $nodeScript -Encoding UTF8 -Force
-  }
-
   function Start-Node {
     try {
       $node = Get-Command 'node' -ErrorAction SilentlyContinue
       if (-not $node) { return $null }
-      $scriptPath = Join-Path ([System.IO.Path]::GetTempPath()) 'crmtool_dev_server.js'
-      Write-NodeServerScript -Path $scriptPath
-      Start-Process -FilePath $node.Source -ArgumentList @($scriptPath, "$Port", $WorkingDirectory) -PassThru -WindowStyle Hidden
+      $scriptPath = Join-Path $PSScriptRoot 'node_static_server.js'
+      Start-Process -FilePath $node.Source -ArgumentList @($scriptPath, $WorkingDirectory, "$Port") -PassThru -WindowStyle Hidden
     } catch { $null }
-  }
-
-  function Write-PythonServerScript {
-    param([string]$Path)
-    $pyScript = @"
-import http.server
-import os
-import socketserver
-import sys
-
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
-ROOT = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.getcwd())
-os.chdir(ROOT)
-
-class Handler(http.server.SimpleHTTPRequestHandler):
-    extensions_map = http.server.SimpleHTTPRequestHandler.extensions_map.copy()
-    extensions_map['.js'] = 'application/javascript'
-    extensions_map['.cjs'] = 'application/javascript'
-    extensions_map['.css'] = 'text/css'
-    extensions_map.update({
-        '.mjs': 'text/javascript',
-        '.map': 'application/json',
-    })
-
-    def guess_type(self, path):
-        ctype = super().guess_type(path)
-        if path.lower().endswith('.js'):
-            accept = self.headers.get('Accept', '')
-            if 'text/javascript' in accept:
-                return 'text/javascript'
-        return ctype
-
-    def end_headers(self):
-        self.send_header('Cache-Control', 'no-store')
-        super().end_headers()
-
-Handler.extensions_map['.JS'] = Handler.extensions_map['.js']
-Handler.extensions_map['.MJS'] = Handler.extensions_map['.mjs']
-Handler.extensions_map['.MAP'] = Handler.extensions_map['.map']
-
-with socketserver.ThreadingTCPServer(('127.0.0.1', PORT), Handler) as httpd:
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-"@
-    Set-Content -Path $Path -Value $pyScript -Encoding UTF8 -Force
   }
 
   function Start-PythonExe {
@@ -256,9 +235,8 @@ with socketserver.ThreadingTCPServer(('127.0.0.1', PORT), Handler) as httpd:
     try {
       $cmd = Get-Command $Executable -ErrorAction SilentlyContinue
       if (-not $cmd) { return $null }
-      $scriptPath = Join-Path ([System.IO.Path]::GetTempPath()) 'crmtool_dev_server.py'
-      Write-PythonServerScript -Path $scriptPath
-      Start-Process -FilePath $cmd.Source -ArgumentList @($scriptPath, "$Port", $WorkingDirectory) -PassThru -WindowStyle Hidden
+      $scriptPath = Join-Path $PSScriptRoot 'py_static_server.py'
+      Start-Process -FilePath $cmd.Source -ArgumentList @('-u', $scriptPath, '--port', "$Port", '--root', $WorkingDirectory) -PassThru -WindowStyle Hidden
     } catch { $null }
   }
 
