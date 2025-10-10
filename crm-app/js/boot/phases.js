@@ -80,25 +80,90 @@ export const PHASES = {
 // Contracts: log-only assertions; never throw.
 export const CONTRACTS = {
   SHELL: {
-    'renderAll function': () => typeof window.renderAll === 'function',
-    'root element exists': () => !!document.querySelector('#app, main, body'),
-    'Toast + Confirm available (best effort)': () => !!(window.Toast?.show) && !!(window.Confirm?.show) || true,
-    'Selection service present (best effort)': () => !!(window.Selection || window.SelectionService) || true
+    'renderAll function': () => {
+      try {
+        return typeof window.renderAll === 'function';
+      } catch {
+        return false;
+      }
+    },
+    'root element exists': () => {
+      try {
+        return !!document.querySelector('#app, main, body');
+      } catch {
+        return false;
+      }
+    },
+    'Toast + Confirm available (best effort)': () => {
+      try {
+        return (!!(window.Toast?.show) && !!(window.Confirm?.show)) || true;
+      } catch {
+        return true;
+      }
+    },
+    'Selection service present (best effort)': () => {
+      try {
+        return !!(window.Selection || window.SelectionService) || true;
+      } catch {
+        return true;
+      }
+    }
   },
   SERVICES: {
-    'contacts_merge available': () => (
-      typeof window.mergeContactsWithIds === 'function' ||
-      !!(window.CRM?.modules?.contactsMerge)
-    ),
-    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator),
-    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator)
+    'contacts_merge available': () => {
+      try {
+        return (
+          typeof window.mergeContactsWithIds === 'function' ||
+          !!(window.CRM?.modules?.contactsMerge)
+        );
+      } catch {
+        return false;
+      }
+    },
+    'contactsMergeOrch healthy (best effort)': () => {
+      try {
+        return !!(window.CRM?.health?.contactsMergeOrchestrator);
+      } catch {
+        return false;
+      }
+    },
+    'partnersMergeOrch healthy (best effort)': () => {
+      try {
+        return !!(window.CRM?.health?.partnersMergeOrchestrator);
+      } catch {
+        return false;
+      }
+    }
   },
   FEATURES: {
-    'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
-    'selection service live': () => !!(window.Selection || window.SelectionService),
-    'notifications panel usable': () =>
-      !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true,
+    'dashboard registered (best effort)': () => {
+      try {
+        return !!(window.CRM?.dashboard) || true;
+      } catch {
+        return true;
+      }
+    },
+    'selection service live': () => {
+      try {
+        return !!(window.Selection || window.SelectionService);
+      } catch {
+        return false;
+      }
+    },
+    'notifications panel usable': () => {
+      try {
+        return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true;
+      } catch {
+        return true;
+      }
+    },
     // Health probes for migrated modules — never fail hard; just inform
-    'contactsMerge healthy (best effort)': () => !!(window.CRM?.health?.contactsMerge) || true
+    'contactsMerge healthy (best effort)': () => {
+      try {
+        return !!(window.CRM?.health?.contactsMerge) || true;
+      } catch {
+        return true;
+      }
+    }
   }
 };
