@@ -58,7 +58,7 @@ export const CORE = [
   '../pages/email_templates.js',
   '../pages/notifications.js',
   '../dashboard/widgets_dnd.js'
-].filter((v,i,a)=>a.indexOf(v)===i);
+];
 
 export const PATCHES = [
   '../patch_20250923_baseline.js',
@@ -82,7 +82,7 @@ export const PATCHES = [
   '../patch_2025-10-03_calendar_ics_button.js',
   '../patch_2025-10-03_quick_add_partner.js',
   '../patch_2025-10-03_automation_seed.js'
-].filter((v,i,a)=>a.indexOf(v)===i);
+];
 
 export const REQUIRED = new Set([
   '../env.js','../db.js','../utils.js','../render.js','../ui/Toast.js','../ui/Confirm.js'

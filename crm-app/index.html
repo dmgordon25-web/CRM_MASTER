@@ -3,13 +3,14 @@
  <head>
  <meta charset="utf-8"/>
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <base href="./"/>
-  <style>
-    #diagnostics-splash { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); color:#fff; padding:24px; z-index:99999; font-family:system-ui; }
-    #diagnostics-splash a { color:#fff; text-decoration:underline; }
-    #diagnostics-splash button { font:inherit; }
-  </style>
+  <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%233b82f6'/%3E%3Ctext x='8' y='12' text-anchor='middle' font-size='10' fill='white'%3EC%3C/text%3E%3C/svg%3E">
   <script src="./js/boot/early_trap.js"></script>
+  <style>
+    #diagnostics-splash { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+      color:#fff; padding:20px; z-index:99999; }
+  </style>
+  <base href="./"/>
   <script type="importmap">
   {
     "imports": {
@@ -35,14 +36,10 @@
     <button class="btn brand" data-role="diag-run-selftest" type="button">Run Self-Test</button>
    </div>
   </div>
-  <!-- Minimal diagnostics splash that early_trap toggles -->
-  <div id="diagnostics-splash" role="alert">
-   <h3 style="margin-top:0">CRM Diagnostics</h3>
-   <p>If this stays visible, boot failed. Logs are available in %LOCALAPPDATA%/CRM/logs and via <code>/__log</code>.</p>
-   <p>
-    <button class="btn brand" onclick="CRM && CRM.exportLogs && CRM.exportLogs()" type="button">Export Logs</button>
-    <span style="margin-left:12px">Need a clean boot? Try <a href="?safe=1">Safe Mode</a>.</span>
-   </p>
+  <div id="diagnostics-splash">
+   <h3>CRM Diagnostics</h3>
+   <p>If this stays visible, boot failed. Logs available via /__log or local logs folder.</p>
+   <p><a href="?safe=1" style="color:#a7f3d0">Safe Mode</a></p>
   </div>
   <div class="container">
    <div id="diagnostics" hidden></div>
@@ -2074,13 +2071,10 @@
 
   <script>window.__APP_VERSION__='v2025.09.27';window.__INIT_FLAGS__=window.__INIT_FLAGS__||{};window.__PATCHES_LOADED__=[];</script>
   <script src="./js/selftest_panel.js"></script>
-  <script type="module" src="./js/patches/loader.js"></script>
-  <script>
-    window.addEventListener('load', function(){
-      if(!Array.isArray(window.__PATCHES_LOADED__) || window.__PATCHES_LOADED__.length === 0){
-        console.warn('Boot warning: no patches loaded. Check console for boot diagnostics.');
-      }
-    });
+  <script type="module">
+    import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
+    import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';
+    ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   </script>
 </body>
 </html>

@@ -29,101 +29,11 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
-const LOG_MAX_BYTES = 1024 * 1024;
-
-function logsDir() {
+function logsDir(){
   const local = process.env.LOCALAPPDATA || process.env.HOME;
-  let dir;
-  if (local) {
-    dir = path.join(local, 'CRM', 'logs');
-  } else {
-    dir = path.join(__dirname, '..', 'CRM_logs');
-  }
+  const dir = local ? path.join(local, 'CRM', 'logs') : path.join(__dirname, '..', 'CRM_logs');
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   return dir;
-}
-
-function safeParse(s){
-  try { return JSON.parse(s); } catch { return { raw: s }; }
-}
-
-function appendLogLine(entry){
-  if (process.env.CRM_QUIET_LOG) return true;
-  const file = path.join(logsDir(), 'frontend.log');
-  try {
-    fs.appendFileSync(file, JSON.stringify(entry) + os.EOL, 'utf8');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function handleLog(req, res) {
-  const origin = req.headers.origin || (req.headers.host ? `http://${req.headers.host}` : '*');
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Vary', 'Origin');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    res.writeHead(405);
-    res.end();
-    return;
-  }
-
-  let body = '';
-  let received = 0;
-  let finished = false;
-  req.setEncoding('utf8');
-
-  function finish(status, message) {
-    if (finished) return;
-    finished = true;
-    if (message) {
-      res.statusCode = status;
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.end(message);
-    } else {
-      res.writeHead(status);
-      res.end();
-    }
-  }
-
-  req.on('data', (chunk) => {
-    if (finished) return;
-    received += chunk.length;
-    if (received > LOG_MAX_BYTES) {
-      finish(413, 'Payload Too Large');
-      req.destroy();
-      return;
-    }
-    body += chunk;
-  });
-
-  req.on('error', () => finish(400, 'Invalid request'));
-
-  req.on('end', () => {
-    if (finished) return;
-    const payload = body.trim() ? safeParse(body) : {};
-    const entry = {
-      ts: Date.now(),
-      ip: req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : null,
-      payload
-    };
-    if (!appendLogLine(entry)) {
-      finish(500, 'Failed to write log');
-      return;
-    }
-    finish(204);
-  });
 }
 
 function resolvePath(urlPath) {
@@ -146,7 +56,22 @@ function resolvePath(urlPath) {
 const server = http.createServer((req, res) => {
   const cleanPath = (req.url || '').split('?')[0];
   if (cleanPath === '/__log') {
-    handleLog(req, res);
+    if (req.method !== 'POST') {
+      res.statusCode = 405;
+      res.end();
+      return;
+    }
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('error', () => {
+      res.statusCode = 400; res.end();
+    });
+    req.on('end', () => {
+      const entry = (()=>{ try { return JSON.parse(body || '{}'); } catch { return { raw: String(body||'') }; }})();
+      const line = JSON.stringify({ ts: Date.now(), ...entry }) + os.EOL;
+      try { fs.appendFileSync(path.join(logsDir(), 'frontend.log'), line); } catch {}
+      res.statusCode = 204; res.end();
+    });
     return;
   }
 
