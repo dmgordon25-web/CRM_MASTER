@@ -53,11 +53,15 @@ export const PHASES = {
 export const CONTRACTS = {
   SHELL: {
     'renderAll function': () => typeof window.renderAll === 'function',
-    'root element exists': () => !!document.querySelector('#app, main, body')
+    'root element exists': () => !!document.querySelector('#app, main, body'),
+    'Toast + Confirm available': () => !!(window.Toast?.show) && !!(window.Confirm?.show)
   },
   FEATURES: {
-    'dashboard registered (best effort)': () => !!(window.CRM && window.CRM.dashboard) || true,
-    'contactsMerge healthy (best effort)': () => !!(window.CRM && window.CRM.health && window.CRM.health.contactsMerge) || true,
+    'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
+    'selection service live': () => !!(window.Selection || window.SelectionService),
+    'notifications panel usable': () => !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true,
+    // Health probes for migrated modules — never fail hard; just inform
+    'contactsMerge healthy (best effort)': () => !!(window.CRM?.health?.contactsMerge) || true,
     'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
     'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
   }
