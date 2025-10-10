@@ -47,28 +47,7 @@ export const CORE = [
   '../services/softDelete.js'
 ];
 
-export const PATCHES = [
-  '../patch_20250923_baseline.js',
-  '../patch_20250924_bootstrap_ready.js',
-  '../patch_20250926_ctc_actionbar.js',
-  '../patch_2025-09-26_phase1_pipeline_partners.js',
-  '../patch_2025-09-26_phase2_automations.js',
-  '../patch_2025-09-26_phase3_dashboard_reports.js',
-  '../patch_2025-09-26_phase4_polish_regression.js',
-  '../patch_2025-09-27_doccenter2.js',
-  '../patch_2025-09-27_contact_linking_5A.js',
-  '../patch_2025-09-27_contact_linking_5B.js',
-  '../patch_2025-09-27_contact_linking_5C.js',
-  '../patch_2025-09-27_nth_bundle_and_qa.js',
-  '../patch_2025-09-27_masterfix.js',
-  '../patch_2025-09-27_release_prep.js',
-  '../patch_2025-10-02_baseline_ux_cleanup.js',
-  '../patch_2025-10-02_medium_nice.js',
-  '../patch_2025-09-27_merge_ui.js',
-  '../patch_2025-09-27_phase6_polish_telemetry.js',
-  '../patch_2025-10-03_quick_add_partner.js',
-  '../patch_2025-10-03_automation_seed.js'
-];
+export const PATCHES = [];
 
 // Critical modules the app cannot run without
 export const REQUIRED = new Set([
