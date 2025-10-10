@@ -2,6 +2,38 @@
 import { openMergeModal } from "/js/ui/merge_modal.js";
 import { mergeContacts, pickWinnerContact } from "/js/merge/merge_core.js";
 
+// === Phase 1.6 Migration: contacts_merge_orchestrator ===
+let __wired = false;
+function domReady() {
+  if (["complete", "interactive"].includes(document.readyState)) return Promise.resolve();
+  return new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+}
+function ensureCRM() {
+  window.CRM = window.CRM || {};
+  window.CRM.health = window.CRM.health || {};
+  window.CRM.modules = window.CRM.modules || {};
+}
+
+export async function init(ctx) {
+  ensureCRM();
+  const log = (ctx?.logger?.log) || console.log;
+  const error = (ctx?.logger?.error) || console.error;
+  if (__wired) {
+    log("[contacts_merge_orchestrator.init] already wired");
+    window.CRM.health.contactsMergeOrchestrator ??= "ok";
+    return;
+  }
+  __wired = true;
+  try {
+    await domReady();
+    window.CRM.health.contactsMergeOrchestrator = "ok";
+    log("[contacts_merge_orchestrator.init] complete");
+  } catch (e) {
+    window.CRM.health.contactsMergeOrchestrator = "error";
+    error("[contacts_merge_orchestrator.init] failed", e);
+  }
+}
+
 async function dbGetSafe(store, id) {
   if (typeof window.dbGet === "function") return window.dbGet(store, id);
   if (typeof window.withStore === "function" && typeof window.openDB === "function") {
@@ -206,3 +238,8 @@ export async function openContactsMergeByIds(idA, idB) {
     });
   });
 }
+
+ensureCRM();
+window.CRM.modules.contactsMergeOrchestrator = window.CRM.modules.contactsMergeOrchestrator || {};
+window.CRM.modules.contactsMergeOrchestrator.init = init;
+window.CRM.modules.contactsMergeOrchestrator.openContactsMergeByIds = openContactsMergeByIds;
