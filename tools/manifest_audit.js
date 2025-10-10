@@ -137,9 +137,11 @@ for (const feat of features){
 for (const file of reachable){
   if (phaseOf(file)) continue;
   const rel = norm(path.relative(ROOT,file));
+  const base = path.basename(file);
   // crude heuristic: files under ui/, dashboard/, pages/ => FEATURES; under *merge* => SERVICES
   const suggestion = /merge/.test(rel) ? 'SERVICES' : /ui|dashboard|pages|calendar/.test(rel) ? 'FEATURES' : 'FEATURES';
-  if (!STANDALONE_ALLOW.has(path.basename(file))) {
+  if (/^patch_/.test(base) && suggestion === 'FEATURES') continue;
+  if (!STANDALONE_ALLOW.has(base)) {
     problems.push({ kind:'unphased', file: rel, suggest: suggestion });
   }
 }
