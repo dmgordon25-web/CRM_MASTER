@@ -40,11 +40,9 @@ function seedFromPhases(){
 
 const ENTRY = Array.from(new Set([
   path.join(ROOT, 'patches', 'loader.js'),
-  path.join(ROOT, 'boot', 'loader.js'),
-  ...seedFromManifest(),
-  ...seedFromPhases(),
-  ...seedFromIndexHtml()
-].filter(fs.existsSync)));
+  path.join(ROOT, 'boot', 'loader.js')
+].filter(fs.existsSync);
+const MANIFEST = path.join(ROOT, 'boot', 'manifest.js');
 
 function read(p){ try { return fs.readFileSync(p,'utf8'); } catch{ return ''; } }
 function norm(p){ return p.replace(/\\/g,'/'); }
@@ -63,6 +61,20 @@ const IMP_RE = /import\s+(?:[^'\"]+?from\s+)?['\"]([^'\"]+)['\"]/g;
 const graph = new Map();
 const seen = new Set();
 const stack = [];
+let hadCycle = false;
+
+function manifestEntries(){
+  const txt = read(MANIFEST);
+  if (!txt) return [];
+  const seeds = new Set();
+  const re = /['\"](\.\.\/[^'\"]+)['\"]/g;
+  let m;
+  while ((m = re.exec(txt))){
+    const resolved = resolveImport(MANIFEST, m[1]);
+    if (resolved) seeds.add(resolved);
+  }
+  return [...seeds];
+}
 
 function walk(p){
   if (seen.has(p)) return;
@@ -74,6 +86,7 @@ function walk(p){
   graph.set(p, deps);
   for (const d of deps){
     if (stack.includes(d)){
+      hadCycle = true;
       console.error('CYCLE:', norm([...stack, d].join(' -> ')));
     } else {
       walk(d);
@@ -82,8 +95,9 @@ function walk(p){
   stack.pop();
 }
 
-// crawl from entries
-ENTRY.forEach(walk);
+// crawl from entries, including manifest-defined modules
+const SEEDS = [...new Set([...ENTRY, ...manifestEntries()])];
+SEEDS.forEach(walk);
 
 // enumerate all js files
 function allJs(dir){
@@ -145,12 +159,6 @@ for (const file of reachable){
     problems.push({ kind:'unphased', file: rel, suggest: suggestion });
   }
 }
-
-// summarize cycles printed earlier by console.error — also count them
-let hadCycle = false;
-const origError = console.error;
-let cycleCount = 0;
-console.error = (...a)=>{ hadCycle = true; cycleCount++; origError(...a); };
 
 // output
 const report = {
