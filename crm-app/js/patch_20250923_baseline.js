@@ -1,6 +1,10 @@
 
-// patch_20250923_baseline.js — name/✎ modals + calendar fallback + nav hooks
-(function(){
+let __wired = false;
+function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
+function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
+
+function runPatch(){
+  // patch_20250923_baseline.js — name/✎ modals + calendar fallback + nav hooks
   if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if(window.__INIT_FLAGS__.patch_20250923_trim2) return; window.__INIT_FLAGS__.patch_20250923_trim2 = true;
   if(Array.isArray(window.__PATCHES_LOADED__) && !window.__PATCHES_LOADED__.includes('/js/patch_20250923_baseline.js')){
@@ -268,11 +272,37 @@
       window.renderContactModal(id);
     }
   }, true);
+}
 
-})();
+export async function init(ctx){
+  ensureCRM();
+  const log = (ctx?.logger?.log)||console.log;
+  const error = (ctx?.logger?.error)||console.error;
 
-  // Aggressive cleaner: remove any fixed-bottom overlays that aren't our #actionbar
-  function cleanBottomOverlaysAggressive(){
+  if(__wired){
+    log('[patch_20250923_baseline.init] already wired');
+    window.CRM.health['patch_20250923_baseline'] ??= 'ok';
+    return;
+  }
+  __wired = true;
+
+  try {
+    await domReady();
+    runPatch();
+    window.CRM.health['patch_20250923_baseline'] = 'ok';
+    log('[patch_20250923_baseline.init] complete');
+  } catch (e){
+    window.CRM.health['patch_20250923_baseline'] = 'error';
+    error('[patch_20250923_baseline.init] failed', e);
+  }
+}
+
+ensureCRM();
+window.CRM.modules['patch_20250923_baseline'] = window.CRM.modules['patch_20250923_baseline'] || {};
+window.CRM.modules['patch_20250923_baseline'].init = init;
+
+// Aggressive cleaner: remove any fixed-bottom overlays that aren't our #actionbar
+export function cleanBottomOverlaysAggressive(){
   try{
     const els = Array.from(document.querySelectorAll('body *')).filter(n=>{
       const s = getComputedStyle(n);
@@ -286,3 +316,5 @@
     els.forEach(n=>{ try{ n.remove(); }catch(_){ } });
   }catch(e){ console.warn('cleanBottomOverlaysAggressive failed', e); }
 }
+
+window.cleanBottomOverlaysAggressive = window.cleanBottomOverlaysAggressive || cleanBottomOverlaysAggressive;

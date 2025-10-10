@@ -64,3 +64,40 @@ export function doubleRaf(callback){
     setTimeout(run, 32);
   }
 }
+
+let __wired = false;
+function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
+function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
+
+function runPatch(){
+  if(Array.isArray(window.__PATCHES_LOADED__) && !window.__PATCHES_LOADED__.includes('/js/patch_2025-10-02_baseline_ux_cleanup.js')){
+    window.__PATCHES_LOADED__.push('/js/patch_2025-10-02_baseline_ux_cleanup.js');
+  }
+}
+
+export async function init(ctx){
+  ensureCRM();
+  const log = (ctx?.logger?.log)||console.log;
+  const error = (ctx?.logger?.error)||console.error;
+
+  if(__wired){
+    log('[patch_2025-10-02_baseline_ux_cleanup.init] already wired');
+    window.CRM.health['patch_2025-10-02_baseline_ux_cleanup'] ??= 'ok';
+    return;
+  }
+  __wired = true;
+
+  try {
+    await domReady();
+    runPatch();
+    window.CRM.health['patch_2025-10-02_baseline_ux_cleanup'] = 'ok';
+    log('[patch_2025-10-02_baseline_ux_cleanup.init] complete');
+  } catch (e){
+    window.CRM.health['patch_2025-10-02_baseline_ux_cleanup'] = 'error';
+    error('[patch_2025-10-02_baseline_ux_cleanup.init] failed', e);
+  }
+}
+
+ensureCRM();
+window.CRM.modules['patch_2025-10-02_baseline_ux_cleanup'] = window.CRM.modules['patch_2025-10-02_baseline_ux_cleanup'] || {};
+window.CRM.modules['patch_2025-10-02_baseline_ux_cleanup'].init = init;
