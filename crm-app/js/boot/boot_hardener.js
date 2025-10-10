@@ -22,7 +22,9 @@ function corePrereqsReady() {
 function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
-    return q.get('safe') === '1' || localStorage.getItem('SAFE') === '1';
+    const param = (q.get('safe') || '').toLowerCase();
+    const local = (localStorage.getItem('SAFE') || '').toLowerCase();
+    return ['1','true','yes'].includes(param) || ['1','true','yes'].includes(local);
   } catch { return false; }
 }
 
@@ -95,6 +97,7 @@ export async function ensureCoreThenPatches(manifest = {}) {
   if (window.__BOOT_HARDENER_PROMISE__) return window.__BOOT_HARDENER_PROMISE__;
   window.__BOOT_HARDENER_PROMISE__ = (async () => {
     ensureTelemetry();
+    const w = window;
 
     const CORE = Array.isArray(manifest.CORE) ? manifest.CORE : [];
     const PATCHES = Array.isArray(manifest.PATCHES) ? manifest.PATCHES : [];
@@ -125,7 +128,7 @@ export async function ensureCoreThenPatches(manifest = {}) {
         reason: 'fatal',
         required: Array.from(state.required)
       };
-      window.__BOOT_DONE__ = summary;
+      w.__BOOT_DONE__ = summary;
       showDiagnosticsSplash(summary);
       postLog('boot.contract_miss', { prereqs: corePrereqsReady() });
       return summary;
@@ -143,16 +146,32 @@ export async function ensureCoreThenPatches(manifest = {}) {
       reason: state.reason,
       required: Array.from(state.required)
     };
-    window.__BOOT_DONE__ = summary;
+    w.__BOOT_DONE__ = summary;
+
+    const cleanupSplash = () => {
+      try {
+        const el = document.getElementById('diagnostics-splash');
+        if (el) el.style.display = 'none';
+      } catch {}
+    };
 
     if (!state.fatal) {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (typeof window.renderAll === 'function') window.renderAll();
-        hideDiagnosticsSplash();
-      }));
-      postLog('boot.ok', { loaded: state.loaded.length, failed: state.failed.length });
+      requestAnimationFrame(() => {
+        cleanupSplash();
+        try {
+          if (typeof w.renderAll === 'function') {
+            w.renderAll();
+          }
+          // mark explicit success for later checks
+          w.__BOOT_DONE__.success = true;
+        } catch (err) {
+          console.error('RenderAll failed:', err);
+          postLog('boot.render_fail', { err: String(err.stack || err) });
+          showDiagnosticsSplash(state);
+        }
+      });
     } else {
-      showDiagnosticsSplash(summary);
+      showDiagnosticsSplash(state);
     }
 
     return summary;
