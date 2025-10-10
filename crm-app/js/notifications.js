@@ -55,12 +55,12 @@
         notifier.replace(notifierItems);
         return;
       }
-    }catch(_){ }
+    }catch (_) { }
     if(typeof window !== 'undefined'){
       try{ window.__NOTIF_QUEUE__ = notifierItems.slice(); }
-      catch(_){ window.__NOTIF_QUEUE__ = notifierItems; }
-      try{ window.localStorage?.setItem('notifications:queue', JSON.stringify(notifierItems)); }catch(_){ }
-      try{ window.dispatchEvent(new CustomEvent('notifications:changed')); }catch(_){ }
+      catch (_) { window.__NOTIF_QUEUE__ = notifierItems; }
+      try{ window.localStorage?.setItem('notifications:queue', JSON.stringify(notifierItems)); }catch (_) { }
+      try{ window.dispatchEvent(new CustomEvent('notifications:changed')); }catch (_) { }
     }
   }
 
@@ -83,7 +83,7 @@
       const all = await dbGetAll('settings');
       const rec = all.find(s => s.id===id);
       if(rec) return rec;
-    }catch(_){ }
+    }catch (_) { }
     return Object.assign({id}, fallback||{});
   }
 
@@ -339,7 +339,7 @@
         rec.sentAt = new Date().toISOString();
         await dbPut('notifications', rec);
       }
-    }catch(_){ }
+    }catch (_) { }
   }
 
   async function syncQueueStore(queue){
@@ -433,7 +433,7 @@
                 body: (item.channel==='sms'? item.smsBody : item.emailBody)||'',
                 ts: Date.now()
               });
-            }catch(_){ }
+            }catch (_) { }
           }
           toast(selection.length? 'Sent selected notifications.' : 'Nothing selected.');
           await renderNotifications();
@@ -452,7 +452,7 @@
                 body: (item.channel==='sms'? item.smsBody : item.emailBody)||'',
                 ts: Date.now()
               });
-            }catch(_){ }
+            }catch (_) { }
           }
           toast(filtered.length? `Marked ${filtered.length} notification${filtered.length===1?'':'s'} as sent.` : 'No notifications to send.');
           await renderNotifications();
@@ -592,7 +592,7 @@
             body: (item.channel==='sms'? item.smsBody : item.emailBody)||'',
             ts: Date.now()
           });
-        }catch(_){ }
+        }catch (_) { }
         toast('Notification marked as sent.');
         await renderNotifications();
       }
@@ -650,7 +650,7 @@
     const prev = window.renderAll;
     window.renderAll = async function(){
       const out = typeof prev==='function' ? await prev.apply(this, arguments) : undefined;
-      try{ await renderNotifications(); }catch(_){ }
+      try{ await renderNotifications(); }catch (_) { }
       return out;
     };
   }

@@ -73,14 +73,14 @@
         if(typeof document !== 'undefined' && document && typeof document.dispatchEvent === 'function'){
           document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
         }
-      }catch(err){
+      }catch (err) {
         if(isDebug && console && console.warn){
           console.warn('Selection event dispatch failed', err);
         }
       }
       listeners.forEach(cb => {
         try{ cb(detail); }
-        catch(err){ if(isDebug && console && console.warn) console.warn('Selection listener failed', err); }
+        catch (err) { if(isDebug && console && console.warn) console.warn('Selection listener failed', err); }
       });
     });
   }
@@ -125,7 +125,7 @@
     raf(()=>{
       syncScheduled = false;
       try{ syncCheckboxes(); }
-      catch(err){ if(isDebug && console && console.warn) console.warn('selection sync failed', err); }
+      catch (err) { if(isDebug && console && console.warn) console.warn('selection sync failed', err); }
     });
   }
 

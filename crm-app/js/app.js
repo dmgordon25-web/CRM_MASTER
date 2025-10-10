@@ -9,7 +9,7 @@
       .then((mod) => {
         try{
           if(mod && typeof mod.initDebugOverlay === 'function') mod.initDebugOverlay();
-        }catch(_err){}
+        }catch (_err) {}
         window.__DBG_OVERLAY__ = mod;
       })
       .catch(() => {});
@@ -28,7 +28,7 @@
       maybeLoad();
     }
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => maybeLoad()); } catch(_) {}
+      try { window.RenderGuard.registerHook(() => maybeLoad()); } catch (_) {}
     }
   })();
 
@@ -56,14 +56,14 @@
     if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
 
     // Lazy-load service at boot (non-blocking)
-    try { import('/js/notifications/notifier.js'); } catch(_){ }
+    try { import('/js/notifications/notifier.js'); } catch (_) { }
 
     // Simple router to notifications page
     async function goNotifications(evt){
       evt && evt.preventDefault && evt.preventDefault();
       const mod = await import('/js/pages/notifications.js');
       try { activate('notifications'); }
-      catch(_){
+      catch (_) {
         const view = document.getElementById('view-notifications');
         if (view && typeof view.classList?.remove === 'function') {
           view.classList.remove('hidden');
@@ -232,8 +232,8 @@
           }else{
             window.location.hash = '#settings/automation';
           }
-        }catch(_err){ window.location.hash = '#settings/automation'; }
-      }catch(err){
+        }catch (_err) { window.location.hash = '#settings/automation'; }
+      }catch (err) {
         if(!scheduled) rendering = false;
         console.error('automation surface render failed', err);
       }
@@ -249,7 +249,7 @@
       if(btn){
         try {
           automationScheduler(() => goAutomation());
-        } catch(_err) {
+        } catch (_err) {
           goAutomation();
         }
       }
@@ -342,7 +342,7 @@
       if(result && typeof result.then === 'function'){
         result.catch(err => console.error('[app] renderAll failed', err));
       }
-    }catch(err){
+    }catch (err) {
       console.error('[app] renderAll failed', err);
     }
   }
@@ -382,10 +382,10 @@
             : guard;
           if(liveGuard && typeof liveGuard.requestRender === 'function'){
             try{ liveGuard.requestRender(); }
-            catch(err){ if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender microtask failed', err); }
+            catch (err) { if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender microtask failed', err); }
           }
         });
-      }catch(err){
+      }catch (err) {
         if(isDebug && console && typeof console.warn === 'function'){
           console.warn('[app] requestRender immediate fallback failed', err);
         }
@@ -399,20 +399,20 @@
           try{
             performance.mark('REPAINT:start');
             startMarked = true;
-          }catch(_err){}
+          }catch (_err) {}
         }
         const finalizeRepaint = () => {
           if(!startMarked || !canMeasure) return;
           try{
             if(typeof performance.mark === 'function') performance.mark('REPAINT:end');
-          }catch(_err){}
+          }catch (_err) {}
           let duration = null;
           let measure = null;
           try{
             if(typeof performance.measure === 'function'){
               measure = performance.measure('REPAINT', 'REPAINT:start', 'REPAINT:end');
             }
-          }catch(_err){}
+          }catch (_err) {}
           if(measure && typeof measure.duration === 'number'){
             duration = measure.duration;
           }else if(typeof performance.getEntriesByName === 'function'){
@@ -422,13 +422,13 @@
                 const last = entries[entries.length - 1];
                 if(last && typeof last.duration === 'number') duration = last.duration;
               }
-            }catch(_err){}
+            }catch (_err) {}
           }
           if(duration != null && window.__ENV__?.DEBUG === true){
             const overlay = window.__DBG_OVERLAY__;
             if(overlay && typeof overlay.noteRepaint === 'function'){
               try{ overlay.noteRepaint(duration); }
-              catch(_err){}
+              catch (_err) {}
             }
           }
           try{
@@ -439,7 +439,7 @@
             if(typeof performance.clearMeasures === 'function'){
               performance.clearMeasures('REPAINT');
             }
-          }catch(_err){}
+          }catch (_err) {}
         };
         const resetScheduled = () => {
           window.__REPAINT_SCHEDULED__ = false;
@@ -457,9 +457,9 @@
             if(!guardRequested){
               guard.requestRender();
             }
-          }catch(err){
+          }catch (err) {
             try{ guard.unregisterHook(hook); }
-            catch(_unregErr){}
+            catch (_unregErr) {}
             finalizeRepaint();
             resetScheduled();
             throw err;
@@ -468,7 +468,7 @@
           try{
             if(!guardRequested && guard && typeof guard.requestRender === 'function'){
               try{ guard.requestRender(); }
-              catch(err){ if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender fallback failed', err); }
+              catch (err) { if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender fallback failed', err); }
             }
             appRender();
           }finally{
@@ -496,7 +496,7 @@
       longTaskObserver.observe({ type:'longtask', buffered:true });
       const perfRegistry = window.__PERF_OBSERVERS__ = window.__PERF_OBSERVERS__ || [];
       perfRegistry.push({ type:'longtask', observer: longTaskObserver });
-    }catch(_err){}
+    }catch (_err) {}
   }
 
   function sampleMemoryTrend(){
@@ -524,7 +524,7 @@
       monitor.baselineIds = ids;
       monitor.baselineListeners = listenerCount;
       monitor.samples = 0;
-    }catch(_err){}
+    }catch (_err) {}
   }
 
   async function backfillUpdatedAt(){
@@ -547,7 +547,7 @@
       await openDB();
       let metaRec = null;
       try{ metaRec = await dbGet('meta', META_KEY); }
-      catch(_){ metaRec = null; }
+      catch (_) { metaRec = null; }
       if(metaRec && metaRec.done){ ensureSeedData.__ran = true; return; }
 
       const partnersSnapshot = Array.isArray(existingPartners) ? existingPartners : await dbGetAll('partners');
@@ -611,7 +611,7 @@
       }else{
         document.dispatchEvent(new CustomEvent('app:data:changed',{detail:{source:'seed:inline'}}));
       }
-    }catch(err){
+    }catch (err) {
       debugWarn('ensureSeedData', err);
     }finally{
       ensureSeedData.__ran = true;
@@ -803,10 +803,10 @@
           }
         }
       }
-    }catch(_){
+    }catch (_) {
       if(!bypass){
         try{ window.location.hash = canonicalHash; }
-        catch(__){ /* noop */ }
+        catch (__) { /* noop */ }
       }
     }
     if(bypass) return;
@@ -850,7 +850,7 @@
         }else if(window.location){
           window.location.hash = '#workbench';
         }
-      }catch(_){ }
+      }catch (_) { }
     };
 
     async function goWB(evt){
@@ -871,7 +871,7 @@
         if(outcome && typeof outcome.then === 'function'){
           await outcome;
         }
-      }catch(err){
+      }catch (err) {
         console.error('[workbench] render failed', err);
       }
       updateHash();
@@ -907,7 +907,7 @@
       e.preventDefault();
       activate('dashboard');
       try{ window.scrollTo({top:0, behavior:'smooth'}); }
-      catch(_){ window.scrollTo(0,0); }
+      catch (_) { window.scrollTo(0,0); }
     });
   }
 
@@ -1050,7 +1050,7 @@
         a.download = 'crm_workspace_' + new Date().toISOString().slice(0,10) + '.json';
         a.click();
         URL.revokeObjectURL(url);
-      }catch(err){
+      }catch (err) {
         toast('Export failed');
         debugWarn('export', err);
       }
@@ -1130,7 +1130,7 @@
       if(!importDialog && pendingImportFile){
         try{
           await handleWorkspaceImport('merge');
-        }catch(err){
+        }catch (err) {
           debugWarn('import error', err);
           alert('Import failed: ' + (err && err.message ? err.message : err));
         }finally{
@@ -1154,7 +1154,7 @@
       try{
         await handleWorkspaceImport(mode);
         importDialog?.close();
-      }catch(err){
+      }catch (err) {
         debugWarn('import error', err);
         alert('Import failed: ' + (err && err.message ? err.message : err));
       }finally{
@@ -1168,7 +1168,7 @@
     dashIcsBtn.addEventListener('click', async ()=>{
       if(typeof window.exportToIcalFile === 'function'){
         try{ await window.exportToIcalFile(); }
-        catch(err){ toast('ICS export failed'); debugWarn('ics export', err); }
+        catch (err) { toast('ICS export failed'); debugWarn('ics export', err); }
       }else{
         toast('ICS export unavailable');
       }
@@ -1222,7 +1222,7 @@
       seedForm.classList.add('is-seeding');
       try{
         await window.seedTestData(options);
-      }catch(error){
+      }catch (error) {
         debugWarn('seed run failed', error);
       }finally{
         seedForm.classList.remove('is-seeding');
@@ -1241,7 +1241,7 @@
       const snapshot = await dbExportAll();
       const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
       await dbPut('meta', rec);
-    }catch(_){}
+    }catch (_) {}
   });
 
   (async function init(){
@@ -1276,7 +1276,7 @@
       if(result && typeof result.then === 'function'){
         result.catch(err => console.error(`[app] ${label} repaint failed`, err));
       }
-    }catch(err){
+    }catch (err) {
       console.error(`[app] ${label} repaint failed`, err);
     }
     return true;
@@ -1381,7 +1381,7 @@
       }
       if(window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
         try{ window.RenderGuard.requestRender(); }
-        catch(err){ if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
+        catch (err) { if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
       }
       scheduleAppRender();
     };
@@ -1481,14 +1481,14 @@
     sweep();
   }
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch(_) {}
+    try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) {}
   }
 })();
 
 // Load SVG sanitizer (no-op if already loaded)
 try{
   import('/js/ux/svg_sanitizer.js').catch(() => {});
-}catch(_){ }
+}catch (_) { }
 
 // Inject a tiny data-URL favicon to stop 404 noise without touching HTML
 (function(){
@@ -1501,5 +1501,5 @@ try{
       link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
       document.head.appendChild(link);
     }
-  } catch(_) {}
+  } catch (_) {}
 })();

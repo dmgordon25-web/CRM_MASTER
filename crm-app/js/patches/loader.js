@@ -43,7 +43,7 @@ window.CRM.ctx = window.CRM.ctx || {
     const shellMs = Array.isArray(shellRes) ? Math.round(shellRes.reduce((a, r) => a + (r.t1 - r.t0), 0)) : 0;
     const featMs = Array.isArray(featureRes) ? Math.round(featureRes.reduce((a, r) => a + (r.t1 - r.t0), 0)) : 0;
     ctx.logger.log(`[BOOT] SHELL modules total ~${shellMs}ms, FEATURES modules total ~${featMs}ms (parallel aggregate)`);
-  } catch(_){ }
+  } catch (_) { }
   ctx.logger.log('[phase] FEATURES complete', { count: featureRes.length, errors: featureRes.filter(r => !r.ok).length });
 
   // Optional: final render tick

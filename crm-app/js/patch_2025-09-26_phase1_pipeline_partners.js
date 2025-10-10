@@ -583,7 +583,7 @@ function runPatch(){
 
     async function fullRefresh(){
       try{ await ensurePartnerNone(); }
-      catch(err){ console && console.warn && console.warn('ensurePartnerNone', err); }
+      catch (err) { console && console.warn && console.warn('ensurePartnerNone', err); }
       if(typeof openDB!=='function' || typeof dbGetAll!=='function') return;
       await openDB();
       const [contactsRaw, partnersRaw] = await Promise.all([
@@ -951,7 +951,7 @@ function runPatch(){
       if(stageChanged && typeof window.runStageAutomationsQuiet === 'function'){
         try{
           automations = await window.runStageAutomationsQuiet({ id: safeId, from: prevStage, to: nextStage });
-        }catch(err){ console && console.warn && console.warn('stage automation bridge', err); }
+        }catch (err) { console && console.warn && console.warn('stage automation bridge', err); }
       }
       const stageDetail = stageChanged ? {
         action:'stage',
@@ -1085,7 +1085,7 @@ function runPatch(){
           lossReason
         });
         applyDropResult({ id: contactId, prevLane, nextLane, prevStage, nextStage, stageChanged }, result);
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('stage update failed', err);
         if(typeof window.toast === 'function') window.toast('Stage update failed');
         if(prevLane) renderLane(prevLane);
@@ -1265,7 +1265,7 @@ function runPatch(){
           if(!confirmed) return;
           try{
             if(typeof window.softDelete === 'function') await window.softDelete('partners', partnerId, {source:'profile'});
-          }catch(err){ console && console.warn && console.warn('delete partner', err); }
+          }catch (err) { console && console.warn && console.warn('delete partner', err); }
         }
       });
       dlg.__phase1Ready = true;
@@ -1403,7 +1403,7 @@ function runPatch(){
           try{
             await reassignContacts(partnerId, PARTNER_NONE_ID);
             cleanup(true);
-          }catch(err){
+          }catch (err) {
             console && console.warn && console.warn('reassign before delete', err);
             if(typeof window.toast === 'function') window.toast('Reassign failed');
             cleanup(false);
@@ -1453,7 +1453,7 @@ function runPatch(){
       if(typeof softDeleteOriginal === 'function') return softDeleteOriginal.apply(this, arguments);
       if(entity && typeof window.dbDelete === 'function'){
         try{ await window.dbDelete(entity, id); return {ok:true}; }
-        catch(err){ console && console.warn && console.warn('softDelete fallback', err); return {ok:false}; }
+        catch (err) { console && console.warn && console.warn('softDelete fallback', err); return {ok:false}; }
       }
       return {ok:false};
     };
@@ -1605,7 +1605,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-26_phase1_pipeline_partners'] = 'ok';
     log('[patch_2025-09-26_phase1_pipeline_partners.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-26_phase1_pipeline_partners'] = 'error';
     error('[patch_2025-09-26_phase1_pipeline_partners.init] failed', e);
   }

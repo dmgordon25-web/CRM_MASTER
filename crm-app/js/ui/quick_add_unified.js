@@ -103,7 +103,7 @@ export function wireQuickAddUnified() {
       } catch (err) {
         console.error("[quickAdd] contact save failed", err);
       } finally {
-        try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch(_) {}
+        try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
         close();
       }
     });
@@ -130,7 +130,7 @@ export function wireQuickAddUnified() {
       } catch (err) {
         console.error("[quickAdd] partner save failed", err);
       } finally {
-        try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch(_) {}
+        try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
         close();
       }
     });

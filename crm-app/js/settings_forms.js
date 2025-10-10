@@ -1,6 +1,6 @@
 import { STR, text } from './ui/strings.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
-function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch(_){ return k; } }
+function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
 
 (function(){
   if(window.__INIT_FLAGS__ && window.__INIT_FLAGS__.settings_forms) return;
@@ -11,7 +11,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     try{
       if(typeof window.toast === 'function') window.toast(message);
       else console.log(message);
-    }catch(_err){ console.log(message); }
+    }catch (_err) { console.log(message); }
   }
 
   function ensureSettings(){
@@ -67,7 +67,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
 
   function generateRowId(){
     try{ if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID(); }
-    catch(_err){}
+    catch (_err) {}
     return 'sig-' + Math.random().toString(36).slice(2, 12);
   }
 
@@ -468,7 +468,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
         await window.Settings.save({ loProfile: payload });
         if(window.renderAll && typeof window.renderAll === 'function'){
           try{ window.renderAll('profiles:saved'); }
-          catch(err){ console.warn('renderAll profiles:saved failed', err); }
+          catch (err) { console.warn('renderAll profiles:saved failed', err); }
         }
         toastSafe(text?.('settings.toast.profile-saved') ?? __textFallback__('settings.toast.profile-saved'));
       });
@@ -489,7 +489,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       hydrateProfile(data.loProfile || {});
       syncSignatureState(data.signature || {});
       await hydrateSignatures(data);
-    }catch(err){
+    }catch (err) {
       console.error(text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
     }finally{
       hydrating = false;
@@ -514,7 +514,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       if(!raw) return null;
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === 'object' ? parsed : null;
-    }catch(_err){ return null; }
+    }catch (_err) { return null; }
   }
 
   function writeProfileLocal(data){
@@ -524,14 +524,14 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       }else{
         localStorage.removeItem(PROFILE_KEY);
       }
-    }catch(_err){ /* noop */ }
+    }catch (_err) { /* noop */ }
   }
 
   function readSignatureLocal(){
     try{
       const raw = localStorage.getItem(SIGNATURE_KEY);
       return typeof raw === 'string' ? raw : '';
-    }catch(_err){ return ''; }
+    }catch (_err) { return ''; }
   }
 
   function writeSignatureLocal(value){
@@ -541,6 +541,6 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       }else{
         localStorage.removeItem(SIGNATURE_KEY);
       }
-    }catch(_err){ /* noop */ }
+    }catch (_err) { /* noop */ }
   }
 

@@ -95,7 +95,7 @@
         evt.stopPropagation();
         this.hide();
         try{ action.onClick(); }
-        catch(err){ console && console.warn && console.warn('toast action', err); }
+        catch (err) { console && console.warn && console.warn('toast action', err); }
       }, { once: true });
       host.appendChild(btn);
       host.style.pointerEvents = 'auto';

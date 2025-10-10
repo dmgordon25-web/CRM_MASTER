@@ -11,7 +11,7 @@ import { STR, text } from './ui/strings.js';
         enumerable: false,
         writable: true
       });
-    }catch(_){
+    }catch (_) {
       window.__CALENDAR_READY__ = ready;
     }
   }
@@ -44,7 +44,7 @@ import { STR, text } from './ui/strings.js';
       if(!proto) return;
       let desc;
       try{ desc = Object.getOwnPropertyDescriptor(proto, key); }
-      catch(_err){ return; }
+      catch (_err) { return; }
       if(!desc || desc.configurable === false) return;
       const next = {
         configurable: true,
@@ -59,7 +59,7 @@ import { STR, text } from './ui/strings.js';
       try{
         Object.defineProperty(proto, key, next);
         restorers.push(()=>{ Object.defineProperty(proto, key, desc); });
-      }catch(_err){}
+      }catch (_err) {}
     };
     wrapMethod(Element.prototype, 'getBoundingClientRect', markRead);
     if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
@@ -93,7 +93,7 @@ import { STR, text } from './ui/strings.js';
       while(restorers.length){
         const restore = restorers.pop();
         try{ restore(); }
-        catch(_err){}
+        catch (_err) {}
       }
       if(violations >= 5 && console && typeof console.info === 'function'){
         console.info(`[LAYOUT] possible thrash at ${moduleName} (x${violations})`);
@@ -106,7 +106,7 @@ import { STR, text } from './ui/strings.js';
       }
       finalize();
       return result;
-    }catch(err){
+    }catch (err) {
       finalize();
       throw err;
     }
@@ -124,9 +124,9 @@ import { STR, text } from './ui/strings.js';
     try{
       if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s+"T00:00:00");
       const d = new Date(s); return isNaN(d) ? null : d;
-    }catch(_){ return null; }
+    }catch (_) { return null; }
   }
-  async function getAll(store){ try{ if(typeof dbGetAll==='function') return await dbGetAll(store); }catch(_){} return []; }
+  async function getAll(store){ try{ if(typeof dbGetAll==='function') return await dbGetAll(store); }catch (_) {} return []; }
 
   const EVENT_META = [
     {type:'followup', label:text('calendar.event.follow-up'), icon:'📞'},
@@ -483,7 +483,7 @@ import { STR, text } from './ui/strings.js';
           if(payload && payload.source){
             await persistEventDate(payload.source, new Date(d));
           }
-        }catch(_){ }
+        }catch (_) { }
       });
 
       const todays = events.filter(e=> ymd(e.date)===ymd(d) );
@@ -520,7 +520,7 @@ import { STR, text } from './ui/strings.js';
           item.addEventListener('dragstart', (e)=>{
             if(!e.dataTransfer) return;
             const payload = { type: ev.type, date: ev.date, source: ev.source || null };
-            try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch(_){ }
+            try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch (_) { }
           });
         }
 

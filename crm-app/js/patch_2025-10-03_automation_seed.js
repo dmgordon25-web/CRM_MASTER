@@ -16,7 +16,7 @@ function runPatch(){
           Templates.upsert({ name:'Loan Milestone: CTC', subject:'Clear to Close 🎉', body:'Congrats {first}! You’re clear to close. Next steps… – {loName}' }, { silent:true });
           Templates.upsert({ name:'Post-Funding Check-in', subject:'How’s the new home?', body:'Hi {first}, checking in after closing. Anything you need? – {loName}' }, { silent:true });
         }
-      }catch(e){ console.warn('automation seed skipped', e); }
+      }catch (e) { console.warn('automation seed skipped', e); }
     }
     if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', run, {once:true}); else run();
 }
@@ -38,7 +38,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-10-03_automation_seed'] = 'ok';
     log('[patch_2025-10-03_automation_seed.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-10-03_automation_seed'] = 'error';
     error('[patch_2025-10-03_automation_seed.init] failed', e);
   }

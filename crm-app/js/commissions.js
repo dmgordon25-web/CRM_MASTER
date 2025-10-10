@@ -9,7 +9,7 @@
   function ymd(d){ const x=new Date(d); return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`; }
 
   async function loadCommSettings(){
-    try{ const all = await dbGetAll('settings'); const rec = all.find(s=>s.id==='commissions'); if(rec) return rec; }catch(_){}
+    try{ const all = await dbGetAll('settings'); const rec = all.find(s=>s.id==='commissions'); if(rec) return rec; }catch (_) {}
     return { id:'commissions', bps: 125, loSplit: 50 }; // defaults: 125 bps, 50% LO split
   }
   async function saveCommSettings(obj){ obj.id='commissions'; await dbPut('settings', obj); }
@@ -83,7 +83,7 @@
     const _renderAll = window.renderAll;
     window.renderAll = async function(){
       const r = await _renderAll.apply(this, arguments);
-      try{ await renderCommissions(); }catch(_){}
+      try{ await renderCommissions(); }catch (_) {}
       return r;
     };
   }
@@ -109,7 +109,7 @@
       while(pendingRender){
         pendingRender = false;
         try{ await renderCommissions(); }
-        catch(_){ }
+        catch (_) { }
       }
     } finally {
       renderActive = false;
@@ -298,14 +298,14 @@
       if(typeof prevRenderAll === 'function'){
         window.renderAll = async function(){
           const result = await prevRenderAll.apply(this, arguments);
-          try{ await renderLedger(); }catch(_){ }
+          try{ await renderLedger(); }catch (_) { }
           return result;
         };
       }
     }
 
     window.renderLedger = (function(orig){
-      return async function(){ try{ await renderLedger(); }catch(_){ } return (typeof orig==='function'?orig():undefined); };
+      return async function(){ try{ await renderLedger(); }catch (_) { } return (typeof orig==='function'?orig():undefined); };
     })(window.renderLedger);
 
     function hasLedgerAction(detail){
@@ -328,7 +328,7 @@
         while(ledgerPending){
           ledgerPending = false;
           try{ await renderLedger(); }
-          catch(_){ }
+          catch (_) { }
         }
       } finally {
         ledgerActive = false;
@@ -369,6 +369,6 @@
       window[LEDGER_LISTENER_KEY] = ledgerHandler;
     }
 
-  }catch(e){ try{ console.error('commissions_dom_adapter error', e); }catch(_u){} }
+  }catch (e) { try{ console.error('commissions_dom_adapter error', e); }catch (_u) {} }
 })();
  /* === /injected === */

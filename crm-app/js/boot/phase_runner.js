@@ -10,7 +10,7 @@ export async function runPhase(phaseName, modulePaths, ctx, onEvent){
         await mod.init(ctx);
       }
       entry.ok = true;
-    } catch (err){
+    } catch (err) {
       entry.error = String(err && err.stack || err);
     } finally {
       entry.t1 = performance.now();
@@ -26,7 +26,7 @@ export function checkContract(name, checks){
   const fails = [];
   for (const [label, fn] of Object.entries(checks || {})){
     let ok = false, note = '';
-    try { ok = !!fn(); } catch (e){ note = String(e); }
+    try { ok = !!fn(); } catch (e) { note = String(e); }
     if (!ok) fails.push(label + (note ? ` (${note})` : ''));
   }
   return { ok: fails.length === 0, fails };
@@ -43,7 +43,7 @@ export async function runPhaseParallel(phaseName, modulePaths, ctx, onEvent){
         await mod.init(ctx);
       }
       entry.ok = true;
-    } catch (err){
+    } catch (err) {
       entry.error = String(err && err.stack || err);
     } finally {
       entry.t1 = performance.now();

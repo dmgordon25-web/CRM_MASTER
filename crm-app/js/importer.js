@@ -655,7 +655,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             const clampNote = renderClampNote(res.clamped || 0);
             if(statusEl) statusEl.innerHTML = `${summary}${clampNote}`;
             if(kind==='contacts') dlg.close();
-          }catch(err){
+          }catch (err) {
             if(err && err.code === 'IMPORT_TRUNCATED_HEADERS'){
               const msg = err.message || text('importer.error.truncated-header', { headers: (err.truncatedHeaders||[]).join(', ') });
               if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;

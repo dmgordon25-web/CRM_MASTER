@@ -92,7 +92,7 @@ async function relinkPartnerReferences(winnerId, loserId) {
     await window.withStore(null, "readonly", (st) => {}); // no-op but ensures DB open
     const db = window.__DB__ || window.__db__ || null; // if code exposes DB; otherwise we try blindly
     // If we can’t introspect, proceed with candidateStores and catch per-store failures
-  } catch(_) {}
+  } catch (_) {}
 
   for (const store of candidateStores) {
     try {
@@ -158,12 +158,12 @@ export async function openPartnersMergeByIds(idA, idB) {
           await relinkPartnerReferences(winnerId, loserId);
           await dbDeleteSafe("partners", loserId);
 
-          try { window.Selection?.clear?.(); } catch(_) {}
+          try { window.Selection?.clear?.(); } catch (_) {}
           try {
             const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge-partners" }});
             window.dispatchEvent(evt);
-          } catch(_) {}
-          try { window.dispatchAppDataChanged?.("partners:merge"); } catch(_) {}
+          } catch (_) {}
+          try { window.dispatchAppDataChanged?.("partners:merge"); } catch (_) {}
 
           finish({ status: "ok", winnerId, loserId, merged });
         } catch (err) {

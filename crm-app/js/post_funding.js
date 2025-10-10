@@ -39,8 +39,8 @@
       c.updatedAt = Date.now();
       await dbPut('contacts', c);
 
-      try{ await renderAll(); }catch(_){}
-    }catch(e){ console.warn('post_funding onFunded error', e); }
+      try{ await renderAll(); }catch (_) {}
+    }catch (e) { console.warn('post_funding onFunded error', e); }
   }
 
   // Compose dbPut/dbBulkPut to detect transitions to funded
@@ -53,7 +53,7 @@
       if(store==='contacts' && obj && obj.id){
         old = await dbGet('contacts', obj.id);
       }
-    }catch(_){}
+    }catch (_) {}
     const res = await _dbPut.call(this, store, obj);
     try{
       if(store==='contacts' && obj){
@@ -63,7 +63,7 @@
           await onFunded(obj);
         }
       }
-    }catch(e){ console.warn('post_funding shim error', e); }
+    }catch (e) { console.warn('post_funding shim error', e); }
     return res;
   };
 
@@ -74,7 +74,7 @@
         const before = await dbGetAll('contacts');
         beforeIdx = new Map(before.map(x=> [x.id,x]));
       }
-    }catch(_){}
+    }catch (_) {}
     const res = await _dbBulkPut.call(this, store, list);
     try{
       if(store==='contacts'){
@@ -87,7 +87,7 @@
           }
         }
       }
-    }catch(e){ console.warn('post_funding bulk shim error', e); }
+    }catch (e) { console.warn('post_funding bulk shim error', e); }
     return res;
   };
 
@@ -101,7 +101,7 @@
           await onFunded(c);
         }
       }
-    }catch(_){}
+    }catch (_) {}
   }
   document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(rescan, 100); });
 })();

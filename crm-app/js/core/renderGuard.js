@@ -22,7 +22,7 @@
       handler: reemit,
       remove(){
         try { global.removeEventListener('app:data:changed', reemit, true); }
-        catch(_err){}
+        catch (_err) {}
       }
     };
     if (!global[legacyBridgeKey]) global[legacyBridgeKey] = true;

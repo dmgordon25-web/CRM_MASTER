@@ -2,7 +2,7 @@
 (function(){
   try{
     // original migrations intentionally disabled for this baseline; schema is created by db.js
-  }catch(e){
+  }catch (e) {
     console.warn('migrations disabled', e);
   }
 })();

@@ -60,14 +60,14 @@ export function openMergeModal({ kind = "contacts", recordA, recordB, onConfirm,
       if (typeof v === "number" || typeof v === "boolean") return escapeHtml(String(v));
       if (Array.isArray(v)) return escapeHtml(v.map(x => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", "));
       return escapeHtml(JSON.stringify(v));
-    } catch(_) { return ""; }
+    } catch (_) { return ""; }
   }
 
   const node = tpl.content.firstElementChild;
   document.body.appendChild(node);
 
   const close = ({ triggerCancel = false } = {}) => {
-    try { node.remove(); } catch(_){}
+    try { node.remove(); } catch (_) {}
     window[guard] = false;
     if (triggerCancel) onCancel?.();
   };

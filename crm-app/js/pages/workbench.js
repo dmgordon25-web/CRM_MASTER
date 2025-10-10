@@ -40,7 +40,7 @@ function formatDate(value){
   try{
     const fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
     return fmt.format(new Date(ts));
-  }catch(_){
+  }catch (_) {
     return '';
   }
 }
@@ -127,7 +127,7 @@ function toggleRow(row, type){
       try{
         const ids = window.SelectionService.getIds();
         if(Array.isArray(ids)) exists = ids.map(String).includes(String(id));
-      }catch(_){ exists = false; }
+      }catch (_) { exists = false; }
     }
     if(exists) window.SelectionService.remove(id);
     else window.SelectionService.add(id, type);
@@ -191,7 +191,7 @@ function paintRows(table, rows, columns, type){
       const td = document.createElement('td');
       let value;
       try{ value = col.value(row); }
-      catch(_){ value = ''; }
+      catch (_) { value = ''; }
       td.textContent = value == null ? '' : String(value);
       tr.appendChild(td);
     });
@@ -351,7 +351,7 @@ export async function renderWorkbench(root, options = {}){
       runBtn.disabled = true;
       runBtn.setAttribute('aria-busy', 'true');
       try{ await options.onRunSelfTest(); }
-      catch(err){ console && console.error && console.error('[workbench] self-test failed', err); }
+      catch (err) { console && console.error && console.error('[workbench] self-test failed', err); }
       finally{
         runBtn.removeAttribute('aria-busy');
         runBtn.disabled = false;

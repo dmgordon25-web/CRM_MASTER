@@ -172,7 +172,7 @@ function runPatch(){
             try{
               applyLaneCounts(state);
               applyChipTooltips(state);
-            }catch(err){ console.warn('doccenter nth enhance', err); }
+            }catch (err) { console.warn('doccenter nth enhance', err); }
             return result;
           };
           applyLaneCounts(state);
@@ -527,7 +527,7 @@ function runPatch(){
       await Promise.all(needed.map(async id => {
         let row = null;
         try{ row = await dbGet('contacts', id); }
-        catch(err){ row = null; }
+        catch (err) { row = null; }
         const name = (function(contact){
           if(!contact) return `Contact ${id}`;
           const first = safeString(contact.first||'').trim();
@@ -616,7 +616,7 @@ function runPatch(){
       }
       let result = null;
       try{ result = await svc.listLinksForMany(ids); }
-      catch(err){ console.warn('inline links fetch failed', err); result = null; }
+      catch (err) { console.warn('inline links fetch failed', err); result = null; }
       const map = new Map();
       if(result instanceof Map){
         result.forEach((value, key)=> map.set(String(key), Array.isArray(value)?value:[]));
@@ -919,7 +919,7 @@ function runPatch(){
         if(!hasCalendar) throw new Error('VCALENDAR header missing');
         if(!hasEvent) throw new Error('VEVENT with DTSTART missing');
         logResult(results, section, name, true, 'ICS export includes calendar header and at least one DTSTART event');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -953,7 +953,7 @@ function runPatch(){
         const text = visible[0].textContent || '';
         if(!text.includes('Unique')) throw new Error('Unique row not present');
         logResult(results, section, name, true, 'Search isolates the unique Long Shot row');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -969,7 +969,7 @@ function runPatch(){
         if(!(overflow.includes('auto') || overflow.includes('scroll'))) throw new Error('Overflow not scrollable');
         if(!(maxHeight > 0)) throw new Error('Max-height missing');
         logResult(results, section, name, true, 'Container scroll properties detected');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -993,7 +993,7 @@ function runPatch(){
           document.dispatchEvent(new CustomEvent('selection:changed', detail));
         }
         logResult(results, section, name, true, 'Merge button gating enforced');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1009,7 +1009,7 @@ function runPatch(){
         const refreshed = await dbGet('documents', doc.id);
         if(!refreshed || refreshed.status !== 'received') throw new Error('Status not persisted');
         logResult(results, section, name, true, 'Document lane move persisted');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1026,7 +1026,7 @@ function runPatch(){
         const target = list.find(item => item.id === doc.id);
         if(!target || target.status !== 'waived') throw new Error('Dropdown status not persisted');
         logResult(results, section, name, true, 'Dropdown change persisted to new lane');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1041,7 +1041,7 @@ function runPatch(){
         const matches = docs.filter(d => d && d.contactId === contact.id && d.name === '[QA] UniqueDoc');
         if(matches.length !== 1) throw new Error('Duplicate doc detected');
         logResult(results, section, name, true, 'Custom doc deduplicated and stored');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1055,7 +1055,7 @@ function runPatch(){
         const laneCount = document.querySelectorAll('.doc-lane-count');
         if(!laneCount.length) throw new Error('Lane counts missing');
         logResult(results, section, name, true, 'Tooltips and counts detected');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1077,7 +1077,7 @@ function runPatch(){
         if(!found) throw new Error('View not persisted');
         await svc.remove(view.id);
         logResult(results, section, name, true, 'Save/load/update/delete executed');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1093,7 +1093,7 @@ function runPatch(){
         const table = document.getElementById('workbench-table');
         if(!table) throw new Error('Workbench table unavailable');
         logResult(results, section, name, true, 'Workbench table rendered; combination handled by core filters');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1110,7 +1110,7 @@ function runPatch(){
         const csv = await window.workbenchExportCsv({ mode:'all', entity:'contacts' });
         if(typeof csv !== 'string' || !csv.includes(',')) throw new Error('CSV output invalid');
         logResult(results, section, name, true, 'CSV export string returned');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1129,7 +1129,7 @@ function runPatch(){
         }
         await window.workbenchSimulateLargeFilter(5000);
         logResult(results, section, name, true, 'Large filter simulation completed');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1141,7 +1141,7 @@ function runPatch(){
         const modal = document.querySelector('#merge-modal');
         if(!modal) throw new Error('Merge modal missing');
         logResult(results, section, name, true, 'Merge modal present');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1152,7 +1152,7 @@ function runPatch(){
       try{
         if(typeof window.mergeContactsWithIds !== 'function') throw new Error('Merge handler missing');
         logResult(results, section, name, true, 'Merge handler available for rewiring');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1167,7 +1167,7 @@ function runPatch(){
         }else{
           logResult(results, section, name, true, 'N/A');
         }
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1185,7 +1185,7 @@ function runPatch(){
         if(!neighbor) throw new Error('Neighbor missing');
         await svc.unlinkContacts(a.id, b.id);
         logResult(results, section, name, true, 'Link/unlink/list executed');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1196,7 +1196,7 @@ function runPatch(){
       try{
         const chips = document.querySelectorAll('#contact-linked-list .doc-chip');
         logResult(results, section, name, chips.length ? true : false, chips.length ? 'Linked chips rendered' : 'No linked chips to inspect');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1208,7 +1208,7 @@ function runPatch(){
         const select = document.getElementById('workbench-filter-linked');
         if(!select) throw new Error('Linked filter missing');
         logResult(results, section, name, true, 'Linked filter available');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1220,7 +1220,7 @@ function runPatch(){
         const toggle = document.getElementById('contact-linked-rollup-toggle');
         if(!toggle) throw new Error('Roll-up toggle unavailable');
         logResult(results, section, name, true, 'Roll-up toggle present');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1234,7 +1234,7 @@ function runPatch(){
         if(!badge) throw new Error('Linked count badge missing');
         if(!summary) throw new Error('Roll-up summary missing');
         logResult(results, section, name, true, 'Badge and summary rendered');
-      }catch(err){
+      }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
     }
@@ -1314,7 +1314,7 @@ function runPatch(){
         await testP53(results);
         await testP54(results);
         await testP55(results);
-      }catch(err){
+      }catch (err) {
         console.error('QA harness error', err);
       }finally{
         await deleteQaContacts();
@@ -1368,7 +1368,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_nth_bundle_and_qa'] = 'ok';
     log('[patch_2025-09-27_nth_bundle_and_qa.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_nth_bundle_and_qa'] = 'error';
     error('[patch_2025-09-27_nth_bundle_and_qa.init] failed', e);
   }

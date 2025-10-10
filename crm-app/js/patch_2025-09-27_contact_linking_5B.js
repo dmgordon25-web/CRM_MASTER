@@ -77,7 +77,7 @@ function runPatch(){
         contactCache.byId = new Map(mapped.map(item => [item.id, item]));
         contactCache.loaded = true;
         contactCache.dirty = false;
-      }catch(err){
+      }catch (err) {
         console.warn('contact linked cache load failed', err);
         contactCache.entries = [];
         contactCache.byId = new Map();
@@ -218,7 +218,7 @@ function runPatch(){
     function toastSafe(message){
       try{
         if(typeof window.toast === 'function'){ window.toast(message); return; }
-      }catch(_err){}
+      }catch (_err) {}
       console.log('[contact-linked]', message);
     }
 
@@ -268,7 +268,7 @@ function runPatch(){
           try{
             state.pendingFocusId = contactId;
             await svc.linkContacts(state.contactId, contactId, newRole);
-          }catch(err){
+          }catch (err) {
             console.warn('contact linked role change failed', err);
             toastSafe(err && err.message ? err.message : 'Failed to update role');
             evt.target.value = neighbor.role;
@@ -306,7 +306,7 @@ function runPatch(){
           if(!svc) return;
           try{
             await svc.unlinkContacts(state.contactId, contactId);
-          }catch(err){
+          }catch (err) {
             console.warn('contact unlink failed', err);
             toastSafe(err && err.message ? err.message : 'Failed to unlink contact');
           }
@@ -321,7 +321,7 @@ function runPatch(){
       if(node){
         node.focus({ preventScroll:false });
         try{ node.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
-        catch(_err){}
+        catch (_err) {}
       }
     }
 
@@ -381,7 +381,7 @@ function runPatch(){
           edgeId: item.edgeId
         }));
         listNeighbors(state, state.neighbors);
-      }catch(err){
+      }catch (err) {
         console.warn('contact linked refresh failed', err);
         if(state.ui && state.ui.list){
           state.ui.list.innerHTML = `<div class="muted">${err && err.message ? err.message : 'Unable to load linked contacts.'}</div>`;
@@ -454,7 +454,7 @@ function runPatch(){
           state.pendingFocusId = targetId;
           await svc.linkContacts(state.contactId, targetId, role);
           clearForm(state);
-        }catch(err){
+        }catch (err) {
           console.warn('contact link failed', err);
           toastSafe(err && err.message ? err.message : 'Unable to link contacts');
         }
@@ -506,7 +506,7 @@ function runPatch(){
       const section = dialog.querySelector('#'+SECTION_ID);
       if(!section) return;
       try{ section.scrollIntoView({ behavior:'smooth', block:'start' }); }
-      catch(_err){}
+      catch (_err) {}
       const focusable = section.querySelector('input,select,button,[tabindex]');
       if(focusable){
         focusable.focus({ preventScroll:true });
@@ -564,7 +564,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_contact_linking_5B'] = 'ok';
     log('[patch_2025-09-27_contact_linking_5B.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_contact_linking_5B'] = 'error';
     error('[patch_2025-09-27_contact_linking_5B.init] failed', e);
   }

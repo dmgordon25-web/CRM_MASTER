@@ -64,14 +64,14 @@
     if(!dlg) return;
     try{
       dlg.showModal();
-    }catch(err){
+    }catch (err) {
       dlg.setAttribute('open', '');
     }
     const confirmBtn = dlg.querySelector('[data-role="confirm"]');
     if(confirmBtn && typeof confirmBtn.focus === 'function'){
       setTimeout(() => {
         try{ confirmBtn.focus(); }
-        catch(_err){}
+        catch (_err) {}
       }, 0);
     }
   }
@@ -79,7 +79,7 @@
   function closeDialog(dlg){
     if(!dlg) return;
     try{ dlg.close(); }
-    catch(_err){ dlg.removeAttribute('open'); }
+    catch (_err) { dlg.removeAttribute('open'); }
   }
 
   window.confirmAction = function confirmAction(opts){

@@ -94,7 +94,7 @@ function runPatch(){
         else if(typeof value === 'number' || typeof value === 'boolean') text = String(value);
         else if(value instanceof Error && typeof value.message === 'string') text = value.message;
         else if(value != null) text = JSON.stringify(value);
-      }catch(_){ text = String(value); }
+      }catch (_) { text = String(value); }
       text = text.replace(EMAIL_RE, '***@***');
       text = text.replace(PHONE_RE, '(***) ***-****');
       text = text.replace(HEX_RE, '...id');
@@ -217,7 +217,7 @@ function runPatch(){
       while(diagListeners.length){
         const item = diagListeners.pop();
         try{ item.target.removeEventListener(item.type, item.handler, item.options); }
-        catch(_){ }
+        catch (_) { }
       }
     }
 
@@ -302,7 +302,7 @@ function runPatch(){
         diagState.automation.due = due.length;
         diagState.automation.lastSnapshot = now;
         diagState.automation.needsRefresh = false;
-      }catch(err){
+      }catch (err) {
         recordError('warn', ['automation snapshot', err && err.message ? err.message : err]);
         diagState.automation.needsRefresh = false;
       }
@@ -354,7 +354,7 @@ function runPatch(){
           }
           finalize();
           return result;
-        }catch(err){
+        }catch (err) {
           finalize();
           throw err;
         }
@@ -387,7 +387,7 @@ function runPatch(){
           lines.push(`- ${item.time}`);
           if(item.detail){
             try{ lines.push(`  ${JSON.stringify(item.detail)}`); }
-            catch(_){ lines.push('  [detail]'); }
+            catch (_) { lines.push('  [detail]'); }
           }
         });
       }
@@ -462,7 +462,7 @@ function runPatch(){
       const node = diagState.trayCards[key];
       if(!node) return;
       try{ node.textContent = formatter(); }
-      catch(err){ node.textContent = `Error updating ${key}: ${err && err.message ? err.message : err}`; }
+      catch (err) { node.textContent = `Error updating ${key}: ${err && err.message ? err.message : err}`; }
     }
 
     function updateTray(){
@@ -588,7 +588,7 @@ function runPatch(){
       document.body.appendChild(ta);
       ta.select();
       try{ document.execCommand('copy'); }
-      catch(_){ }
+      catch (_) { }
       document.body.removeChild(ta);
     }
 
@@ -763,7 +763,7 @@ function runPatch(){
           diagState.storeCounts = counts;
           diagState.lastStoreFetch = nowMs();
           updateTray();
-        }catch(err){
+        }catch (err) {
           recordError('warn', ['store count', err && err.message ? err.message : err]);
         }finally{
           diagState.storePromise = null;
@@ -774,7 +774,7 @@ function runPatch(){
     function yieldControl(){
       return new Promise(resolve => {
         try{ queueMicro(resolve); }
-        catch(_){ Promise.resolve().then(resolve); }
+        catch (_) { Promise.resolve().then(resolve); }
       });
     }
 
@@ -789,7 +789,7 @@ function runPatch(){
             const req = tx.objectStore(store).count();
             req.onsuccess = ()=> resolve(req.result || 0);
             req.onerror = ()=> resolve(0);
-          }catch(_){ resolve(0); }
+          }catch (_) { resolve(0); }
         });
         await yieldControl();
       }
@@ -828,7 +828,7 @@ function runPatch(){
         phases: Object.keys(window.__INIT_FLAGS__ || {}),
         now: isoNow(),
         userAgent: (navigator && navigator.userAgent) || 'unknown',
-        timezone: (()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'; }catch(_){ return 'unknown'; } })(),
+        timezone: (()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'; }catch (_) { return 'unknown'; } })(),
         screen: { width: window.screen ? window.screen.width : null, height: window.screen ? window.screen.height : null },
         location: { path: window.location ? window.location.pathname : '', query: window.location ? window.location.search : '' }
       };
@@ -856,7 +856,7 @@ function runPatch(){
         const bundle = await buildSupportBundle();
         const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
         downloadBlob(`support_bundle_${fileStamp()}.json`, blob);
-      }catch(err){
+      }catch (err) {
         recordError('error', ['support bundle', err && err.message ? err.message : err]);
       }
     }
@@ -866,7 +866,7 @@ function runPatch(){
         const current = new URL(window.location.href);
         const target = new URL(url, window.location.href);
         return current.origin === target.origin;
-      }catch(_){ return false; }
+      }catch (_) { return false; }
     }
 
     function relativePath(url){
@@ -876,7 +876,7 @@ function runPatch(){
         if(current.origin !== target.origin) return target.href;
         const path = target.pathname.startsWith('/') ? target.pathname.slice(1) : target.pathname;
         return path || target.href;
-      }catch(_){ return url; }
+      }catch (_) { return url; }
     }
 
     function findBlockComments(lines){
@@ -959,7 +959,7 @@ function runPatch(){
             const todos = findTodoLines(lines);
             const exports = findExportedFunctions(text);
             modules.push({ url, path: relativePath(url), text, lines, blockComments, lineStreaks, todos, exports });
-          }catch(err){
+          }catch (err) {
             recordError('warn', ['dead code fetch', url, err && err.message ? err.message : err]);
           }
           await yieldControl();
@@ -1004,15 +1004,15 @@ function runPatch(){
         }
         const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
         downloadBlob(`dead_code_report_${fileStamp()}.md`, blob);
-      }catch(err){
+      }catch (err) {
         recordError('error', ['dead code report', err && err.message ? err.message : err]);
       }
     }
 
     const DIAG = window.DIAG = window.DIAG || {};
     Object.defineProperty(DIAG, 'enabled', { get(){ return diagState.enabled; } });
-    DIAG.enable = function(){ try{ localStorage.setItem('DIAG_ENABLED', '1'); }catch(_){ } setDiagEnabled(true, 'api'); };
-    DIAG.disable = function(){ try{ localStorage.removeItem('DIAG_ENABLED'); }catch(_){ } setDiagEnabled(false, 'api'); };
+    DIAG.enable = function(){ try{ localStorage.setItem('DIAG_ENABLED', '1'); }catch (_) { } setDiagEnabled(true, 'api'); };
+    DIAG.disable = function(){ try{ localStorage.removeItem('DIAG_ENABLED'); }catch (_) { } setDiagEnabled(false, 'api'); };
     DIAG.getStoreSizes = getStoreSizes;
     DIAG.getRenderSummary = getRenderSummary;
     DIAG.getListenerSamples = function(){ return diagState.listenerHistory.slice(); };
@@ -1188,11 +1188,11 @@ function runPatch(){
         const params = new URLSearchParams(window.location.search || '');
         queryDiag = params.get('diag') === '1';
         queryPerf = params.get('perf') === '1';
-      }catch(_){ }
+      }catch (_) { }
       if(queryDiag){ diagState.diagParamShow = true; }
       let stored = false;
       try{ stored = localStorage.getItem('DIAG_ENABLED') === '1'; }
-      catch(_){ stored = false; }
+      catch (_) { stored = false; }
       if(queryDiag || stored){
         setDiagEnabled(true, queryDiag ? 'query' : 'storage');
         showTray();
@@ -1201,7 +1201,7 @@ function runPatch(){
       if(typeof window.PERF_SHOW === 'boolean') existingPerf = window.PERF_SHOW;
       let perfFlag = queryPerf || existingPerf;
       try{ delete window.PERF_SHOW; }
-      catch(_){ }
+      catch (_) { }
       Object.defineProperty(window, 'PERF_SHOW', {
         configurable: true,
         get(){ return diagState.overlayVisible; },
@@ -1214,7 +1214,7 @@ function runPatch(){
       if(!evt || !evt.ctrlKey || !evt.altKey) return;
       if(evt.key && evt.key.toLowerCase() === 'd'){
         try{ localStorage.setItem('DIAG_ENABLED', '1'); }
-        catch(_){ }
+        catch (_) { }
         setDiagEnabled(true, 'shortcut');
         showTray();
       }
@@ -1241,7 +1241,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_phase6_polish_telemetry'] = 'ok';
     log('[patch_2025-09-27_phase6_polish_telemetry.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_phase6_polish_telemetry'] = 'error';
     error('[patch_2025-09-27_phase6_polish_telemetry.init] failed', e);
   }

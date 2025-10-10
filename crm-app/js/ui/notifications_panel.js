@@ -13,10 +13,10 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
   }
 
   const raf = window.requestAnimationFrame || (cb => setTimeout(cb,16));
-  const apply = () => { try { setTab(getNotificationsCount()); } catch(_) {} };
+  const apply = () => { try { setTab(getNotificationsCount()); } catch (_) {} };
 
   // Listen to our API event and general app updates
   onNotificationsChanged(apply);
-  try { window.addEventListener("app:data:changed", apply); } catch(_) {}
+  try { window.addEventListener("app:data:changed", apply); } catch (_) {}
   raf(() => raf(apply));
 }

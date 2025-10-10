@@ -39,7 +39,7 @@ function runPatch(){
       if(typeof window.canonicalizeStage === 'function'){
         return window.canonicalizeStage(raw);
       }
-    }catch(_err){}
+    }catch (_err) {}
     const base = String(raw).trim().toLowerCase();
     if(!base) return 'application';
     return base.replace(/\s+/g, '-');
@@ -291,7 +291,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_20250923_baseline'] = 'ok';
     log('[patch_20250923_baseline.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_20250923_baseline'] = 'error';
     error('[patch_20250923_baseline.init] failed', e);
   }
@@ -313,8 +313,8 @@ export function cleanBottomOverlaysAggressive(){
       const isDialog = n.tagName==='DIALOG' || !!n.closest('dialog');
       return nearBottom && !isActionBar && !isDialog;
     });
-    els.forEach(n=>{ try{ n.remove(); }catch(_){ } });
-  }catch(e){ console.warn('cleanBottomOverlaysAggressive failed', e); }
+    els.forEach(n=>{ try{ n.remove(); }catch (_) { } });
+  }catch (e) { console.warn('cleanBottomOverlaysAggressive failed', e); }
 }
 
 window.cleanBottomOverlaysAggressive = window.cleanBottomOverlaysAggressive || cleanBottomOverlaysAggressive;

@@ -908,7 +908,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-10-02_medium_nice'] = 'ok';
     log('[patch_2025-10-02_medium_nice.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-10-02_medium_nice'] = 'error';
     error('[patch_2025-10-02_medium_nice.init] failed', e);
   }

@@ -15,13 +15,13 @@ function runPatch(){
     const MERGE_SELECTORS = ['[data-act="merge"]', '[data-action="merge"]', '.action-merge', '#btnMerge'];
 
     function getSelectedIds() {
-      try { if (window.Selection?.getSelectedIds) return window.Selection.getSelectedIds() || []; } catch(_){ }
-      try { if (window.SelectionService?.getSelectedIds) return window.SelectionService.getSelectedIds() || []; } catch(_){ }
+      try { if (window.Selection?.getSelectedIds) return window.Selection.getSelectedIds() || []; } catch (_) { }
+      try { if (window.SelectionService?.getSelectedIds) return window.SelectionService.getSelectedIds() || []; } catch (_) { }
       try {
         return Array.from(document.querySelectorAll(
           '[data-selectable].selected,[data-row].is-selected,tr.selected,[data-selected="true"]'
         )).map(el => el.getAttribute('data-id') || el.id).filter(Boolean);
-      } catch(_) {}
+      } catch (_) {}
       return [];
     }
 
@@ -194,7 +194,7 @@ function runPatch(){
           await original.apply(this, arguments);
           try{
             await normalizeStagesOnBoot(true);
-          }catch(_err){}
+          }catch (_err) {}
         };
       }
     }
@@ -247,7 +247,7 @@ function runPatch(){
     function toast(msg){
       try{
         if(typeof window.toast === 'function'){ window.toast(msg); return; }
-      }catch(_err){}
+      }catch (_err) {}
       console.log('[toast]', msg);
     }
 
@@ -325,7 +325,7 @@ function runPatch(){
         if(obj.ids && typeof obj.ids.size === 'number' && typeof obj.ids.values === 'function'){
           return Array.from(obj.ids.values()).map(String);
         }
-      }catch(_err){}
+      }catch (_err) {}
       return [];
     }
 
@@ -480,7 +480,7 @@ function runPatch(){
       raf(()=>{
         syncScheduled = false;
         try{ svc.syncChecks(); }
-        catch(err){ console.warn('selection sync', err); }
+        catch (err) { console.warn('selection sync', err); }
       });
     }
 
@@ -499,14 +499,14 @@ function runPatch(){
         if(activeMain && typeof activeMain.id === 'string'){
           return activeMain.id.replace(/^view-/, '') || 'dashboard';
         }
-      }catch(_err){}
+      }catch (_err) {}
       try{
         const activeNav = document.querySelector('#main-nav button[data-nav].active');
         if(activeNav){
           const navTarget = activeNav.getAttribute('data-nav');
           if(navTarget) return navTarget;
         }
-      }catch(_err){}
+      }catch (_err) {}
       try{
         const hash = typeof window.location?.hash === 'string' ? window.location.hash : (typeof location?.hash === 'string' ? location.hash : '');
         if(hash){
@@ -516,7 +516,7 @@ function runPatch(){
             if(segment) return segment;
           }
         }
-      }catch(_err){}
+      }catch (_err) {}
       return 'dashboard';
     }
 
@@ -569,11 +569,11 @@ function runPatch(){
             const count = window.SelectionService.count();
             if(typeof count === 'number' && !Number.isNaN(count)) return count;
           }
-        }catch(_err){}
+        }catch (_err) {}
         try{
           const domSelected = document.querySelectorAll('[data-selectable].selected, [data-row].is-selected, tr.selected, .row.selected, [data-selected="true"]');
           return domSelected.length;
-        }catch(_err){}
+        }catch (_err) {}
         return 0;
       }
 
@@ -587,7 +587,7 @@ function runPatch(){
         if(!el) return;
         const off = !!disabled;
         try{ setDisabled(el, off); }
-        catch(_err){
+        catch (_err) {
           if(typeof el.disabled !== 'undefined') el.disabled = off;
           if(off){ el.setAttribute('disabled', ''); }
           else{ el.removeAttribute('disabled'); }
@@ -598,7 +598,7 @@ function runPatch(){
             el.classList.toggle('disabled', off);
             el.classList.toggle('is-disabled', off);
           }
-        }catch(_err){}
+        }catch (_err) {}
       }
 
       function applyRules(){
@@ -615,7 +615,7 @@ function runPatch(){
           if(target && typeof target.addEventListener === 'function'){
             target.addEventListener(eventName, applyRules);
           }
-        }catch(_err){}
+        }catch (_err) {}
       }
 
       const raf = window.requestAnimationFrame || (cb => setTimeout(cb, 16));
@@ -695,7 +695,7 @@ function runPatch(){
       const count = SelectionService.count();
       if(typeof window.applyActionBarGuards === 'function'){
         try{ window.applyActionBarGuards(bar, count); }
-        catch(err){ console.warn('applyActionBarGuards failed', err); }
+        catch (err) { console.warn('applyActionBarGuards failed', err); }
       }else if(typeof window.computeActionBarGuards === 'function'){
         try{
           const guards = window.computeActionBarGuards(count);
@@ -719,7 +719,7 @@ function runPatch(){
               btn.classList.toggle('disabled', !enabled);
             }
           });
-        }catch(err){ console.warn('computeActionBarGuards failed', err); }
+        }catch (err) { console.warn('computeActionBarGuards failed', err); }
       }
       bar.dataset.count = String(count);
       const countEl = bar.querySelector('[data-role="count"]');
@@ -854,7 +854,7 @@ function runPatch(){
             renderDetail(data);
           }
           return data;
-        }catch(err){
+        }catch (err) {
           console.warn('actionbar hydrate', err);
           return detailStore;
         }
@@ -867,14 +867,14 @@ function runPatch(){
       if(lastHydratedVersion === selectionVersion) return detailStore;
       if(hydrationPromise){
         try{ return await hydrationPromise; }
-        catch(_err){ return detailStore; }
+        catch (_err) { return detailStore; }
       }
       try{
         const data = await fetchSelectionRecords();
         detailStore = data;
         lastHydratedVersion = selectionVersion;
         return data;
-      }catch(_err){
+      }catch (_err) {
         return detailStore;
       }
     }
@@ -886,7 +886,7 @@ function runPatch(){
         const selected = meta && Array.isArray(meta.selected) ? `[${meta.selected.join(',')}]` : '[]';
         const result = meta && meta.result ? meta.result : 'unknown';
         console.info(`[ACTIONBAR] action=${action} selected=${selected} result=${result}`);
-      }catch(_err){}
+      }catch (_err) {}
     }
 
     function setActionbarBusy(isBusy, action){
@@ -1050,7 +1050,7 @@ function runPatch(){
               return { status:'error', error: result.error || new Error('merge failed'), dispatch:false };
             }
             return { status:'ok', clear:true, dispatch:false, detail:{ merged: ids, entity:'contacts' } };
-          }catch(err){
+          }catch (err) {
             console.error('[merge] orchestrator failed', err);
             toast('Merge failed');
             return { status:'error', error: err, dispatch:false };
@@ -1063,7 +1063,7 @@ function runPatch(){
           if(!emails.length){ toast('No email addresses on selected records'); return { status:'cancel', dispatch:false }; }
           const href = 'mailto:?bcc='+encodeURIComponent(emails.join(','));
           try{ window.open(href, '_self'); }
-          catch(_err){ window.location.href = href; }
+          catch (_err) { window.location.href = href; }
           return { status:'ok', clear:false, dispatch:false, detail:{ emails: emails.length, mode:'together' } };
         }
         case 'emailMass':{
@@ -1075,7 +1075,7 @@ function runPatch(){
           let copied = false;
           if(navigator.clipboard && typeof navigator.clipboard.writeText === 'function'){
             try{ await navigator.clipboard.writeText(text); copied = true; }
-            catch(_err){ copied = false; }
+            catch (_err) { copied = false; }
           }
           if(!copied){
             const textarea = document.createElement('textarea');
@@ -1086,7 +1086,7 @@ function runPatch(){
             document.body.appendChild(textarea);
             textarea.select();
             try{ document.execCommand('copy'); copied = true; }
-            catch(_err){ copied = false; }
+            catch (_err) { copied = false; }
             textarea.remove();
           }
           toast(copied ? `Copied ${emails.length} email${emails.length===1?'':'s'}` : 'Copy failed');
@@ -1103,7 +1103,7 @@ function runPatch(){
             const result = await window.convertLongShotToPipeline(contact.id);
             toast('Moved to pipeline');
             return { status:'ok', clear:true, dispatch:false, detail:{ converted: contact.id, ok: result && result.ok !== false } };
-          }catch(err){
+          }catch (err) {
             console.error('convertLongShotToPipeline', err);
             toast('Conversion failed');
             return { status:'error', error: err, dispatch:false };
@@ -1166,7 +1166,7 @@ function runPatch(){
       let result;
       try{
         result = await handleAction(act, snapshot);
-      }catch(err){
+      }catch (err) {
         console.error('handleAction failed', act, err);
         result = { status:'error', error: err, dispatch:false };
       }
@@ -1225,7 +1225,7 @@ function runPatch(){
       const dueInput = wrap.querySelector('#bt-due');
       if(dueInput && !dueInput.value){
         try{ dueInput.value = new Date().toISOString().slice(0,10); }
-        catch(_err){}
+        catch (_err) {}
       }
       return wrap;
     }
@@ -1242,7 +1242,7 @@ function runPatch(){
       if(titleInput) titleInput.value = '';
       if(dueInput){
         try{ dueInput.value = new Date().toISOString().slice(0,10); }
-        catch(_err){}
+        catch (_err) {}
       }
       if(saveBtn){ saveBtn.disabled = true; saveBtn.onclick = null; }
       wrap.classList.remove('hidden');
@@ -1306,7 +1306,7 @@ function runPatch(){
             }
             toast(`Added ${tasks.length} task${tasks.length===1?'':'s'}`);
             finish({ status:'ok', count: tasks.length, detail:{ scope:'tasks', action:'bulk-task', count: tasks.length } });
-          }catch(err){
+          }catch (err) {
             console.warn('bulk task error', err);
             toast('Failed to add tasks');
             finish({ status:'error', error: err });
@@ -1360,7 +1360,7 @@ function runPatch(){
             try{
               const result = await window.softDelete(target.store, target.id, { source:'actionbar:delete' });
               if(result && result.ok) removed += 1;
-            }catch(err){ console.warn('softDelete fallback', err); }
+            }catch (err) { console.warn('softDelete fallback', err); }
           }
           if(removed && typeof window.toast === 'function'){
             window.toast({ message: `Deleted ${removed} record${removed===1?'':'s'}.` });
@@ -1368,7 +1368,7 @@ function runPatch(){
         }else if(typeof window.dbDelete === 'function'){
           for(const target of targets){
             try{ await window.dbDelete(target.store, target.id); removed += 1; }
-            catch(err){ console.warn('delete failed', target.store, target.id, err); }
+            catch (err) { console.warn('delete failed', target.store, target.id, err); }
           }
           if(removed && typeof window.toast === 'function'){
             window.toast({ message: `Deleted ${removed} record${removed===1?'':'s'}.` });
@@ -1379,7 +1379,7 @@ function runPatch(){
           return { count:0, ids:[] };
         }
         return { count: removed, ids: ids.slice() };
-      }catch(err){
+      }catch (err) {
         console.warn('deleteSelection', err);
         toast('Delete failed');
         return false;
@@ -1438,7 +1438,7 @@ function runPatch(){
     function installObservers(){
       if(window.__SELECTION_OBSERVER__){
         try{ window.__SELECTION_OBSERVER__.disconnect(); }
-        catch(_err){}
+        catch (_err) {}
       }
       const host = document.querySelector('.table-wrap, #view-contacts, #view-partners') || document.body;
       if(!host) return;
@@ -1449,7 +1449,7 @@ function runPatch(){
         observer.observe(host, { childList:true, subtree:true });
         window.__SELECTION_OBSERVER__ = observer;
         scheduleSyncChecks();
-      }catch(err){
+      }catch (err) {
         console.warn('observer attach failed', err);
       }
     }
@@ -1475,7 +1475,7 @@ function runPatch(){
         if(typeof window.dispatchAppDataChanged === 'function') window.dispatchAppDataChanged(detail);
         else document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
         if(typeof window.renderAll === 'function') await window.renderAll();
-      }catch(err){
+      }catch (err) {
         console.warn('stage normalization failed', err);
       }
     }
@@ -1564,7 +1564,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_20250926_ctc_actionbar'] = 'ok';
     log('[patch_20250926_ctc_actionbar.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_20250926_ctc_actionbar'] = 'error';
     error('[patch_20250926_ctc_actionbar.init] failed', e);
   }

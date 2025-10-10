@@ -5,7 +5,7 @@ function resolveElement(target){
   if(!target) return null;
   if(typeof target === 'string'){
     try{ return doc.querySelector(target); }
-    catch(_err){ return null; }
+    catch (_err) { return null; }
   }
   if(typeof Element !== 'undefined' && target instanceof Element) return target;
   if(typeof target === 'object' && target.nodeType === 1) return target;
@@ -92,7 +92,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-10-02_baseline_ux_cleanup'] = 'ok';
     log('[patch_2025-10-02_baseline_ux_cleanup.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-10-02_baseline_ux_cleanup'] = 'error';
     error('[patch_2025-10-02_baseline_ux_cleanup.init] failed', e);
   }

@@ -17,7 +17,7 @@
         }
         try{
           return tx ? tx.objectStore(name) : null;
-        }catch(_err){
+        }catch (_err) {
           return null;
         }
       };
@@ -41,11 +41,11 @@
       const relStore = ensure('relationships', { keyPath: 'id' });
       if(relStore){
         try{ if(!relStore.indexNames.contains('by_fromId')) relStore.createIndex('by_fromId', 'fromId', { unique: false }); }
-        catch(_err){}
+        catch (_err) {}
         try{ if(!relStore.indexNames.contains('by_toId')) relStore.createIndex('by_toId', 'toId', { unique: false }); }
-        catch(_err){}
+        catch (_err) {}
         try{ if(!relStore.indexNames.contains('by_edgeKey')) relStore.createIndex('by_edgeKey', 'edgeKey', { unique: true }); }
-        catch(_err){}
+        catch (_err) {}
       }
     };
     const fallbackGetDB = () => {
@@ -69,10 +69,10 @@
               promise = null;
               if(previous){
                 try{ previous.call(this, event); }
-                catch(_err){}
+                catch (_err) {}
               }
             };
-          }catch(_err){}
+          }catch (_err) {}
           try{
             const originalClose = typeof db.close === 'function' ? db.close.bind(db) : null;
             if(originalClose){
@@ -81,13 +81,13 @@
                 return originalClose();
               };
             }
-          }catch(_err){}
+          }catch (_err) {}
           try{
             db.onversionchange = () => {
               try{ db.close(); }
-              catch(_closeErr){}
+              catch (_closeErr) {}
             };
-          }catch(_err){}
+          }catch (_err) {}
           resolve(db);
         };
         req.onerror = () => reject(req.error);
@@ -98,7 +98,7 @@
       try{
         const db = await fallbackGetDB();
         return await fn(db);
-      }catch(err){
+      }catch (err) {
         if(String(err && err.name).toLowerCase() === 'versionerror'){
           const db = await fallbackGetDB();
           return await fn(db);
@@ -171,11 +171,11 @@
         db.onclose = function(event){
           if(previous){
             try{ previous.call(this, event); }
-            catch(_err){}
+            catch (_err) {}
           }
           if(window.__APP_DB__ === db) window.__APP_DB__ = null;
         };
-      }catch(_err){ /* ignore */ }
+      }catch (_err) { /* ignore */ }
     }
     return db;
   }
@@ -188,7 +188,7 @@
         const result = fn(os);
         tx.oncomplete = ()=> resolve(result);
         tx.onerror = e => reject(e.target && e.target.error || e);
-      }catch(e){ reject(e); }
+      }catch (e) { reject(e); }
     }));
   }
 
@@ -258,7 +258,7 @@ function clonePartner(record){
   if(!record) return record;
   if(typeof structuredClone === 'function'){
     try{ return structuredClone(record); }
-    catch(_err){}
+    catch (_err) {}
   }
   return JSON.parse(JSON.stringify(record));
 }
@@ -400,7 +400,7 @@ async function mergePartners(aId, bId, strategy){
   const dropId = String(result.drop.id);
   if(typeof window.softDelete === 'function'){
     try{ await window.softDelete('partners', dropId, { source:'partners:merge', keepId }); }
-    catch(_err){ await dbDelete('partners', dropId); }
+    catch (_err) { await dbDelete('partners', dropId); }
   }else{
     await dbDelete('partners', dropId);
   }
@@ -408,7 +408,7 @@ async function mergePartners(aId, bId, strategy){
     const detail = { scope:'partners', action:'merge', keepId, dropId, contacts:result.contactsUpdated, relationships:result.relationshipsUpdated };
     if(typeof window.dispatchAppDataChanged === 'function'){ window.dispatchAppDataChanged(detail); }
     else if(window.document){ window.document.dispatchEvent(new CustomEvent('app:data:changed',{detail})); }
-  }catch(_err){}
+  }catch (_err) {}
   return { keepId, dropId, mergedId: keepId, contacts: result.contactsUpdated, relationships: result.relationshipsUpdated };
 }
 

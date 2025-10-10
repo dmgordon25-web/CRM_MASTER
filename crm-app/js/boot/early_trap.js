@@ -2,7 +2,7 @@
 (function(){
   window.__BOOT_LOGS__ = [];
   function push(kind, payload){
-    try { window.__BOOT_LOGS__.push({ t: Date.now(), kind, ...payload }); } catch(_){ }
+    try { window.__BOOT_LOGS__.push({ t: Date.now(), kind, ...payload }); } catch (_) { }
   }
   window.addEventListener('error', (e)=>{
     push('onerror', { message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno, stack: e.error && e.error.stack });

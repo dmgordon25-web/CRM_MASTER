@@ -22,7 +22,7 @@ function runPatch(){
   async function init(){
     try{
       if(typeof openDB === 'function') await openDB();
-    }catch(err){ console && console.warn && console.warn('bootstrap openDB failed', err); }
+    }catch (err) { console && console.warn && console.warn('bootstrap openDB failed', err); }
     await emit({source:'bootstrap'});
   }
 
@@ -47,7 +47,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_20250924_bootstrap_ready'] = 'ok';
     log('[patch_20250924_bootstrap_ready.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_20250924_bootstrap_ready'] = 'error';
     error('[patch_20250924_bootstrap_ready.init] failed', e);
   }

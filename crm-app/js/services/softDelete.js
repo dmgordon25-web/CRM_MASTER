@@ -15,7 +15,7 @@
   function cloneRecord(record){
     if(!record) return record;
     try{ return structuredClone(record); }
-    catch(_err){ return JSON.parse(JSON.stringify(record)); }
+    catch (_err) { return JSON.parse(JSON.stringify(record)); }
   }
 
   function isPending(record){
@@ -113,7 +113,7 @@
     if(!Array.isArray(entries) || !entries.length) return [];
     if(typeof window.openDB === 'function'){
       try{ await window.openDB(); }
-      catch(err){ console && console.warn && console.warn('softDelete openDB', err); }
+      catch (err) { console && console.warn && console.warn('softDelete openDB', err); }
     }
     const processed = [];
     for(const entry of entries){
@@ -124,7 +124,7 @@
       let record;
       try{
         record = await window.dbGet(store, id, { includePending: true, includeDeleted: true });
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('softDelete get', err);
         record = null;
       }
@@ -141,7 +141,7 @@
       try{
         await window.dbPut(store, pendingRecord);
         processed.push({ store, id: String(id), snapshot, pendingAt });
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('softDelete put', err);
       }
     }
@@ -184,7 +184,7 @@
     group.undone = true;
     if(typeof window.openDB === 'function'){
       try{ await window.openDB(); }
-      catch(err){ console && console.warn && console.warn('softDelete undo openDB', err); }
+      catch (err) { console && console.warn && console.warn('softDelete undo openDB', err); }
     }
     const restored = [];
     for(const entry of group.records){
@@ -192,7 +192,7 @@
       let record;
       try{
         record = await window.dbGet(entry.store, entry.id, { includePending: true, includeDeleted: true });
-      }catch(err){ record = null; }
+      }catch (err) { record = null; }
       let restorePayload = entry.snapshot ? cloneRecord(entry.snapshot) : null;
       if(!restorePayload && record && record.__pendingDeleteBackup){
         restorePayload = cloneRecord(record.__pendingDeleteBackup);
@@ -210,7 +210,7 @@
       try{
         await window.dbPut(entry.store, restorePayload);
         restored.push({ store: entry.store, id: entry.id });
-      }catch(err){ console && console.warn && console.warn('softDelete undo put', err); }
+      }catch (err) { console && console.warn && console.warn('softDelete undo put', err); }
     }
     if(restored.length){
       emitChange(buildDetail('restore', restored, group.options, groupId));
@@ -227,7 +227,7 @@
     if(group.undone) return;
     if(typeof window.openDB === 'function'){
       try{ await window.openDB(); }
-      catch(err){ console && console.warn && console.warn('softDelete finalize openDB', err); }
+      catch (err) { console && console.warn && console.warn('softDelete finalize openDB', err); }
     }
     const finalized = [];
     for(const entry of group.records){
@@ -235,7 +235,7 @@
       let record;
       try{
         record = await window.dbGet(entry.store, entry.id, { includePending: true, includeDeleted: true });
-      }catch(err){ record = null; }
+      }catch (err) { record = null; }
       if(!record || !isPending(record)) continue;
       const finalizedAt = Date.now();
       const next = Object.assign({}, record, {
@@ -249,7 +249,7 @@
       try{
         await window.dbPut(entry.store, next);
         finalized.push({ store: entry.store, id: entry.id });
-      }catch(err){ console && console.warn && console.warn('softDelete finalize put', err); }
+      }catch (err) { console && console.warn && console.warn('softDelete finalize put', err); }
     }
     if(finalized.length){
       emitChange(buildDetail('delete-finalize', finalized, group.options, groupId));
@@ -268,13 +268,13 @@
     if(typeof window.dbGetAll !== 'function') return;
     if(typeof window.openDB === 'function'){
       try{ await window.openDB(); }
-      catch(err){ console && console.warn && console.warn('softDelete bootstrap openDB', err); }
+      catch (err) { console && console.warn && console.warn('softDelete bootstrap openDB', err); }
     }
     for(const store of WATCHED_STORES){
       let rows = [];
       try{
         rows = await window.dbGetAll(store, { includePending: true, includeDeleted: true });
-      }catch(err){ rows = []; }
+      }catch (err) { rows = []; }
       rows.forEach(record => {
         if(!record || !record.id) return;
         if(!isPending(record)) return;

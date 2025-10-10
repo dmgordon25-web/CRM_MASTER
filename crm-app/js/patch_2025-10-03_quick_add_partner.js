@@ -28,7 +28,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-10-03_quick_add_partner'] = 'ok';
     log('[patch_2025-10-03_quick_add_partner.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-10-03_quick_add_partner'] = 'error';
     error('[patch_2025-10-03_quick_add_partner.init] failed', e);
   }

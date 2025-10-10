@@ -233,7 +233,7 @@ function runPatch(){
     function formatValue(field, value, contacts){
       if(field && typeof field.format === 'function'){
         try{ return field.format(value, contacts); }
-        catch(_){ /* noop */ }
+        catch (_) { /* noop */ }
       }
       if(field.type === 'tags'){
         const list = Array.isArray(value) ? value : normalizeTags(value);
@@ -267,7 +267,7 @@ function runPatch(){
         if(!Number.isNaN(ts)){
           try{
             return new Date(ts).toLocaleDateString();
-          }catch(_){ /* noop */ }
+          }catch (_) { /* noop */ }
         }
         return normalized;
       }
@@ -295,7 +295,7 @@ function runPatch(){
           const match = partners.find(p => String(p.id) === key);
           if(match) return match.name || match.company || match.email || `Partner ${key}`;
         }
-      }catch(_){ /* noop */ }
+      }catch (_) { /* noop */ }
       if(key === String(window.NONE_PARTNER_ID || 'none')) return 'None';
       return `Partner ${key}`;
     }
@@ -303,7 +303,7 @@ function runPatch(){
     function comparisonValue(field, value){
       if(field && typeof field.compare === 'function'){
         try{ return field.compare(value); }
-        catch(_){ /* noop */ }
+        catch (_) { /* noop */ }
       }
       if(field.type === 'tags'){
         return normalizeTags(value).map(v => v.toLowerCase()).sort().join('|');
@@ -336,7 +336,7 @@ function runPatch(){
       }
       if(field.normalize){
         try{ return field.normalize(value); }
-        catch(_){ return normalizeText(value); }
+        catch (_) { return normalizeText(value); }
       }
       return normalizeText(value).toLowerCase();
     }
@@ -659,7 +659,7 @@ function runPatch(){
         if(button){ button.disabled = !ready; button.textContent = diffCount > 0 ? `Merge (${diffCount} change${diffCount===1?'':'s'})` : 'Merge'; }
         updatePreview(state, result);
         setError(state, state.errors.size ? Array.from(state.errors.values())[0] : '');
-      }catch(err){
+      }catch (err) {
         console.error('merge preview error', err);
         state.errors.set('compute', err.message || 'Failed to compute merge');
         setError(state, err.message || 'Failed to compute merge');
@@ -672,7 +672,7 @@ function runPatch(){
       while(state.rowCleanup.length){
         const fn = state.rowCleanup.pop();
         try{ fn(); }
-        catch(_){ /* noop */ }
+        catch (_) { /* noop */ }
       }
     }
 
@@ -901,7 +901,7 @@ function runPatch(){
       const onClose = ()=>{ cleanupState(state); };
       const onCancel = ()=>{
         try{ dlg.close(); }
-        catch(_){ dlg.removeAttribute('open'); dlg.style.display = 'none'; }
+        catch (_) { dlg.removeAttribute('open'); dlg.style.display = 'none'; }
       };
       const onConfirm = ()=>{
         if(confirmBtn.disabled) return;
@@ -924,7 +924,7 @@ function runPatch(){
       clearRowCleanup(state);
       while(state.cleanup.length){
         const fn = state.cleanup.pop();
-        try{ fn(); }catch(_){ /* noop */ }
+        try{ fn(); }catch (_) { /* noop */ }
       }
       state.selections.clear();
       state.manual.clear();
@@ -963,15 +963,15 @@ function runPatch(){
         await dbPut('contacts', merged);
         await applyPlan(plan);
         try{ await dbDelete('contacts', loser.id); }
-        catch(err){ console.warn('merge delete loser failed', err); }
+        catch (err) { console.warn('merge delete loser failed', err); }
         await logMergeSummary(merged, loser, plan);
         if(typeof window.repointLinks === 'function'){
           try{ await window.repointLinks({ winnerId: String(winner.id), loserId: String(loser.id) }); }
-          catch(err){ console.warn('merge repointLinks failed', err); }
+          catch (err) { console.warn('merge repointLinks failed', err); }
         }
         try{
           dlg.close();
-        }catch(_){ dlg.removeAttribute('open'); dlg.style.display = 'none'; }
+        }catch (_) { dlg.removeAttribute('open'); dlg.style.display = 'none'; }
         if(window.SelectionService && typeof window.SelectionService.clear === 'function'){
           window.SelectionService.clear();
         }
@@ -986,16 +986,16 @@ function runPatch(){
           const count = plan.summary.totalUpdates;
           window.toast(`Merged contacts. Rewired ${count} item${count===1?'':'s'}.`);
         }
-      }catch(err){
+      }catch (err) {
         console.error('merge execution error', err);
         state.errors.set('execute', err.message || 'Merge failed');
         setError(state, err.message || 'Merge failed');
         try{ await rollbackPlan(plan); }
-        catch(e){ console.warn('merge rollback failed', e); }
+        catch (e) { console.warn('merge rollback failed', e); }
         try{ await dbPut('contacts', originalWinner); }
-        catch(e){ console.warn('merge winner restore failed', e); }
+        catch (e) { console.warn('merge winner restore failed', e); }
         try{ await dbPut('contacts', originalLoser); }
-        catch(e){ console.warn('merge loser restore failed', e); }
+        catch (e) { console.warn('merge loser restore failed', e); }
         confirmBtn.disabled = false;
         throw err;
       }
@@ -1006,12 +1006,12 @@ function runPatch(){
       for(const item of plan.entries){
         if(item.revert && item.revert.length){
           try{ await dbBulkPut(item.store, item.revert); }
-          catch(err){ console.warn('merge rollback bulkput', item.store, err); }
+          catch (err) { console.warn('merge rollback bulkput', item.store, err); }
         }
         if(Array.isArray(item.changedIds)){
           for(const newId of item.changedIds){
             try{ await dbDelete(item.store, newId); }
-            catch(err){ console.warn('merge rollback remove new id', item.store, err); }
+            catch (err) { console.warn('merge rollback remove new id', item.store, err); }
           }
         }
       }
@@ -1033,7 +1033,7 @@ function runPatch(){
           for(const record of item.deletes){
             const key = record && record.oldId ? record.oldId : record;
             try{ await dbDelete(item.store, key); }
-            catch(err){ console.warn('merge delete old key', item.store, err); }
+            catch (err) { console.warn('merge delete old key', item.store, err); }
           }
         }
         if(item.updates && item.updates.length){
@@ -1057,7 +1057,7 @@ function runPatch(){
         if(store === 'contacts' || store === 'partners') continue;
         let rows = [];
         try{ rows = await dbGetAll(store); }
-        catch(err){ continue; }
+        catch (err) { continue; }
         if(!Array.isArray(rows) || !rows.length) continue;
         const updates = [];
         const deletes = [];
@@ -1098,7 +1098,7 @@ function runPatch(){
       const summary = `Merged with ${nameFor(loser)} (${loser.id}) on ${(new Date()).toISOString()}`;
       if(typeof window.bulkAppendLog === 'function'){
         try{ await window.bulkAppendLog([String(winner.id)], summary, new Date().toISOString().slice(0,10), 'merge'); return; }
-        catch(err){ console.warn('merge log bulkAppendLog failed', err); }
+        catch (err) { console.warn('merge log bulkAppendLog failed', err); }
       }
       try{
         const record = await dbGet('contacts', winner.id);
@@ -1107,7 +1107,7 @@ function runPatch(){
           record.updatedAt = Date.now();
           await dbPut('contacts', record);
         }
-      }catch(err){ console.warn('merge summary fallback failed', err); }
+      }catch (err) { console.warn('merge summary fallback failed', err); }
     }
 
     async function openMergeModal(contacts){
@@ -1140,7 +1140,7 @@ function runPatch(){
       refreshState(state);
       dlg.style.display = 'block';
       try{ dlg.showModal(); }
-      catch(_){ dlg.setAttribute('open',''); }
+      catch (_) { dlg.setAttribute('open',''); }
     }
 
     async function loadPartnersCache(){
@@ -1150,7 +1150,7 @@ function runPatch(){
         window.__CACHE__ = window.__CACHE__ || {};
         window.__CACHE__.partners = partners;
         return partners;
-      }catch(_){ return []; }
+      }catch (_) { return []; }
     }
 
     async function mergeContactsWithIds(ids){
@@ -1174,7 +1174,7 @@ function runPatch(){
         const baseIndex = planDefaultBase(ordered);
         if(baseIndex === 1){ ordered.reverse(); }
         await openMergeModal(ordered);
-      }catch(err){
+      }catch (err) {
         console.error('mergeContactsWithIds failed', err);
         if(typeof window.toast === 'function') window.toast('Merge failed to start.');
       }
@@ -1246,7 +1246,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_merge_ui'] = 'ok';
     log('[patch_2025-09-27_merge_ui.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_merge_ui'] = 'error';
     error('[patch_2025-09-27_merge_ui.init] failed', e);
   }

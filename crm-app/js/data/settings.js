@@ -20,7 +20,7 @@
 
   function idFactory(){
     try{ if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID(); }
-    catch(_err){}
+    catch (_err) {}
     return 'sig-' + Math.random().toString(36).slice(2, 12);
   }
 
@@ -149,7 +149,7 @@
       if(!raw) return null;
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === 'object' ? parsed : null;
-    }catch(_err){ return null; }
+    }catch (_err) { return null; }
   }
 
   function writeProfileLocal(profile){
@@ -159,14 +159,14 @@
       }else{
         localStorage.removeItem(PROFILE_KEY);
       }
-    }catch(_err){ /* noop */ }
+    }catch (_err) { /* noop */ }
   }
 
   function readSignatureLocal(){
     try{
       const raw = localStorage.getItem(SIGNATURE_KEY);
       return typeof raw === 'string' ? raw : '';
-    }catch(_err){ return ''; }
+    }catch (_err) { return ''; }
   }
 
   function writeSignatureLocal(value){
@@ -176,7 +176,7 @@
       }else{
         localStorage.removeItem(SIGNATURE_KEY);
       }
-    }catch(_err){ /* noop */ }
+    }catch (_err) { /* noop */ }
   }
 
   async function ensureDb(){
@@ -189,7 +189,7 @@
     await ensureDb();
     if(typeof window.dbGet !== 'function') return null;
     try{ return await window.dbGet(STORE, RECORD_ID); }
-    catch(_err){ return null; }
+    catch (_err) { return null; }
   }
 
   async function writeRecord(data){
@@ -289,12 +289,12 @@
   async function clearAllStores(){
     if(typeof window.openDB === 'function'){
       try{ await window.openDB(); }
-      catch(_err){}
+      catch (_err) {}
     }
     if(typeof window.dbClear === 'function' && window.DB_META && Array.isArray(window.DB_META.STORES)){
       for(const store of window.DB_META.STORES){
         try{ await window.dbClear(store); }
-        catch(err){ if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
+        catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
       }
       return;
     }
@@ -306,7 +306,7 @@
         await window.dbClear('tasks');
         await window.dbClear('documents');
       }
-      catch(err){ if(console && console.warn) console.warn('[settings] dbClear failed', err); }
+      catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', err); }
     }
   }
 
@@ -326,10 +326,10 @@
     if(!confirmed) return;
     await clearAllStores();
     try{ localStorage.clear(); sessionStorage.clear(); }
-    catch(_err){}
+    catch (_err) {}
     if(window.toast){
       try{ window.toast('All data deleted'); }
-      catch(_err){ console && console.info && console.info('[settings] toast skipped'); }
+      catch (_err) { console && console.info && console.info('[settings] toast skipped'); }
     }
     document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ source:'settings:deleteAll' } }));
     const micro = typeof queueMicrotask === 'function'
@@ -338,7 +338,7 @@
     micro(() => {
       if(window.renderAll){
         try{ window.renderAll('deleteAll'); }
-        catch(err){ if(console && console.warn) console.warn('[settings] renderAll failed', err); }
+        catch (err) { if(console && console.warn) console.warn('[settings] renderAll failed', err); }
       }
     });
   }

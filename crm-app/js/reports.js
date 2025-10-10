@@ -15,7 +15,7 @@
   function money(n){
     try{
       return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0));
-    }catch(_){
+    }catch (_) {
       return '$'+(Number(n||0).toFixed(0));
     }
   }
@@ -349,7 +349,7 @@
       const a = document.createElement('a');
       a.href = url; a.download = name; a.click();
       setTimeout(()=>URL.revokeObjectURL(url), 500);
-    }catch(err){ console.error('downloadFile', err); }
+    }catch (err) { console.error('downloadFile', err); }
   }
 
   function computeRange(kind, startEl, endEl){
@@ -550,8 +550,8 @@
   const _ra = window.renderAll;
   window.renderAll = async function(){
     const r = (typeof _ra==='function') ? await _ra.apply(this, arguments) : undefined;
-    try{ if(typeof window.renderReports==='function') await window.renderReports(); }catch(_e){}
-    try{ if(typeof window.renderReportsView==='function') await window.renderReportsView(); }catch(_er){}
+    try{ if(typeof window.renderReports==='function') await window.renderReports(); }catch (_e) {}
+    try{ if(typeof window.renderReportsView==='function') await window.renderReportsView(); }catch (_er) {}
     return r;
   };
 })();

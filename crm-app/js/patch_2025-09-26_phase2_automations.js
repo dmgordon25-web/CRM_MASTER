@@ -43,7 +43,7 @@ function runPatch(){
 
     function primeOwnerSignatureFromWindow(){
       try{ if(applySignatureCache(window.__SIGNATURE_CACHE__)) return true; }
-      catch(_){ }
+      catch (_) { }
       return false;
     }
 
@@ -65,7 +65,7 @@ function runPatch(){
               applySignatureCache({ items: rec.items, defaultId: rec.defaultId });
             }
           }
-        }catch(err){ console && console.warn && console.warn('owner signature load', err); }
+        }catch (err) { console && console.warn && console.warn('owner signature load', err); }
       })();
       try{ await ownerSignatureLoading; }
       finally{ ownerSignatureLoading = null; }
@@ -230,7 +230,7 @@ function runPatch(){
       try{
         if(typeof window.toast === 'function') window.toast(msg);
         else console.log('[automations]', msg);
-      }catch(err){ console.log('[automations]', msg); }
+      }catch (err) { console.log('[automations]', msg); }
     };
 
     const canonicalStage = (value)=>{
@@ -303,7 +303,7 @@ function runPatch(){
       const {record:withDefaults, changed} = ensurePlaybookDefaults(Object.assign({}, record));
       if(changed && typeof dbPut === 'function'){
         try{ await dbPut('contacts', withDefaults); }
-        catch(err){ console && console.warn && console.warn('automations default update', err); }
+        catch (err) { console && console.warn && console.warn('automations default update', err); }
       }
       state.contacts.set(key, withDefaults);
       return withDefaults;
@@ -335,7 +335,7 @@ function runPatch(){
       await openDB();
       let record = null;
       try{ record = await dbGet('meta', QUEUE_META_ID); }
-      catch(err){ console && console.warn && console.warn('load queue', err); }
+      catch (err) { console && console.warn && console.warn('load queue', err); }
       const items = Array.isArray(record && record.items) ? record.items : [];
       state.queue.clear();
       for(const item of items){
@@ -363,7 +363,7 @@ function runPatch(){
       });
       const payload = { id: QUEUE_META_ID, items: ordered };
       try{ await dbPut('meta', payload); }
-      catch(err){ console && console.warn && console.warn('persist queue', err); }
+      catch (err) { console && console.warn && console.warn('persist queue', err); }
     }
 
     function queueItemsForContact(contactId){
@@ -504,7 +504,7 @@ function runPatch(){
       contact.updatedAt = Date.now();
       if(typeof dbPut === 'function'){
         try{ await dbPut('contacts', contact); }
-        catch(err){ console && console.warn && console.warn('logHistory dbPut', err); }
+        catch (err) { console && console.warn && console.warn('logHistory dbPut', err); }
       }
       upsertContact(contact);
       recordChange({action:'history', contactId:String(contactId)});
@@ -530,7 +530,7 @@ function runPatch(){
         origin: 'automation'
       };
       try{ await dbPut('tasks', task); }
-      catch(err){ console && console.warn && console.warn('createTask', err); throw err; }
+      catch (err) { console && console.warn && console.warn('createTask', err); throw err; }
       recordChange({action:'task', contactId:String(contactId)});
       return task;
     }
@@ -546,7 +546,7 @@ function runPatch(){
         if(evt.target && evt.target.closest('[data-close]')){
           evt.preventDefault();
           try{ modal.close(); }
-          catch(_){ modal.removeAttribute('open'); modal.style.display='none'; }
+          catch (_) { modal.removeAttribute('open'); modal.style.display='none'; }
         }
       });
       modal.addEventListener('close', ()=>{ modal.removeAttribute('open'); modal.style.display='none'; });
@@ -557,7 +557,7 @@ function runPatch(){
           const href = modal.dataset.mailto || '';
           if(href){
             try{ window.location.href = href; }
-            catch(_){ window.open(href, '_self'); }
+            catch (_) { window.open(href, '_self'); }
           }
         }
         const btnCopy = evt.target && evt.target.closest('[data-copy]');
@@ -574,7 +574,7 @@ function runPatch(){
             document.body.appendChild(textarea);
             textarea.select();
             try{ document.execCommand('copy'); toastSafe('Copied to clipboard'); }
-            catch(_){ toastSafe('Copy failed — select text manually.'); }
+            catch (_) { toastSafe('Copy failed — select text manually.'); }
             document.body.removeChild(textarea);
           }
         }
@@ -594,7 +594,7 @@ function runPatch(){
       if(bodyField) bodyField.value = body || '';
       modal.style.display = 'block';
       try{ modal.showModal(); }
-      catch(_){ modal.setAttribute('open',''); }
+      catch (_) { modal.setAttribute('open',''); }
     }
 
     function prepEmail(to, subject, body){
@@ -607,9 +607,9 @@ function runPatch(){
       try{
         if(typeof window.open === 'function'){ window.open(href, '_self'); }
         else window.location.href = href;
-      }catch(err){
+      }catch (err) {
         try{ window.location.href = href; }
-        catch(_err){ console && console.warn && console.warn('mailto fallback', err); }
+        catch (_err) { console && console.warn && console.warn('mailto fallback', err); }
       }
       showEmailModal({to:toStr, subject:subj, body:content, href});
     }
@@ -636,7 +636,7 @@ function runPatch(){
         toastSafe(`Executed: ${item.label || item.type}`);
         refreshTimeline(contactId);
         return true;
-      }catch(err){
+      }catch (err) {
         console && console.warn && console.warn('executeQueueItem', err);
         return false;
       }
@@ -919,7 +919,7 @@ function runPatch(){
           if(typeof ensure.created === 'number') result.created = ensure.created;
           if(Array.isArray(ensure.docs)) docList = ensure.docs;
         }
-      }catch(err){ console && console.warn && console.warn('sync docs ensure', err); }
+      }catch (err) { console && console.warn && console.warn('sync docs ensure', err); }
       try{
         if(!Array.isArray(docList)){
           if(typeof openDB === 'function' && typeof dbGetAll === 'function'){
@@ -940,12 +940,12 @@ function runPatch(){
               try{
                 await openDB();
                 await dbPut('contacts', contact);
-              }catch(err){ console && console.warn && console.warn('sync docs dbPut', err); }
+              }catch (err) { console && console.warn && console.warn('sync docs dbPut', err); }
             }
             result.missingChanged = true;
           }
         }
-      }catch(err){ console && console.warn && console.warn('sync docs missing', err); }
+      }catch (err) { console && console.warn && console.warn('sync docs missing', err); }
       return result;
     }
 
@@ -1015,7 +1015,7 @@ function runPatch(){
             if(docResult && docResult.missingChanged){
               recordChange({action:'contact', contactId:String(contact.id), fields:['missingDocs']});
             }
-          }catch(err){ console && console.warn && console.warn('stage doc sync', err); }
+          }catch (err) { console && console.warn && console.warn('stage doc sync', err); }
         }
         if(toStage === 'funded'){
           recordChange({action:'commissions', contactId:String(contact.id), stage:toStage});
@@ -1064,7 +1064,7 @@ function runPatch(){
           if(docResult && docResult.missingChanged){
             recordChange({action:'contact', contactId:String(contact.id), fields:['missingDocs']});
           }
-        }catch(err){ console && console.warn && console.warn('contact doc sync', err); }
+        }catch (err) { console && console.warn && console.warn('contact doc sync', err); }
       });
     }
 
@@ -1110,7 +1110,7 @@ function runPatch(){
       const prevRecord = state.contacts.get(id) || null;
       if(typeof openDB === 'function' && typeof dbPut === 'function'){
         try{ await openDB(); await dbPut('contacts', contact); }
-        catch(err){ console && console.warn && console.warn('save contact automations', err); }
+        catch (err) { console && console.warn && console.warn('save contact automations', err); }
       }
       upsertContact(contact);
       const isNew = !!context.isNew;
@@ -1122,7 +1122,7 @@ function runPatch(){
         const hasFundedDate = !!contact.fundedDate;
         if(!hadFundedDate && hasFundedDate && contact.pbPostClose !== false){
           try{ await queuePostClose(contact); }
-          catch(err){ console && console.warn && console.warn('queue post-close (funded date)', err); }
+          catch (err) { console && console.warn && console.warn('queue post-close (funded date)', err); }
         }
       }
       state.modalState.delete(id);
@@ -1198,7 +1198,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-26_phase2_automations'] = 'ok';
     log('[patch_2025-09-26_phase2_automations.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-26_phase2_automations'] = 'error';
     error('[patch_2025-09-26_phase2_automations.init] failed', e);
   }

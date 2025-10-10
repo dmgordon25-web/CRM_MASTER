@@ -34,7 +34,7 @@ function runPatch(){
         if(document && typeof document.dispatchEvent === 'function'){
           document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
         }
-      }catch(_err){}
+      }catch (_err) {}
     }
 
     function ready(fn){
@@ -58,7 +58,7 @@ function runPatch(){
       if(typeof err === 'string') return err;
       if(err instanceof Error) return err.message || String(err);
       try{ return JSON.stringify(err); }
-      catch(_){ return String(err); }
+      catch (_) { return String(err); }
     }
 
     function ensureStyles(){
@@ -93,7 +93,7 @@ function runPatch(){
       try{
         const params = new URLSearchParams(window.location.search || '');
         return params.get(RELEASE_PARAM) === '1';
-      }catch(_){ return false; }
+      }catch (_) { return false; }
     }
 
     function shouldShowButton(){
@@ -136,7 +136,7 @@ function runPatch(){
 
     function ensureVersionStamp(){
       try{ window.APP_VERSION = VERSION; }
-      catch(_){ }
+      catch (_) { }
       ready(()=>{
         const cards = document.querySelectorAll('#view-settings .settings-panel[data-panel="general"] .card');
         let target = null;
@@ -163,7 +163,7 @@ function runPatch(){
         function check(){
           let result = null;
           try{ result = condition(); }
-          catch(err){ reject(err); return; }
+          catch (err) { reject(err); return; }
           if(result){ resolve(result); return; }
           if(performance.now() - start > limit){ reject(new Error('Timed out waiting for condition')); return; }
           requestAnimationFrame(check);
@@ -188,7 +188,7 @@ function runPatch(){
               entry.textPromise = blob.text().catch(()=> '');
             }
           }
-        }catch(_){ }
+        }catch (_) { }
         return original.apply(this, arguments);
       };
       try{
@@ -199,7 +199,7 @@ function runPatch(){
       for(const entry of captures){
         if(entry.textPromise){
           try{ entry.text = await entry.textPromise; }
-          catch(_){ entry.text = ''; }
+          catch (_) { entry.text = ''; }
         }
       }
       return captures;
@@ -236,7 +236,7 @@ function runPatch(){
         async ensureDb(){
           if(typeof openDB === 'function'){
             try{ await openDB(); }
-            catch(_){ }
+            catch (_) { }
           }
         },
         async ensureQaContacts(){
@@ -293,7 +293,7 @@ function runPatch(){
               await this.ensureDb();
               let record = null;
               try{ record = await dbGet('meta','automationsQueue'); }
-              catch(_){ record = null; }
+              catch (_) { record = null; }
               const items = Array.isArray(record && record.items) ? record.items.slice() : [];
               const keep = items.filter(item => !this.automationIds.includes(item && item.id));
               if(keep.length !== items.length){
@@ -321,10 +321,10 @@ function runPatch(){
                     if(!otherId) continue;
                     await svc.unlinkContacts(contactId, otherId).catch(()=>{});
                   }
-                }catch(_){ }
+                }catch (_) { }
               }
             }
-          }catch(err){ if(isDebug && console && console.warn) console.warn('release cleanup', err); }
+          }catch (err) { if(isDebug && console && console.warn) console.warn('release cleanup', err); }
         }
       };
       return ctx;
@@ -350,7 +350,7 @@ function runPatch(){
       }
       if(typeof window.showDiagnosticsTray === 'function'){
         try{ window.showDiagnosticsTray(); }
-        catch(_){ }
+        catch (_) { }
       }
       const tray = await waitForElement('#diag-tray', 2000).catch(()=> null);
       if(!tray) throw new Error('Diagnostics tray not detected');
@@ -359,7 +359,7 @@ function runPatch(){
       await waitFor(()=> eventsField && eventsField.textContent && eventsField.textContent.trim().length > 0, 2000).catch(()=>{});
       const eventsText = eventsField ? sanitizeSnippet(eventsField.textContent, 120) : 'Events text unavailable';
       try{ window.PERF_SHOW = true; }
-      catch(_){ }
+      catch (_) { }
       const overlay = await waitForElement('#perf-overlay', 2000).catch(()=> null);
       let overlayText = '';
       if(overlay){
@@ -370,7 +370,7 @@ function runPatch(){
       }
       if(!overlayBefore){
         try{ window.PERF_SHOW = false; }
-        catch(_){ }
+        catch (_) { }
       }
       if(diag && typeof diag.disable === 'function' && !wasEnabled){
         diag.disable();
@@ -401,10 +401,10 @@ function runPatch(){
                 const req = tx.objectStore(store).count();
                 req.onsuccess = ()=> resolve(req.result || 0);
                 req.onerror = ()=> resolve(0);
-              }catch(_){ resolve(0); }
+              }catch (_) { resolve(0); }
             });
             fallbackCounts[store] = count;
-          }catch(_){ fallbackCounts[store] = 0; }
+          }catch (_) { fallbackCounts[store] = 0; }
         }
       }
       const counts = Object.keys(diag).length ? diag : fallbackCounts;
@@ -419,7 +419,7 @@ function runPatch(){
       await ctx.ensureDb();
       let record = null;
       try{ record = await dbGet('meta','automationsQueue'); }
-      catch(_){ record = null; }
+      catch (_) { record = null; }
       const items = Array.isArray(record && record.items) ? record.items.slice() : [];
       const now = Date.now();
       const dueId = `qa-automation-${now}-due`;
@@ -458,7 +458,7 @@ function runPatch(){
       emitDataChanged({ source:'release-check', action:'automation-qa-complete', contactId });
       let refreshed = null;
       try{ refreshed = await dbGet('meta','automationsQueue'); }
-      catch(_){ refreshed = null; }
+      catch (_) { refreshed = null; }
       const refreshedItems = Array.isArray(refreshed && refreshed.items) ? refreshed.items : [];
       const afterDue = refreshedItems.find(item => item && item.id === dueId);
       const afterFuture = refreshedItems.find(item => item && item.id === futureId);
@@ -680,7 +680,7 @@ function runPatch(){
         noted.push(reg.active.scriptURL || 'unknown');
         try{
           reg.active.postMessage({ type:'bump-check' });
-        }catch(_){ }
+        }catch (_) { }
       }
       return noted.length ? `Service worker(s): ${noted.join(', ')}` : 'Service worker registration without active worker';
     }
@@ -739,19 +739,19 @@ function runPatch(){
       steps.push(listenerStep);
       let serviceWorkerNote = '';
       try{ serviceWorkerNote = await detectServiceWorker(); }
-      catch(_){ serviceWorkerNote = 'Service worker probe failed'; }
+      catch (_) { serviceWorkerNote = 'Service worker probe failed'; }
       metadata.serviceWorker = serviceWorkerNote;
       for(const step of steps){
         try{
           const detail = await step.run();
           addChecklist(results, step.name, 'pass', detail);
-        }catch(err){
+        }catch (err) {
           addChecklist(results, step.name, 'fail', formatError(err));
         }
       }
       metadata.automationSnapshot = ctx.automationSnapshot;
       try{ await ctx.cleanup(); }
-      catch(err){ if(isDebug && console && console.warn) console.warn('release cleanup err', err); }
+      catch (err) { if(isDebug && console && console.warn) console.warn('release cleanup err', err); }
       const markdown = composeReport(results, metadata);
       await captureDownload(()=>{
         const blob = new Blob([markdown], { type:'text/markdown' });
@@ -777,7 +777,7 @@ function runPatch(){
       if(btn) btn.disabled = true;
       try{
         await runChecklistInternal();
-      }catch(err){ console.error('release checklist failed', err); }
+      }catch (err) { console.error('release checklist failed', err); }
       finally{
         running = false;
         if(btn){
@@ -828,7 +828,7 @@ export async function init(ctx){
     runPatch();
     window.CRM.health['patch_2025-09-27_release_prep'] = 'ok';
     log('[patch_2025-09-27_release_prep.init] complete');
-  } catch (e){
+  } catch (e) {
     window.CRM.health['patch_2025-09-27_release_prep'] = 'error';
     error('[patch_2025-09-27_release_prep.init] failed', e);
   }

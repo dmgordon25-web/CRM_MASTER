@@ -129,7 +129,7 @@ export async function init(ctx){
     if (ctx && ctx.logger && typeof ctx.logger.log === 'function'){
       ctx.logger.log('[partners.init] invoked', { alreadyInitialised: fresh === false });
     }
-  } catch (e){
+  } catch (e) {
     console.error('[partners.init]', e);
   }
 }

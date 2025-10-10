@@ -1,10 +1,10 @@
 (function(){
   function looksLikeShim(fn){
     try { const s = Function.prototype.toString.call(fn); return /shim/i.test(s) || /overwrite when ready/i.test(s); }
-    catch(e){ return false; }
+    catch (e) { return false; }
   }
   async function openFallbackNewContact(){
-    try{ await openDB(); }catch(_){}
+    try{ await openDB(); }catch (_) {}
     const dlg = document.getElementById('contact-modal');
     if(!dlg) return toast('Contact modal missing');
     const selectors = ['#c-id','#c-first','#c-lastname','#c-email','#c-phone','#c-address','#c-city','#c-state','#c-zip','#c-loanType','#c-ref','#c-notes'];

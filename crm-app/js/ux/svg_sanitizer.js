@@ -52,11 +52,11 @@
       }
     });
     mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['viewBox'] });
-  } catch(_) {}
+  } catch (_) {}
 
   // Hook into our render loop if available
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    try { window.RenderGuard.registerHook(() => Promise.resolve().then(sweep)); } catch(_) {}
+    try { window.RenderGuard.registerHook(() => Promise.resolve().then(sweep)); } catch (_) {}
   } else {
     setTimeout(sweep, 0);
   }
