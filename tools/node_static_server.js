@@ -6,12 +6,6 @@ const os = require('os');
 
 const rootArg = process.argv[2] ? String(process.argv[2]) : process.cwd();
 const serveRoot = path.resolve(rootArg);
-const port = Number(process.argv[3] || process.env.PORT || 8080);
-
-if (!Number.isFinite(port) || port <= 0) {
-  console.error('[serve] Invalid port provided.');
-  process.exit(1);
-}
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -29,16 +23,20 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
-function logsDir(){
+function logsDir() {
   const local = process.env.LOCALAPPDATA || process.env.HOME;
   const dir = local ? path.join(local, 'CRM', 'logs') : path.join(__dirname, '..', 'CRM_logs');
-  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (err) {
+    // noop
+  }
   return dir;
 }
 
 function resolvePath(urlPath) {
   try {
-    const decoded = decodeURIComponent(urlPath.split('?')[0]);
+    const decoded = decodeURIComponent((urlPath || '').split('?')[0]);
     let target = decoded;
     if (!target || target === '/' || target === './') {
       target = '/index.html';
@@ -53,41 +51,38 @@ function resolvePath(urlPath) {
   }
 }
 
-const server = http.createServer((req, res) => {
-  const cleanPath = (req.url || '').split('?')[0];
-  if (cleanPath === '/__log') {
-    if (req.method !== 'POST') {
-      res.statusCode = 405;
-      res.end();
-      return;
-    }
-    let body = '';
-    req.on('data', (d) => { body += d; });
-    req.on('error', () => {
-      res.statusCode = 400; res.end();
-    });
-    req.on('end', () => {
-      const entry = (()=>{ try { return JSON.parse(body || '{}'); } catch { return { raw: String(body||'') }; }})();
-      const line = JSON.stringify({ ts: Date.now(), ...entry }) + os.EOL;
-      try { fs.appendFileSync(path.join(logsDir(), 'frontend.log'), line); } catch {}
-      res.statusCode = 204; res.end();
-    });
+const routes = new Map();
+
+function registerRoute(method, routePath, handler) {
+  const key = routePath;
+  if (!routes.has(key)) {
+    routes.set(key, new Map());
+  }
+  routes.get(key).set(method, handler);
+}
+
+function serveStatic(req, res) {
+  const method = (req.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.statusCode = 405;
+    res.end();
     return;
   }
 
-  const url = req.url || '/';
-  const filePath = resolvePath(url);
+  const filePath = resolvePath(req.url || '/');
   if (!filePath) {
     res.statusCode = 403;
     res.end('Forbidden');
     return;
   }
+
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       res.statusCode = 404;
       res.end('Not found');
       return;
     }
+
     const ext = path.extname(filePath).toLowerCase();
     const type = MIME_TYPES[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', type);
@@ -96,9 +91,15 @@ const server = http.createServer((req, res) => {
     } else {
       res.setHeader('Cache-Control', 'public, max-age=60');
     }
+
+    if (method === 'HEAD') {
+      res.end();
+      return;
+    }
+
     const stream = fs.createReadStream(filePath);
     stream.on('error', (streamErr) => {
-      console.error('[serve] stream error', streamErr);
+      console.error('[SERVER] stream error', streamErr);
       if (!res.headersSent) {
         res.statusCode = 500;
       }
@@ -106,25 +107,102 @@ const server = http.createServer((req, res) => {
     });
     stream.pipe(res);
   });
-});
+}
 
-server.on('error', (err) => {
-  console.error('[serve] Server error', err);
-});
-
-server.listen(port, '127.0.0.1', () => {
-  console.log(`[serve] listening on http://127.0.0.1:${port}/ (root: ${serveRoot})`);
-});
-
-const shutdown = () => {
-  server.close(() => {
-    process.exit(0);
-  });
+const app = {
+  get(routePath, handler) {
+    registerRoute('GET', routePath, handler);
+  },
+  post(routePath, handler) {
+    registerRoute('POST', routePath, handler);
+  },
+  handle(req, res) {
+    const method = (req.method || 'GET').toUpperCase();
+    const cleanPath = (req.url || '').split('?')[0] || '/';
+    const route = routes.get(cleanPath);
+    if (route) {
+      const handler = route.get(method);
+      if (handler) {
+        handler(req, res);
+        return;
+      }
+      res.statusCode = 405;
+      res.end();
+      return;
+    }
+    serveStatic(req, res);
+  }
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-process.on('uncaughtException', (err) => {
-  console.error('[serve] Uncaught exception', err);
-  shutdown();
+app.get('/health', (req, res) => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/plain');
+  res.end('ok');
 });
+
+app.post('/__log', (req, res) => {
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+  });
+  req.on('error', () => {
+    res.statusCode = 400;
+    res.end();
+  });
+  req.on('end', () => {
+    const entry = (() => {
+      try {
+        return JSON.parse(body || '{}');
+      } catch (err) {
+        return { raw: String(body || '') };
+      }
+    })();
+    const line = JSON.stringify({ ts: Date.now(), ...entry }) + os.EOL;
+    try {
+      fs.appendFileSync(path.join(logsDir(), 'frontend.log'), line);
+    } catch (err) {
+      // noop
+    }
+    res.statusCode = 204;
+    res.end();
+  });
+});
+
+function startServer(port = process.env.PORT || 8080) {
+  const numericPort = Number(port);
+  if (!Number.isFinite(numericPort) || numericPort <= 0) {
+    throw new Error('Invalid port provided.');
+  }
+
+  const server = http.createServer((req, res) => app.handle(req, res));
+  server.on('error', (err) => {
+    console.error('[SERVER] Server error', err);
+  });
+  server.listen(numericPort, '127.0.0.1', () => {
+    console.log(`[SERVER] listening on http://127.0.0.1:${numericPort}/ (root: ${serveRoot})`);
+  });
+  return server;
+}
+
+if (require.main === module) {
+  try {
+    const cliPort = process.argv.length >= 4 ? process.argv[3] : undefined;
+    const server = cliPort ? startServer(cliPort) : startServer();
+    const shutdown = () => {
+      server.close(() => {
+        process.exit(0);
+      });
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    process.on('uncaughtException', (err) => {
+      console.error('[SERVER] Uncaught exception', err);
+      shutdown();
+    });
+  } catch (err) {
+    console.error('[SERVER] Failed to start', err);
+    process.exit(1);
+  }
+}
+
+module.exports = { startServer, app };
