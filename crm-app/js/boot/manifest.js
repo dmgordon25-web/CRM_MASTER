@@ -54,7 +54,9 @@ export const CORE = [
   '../pages/workbench.js',
   '../pages/email_templates.js',
   '../pages/notifications.js',
-  '../dashboard/widgets_dnd.js'
+  '../dashboard/widgets_dnd.js',
+  './contracts/services.js',
+  './phases.js'
 ];
 
 export const PATCHES = [

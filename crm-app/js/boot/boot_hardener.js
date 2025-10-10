@@ -1,6 +1,17 @@
 /* Boot Orchestrator: deterministic, idempotent, with hard fail/success lanes */
-const baseUrl = new URL('.', import.meta.url);
-const toUrl = (p) => new URL(p, baseUrl).href;
+const BASE_URL = new URL('./', import.meta.url);
+function normalizePath(p) {
+  if (typeof p !== 'string') throw new TypeError('invalid module specifier');
+  let clean = p.trim();
+  if (!clean) throw new TypeError('invalid module specifier');
+  if (!clean.endsWith('.js') && !clean.endsWith('.mjs')) clean = `${clean}.js`;
+  if (clean.startsWith('js/')) clean = `../${clean}`;
+  if (!clean.startsWith('./') && !clean.startsWith('../')) clean = `./${clean}`;
+  return new URL(clean, BASE_URL).href;
+}
+async function importModule(p) {
+  return import(normalizePath(p));
+}
 
 // Basic utilities
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -41,10 +52,12 @@ function corePrereqsReady(w) {
     && w.Confirm && typeof w.Confirm.show === 'function';
 }
 
-async function importList(list, state) {
+async function importList(list, state, options = {}) {
+  const { checkPrereqs = false } = options;
   for (const p of (list || [])) {
     try {
-      await import(toUrl(p));
+      const mod = await importModule(p);
+      if (checkPrereqs) await ensurePrereqs(mod);
       state.loaded.push(p);
     } catch (err) {
       const msg = String(err?.stack || err);
@@ -52,6 +65,18 @@ async function importList(list, state) {
       state.failed.push({ path: p, err: msg });
       if (state.required.has(p)) state.fatal = true;
       if (state.fatal) break;
+    }
+  }
+}
+
+async function ensurePrereqs(mod) {
+  const checks = mod?.CORE_PREREQS || mod?.CONTRACTS || {};
+  for (const [_name, probe] of Object.entries(checks)) {
+    try {
+      const ok = typeof probe === 'function' ? await probe() : !!probe;
+      if (!ok) throw new Error('prerequisite missing');
+    } catch {
+      throw new Error('prerequisite missing');
     }
   }
 }
@@ -93,10 +118,14 @@ export async function ensureCoreThenPatches({ CORE, PATCHES, REQUIRED }) {
   splash.show();
 
   // CORE phase with one retry (settle racey globals without looping)
-  await importList(CORE, state);
+  if (document.readyState === 'loading') {
+    await new Promise(res => document.addEventListener('DOMContentLoaded', res, { once: true }));
+  }
+
+  await importList(CORE, state, { checkPrereqs: true });
   if (!corePrereqsReady(w) && !state.fatal) {
     await sleep(60);
-    await importList(CORE, state);
+    await importList(CORE, state, { checkPrereqs: true });
   }
   if (!corePrereqsReady(w) || state.fatal) {
     const lastFailure = state.failed[state.failed.length - 1] || null;
@@ -131,5 +160,5 @@ export async function ensureCoreThenPatches({ CORE, PATCHES, REQUIRED }) {
 }
 
 // For diagnostics and e2e sanity checks
-export const __private = { toUrl, corePrereqsReady, isSafeMode };
+export const __private = { normalizePath, corePrereqsReady, isSafeMode };
 /* End of file */
