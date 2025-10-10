@@ -1,189 +1,163 @@
-/* eslint-disable no-console */
-
+/* Boot hardener: resolves imports relative to this file and enforces a core contract. */
 const baseUrl = new URL('.', import.meta.url);
 const toUrl = p => new URL(p, baseUrl).href;
 
-function hideDiagnostics() {
-  try {
-    const el = document.getElementById('diagnostics-splash');
-    if (el) el.style.display = 'none';
-  } catch (_) {}
+function ensureTelemetry() {
+  const w = window;
+  w.__PATCHES_LOADED__ = Array.isArray(w.__PATCHES_LOADED__) ? w.__PATCHES_LOADED__ : [];
+  w.__PATCHES_FAILED__ = Array.isArray(w.__PATCHES_FAILED__) ? w.__PATCHES_FAILED__ : [];
+  w.__BOOT_LOGS__ = Array.isArray(w.__BOOT_LOGS__) ? w.__BOOT_LOGS__ : [];
 }
 
-try {
-  window.hideDiagnostics = window.hideDiagnostics || hideDiagnostics;
-} catch (_) {}
-
-let __LOG_DISABLED = false;
-
-async function postBootLog(payload) {
-  if (__LOG_DISABLED) return;
-  try {
-    const res = await fetch('/__log', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) __LOG_DISABLED = true;
-  } catch (e) {
-    __LOG_DISABLED = true;
-  }
+function corePrereqsReady() {
+  const w = window;
+  return typeof w.openDB === 'function'
+    && (w.Selection || w.SelectionService)
+    && typeof w.$ === 'function'
+    && typeof w.renderAll === 'function'
+    && w.Toast && typeof w.Toast.show === 'function'
+    && w.Confirm && typeof w.Confirm.show === 'function';
 }
 
 function isSafeMode() {
   try {
-    const url = new URL(window.location.href);
-    return url.searchParams.get('safe') === '1' || window.localStorage.getItem('SAFE') === '1';
-  } catch (_) {
-    return false;
-  }
+    const q = new URLSearchParams(location.search);
+    return q.get('safe') === '1' || localStorage.getItem('SAFE') === '1';
+  } catch { return false; }
 }
 
-function listMissingPrereqs(kind = 'strict') {
-  const w = window;
-  const missing = [];
-  if (typeof w.openDB !== 'function') missing.push('openDB');
-  if (typeof w.renderAll !== 'function') missing.push('renderAll');
-  if (typeof w.$ !== 'function') missing.push('$');
-  if (kind === 'strict') {
-    if (!(w.Selection || w.SelectionService)) missing.push('Selection/SelectionService');
-    if (!(w.Toast && typeof w.Toast.show === 'function')) missing.push('Toast.show');
-    if (!(w.Confirm && typeof w.Confirm.show === 'function')) missing.push('Confirm.show');
-  }
-  return missing;
+function canonicalPatchId(p) {
+  if (!p) return p;
+  if (p.startsWith('../')) return `/js/${p.slice(3)}`;
+  if (p.startsWith('./')) return `/js/${p.slice(2)}`;
+  return p.startsWith('/') ? p : `/js/${p}`;
 }
 
-function corePrereqsReady(kind = 'minimal') {
-  return listMissingPrereqs(kind).length === 0;
-}
-
-function showDiagnostics(reason) {
+async function importOne(path, state, kind) {
+  if (!path) return;
+  const phase = kind || 'core';
   try {
-    const evt = new CustomEvent('crm:boot:fatal', { detail: { reason } });
-    window.dispatchEvent(evt);
-  } catch (_) {}
-  const splash = document.getElementById('diagnostics-splash');
-  if (splash) splash.style.display = 'block';
-  try {
-    postBootLog({
-      reason,
-      logs: Array.isArray(window.__BOOT_LOGS__) ? window.__BOOT_LOGS__ : [],
-    });
-  } catch (_) {}
-}
-
-async function importOne(p, out, kind = 'core') {
-  if (!p || typeof p !== 'string') return;
-  const spec = toUrl(p);
-  try {
-    await import(spec);
-    out.loaded.push(p);
-    if (!window.__PATCHES_LOADED__.includes(p)) window.__PATCHES_LOADED__.push(p);
-  } catch (err) {
-    const msg = String((err && err.stack) || err);
-    out.failed.push({ p, err: msg });
-    try {
-      window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
-      window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'import-fail', phase: kind, module: p, error: msg });
-    } catch (_) {}
-    if (kind === 'patch') {
-      try {
-        window.__PATCHES_FAILED__ = window.__PATCHES_FAILED__ || [];
-        window.__PATCHES_FAILED__.push({ module: p, error: msg });
-      } catch (_) {}
+    await import(toUrl(path));
+    const id = phase === 'patch' ? canonicalPatchId(path) : path;
+    state.loaded.push(id);
+    if (phase === 'patch') {
+      if (!window.__PATCHES_LOADED__.includes(id)) window.__PATCHES_LOADED__.push(id);
     }
+  } catch (err) {
+    const id = phase === 'patch' ? canonicalPatchId(path) : path;
+    const info = { path: id, err: String(err?.stack || err) };
+    state.failed.push(info);
+    if (phase === 'patch') {
+      window.__PATCHES_FAILED__.push(info);
+    }
+    if (state.required.has(path) || state.required.has(id)) state.fatal = true;
   }
 }
 
-function normaliseTelemetryArrays() {
-  const tl = window.__PATCHES_LOADED__;
-  const tf = window.__PATCHES_FAILED__;
-  window.__PATCHES_LOADED__ = Array.isArray(tl) ? tl.slice()
-    : (tl && typeof tl === 'object' && Array.isArray(tl.ok)) ? tl.ok.slice() : [];
-  window.__PATCHES_FAILED__ = Array.isArray(tf) ? tf.slice()
-    : (tf && typeof tf === 'object' && Array.isArray(tf.fail)) ? tf.fail.slice() : [];
+async function importAll(list, state, phase) {
+  for (const p of list) { /* preserve order to reduce surprises */
+    // eslint-disable-next-line no-await-in-loop
+    await importOne(p, state, phase);
+    if (state.fatal) break;
+  }
 }
 
-function summarise(out, reason) {
-  return {
-    loaded: Array.from(new Set(out.loaded)),
-    failed: Array.from(new Set(out.failed.map(f => f.p))),
-    detail: out,
-    reason
-  };
+function postLog(kind, payload) {
+  try {
+    fetch('/__log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, ts: Date.now(), payload })
+    }).catch(() => {});
+  } catch {}
 }
+
+function showDiagnosticsSplash(state) {
+  const w = window;
+  w.__DIAG__ = w.__DIAG__ || { visible: false, events: [] };
+  w.__DIAG__.visible = true;
+  w.__DIAG__.events.push({ ts: Date.now(), kind: 'boot', state });
+  const el = document.getElementById('diagnostics-splash');
+  if (el) el.style.display = 'block';
+  postLog('boot.fail', state);
+}
+
+function hideDiagnosticsSplash() {
+  const el = document.getElementById('diagnostics-splash');
+  if (el) el.style.display = 'none';
+}
+
+try {
+  window.hideDiagnostics = window.hideDiagnostics || hideDiagnosticsSplash;
+} catch {}
 
 export async function ensureCoreThenPatches(manifest = {}) {
   if (window.__BOOT_HARDENER_PROMISE__) return window.__BOOT_HARDENER_PROMISE__;
   window.__BOOT_HARDENER_PROMISE__ = (async () => {
-    normaliseTelemetryArrays();
+    ensureTelemetry();
 
     const CORE = Array.isArray(manifest.CORE) ? manifest.CORE : [];
     const PATCHES = Array.isArray(manifest.PATCHES) ? manifest.PATCHES : [];
-    const REQUIRED = manifest.REQUIRED instanceof Set ? manifest.REQUIRED : new Set();
+    const REQUIRED = manifest.REQUIRED instanceof Set || Array.isArray(manifest.REQUIRED)
+      ? new Set(manifest.REQUIRED)
+      : new Set();
 
-    const state = { loaded: [], failed: [] };
+    const state = {
+      loaded: [],
+      failed: [],
+      fatal: false,
+      required: REQUIRED
+    };
 
-    for (const p of CORE) {
-      // eslint-disable-next-line no-await-in-loop
-      await importOne(p, state, 'core');
+    // Core pass (with one retry if prereqs not ready yet)
+    await importAll(CORE, state, 'core');
+    if (!corePrereqsReady() && !state.fatal) {
+      await importAll(CORE, state, 'core');
     }
 
-    if (!corePrereqsReady('minimal') && CORE.length) {
-      console.warn('[boot] core prereqs missing after pass 1; retrying CORE once');
-      for (const p of CORE) {
-        // eslint-disable-next-line no-await-in-loop
-        await importOne(p, state, 'core');
-      }
-    }
-
-    const missingMinimal = listMissingPrereqs('minimal');
-    const prereqsOk = missingMinimal.length === 0;
-    const requiredOk = state.failed.every(f => !REQUIRED.has(f.p));
-    const fatal = !prereqsOk || !requiredOk;
-
-    if (fatal) {
-      const reason = prereqsOk ? 'required-module' : 'core-prereqs';
-      const summary = summarise(state, reason);
+    if (!corePrereqsReady() || state.fatal) {
+      state.fatal = true;
+      state.reason = 'fatal';
+      const summary = {
+        loaded: state.loaded.slice(),
+        failed: state.failed.map(f => ({ ...f })),
+        fatal: true,
+        reason: 'fatal',
+        required: Array.from(state.required)
+      };
       window.__BOOT_DONE__ = summary;
-      if (!prereqsOk) {
-        try {
-          window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
-          window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'core-prereq-missing', missing: missingMinimal });
-        } catch (_) {}
-        showDiagnostics('core-prereqs:' + missingMinimal.join(','));
-      } else {
-        showDiagnostics(reason);
-      }
+      showDiagnosticsSplash(summary);
+      postLog('boot.contract_miss', { prereqs: corePrereqsReady() });
       return summary;
     }
 
-    if (!isSafeMode()) {
-      for (const p of PATCHES) {
-        // eslint-disable-next-line no-await-in-loop
-        await importOne(p, state, 'patch');
-      }
+    if (!isSafeMode() && PATCHES && PATCHES.length) {
+      await importAll(PATCHES, state, 'patch');
     }
 
-    const out = summarise(state, 'ok');
-    window.__BOOT_HARDENER__ = Object.assign(window.__BOOT_HARDENER__ || {}, { corePrereqsReady });
+    state.reason = state.fatal ? 'fatal' : 'ok';
+    const summary = {
+      loaded: state.loaded.slice(),
+      failed: state.failed.map(f => ({ ...f })),
+      fatal: state.fatal,
+      reason: state.reason,
+      required: Array.from(state.required)
+    };
+    window.__BOOT_DONE__ = summary;
 
-    if (out.failed.length) {
-      console.warn('[boot] completed with failures:', out.failed);
+    if (!state.fatal) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (typeof window.renderAll === 'function') window.renderAll();
+        hideDiagnosticsSplash();
+      }));
+      postLog('boot.ok', { loaded: state.loaded.length, failed: state.failed.length });
     } else {
-      console.log('[boot] ok:', out.loaded.length, 'fail:0');
+      showDiagnosticsSplash(summary);
     }
 
-    window.__BOOT_DONE__ = out;
-    if (typeof window.renderAll === 'function') {
-      if (typeof window.requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => requestAnimationFrame(() => window.renderAll()));
-      } else {
-        window.renderAll();
-      }
-    }
-    hideDiagnostics();
-    return out;
+    return summary;
   })();
   return window.__BOOT_HARDENER_PROMISE__;
 }
+
+export const __private = { toUrl, corePrereqsReady };

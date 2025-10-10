@@ -4,6 +4,12 @@
  <meta charset="utf-8"/>
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <base href="./"/>
+  <style>
+    #diagnostics-splash { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); color:#fff; padding:24px; z-index:99999; font-family:system-ui; }
+    #diagnostics-splash a { color:#fff; text-decoration:underline; }
+    #diagnostics-splash button { font:inherit; }
+  </style>
+  <script src="./js/boot/early_trap.js"></script>
   <script type="importmap">
   {
     "imports": {
@@ -30,10 +36,13 @@
    </div>
   </div>
   <!-- Minimal diagnostics splash that early_trap toggles -->
-  <div id="diagnostics-splash" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);color:#fff;z-index:99999;padding:24px;font-family:system-ui">
-   <h2>CRM failed to start cleanly</h2>
-   <p>Click <button onclick="CRM && CRM.exportLogs && CRM.exportLogs()">Export Logs</button> and send the file to support.</p>
-   <p>You can also retry in <a href="?safe=1">Safe Mode</a>.</p>
+  <div id="diagnostics-splash" role="alert">
+   <h3 style="margin-top:0">CRM Diagnostics</h3>
+   <p>If this stays visible, boot failed. Logs are available in %LOCALAPPDATA%/CRM/logs and via <code>/__log</code>.</p>
+   <p>
+    <button class="btn brand" onclick="CRM && CRM.exportLogs && CRM.exportLogs()" type="button">Export Logs</button>
+    <span style="margin-left:12px">Need a clean boot? Try <a href="?safe=1">Safe Mode</a>.</span>
+   </p>
   </div>
   <div class="container">
    <div id="diagnostics" hidden></div>
@@ -2064,7 +2073,6 @@
   <script src="seed_test_data.js"></script>
 
   <script>window.__APP_VERSION__='v2025.09.27';window.__INIT_FLAGS__=window.__INIT_FLAGS__||{};window.__PATCHES_LOADED__=[];</script>
-  <script src="./js/boot/early_trap.js"></script>
   <script src="./js/selftest_panel.js"></script>
   <script type="module" src="./js/patches/loader.js"></script>
   <script>
@@ -2073,12 +2081,6 @@
         console.warn('Boot warning: no patches loaded. Check console for boot diagnostics.');
       }
     });
-  </script>
-  <script>
-    if (location.protocol === 'file:') {
-      document.documentElement.innerHTML =
-        '<div style="font:16px system-ui;padding:24px">This app can’t run from <code>file://</code>.<br>Close this tab and double-click <b>Start-CRM.bat</b>.</div>';
-    }
   </script>
 </body>
 </html>
