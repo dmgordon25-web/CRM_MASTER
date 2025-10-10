@@ -31,9 +31,14 @@ const MIME_TYPES = {
 
 const LOG_MAX_BYTES = 1024 * 1024;
 
-function logsDir(){
-  const base = process.env.LOCALAPPDATA || process.env.APPDATA || process.env.HOME || '.';
-  const dir = path.join(base, 'CRM', 'logs');
+function logsDir() {
+  const local = process.env.LOCALAPPDATA || process.env.HOME;
+  let dir;
+  if (local) {
+    dir = path.join(local, 'CRM', 'logs');
+  } else {
+    dir = path.join(__dirname, '..', 'CRM_logs');
+  }
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   return dir;
 }
