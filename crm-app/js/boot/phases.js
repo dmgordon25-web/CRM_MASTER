@@ -17,6 +17,7 @@ export const PHASES = {
     new URL('../calendar_actions.js', import.meta.url).href,
     new URL('../calendar.js', import.meta.url).href,
     new URL('../contacts.js', import.meta.url).href,
+    new URL('../contacts_merge.js', import.meta.url).href,
     new URL('../partners.js', import.meta.url).href,
     new URL('../notifications.js', import.meta.url).href,
     new URL('../ui/notifications_panel.js', import.meta.url).href
@@ -31,6 +32,7 @@ export const CONTRACTS = {
     'root element exists': () => !!document.querySelector('#app, main, body')
   },
   FEATURES: {
-    'dashboard registered (best effort)': () => !!(window.CRM && window.CRM.dashboard) || true
+    'dashboard registered (best effort)': () => !!(window.CRM && window.CRM.dashboard) || true,
+    'contactsMerge healthy (best effort)': () => !!(window.CRM && window.CRM.health && window.CRM.health.contactsMerge) || true
   }
 };
