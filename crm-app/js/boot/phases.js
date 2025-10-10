@@ -96,7 +96,8 @@ export const CONTRACTS = {
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
     'selection service live': () => !!(window.Selection || window.SelectionService),
-    'notifications panel usable': () => !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true,
+    'notifications panel usable': () =>
+      !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel') || true,
     // Health probes for migrated modules — never fail hard; just inform
     'contactsMerge healthy (best effort)': () => !!(window.CRM?.health?.contactsMerge) || true
   }
