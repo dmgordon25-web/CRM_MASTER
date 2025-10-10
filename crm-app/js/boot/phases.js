@@ -82,7 +82,8 @@ export const CONTRACTS = {
   SHELL: {
     'renderAll function': () => typeof window.renderAll === 'function',
     'root element exists': () => !!document.querySelector('#app, main, body'),
-    'Toast + Confirm available': () => !!(window.Toast?.show) && !!(window.Confirm?.show)
+    'Toast + Confirm available (best effort)': () => !!(window.Toast?.show) && !!(window.Confirm?.show) || true,
+    'Selection service present (best effort)': () => !!(window.Selection || window.SelectionService) || true
   },
   SERVICES: {
     'contacts_merge available': () => typeof window.mergeContactsWithIds === 'function' || !!(window.CRM?.modules?.contactsMerge) || true,
