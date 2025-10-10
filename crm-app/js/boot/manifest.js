@@ -27,7 +27,6 @@ export const CORE = [
   '../contacts.js',
   '../partners.js',
   '../partners_modal.js',
-  '../contacts_merge.js',
   '../dash_range.js',
   '../importer.js',
   '../reports.js',
