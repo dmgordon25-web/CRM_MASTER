@@ -14,12 +14,15 @@
     "e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --project=chromium --workers=1 --timeout=20000 --reporter=line",
     "precommit": "node tools/precommit_check.js && npm run sweep -- --strict",
     "audit:watch": "node --watch devtools/audit.mjs",
-    "audit:manifest": "node tools/manifest_audit.js"
+    "audit:manifest": "node tools/manifest_audit.js",
+    "test:boot": "node tools/boot_smoke_test.mjs",
+    "verify:build": "npm run audit:manifest && npm run test:boot"
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",
     "eslint": "^9.0.0",
     "fake-indexeddb": "^5.0.2",
-    "vitest": "^0.34.6"
+    "vitest": "^0.34.6",
+    "puppeteer": "^22.8.0"
   }
 }
