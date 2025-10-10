@@ -9,7 +9,7 @@
       out.partners  = await window.db.getAll?.("partners")  || out.partners;
       out.events    = await window.db.getAll?.("events")    || out.events;
       out.documents = await window.db.getAll?.("documents") || out.documents;
-    } catch {}
+    } catch (e) {}
     const blob = new Blob([JSON.stringify(out,null,2)], {type:"application/json"});
     const url  = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download=`crm_snapshot_${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
@@ -19,7 +19,7 @@
     const json = await file.text();
     const data = JSON.parse(json);
     async function putAll(store, rows){
-      for (const r of (rows||[])){ try { await window.db.put(store, r); } catch {} }
+      for (const r of (rows||[])){ try { await window.db.put(store, r); } catch (e) {} }
     }
     await putAll("partners",  data.partners);
     await putAll("contacts",  data.contacts);

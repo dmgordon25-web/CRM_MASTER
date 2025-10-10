@@ -22,7 +22,7 @@
     ? (value)=> {
       try {
         return window.stageKeyFromLabel(value);
-      } catch { return null; }
+      } catch (e) { return null; }
     }
     : null;
 
@@ -30,7 +30,7 @@
     ? (value)=> {
       try {
         return window.canonicalizeStage(value);
-      } catch { return null; }
+      } catch (e) { return null; }
     }
     : null;
 
@@ -38,7 +38,7 @@
     ? (value)=> {
       try {
         return window.stageLabelFromKey(value);
-      } catch { return null; }
+      } catch (e) { return null; }
     }
     : null;
 
@@ -99,14 +99,14 @@
     let mem = null;
     function hasIDB(){
       try { return !!(window.db && typeof window.db.get==="function" && typeof window.db.put==="function"); }
-      catch { return false; }
+      catch (e) { return false; }
     }
     async function getAllLS(){
       if (mem) return mem;
-      try { mem = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch { mem = {}; }
+      try { mem = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { mem = {}; }
       return mem;
     }
-    async function saveAllLS(){ try { localStorage.setItem(LS_KEY, JSON.stringify(mem||{})); } catch{} }
+    async function saveAllLS(){ try { localStorage.setItem(LS_KEY, JSON.stringify(mem||{})); } catch(e) {} }
 
     return {
       async readStage(contactId){
@@ -115,7 +115,7 @@
           try {
             const row = await window.db.get("contacts", contactId).catch(()=>null);
             return row?.stage || null;
-          } catch { /* fallthrough to LS */ }
+          } catch (e) { /* fallthrough to LS */ }
         }
         const all = await getAllLS(); return all[contactId]?.stage || null;
       },
@@ -128,7 +128,7 @@
             const next = { ...(row||{ id: contactId }), stage };
             await window.db.put("contacts", next);
             return;
-          } catch {
+          } catch (e) {
             // fall through to LS on failure
           }
         }

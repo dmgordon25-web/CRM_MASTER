@@ -8,14 +8,14 @@
     const msg = `Boot OK — modules:${loaded} failures:${failed}`;
     // Dev-only if project exposes flag; otherwise always concise
     if (window.__DEV__ || typeof window.__DEV__ === "undefined"){
-      try { console.info(msg); } catch {}
+      try { console.info(msg); } catch (e) {}
     }
   }
 
   // Self-Test hook (project style): expect window.SelfTest?.run to exist; never fail hard here
   if (window.SelfTest && typeof window.SelfTest.run === "function"){
     try { window.SelfTest.run().then(()=>summarize()).catch(()=>summarize()); }
-    catch { summarize(); }
+    catch (e) { summarize(); }
   } else {
     summarize();
   }

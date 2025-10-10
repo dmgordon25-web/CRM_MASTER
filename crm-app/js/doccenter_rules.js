@@ -307,16 +307,16 @@
       try {
         // honor existing app DB facade if present (don’t import or change schema)
         return !!(window.db && typeof window.db.get === "function" && typeof window.db.put === "function");
-      } catch { return false; }
+      } catch (e) { return false; }
     }
     async function getAllLS(){
       if (mem) return mem;
       try { mem = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }
-      catch { mem = {}; }
+      catch (e) { mem = {}; }
       return mem;
     }
     async function saveLS(){
-      try { localStorage.setItem(LS_KEY, JSON.stringify(mem || {})); } catch {}
+      try { localStorage.setItem(LS_KEY, JSON.stringify(mem || {})); } catch (e) {}
     }
     return {
       async read(contactId){
@@ -326,7 +326,7 @@
             // Non-blocking; if store missing, treat as empty.
             const row = await window.db.get("documents", contactId).catch(()=>null);
             return row?.items || {};
-          } catch { return {}; }
+          } catch (e) { return {}; }
         } else {
           const all = await getAllLS(); return all[contactId] || {};
         }
@@ -336,7 +336,7 @@
         if (hasIDB()){
           try {
             await window.db.put("documents", { id: contactId, items: items || {} });
-          } catch {
+          } catch (e) {
             // fall through to LS if IDB write fails
             const all = await getAllLS(); all[contactId] = items || {}; await saveLS();
           }

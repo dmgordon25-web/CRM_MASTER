@@ -30,7 +30,7 @@
       if (typeof window.dbPut === 'function') await window.dbPut('partners', row);
       else await window.db?.put?.('partners', row);
       return row;
-    } catch { return { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME }; }
+    } catch (e) { return { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME }; }
   }
 
   function keyTuple(row){

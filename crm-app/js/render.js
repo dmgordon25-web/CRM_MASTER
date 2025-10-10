@@ -1193,10 +1193,10 @@ import {
       if (window.DashLayout && typeof window.DashLayout.apply === 'function') {
         window.DashLayout.apply();
       }
-    } catch {}
+    } catch (e) {}
   }
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    try { window.RenderGuard.registerHook(run); } catch {}
+    try { window.RenderGuard.registerHook(run); } catch (e) {}
   } else {
     setTimeout(run, 0);
   }

@@ -7,7 +7,7 @@
       const existing = await window.db.get(store, key).catch(()=>null);
       const rec = existing ? { ...existing, ...row, id: key } : { id: key, ...row };
       await window.db.put(store, rec);
-    } catch {
+    } catch (e) {
       // localStorage fallback
       const k = `seed:${store}`;
       const all = JSON.parse(localStorage.getItem(k)||"{}");
