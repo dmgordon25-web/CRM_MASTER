@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const rootArg = process.argv[2] ? String(process.argv[2]) : process.cwd();
 const serveRoot = path.resolve(rootArg);
@@ -30,40 +31,30 @@ const MIME_TYPES = {
 
 const LOG_MAX_BYTES = 1024 * 1024;
 
-function appDataLogsDir() {
-  const bases = [process.env.LOCALAPPDATA, process.env.APPDATA, __dirname];
-  for (const candidate of bases) {
-    if (!candidate) {
-      continue;
-    }
-    const dir = path.join(candidate, 'CRM', 'logs');
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      return dir;
-    } catch (err) {
-      // try next candidate
-    }
-  }
-  const fallback = path.join(__dirname, 'CRM', 'logs');
-  fs.mkdirSync(fallback, { recursive: true });
-  return fallback;
+function logsDir(){
+  const base = process.env.LOCALAPPDATA || process.env.APPDATA || process.env.HOME || '.';
+  const dir = path.join(base, 'CRM', 'logs');
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  return dir;
 }
 
-function appendLogLine(entry) {
-  if (process.env.CRM_QUIET_LOG) {
-    return true;
-  }
+function safeParse(s){
+  try { return JSON.parse(s); } catch { return { raw: s }; }
+}
+
+function appendLogLine(entry){
+  if (process.env.CRM_QUIET_LOG) return true;
+  const file = path.join(logsDir(), 'frontend.log');
   try {
-    const target = path.join(appDataLogsDir(), 'frontend.log');
-    fs.appendFileSync(target, entry, 'utf8');
+    fs.appendFileSync(file, JSON.stringify(entry) + os.EOL, 'utf8');
     return true;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
 
 function handleLog(req, res) {
-  const origin = req.headers.origin || (req.headers.host ? `http://${req.headers.host}` : undefined);
+  const origin = req.headers.origin || (req.headers.host ? `http://${req.headers.host}` : '*');
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
@@ -89,9 +80,7 @@ function handleLog(req, res) {
   req.setEncoding('utf8');
 
   function finish(status, message) {
-    if (finished) {
-      return;
-    }
+    if (finished) return;
     finished = true;
     if (message) {
       res.statusCode = status;
@@ -104,9 +93,7 @@ function handleLog(req, res) {
   }
 
   req.on('data', (chunk) => {
-    if (finished) {
-      return;
-    }
+    if (finished) return;
     received += chunk.length;
     if (received > LOG_MAX_BYTES) {
       finish(413, 'Payload Too Large');
@@ -116,37 +103,20 @@ function handleLog(req, res) {
     body += chunk;
   });
 
-  req.on('error', () => {
-    finish(400, 'Invalid request');
-  });
+  req.on('error', () => finish(400, 'Invalid request'));
 
   req.on('end', () => {
-    if (finished) {
-      return;
-    }
-    let parsed;
-    if (!body.trim()) {
-      parsed = {};
-    } else {
-      try {
-        parsed = JSON.parse(body);
-      } catch (err) {
-        finish(400, 'Invalid JSON');
-        return;
-      }
-    }
-
-    const entry = JSON.stringify({
-      t: Date.now(),
+    if (finished) return;
+    const payload = body.trim() ? safeParse(body) : {};
+    const entry = {
+      ts: Date.now(),
       ip: req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : null,
-      body: parsed
-    }) + '\n';
-
+      payload
+    };
     if (!appendLogLine(entry)) {
       finish(500, 'Failed to write log');
       return;
     }
-
     finish(204);
   });
 }
