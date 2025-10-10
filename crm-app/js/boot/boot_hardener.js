@@ -1,77 +1,140 @@
 /* eslint-disable no-console */
-// Deterministic boot hardener — top-level export, no conditional exports.
+
+const baseUrl = new URL('.', import.meta.url);
+const toUrl = p => new URL(p, baseUrl).href;
+
+function isSafeMode() {
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('safe') === '1' || window.localStorage.getItem('SAFE') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function corePrereqsReady() {
+  const w = window;
+  return typeof w.openDB === 'function'
+    && (w.Selection || w.SelectionService)
+    && typeof w.$ === 'function'
+    && typeof w.renderAll === 'function'
+    && w.Toast && typeof w.Toast.show === 'function'
+    && w.Confirm && typeof w.Confirm.show === 'function';
+}
+
+function showDiagnostics(reason) {
+  try {
+    const evt = new CustomEvent('crm:boot:fatal', { detail: { reason } });
+    window.dispatchEvent(evt);
+  } catch (_) {}
+  const splash = document.getElementById('diagnostics-splash');
+  if (splash) splash.style.display = 'block';
+  try {
+    fetch('/__log', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        reason,
+        logs: Array.isArray(window.__BOOT_LOGS__) ? window.__BOOT_LOGS__ : [],
+      }),
+      keepalive: true
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+async function importOne(p, out) {
+  if (!p || typeof p !== 'string') return;
+  const spec = toUrl(p);
+  try {
+    await import(spec);
+    out.loaded.push(p);
+    if (!window.__PATCHES_LOADED__.includes(p)) window.__PATCHES_LOADED__.push(p);
+  } catch (err) {
+    const message = String(err && (err.stack || err.message) || err);
+    out.failed.push({ p, err: message });
+    if (!window.__PATCHES_FAILED__.includes(p)) window.__PATCHES_FAILED__.push(p);
+    console.error('[boot] failed to import', p, err);
+  }
+}
+
+function normaliseTelemetryArrays() {
+  const tl = window.__PATCHES_LOADED__;
+  const tf = window.__PATCHES_FAILED__;
+  window.__PATCHES_LOADED__ = Array.isArray(tl) ? tl.slice()
+    : (tl && typeof tl === 'object' && Array.isArray(tl.ok)) ? tl.ok.slice() : [];
+  window.__PATCHES_FAILED__ = Array.isArray(tf) ? tf.slice()
+    : (tf && typeof tf === 'object' && Array.isArray(tf.fail)) ? tf.fail.slice() : [];
+}
+
+function summarise(out, reason) {
+  return {
+    loaded: Array.from(new Set(out.loaded)),
+    failed: Array.from(new Set(out.failed.map(f => f.p))),
+    detail: out,
+    reason
+  };
+}
+
 export async function ensureCoreThenPatches(manifest = {}) {
-  // De-dup concurrent callers
   if (window.__BOOT_HARDENER_PROMISE__) return window.__BOOT_HARDENER_PROMISE__;
   window.__BOOT_HARDENER_PROMISE__ = (async () => {
-    // Normalize telemetry arrays; tolerate legacy {ok,fail}
-    const tl = window.__PATCHES_LOADED__;
-    const tf = window.__PATCHES_FAILED__;
-    window.__PATCHES_LOADED__ = Array.isArray(tl) ? tl.slice()
-      : (tl && typeof tl === "object" && Array.isArray(tl.ok)) ? tl.ok.slice() : [];
-    window.__PATCHES_FAILED__ = Array.isArray(tf) ? tf.slice()
-      : (tf && typeof tf === "object" && Array.isArray(tf.fail)) ? tf.fail.slice() : [];
-
-    const acc = { loaded: [], failed: [] };
-
-    function corePrereqsReady() {
-      return typeof window.openDB === "function" && !!(window.Selection || window.SelectionService);
-    }
-
-    async function importOne(path) {
-      if (!path || typeof path !== "string") return;
-      try {
-        const base = (document?.baseURI) ? document.baseURI : (window.location?.href || "/");
-        const spec = new URL(path, base).href;
-        await import(spec);
-        acc.loaded.push(spec);
-        if (!window.__PATCHES_LOADED__.includes(spec)) window.__PATCHES_LOADED__.push(spec);
-      } catch (err) {
-        acc.failed.push(path);
-        if (!window.__PATCHES_FAILED__.includes(path)) window.__PATCHES_FAILED__.push(path);
-        console.error("[boot] failed to import", path, err);
-      }
-    }
-
-    async function importSeq(list) {
-      for (const p of (list || [])) {
-        // eslint-disable-next-line no-await-in-loop
-        await importOne(p);
-      }
-    }
+    normaliseTelemetryArrays();
 
     const CORE = Array.isArray(manifest.CORE) ? manifest.CORE : [];
     const PATCHES = Array.isArray(manifest.PATCHES) ? manifest.PATCHES : [];
+    const REQUIRED = manifest.REQUIRED instanceof Set ? manifest.REQUIRED : new Set();
 
-    // CORE → PATCHES (strict order)
-    await importSeq(CORE);
-    if (!corePrereqsReady() && CORE.length) {
-      console.warn("[boot] core prereqs missing after pass 1; retrying CORE once");
-      await importSeq(CORE);
+    const out = { loaded: [], failed: [] };
+
+    for (const p of CORE) {
+      // eslint-disable-next-line no-await-in-loop
+      await importOne(p, out);
     }
-    await importSeq(PATCHES);
 
-    window.__BOOT_DONE__ = {
-      loaded: Array.from(new Set(acc.loaded)),
-      failed: Array.from(new Set(acc.failed)),
-    };
+    if (!corePrereqsReady() && CORE.length) {
+      console.warn('[boot] core prereqs missing after pass 1; retrying CORE once');
+      for (const p of CORE) {
+        // eslint-disable-next-line no-await-in-loop
+        await importOne(p, out);
+      }
+    }
 
-    // Expose diagnostics helper without side effects
+    const prereqsOk = corePrereqsReady();
+    const requiredOk = out.failed.every(f => !REQUIRED.has(f.p));
+    const fatal = !prereqsOk || !requiredOk;
+
+    if (fatal) {
+      const reason = prereqsOk ? 'required-module' : 'core-prereqs';
+      const summary = summarise(out, reason);
+      window.__BOOT_DONE__ = summary;
+      showDiagnostics(reason);
+      return summary;
+    }
+
+    if (!isSafeMode()) {
+      for (const p of PATCHES) {
+        // eslint-disable-next-line no-await-in-loop
+        await importOne(p, out);
+      }
+    }
+
+    const summary = summarise(out, 'ok');
+    window.__BOOT_DONE__ = summary;
     window.__BOOT_HARDENER__ = Object.assign(window.__BOOT_HARDENER__ || {}, { corePrereqsReady });
 
-    // Double-rAF repaint
-    try {
-      const raf = window.requestAnimationFrame || (cb => setTimeout(cb, 16));
-      raf(() => raf(() => window.renderAll?.()));
-    } catch (_) {}
-
-    if (window.__BOOT_DONE__.failed.length) {
-      console.warn("[boot] completed with failures:", window.__BOOT_DONE__.failed);
-    } else {
-      console.log("[boot] ok:", window.__BOOT_DONE__.loaded.length, "fail:0");
+    if (typeof window.requestAnimationFrame === 'function' && typeof window.renderAll === 'function') {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.renderAll()));
+    } else if (typeof window.renderAll === 'function') {
+      window.renderAll();
     }
 
-    return window.__BOOT_DONE__;
+    if (summary.failed.length) {
+      console.warn('[boot] completed with failures:', summary.failed);
+    } else {
+      console.log('[boot] ok:', summary.loaded.length, 'fail:0');
+    }
+
+    return summary;
   })();
   return window.__BOOT_HARDENER_PROMISE__;
 }
