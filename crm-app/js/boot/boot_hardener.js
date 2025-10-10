@@ -12,14 +12,22 @@ function isSafeMode() {
   }
 }
 
-function corePrereqsReady() {
+function listMissingPrereqs(kind = 'strict') {
   const w = window;
-  return typeof w.openDB === 'function'
-    && (w.Selection || w.SelectionService)
-    && typeof w.$ === 'function'
-    && typeof w.renderAll === 'function'
-    && w.Toast && typeof w.Toast.show === 'function'
-    && w.Confirm && typeof w.Confirm.show === 'function';
+  const missing = [];
+  if (typeof w.openDB !== 'function') missing.push('openDB');
+  if (typeof w.renderAll !== 'function') missing.push('renderAll');
+  if (typeof w.$ !== 'function') missing.push('$');
+  if (kind === 'strict') {
+    if (!(w.Selection || w.SelectionService)) missing.push('Selection/SelectionService');
+    if (!(w.Toast && typeof w.Toast.show === 'function')) missing.push('Toast.show');
+    if (!(w.Confirm && typeof w.Confirm.show === 'function')) missing.push('Confirm.show');
+  }
+  return missing;
+}
+
+function corePrereqsReady(kind = 'minimal') {
+  return listMissingPrereqs(kind).length === 0;
 }
 
 function showDiagnostics(reason) {
@@ -42,7 +50,7 @@ function showDiagnostics(reason) {
   } catch (_) {}
 }
 
-async function importOne(p, out) {
+async function importOne(p, out, kind = 'core') {
   if (!p || typeof p !== 'string') return;
   const spec = toUrl(p);
   try {
@@ -54,8 +62,14 @@ async function importOne(p, out) {
     out.failed.push({ p, err: msg });
     try {
       window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
-      window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'import-fail', module: p, error: msg });
+      window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'import-fail', phase: kind, module: p, error: msg });
     } catch (_) {}
+    if (kind === 'patch') {
+      try {
+        window.__PATCHES_FAILED__ = window.__PATCHES_FAILED__ || [];
+        window.__PATCHES_FAILED__.push({ module: p, error: msg });
+      } catch (_) {}
+    }
   }
 }
 
@@ -90,18 +104,19 @@ export async function ensureCoreThenPatches(manifest = {}) {
 
     for (const p of CORE) {
       // eslint-disable-next-line no-await-in-loop
-      await importOne(p, out);
+      await importOne(p, out, 'core');
     }
 
-    if (!corePrereqsReady() && CORE.length) {
+    if (!corePrereqsReady('minimal') && CORE.length) {
       console.warn('[boot] core prereqs missing after pass 1; retrying CORE once');
       for (const p of CORE) {
         // eslint-disable-next-line no-await-in-loop
-        await importOne(p, out);
+        await importOne(p, out, 'core');
       }
     }
 
-    const prereqsOk = corePrereqsReady();
+    const missingMinimal = listMissingPrereqs('minimal');
+    const prereqsOk = missingMinimal.length === 0;
     const requiredOk = out.failed.every(f => !REQUIRED.has(f.p));
     const fatal = !prereqsOk || !requiredOk;
 
@@ -109,14 +124,22 @@ export async function ensureCoreThenPatches(manifest = {}) {
       const reason = prereqsOk ? 'required-module' : 'core-prereqs';
       const summary = summarise(out, reason);
       window.__BOOT_DONE__ = summary;
-      showDiagnostics(reason);
+      if (!prereqsOk) {
+        try {
+          window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
+          window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'core-prereq-missing', missing: missingMinimal });
+        } catch (_) {}
+        showDiagnostics('core-prereqs:' + missingMinimal.join(','));
+      } else {
+        showDiagnostics(reason);
+      }
       return summary;
     }
 
     if (!isSafeMode()) {
       for (const p of PATCHES) {
         // eslint-disable-next-line no-await-in-loop
-        await importOne(p, out);
+        await importOne(p, out, 'patch');
       }
     }
 
