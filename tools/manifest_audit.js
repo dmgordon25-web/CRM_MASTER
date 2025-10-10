@@ -7,6 +7,7 @@ const ENTRY = [
   path.join(ROOT, 'patches', 'loader.js'),
   path.join(ROOT, 'boot', 'loader.js'),
 ];
+const entrySet = new Set(ENTRY);
 
 const seen = new Set();
 const graph = new Map();
@@ -20,6 +21,18 @@ function read(filePath) {
   }
 }
 
+function normalizeModule(fromFile, spec) {
+  const resolved = path.resolve(path.dirname(fromFile), spec);
+  return resolved.endsWith('.js') ? resolved : `${resolved}.js`;
+}
+
+function addEntry(filePath) {
+  if (!entrySet.has(filePath)) {
+    entrySet.add(filePath);
+    ENTRY.push(filePath);
+  }
+}
+
 function deps(filePath) {
   const txt = read(filePath);
   const out = [];
@@ -30,8 +43,7 @@ function deps(filePath) {
     if (!spec.startsWith('.')) {
       continue;
     }
-    const resolved = path.resolve(path.dirname(filePath), spec);
-    const target = resolved.endsWith('.js') ? resolved : `${resolved}.js`;
+    const target = normalizeModule(filePath, spec);
     if (!target.startsWith(ROOT)) {
       if (!outside.has(target)) {
         console.warn('WARN outside root:', target);
@@ -63,6 +75,24 @@ function walk(filePath, stack = []) {
   }
 }
 
+function seedManifestEntries() {
+  const manifestPath = path.join(ROOT, 'boot', 'manifest.js');
+  const txt = read(manifestPath);
+  if (!txt) {
+    return;
+  }
+  const re = /['"](\.\.\/[^'";]+)['"]/g;
+  let match;
+  while ((match = re.exec(txt))) {
+    const spec = match[1];
+    const target = normalizeModule(manifestPath, spec);
+    if (target.startsWith(ROOT)) {
+      addEntry(target);
+    }
+  }
+}
+
+seedManifestEntries();
 ENTRY.forEach((entry) => walk(entry));
 
 function allJs(root) {
