@@ -3,6 +3,33 @@
 const baseUrl = new URL('.', import.meta.url);
 const toUrl = p => new URL(p, baseUrl).href;
 
+function hideDiagnostics() {
+  try {
+    const el = document.getElementById('diagnostics-splash');
+    if (el) el.style.display = 'none';
+  } catch (_) {}
+}
+
+try {
+  window.hideDiagnostics = window.hideDiagnostics || hideDiagnostics;
+} catch (_) {}
+
+let __LOG_DISABLED = false;
+
+async function postBootLog(payload) {
+  if (__LOG_DISABLED) return;
+  try {
+    const res = await fetch('/__log', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) __LOG_DISABLED = true;
+  } catch (e) {
+    __LOG_DISABLED = true;
+  }
+}
+
 function isSafeMode() {
   try {
     const url = new URL(window.location.href);
@@ -38,15 +65,10 @@ function showDiagnostics(reason) {
   const splash = document.getElementById('diagnostics-splash');
   if (splash) splash.style.display = 'block';
   try {
-    fetch('/__log', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        reason,
-        logs: Array.isArray(window.__BOOT_LOGS__) ? window.__BOOT_LOGS__ : [],
-      }),
-      keepalive: true
-    }).catch(() => {});
+    postBootLog({
+      reason,
+      logs: Array.isArray(window.__BOOT_LOGS__) ? window.__BOOT_LOGS__ : [],
+    });
   } catch (_) {}
 }
 
@@ -100,29 +122,29 @@ export async function ensureCoreThenPatches(manifest = {}) {
     const PATCHES = Array.isArray(manifest.PATCHES) ? manifest.PATCHES : [];
     const REQUIRED = manifest.REQUIRED instanceof Set ? manifest.REQUIRED : new Set();
 
-    const out = { loaded: [], failed: [] };
+    const state = { loaded: [], failed: [] };
 
     for (const p of CORE) {
       // eslint-disable-next-line no-await-in-loop
-      await importOne(p, out, 'core');
+      await importOne(p, state, 'core');
     }
 
     if (!corePrereqsReady('minimal') && CORE.length) {
       console.warn('[boot] core prereqs missing after pass 1; retrying CORE once');
       for (const p of CORE) {
         // eslint-disable-next-line no-await-in-loop
-        await importOne(p, out, 'core');
+        await importOne(p, state, 'core');
       }
     }
 
     const missingMinimal = listMissingPrereqs('minimal');
     const prereqsOk = missingMinimal.length === 0;
-    const requiredOk = out.failed.every(f => !REQUIRED.has(f.p));
+    const requiredOk = state.failed.every(f => !REQUIRED.has(f.p));
     const fatal = !prereqsOk || !requiredOk;
 
     if (fatal) {
       const reason = prereqsOk ? 'required-module' : 'core-prereqs';
-      const summary = summarise(out, reason);
+      const summary = summarise(state, reason);
       window.__BOOT_DONE__ = summary;
       if (!prereqsOk) {
         try {
@@ -139,27 +161,29 @@ export async function ensureCoreThenPatches(manifest = {}) {
     if (!isSafeMode()) {
       for (const p of PATCHES) {
         // eslint-disable-next-line no-await-in-loop
-        await importOne(p, out, 'patch');
+        await importOne(p, state, 'patch');
       }
     }
 
-    const summary = summarise(out, 'ok');
-    window.__BOOT_DONE__ = summary;
+    const out = summarise(state, 'ok');
     window.__BOOT_HARDENER__ = Object.assign(window.__BOOT_HARDENER__ || {}, { corePrereqsReady });
 
-    if (typeof window.requestAnimationFrame === 'function' && typeof window.renderAll === 'function') {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.renderAll()));
-    } else if (typeof window.renderAll === 'function') {
-      window.renderAll();
-    }
-
-    if (summary.failed.length) {
-      console.warn('[boot] completed with failures:', summary.failed);
+    if (out.failed.length) {
+      console.warn('[boot] completed with failures:', out.failed);
     } else {
-      console.log('[boot] ok:', summary.loaded.length, 'fail:0');
+      console.log('[boot] ok:', out.loaded.length, 'fail:0');
     }
 
-    return summary;
+    window.__BOOT_DONE__ = out;
+    if (typeof window.renderAll === 'function') {
+      if (typeof window.requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(() => window.renderAll()));
+      } else {
+        window.renderAll();
+      }
+    }
+    hideDiagnostics();
+    return out;
   })();
   return window.__BOOT_HARDENER_PROMISE__;
 }

@@ -3,10 +3,48 @@
 const fs = require('fs'); const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', 'crm-app', 'js');
-const ENTRY = [
+const INDEX_HTML = path.resolve(__dirname,'..','crm-app','index.html');
+
+function seedFromIndexHtml(){
+  const html = read(INDEX_HTML);
+  if (!html) return [];
+  const scripts = [...html.matchAll(/<script[^>]+src=["']\.\/js\/([^"']+)["']/g)].map(m=>m[1]);
+  return scripts.map(s => path.join(ROOT, s)).filter(fs.existsSync);
+}
+
+// Some files are valid “standalone” scripts (not phased): list them here
+const STANDALONE_ALLOW = new Set(['selftest_panel.js','early_trap.js']);
+
+const MANIFEST_JS = path.join(ROOT, 'boot', 'manifest.js');
+const PHASES_JS = path.join(ROOT, 'boot', 'phases.js');
+
+function seedFromManifest(){
+  const txt = read(MANIFEST_JS);
+  if (!txt) return [];
+  const entries = [...txt.matchAll(/['"](\.\.\/[^'"`]+)['"]/g)].map(m => m[1]);
+  const base = path.dirname(MANIFEST_JS);
+  return entries
+    .map(spec => path.resolve(base, spec))
+    .filter(fs.existsSync);
+}
+
+function seedFromPhases(){
+  const txt = read(PHASES_JS);
+  if (!txt) return [];
+  const entries = [...txt.matchAll(/new URL\(['"](\.\.\/[^'"`]+)['"'],\s*import\.meta\.url\)/g)].map(m => m[1]);
+  const base = path.dirname(PHASES_JS);
+  return entries
+    .map(spec => path.resolve(base, spec))
+    .filter(fs.existsSync);
+}
+
+const ENTRY = Array.from(new Set([
   path.join(ROOT, 'patches', 'loader.js'),
-  path.join(ROOT, 'boot', 'loader.js')
-].filter(fs.existsSync);
+  path.join(ROOT, 'boot', 'loader.js'),
+  ...seedFromManifest(),
+  ...seedFromPhases(),
+  ...seedFromIndexHtml()
+].filter(fs.existsSync)));
 
 function read(p){ try { return fs.readFileSync(p,'utf8'); } catch{ return ''; } }
 function norm(p){ return p.replace(/\\/g,'/'); }
@@ -60,7 +98,7 @@ const reachable = new Set(graph.keys());
 const unreachable = [...all].filter(f => !reachable.has(f));
 
 // Phase rules: read phases list
-const phasesJs = path.join(ROOT, 'boot', 'phases.js');
+const phasesJs = PHASES_JS;
 const phasesTxt = read(phasesJs);
 function phaseOf(absPath){
   const rel = norm(path.relative(path.join(ROOT,'boot'), absPath)).replace(/\.\.\//g,'../'); // heuristic
@@ -101,7 +139,9 @@ for (const file of reachable){
   const rel = norm(path.relative(ROOT,file));
   // crude heuristic: files under ui/, dashboard/, pages/ => FEATURES; under *merge* => SERVICES
   const suggestion = /merge/.test(rel) ? 'SERVICES' : /ui|dashboard|pages|calendar/.test(rel) ? 'FEATURES' : 'FEATURES';
-  problems.push({ kind:'unphased', file: rel, suggest: suggestion });
+  if (!STANDALONE_ALLOW.has(path.basename(file))) {
+    problems.push({ kind:'unphased', file: rel, suggest: suggestion });
+  }
 }
 
 // summarize cycles printed earlier by console.error — also count them
