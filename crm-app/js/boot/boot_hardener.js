@@ -50,10 +50,12 @@ async function importOne(p, out) {
     out.loaded.push(p);
     if (!window.__PATCHES_LOADED__.includes(p)) window.__PATCHES_LOADED__.push(p);
   } catch (err) {
-    const message = String(err && (err.stack || err.message) || err);
-    out.failed.push({ p, err: message });
-    if (!window.__PATCHES_FAILED__.includes(p)) window.__PATCHES_FAILED__.push(p);
-    console.error('[boot] failed to import', p, err);
+    const msg = String((err && err.stack) || err);
+    out.failed.push({ p, err: msg });
+    try {
+      window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
+      window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'import-fail', module: p, error: msg });
+    } catch (_) {}
   }
 }
 
