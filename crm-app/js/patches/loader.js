@@ -43,6 +43,10 @@ window.CRM.ctx = window.CRM.ctx || {
   }
   ctx.logger.log('[phase] SERVICES complete', { count: svcRes.length, errors: svcRes.filter(r => !r.ok).length });
 
+  if (shellContract.ok && (svcContract?.ok ?? true)) {
+    if (typeof hideDiagnostics === 'function') hideDiagnostics();
+  }
+
   // Run FEATURES (parallel for speed)
   const featureRes = await runPhaseParallel('FEATURES', PHASES.FEATURES, ctx, (e) => ctx.logger.log(e));
   const featContract = checkContract('FEATURES', CONTRACTS.FEATURES);
