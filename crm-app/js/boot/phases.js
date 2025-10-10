@@ -54,7 +54,9 @@ export const CONTRACTS = {
   SHELL: {
     'renderAll function': () => typeof window.renderAll === 'function',
     'root element exists': () => !!document.querySelector('#app, main, body'),
-    'Toast + Confirm available': () => !!(window.Toast?.show) && !!(window.Confirm?.show)
+    'Toast + Confirm available': () => !!(window.Toast?.show) && (
+      typeof window.showConfirm === 'function' || typeof window.confirmAction === 'function'
+    )
   },
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
