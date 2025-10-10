@@ -85,9 +85,9 @@ export const CONTRACTS = {
     'Toast + Confirm available': () => !!(window.Toast?.show) && !!(window.Confirm?.show)
   },
   SERVICES: {
-    'contacts_merge available': () => typeof window.mergeContactsWithIds === 'function' || !!(window.CRM?.modules?.contactsMerge) || true,
-    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
-    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
+    'contacts_merge available': () => typeof window.mergeContactsWithIds === 'function' || !!(window.CRM?.modules?.contactsMerge),
+    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator),
+    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator)
   },
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,
