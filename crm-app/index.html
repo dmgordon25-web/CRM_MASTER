@@ -22,6 +22,12 @@
     <button class="btn brand" data-role="diag-run-selftest" type="button">Run Self-Test</button>
    </div>
   </div>
+  <!-- Minimal diagnostics splash that early_trap toggles -->
+  <div id="diagnostics-splash" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);color:#fff;z-index:99999;padding:24px;font-family:system-ui">
+   <h2>CRM failed to start cleanly</h2>
+   <p>Click <button onclick="CRM && CRM.exportLogs && CRM.exportLogs()">Export Logs</button> and send the file to support.</p>
+   <p>You can also retry in <a href="?safe=1">Safe Mode</a>.</p>
+  </div>
   <div class="container">
    <div id="diagnostics" hidden></div>
    <div class="top-shell">
@@ -2051,7 +2057,8 @@
   <script src="seed_test_data.js"></script>
 
   <script>window.__APP_VERSION__='v2025.09.27';window.__INIT_FLAGS__=window.__INIT_FLAGS__||{};window.__PATCHES_LOADED__=[];</script>
-  <script type="module" src="js/patches/loader.js"></script>
+  <script src="./js/boot/early_trap.js"></script>
+  <script type="module" src="./js/patches/loader.js"></script>
   <script>
     window.addEventListener('load', function(){
       if(!Array.isArray(window.__PATCHES_LOADED__) || window.__PATCHES_LOADED__.length === 0){

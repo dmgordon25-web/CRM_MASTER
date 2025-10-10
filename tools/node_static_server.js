@@ -28,6 +28,34 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+function appDataLogsDir() {
+  const local = process.env.LOCALAPPDATA || process.env.APPDATA;
+  const base = local ? path.join(local, 'CRM', 'logs') : path.join(process.cwd(), 'logs');
+  fs.mkdirSync(base, { recursive: true });
+  return base;
+}
+
+function handleLog(req, res) {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const line = JSON.stringify({
+        t: Date.now(),
+        ip: req.socket && req.socket.remoteAddress,
+        body: JSON.parse(body || '{}')
+      }) + '\n';
+      const target = path.join(appDataLogsDir(), 'frontend.log');
+      fs.appendFileSync(target, line);
+      res.writeHead(204);
+      res.end();
+    } catch (err) {
+      res.writeHead(400);
+      res.end('bad json');
+    }
+  });
+}
+
 function resolvePath(urlPath) {
   try {
     const decoded = decodeURIComponent(urlPath.split('?')[0]);
@@ -46,6 +74,9 @@ function resolvePath(urlPath) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && (req.url || '').split('?')[0] === '/__log') {
+    return handleLog(req, res);
+  }
   const url = req.url || '/';
   const filePath = resolvePath(url);
   if (!filePath) {

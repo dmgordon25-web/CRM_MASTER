@@ -63,6 +63,30 @@ internal static class Program
 
             var app = builder.Build();
 
+            string LogsDir()
+            {
+                var basePath = Environment.GetEnvironmentVariable("LOCALAPPDATA")
+                               ?? Environment.GetEnvironmentVariable("APPDATA")
+                               ?? AppContext.BaseDirectory;
+                var dir = Path.Combine(basePath, "CRM", "logs");
+                Directory.CreateDirectory(dir);
+                return dir;
+            }
+
+            app.MapPost("/__log", async (HttpContext ctx) =>
+            {
+                using var reader = new StreamReader(ctx.Request.Body);
+                var body = await reader.ReadToEndAsync();
+                var line = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    body
+                });
+                await System.IO.File.AppendAllTextAsync(Path.Combine(LogsDir(), "frontend.log"), line + "\n");
+                return Results.NoContent();
+            });
+
+
             if (options.EnableCors)
             {
                 app.Use(async (context, next) =>
