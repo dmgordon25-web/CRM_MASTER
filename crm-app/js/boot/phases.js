@@ -40,27 +40,27 @@ const CORE_FEATURE_MODULES = [
 
 const MIGRATED_PATCH_MODULES = [
   // Migrated long-lived patches now managed as feature modules (skipped during Safe Mode).
-  new URL('../patch_20250923_baseline.js', import.meta.url).href,
-  new URL('../patch_20250924_bootstrap_ready.js', import.meta.url).href,
-  new URL('../patch_20250926_ctc_actionbar.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase1_pipeline_partners.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase2_automations.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase3_dashboard_reports.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase4_polish_regression.js', import.meta.url).href,
-  new URL('../patch_2025-09-27_doccenter2.js', import.meta.url).href,
   new URL('../patch_2025-09-27_contact_linking_5A.js', import.meta.url).href,
   new URL('../patch_2025-09-27_contact_linking_5B.js', import.meta.url).href,
   new URL('../patch_2025-09-27_contact_linking_5C.js', import.meta.url).href,
-  new URL('../patch_2025-09-27_merge_ui.js', import.meta.url).href,
-  new URL('../patch_2025-09-27_phase6_polish_telemetry.js', import.meta.url).href,
-  new URL('../patch_2025-09-27_nth_bundle_and_qa.js', import.meta.url).href,
+  new URL('../patch_2025-09-27_doccenter2.js', import.meta.url).href,
   new URL('../patch_2025-09-27_masterfix.js', import.meta.url).href,
+  new URL('../patch_2025-09-27_merge_ui.js', import.meta.url).href,
+  new URL('../patch_2025-09-27_nth_bundle_and_qa.js', import.meta.url).href,
+  new URL('../patch_2025-09-27_phase6_polish_telemetry.js', import.meta.url).href,
   new URL('../patch_2025-09-27_release_prep.js', import.meta.url).href,
   new URL('../patch_2025-10-02_baseline_ux_cleanup.js', import.meta.url).href,
   new URL('../patch_2025-10-02_medium_nice.js', import.meta.url).href,
+  new URL('../patch_2025-10-03_automation_seed.js', import.meta.url).href,
   new URL('../patch_2025-10-03_calendar_ics_button.js', import.meta.url).href,
   new URL('../patch_2025-10-03_quick_add_partner.js', import.meta.url).href,
-  new URL('../patch_2025-10-03_automation_seed.js', import.meta.url).href
+  new URL('../patch_20250923_baseline.js', import.meta.url).href,
+  new URL('../patch_20250924_bootstrap_ready.js', import.meta.url).href,
+  new URL('../patch_20250926_ctc_actionbar.js', import.meta.url).href
 ];
 
 const SAFE_MODE = isSafeMode();
@@ -86,9 +86,12 @@ export const CONTRACTS = {
     'Selection service present (best effort)': () => !!(window.Selection || window.SelectionService) || true
   },
   SERVICES: {
-    'contacts_merge available': () => typeof window.mergeContactsWithIds === 'function' || !!(window.CRM?.modules?.contactsMerge) || true,
-    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator) || true,
-    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator) || true
+    'contacts_merge available': () => (
+      typeof window.mergeContactsWithIds === 'function' ||
+      !!(window.CRM?.modules?.contactsMerge)
+    ),
+    'contactsMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.contactsMergeOrchestrator),
+    'partnersMergeOrch healthy (best effort)': () => !!(window.CRM?.health?.partnersMergeOrchestrator)
   },
   FEATURES: {
     'dashboard registered (best effort)': () => !!(window.CRM?.dashboard) || true,

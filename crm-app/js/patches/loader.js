@@ -43,11 +43,25 @@ window.CRM.ctx = window.CRM.ctx || {
   }
   ctx.logger.log('[phase] SERVICES complete', { count: svcRes.length, errors: svcRes.filter(r => !r.ok).length });
 
+  if (shellContract.ok && (svcContract?.ok ?? true)) {
+    if (typeof hideDiagnostics === 'function') hideDiagnostics();
+  }
+
   // Run FEATURES (parallel for speed)
   const featureRes = await runPhaseParallel('FEATURES', PHASES.FEATURES, ctx, (e) => ctx.logger.log(e));
   const featContract = checkContract('FEATURES', CONTRACTS.FEATURES);
   if (!featContract.ok){
     ctx.logger.warn('FEATURES contract issues', featContract.fails);
+  }
+  try {
+    window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
+    window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'contracts', SHELL: shellContract, SERVICES: svcContract, FEATURES: featContract });
+  } catch (_) {}
+  if (shellContract.ok && (svcContract?.ok ?? true) && featContract.ok) {
+    const splash = document.getElementById('diagnostics-splash');
+    if (splash && !window.__BOOT_FATAL__) {
+      splash.style.display = 'none';
+    }
   }
   try {
     const shellMs = Array.isArray(shellRes) ? Math.round(shellRes.reduce((a, r) => a + (r.t1 - r.t0), 0)) : 0;
