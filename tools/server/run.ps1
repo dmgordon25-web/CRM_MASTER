@@ -25,19 +25,53 @@ $server = New-Object System.Diagnostics.Process
 $server.StartInfo = $psi
 $null = $server.Start()
 
-$readTask = $server.StandardOutput.ReadLineAsync()
-if (-not $readTask.Wait(10000)) {
+$timeout = [TimeSpan]::FromSeconds(10)
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$serverUrl = $null
+
+while (-not $serverUrl) {
+  $remaining = $timeout - $stopwatch.Elapsed
+  if ($remaining -le [TimeSpan]::Zero) {
+    break
+  }
+
+  $readTask = $server.StandardOutput.ReadLineAsync()
+  if (-not $readTask.Wait($remaining)) {
+    break
+  }
+
+  $line = $readTask.Result
+  if ($null -eq $line) {
+    break
+  }
+
+  $line = $line.Trim()
+  if ([string]::IsNullOrWhiteSpace($line)) {
+    continue
+  }
+
+  $uri = $null
+  if ([Uri]::TryCreate($line, [System.UriKind]::Absolute, [ref]$uri) -and $uri.Scheme -match '^https?$') {
+    $serverUrl = $uri.AbsoluteUri
+    break
+  }
+
+  $match = [regex]::Match($line, '(https?://\S+)')
+  if ($match.Success) {
+    $candidate = $match.Value.TrimEnd('"', '\'', ',', ';')
+    $uriFromMatch = $null
+    if ([Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uriFromMatch)) {
+      $serverUrl = $uriFromMatch.AbsoluteUri
+      break
+    }
+  }
+}
+
+if (-not $serverUrl) {
   try { $server.Kill() } catch {}
   throw "Failed to capture server URL from server.exe"
 }
 
-$serverUrl = $readTask.Result
-if ([string]::IsNullOrWhiteSpace($serverUrl)) {
-  try { $server.Kill() } catch {}
-  throw "Server did not emit a listening URL"
-}
-
-$serverUrl = $serverUrl.Trim()
 $env:CRM_SERVER_URL = $serverUrl
 
 # locate a shell executable in the publish folder (if present)
