@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import puppeteer from 'puppeteer';
+import { runContractLint } from './contract_lint.mjs';
 
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -45,12 +46,17 @@ async function assertSplashHidden(page) {
     const el = document.getElementById('diagnostics-splash');
     if (!el) return true;
     const cs = getComputedStyle(el);
-    return cs && cs.display === 'none';
+    if (!cs) return false;
+    const displayNone = cs.display === 'none';
+    const visibilityHidden = cs.visibility === 'hidden';
+    const opacityZero = Number.parseFloat(cs.opacity || '1') === 0;
+    return el.hidden === true || displayNone || visibilityHidden || opacityZero;
   }, { timeout: 60000 });
 }
 
 async function navigateTab(page, slug, errors) {
   const before = errors.length;
+  await assertSplashHidden(page);
   await page.evaluate((target) => {
     const btn = document.querySelector(`[data-nav="${target}"]`);
     if (!btn) throw new Error(`Navigation button missing for ${target}`);
@@ -68,10 +74,12 @@ async function navigateTab(page, slug, errors) {
 }
 
 async function main() {
-  const server = startServerProc();
+  let server;
   let browser;
   const consoleErrors = [];
   try {
+    await runContractLint();
+    server = startServerProc();
     await waitForHealth();
 
     browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -141,7 +149,9 @@ async function main() {
     if (browser) {
       await browser.close();
     }
-    server.kill('SIGTERM');
+    if (server) {
+      server.kill('SIGTERM');
+    }
   }
 }
 

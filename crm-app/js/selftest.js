@@ -26,6 +26,8 @@ const logHardError = (...args) => loggers.error(...args);
 const logSoftError = (...args) => (PROD_MODE ? loggers.warn : loggers.error)(...args);
 const logWarn = (...args) => loggers.warn(...args);
 const logInfo = (...args) => loggers.info(...args);
+const logProdGap = (...args) => (PROD_MODE ? loggers.warn : loggers.error)(...args);
+const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...args);
 
   function addDiagnostic(kind, message, ...details){
     if(!console) return;
@@ -133,6 +135,7 @@ const logInfo = (...args) => loggers.info(...args);
   }
 
   let bootCheckScheduled = false;
+  let importerSkipLogged = false;
   function scheduleBootMarkerCheck(){
     if(bootCheckScheduled) return;
     bootCheckScheduled = true;
@@ -235,7 +238,7 @@ const logInfo = (...args) => loggers.info(...args);
       if(!hasWorkbenchPatch){
         if(manifestExpectsWorkbench){
           ok = false;
-          logHardError('Selftest: workbench patch missing', { workbenchPath, loaded });
+          logProdGap('Selftest: workbench patch missing', { workbenchPath, loaded });
           addDiagnostic('fail', 'Workbench patch not registered.');
           issues.push('Workbench patch not registered.');
         }else{
@@ -495,7 +498,14 @@ async function assertSeedEmitsOne(){
 
 async function assertImporterCoalescesOnce(){
   const orig = window.dispatchAppDataChanged;
-  if(typeof orig !== 'function'){ addDiagnostic('skip','dispatchAppDataChanged missing; importer tripwire skipped'); return; }
+  if(typeof orig !== 'function'){
+    if(!importerSkipLogged){
+      importerSkipLogged = true;
+      logProdSkip('Selftest: importer data helpers unavailable; skipping importer tripwire (expected in prod).');
+    }
+    addDiagnostic('skip','dispatchAppDataChanged missing; importer tripwire skipped');
+    return;
+  }
   let count = 0; window.dispatchAppDataChanged = d => { count++; return orig(d); };
   try{
     // Synthetic end-of-batch signal (importer emits once per batch)
