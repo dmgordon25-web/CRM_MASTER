@@ -27,6 +27,15 @@ const registryWatchVisited = new WeakSet();
 const observedEmitters = new WeakSet();
 let crmEventsHooked = false;
 
+function hasEventInterface(candidate) {
+  if (!candidate || typeof candidate !== 'object') return false;
+  return (
+    typeof candidate.once === 'function'
+    || typeof candidate.on === 'function'
+    || typeof candidate.addEventListener === 'function'
+  );
+}
+
 const logColdStartNotice = once('services:registry:warming', 'info');
 const SERVICES_WARMING_MESSAGE = '[BOOT] services registry warming up (expected during cold start)';
 
@@ -46,7 +55,7 @@ function logServicesWarming() {
 function observeReadyEmitter(candidate) {
   if (!candidate || typeof candidate !== 'object') return;
   if (observedEmitters.has(candidate)) return;
-  observedEmitters.add(candidate);
+  let listenersAttached = false;
   const handler = () => {
     if (servicesReadyFlagged) return;
     try { markServicesReady(); }
@@ -56,26 +65,35 @@ function observeReadyEmitter(candidate) {
     try {
       if (typeof candidate.once === 'function') {
         candidate.once(eventName, handler);
+        listenersAttached = true;
         continue;
       }
     } catch (_) {}
     try {
       if (typeof candidate.on === 'function') {
         candidate.on(eventName, handler);
+        listenersAttached = true;
         continue;
       }
     } catch (_) {}
     try {
       if (typeof candidate.addEventListener === 'function') {
         candidate.addEventListener(eventName, handler, { once: true });
+        listenersAttached = true;
       }
     } catch (_) {}
   }
+  if (listenersAttached) {
+    observedEmitters.add(candidate);
+    crmEventsHooked = true;
+    return true;
+  }
+  return false;
 }
 
 function installCrmReadyObservers(global) {
   if (crmEventsHooked) return;
-  crmEventsHooked = true;
+  let hookedEmitter = false;
   try {
     const crm = (global && typeof global === 'object' && global.CRM) ? global.CRM : {};
     const ctx = crm && typeof crm === 'object' && crm.ctx ? crm.ctx : {};
@@ -91,10 +109,15 @@ function installCrmReadyObservers(global) {
       crm?.modules?.servicesRegistry,
     ];
     candidates.forEach((candidate) => {
-      observeReadyEmitter(candidate);
+      if (hasEventInterface(candidate)) {
+        hookedEmitter = observeReadyEmitter(candidate) || hookedEmitter;
+      }
       try { queueRegistryWatch(candidate); } catch (_) {}
     });
   } catch (_) {}
+  if (hookedEmitter) {
+    crmEventsHooked = true;
+  }
 }
 
 function queueRegistryWatch(candidate) {
