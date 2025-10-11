@@ -90,7 +90,12 @@ const probes = {
   },
   toastAndConfirm: () => {
     try {
-      return !!(window.Toast?.show) && !!(window.Confirm?.show);
+      const hasToast = typeof window.toast === 'function'
+        || typeof window.Toast?.show === 'function';
+      const hasConfirm = typeof window.confirmAction === 'function'
+        || typeof window.showConfirm === 'function'
+        || typeof window.Confirm?.show === 'function';
+      return !!(hasToast && hasConfirm);
     } catch {
       return false;
     }
@@ -104,7 +109,15 @@ const probes = {
   },
   notificationsPanel: () => {
     try {
-      return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel');
+      const notifier = window.Notifier;
+      const hasNotifierApi = !!(notifier
+        && typeof notifier.onChanged === 'function'
+        && typeof notifier.list === 'function');
+      const hasRenderer = typeof window.renderNotifications === 'function';
+      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
+        || typeof window.CRM?.ctx?.activateRoute === 'function'
+        || typeof window.CRM?.ctx?.openNotifications === 'function';
+      return !!((hasRenderer || hasRouteHook) && hasNotifierApi);
     } catch {
       return false;
     }
