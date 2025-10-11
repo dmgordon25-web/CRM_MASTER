@@ -77,6 +77,8 @@ async function main() {
   let server;
   let browser;
   const consoleErrors = [];
+  const consoleWarnings = [];
+  const consoleInfos = [];
   try {
     await runContractLint();
     server = startServerProc();
@@ -87,8 +89,19 @@ async function main() {
     page.setDefaultNavigationTimeout(60000);
 
     page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
+      const text = msg.text();
+      switch (msg.type()) {
+        case 'error':
+          consoleErrors.push(text);
+          break;
+        case 'warning':
+          consoleWarnings.push(text);
+          break;
+        case 'info':
+          consoleInfos.push(text);
+          break;
+        default:
+          break;
       }
     });
 
@@ -165,6 +178,7 @@ async function main() {
     if (consoleErrors.length !== toastErrorCount) {
       throw new Error('Console error emitted during Toast/Confirm API check');
     }
+    await assertSplashHidden(page);
 
     const notificationsCapability = await page.evaluate(() => {
       const notifier = window.Notifier;
@@ -189,6 +203,7 @@ async function main() {
     });
 
     if (!uiRendered) throw new Error('Dashboard UI did not render');
+    await assertSplashHidden(page);
 
     const tabs = [
       ['Dashboard', 'dashboard'],
@@ -199,6 +214,35 @@ async function main() {
 
     for (const [, slug] of tabs) {
       await navigateTab(page, slug, consoleErrors);
+    }
+
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    const logBaseline = { info: consoleInfos.length, warn: consoleWarnings.length };
+    const logResult = await page.evaluate(async () => {
+      try {
+        const response = await fetch('/__log', { method: 'GET', credentials: 'same-origin' });
+        return { ok: response.ok, status: response.status };
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    });
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    const infoDelta = consoleInfos.length - logBaseline.info;
+    const warnDelta = consoleWarnings.length - logBaseline.warn;
+    if (!logResult.ok) {
+      if (infoDelta + warnDelta === 0) {
+        throw new Error('/__log unavailable without diagnostic log');
+      }
+      if (infoDelta + warnDelta > 1) {
+        throw new Error('/__log fallback emitted noisy logs');
+      }
+    } else if (infoDelta + warnDelta !== 0) {
+      throw new Error('/__log success produced unexpected diagnostics');
     }
 
     await ensureNoConsoleErrors(consoleErrors);

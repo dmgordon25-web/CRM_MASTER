@@ -1,29 +1,25 @@
-# Boot Contracts Quick Reference
+# Boot Contracts
 
-## HARD vs. SOFT Prerequisites
-- **HARD** probes gate boot. A failure emits `console.error`, stops the phase, and surfaces in Safe Mode.
-- **SOFT** probes observe best-effort integrations. They should never crash boot; failures emit at most a single `console.warn` during investigation.
-- Keep SOFT probes quiet in steady state. A passing system produces no recurring console output.
+Boot contracts protect the application boot sequence. Each contract exposes HARD and SOFT readiness probes so the loader can make safe decisions without touching the DOM at import time.
 
-## Adding a Feature Probe
+## HARD vs. SOFT readiness
+
+- **HARD prerequisites** must pass before execution continues. Failing a HARD probe blocks boot and should emit a `console.error` explaining the missing requirement.
+- **SOFT prerequisites** are best-effort diagnostics. They should never block boot, but they give engineers a fast signal when a feature is offline. SOFT probes must be safe to run repeatedly and must not touch the DOM or throw.
+- Keep HARD probes as small as possible. If a SOFT probe becomes critical, promote it intentionally in a follow-up rather than expanding the HARD list in place.
+
+## Zero-error steady state
+
+Production boot must be quiet: no `console.error` output unless a manifest-declared module fails to import or a HARD prerequisite fails. Prefer `console.info` for expected gaps in production (for example, optional helpers that are disabled) and reserve `console.warn` for anomalous behaviour that still lets boot continue.
+
+## Adding a SOFT probe
+
+Use the helpers in `crm-app/js/boot/contracts/probe_utils.js` so new probes are copy-pasteable and idempotent. The pattern is always the same:
+
 ```js
-import { safe, capability } from './probe_utils.js';
-
-const featureProbe = safe(() => {
-  if (!capability('CRM.modules.feature')()) return false;
-  // Optional: inspect the live object for required methods.
-  return typeof window.CRM.modules.feature.start === 'function';
-});
-
-export const SOFT_PREREQS = {
-  ...SOFT_PREREQS,
-  'feature ready': featureProbe,
-};
+const featureCapability = capability('Namespace.feature');
+const featureProbe = safe(() => featureCapability());
+SOFT_PREREQS['feature ready'] = featureProbe;
 ```
-- Use `safe(fn)` to wrap DOM or global access.
-- Use `capability('window.Path.to.thing')` to check for globals without sprinkling `try/catch`.
-- Reach for `once(tag)` when a probe needs a one-time info log (`console.warn` only for genuine anomalies).
 
-## Zero `console.error` Policy
-- Contract modules must stay free of `console.error`; the linter in `npm run verify:build` enforces this.
-- Run `npm run verify:build` locally. It runs the manifest audit, contract linter, and the boot smoke test so you can catch regressions before pushing.
+Add any cold-start logging with `once(tag)` so it only fires during the first failing check, and make sure probes guard every global access. Run `npm run verify:build` after wiring a new probe and confirm the boot smoke test stays green with zero console errors.
