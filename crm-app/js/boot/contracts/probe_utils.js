@@ -1,3 +1,9 @@
+// Boot contract probe helpers keep SOFT checks copy-pasteable.
+// Pattern:
+// const exampleCapability = capability('Namespace.feature');
+// const exampleProbe = safe(() => exampleCapability());
+// SOFT_PREREQS['feature ready'] = exampleProbe;
+
 const onceRegistry = new Map();
 
 function toConsoleMethod(level) {

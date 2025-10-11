@@ -198,8 +198,14 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
     const missing = expectedManifest.filter(path => !loaded.includes(path));
     if(missing.length){
       ok = false;
+      const manifestDetails = { missing, loaded, expected: expectedManifest };
+      if(PROD_MODE){
+        logInfo('Selftest: required patches missing (manifest enforcement).', manifestDetails);
+      }else{
+        logWarn('Selftest: required patches missing (manifest enforcement).', manifestDetails);
+      }
       logHardError('PATCHES_MISSING', missing);
-      logHardError('Selftest: manifest-declared patches missing', { missing, loaded });
+      logHardError('Selftest: manifest-declared patches missing', manifestDetails);
       addDiagnostic('fail', `Missing manifest patches: ${missing.join(', ')}`);
       issues.push(`Missing manifest patches: ${missing.join(', ')}`);
     }else{
@@ -506,7 +512,7 @@ async function assertImporterCoalescesOnce(){
   if(typeof orig !== 'function'){
     if(!importerSkipLogged){
       importerSkipLogged = true;
-      logProdSkip('Selftest: importer data helpers unavailable; skipping importer tripwire (expected in prod).');
+      logProdSkip('Selftest: importer/data not available; skipping importer tripwire (expected in prod).');
     }
     addDiagnostic('skip','dispatchAppDataChanged missing; importer tripwire skipped');
     return;

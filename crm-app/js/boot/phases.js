@@ -1,5 +1,10 @@
 /* crm-app/js/boot/phases.js */
 import { safe, capability } from './contracts/probe_utils.js';
+
+// SOFT probe pattern:
+// const exampleCapability = capability('Namespace.feature');
+// const exampleProbe = safe(() => exampleCapability());
+// SOFT_PREREQS['feature ready'] = exampleProbe;
 function isSafeMode(){
   try {
     const url = new URL(window.location.href);

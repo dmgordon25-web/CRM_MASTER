@@ -1,5 +1,10 @@
 import { safe, capability, once } from './probe_utils.js';
 
+// SOFT probe pattern:
+// const exampleCapability = capability('Namespace.feature');
+// const exampleProbe = safe(() => exampleCapability());
+// SOFT_PREREQS['feature ready'] = exampleProbe;
+
 export const HARD_PREREQS = {
   'app root present': () => {
     try {
@@ -19,10 +24,13 @@ const POSITIVE_TOKENS = new Set([
 let servicesReadyFlagged = false;
 let readyEventsHooked = false;
 const registryWatchVisited = new WeakSet();
+const observedEmitters = new WeakSet();
+let crmEventsHooked = false;
 
 const logColdStartNotice = once('services:registry:warming', 'info');
 const SERVICES_WARMING_MESSAGE = '[BOOT] services registry warming up (expected during cold start)';
 
+const CRM_READY_EVENT_NAMES = ['ready', 'services-ready', 'services:ready', 'crm:services-ready', 'servicesRegistry:ready', 'crm:servicesRegistry:ready'];
 const READY_EVENT_NAMES = ['crm:services-ready', 'crm:servicesRegistry:ready', 'services:ready'];
 const observedRegistries = new WeakSet();
 
@@ -35,10 +43,65 @@ function logServicesWarming() {
   logColdStartNotice(SERVICES_WARMING_MESSAGE);
 }
 
+function observeReadyEmitter(candidate) {
+  if (!candidate || typeof candidate !== 'object') return;
+  if (observedEmitters.has(candidate)) return;
+  observedEmitters.add(candidate);
+  const handler = () => {
+    if (servicesReadyFlagged) return;
+    try { markServicesReady(); }
+    catch (_) { servicesReadyFlagged = true; }
+  };
+  for (const eventName of CRM_READY_EVENT_NAMES) {
+    try {
+      if (typeof candidate.once === 'function') {
+        candidate.once(eventName, handler);
+        continue;
+      }
+    } catch (_) {}
+    try {
+      if (typeof candidate.on === 'function') {
+        candidate.on(eventName, handler);
+        continue;
+      }
+    } catch (_) {}
+    try {
+      if (typeof candidate.addEventListener === 'function') {
+        candidate.addEventListener(eventName, handler, { once: true });
+      }
+    } catch (_) {}
+  }
+}
+
+function installCrmReadyObservers(global) {
+  if (crmEventsHooked) return;
+  crmEventsHooked = true;
+  try {
+    const crm = (global && typeof global === 'object' && global.CRM) ? global.CRM : {};
+    const ctx = crm && typeof crm === 'object' && crm.ctx ? crm.ctx : {};
+    const candidates = [
+      ctx,
+      ctx?.events,
+      ctx?.emitter,
+      ctx?.services,
+      ctx?.servicesRegistry,
+      crm?.events,
+      crm?.services,
+      crm?.servicesRegistry,
+      crm?.modules?.servicesRegistry,
+    ];
+    candidates.forEach((candidate) => {
+      observeReadyEmitter(candidate);
+      try { queueRegistryWatch(candidate); } catch (_) {}
+    });
+  } catch (_) {}
+}
+
 function queueRegistryWatch(candidate) {
   if (!candidate || typeof candidate !== 'object') return;
   if (registryWatchVisited.has(candidate)) return;
   registryWatchVisited.add(candidate);
+  observeReadyEmitter(candidate);
   try {
     watchRegistryForReady(candidate);
   } catch (_) {}
@@ -314,7 +377,8 @@ function servicesRegistryReady(){
   if (servicesReadyFlagged) return true;
   try {
     installReadyEventObservers();
-    const global = window;
+    const global = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+    installCrmReadyObservers(global);
     const { directSignals, searchTargets, registry } = directSignalCandidates(global);
 
     queueRegistryWatch(registry);

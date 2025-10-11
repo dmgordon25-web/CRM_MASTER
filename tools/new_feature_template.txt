@@ -1,0 +1,16 @@
+# New Feature Probe Template
+
+```js
+import { safe, capability, once } from './probe_utils.js';
+
+const featureCapability = capability('Namespace.feature');
+const featureProbe = safe(() => featureCapability());
+SOFT_PREREQS['feature ready'] = featureProbe;
+```
+
+Checklist:
+- [ ] Wire capability + probe following the template above.
+- [ ] Use `once(tag)` for any temporary cold-start logging (one line only).
+- [ ] Keep probes side-effect free: no DOM reads/writes at module scope.
+- [ ] Run `npm run verify:build` and confirm the boot smoke test reports PASS.
+- [ ] Ensure the browser console stays free of `console.error` messages during boot.
