@@ -1,25 +1,47 @@
 # Boot Contracts
 
-Boot contracts protect the application boot sequence. Each contract exposes HARD and SOFT readiness probes so the loader can make safe decisions without touching the DOM at import time.
+Boot contracts keep the loader deterministic: they expose small, idempotent readiness probes so the boot hardener can decide whether to continue without ever touching the DOM at import time.
 
-## HARD vs. SOFT readiness
+## HARD vs. SOFT readiness and timing
 
-- **HARD prerequisites** must pass before execution continues. Failing a HARD probe blocks boot and should emit a `console.error` explaining the missing requirement.
-- **SOFT prerequisites** are best-effort diagnostics. They should never block boot, but they give engineers a fast signal when a feature is offline. SOFT probes must be safe to run repeatedly and must not touch the DOM or throw.
-- Keep HARD probes as small as possible. If a SOFT probe becomes critical, promote it intentionally in a follow-up rather than expanding the HARD list in place.
+- Contract modules are imported **before** the DOM is guaranteed to exist. Never access `document` or other DOM APIs at the top level — the contract linter blocks it in CI.
+- **HARD prerequisites** run immediately after import. They gate execution and should only fail when the application genuinely cannot continue. A failing HARD probe must emit a `console.error` that explains the missing requirement; the loader will stop booting.
+- **SOFT prerequisites** run after core modules finish loading and service waiters resolve. They are diagnostic only: they must be safe to call repeatedly, must not throw, and must never block boot. During warm-up a SOFT probe may log a single `console.info` tagged `(expected during cold start)` but it must go quiet automatically once the feature reports ready.
 
 ## Zero-error steady state
 
-Production boot must be quiet: no `console.error` output unless a manifest-declared module fails to import or a HARD prerequisite fails. Prefer `console.info` for expected gaps in production (for example, optional helpers that are disabled) and reserve `console.warn` for anomalous behaviour that still lets boot continue.
+Production boot is silent by default:
 
-## Adding a SOFT probe
+- `console.error` is reserved for module import failures and HARD prerequisite failures.
+- SOFT probes must not emit `console.warn` in steady state. Any informational logging should be one-time `console.info` while warming up, and it must stop once ready signals flip positive.
+- Keep optional features quiet as well: if a capability is expected to be missing in production, guard it with `capability()` and return `false` without logging.
 
-Use the helpers in `crm-app/js/boot/contracts/probe_utils.js` so new probes are copy-pasteable and idempotent. The pattern is always the same:
+Run `npm run verify:build` locally before sending changes. The manifest audit, contract linter, and boot smoke test enforce these guardrails in CI.
+
+## Adding a SOFT probe with `probe_utils`
+
+Use the helpers in `crm-app/js/boot/contracts/probe_utils.js` to keep probes copy-pasteable:
 
 ```js
-const featureCapability = capability('Namespace.feature');
-const featureProbe = safe(() => featureCapability());
+import { capability, once, safe } from './probe_utils.js';
+
+const featureReady = capability('Namespace.feature');
+const featureWarming = once('feature:warming', 'info');
+
+const featureProbe = safe(() => {
+  const ready = featureReady();
+  if (!ready) {
+    featureWarming('[BOOT] feature warming up (expected during cold start)');
+  }
+  return ready;
+});
+
 SOFT_PREREQS['feature ready'] = featureProbe;
 ```
 
-Add any cold-start logging with `once(tag)` so it only fires during the first failing check, and make sure probes guard every global access. Run `npm run verify:build` after wiring a new probe and confirm the boot smoke test stays green with zero console errors.
+Key reminders:
+
+- Call `capability()` to guard every global lookup.
+- Wrap the work in `safe()` so unexpected errors collapse to `false` instead of throwing.
+- Use `once(tag)` for any cold-start logging so it only fires during the warm-up window.
+- Avoid timers or polling to “wait” for readiness — rely on real flags/events and return `false` until they report success.

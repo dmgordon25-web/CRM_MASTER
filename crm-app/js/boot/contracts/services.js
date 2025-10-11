@@ -1,4 +1,4 @@
-import { safe, capability, once } from './probe_utils.js';
+import { safe, capability } from './probe_utils.js';
 
 // SOFT probe pattern:
 // const exampleCapability = capability('Namespace.feature');
@@ -26,21 +26,40 @@ let readyEventsHooked = false;
 const registryWatchVisited = new WeakSet();
 const observedEmitters = new WeakSet();
 let crmEventsHooked = false;
+let warmingNoticeShown = false;
 
-const logColdStartNotice = once('services:registry:warming', 'info');
 const SERVICES_WARMING_MESSAGE = '[BOOT] services registry warming up (expected during cold start)';
 
 const CRM_READY_EVENT_NAMES = ['ready', 'services-ready', 'services:ready', 'crm:services-ready', 'servicesRegistry:ready', 'crm:servicesRegistry:ready'];
 const READY_EVENT_NAMES = ['crm:services-ready', 'crm:servicesRegistry:ready', 'services:ready'];
+const REGISTRY_READY_EVENT_NAMES = [
+  'ready',
+  'services-ready',
+  'services:ready',
+  'servicesRegistry:ready',
+  'crm:services-ready',
+  'crm:servicesRegistry:ready',
+];
 const observedRegistries = new WeakSet();
 
 function markServicesReady() {
+  if (servicesReadyFlagged) return true;
   servicesReadyFlagged = true;
+  warmingNoticeShown = false;
   return true;
 }
 
 function logServicesWarming() {
-  logColdStartNotice(SERVICES_WARMING_MESSAGE);
+  if (servicesReadyFlagged || warmingNoticeShown) return;
+  warmingNoticeShown = true;
+  try {
+    const logger = (typeof console !== 'undefined' && console && typeof console.info === 'function')
+      ? console.info.bind(console)
+      : null;
+    if (logger) {
+      logger(SERVICES_WARMING_MESSAGE);
+    }
+  } catch (_) {}
 }
 
 function observeReadyEmitter(candidate) {
@@ -177,24 +196,51 @@ function watchRegistryForReady(registry) {
   const readyHandler = () => {
     try { markServicesReady(); }
     catch (_) { servicesReadyFlagged = true; }
+    try {
+      if (typeof registry.off === 'function') {
+        REGISTRY_READY_EVENT_NAMES.forEach((eventName) => {
+          try { registry.off(eventName, readyHandler); }
+          catch (_) {}
+        });
+      } else if (typeof registry.removeListener === 'function') {
+        REGISTRY_READY_EVENT_NAMES.forEach((eventName) => {
+          try { registry.removeListener(eventName, readyHandler); }
+          catch (_) {}
+        });
+      } else if (typeof registry.removeEventListener === 'function') {
+        REGISTRY_READY_EVENT_NAMES.forEach((eventName) => {
+          try { registry.removeEventListener(eventName, readyHandler); }
+          catch (_) {}
+        });
+      }
+    } catch (_) {}
   };
-  try {
-    if (typeof registry.once === 'function') {
-      registry.once('ready', readyHandler);
-      return;
-    }
-  } catch (_) {}
-  try {
-    if (typeof registry.on === 'function') {
-      registry.on('ready', readyHandler);
-      return;
-    }
-  } catch (_) {}
-  try {
-    if (typeof registry.addEventListener === 'function') {
-      registry.addEventListener('ready', readyHandler, { once: true });
-    }
-  } catch (_) {}
+
+  const attach = (eventName) => {
+    try {
+      if (typeof registry.once === 'function') {
+        registry.once(eventName, readyHandler);
+        return true;
+      }
+    } catch (_) {}
+    try {
+      if (typeof registry.addEventListener === 'function') {
+        registry.addEventListener(eventName, readyHandler, { once: true });
+        return true;
+      }
+    } catch (_) {}
+    try {
+      if (typeof registry.on === 'function') {
+        registry.on(eventName, readyHandler);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  };
+
+  REGISTRY_READY_EVENT_NAMES.forEach((eventName) => {
+    attach(eventName);
+  });
 }
 
 function positiveFlag(value) {
