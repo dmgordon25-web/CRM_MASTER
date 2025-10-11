@@ -1,17 +1,45 @@
-name: Verify Build
+name: verify-build
 
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   push:
-    branches: [ main, master ]
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm ci
-      - run: npm run verify:build
+          node-version: '20.x'
+          cache: 'npm'
+        continue-on-error: false
+
+      - name: Install Chromium native deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxrandr2 \
+            libgbm1 libgtk-3-0 libasound2 libnss3 libxshmfence1 libxcb1 libxdamage1 \
+            libpango-1.0-0 libpangocairo-1.0-0 fonts-liberation libu2f-udev libvulkan1 xdg-utils
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Chromium sanity (puppeteer)
+        run: |
+          node -e "const p=require('puppeteer');(async()=>{const b=await p.launch({headless:'new',args:['--no-sandbox','--disable-setuid-sandbox']});const v=await b.version();console.log('Launched:',v);await b.close();})();"
+
+      - name: verify:build
+        run: npm run verify:build
