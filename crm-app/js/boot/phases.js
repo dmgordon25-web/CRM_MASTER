@@ -82,10 +82,25 @@ export const PHASES = {
 const toastCandidates = [capability('Toast.show'), capability('toast')];
 const confirmCandidates = [capability('Confirm.show'), capability('confirmAction'), capability('showConfirm')];
 const notifierExists = capability('Notifier');
-const notificationsRouteCapability = capability('CRM.routes.notifications');
-const notificationsActivateCapability = capability('CRM.ctx.activateRoute');
-const notificationsOpenCapability = capability('CRM.ctx.openNotifications');
-const renderNotificationsCapability = capability('renderNotifications');
+const notificationsRouteCallable = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.routes?.notifications === 'function';
+});
+const notificationsActivateCallable = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.ctx?.activateRoute === 'function';
+});
+const notificationsOpenCallable = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.ctx?.openNotifications === 'function';
+});
+const renderNotificationsCallable = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  return typeof global?.renderNotifications === 'function';
+});
 const selectionServiceCapability = capability('SelectionService');
 const mergeContactsCapability = capability('CRM.modules.contactsMerge');
 const mergeContactsFnCapability = capability('mergeContactsWithIds');
@@ -127,10 +142,10 @@ const notificationsPanelProbe = safe(() => {
     && typeof notifier.onChanged === 'function'
     && typeof notifier.list === 'function';
   if (!hasNotifierApi) return false;
-  const hasRouteHook = notificationsRouteCapability()
-    || notificationsActivateCapability()
-    || notificationsOpenCapability();
-  return renderNotificationsCapability() || hasRouteHook;
+  const hasRouteHook = notificationsRouteCallable()
+    || notificationsActivateCallable()
+    || notificationsOpenCallable();
+  return renderNotificationsCallable() || hasRouteHook;
 });
 const contactsMergeProbe = safe(() => mergeContactsFnCapability() || mergeContactsCapability());
 

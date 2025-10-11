@@ -471,10 +471,25 @@ const navPresentProbe = safe(() => {
   return !!document.querySelector('[data-ui="nav"], #main-nav [data-nav], [data-nav]');
 });
 
-const hasNotificationsRoute = capability('CRM.routes.notifications');
-const hasNotificationsActivate = capability('CRM.ctx.activateRoute');
-const hasNotificationsOpen = capability('CRM.ctx.openNotifications');
-const hasRenderNotifications = capability('renderNotifications');
+const hasNotificationsRoute = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.routes?.notifications === 'function';
+});
+const hasNotificationsActivate = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.ctx?.activateRoute === 'function';
+});
+const hasNotificationsOpen = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  const crm = global?.CRM;
+  return typeof crm?.ctx?.openNotifications === 'function';
+});
+const hasRenderNotifications = safe(() => {
+  const global = typeof globalThis !== 'undefined' ? globalThis : window;
+  return typeof global?.renderNotifications === 'function';
+});
 
 const notificationsPanelProbe = safe(() => {
   const notifier = window.Notifier;
@@ -485,7 +500,9 @@ const notificationsPanelProbe = safe(() => {
   const hasRouteHook = hasNotificationsRoute()
     || hasNotificationsActivate()
     || hasNotificationsOpen();
-  return hasRenderNotifications() || hasRouteHook;
+  const renderCallable = hasRenderNotifications();
+  if (renderCallable) return true;
+  return hasRouteHook;
 });
 
 export const SOFT_PREREQS = {
