@@ -1,5 +1,7 @@
 # Testing & Verification
 
+GitHub Actions now runs `npm run verify:build` on every pull request, covering the manifest audit, contract linter, and zero-error navigation smoke test.
+
 `npm run verify:build` is the pre-flight suite for every boot or manifest change. It runs the following steps in order:
 
 1. **Manifest audit** (`tools/manifest_audit.js`) – confirms every script in `/crm-app/js` and `/crm-app/js/patches` is declared

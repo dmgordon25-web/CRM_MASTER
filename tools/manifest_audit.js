@@ -3,6 +3,33 @@ const fs = require('fs'), path = require('path');
 const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
 
+const canonicalPatchOrder = [
+  './patch_20250923_baseline.js',
+  './patch_20250924_bootstrap_ready.js',
+  './patch_20250926_ctc_actionbar.js',
+  './patch_2025-09-26_phase1_pipeline_partners.js',
+  './patch_2025-09-26_phase2_automations.js',
+  './patch_2025-09-26_phase3_dashboard_reports.js',
+  './patch_2025-09-26_phase4_polish_regression.js',
+  './patch_2025-09-27_doccenter2.js',
+  './patch_2025-09-27_contact_linking_5A.js',
+  './patch_2025-09-27_contact_linking_5B.js',
+  './patch_2025-09-27_contact_linking_5C.js',
+  './patch_2025-09-27_merge_ui.js',
+  './patch_2025-09-27_phase6_polish_telemetry.js',
+  './patch_2025-09-27_release_prep.js',
+  './patch_2025-09-27_masterfix.js',
+  './patch_2025-09-27_nth_bundle_and_qa.js',
+  './patch_2025-10-02_baseline_ux_cleanup.js',
+  './patch_2025-10-02_medium_nice.js',
+  './patch_2025-10-03_calendar_ics_button.js',
+  './patch_2025-10-03_quick_add_partner.js',
+  './patch_2025-10-03_automation_seed.js',
+  './contacts_merge.js',
+  './contacts_merge_orchestrator.js',
+  './pipeline/kanban_dnd.js'
+];
+
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
   const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
@@ -23,6 +50,26 @@ function fileExists(p) {
   const seen = new Set(), dups = [];
   for (const p of all) (seen.has(p) ? dups.push(p) : seen.add(p));
   const missing = all.filter(p => !fileExists(p));
+
+  const patchSeen = new Set();
+  const patchDupes = [];
+  for (const patch of patches) {
+    if (patchSeen.has(patch)) patchDupes.push(patch);
+    else patchSeen.add(patch);
+  }
+
+  const patchOrderIssues = [];
+  const prefixLength = Math.min(canonicalPatchOrder.length, patches.length);
+  for (let i = 0; i < prefixLength; i += 1) {
+    if (patches[i] !== canonicalPatchOrder[i]) {
+      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${patches[i]}`);
+      break;
+    }
+  }
+  if (patches.length < canonicalPatchOrder.length) {
+    const missingCanonical = canonicalPatchOrder.slice(patches.length);
+    patchOrderIssues.push(`missing canonical entries: ${missingCanonical.join(', ')}`);
+  }
   // Crawl js folder for unphased files (warn only)
   function walk(dir){
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -42,10 +89,17 @@ function fileExists(p) {
     .filter(p => !phList.has(p));
 
   // Report
-  if (dups.length || missing.length) {
+  const errors = [];
+  if (dups.length) errors.push(['Duplicates:', dups]);
+  if (missing.length) errors.push(['Missing:', missing]);
+  if (patchDupes.length) errors.push(['PATCHES duplicates:', patchDupes]);
+  if (patchOrderIssues.length) errors.push(['PATCHES out of order:', patchOrderIssues]);
+
+  if (errors.length) {
     console.error('[MANIFEST AUDIT] FAIL');
-    if (dups.length) console.error('Duplicates:', dups);
-    if (missing.length) console.error('Missing:', missing);
+    for (const [label, list] of errors) {
+      console.error(label, list);
+    }
     process.exit(2);
   } else {
     console.log('[MANIFEST AUDIT] PASS');
