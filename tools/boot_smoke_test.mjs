@@ -293,6 +293,224 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors);
     await assertSplashHidden(page);
 
+    await navigateTab(page, 'partners', consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    await page.evaluate(() => {
+      try {
+        if (!window.__MERGE_CALLS__) window.__MERGE_CALLS__ = [];
+        if (!window.__MERGE_STUB_ORIGINAL__) {
+          window.__MERGE_STUB_ORIGINAL__ = window.openPartnersMergeByIds;
+          window.openPartnersMergeByIds = async (a, b) => {
+            try { window.__MERGE_CALLS__.push([String(a), String(b)]); }
+            catch (_) {}
+            try { window.SelectionService?.clear?.('merge:test'); }
+            catch (_) {}
+            try { window.toast?.('Merge complete'); }
+            catch (_) {}
+            return { status: 'ok', merged: [String(a), String(b)] };
+          };
+        }
+      } catch (_) {}
+      try {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+          const clip = { writeText: async () => true };
+          Object.defineProperty(navigator, 'clipboard', { configurable: true, get: () => clip });
+        }
+      } catch (_) {
+        try { window.navigator.clipboard = { writeText: async () => true }; }
+        catch (__err) {}
+      }
+    });
+
+    const selectionCheck = await page.evaluate(() => new Promise((resolve) => {
+      const svc = window.SelectionService;
+      const table = document.querySelector('#tbl-partners tbody');
+      const rows = table ? Array.from(table.querySelectorAll('tr')) : [];
+      const checkboxes = rows.map(row => row.querySelector('input[type="checkbox"],input[data-role="select"]')).filter(Boolean);
+      if (!svc || typeof svc.clear !== 'function') { resolve({ ok: false, reason: 'service-missing' }); return; }
+      if (checkboxes.length < 2) { resolve({ ok: false, reason: 'insufficient-rows' }); return; }
+      try { svc.clear('smoke'); }
+      catch (_) {}
+      checkboxes.slice(0, 2).forEach(cb => { if (!cb.disabled) cb.click(); });
+      requestAnimationFrame(() => {
+        const selectedRows = rows.slice(0, 2).map(row => ({
+          id: row.getAttribute('data-partner-id') || row.getAttribute('data-id') || '',
+          selected: row.classList.contains('selected')
+            || row.classList.contains('is-selected')
+            || row.getAttribute('data-selected') === 'true'
+            || row.getAttribute('aria-selected') === 'true'
+        }));
+        const bar = document.getElementById('actionbar');
+        const style = bar ? getComputedStyle(bar) : null;
+        const barVisible = !!(bar && style && style.display !== 'none' && bar.classList.contains('has-selection'));
+        const mergeBtn = document.querySelector('#actionbar [data-act="merge"]');
+        const count = window.__SEL_COUNT__ != null
+          ? Number(window.__SEL_COUNT__)
+          : (typeof svc.count === 'function' ? Number(svc.count()) : 0);
+        let ids = Array.isArray(window.__SEL_KEYS__) ? window.__SEL_KEYS__ : [];
+        if (!Array.isArray(ids) && typeof svc.getIds === 'function') {
+          try { ids = Array.from(svc.getIds() || []); }
+          catch (_) { ids = []; }
+        }
+        resolve({
+          ok: true,
+          count,
+          idsLength: Array.isArray(ids) ? ids.length : 0,
+          selectedRows,
+          barVisible,
+          mergeEnabled: mergeBtn ? mergeBtn.disabled === false : null
+        });
+      });
+    }));
+    if (!selectionCheck.ok) {
+      throw new Error(`Selection smoke failed: ${selectionCheck.reason || 'unknown'}`);
+    }
+    if (selectionCheck.count < 2 || selectionCheck.idsLength < 2) {
+      throw new Error('Selection service did not report two selected rows');
+    }
+    if (selectionCheck.selectedRows.some(row => !row.selected)) {
+      throw new Error('Selected rows missing DOM state');
+    }
+    if (!selectionCheck.barVisible) {
+      throw new Error('Action bar did not become visible for multi-select');
+    }
+    if (selectionCheck.mergeEnabled !== true) {
+      throw new Error('Merge action not enabled for two selections');
+    }
+
+    const actionCheck = await page.evaluate(() => new Promise((resolve) => {
+      const btn = document.querySelector('#actionbar [data-act="emailMass"]')
+        || document.querySelector('#actionbar [data-act="emailTogether"]');
+      if (!btn) { resolve({ ok: false, reason: 'action-missing' }); return; }
+      const host = document.querySelector('[data-toast-host="true"]');
+      const before = host ? host.textContent || '' : '';
+      btn.click();
+      requestAnimationFrame(() => {
+        const afterHost = document.querySelector('[data-toast-host="true"]');
+        const after = afterHost ? afterHost.textContent || '' : '';
+        resolve({ ok: true, toastChanged: !!after && after !== before, count: window.__SEL_COUNT__ || 0 });
+      });
+    }));
+    if (!actionCheck.ok) {
+      throw new Error(`Action bar smoke failed: ${actionCheck.reason || 'unknown'}`);
+    }
+    if (!actionCheck.toastChanged) {
+      throw new Error('Action bar command did not surface a toast/info message');
+    }
+    if (actionCheck.count < 2) {
+      throw new Error('Selection unexpectedly cleared during action execution');
+    }
+
+    const mergeCheck = await page.evaluate(() => new Promise((resolve) => {
+      const btn = document.querySelector('#actionbar [data-act="merge"]');
+      if (!btn) { resolve({ ok: false, reason: 'merge-missing' }); return; }
+      btn.click();
+      requestAnimationFrame(() => {
+        const remaining = window.__SEL_COUNT__ != null ? Number(window.__SEL_COUNT__) : 0;
+        const calls = Array.isArray(window.__MERGE_CALLS__) ? window.__MERGE_CALLS__.length : 0;
+        resolve({ ok: true, remaining, calls });
+      });
+    }));
+    if (!mergeCheck.ok) {
+      throw new Error(`Merge smoke failed: ${mergeCheck.reason || 'unknown'}`);
+    }
+    if (mergeCheck.calls < 1) {
+      throw new Error('Merge orchestrator did not receive invocation');
+    }
+    if (mergeCheck.remaining !== 0) {
+      throw new Error('Selection not cleared after merge confirmation');
+    }
+
+    await page.evaluate(() => {
+      try {
+        if (window.__MERGE_STUB_ORIGINAL__) {
+          window.openPartnersMergeByIds = window.__MERGE_STUB_ORIGINAL__;
+          delete window.__MERGE_STUB_ORIGINAL__;
+        }
+      } catch (_) {}
+    });
+
+    const kanbanBefore = await page.evaluate(() => {
+      const metrics = window.__KANBAN_HANDLERS__;
+      if (!metrics) return null;
+      return { attach: Number(metrics.attach || 0), detach: Number(metrics.detach || 0) };
+    });
+
+    await navigateTab(page, 'dashboard', consoleErrors);
+    await navigateTab(page, 'pipeline', consoleErrors);
+    await navigateTab(page, 'dashboard', consoleErrors);
+    await navigateTab(page, 'pipeline', consoleErrors);
+
+    const kanbanAfter = await page.evaluate(() => {
+      const metrics = window.__KANBAN_HANDLERS__;
+      if (!metrics) return null;
+      return { attach: Number(metrics.attach || 0), detach: Number(metrics.detach || 0) };
+    });
+    if (!kanbanBefore || !kanbanAfter) {
+      throw new Error('Kanban handler metrics unavailable');
+    }
+    if (kanbanBefore.attach !== kanbanAfter.attach || kanbanBefore.detach !== kanbanAfter.detach) {
+      throw new Error('Kanban handler counts changed during navigation');
+    }
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    await navigateTab(page, 'calendar', consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    const calendarCheck = await page.evaluate(async () => {
+      const view = document.getElementById('view-calendar') || document.querySelector('[data-view="calendar"]');
+      if (!view) return { ok: false, reason: 'view-missing' };
+      const icsButtons = Array.from(view.querySelectorAll('#cal-export-ics,[data-act="calendar:export:ics"],[data-ics-export]'));
+      const csvBtn = view.querySelector('#cal-export,[data-act="calendar:export:csv"]');
+      const exportsApi = window.CalendarExports || {};
+      const csvCallable = typeof exportsApi.exportVisibleCsv === 'function';
+      const icsCallable = typeof exportsApi.exportVisibleIcs === 'function';
+      let csvDetail = null;
+      let icsDetail = null;
+      if (csvCallable) {
+        try { csvDetail = await exportsApi.exportVisibleCsv(); }
+        catch (_) { csvDetail = null; }
+      }
+      if (icsCallable) {
+        try { icsDetail = await exportsApi.exportVisibleIcs(); }
+        catch (_) { icsDetail = null; }
+      }
+      return {
+        ok: true,
+        icsButtonCount: icsButtons.length,
+        icsDataset: icsButtons[0]?.dataset.act || '',
+        csvButtonPresent: !!csvBtn,
+        csvHeaders: csvDetail?.headers?.length || 0,
+        csvRows: csvDetail?.rows?.length || 0,
+        icsCount: icsDetail?.count ?? window.__CALENDAR_LAST_ICS__?.count ?? null
+      };
+    });
+    if (!calendarCheck.ok) {
+      throw new Error(`Calendar export smoke failed: ${calendarCheck.reason || 'unknown'}`);
+    }
+    if (calendarCheck.icsButtonCount !== 1) {
+      throw new Error(`Expected one ICS export control, found ${calendarCheck.icsButtonCount}`);
+    }
+    if (calendarCheck.icsDataset !== 'calendar:export:ics') {
+      throw new Error('ICS export control missing canonical data-act');
+    }
+    if (!calendarCheck.csvButtonPresent) {
+      throw new Error('Calendar CSV export control missing');
+    }
+    if (calendarCheck.csvHeaders < 1) {
+      throw new Error('Calendar CSV export returned no headers');
+    }
+    if (calendarCheck.icsCount == null) {
+      throw new Error('Calendar ICS export did not report a result');
+    }
+
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
     if (!perfPing) {
       throw new Error('Perf overlay ping missing');

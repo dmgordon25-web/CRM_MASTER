@@ -11,6 +11,7 @@
     items: new Map(),
     type: 'contacts'
   };
+  const domSelectedIds = new Set();
 
   const listeners = new Set();
   let syncScheduled = false;
@@ -56,8 +57,30 @@
   }
 
   function buildDetail(source, extra){
-    const detail = Object.assign({ type: state.type, ids: cloneIds(), source }, extra && typeof extra === 'object' ? extra : {});
+    const ids = cloneIds();
+    const items = ids.map(id => {
+      const meta = state.items.get(id);
+      return meta ? Object.assign({}, meta, { id }) : { id, type: state.type };
+    });
+    const detail = Object.assign({
+      type: state.type,
+      ids,
+      count: ids.length,
+      items,
+      selected: items.map(entry => entry.id),
+      source
+    }, extra && typeof extra === 'object' ? extra : {});
     return detail;
+  }
+
+  function updateWindowMetrics(detail){
+    const snapshot = detail || buildDetail('metrics');
+    const ids = Array.isArray(snapshot.ids) ? snapshot.ids.slice() : [];
+    window.__SEL_COUNT__ = ids.length;
+    window.__SEL_KEYS__ = ids.slice();
+    window.__SEL_IDS__ = ids.slice();
+    window.__SEL_TYPE__ = snapshot.type || 'contacts';
+    window.__SEL_DETAIL__ = snapshot;
   }
 
   let emitScheduled = false;
@@ -93,29 +116,110 @@
 
   function emit(source, extra){
     const detail = buildDetail(source, extra);
+    updateWindowMetrics(detail);
     pendingDetail = detail;
     scheduleEmit();
     return detail;
   }
 
+  function cssEscapeSafe(value){
+    const str = value == null ? '' : String(value);
+    if(typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(str);
+    return str.replace(/[^a-zA-Z0-9_\-]/g, match => `\\${match}`);
+  }
+
+  const ROW_SELECTOR_TEMPLATES = [
+    '[data-selectable][data-id="%ID%"]',
+    '[data-selectable][data-contact-id="%ID%"]',
+    '[data-selectable][data-partner-id="%ID%"]',
+    '[data-row][data-id="%ID%"]',
+    '[data-row][data-contact-id="%ID%"]',
+    '[data-row][data-partner-id="%ID%"]',
+    'tr[data-id="%ID%"]',
+    'tr[data-contact-id="%ID%"]',
+    'tr[data-partner-id="%ID%"]',
+    '[data-selected-row="%ID%"]'
+  ];
+
+  function rowsForId(id){
+    const selector = ROW_SELECTOR_TEMPLATES.map(tpl => tpl.replace(/%ID%/g, cssEscapeSafe(id))).join(',');
+    if(!selector) return [];
+    const nodes = Array.from(document.querySelectorAll(selector));
+    return nodes
+      .map(node => node.closest('[data-selectable],[data-row],tr') || node)
+      .filter(Boolean);
+  }
+
+  function applyRowSelectionState(row, selected){
+    if(!row) return;
+    try{
+      if(row.classList){
+        row.classList.toggle('selected', !!selected);
+        row.classList.toggle('is-selected', !!selected);
+      }
+    }catch (_err) {}
+    try{
+      if(selected){
+        row.setAttribute('data-selected', 'true');
+        row.setAttribute('aria-selected', 'true');
+      }else{
+        row.removeAttribute('data-selected');
+        row.removeAttribute('aria-selected');
+      }
+    }catch (_err) {}
+    try{
+      if(row.dataset){
+        if(selected) row.dataset.selected = 'true';
+        else delete row.dataset.selected;
+      }
+    }catch (_err) {}
+    const control = row.querySelector('input[type="checkbox"],input[type="radio"]');
+    if(control && control.checked !== !!selected){
+      try{ control.checked = !!selected; }
+      catch (_err) {}
+    }
+  }
+
+  function syncDomSelection(){
+    const ids = Array.from(state.ids);
+    const retain = new Set(ids);
+    domSelectedIds.forEach(id => {
+      if(!retain.has(id)){
+        rowsForId(id).forEach(row => applyRowSelectionState(row, false));
+      }
+    });
+    ids.forEach(id => {
+      rowsForId(id).forEach(row => applyRowSelectionState(row, true));
+    });
+    domSelectedIds.clear();
+    ids.forEach(id => domSelectedIds.add(id));
+  }
+
   function syncCheckboxes(){
     const checkboxes = document.querySelectorAll('table tbody input[type="checkbox"]');
     const present = new Set();
+    let mutated = false;
     checkboxes.forEach(cb => {
       const id = resolveRowId(cb);
       if(!id) return;
       present.add(id);
       const shouldCheck = state.ids.has(id);
       if(cb.checked !== shouldCheck) cb.checked = shouldCheck;
+      const row = cb.closest('[data-selectable],[data-row],tr');
+      if(row) applyRowSelectionState(row, shouldCheck);
     });
     if(present.size || checkboxes.length){
       Array.from(state.ids).forEach(id => {
         if(!present.has(id)){
-          state.ids.delete(id);
+          if(state.ids.delete(id)) mutated = true;
           state.items.delete(id);
         }
       });
       if(state.ids.size === 0) state.type = 'contacts';
+    }
+    syncDomSelection();
+    if(mutated){
+      emit('sync');
     }
   }
 
@@ -248,6 +352,8 @@
     get(){
       return { type: state.type, ids: cloneIds() };
     },
+    getIds: cloneIds,
+    getSelectedIds: cloneIds,
     set(ids, type, source){ setIds(ids, type, source); },
     toggle,
     clear,
@@ -276,6 +382,7 @@
     count,
     size,
     getIds: cloneIds,
+    getSelectedIds: cloneIds,
     idsOf,
     syncChecks: scheduleSync,
     set: setIds,
@@ -289,4 +396,5 @@
   window.Selection = Selection;
   window.SelectionService = compat;
   window.__SELMODEL__ = compat;
+  updateWindowMetrics();
 })();
