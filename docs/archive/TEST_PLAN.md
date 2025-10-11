@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: ../TESTING.md
+---
+
 # Test Plan
 
 ## Self-Test 2.0

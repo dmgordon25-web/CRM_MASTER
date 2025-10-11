@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: N/A
+---
+
 # Data Model (IndexedDB)
 
 Data helpers live in `crm-app/js/db.js`. Stores and keys can be inspected in code; this doc should be refined alongside the DB helpers.

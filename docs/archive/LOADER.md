@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: ../CONTRACTS.md
+---
+
 # Loader Invariants
 
 - Same-origin `/js` & `/patches` are injected as **type="module"**.

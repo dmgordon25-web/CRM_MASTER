@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: ../../README.md
+---
+
 # Project Overview
 
 This repo is an offline-first single-page application (SPA) for a mortgage CRM built on:

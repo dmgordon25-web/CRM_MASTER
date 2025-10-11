@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: N/A
+---
+
 # UI Surfaces
 
 - **Dashboard**: KPI widgets; draggable order persisted to `dash:widgets:v1`.
