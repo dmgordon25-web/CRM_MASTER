@@ -17,6 +17,11 @@ const POSITIVE_TOKENS = new Set([
 let servicesReadyFlagged = false;
 let coldStartNoticeLogged = false;
 let coldStartClearedLogged = false;
+let readyEventsHooked = false;
+const registryWatchVisited = new WeakSet();
+
+const READY_EVENT_NAMES = ['crm:services-ready', 'crm:servicesRegistry:ready', 'services:ready'];
+const observedRegistries = new WeakSet();
 
 function markServicesReady() {
   servicesReadyFlagged = true;
@@ -37,6 +42,105 @@ function logServicesWarming() {
   } catch (_) {}
 }
 
+function queueRegistryWatch(candidate) {
+  if (!candidate || typeof candidate !== 'object') return;
+  if (registryWatchVisited.has(candidate)) return;
+  registryWatchVisited.add(candidate);
+  try {
+    watchRegistryForReady(candidate);
+  } catch (_) {}
+
+  try {
+    for (const key of NESTED_KEYS) {
+      if (candidate && typeof candidate === 'object' && key in candidate) {
+        queueRegistryWatch(candidate[key]);
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (candidate instanceof Map) {
+      for (const key of NESTED_KEYS) {
+        if (candidate.has(key)) {
+          queueRegistryWatch(candidate.get(key));
+        }
+      }
+    } else if (candidate instanceof Set) {
+      candidate.forEach((item) => {
+        queueRegistryWatch(item);
+      });
+    }
+  } catch (_) {}
+}
+
+function handleReadyEvent(event) {
+  if (servicesReadyFlagged) return;
+  try {
+    const detail = event?.detail;
+    if (detail && typeof detail === 'object') {
+      try { queueRegistryWatch(detail); } catch (_) {}
+      if ('ready' in detail && !positiveFlag(detail.ready)) return;
+      if ('status' in detail && !positiveFlag(detail.status)) return;
+      if ('servicesRegistry' in detail) {
+        queueRegistryWatch(detail.servicesRegistry);
+      }
+    }
+  } catch (_) {}
+  markServicesReady();
+}
+
+function installReadyEventObservers() {
+  if (readyEventsHooked) return;
+  readyEventsHooked = true;
+  try {
+    const targets = [];
+    try { if (typeof window !== 'undefined') targets.push(window); }
+    catch (_) {}
+    try { if (typeof document !== 'undefined') targets.push(document); }
+    catch (_) {}
+    if (!targets.length) return;
+    const uniqueEvents = new Set(READY_EVENT_NAMES);
+    const handler = (evt) => {
+      try { handleReadyEvent(evt); }
+      catch (_) {}
+    };
+    targets.forEach((target) => {
+      if (!target || typeof target.addEventListener !== 'function') return;
+      uniqueEvents.forEach((eventName) => {
+        try { target.addEventListener(eventName, handler, { once: false }); }
+        catch (_) {}
+      });
+    });
+  } catch (_) {}
+}
+
+function watchRegistryForReady(registry) {
+  if (!registry || typeof registry !== 'object') return;
+  if (observedRegistries.has(registry)) return;
+  observedRegistries.add(registry);
+  const readyHandler = () => {
+    try { markServicesReady(); }
+    catch (_) { servicesReadyFlagged = true; }
+  };
+  try {
+    if (typeof registry.once === 'function') {
+      registry.once('ready', readyHandler);
+      return;
+    }
+  } catch (_) {}
+  try {
+    if (typeof registry.on === 'function') {
+      registry.on('ready', readyHandler);
+      return;
+    }
+  } catch (_) {}
+  try {
+    if (typeof registry.addEventListener === 'function') {
+      registry.addEventListener('ready', readyHandler, { once: true });
+    }
+  } catch (_) {}
+}
+
 function positiveFlag(value) {
   if (value === true) return true;
   if (typeof value === 'number') {
@@ -52,6 +156,90 @@ function positiveFlag(value) {
 
 const READINESS_KEYS = ['ready', 'status', 'state', 'readyState', 'value', 'result', 'ok', 'health'];
 const NESTED_KEYS = ['servicesRegistry', 'services', 'registry', 'service', 'module', 'payload', 'meta'];
+
+function directSignalCandidates(global) {
+  const crm = global.CRM || {};
+  const ctx = crm.ctx || {};
+  const health = crm.health || {};
+  const boot = crm.boot || {};
+  const bootDone = global.__BOOT_DONE__ || {};
+  const bootStatus = global.__BOOT_STATUS__ || {};
+
+  const registry = ctx.servicesRegistry
+    || ctx.registry?.services
+    || crm.servicesRegistry
+    || crm.modules?.servicesRegistry
+    || global.SERVICES;
+
+  const directSignals = [
+    ctx.servicesRegistryReady,
+    ctx.servicesReady,
+    boot.servicesRegistryReady,
+    boot.servicesReady,
+    boot.status,
+    registry?.ready,
+    registry?.status,
+    registry?.state,
+    registry?.value,
+    crm.servicesRegistryReady,
+    crm.servicesReady,
+    crm.services?.ready,
+    crm.services?.status,
+    health.servicesRegistryReady,
+    health.servicesReady,
+    health.servicesRegistry,
+    bootDone.servicesRegistry,
+    bootDone.servicesRegistry?.ready,
+    bootDone.services?.registry,
+    bootDone.services?.registry?.ready,
+    bootStatus.servicesRegistry,
+    bootStatus.servicesRegistry?.ready,
+    bootStatus.services,
+    bootStatus.services?.ready,
+    global.__SERVICES_READY__,
+    global.__SERVICES_REGISTRY_READY__,
+    global.SERVICES_READY,
+  ];
+
+  const searchTargets = [
+    registry,
+    crm.services,
+    ctx.services,
+    ctx.servicesRegistry,
+    ctx.registry?.services,
+    ctx.ready,
+    ctx.ready?.services,
+    ctx.ready?.servicesRegistry,
+    ctx.boot,
+    ctx.boot?.services,
+    ctx.boot?.servicesRegistry,
+    boot,
+    boot.services,
+    boot.servicesRegistry,
+    crm.boot,
+    crm.boot?.services,
+    crm.boot?.servicesRegistry,
+    crm.registry,
+    crm.registry?.services,
+    health,
+    health.services,
+    health.servicesRegistry,
+    bootDone,
+    bootDone.services,
+    bootDone.servicesRegistry,
+    global.__BOOT_PHASES__?.SERVICES,
+    global.__BOOT_PHASES__?.services,
+    global.__BOOT_PHASES__?.SERVICES?.status,
+    global.__BOOT_STATUS__,
+    global.__BOOT_STATUS__?.services,
+    global.__BOOT_STATUS__?.servicesRegistry,
+    global.__BOOT_CTX__?.services,
+    global.__BOOT_CTX__?.servicesRegistry,
+    global.__BOOT_CTX__?.status,
+  ];
+
+  return { directSignals, searchTargets, registry };
+}
 
 function inspectCandidate(candidate, visited = new Set()) {
   if (servicesReadyFlagged) return true;
@@ -70,6 +258,8 @@ function inspectCandidate(candidate, visited = new Set()) {
   if (typeof candidate !== 'object') return false;
   if (visited.has(candidate)) return false;
   visited.add(candidate);
+
+  queueRegistryWatch(candidate);
 
   if (Array.isArray(candidate)) {
     for (const item of candidate) {
@@ -130,60 +320,30 @@ function inspectCandidate(candidate, visited = new Set()) {
 function servicesRegistryReady(){
   if (servicesReadyFlagged) return true;
   try {
+    installReadyEventObservers();
     const global = window;
-    const crm = global.CRM || {};
-    const ctx = crm.ctx || {};
-    const health = crm.health || {};
+    const { directSignals, searchTargets, registry } = directSignalCandidates(global);
 
-    const registry = global.SERVICES
-      || crm.services
-      || ctx.services
-      || ctx.servicesRegistry
-      || ctx.registry?.services
-      || crm.servicesRegistry;
+    queueRegistryWatch(registry);
 
-    const candidates = [
-      registry,
-      ctx.servicesRegistryReady,
-      ctx.servicesReady,
-      ctx.ready,
-      ctx.ready?.services,
-      ctx.ready?.servicesRegistry,
-      ctx.boot?.services,
-      ctx.boot?.servicesRegistry,
-      ctx.boot?.status,
-      crm.boot,
-      crm.boot?.services,
-      crm.boot?.servicesRegistry,
-      crm.boot?.status,
-      crm.servicesReady,
-      crm.servicesRegistryReady,
-      crm.registry,
-      crm.registry?.services,
-      crm.modules?.servicesRegistry,
-      health,
-      health.services,
-      health.servicesRegistry,
-      health.servicesRegistryReady,
-      health.servicesReady,
-      global.__SERVICES__,
-      global.__SERVICES_READY__,
-      global.__SERVICES_REGISTRY_READY__,
-      global.SERVICES_READY,
-      global.__BOOT_DONE__?.servicesRegistry,
-      global.__BOOT_DONE__?.services?.registry,
-      global.__BOOT_PHASES__?.SERVICES,
-      global.__BOOT_PHASES__?.services,
-      global.__BOOT_PHASES__?.SERVICES?.status,
-      global.__BOOT_STATUS__?.services,
-      global.__BOOT_STATUS__?.servicesRegistry,
-      global.__BOOT_STATUS__?.registry,
-      global.__BOOT_CTX__?.services,
-      global.__BOOT_CTX__?.servicesRegistry,
-      global.__BOOT_CTX__?.status,
-    ];
+    for (const signal of directSignals) {
+      if (signal && typeof signal === 'object') {
+        queueRegistryWatch(signal);
+      }
+      if (positiveFlag(signal)) {
+        return markServicesReady();
+      }
+      if (inspectCandidate(signal)) {
+        return markServicesReady();
+      }
+    }
 
-    for (const candidate of candidates) {
+    watchRegistryForReady(registry);
+
+    for (const candidate of searchTargets) {
+      if (candidate && typeof candidate === 'object') {
+        queueRegistryWatch(candidate);
+      }
       if (inspectCandidate(candidate)) {
         return markServicesReady();
       }
@@ -197,8 +357,11 @@ function servicesRegistryReady(){
 export const SOFT_PREREQS = {
   'services registry ready': () => {
     try {
-      return servicesRegistryReady();
+      const ready = servicesRegistryReady();
+      if (!ready) logServicesWarming();
+      return ready;
     } catch {
+      logServicesWarming();
       return false;
     }
   },
