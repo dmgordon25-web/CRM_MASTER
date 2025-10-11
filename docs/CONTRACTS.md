@@ -1,47 +1,61 @@
 # Boot Contracts
 
-Boot contracts keep the loader deterministic: they expose small, idempotent readiness probes so the boot hardener can decide whether to continue without ever touching the DOM at import time.
+Boot contracts keep the loader deterministic. They expose tiny, idempotent readiness probes so the boot hardener can promote each
+phase from HARD → SOFT without racing the DOM or leaking errors to the console.
 
-## HARD vs. SOFT readiness and timing
+## Stable boot rule (HARD vs. SOFT)
 
-- Contract modules are imported **before** the DOM is guaranteed to exist. Never access `document` or other DOM APIs at the top level — the contract linter blocks it in CI.
-- **HARD prerequisites** run immediately after import. They gate execution and should only fail when the application genuinely cannot continue. A failing HARD probe must emit a `console.error` that explains the missing requirement; the loader will stop booting.
-- **SOFT prerequisites** run after core modules finish loading and service waiters resolve. They are diagnostic only: they must be safe to call repeatedly, must not throw, and must never block boot. During warm-up a SOFT probe may log a single `console.info` tagged `(expected during cold start)` but it must go quiet automatically once the feature reports ready.
+1. **Module import** – all entries listed in `ensureCoreThenPatches` are imported as ES modules. Top-level code must be side-effect
+   free: no DOM reads, no timers, no storage access.
+2. **HARD prerequisites** – executed immediately after the modules load and before the diagnostics overlay can hide. A failing HARD
+   probe must log a single `console.error` describing the missing capability; the boot flow halts and the overlay stays visible.
+3. **DOM ready + services** – once `DOMContentLoaded` fires, core services finish their `__WHEN_SERVICES_READY` hooks.
+4. **SOFT prerequisites** – executed only after the overlay hides. SOFT probes return `false` while a feature warms up but must never
+   throw. They may emit a one-time `console.info` during warm-up, but must go quiet once the feature is ready.
+5. **Patches** – optional modules load after SOFT probes schedule, unless Safe Mode disables them. Never promote a PATCH into CORE
+   without a dedicated readiness shim.
 
-## Zero-error steady state
+The diagnostics overlay hides exactly once the HARD phase succeeds. A `[PERF] overlay hidden in <ms>` info log captures that moment
+so the smoke test can assert the boot budget without relying on timers.
 
-Production boot is silent by default:
+## Console discipline
 
-- `console.error` is reserved for module import failures and HARD prerequisite failures.
-- SOFT probes must not emit `console.warn` in steady state. Any informational logging should be one-time `console.info` while warming up, and it must stop once ready signals flip positive.
-- Keep optional features quiet as well: if a capability is expected to be missing in production, guard it with `capability()` and return `false` without logging.
+- `console.error` is reserved for module import failures and HARD prerequisite failures. Anything else is a regression.
+- SOFT probes may at most log a **single** `console.warn` when a capability is truly optional; otherwise prefer `console.info` or no
+  logging at all.
+- Logging to `/__log` now degrades gracefully: if the endpoint is unreachable the loader prints one `[BOOT] log fallback active …`
+  info line and continues without emitting errors.
+- Zero steady-state errors are mandatory. The boot smoke test fails on any console error emitted from page load through tab
+  navigation and the feature canaries.
 
-Run `npm run verify:build` locally before sending changes. The manifest audit, contract linter, and boot smoke test enforce these guardrails in CI.
+## Probing with `probe_utils`
 
-## Adding a SOFT probe with `probe_utils`
-
-Use the helpers in `crm-app/js/boot/contracts/probe_utils.js` to keep probes copy-pasteable:
+Use `crm-app/js/boot/contracts/probe_utils.js` to build safe probes:
 
 ```js
 import { capability, once, safe } from './probe_utils.js';
 
-const featureReady = capability('Namespace.feature');
-const featureWarming = once('feature:warming', 'info');
+const toastReady = capability('Toast.show');
+const warmupNote = once('toast:warming', 'info');
 
-const featureProbe = safe(() => {
-  const ready = featureReady();
-  if (!ready) {
-    featureWarming('[BOOT] feature warming up (expected during cold start)');
-  }
+const toastProbe = safe(() => {
+  const ready = !!toastReady();
+  if (!ready) warmupNote('[BOOT] Toast warming up (expected during cold start)');
   return ready;
 });
 
-SOFT_PREREQS['feature ready'] = featureProbe;
+SOFT_PREREQS['toast ready'] = toastProbe;
 ```
 
-Key reminders:
+Guidelines:
 
-- Call `capability()` to guard every global lookup.
-- Wrap the work in `safe()` so unexpected errors collapse to `false` instead of throwing.
-- Use `once(tag)` for any cold-start logging so it only fires during the warm-up window.
-- Avoid timers or polling to “wait” for readiness — rely on real flags/events and return `false` until they report success.
+- Wrap every global lookup with `capability()` and every body with `safe()` so unexpected throws collapse to `false`.
+- Prefer derived state over timers or polling; return `false` until real readiness flags flip.
+- Keep probes idempotent—no DOM writes, no storage mutations, no network calls.
+- Touch the DOM only inside guarded helpers that run **after** the boot hardener confirms the overlay is hidden.
+
+## Change checklist
+
+- Run `npm run verify:build` (manifest audit → contract linter → boot smoke test) before sending a PR.
+- Document new HARD or SOFT rules in this file and in `docs/CHANGELOG_POLICY.md` so downstream teams know what changed.
+- If a probe introduces a temporary warm-up log, gate it with `once()` and remove it once the feature stabilises.

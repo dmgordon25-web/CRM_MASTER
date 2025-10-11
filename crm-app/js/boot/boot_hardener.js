@@ -24,20 +24,103 @@ console.error = (...args) => {
   originalConsoleError(...args);
 };
 
+const timeSource = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
+  ? () => performance.now()
+  : () => Date.now();
+const bootStart = timeSource();
+let overlayHiddenAt = null;
+let perfPingNoted = false;
+let logFallbackNoted = false;
+
+function noteOverlayHidden() {
+  if (overlayHiddenAt == null) {
+    overlayHiddenAt = timeSource();
+  }
+}
+
+function logFallback(detail) {
+  if (logFallbackNoted) return;
+  logFallbackNoted = true;
+  const suffix = detail ? ` (${detail})` : '';
+  try {
+    console.info(`[BOOT] log fallback active${suffix}`);
+  } catch (_) {}
+}
+
+function applyLogFallback(promise) {
+  if (!promise || typeof promise.then !== 'function') return promise;
+  return promise.then((response) => {
+    try {
+      if (response && typeof response.ok === 'boolean' && !response.ok) {
+        const status = typeof response.status === 'number' ? `status ${response.status}` : '';
+        logFallback(status);
+      }
+    } catch (_) {}
+    return response;
+  }, (err) => {
+    const detail = err && (err.message || err.name)
+      ? `${err.message || err.name}`
+      : '';
+    logFallback(detail);
+    throw err;
+  });
+}
+
+function shouldWatchLogEndpoint(resource) {
+  try {
+    if (typeof resource === 'string') {
+      return resource.includes('/__log');
+    }
+    if (resource && typeof resource.url === 'string') {
+      return resource.url.includes('/__log');
+    }
+  } catch (_) {}
+  return false;
+}
+
+const nativeFetch = (typeof fetch === 'function')
+  ? fetch.bind(typeof window !== 'undefined' ? window : globalThis)
+  : null;
+
+if (typeof window !== 'undefined' && nativeFetch && !window.__LOG_FETCH_PATCHED__) {
+  const patchedFetch = function patchedFetch(resource, init) {
+    const promise = nativeFetch(resource, init);
+    if (shouldWatchLogEndpoint(resource)) {
+      return applyLogFallback(promise);
+    }
+    return promise;
+  };
+  try {
+    window.fetch = patchedFetch;
+    window.__LOG_FETCH_PATCHED__ = true;
+  } catch (_) {}
+}
+
 const splash = {
   el() { return document.getElementById('diagnostics-splash'); },
   show() { const e = this.el(); if (e) e.style.display = 'block'; },
-  hide() { const e = this.el(); if (e) e.style.display = 'none'; }
+  hide() {
+    const e = this.el();
+    if (e) e.style.display = 'none';
+    noteOverlayHidden();
+  }
 };
 
 const postLog = (kind, payload) => {
+  if (!nativeFetch) return;
   try {
-    fetch('/__log', {
+    const promise = nativeFetch('/__log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind, ts: Date.now(), ...payload })
-    }).catch(() => {});
-  } catch (_) {}
+    });
+    applyLogFallback(promise).catch(() => {});
+  } catch (err) {
+    const detail = err && (err.message || err.name)
+      ? `${err.message || err.name}`
+      : '';
+    logFallback(detail);
+  }
 };
 
 function truthyFlag(v) {
@@ -135,6 +218,14 @@ function recordSuccess(meta) {
     window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
   } catch (_) {}
   splash.hide();
+  if (!perfPingNoted) {
+    const stop = overlayHiddenAt == null ? timeSource() : overlayHiddenAt;
+    const elapsed = Math.max(0, Math.round(stop - bootStart));
+    try {
+      console.info(`[PERF] overlay hidden in ${elapsed}ms`);
+    } catch (_) {}
+    perfPingNoted = true;
+  }
   postLog('boot.success', meta || {});
 }
 

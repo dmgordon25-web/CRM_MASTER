@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: N/A
+---
+
 # Event Catalog
 
 Authoritative events are enumerated by the audit in `docs/generated/event_catalog.md`.

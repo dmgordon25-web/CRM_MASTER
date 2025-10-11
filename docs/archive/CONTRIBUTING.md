@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: ../CHANGELOG_POLICY.md
+---
+
 # Contributing
 
 - JS-only changes; no runtime deps/CDNs.

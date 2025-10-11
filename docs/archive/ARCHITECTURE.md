@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: ../CONTRACTS.md
+---
+
 # Architecture
 
 - **App Shell / Loaders**: Enforce module-only script loading for `/js` and `/patches`. Fallback injections log `loader: fallback-inject { path, as: 'module' }`.

@@ -1,3 +1,8 @@
+---
+status: DEPRECATED
+superseded_by: N/A
+---
+
 # Rendering & Scheduling
 
 - **Single entry**: `window.renderAll()`

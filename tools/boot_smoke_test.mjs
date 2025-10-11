@@ -138,44 +138,73 @@ async function main() {
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors);
 
-    const toastErrorCount = consoleErrors.length;
-    const toastStatus = await page.evaluate(() => {
-      const result = { toast: true, confirm: true };
+    const toastBaselineErrors = consoleErrors.length;
+    const toastStatus = await page.evaluate(async () => {
       const toast = typeof window.Toast?.show === 'function'
         ? window.Toast.show.bind(window.Toast)
-        : (typeof window.toast === 'function' ? window.toast : null);
-      if (toast) {
-        try {
-          const outcome = toast('Boot smoke test toast');
-          if (outcome && typeof outcome.then === 'function') {
-            outcome.catch(() => {});
-          }
-        } catch (_) {
-          result.toast = false;
-        }
-      }
+        : (typeof window.toast === 'function' ? window.toast.bind(window) : null);
       const confirm = typeof window.Confirm?.show === 'function'
         ? window.Confirm.show.bind(window.Confirm)
         : (typeof window.confirmAction === 'function'
           ? window.confirmAction
           : (typeof window.showConfirm === 'function' ? window.showConfirm : null));
+      const result = {
+        toastAvailable: !!toast,
+        toastReturnOk: false,
+        toastHostUpdated: false,
+        confirmAvailable: !!confirm,
+        confirmIsPromise: false,
+        confirmResolved: null
+      };
+      if (toast) {
+        const hostBefore = document.querySelector('[data-toast-host="true"]');
+        const beforeText = hostBefore ? hostBefore.textContent : null;
+        let outcome;
+        try {
+          outcome = toast('Boot smoke test toast', { duration: 12 });
+        } catch (err) {
+          result.toastReturnOk = false;
+          result.toastHostUpdated = false;
+          return result;
+        }
+        result.toastReturnOk = outcome === undefined
+          || typeof outcome === 'object'
+          || typeof outcome === 'boolean';
+        const hostAfter = document.querySelector('[data-toast-host="true"]');
+        result.toastHostUpdated = !!(hostAfter
+          && hostAfter.textContent
+          && hostAfter.textContent.includes('Boot smoke test toast')
+          && hostAfter.textContent !== beforeText);
+        if (typeof window.Toast?.hide === 'function') {
+          try { window.Toast.hide(); } catch (_) {}
+        }
+      }
       if (confirm) {
         try {
-          const outcome = confirm('Boot smoke test confirm');
-          if (outcome && typeof outcome.then === 'function') {
-            outcome.catch(() => {});
+          const promise = confirm({ message: 'Boot smoke test confirm' });
+          if (promise && typeof promise.then === 'function') {
+            result.confirmIsPromise = true;
+            const modal = document.getElementById('app-confirm-modal');
+            const confirmBtn = modal?.querySelector('[data-role="confirm"]');
+            confirmBtn?.click();
+            result.confirmResolved = await promise;
+          } else {
+            result.confirmResolved = promise;
           }
-        } catch (_) {
-          result.confirm = false;
+        } catch (err) {
+          result.confirmResolved = err && err.message ? `threw:${err.message}` : 'threw';
         }
       }
       return result;
     });
-    if (!toastStatus.toast || !toastStatus.confirm) {
-      throw new Error('Toast/Confirm API check failed');
+    if (!toastStatus.toastAvailable || !toastStatus.toastReturnOk || !toastStatus.toastHostUpdated) {
+      throw new Error('Toast helper failed to render or return expected shape');
+    }
+    if (!toastStatus.confirmAvailable || !toastStatus.confirmIsPromise || toastStatus.confirmResolved !== true) {
+      throw new Error('Confirm helper did not resolve as expected');
     }
     await ensureNoConsoleErrors(consoleErrors);
-    if (consoleErrors.length !== toastErrorCount) {
+    if (consoleErrors.length !== toastBaselineErrors) {
       throw new Error('Console error emitted during Toast/Confirm API check');
     }
     await assertSplashHidden(page);
@@ -183,16 +212,22 @@ async function main() {
     const notificationsCapability = await page.evaluate(() => {
       const notifier = window.Notifier;
       if (!notifier || typeof notifier.onChanged !== 'function' || typeof notifier.list !== 'function') {
-        return false;
+        return { available: false, cycle: false };
       }
-      const hasRenderer = typeof window.renderNotifications === 'function';
-      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
-        || typeof window.CRM?.ctx?.activateRoute === 'function'
-        || typeof window.CRM?.ctx?.openNotifications === 'function';
-      return hasRenderer || hasRouteHook;
+      let cycleOk = false;
+      try {
+        const off = notifier.onChanged(() => {});
+        if (typeof off === 'function') {
+          off();
+          cycleOk = true;
+        }
+      } catch (_) {
+        cycleOk = false;
+      }
+      return { available: true, cycle: cycleOk };
     });
-    if (!notificationsCapability) {
-      throw new Error('Notifications capability missing');
+    if (!notificationsCapability.available || !notificationsCapability.cycle) {
+      throw new Error('Notifications lifecycle check failed');
     }
     await ensureNoConsoleErrors(consoleErrors);
     await assertSplashHidden(page);
@@ -219,13 +254,66 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors);
     await assertSplashHidden(page);
 
+    await navigateTab(page, 'pipeline', consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    const pipelineFilter = await page.evaluate(() => {
+      const input = document.querySelector('#view-pipeline input[data-table-search="#tbl-pipeline"]');
+      const table = document.querySelector('#tbl-pipeline tbody');
+      if (!input || !table) {
+        return { ok: false };
+      }
+      const rows = Array.from(table.querySelectorAll('tr'));
+      const visibleBefore = rows.filter(row => row.style.display !== 'none').length;
+      input.value = 'zzzzzzzz';
+      input.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+      const visibleAfter = rows.filter(row => row.style.display !== 'none').length;
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+      const visibleRestored = rows.filter(row => row.style.display !== 'none').length;
+      return {
+        ok: true,
+        total: rows.length,
+        visibleBefore,
+        visibleAfter,
+        visibleRestored
+      };
+    });
+    if (!pipelineFilter.ok) {
+      throw new Error('Pipeline filter control missing');
+    }
+    if (pipelineFilter.total === 0) {
+      throw new Error('Pipeline table empty; cannot verify filter');
+    }
+    if (!(pipelineFilter.visibleBefore > pipelineFilter.visibleAfter
+      && pipelineFilter.visibleRestored === pipelineFilter.visibleBefore)) {
+      throw new Error('Pipeline filter failed to toggle visibility');
+    }
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
+    const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
+    if (!perfPing) {
+      throw new Error('Perf overlay ping missing');
+    }
+
     const logBaseline = { info: consoleInfos.length, warn: consoleWarnings.length };
     const logResult = await page.evaluate(async () => {
+      const controller = new AbortController();
+      const request = fetch('/__log', {
+        method: 'GET',
+        credentials: 'same-origin',
+        signal: controller.signal
+      });
+      controller.abort();
       try {
-        const response = await fetch('/__log', { method: 'GET', credentials: 'same-origin' });
-        return { ok: response.ok, status: response.status };
+        const response = await request;
+        return { ok: response?.ok ?? false, status: response?.status ?? 0 };
       } catch (err) {
-        const message = err && err.message ? err.message : String(err);
+        const message = err && (err.name || err.message)
+          ? String(err.name || err.message)
+          : 'error';
         return { ok: false, error: message };
       }
     });
@@ -246,6 +334,7 @@ async function main() {
     }
 
     await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
     console.log('BOOT SMOKE TEST PASS');
   } finally {
     if (browser) {
