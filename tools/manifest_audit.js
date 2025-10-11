@@ -1,9 +1,10 @@
 /* Node script to validate manifest lists. Exits 0 when OK, 2 on fatal. */
 const fs = require('fs'), path = require('path');
-const root = path.resolve(__dirname, '..', 'crm-app', 'js', 'boot');
+const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
+const manifestDir = path.join(jsRoot, 'boot');
 
 function loadManifest() {
-  const code = fs.readFileSync(path.join(root, 'manifest.js'), 'utf8');
+  const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
   const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
   const patchMatch = [...code.matchAll(/PATCHES\s*=\s*\[(.*?)\]/gs)][0];
   if (!coreMatch || !patchMatch) return { core: [], patches: [] };
@@ -11,7 +12,10 @@ function loadManifest() {
   return { core: getList(coreMatch[1]), patches: getList(patchMatch[1]) };
 }
 
-function fileExists(p) { return fs.existsSync(path.resolve(root, p)); }
+function fileExists(p) {
+  const clean = p.startsWith('./') ? p.slice(2) : p;
+  return fs.existsSync(path.resolve(jsRoot, clean));
+}
 
 (function main(){
   const { core, patches } = loadManifest();
@@ -20,7 +24,6 @@ function fileExists(p) { return fs.existsSync(path.resolve(root, p)); }
   for (const p of all) (seen.has(p) ? dups.push(p) : seen.add(p));
   const missing = all.filter(p => !fileExists(p));
   // Crawl js folder for unphased files (warn only)
-  const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
   function walk(dir){
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     const out = [];
@@ -31,11 +34,11 @@ function fileExists(p) { return fs.existsSync(path.resolve(root, p)); }
     }
     return out;
   }
-  const allJs = walk(jsRoot).map(p => path.relative(path.join(jsRoot, 'boot'), p).replace(/\\/g, '/'));
+  const allJs = walk(jsRoot)
+    .map(p => './' + path.relative(jsRoot, p).replace(/\\/g, '/'));
   const phList = new Set(all);
   const unphased = allJs
-    .filter(p => !p.startsWith('boot/'))
-    .map(p => (p.startsWith('../') ? p : '../' + p))
+    .filter(p => !p.startsWith('./boot/'))
     .filter(p => !phList.has(p));
 
   // Report

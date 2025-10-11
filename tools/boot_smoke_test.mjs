@@ -34,14 +34,58 @@ function startServerProc() {
   return ps;
 }
 
+async function ensureNoConsoleErrors(errors) {
+  if (errors.length) {
+    throw new Error(`Console error detected: ${errors[0]}`);
+  }
+}
+
+async function assertSplashHidden(page) {
+  await page.waitForFunction(() => {
+    const el = document.getElementById('diagnostics-splash');
+    if (!el) return true;
+    const cs = getComputedStyle(el);
+    return cs && cs.display === 'none';
+  }, { timeout: 60000 });
+}
+
+async function navigateTab(page, slug, errors) {
+  const before = errors.length;
+  await page.evaluate((target) => {
+    const btn = document.querySelector(`[data-nav="${target}"]`);
+    if (!btn) throw new Error(`Navigation button missing for ${target}`);
+    btn.click();
+  }, slug);
+  await page.waitForFunction((target) => {
+    const btn = document.querySelector(`[data-nav="${target}"]`);
+    return !!(btn && btn.classList.contains('active'));
+  }, { timeout: 30000 }, slug);
+  await assertSplashHidden(page);
+  await ensureNoConsoleErrors(errors);
+  if (errors.length !== before) {
+    throw new Error(`Console error emitted while navigating to ${slug}`);
+  }
+}
+
 async function main() {
   const server = startServerProc();
+  let browser;
+  const consoleErrors = [];
   try {
     await waitForHealth();
 
-    const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(60000);
+
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    page.setDefaultTimeout(60000);
+
     await page.evaluateOnNewDocument(() => {
       if (!window.Confirm) {
         window.Confirm = {
@@ -58,31 +102,13 @@ async function main() {
       }
     });
 
-    // Use safe mode for deterministic boot (patches skipped on purpose)
-    await page.goto(`${ORIGIN}/?safe=1`, { waitUntil: 'networkidle0' });
+    await page.goto(`${ORIGIN}/`, { waitUntil: 'networkidle0' });
 
-    await page.waitForFunction(() => typeof window.__BOOT_DONE__ === 'object' && window.__BOOT_DONE__ !== null, { timeout: 60000 });
+    await page.waitForFunction(() => window.__BOOT_DONE__?.fatal === false, { timeout: 60000 });
+    await ensureNoConsoleErrors(consoleErrors);
 
-    const bootState = await page.evaluate(() => window.__BOOT_DONE__ || null);
-    if (bootState && bootState.fatal) {
-      throw new Error(`Boot marked fatal in __BOOT_DONE__: ${bootState.why || 'unknown'}`);
-    }
-
-    await page.waitForFunction(() => {
-      const el = document.getElementById('diagnostics-splash');
-      if (!el) return true;
-      const cs = getComputedStyle(el);
-      return cs && cs.display === 'none';
-    }, { timeout: 60000 });
-
-    const splashVisible = await page.evaluate(() => {
-      const el = document.getElementById('diagnostics-splash');
-      if (!el) return false;
-      const cs = getComputedStyle(el);
-      return cs && cs.display !== 'none';
-    });
-
-    if (splashVisible) throw new Error('Diagnostics splash is visible after boot');
+    await assertSplashHidden(page);
+    await ensureNoConsoleErrors(consoleErrors);
 
     const uiRendered = await page.evaluate(() => {
       const txt = document.body.textContent || '';
@@ -91,10 +117,23 @@ async function main() {
 
     if (!uiRendered) throw new Error('Dashboard UI did not render');
 
+    const tabs = [
+      ['Dashboard', 'dashboard'],
+      ['Long Shots', 'longshots'],
+      ['Pipeline', 'pipeline'],
+      ['Partners', 'partners']
+    ];
+
+    for (const [, slug] of tabs) {
+      await navigateTab(page, slug, consoleErrors);
+    }
+
+    await ensureNoConsoleErrors(consoleErrors);
     console.log('BOOT SMOKE TEST PASS');
-    await browser.close();
   } finally {
-    // tear down
+    if (browser) {
+      await browser.close();
+    }
     server.kill('SIGTERM');
   }
 }

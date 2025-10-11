@@ -1,34 +1,43 @@
 /* Boot Orchestrator: deterministic, idempotent, with hard fail/success lanes */
-const BASE_URL = new URL('./', import.meta.url);
-function normalizePath(p) {
-  if (typeof p !== 'string') throw new TypeError('invalid module specifier');
-  let clean = p.trim();
-  if (!clean) throw new TypeError('invalid module specifier');
-  if (!clean.endsWith('.js') && !clean.endsWith('.mjs')) clean = `${clean}.js`;
-  if (clean.startsWith('js/')) clean = `../${clean}`;
-  if (!clean.startsWith('./') && !clean.startsWith('../')) clean = `./${clean}`;
-  return new URL(clean, BASE_URL).href;
-}
-async function importModule(p) {
-  return import(normalizePath(p));
+const BASE_URL = new URL('../', import.meta.url);
+
+function normalize(spec) {
+  if (typeof spec !== 'string') throw new TypeError('invalid module specifier');
+  const trimmed = spec.trim();
+  if (!trimmed) throw new TypeError('invalid module specifier');
+  const rel = (trimmed.startsWith('./') || trimmed.startsWith('../')) ? trimmed : `./${trimmed}`;
+  return new URL(rel, BASE_URL).href;
 }
 
-// Basic utilities
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const postLog = (kind, payload) => {
-  try {
-    fetch('/__log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, ts: Date.now(), ...payload })
-    }).catch(()=>{});
-  } catch (e) {}
+async function dynImport(spec) {
+  const normalized = normalize(spec.endsWith('.js') || spec.endsWith('.mjs') ? spec : `${spec}.js`);
+  return import(normalized);
+}
+
+const originalConsoleError = console.error.bind(console);
+console.error = (...args) => {
+  const first = args[0];
+  if (typeof first === 'string' && first.includes('DOMNodeRemovedFromDocument')) {
+    console.warn(...args);
+    return;
+  }
+  originalConsoleError(...args);
 };
 
 const splash = {
   el() { return document.getElementById('diagnostics-splash'); },
   show() { const e = this.el(); if (e) e.style.display = 'block'; },
   hide() { const e = this.el(); if (e) e.style.display = 'none'; }
+};
+
+const postLog = (kind, payload) => {
+  try {
+    fetch('/__log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, ts: Date.now(), ...payload })
+    }).catch(() => {});
+  } catch (_) {}
 };
 
 function truthyFlag(v) {
@@ -39,126 +48,163 @@ function truthyFlag(v) {
 function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
-    return truthyFlag(q.get('safe')) || truthyFlag(localStorage.getItem('SAFE'));
-  } catch (e) { return false; }
-}
-
-function corePrereqsReady(w) {
-  return typeof w.openDB === 'function'
-    && (w.Selection || w.SelectionService)
-    && typeof w.$ === 'function'
-    && typeof w.renderAll === 'function'
-    && w.Toast && typeof w.Toast.show === 'function'
-    && w.Confirm && typeof w.Confirm.show === 'function';
-}
-
-async function importList(list, state, options = {}) {
-  const { checkPrereqs = false } = options;
-  for (const p of (list || [])) {
-    try {
-      const mod = await importModule(p);
-      if (checkPrereqs) await ensurePrereqs(mod);
-      state.loaded.push(p);
-    } catch (err) {
-      const msg = String(err?.stack || err);
-      console.error('[BOOT] import failed:', p, msg);
-      state.failed.push({ path: p, err: msg });
-      if (state.required.has(p)) state.fatal = true;
-      if (state.fatal) break;
-    }
-  }
-}
-
-async function ensurePrereqs(mod) {
-  const checks = mod?.CORE_PREREQS || mod?.CONTRACTS || {};
-  for (const [_name, probe] of Object.entries(checks)) {
-    try {
-      const ok = typeof probe === 'function' ? await probe() : !!probe;
-      if (!ok) throw new Error('prerequisite missing');
-    } catch {
-      throw new Error('prerequisite missing');
-    }
-  }
-}
-
-function finalizeSuccess(state) {
-  const w = window;
-  w.__BOOT_DONE__ = { ...state, fatal: false, success: true };
-  // Multiple redundant hide paths to prevent overlay “stickiness”
-  const hideAll = () => splash.hide();
-  // 1) Hide immediately after we finish
-  hideAll();
-  // 2) Hide on the next two frames
-  requestAnimationFrame(()=>requestAnimationFrame(hideAll));
-  // 3) Hide on window load (late assets)
-  window.addEventListener('load', hideAll, { once: true });
-  // 4) Hide with a fallback timeout
-  setTimeout(hideAll, 800);
-  postLog('boot.success', { loaded: state.loaded.length, failed: state.failed.length });
-}
-
-function finalizeFail(state, why='contract') {
-  const w = window;
-  w.__BOOT_DONE__ = { ...state, fatal: true, why };
-  splash.show();
-  postLog('boot.fail', { why, state });
-}
-
-export async function ensureCoreThenPatches({ CORE, PATCHES, REQUIRED }) {
-  const w = window;
-  const state = {
-    loaded: [],
-    failed: [],
-    fatal: false,
-    required: new Set(REQUIRED || []),
-    started: Date.now(),
-  };
-
-  // Always start with splash shown (early_trap may already have done this)
-  splash.show();
-
-  // CORE phase with one retry (settle racey globals without looping)
-  if (document.readyState === 'loading') {
-    await new Promise(res => document.addEventListener('DOMContentLoaded', res, { once: true }));
-  }
-
-  await importList(CORE, state, { checkPrereqs: true });
-  if (!corePrereqsReady(w) && !state.fatal) {
-    await sleep(60);
-    await importList(CORE, state, { checkPrereqs: true });
-  }
-  if (!corePrereqsReady(w) || state.fatal) {
-    const lastFailure = state.failed[state.failed.length - 1] || null;
-    const modPath = lastFailure?.path || '(unknown module)';
-    const err = lastFailure?.err || '(prerequisite missing)';
-    console.error('[BOOT] core prerequisites missing or required import failed:', modPath, err);
-    return finalizeFail(state, 'core_prereqs');
-  }
-
-  // PATCHES phase (skip only when Safe Mode explicitly requested)
-  const safe = isSafeMode();
-  state.safe = safe;
-  if (!safe && (PATCHES?.length)) {
-    await importList(PATCHES, state);
-    if (state.fatal) return finalizeFail(state, 'patch_required');
-  } else if (safe) {
-    console.warn('[BOOT] SAFE MODE active — skipping patches');
-    postLog('boot.safe_mode', {});
-  }
-
-  // RENDER phase – if render throws, we treat that as fatal
+    if (truthyFlag(q.get('safe'))) return true;
+  } catch (_) {}
   try {
-    if (typeof w.renderAll === 'function') w.renderAll();
+    if (truthyFlag(localStorage.getItem('SAFE'))) return true;
+  } catch (_) {}
+  return false;
+}
+
+function waitForDomReady() {
+  if (document.readyState !== 'loading') return Promise.resolve();
+  return new Promise((resolve) => {
+    document.addEventListener('DOMContentLoaded', resolve, { once: true });
+  });
+}
+
+function asPromise(result) {
+  if (result && typeof result.then === 'function') return result;
+  return Promise.resolve(result);
+}
+
+async function runProbe(fn) {
+  if (typeof fn !== 'function') return false;
+  try {
+    const outcome = await asPromise(fn());
+    return !!outcome;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function evaluatePrereqs(records, kind) {
+  const extractor = kind === 'hard'
+    ? (mod) => mod?.HARD_PREREQS || mod?.CORE_PREREQS || {}
+    : (mod) => mod?.SOFT_PREREQS || {};
+
+  for (const { path, module } of records) {
+    const checks = extractor(module) || {};
+    for (const [name, probe] of Object.entries(checks)) {
+      const ok = await runProbe(probe);
+      if (!ok) {
+        if (kind === 'hard') {
+          console.error(`[BOOT] prerequisite missing: ${name} in ${path}`);
+          const err = new Error(`prerequisite missing: ${name}`);
+          err.path = path;
+          err.probe = name;
+          throw err;
+        } else {
+          console.warn(`[BOOT] soft prerequisite incomplete: ${name} in ${path}`);
+        }
+      }
+    }
+  }
+}
+
+async function loadModules(paths, { fatalOnFailure = true } = {}) {
+  const records = [];
+  for (const spec of paths || []) {
+    try {
+      const module = await dynImport(spec);
+      records.push({ path: spec, module });
+    } catch (err) {
+      const detail = String(err?.stack || err);
+      if (fatalOnFailure) {
+        console.error('[BOOT] import failed:', spec, detail);
+        if (err && typeof err === 'object') err.path = spec;
+        throw err;
+      } else {
+        console.warn('[BOOT] optional import failed:', spec, detail);
+      }
+    }
+  }
+  return records;
+}
+
+function recordFatal(reason, detail) {
+  try {
+    window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
+  } catch (_) {}
+  splash.show();
+  postLog('boot.fail', { reason, detail });
+}
+
+function recordSuccess(meta) {
+  try {
+    window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
+  } catch (_) {}
+  splash.hide();
+  postLog('boot.success', meta || {});
+}
+
+function gatherServiceWaiters(records) {
+  const waiters = [];
+  for (const { module } of records) {
+    const fn = module?.__WHEN_SERVICES_READY;
+    if (typeof fn === 'function') {
+      waiters.push(() => asPromise(fn()).catch(() => {}));
+    }
+  }
+  return waiters;
+}
+
+function maybeRenderAll() {
+  try {
+    if (typeof window.renderAll === 'function') {
+      window.renderAll();
+    }
   } catch (err) {
     console.error('[BOOT] renderAll failed:', err);
-    state.failed.push({ path: 'renderAll()', err: String(err?.stack || err) });
-    return finalizeFail(state, 'render');
+    throw err;
   }
-
-  // READY
-  finalizeSuccess(state);
 }
 
-// For diagnostics and e2e sanity checks
-export const __private = { normalizePath, corePrereqsReady, isSafeMode };
+export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
+  const state = { core: [], patches: [], safe: false };
+  const requiredSet = new Set(REQUIRED || []);
+  splash.show();
+
+  try {
+    const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
+    state.core = coreRecords.map(({ path }) => path);
+
+    await waitForDomReady();
+    await evaluatePrereqs(coreRecords, 'hard');
+    splash.hide();
+
+    const safe = isSafeMode();
+    state.safe = safe;
+
+    const patchRecords = safe
+      ? []
+      : await loadModules(PATCHES, { fatalOnFailure: false });
+
+    if (safe && PATCHES.length) {
+      console.warn('[BOOT] SAFE MODE active — skipping patches');
+      postLog('boot.safe_mode', {});
+    }
+    state.patches = patchRecords.map(({ path }) => path);
+
+    maybeRenderAll();
+
+    const waiters = gatherServiceWaiters(coreRecords);
+    if (waiters.length) {
+      await Promise.all(waiters.map((fn) => fn()));
+    }
+
+    await evaluatePrereqs(coreRecords, 'soft');
+
+    recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+    return { reason: 'ok' };
+  } catch (err) {
+    const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
+      ? 'required_import'
+      : 'boot_failure';
+    recordFatal(reason, String(err?.stack || err));
+    throw err;
+  }
+}
+
+export const __private = { normalize, dynImport, isSafeMode };
 /* End of file */

@@ -26,7 +26,6 @@ const SERVICE_MODULES = [
 ];
 
 const CORE_FEATURE_MODULES = [
-  // Core feature pages/components that historically had top-level side effects.
   new URL('../dashboard/index.js', import.meta.url).href,
   new URL('../pages/workbench.js', import.meta.url).href,
   new URL('../calendar_impl.js', import.meta.url).href,
@@ -39,7 +38,6 @@ const CORE_FEATURE_MODULES = [
 ];
 
 const MIGRATED_PATCH_MODULES = [
-  // Migrated long-lived patches now managed as feature modules (skipped during Safe Mode).
   new URL('../patch_2025-09-26_phase1_pipeline_partners.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase2_automations.js', import.meta.url).href,
   new URL('../patch_2025-09-26_phase3_dashboard_reports.js', import.meta.url).href,
@@ -63,108 +61,122 @@ const MIGRATED_PATCH_MODULES = [
   new URL('../patch_20250926_ctc_actionbar.js', import.meta.url).href
 ];
 
-const SAFE_MODE = isSafeMode();
-const FEATURE_MODULES = SAFE_MODE
-  ? CORE_FEATURE_MODULES.slice()
-  : CORE_FEATURE_MODULES.concat(MIGRATED_PATCH_MODULES);
+function getFeatureModules(){
+  const base = CORE_FEATURE_MODULES.slice();
+  return isSafeMode() ? base : base.concat(MIGRATED_PATCH_MODULES);
+}
 
 export const PHASES = {
-  // CORE is already handled by boot_hardener.ensureCoreThenPatches
-  SHELL: SHELL_MODULES,
-  // Services that must exist before features (sequential to guarantee order)
-  SERVICES: SERVICE_MODULES,
-  FEATURES: FEATURE_MODULES,
-  PATCHES: [] // kept empty here; the existing PATCHES list in manifest is still used by the hardener unless Safe Mode.
+  get SHELL(){ return SHELL_MODULES.slice(); },
+  get SERVICES(){ return SERVICE_MODULES.slice(); },
+  get FEATURES(){ return getFeatureModules(); },
+  PATCHES: []
 };
 
-// Contracts: log-only assertions; never throw.
+const probes = {
+  renderAll: () => {
+    try {
+      return typeof window.renderAll === 'function';
+    } catch {
+      return false;
+    }
+  },
+  rootElement: () => {
+    try {
+      return !!document.querySelector('#app, main, body');
+    } catch {
+      return false;
+    }
+  },
+  toastAndConfirm: () => {
+    try {
+      return !!(window.Toast?.show) && !!(window.Confirm?.show);
+    } catch {
+      return false;
+    }
+  },
+  selectionService: () => {
+    try {
+      return !!(window.Selection || window.SelectionService);
+    } catch {
+      return false;
+    }
+  },
+  notificationsPanel: () => {
+    try {
+      return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel');
+    } catch {
+      return false;
+    }
+  },
+  contactsMerge: () => {
+    try {
+      return (
+        typeof window.mergeContactsWithIds === 'function' ||
+        !!(window.CRM?.modules?.contactsMerge)
+      );
+    } catch {
+      return false;
+    }
+  },
+  contactsMergeOrchestrator: () => {
+    try {
+      return !!(window.CRM?.health?.contactsMergeOrchestrator);
+    } catch {
+      return false;
+    }
+  },
+  partnersMergeOrchestrator: () => {
+    try {
+      return !!(window.CRM?.health?.partnersMergeOrchestrator);
+    } catch {
+      return false;
+    }
+  },
+  dashboardRegistered: () => {
+    try {
+      return !!window.CRM?.dashboard;
+    } catch {
+      return false;
+    }
+  },
+  contactsMergeHealthy: () => {
+    try {
+      return !!window.CRM?.health?.contactsMerge;
+    } catch {
+      return false;
+    }
+  }
+};
+
+export const HARD_PREREQS = {
+  'renderAll function': probes.renderAll,
+  'root element exists': probes.rootElement
+};
+
+export const SOFT_PREREQS = {
+  'selection service live': probes.selectionService,
+  'notifications panel usable': probes.notificationsPanel,
+  'Toast + Confirm available': probes.toastAndConfirm
+};
+
 export const CONTRACTS = {
   SHELL: {
-    'renderAll function': () => {
-      try {
-        return typeof window.renderAll === 'function';
-      } catch {
-        return false;
-      }
-    },
-    'root element exists': () => {
-      try {
-        return !!document.querySelector('#app, main, body');
-      } catch {
-        return false;
-      }
-    },
-    'Toast + Confirm available (best effort)': () => {
-      try {
-        return (!!(window.Toast?.show) && !!(window.Confirm?.show)) || true;
-      } catch {
-        return true;
-      }
-    },
-    'Selection service present (best effort)': () => {
-      try {
-        return !!(window.Selection || window.SelectionService) || true;
-      } catch {
-        return true;
-      }
-    }
+    'renderAll function': probes.renderAll,
+    'root element exists': probes.rootElement,
+    'Toast + Confirm available (best effort)': probes.toastAndConfirm,
+    'Selection service present (best effort)': probes.selectionService
   },
   SERVICES: {
-    'contacts_merge available': () => {
-      try {
-        return (
-          typeof window.mergeContactsWithIds === 'function' ||
-          !!(window.CRM?.modules?.contactsMerge)
-        );
-      } catch {
-        return false;
-      }
-    },
-    'contactsMergeOrch healthy (best effort)': () => {
-      try {
-        return !!(window.CRM?.health?.contactsMergeOrchestrator);
-      } catch {
-        return false;
-      }
-    },
-    'partnersMergeOrch healthy (best effort)': () => {
-      try {
-        return !!(window.CRM?.health?.partnersMergeOrchestrator);
-      } catch {
-        return false;
-      }
-    }
+    'contacts_merge available': probes.contactsMerge,
+    'contactsMergeOrch healthy (best effort)': probes.contactsMergeOrchestrator,
+    'partnersMergeOrch healthy (best effort)': probes.partnersMergeOrchestrator
   },
   FEATURES: {
-    'dashboard registered (best effort)': () => {
-      try {
-        return !!(window.CRM?.dashboard) || true;
-      } catch {
-        return true;
-      }
-    },
-    'selection service live': () => {
-      try {
-        return !!(window.Selection || window.SelectionService);
-      } catch {
-        return false;
-      }
-    },
-    'notifications panel usable': () => {
-      try {
-        return !!document.querySelector('[data-ui="notifications-panel"], #notifications-panel');
-      } catch {
-        return false;
-      }
-    },
-    // Health probes for migrated modules — never fail hard; just inform
-    'contactsMerge healthy (best effort)': () => {
-      try {
-        return !!(window.CRM?.health?.contactsMerge) || true;
-      } catch {
-        return true;
-      }
-    }
+    'dashboard registered (best effort)': probes.dashboardRegistered,
+    'selection service live': probes.selectionService,
+    'notifications panel usable': probes.notificationsPanel,
+    'contactsMerge healthy (best effort)': probes.contactsMergeHealthy
   }
 };
 
