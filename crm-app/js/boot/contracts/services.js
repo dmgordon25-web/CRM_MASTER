@@ -1,3 +1,5 @@
+import { safe, capability, once } from './probe_utils.js';
+
 export const HARD_PREREQS = {
   'app root present': () => {
     try {
@@ -15,31 +17,22 @@ const POSITIVE_TOKENS = new Set([
 ]);
 
 let servicesReadyFlagged = false;
-let coldStartNoticeLogged = false;
-let coldStartClearedLogged = false;
 let readyEventsHooked = false;
 const registryWatchVisited = new WeakSet();
+
+const logColdStartNotice = once('services:registry:warming', 'info');
+const SERVICES_WARMING_MESSAGE = '[BOOT] services registry warming up (expected during cold start)';
 
 const READY_EVENT_NAMES = ['crm:services-ready', 'crm:servicesRegistry:ready', 'services:ready'];
 const observedRegistries = new WeakSet();
 
 function markServicesReady() {
   servicesReadyFlagged = true;
-  if (coldStartNoticeLogged && !coldStartClearedLogged) {
-    coldStartClearedLogged = true;
-    try {
-      console.info('[BOOT] services registry ready (cold start complete)');
-    } catch (_) {}
-  }
   return true;
 }
 
 function logServicesWarming() {
-  if (coldStartNoticeLogged) return;
-  coldStartNoticeLogged = true;
-  try {
-    console.info('[BOOT] services registry warming up (expected during cold start)');
-  } catch (_) {}
+  logColdStartNotice(SERVICES_WARMING_MESSAGE);
 }
 
 function queueRegistryWatch(candidate) {
@@ -354,39 +347,41 @@ function servicesRegistryReady(){
   return servicesReadyFlagged;
 }
 
+const servicesRegistryProbe = safe(() => {
+  const ready = servicesRegistryReady();
+  if (!ready) {
+    logServicesWarming();
+  }
+  return ready;
+});
+
+const navPresentProbe = safe(() => {
+  if (typeof document === 'undefined' || !document) return false;
+  if (typeof document.querySelector !== 'function') return false;
+  return !!document.querySelector('[data-ui="nav"], #main-nav [data-nav], [data-nav]');
+});
+
+const hasNotificationsRoute = capability('CRM.routes.notifications');
+const hasNotificationsActivate = capability('CRM.ctx.activateRoute');
+const hasNotificationsOpen = capability('CRM.ctx.openNotifications');
+const hasRenderNotifications = capability('renderNotifications');
+
+const notificationsPanelProbe = safe(() => {
+  const notifier = window.Notifier;
+  const hasNotifierApi = !!(notifier
+    && typeof notifier.onChanged === 'function'
+    && typeof notifier.list === 'function');
+  if (!hasNotifierApi) return false;
+  const hasRouteHook = hasNotificationsRoute()
+    || hasNotificationsActivate()
+    || hasNotificationsOpen();
+  return hasRenderNotifications() || hasRouteHook;
+});
+
 export const SOFT_PREREQS = {
-  'services registry ready': () => {
-    try {
-      const ready = servicesRegistryReady();
-      if (!ready) logServicesWarming();
-      return ready;
-    } catch {
-      logServicesWarming();
-      return false;
-    }
-  },
-  'nav present': () => {
-    try {
-      return !!document.querySelector('[data-ui="nav"], #main-nav [data-nav], [data-nav]');
-    } catch {
-      return false;
-    }
-  },
-  'notifications panel usable': () => {
-    try {
-      const notifier = window.Notifier;
-      const hasNotifierApi = !!(notifier
-        && typeof notifier.onChanged === 'function'
-        && typeof notifier.list === 'function');
-      const hasRenderer = typeof window.renderNotifications === 'function';
-      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
-        || typeof window.CRM?.ctx?.activateRoute === 'function'
-        || typeof window.CRM?.ctx?.openNotifications === 'function';
-      return !!((hasRenderer || hasRouteHook) && hasNotifierApi);
-    } catch {
-      return false;
-    }
-  },
+  'services registry ready': servicesRegistryProbe,
+  'nav present': navPresentProbe,
+  'notifications panel usable': notificationsPanelProbe,
 };
 
 function whenServicesReady() {
