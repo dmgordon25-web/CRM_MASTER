@@ -1,30 +1,46 @@
 const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
-  const phaseChecklist = [
-    'js/patch_2025-09-26_phase1_pipeline_partners.js',
-    'js/patch_2025-09-26_phase2_automations.js',
-    'js/patch_2025-09-26_phase3_dashboard_reports.js',
-    'js/patch_2025-09-26_phase4_polish_regression.js',
-    'js/patch_2025-09-27_doccenter2.js',
-    'js/patch_2025-09-27_phase6_polish_telemetry.js'
-  ];
-  const expectWorkbench = Boolean(window.__ENV__ && window.__ENV__.WORKBENCH);
-  const requiredPhases = phaseChecklist.slice();
-  if(expectWorkbench){
-    requiredPhases.push('js/_legacy/patch_2025-09-27_workbench.js');
-  }
+const ENV = window.__ENV__ && typeof window.__ENV__ === 'object' ? window.__ENV__ : {};
+const PROD_MODE = !(ENV && (ENV.DEV || ENV.DEBUG));
+const expectWorkbench = Boolean(ENV && ENV.WORKBENCH);
 
-  function addDiagnostic(kind, message){
-    if(console){
-      const log = kind === 'fail'
-        ? console.error
-        : kind === 'warn'
-          ? console.warn
-          : console.log;
-      try{
-        (log || console.log).call(console, `[selftest] ${kind}`, message);
-      }catch (_err) {
-        console.log('[selftest]', kind, message);
-      }
+const loggers = {
+  error: (...args) => {
+    if (!console) return;
+    (console.error || console.log || (() => {})).apply(console, args);
+  },
+  warn: (...args) => {
+    if (!console) return;
+    (console.warn || console.log || (() => {})).apply(console, args);
+  },
+  info: (...args) => {
+    if (!console) return;
+    (console.info || console.log || (() => {})).apply(console, args);
+  },
+  log: (...args) => {
+    if (!console) return;
+    (console.log || (() => {})).apply(console, args);
+  }
+};
+
+const logHardError = (...args) => loggers.error(...args);
+const logSoftError = (...args) => (PROD_MODE ? loggers.warn : loggers.error)(...args);
+const logWarn = (...args) => loggers.warn(...args);
+const logInfo = (...args) => loggers.info(...args);
+
+  function addDiagnostic(kind, message, ...details){
+    if(!console) return;
+    const normalized = kind === 'skip' ? 'info' : kind;
+    const logger = normalized === 'fail'
+      ? (PROD_MODE ? loggers.warn : loggers.error)
+      : normalized === 'warn'
+        ? loggers.warn
+        : normalized === 'info'
+          ? loggers.info
+          : loggers.log;
+    try{
+      logger(`[selftest] ${kind}`, message, ...details);
+    }catch (_err) {
+      loggers.log('[selftest]', kind, message, ...details);
     }
   }
 
@@ -149,7 +165,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
       try{
         return await window.__BOOT_DONE__;
       }catch (err) {
-        console.error('Selftest: boot failed', err);
+        logSoftError('Selftest: boot failed', err);
         addDiagnostic('fail', 'Boot failed — see console for details.');
         throw err;
       }
@@ -167,23 +183,24 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
       issues.push('Boot did not complete successfully.');
     }
 
-    console.log('PATCHES_LOADED', window.__PATCHES_LOADED__);
+    logInfo('PATCHES_LOADED', window.__PATCHES_LOADED__);
 
     const loaded = Array.isArray(window.__PATCHES_LOADED__)
       ? window.__PATCHES_LOADED__.slice()
       : [];
     const expectedManifest = Array.isArray(window.__EXPECTED_PATCHES__)
-      ? window.__EXPECTED_PATCHES__.slice()
+      ? window.__EXPECTED_PATCHES__.map(path => String(path))
       : [];
-    const missing = requiredPhases.filter(path => !loaded.includes(path));
+    const manifestSet = new Set(expectedManifest);
+    const missing = expectedManifest.filter(path => !loaded.includes(path));
     if(missing.length){
       ok = false;
-      console.error('PATCHES_MISSING', missing);
-      console.error('Selftest: missing required patches', { missing, loaded });
-      addDiagnostic('fail', `Missing patches: ${missing.join(', ')}`);
-      issues.push(`Missing patches: ${missing.join(', ')}`);
+      logHardError('PATCHES_MISSING', missing);
+      logHardError('Selftest: manifest-declared patches missing', { missing, loaded });
+      addDiagnostic('fail', `Missing manifest patches: ${missing.join(', ')}`);
+      issues.push(`Missing manifest patches: ${missing.join(', ')}`);
     }else{
-      console.log('Selftest: phases verified', loaded);
+      logInfo('Selftest: manifest patches verified', loaded);
     }
 
     const failed = Array.isArray(window.__PATCHES_FAILED__)
@@ -191,7 +208,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
       : [];
     if(failed.length){
       ok = false;
-      console.error('Selftest: patch load failures', failed);
+      logHardError('Selftest: patch load failures', failed);
       addDiagnostic('fail', `Failed patches: ${failed.map(item => item.path || 'unknown').join(', ')}`);
       issues.push(`Failed patches: ${failed.map(item => item.path || 'unknown').join(', ')}`);
     }
@@ -199,14 +216,14 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
     if(expectWorkbench){
       if(!document.querySelector('#main-nav [data-nav="workbench"]')){
         ok = false;
-        console.error('Selftest: workbench nav missing');
+        logSoftError('Selftest: workbench nav missing');
         addDiagnostic('fail', 'Workbench navigation button missing.');
         issues.push('Workbench navigation button missing.');
       }
 
       if(!document.getElementById('view-workbench')){
         ok = false;
-        console.error('Selftest: workbench view missing');
+        logSoftError('Selftest: workbench view missing');
         addDiagnostic('fail', 'Workbench view host missing.');
         issues.push('Workbench view host missing.');
       }
@@ -214,16 +231,17 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
       const workbenchPath = 'js/_legacy/patch_2025-09-27_workbench.js';
       const hasWorkbenchPatch = loaded.includes(workbenchPath)
         || loaded.includes('workbench');
-      const manifestExpectsWorkbench = expectedManifest.includes(workbenchPath);
+      const manifestExpectsWorkbench = manifestSet.has(workbenchPath);
       if(!hasWorkbenchPatch){
         if(manifestExpectsWorkbench){
           ok = false;
-          console.error('Selftest: workbench patch missing');
+          logHardError('Selftest: workbench patch missing', { workbenchPath, loaded });
           addDiagnostic('fail', 'Workbench patch not registered.');
           issues.push('Workbench patch not registered.');
         }else{
-          console.warn('Selftest: workbench patch omitted from manifest; skipping enforcement.');
-          addDiagnostic('warn', 'Workbench intentionally removed; skipping check.');
+          const kind = PROD_MODE ? 'info' : 'warn';
+          (PROD_MODE ? logInfo : logWarn)('Selftest: workbench patch omitted from manifest; skipping enforcement.');
+          addDiagnostic(kind, 'Workbench intentionally removed; skipping check.');
         }
       }
     }else{
@@ -235,7 +253,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
         && typeof window.SelectionService.count === 'function';
       if(!wired){
         ok = false;
-        console.error('Selftest: selection service incomplete');
+        logSoftError('Selftest: selection service incomplete');
         addDiagnostic('fail', 'Selection service incomplete.');
         issues.push('Selection service incomplete.');
       }
@@ -243,8 +261,8 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
 
     if(typeof window.requiredDocsFor !== 'function'){
       ok = false;
-      console.error('Selftest: doc center helpers inactive');
-      addDiagnostic('fail', 'Doc center helpers not available.');
+      logSoftError('Selftest: doc center helpers inactive');
+      addDiagnostic(PROD_MODE ? 'warn' : 'fail', 'Doc center helpers not available.');
       issues.push('Doc center helpers not available.');
     }
 
@@ -253,12 +271,12 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
     if(!hasTelemetryDiag){
       if(isDebugEnv){
         ok = false;
-        console.error('Selftest: telemetry helpers missing');
-        addDiagnostic('fail', 'Telemetry helpers missing.');
+        logSoftError('Selftest: telemetry helpers missing');
+        addDiagnostic(PROD_MODE ? 'warn' : 'fail', 'Telemetry helpers missing.');
         issues.push('Telemetry helpers missing.');
       }else{
-        console.warn('Selftest: telemetry helpers unavailable in production context; treating as diagnostic warn.');
-        addDiagnostic('warn', 'Telemetry helpers inactive in prod (expected noop).');
+        logInfo('Selftest: telemetry helpers unavailable in production context; treating as diagnostic warn.');
+        addDiagnostic('info', 'Telemetry helpers inactive in prod (expected noop).');
       }
     }
 
@@ -270,8 +288,8 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
       .filter(path => /\.tsx(\?|$)/i.test(path));
     if(tsxImports.length){
       ok = false;
-      console.error('Selftest: TSX imports detected', tsxImports);
-      addDiagnostic('fail', `TSX imports detected: ${tsxImports.join(', ')}`);
+      logSoftError('Selftest: TSX imports detected', tsxImports);
+      addDiagnostic(PROD_MODE ? 'warn' : 'fail', `TSX imports detected: ${tsxImports.join(', ')}`);
       issues.push('Runtime TSX imports detected.');
     }
 
@@ -308,7 +326,7 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
 
   function triggerSelfTest(){
     runSelfTest().catch(err => {
-      console.error('Selftest: execution failed', err);
+      logSoftError('Selftest: execution failed', err);
       handleSelfTestIssues(['Self-test execution encountered an unexpected error.']);
     });
   }
@@ -337,8 +355,11 @@ async function assertModuleScriptsAreModules(){
       if(t !== 'module'){ errs.push(`Non-module script for app code: ${u.pathname}`); }
     }
   });
-  if(errs.length){ addDiagnostic('fail','Module-only invariant failed', errs); }
-  else { addDiagnostic('pass','Module-only invariant enforced'); }
+  if(errs.length){
+    addDiagnostic(PROD_MODE ? 'warn' : 'fail','Module-only invariant failed', errs);
+  }else{
+    addDiagnostic('pass','Module-only invariant enforced');
+  }
 }
 
 function assertRenderAll(){

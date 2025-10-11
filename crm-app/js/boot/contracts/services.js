@@ -8,11 +8,71 @@ export const HARD_PREREQS = {
   },
 };
 
+function servicesRegistryReady(){
+  try {
+    const global = window;
+    const crm = global.CRM || {};
+    const registry = global.SERVICES
+      || crm.services
+      || crm.ctx?.services;
+
+    const readyFlag = (value) => {
+      if (value === true) return true;
+      if (typeof value === 'string') {
+        const normalized = value.toLowerCase();
+        return normalized === 'ready' || normalized === 'ok' || normalized === 'complete';
+      }
+      return false;
+    };
+
+    if (registry) {
+      if (readyFlag(registry.ready)) return true;
+      if (readyFlag(registry.status)) return true;
+      if (readyFlag(registry.state)) return true;
+      if (readyFlag(registry.readyState)) return true;
+      if (typeof registry.isReady === 'function') {
+        try {
+          if (registry.isReady() === true) return true;
+        } catch (_) {}
+      }
+    }
+
+    if (readyFlag(global.__SERVICES_READY__)) return true;
+    if (readyFlag(global.SERVICES_READY)) return true;
+    if (readyFlag(crm.servicesReady)) return true;
+    if (crm.servicesReady && typeof crm.servicesReady === 'object') {
+      if (readyFlag(crm.servicesReady.ready)) return true;
+      if (readyFlag(crm.servicesReady.status)) return true;
+      if (readyFlag(crm.servicesReady.state)) return true;
+    }
+    if (typeof crm.servicesReady === 'function') {
+      try {
+        if (crm.servicesReady() === true) return true;
+      } catch (_) {}
+    }
+
+    const health = crm.health || {};
+    if (readyFlag(health.servicesRegistry)) return true;
+    if (readyFlag(health.servicesRegistryReady)) return true;
+    if (readyFlag(health.services)) return true;
+    if (readyFlag(health.servicesReady)) return true;
+    const registryHealth = health.servicesRegistry;
+    if (registryHealth && typeof registryHealth === 'object') {
+      if (readyFlag(registryHealth.ready)) return true;
+      if (readyFlag(registryHealth.status)) return true;
+      if (readyFlag(registryHealth.state)) return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export const SOFT_PREREQS = {
   'services registry ready': () => {
     try {
-      const registry = window.SERVICES || window.CRM?.services;
-      return !!(registry && registry.ready === true);
+      return servicesRegistryReady();
     } catch {
       return false;
     }
@@ -26,9 +86,15 @@ export const SOFT_PREREQS = {
   },
   'notifications panel usable': () => {
     try {
-      const bell = document.getElementById('notif-bell') || document.querySelector('[data-ui="notifications-button"]');
-      const panel = document.querySelector('#notif-panel, [data-ui="notifications-panel"], [data-role="notifications-panel"]');
-      return !!(bell && panel);
+      const notifier = window.Notifier;
+      const hasNotifierApi = !!(notifier
+        && typeof notifier.onChanged === 'function'
+        && typeof notifier.list === 'function');
+      const hasRenderer = typeof window.renderNotifications === 'function';
+      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
+        || typeof window.CRM?.ctx?.activateRoute === 'function'
+        || typeof window.CRM?.ctx?.openNotifications === 'function';
+      return !!((hasRenderer || hasRouteHook) && hasNotifierApi);
     } catch {
       return false;
     }
@@ -39,8 +105,7 @@ function whenServicesReady() {
   return new Promise((resolve) => {
     const ok = () => {
       try {
-        const registry = window.SERVICES || window.CRM?.services;
-        return !!(registry && registry.ready === true);
+        return servicesRegistryReady();
       } catch {
         return false;
       }
