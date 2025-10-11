@@ -84,6 +84,13 @@ async function main() {
       }
     });
 
+    page.on('pageerror', (err) => {
+      const detail = (err && typeof err === 'object' && (err.stack || err.message))
+        ? (err.stack || err.message)
+        : String(err);
+      consoleErrors.push(`PageError: ${detail}`);
+    });
+
     page.setDefaultTimeout(60000);
 
     await page.evaluateOnNewDocument(() => {
