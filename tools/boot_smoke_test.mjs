@@ -125,6 +125,64 @@ async function main() {
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors);
 
+    const toastErrorCount = consoleErrors.length;
+    const toastStatus = await page.evaluate(() => {
+      const result = { toast: true, confirm: true };
+      const toast = typeof window.Toast?.show === 'function'
+        ? window.Toast.show.bind(window.Toast)
+        : (typeof window.toast === 'function' ? window.toast : null);
+      if (toast) {
+        try {
+          const outcome = toast('Boot smoke test toast');
+          if (outcome && typeof outcome.then === 'function') {
+            outcome.catch(() => {});
+          }
+        } catch (_) {
+          result.toast = false;
+        }
+      }
+      const confirm = typeof window.Confirm?.show === 'function'
+        ? window.Confirm.show.bind(window.Confirm)
+        : (typeof window.confirmAction === 'function'
+          ? window.confirmAction
+          : (typeof window.showConfirm === 'function' ? window.showConfirm : null));
+      if (confirm) {
+        try {
+          const outcome = confirm('Boot smoke test confirm');
+          if (outcome && typeof outcome.then === 'function') {
+            outcome.catch(() => {});
+          }
+        } catch (_) {
+          result.confirm = false;
+        }
+      }
+      return result;
+    });
+    if (!toastStatus.toast || !toastStatus.confirm) {
+      throw new Error('Toast/Confirm API check failed');
+    }
+    await ensureNoConsoleErrors(consoleErrors);
+    if (consoleErrors.length !== toastErrorCount) {
+      throw new Error('Console error emitted during Toast/Confirm API check');
+    }
+
+    const notificationsCapability = await page.evaluate(() => {
+      const notifier = window.Notifier;
+      if (!notifier || typeof notifier.onChanged !== 'function' || typeof notifier.list !== 'function') {
+        return false;
+      }
+      const hasRenderer = typeof window.renderNotifications === 'function';
+      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
+        || typeof window.CRM?.ctx?.activateRoute === 'function'
+        || typeof window.CRM?.ctx?.openNotifications === 'function';
+      return hasRenderer || hasRouteHook;
+    });
+    if (!notificationsCapability) {
+      throw new Error('Notifications capability missing');
+    }
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
     const uiRendered = await page.evaluate(() => {
       const txt = document.body.textContent || '';
       return /Dashboard|Pipeline|Partners/i.test(txt);

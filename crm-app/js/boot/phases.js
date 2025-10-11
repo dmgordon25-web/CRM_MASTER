@@ -1,4 +1,5 @@
 /* crm-app/js/boot/phases.js */
+import { safe, capability } from './contracts/probe_utils.js';
 function isSafeMode(){
   try {
     const url = new URL(window.location.href);
@@ -73,93 +74,72 @@ export const PHASES = {
   PATCHES: []
 };
 
-const probes = {
-  renderAll: () => {
-    try {
-      return typeof window.renderAll === 'function';
-    } catch {
-      return false;
-    }
-  },
-  rootElement: () => {
-    try {
-      return !!document.querySelector('#app, main, body');
-    } catch {
-      return false;
-    }
-  },
-  toastAndConfirm: () => {
-    try {
-      const hasToast = typeof window.toast === 'function'
-        || typeof window.Toast?.show === 'function';
-      const hasConfirm = typeof window.confirmAction === 'function'
-        || typeof window.showConfirm === 'function'
-        || typeof window.Confirm?.show === 'function';
-      return !!(hasToast && hasConfirm);
-    } catch {
-      return false;
-    }
-  },
-  selectionService: () => {
-    try {
-      return !!(window.Selection || window.SelectionService);
-    } catch {
-      return false;
-    }
-  },
-  notificationsPanel: () => {
-    try {
-      const notifier = window.Notifier;
-      const hasNotifierApi = !!(notifier
-        && typeof notifier.onChanged === 'function'
-        && typeof notifier.list === 'function');
-      const hasRenderer = typeof window.renderNotifications === 'function';
-      const hasRouteHook = typeof window.CRM?.routes?.notifications === 'function'
-        || typeof window.CRM?.ctx?.activateRoute === 'function'
-        || typeof window.CRM?.ctx?.openNotifications === 'function';
-      return !!((hasRenderer || hasRouteHook) && hasNotifierApi);
-    } catch {
-      return false;
-    }
-  },
-  contactsMerge: () => {
-    try {
-      return (
-        typeof window.mergeContactsWithIds === 'function' ||
-        !!(window.CRM?.modules?.contactsMerge)
-      );
-    } catch {
-      return false;
-    }
-  },
-  contactsMergeOrchestrator: () => {
-    try {
-      return !!(window.CRM?.health?.contactsMergeOrchestrator);
-    } catch {
-      return false;
-    }
-  },
-  partnersMergeOrchestrator: () => {
-    try {
-      return !!(window.CRM?.health?.partnersMergeOrchestrator);
-    } catch {
-      return false;
-    }
-  },
-  dashboardRegistered: () => {
-    try {
-      return !!window.CRM?.dashboard;
-    } catch {
-      return false;
-    }
-  },
-  contactsMergeHealthy: () => {
-    try {
-      return !!window.CRM?.health?.contactsMerge;
-    } catch {
-      return false;
-    }
+const toastCandidates = [capability('Toast.show'), capability('toast')];
+const confirmCandidates = [capability('Confirm.show'), capability('confirmAction'), capability('showConfirm')];
+const notifierExists = capability('Notifier');
+const notificationsRouteCapability = capability('CRM.routes.notifications');
+const notificationsActivateCapability = capability('CRM.ctx.activateRoute');
+const notificationsOpenCapability = capability('CRM.ctx.openNotifications');
+const renderNotificationsCapability = capability('renderNotifications');
+const selectionServiceCapability = capability('SelectionService');
+const mergeContactsCapability = capability('CRM.modules.contactsMerge');
+const mergeContactsFnCapability = capability('mergeContactsWithIds');
+const contactsMergeHealthCapability = capability('CRM.health.contactsMerge');
+const contactsMergeOrchCapability = capability('CRM.health.contactsMergeOrchestrator');
+const partnersMergeOrchCapability = capability('CRM.health.partnersMergeOrchestrator');
+const dashboardCapability = capability('CRM.dashboard');
+
+const renderAllProbe = safe(() => typeof window.renderAll === 'function');
+const rootElementProbe = safe(() => {
+  if (typeof document === 'undefined' || !document) return false;
+  if (typeof document.querySelector !== 'function') return false;
+  return !!document.querySelector('#app, main, body');
+});
+const toastAndConfirmProbe = safe(() => {
+  const hasToastCandidate = toastCandidates.some((probe) => probe());
+  const hasConfirmCandidate = confirmCandidates.some((probe) => probe());
+  if (!hasToastCandidate || !hasConfirmCandidate) return false;
+  const toastFn = typeof window.Toast?.show === 'function' ? window.Toast.show : window.toast;
+  const confirmFn = typeof window.Confirm?.show === 'function'
+    ? window.Confirm.show
+    : (typeof window.confirmAction === 'function'
+      ? window.confirmAction
+      : window.showConfirm);
+  return typeof toastFn === 'function' && typeof confirmFn === 'function';
+});
+const selectionServiceProbe = safe(() => {
+  if (selectionServiceCapability()) return true;
+  const service = window.SelectionService;
+  if (service && (typeof service.getIds === 'function' || typeof service.count === 'function')) {
+    return true;
   }
+  return !!window.Selection;
+});
+const notificationsPanelProbe = safe(() => {
+  if (!notifierExists()) return false;
+  const notifier = window.Notifier;
+  const hasNotifierApi = notifier
+    && typeof notifier.onChanged === 'function'
+    && typeof notifier.list === 'function';
+  if (!hasNotifierApi) return false;
+  const hasRouteHook = notificationsRouteCapability()
+    || notificationsActivateCapability()
+    || notificationsOpenCapability();
+  return renderNotificationsCapability() || hasRouteHook;
+});
+const contactsMergeProbe = safe(() => mergeContactsFnCapability() || mergeContactsCapability());
+
+const probes = {
+  renderAll: renderAllProbe,
+  rootElement: rootElementProbe,
+  toastAndConfirm: toastAndConfirmProbe,
+  selectionService: selectionServiceProbe,
+  notificationsPanel: notificationsPanelProbe,
+  contactsMerge: contactsMergeProbe,
+  contactsMergeOrchestrator: contactsMergeOrchCapability,
+  partnersMergeOrchestrator: partnersMergeOrchCapability,
+  dashboardRegistered: dashboardCapability,
+  contactsMergeHealthy: contactsMergeHealthCapability
 };
 
 export const HARD_PREREQS = {

@@ -263,10 +263,15 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
     }
 
     if(typeof window.requiredDocsFor !== 'function'){
-      ok = false;
-      logSoftError('Selftest: doc center helpers inactive');
-      addDiagnostic(PROD_MODE ? 'warn' : 'fail', 'Doc center helpers not available.');
-      issues.push('Doc center helpers not available.');
+      if(PROD_MODE){
+        logInfo('Selftest: doc center helpers inactive (expected noop).');
+        addDiagnostic('info', 'Doc center helpers not active in prod (expected noop).');
+      }else{
+        ok = false;
+        logSoftError('Selftest: doc center helpers inactive');
+        addDiagnostic('fail', 'Doc center helpers not available.');
+        issues.push('Doc center helpers not available.');
+      }
     }
 
     const hasTelemetryDiag = window.DIAG && typeof window.DIAG.getStoreSizes === 'function';
