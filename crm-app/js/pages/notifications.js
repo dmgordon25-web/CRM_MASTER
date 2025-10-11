@@ -1,5 +1,24 @@
 import { listNotifications, clearNotifications, removeNotification, onNotificationsChanged } from '/js/notifications/notifier.js';
 
+function onNodeRemoved(node, callback) {
+  if (!node || typeof callback !== 'function' || typeof MutationObserver !== 'function') {
+    return () => {};
+  }
+  let done = false;
+  const observer = new MutationObserver(() => {
+    if (done || node.isConnected) return;
+    done = true;
+    observer.disconnect();
+    try { callback(); } catch (_) {}
+  });
+  observer.observe(node.ownerDocument?.body || document.body, { childList: true, subtree: true });
+  return () => {
+    if (done) return;
+    done = true;
+    observer.disconnect();
+  };
+}
+
 function fmt(ts){
   if (!ts && ts !== 0) return '';
   try {
@@ -159,7 +178,7 @@ export function renderNotifications(root){
   };
 
   root.__notifCleanup = cleanup;
-  section.addEventListener('DOMNodeRemovedFromDocument', cleanup, { once: true });
+  onNodeRemoved(section, cleanup);
 
   apply();
 }

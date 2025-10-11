@@ -1,6 +1,25 @@
 import { Templates } from '../email/templates_store.js';
 import { compile, sampleData } from '../email/merge_vars.js';
 
+function onNodeRemoved(node, callback) {
+  if (!node || typeof callback !== 'function' || typeof MutationObserver !== 'function') {
+    return () => {};
+  }
+  let done = false;
+  const observer = new MutationObserver(() => {
+    if (done || node.isConnected) return;
+    done = true;
+    observer.disconnect();
+    try { callback(); } catch (_) {}
+  });
+  observer.observe(node.ownerDocument?.body || document.body, { childList: true, subtree: true });
+  return () => {
+    if (done) return;
+    done = true;
+    observer.disconnect();
+  };
+}
+
 function createTextarea() {
   const textarea = document.createElement('textarea');
   textarea.style.width = '100%';
@@ -215,7 +234,7 @@ export function renderEmailTemplates(root) {
 
   paintEditor(null);
 
-  root.addEventListener('DOMNodeRemovedFromDocument', () => unsubscribe(), { once: true });
+  onNodeRemoved(root, () => unsubscribe());
 }
 
 export function initEmailTemplates() {
