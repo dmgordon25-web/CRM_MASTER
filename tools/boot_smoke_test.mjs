@@ -326,6 +326,72 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
+    const selectionPrep = await page.evaluate(() => {
+      const table = document.querySelector('#tbl-pipeline tbody');
+      if (!table) return { ok: false, reason: 'no-table' };
+      const row = table.querySelector('tr');
+      if (!row) return { ok: false, reason: 'no-row' };
+      const checkbox = row.querySelector('input[type="checkbox"][data-role="select"]');
+      if (!checkbox) return { ok: false, reason: 'no-checkbox' };
+      if (!checkbox.checked) {
+        checkbox.click();
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const count = typeof window.SelectionService?.count === 'function'
+        ? window.SelectionService.count()
+        : null;
+      return { ok: true, count };
+    });
+    if (!selectionPrep.ok) {
+      throw new Error(`select-failed:${selectionPrep.reason}`);
+    }
+    if (selectionPrep.count !== null && selectionPrep.count < 1) {
+      throw new Error('selection-count-zero');
+    }
+
+    await page.waitForFunction(() => {
+      const bar = document.getElementById('actionbar');
+      return !!(bar && bar.classList.contains('has-selection'));
+    }, { timeout: 5000 });
+
+    const ACTION_BTN_SELECTORS = [
+      '[data-ui="action-bar"] [data-action="tag"]',
+      '[data-ui="action-bar"] [data-action="noop"]',
+      '[data-ui="action-bar"] [data-action]'
+    ];
+    let clickedSelector = null;
+    for (const sel of ACTION_BTN_SELECTORS) {
+      const el = await page.$(sel);
+      if (el) {
+        clickedSelector = sel;
+        await el.click();
+        break;
+      }
+    }
+    console.log('smoke:action-selector', clickedSelector || 'none');
+    if (!clickedSelector) {
+      throw new Error('action-btn-missing');
+    }
+
+    const sawToast = await page.evaluate(async () => {
+      const hasDomToast = () => !!(document.querySelector('[data-ui="toast"], .toast-message'));
+      if (hasDomToast()) return true;
+      return await new Promise((resolve) => {
+        let done = false;
+        const finish = (v) => { if (!done) { done = true; resolve(v); } };
+        const onEvt = (e) => finish(!!(e && e.detail && e.detail.msg));
+        window.addEventListener('ui:toast', onEvt, { once: true });
+        const iv = setInterval(() => {
+          if (typeof window.__LAST_TOAST__ === 'string' && window.__LAST_TOAST__.length) {
+            clearInterval(iv);
+            finish(true);
+          }
+        }, 50);
+        setTimeout(() => { clearInterval(iv); finish(false); }, 1500);
+      });
+    });
+    if (!sawToast) throw new Error('no-toast');
+
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
     if (!perfPing) {
       throw new Error('Perf overlay ping missing');

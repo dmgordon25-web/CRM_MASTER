@@ -489,6 +489,18 @@ function runPatch(){
     let selectionLockWait = false;
     const pendingActions = new Map();
     const actionState = { busy:false, current:null };
+    let __ab_toast_lock = false;
+    const showToast = (m) =>
+      (window.Toast && typeof window.Toast.show === 'function' && window.Toast.show(m)) ||
+      (typeof Toast !== 'undefined' && typeof Toast.show === 'function' && Toast.show(m));
+
+    async function handleActionSuccess() {
+      if (!__ab_toast_lock) {
+        __ab_toast_lock = true;
+        try { showToast('Action completed'); }
+        finally { setTimeout(() => { __ab_toast_lock = false; }, 250); }
+      }
+    }
 
     function currentView(){
       if(typeof window.__ROUTE__ === 'string' && window.__ROUTE__){
@@ -945,6 +957,17 @@ function runPatch(){
       setActionbarBusy(false, action);
       actionState.current = null;
       logAction({ action, selected: snapshot && Array.isArray(snapshot.ids) ? snapshot.ids : [], result: status });
+      if (typeof window !== 'undefined') {
+        const expected = window.__ACTION_BAR_LAST_DATA_ACTION__;
+        if (expected) {
+          if (expected === action && status === 'ok') {
+            try { handleActionSuccess(); } catch (_) {}
+          }
+          if (expected === action || status !== 'pending') {
+            window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+          }
+        }
+      }
       return result;
     }
 
@@ -1159,6 +1182,9 @@ function runPatch(){
         : { ids: typeof SelectionService.getIds === 'function' ? SelectionService.getIds() : [], type: SelectionService.type };
       if(!snapshot || !Array.isArray(snapshot.ids) || !snapshot.ids.length){
         toast('Select records first');
+        if (typeof window !== 'undefined' && window.__ACTION_BAR_LAST_DATA_ACTION__ === act) {
+          window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+        }
         return;
       }
       setActionbarBusy(true, act);
