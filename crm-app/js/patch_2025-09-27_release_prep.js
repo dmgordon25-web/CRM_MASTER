@@ -479,7 +479,7 @@ function runPatch(){
 
     async function checkCalendarIcs(ctx){
       await ctx.ensureQaContacts();
-      const btn = document.getElementById('cal-export-ics');
+      const btn = document.querySelector('[data-ui="calendar-export-ics"]');
       if(!btn) throw new Error('Calendar export control missing');
       const downloads = await captureDownload(()=> btn.click(), blob => blob && String(blob.type).includes('text/calendar'));
       const text = downloads && downloads[0] && downloads[0].text ? downloads[0].text : '';

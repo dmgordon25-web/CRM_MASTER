@@ -305,6 +305,32 @@ async function main() {
       await navigateTab(page, slug, consoleErrors, networkErrors);
     }
 
+    await navigateTab(page, 'calendar', consoleErrors, networkErrors);
+    const icsButtons = await page.$$('[data-ui="calendar-export-ics"]');
+    if (icsButtons.length !== 1) throw new Error('calendar-ics-multiple');
+    const icsBaselineErrors = consoleErrors.length;
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-ui="calendar-export-ics"]');
+      if (!btn || !btn.isConnected) throw new Error('calendar-ics-missing');
+      btn.click();
+    });
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    if (consoleErrors.length !== icsBaselineErrors) {
+      throw new Error('calendar-ics-console');
+    }
+    const csvButtonExists = await page.$('[data-ui="calendar-export-csv"]');
+    if (csvButtonExists) {
+      const csvBaselineErrors = consoleErrors.length;
+      await page.evaluate(() => {
+        const btn = document.querySelector('[data-ui="calendar-export-csv"]');
+        if (btn && btn.isConnected) btn.click();
+      });
+      await ensureNoConsoleErrors(consoleErrors, networkErrors);
+      if (consoleErrors.length !== csvBaselineErrors) {
+        throw new Error('calendar-csv-console');
+      }
+    }
+
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 

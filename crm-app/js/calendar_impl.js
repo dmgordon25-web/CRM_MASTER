@@ -199,6 +199,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         title: title || (EVENT_META_MAP.get(type)?.label || ''),
         subtitle: subtitle || '',
         loanKey: loanMeta.key,
+        loanLabel: loanMeta.label,
         hasLoan,
         status: status || '',
         source: source // { entity:'contacts'|'tasks'|'deals', id:'...', field:'...' }
@@ -588,6 +589,58 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
 
     root.appendChild(grid);
     legend(events);
+
+    const snapshot = events.map((ev, index) => {
+      const date = new Date(ev.date.getTime());
+      date.setHours(0, 0, 0, 0);
+      const source = ev.source ? {
+        entity: ev.source.entity || '',
+        id: ev.source.id || '',
+        field: ev.source.field || ''
+      } : null;
+      const uidParts = [ev.type || 'event', String(date.getTime())];
+      if (source && source.entity && source.id) {
+        uidParts.push(source.entity, source.id);
+      } else {
+        uidParts.push(String(index));
+      }
+      return {
+        uid: uidParts.join(':'),
+        type: ev.type,
+        title: ev.title,
+        subtitle: ev.subtitle,
+        status: ev.status || '',
+        hasLoan: !!ev.hasLoan,
+        loanKey: ev.loanKey || '',
+        loanLabel: ev.loanLabel || '',
+        date,
+        source
+      };
+    });
+    const rangeStart = start ? new Date(start.getTime()) : null;
+    const rangeEnd = end ? new Date(end.getTime()) : null;
+    const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
+    calendarApi.visibleEvents = function(){
+      return snapshot.map(ev => ({
+        uid: ev.uid,
+        type: ev.type,
+        title: ev.title,
+        subtitle: ev.subtitle,
+        status: ev.status,
+        hasLoan: ev.hasLoan,
+        loanKey: ev.loanKey,
+        loanLabel: ev.loanLabel,
+        date: new Date(ev.date.getTime()),
+        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null
+      }));
+    };
+    calendarApi.currentRange = {
+      view,
+      anchor: new Date(anchor.getTime()),
+      start: rangeStart,
+      end: rangeEnd
+    };
+
     });
   }
 
