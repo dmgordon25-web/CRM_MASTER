@@ -4,6 +4,25 @@ export function wireQuickAddUnified() {
   if (window.__WIRED_QUICK_ADD_UNIFIED__) return;
   window.__WIRED_QUICK_ADD_UNIFIED__ = true;
 
+  function showToast(kind, message) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text) return;
+    const toast = window.Toast;
+    const legacy = window.toast;
+    if (toast && typeof toast[kind] === 'function') {
+      try { toast[kind](text); return; }
+      catch (_) {}
+    }
+    if (toast && typeof toast.show === 'function') {
+      try { toast.show(text); return; }
+      catch (_) {}
+    }
+    if (typeof legacy === 'function') {
+      try { legacy(text); }
+      catch (_) {}
+    }
+  }
+
   function html() {
     return `
 <div class="qa-overlay" role="dialog" aria-modal="true" style="position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center;">
@@ -92,11 +111,14 @@ export function wireQuickAddUnified() {
         stage: "Long Shot",
         status: "Active",
       };
+      let saved = false;
       try {
         if (window.Contacts?.createQuick) {
           await window.Contacts.createQuick(rec);
+          saved = true;
         } else if (typeof window.dbPut === "function") {
           await window.dbPut("contacts", rec);
+          saved = true;
         } else {
           console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec);
         }
@@ -104,6 +126,9 @@ export function wireQuickAddUnified() {
         console.error("[quickAdd] contact save failed", err);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
+        if (saved) {
+          showToast("success", "Contact created");
+        }
         close();
       }
     });
@@ -119,11 +144,14 @@ export function wireQuickAddUnified() {
         createdAt: Date.now(),
         tier: "Unassigned",
       };
+      let saved = false;
       try {
         if (window.Partners?.createQuick) {
           await window.Partners.createQuick(rec);
+          saved = true;
         } else if (typeof window.dbPut === "function") {
           await window.dbPut("partners", rec);
+          saved = true;
         } else {
           console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec);
         }
@@ -131,6 +159,9 @@ export function wireQuickAddUnified() {
         console.error("[quickAdd] partner save failed", err);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
+        if (saved) {
+          showToast("success", "Partner created");
+        }
         close();
       }
     });
