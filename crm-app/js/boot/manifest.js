@@ -66,6 +66,7 @@ export const PATCHES = [
   './filters.js',
   './state/selectionStore.js',
   './state/actionBarGuards.js',
+  './services/selection_adapter.js',
   './ui/notifications_panel.js',
   './ui/action_bar.js',
   './ui/debug_overlay.js',

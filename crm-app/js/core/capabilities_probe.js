@@ -6,9 +6,10 @@
       confirm: safeFn(window?.Confirm?.show) || safeFn(globalThis?.Confirm?.show),
       renderAll: safeFn(window?.renderAll) || safeFn(globalThis?.renderAll),
       selection: (function(){
-        const s = (window?.Selection || window?.selection || {});
+        const g = globalThis;
+        const cand = g.Selection || g.selection || (g.CRM && g.CRM.services && g.CRM.services.selection);
         const api = ['select','deselect','toggle','clear','count'];
-        return api.every(k => typeof s[k] === 'function');
+        return !!cand && api.every(k => typeof cand[k] === 'function');
       })(),
       notifications: (function(){
         const n = (window?.Notifications || window?.notifications || {});
