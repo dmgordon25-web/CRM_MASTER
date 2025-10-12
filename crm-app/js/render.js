@@ -7,6 +7,7 @@ import {
   stageKeyFromLabel,
   stageLabelFromKey,
 } from './pipeline/stages.js';
+import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
 
 (function(){
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
@@ -85,6 +86,18 @@ import {
   };
   const $ = (sel, root=document) => root.querySelector(sel);
   const $all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  function stageInfo(value){
+    const raw = value == null ? '' : String(value);
+    const normalizedKey = raw.toLowerCase();
+    const mappedLabel = stageLabels[normalizedKey] || raw.trim();
+    const canonicalKey = canonicalStage(raw) || canonicalStage(mappedLabel);
+    const chipHtml = renderStageChip(raw) || renderStageChip(mappedLabel);
+    const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || mappedLabel) : mappedLabel;
+    const label = canonicalLabel || mappedLabel || 'Stage';
+    const html = chipHtml || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${safe(label)}</span>`;
+    return { html, canonicalKey, normalizedKey, label };
+  }
 
   window.__OLD_KANBAN_OFF__ = true;
 
@@ -1087,7 +1100,9 @@ import {
     const tbPipe = $('#tbl-pipeline tbody'); if(tbPipe){
       tbPipe.innerHTML = pipe.map(c => {
         const nameAttr = attr(fullName(c).toLowerCase());
-        const stageAttr = attr(String(c.stage||'').toLowerCase());
+        const stageMeta = stageInfo(c.stage);
+        const stageAttr = attr(stageMeta.normalizedKey);
+        const stageCanonicalAttr = stageMeta.canonicalKey ? ` data-stage-canonical="${attr(stageMeta.canonicalKey)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
         const amountVal = Number(c.loanAmount||0) || 0;
@@ -1103,17 +1118,19 @@ import {
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
+        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
-        <td>${safe(c.stage||'')}</td><td>${safe(loanLabel||'')}</td>
+        <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
       }).join('');
     }
     const tbClients = $('#tbl-clients tbody'); if(tbClients){
       tbClients.innerHTML = clientsTbl.map(c => {
         const nameAttr = attr(fullName(c).toLowerCase());
-        const stageAttr = attr(String(c.stage||'').toLowerCase());
+        const stageMeta = stageInfo(c.stage);
+        const stageAttr = attr(stageMeta.normalizedKey);
+        const stageCanonicalAttr = stageMeta.canonicalKey ? ` data-stage-canonical="${attr(stageMeta.canonicalKey)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
         const amountVal = Number(c.loanAmount||0) || 0;
@@ -1130,10 +1147,10 @@ import {
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
+        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
-        <td>${safe(c.stage||'')}</td><td>${safe(loanLabel||'')}</td>
+        <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
       }).join('');
     }
