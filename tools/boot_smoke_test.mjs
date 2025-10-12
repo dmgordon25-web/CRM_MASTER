@@ -8,6 +8,27 @@ import { runContractLint } from './contract_lint.mjs';
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
+async function clickNth(page, selector, n = 0) {
+  const ok = await page.evaluate((sel, idx) => {
+    const nodes = Array.from(document.querySelectorAll(sel)).filter(el => el && el.isConnected);
+    const el = nodes[idx];
+    if (!el) return false;
+    el.click();
+    return true;
+  }, selector, n);
+  return ok;
+}
+
+async function waitSelCount(page, expected, timeout = 1500) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const c = await page.evaluate(() => (window.__SEL_COUNT__|0));
+    if (c >= expected) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+}
+
 function waitForHealth(timeoutMs = 30000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -89,7 +110,7 @@ async function main() {
     await waitForHealth();
 
     const networkErrors = [];
-    const IGNORE_404 = [/favicon\.ico$/i, /\.map$/i];
+    const IGNORE_404 = [/favicon\.ico$/i, /\.map$/i, /\/__log$/i];
 
     browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
@@ -326,45 +347,49 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
-    const selectionPrep = await page.evaluate(() => {
+    const selectionEnv = await page.evaluate(() => {
       const table = document.querySelector('#tbl-pipeline tbody');
       if (!table) return { ok: false, reason: 'no-table' };
-      const row = table.querySelector('tr');
-      if (!row) return { ok: false, reason: 'no-row' };
-      const checkbox = row.querySelector('input[type="checkbox"][data-role="select"]');
-      if (!checkbox) return { ok: false, reason: 'no-checkbox' };
-      if (!checkbox.checked) {
-        checkbox.click();
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      const checks = Array.from(table.querySelectorAll('[data-ui="row-check"]'));
+      if (checks.length < 2) return { ok: false, reason: 'insufficient-checks', total: checks.length };
       const count = typeof window.SelectionService?.count === 'function'
         ? window.SelectionService.count()
         : null;
-      return { ok: true, count };
+      return { ok: true, count, checks: checks.length };
     });
-    if (!selectionPrep.ok) {
-      throw new Error(`select-failed:${selectionPrep.reason}`);
+    if (!selectionEnv.ok) {
+      throw new Error(`select-failed:${selectionEnv.reason}`);
     }
-    if (selectionPrep.count !== null && selectionPrep.count < 1) {
-      throw new Error('selection-count-zero');
-    }
+    await page.evaluate(() => {
+      const next = typeof window.SelectionService?.count === 'function'
+        ? window.SelectionService.count()
+        : 0;
+      window.__SEL_COUNT__ = next | 0;
+    });
+    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 0)) throw new Error('sel-click-0');
+    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
+    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 1)) throw new Error('sel-click-1');
+    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
 
-    await page.waitForFunction(() => {
-      const bar = document.getElementById('actionbar');
-      return !!(bar && bar.classList.contains('has-selection'));
-    }, { timeout: 5000 });
+    await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 
     const ACTION_BTN_SELECTORS = [
       '[data-ui="action-bar"] [data-action="tag"]',
       '[data-ui="action-bar"] [data-action="noop"]',
-      '[data-ui="action-bar"] [data-action]'
+      '[data-ui="action-bar"] [data-action]:not([data-action="merge"])',
+      '[data-ui="action-bar"] [data-act="bulkLog"]',
+      '[data-ui="action-bar"] [data-act="clear"]'
     ];
     let clickedSelector = null;
     for (const sel of ACTION_BTN_SELECTORS) {
-      const el = await page.$(sel);
-      if (el) {
+      const didClick = await page.evaluate((selector) => {
+        const el = document.querySelector(selector);
+        if (!el || !el.isConnected) return false;
+        el.click();
+        return true;
+      }, sel);
+      if (didClick) {
         clickedSelector = sel;
-        await el.click();
         break;
       }
     }
@@ -391,6 +416,79 @@ async function main() {
       });
     });
     if (!sawToast) throw new Error('no-toast');
+
+    await navigateTab(page, 'partners', consoleErrors, networkErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    await assertSplashHidden(page);
+
+    await page.evaluate(() => { window.__ROUTE__ = 'partners'; });
+
+    const partnerChecks = await page.evaluate(() => {
+      const table = document.querySelector('#tbl-partners tbody');
+      if (!table) return 0;
+      return Array.from(table.querySelectorAll('[data-ui="row-check"]')).length;
+    });
+    if (partnerChecks < 2) {
+      throw new Error('partners-checks-insufficient');
+    }
+
+    const partnerSelectionOrder = await page.evaluate(() => {
+      const nodes = Array.from(document.querySelectorAll('#tbl-partners [data-ui="row-check"]'));
+      return nodes.map((node, index) => {
+        const id = (node.getAttribute('data-partner-id') || node.getAttribute('data-id') || '').toLowerCase();
+        return { index, id };
+      }).filter(meta => meta.id && !/none/.test(meta.id)).map(meta => meta.index);
+    });
+    if (!Array.isArray(partnerSelectionOrder) || partnerSelectionOrder.length < 2) {
+      throw new Error('partners-valid-insufficient');
+    }
+
+    await page.evaluate(() => {
+      if (typeof window.Selection?.clear === 'function') {
+        window.Selection.clear('smoke-pre-merge');
+      }
+      const next = typeof window.SelectionService?.count === 'function'
+        ? window.SelectionService.count()
+        : 0;
+      window.__SEL_COUNT__ = next | 0;
+    });
+    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[0])) throw new Error('sel-click-0');
+    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
+    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[1])) throw new Error('sel-click-1');
+    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+
+    await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
+
+    const abVisible = await page.$('[data-ui="action-bar"][data-visible="1"]');
+    if (!abVisible) throw new Error('action-bar-not-visible');
+
+    await page.waitForFunction(() => {
+      const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+      if (!btn || !btn.isConnected) return false;
+      const attr = btn.getAttribute('data-disabled');
+      const isDisabledAttr = attr === '1' || attr === 'true';
+      return !isDisabledAttr && btn.disabled !== true;
+    }, { timeout: 5000 });
+
+    const didClickMerge = await page.evaluate(() => {
+      const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+      if (!btn || !btn.isConnected) return false;
+      if (btn.getAttribute('data-disabled') === '1' || btn.getAttribute('data-disabled') === 'true') return false;
+      if (btn.disabled === true) return false;
+      btn.click();
+      return true;
+    });
+    if (!didClickMerge) throw new Error('merge-disabled');
+
+    await page.waitForSelector('[data-ui="merge-modal"]', { timeout: 5000 });
+
+    const didConfirm = await page.evaluate(() => {
+      const c = document.querySelector('[data-ui="merge-confirm"]');
+      if (!c || !c.isConnected) return false;
+      c.click();
+      return true;
+    });
+    if (!didConfirm) throw new Error('merge-confirm-missing');
 
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
     if (!perfPing) {

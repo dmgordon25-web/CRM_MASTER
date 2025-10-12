@@ -594,7 +594,7 @@ import {
       const phoneKey = attr(String(phone||'').toLowerCase());
       const tierKey = attr(String(tier||'').toLowerCase());
       return `<tr data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
-        <td><input data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
         <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-partner-id="${pid}">${safe(name)}</a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
     }).join('');
@@ -1104,7 +1104,7 @@ import {
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
-        <td><input data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${safe(c.stage||'')}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
@@ -1131,7 +1131,7 @@ import {
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
-        <td><input data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${safe(c.stage||'')}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
@@ -1157,7 +1157,7 @@ import {
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}">
-        <td><input data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${safe(loanLabel||'')}</td><td>${amountVal ? money(amountVal) : '—'}</td>
         <td>${safe(c.referredBy||'')}</td><td>${safe(c.lastContact||'')}</td></tr>`;

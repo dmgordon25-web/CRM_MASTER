@@ -500,6 +500,7 @@ function runPatch(){
       if(svc.count() === 0){
         bar.style.display = 'none';
         bar.classList.remove('has-selection');
+        bar.setAttribute('data-visible', '0');
         bar.removeAttribute('data-selection-type');
       }
     }

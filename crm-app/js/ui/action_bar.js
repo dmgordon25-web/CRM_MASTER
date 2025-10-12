@@ -8,9 +8,16 @@ function markActionbarHost() {
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
+  if (!bar.hasAttribute('data-visible')) {
+    bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
+  }
   const clearBtn = bar.querySelector('[data-act="clear"]');
   if (clearBtn && !clearBtn.hasAttribute('data-action')) {
     clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
+  }
+  const mergeBtn = bar.querySelector('[data-act="merge"]');
+  if (mergeBtn && !mergeBtn.hasAttribute('data-action')) {
+    mergeBtn.setAttribute('data-action', 'merge');
   }
   return bar;
 }

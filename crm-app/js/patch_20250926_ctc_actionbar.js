@@ -300,7 +300,7 @@ function runPatch(){
         table.getAttribute('data-entity'),
         table.getAttribute('data-type'),
         table.getAttribute('aria-label'),
-        table.dataset ? (table.dataset.scope || table.dataset.type) : null
+        table.dataset ? (table.dataset.scope || table.dataset.type || table.dataset.selectionScope || table.dataset.selectionType) : null
       ].filter(Boolean).join(' ').toLowerCase();
       if(hints.includes('partner')) return 'partners';
       return 'contacts';
@@ -742,6 +742,7 @@ function runPatch(){
       if(!count){
         bar.style.display = 'none';
         bar.classList.remove('has-selection');
+        bar.setAttribute('data-visible', '0');
         bar.removeAttribute('data-selection-type');
         if(countEl) countEl.textContent = 'No records selected';
         if(breakdownEl) breakdownEl.textContent = 'Select rows to unlock pipeline actions.';
@@ -755,6 +756,7 @@ function runPatch(){
       }
       bar.style.display = '';
       bar.classList.add('has-selection');
+      bar.setAttribute('data-visible', '1');
       bar.setAttribute('data-selection-type', SelectionService.type);
       if(countEl) countEl.textContent = count === 1 ? '1 Selected' : `${count} Selected`;
       updatePrimaryButtons();
