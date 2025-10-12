@@ -192,6 +192,23 @@ async function main() {
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
+    const caps = await page.evaluate(() => globalThis.__CAPS__ || {});
+    const requiredCaps = ['toast','confirm','renderAll','selection'];
+    for (const k of requiredCaps) {
+      if (!caps[k]) {
+        throw new Error('caps-missing-' + k);
+      }
+    }
+
+    await navigateTab(page, 'partners', consoleErrors, networkErrors);
+    const capsAfterRoute = await page.evaluate(() => globalThis.__CAPS__ || {});
+    for (const k of requiredCaps) {
+      if (!capsAfterRoute[k]) {
+        throw new Error('caps-missing-after-' + k);
+      }
+    }
+    await navigateTab(page, 'dashboard', consoleErrors, networkErrors);
+
     const toastBaselineErrors = consoleErrors.length;
     const toastStatus = await page.evaluate(async () => {
       const toast = typeof window.Toast?.show === 'function'

@@ -105,6 +105,7 @@ export const PATCHES = [
   './ui/quick_add_unified.js',
   './ui/strings.js',
   './util/strings.js',
+  './core/capabilities_probe.js',
   './ux/svg_sanitizer.js'
 ];
 
