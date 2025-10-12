@@ -28,6 +28,26 @@ async function waitSelCount(page, expected, timeout = 1500) {
   }
   return false;
 }
+async function waitCapsSelection(page, timeout = 2500) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const ready = await page.evaluate(() => {
+      const caps = window.__CAPS__;
+      if (!caps || typeof caps !== 'object') return false;
+      const sel = caps.selection;
+      if (!sel || typeof sel !== 'object') return false;
+      if (sel.ok === false) return false;
+      if (sel.ok === true) return true;
+      if (Array.isArray(sel.all)) return true;
+      if (typeof sel.count === 'number') return true;
+      return false;
+    });
+    if (ready) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+}
+
 
 function waitForHealth(timeoutMs = 30000) {
   const start = Date.now();
@@ -407,6 +427,10 @@ async function main() {
     }
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
+
+    if (!await waitCapsSelection(page)) {
+      throw new Error('caps-selection-timeout');
+    }
 
     const selectionEnv = await page.evaluate(() => {
       const table = document.querySelector('#tbl-pipeline tbody');

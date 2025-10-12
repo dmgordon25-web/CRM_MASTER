@@ -105,7 +105,10 @@ export const PATCHES = [
   './ui/quick_add_unified.js',
   './ui/strings.js',
   './util/strings.js',
-  './ux/svg_sanitizer.js'
+  './ux/svg_sanitizer.js',
+  './services/selection_adapter.js',
+  './services/selection_fallback.js',
+  './core/capabilities_probe.js'
 ];
 
 export const REQUIRED = new Set([
