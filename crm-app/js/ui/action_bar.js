@@ -67,40 +67,39 @@ function injectActionBarStyle(){
       #actionbar .btn.active{ outline:2px solid rgba(255,255,255,.35); transform:translateY(-1px); }
       #actionbar .actionbar-fab{ position:relative; display:flex; align-items:center; justify-content:center; }
       #global-new{
-        width:52px; height:52px; border-radius:999px; border:none;
-        background:#2563eb; color:#f8fafc; cursor:pointer;
+        min-width:56px; min-height:56px; border-radius:999px; border:none;
+        background:var(--primary); color:var(--primary-text); cursor:pointer;
         display:flex; align-items:center; justify-content:center;
-        font-size:28px; font-weight:600; line-height:1; padding:0;
-        box-shadow:0 14px 34px rgba(37,99,235,0.35);
-        transition:transform 120ms ease, box-shadow 160ms ease, background 160ms ease;
+        font-size:30px; font-weight:600; line-height:1; padding:0;
+        box-shadow:0 12px 32px rgba(10,102,194,0.3);
       }
       #global-new:hover,#global-new:focus-visible{
-        background:#1d4ed8;
-        box-shadow:0 18px 36px rgba(29,78,216,0.45);
+        background:var(--primary);
         outline:none;
       }
       #global-new:active{
-        transform:translateY(1px) scale(0.98);
+        transform:none;
       }
       #global-new[aria-expanded="true"]{
-        background:#1d4ed8;
+        background:var(--primary);
       }
       #global-new-menu{
-        position:absolute; bottom:60px; right:0;
+        position:fixed; left:50%; transform:translateX(-50%);
+        bottom:calc(var(--fab-safe-bottom, 24px) + 72px);
         display:flex; flex-direction:column; gap:8px;
         background:rgba(15,23,42,0.96); padding:12px;
-        border-radius:12px; min-width:180px;
+        border-radius:12px; min-width:200px;
         box-shadow:0 18px 40px rgba(15,23,42,0.35);
+        z-index:10000;
       }
       #global-new-menu[hidden]{ display:none; }
       #global-new-menu button{
         border:none; border-radius:8px; padding:10px 12px;
-        background:rgba(248,250,252,0.05); color:#f8fafc;
+        background:rgba(248,250,252,0.08); color:#f8fafc;
         font-size:14px; text-align:left; cursor:pointer;
-        transition:background 140ms ease;
       }
       #global-new-menu button:hover,#global-new-menu button:focus-visible{
-        background:rgba(248,250,252,0.14);
+        background:rgba(248,250,252,0.16);
         outline:none;
       }
     `;
@@ -159,6 +158,18 @@ function ensureFabElements() {
     wrap.appendChild(fab);
   } else if (!wrap.contains(fab)) {
     wrap.appendChild(fab);
+  }
+
+  if (fab) {
+    if (!fab.classList.contains('fab')) {
+      fab.classList.add('fab');
+    }
+    if (fab.getAttribute('aria-label') !== 'New') {
+      fab.setAttribute('aria-label', 'New');
+    }
+    if (fab.getAttribute('data-qa') !== 'fab') {
+      fab.setAttribute('data-qa', 'fab');
+    }
   }
 
   let menu = document.getElementById(FAB_MENU_ID);
