@@ -1,4 +1,5 @@
 import { createFormFooter } from './ui/form_footer.js';
+import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -197,6 +198,9 @@ import { createFormFooter } from './ui/form_footer.js';
     }).join('');
     const body = dlg.querySelector('#contact-modal-body');
     const stageLabel = findLabel(STAGES, c.stage) || 'Application';
+    const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
+    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(stageLabel)}</span>`;
+    const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
     const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
     const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const loanMetric = Number(c.loanAmount||0)>0 ? fmtCurrency.format(Number(c.loanAmount||0)) : 'TBD';
@@ -210,7 +214,7 @@ import { createFormFooter } from './ui/form_footer.js';
         <aside class="modal-summary">
           <div class="summary-name">${escape((c.first||'') + (c.last?' '+c.last:'')) || 'New Contact'}</div>
           <div class="summary-meta">
-            <span class="stage-pill" data-stage="${escape(c.stage||'application')}">${escape(stageLabel)}</span>
+            <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
             <span class="status-pill" data-status="${escape(c.status||'inprogress')}">${escape(statusLabel)}</span>
           </div>
           <div class="summary-metrics">
@@ -423,7 +427,7 @@ import { createFormFooter } from './ui/form_footer.js';
       const touchEl = $('#c-summary-touch',body);
       const summaryName = body.querySelector('.summary-name');
       const summaryNote = $('#c-summary-note',body);
-      const stageEl = body.querySelector('.stage-pill');
+      const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
       const statusEl = body.querySelector('.status-pill');
       const stageVal = $('#c-stage',body)?.value || 'application';
       const statusVal = $('#c-status',body)?.value || 'inprogress';
@@ -434,7 +438,15 @@ import { createFormFooter } from './ui/form_footer.js';
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
       if(summaryName){ summaryName.textContent = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact'; }
-      if(stageEl){ stageEl.dataset.stage = stageVal; stageEl.textContent = findLabel(STAGES, stageVal) || 'Application'; }
+      if(stageWrap){
+        const canonicalKey = canonicalStage(stageVal) || canonicalStage(findLabel(STAGES, stageVal));
+        if(canonicalKey){ stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
+        stageWrap.dataset.stage = stageVal;
+        const label = findLabel(STAGES, stageVal) || stageVal || 'Application';
+        const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || label) : label;
+        const chip = renderStageChip(stageVal) || renderStageChip(label) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(canonicalLabel || label)}</span>`;
+        stageWrap.innerHTML = chip;
+      }
       if(statusEl){ statusEl.dataset.status = statusVal; statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress'; }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }

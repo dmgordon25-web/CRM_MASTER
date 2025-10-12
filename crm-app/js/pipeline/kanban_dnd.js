@@ -1,4 +1,5 @@
 import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from './stages.js';
+import { renderStageChip, canonicalStage } from './constants.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
 
@@ -88,6 +89,61 @@ PIPELINE_STAGES.forEach((label) => {
   KEY_TO_LABEL.set(label.toLowerCase(), label);
 });
 
+function escapeHtml(value){
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function stageLabelFor(value){
+  const direct = normStage(value);
+  if (direct) return direct;
+  if (!value) return '';
+  const key = stageKeyFromLabel(value);
+  if (key && KEY_TO_LABEL.has(key)) return KEY_TO_LABEL.get(key);
+  return String(value).trim();
+}
+
+function ensureStageChip(card){
+  if(!(card instanceof Element)) return;
+  const stageValue = card.dataset?.stage || card.getAttribute('data-stage') || card.dataset?.stageLabel || card.getAttribute('data-stage-label');
+  const chipHtml = renderStageChip(stageValue);
+  let wrapper = card.querySelector('[data-role="stage-chip-wrapper"]');
+  if(!wrapper){
+    wrapper = document.createElement('div');
+    wrapper.className = 'kanban-card-stage';
+    wrapper.setAttribute('data-role', 'stage-chip-wrapper');
+    const header = card.querySelector('.kanban-card-header');
+    if(header && header.parentNode){
+      header.parentNode.insertBefore(wrapper, header.nextSibling);
+    } else {
+      card.insertBefore(wrapper, card.firstChild || null);
+    }
+  }
+  const canonical = canonicalStage(stageValue);
+  if(canonical){
+    wrapper.dataset.stageCanonical = canonical;
+  } else {
+    delete wrapper.dataset.stageCanonical;
+  }
+  if(stageValue){
+    wrapper.dataset.stage = String(stageValue);
+  } else {
+    delete wrapper.dataset.stage;
+  }
+  if(chipHtml){
+    wrapper.innerHTML = chipHtml;
+  } else {
+    const fallbackLabel = stageLabelFor(stageValue);
+    wrapper.innerHTML = fallbackLabel
+      ? `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escapeHtml(fallbackLabel)}</span>`
+      : '';
+  }
+}
+
 function normStage(s){
   if(!s) return null;
   const raw = String(s).trim();
@@ -135,7 +191,9 @@ function cards(){
     .map(el => el.closest('[data-id]'));
   // make draggable
   list.forEach(el => { try{ el.setAttribute('draggable','true'); }catch (_) { } });
-  return list.filter(Boolean);
+  const filtered = list.filter(Boolean);
+  filtered.forEach(ensureStageChip);
+  return filtered;
 }
 
 function cardId(el){
@@ -285,6 +343,7 @@ function createBoardHandlers(root){
         }
         try { card.dataset.stage = laneKey; }
         catch (_) {}
+        ensureStageChip(card);
       } catch (_) {}
     }
   };
