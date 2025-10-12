@@ -41,14 +41,7 @@
     return parsed.toISOString();
   }
 
-  function rawVisibleEvents(){
-    const api = ensureCalendarApi();
-    if(typeof api.visibleEvents === 'function'){
-      try{
-        const events = api.visibleEvents();
-        if(Array.isArray(events)) return events;
-      }catch (_err) {}
-    }
+  function scrapeVisibleEvents(){
     const scope = document.getElementById('view-calendar') || document.querySelector('[data-view="calendar"]');
     if(!scope) return [];
     const nodes = Array.from(scope.querySelectorAll('[data-event]'));
@@ -61,6 +54,17 @@
       end: node.getAttribute('data-end') || node.dataset.end || '',
       allDay: node.getAttribute('data-all-day') === 'true' || node.dataset.allDay === 'true'
     }));
+  }
+
+  function rawVisibleEvents(){
+    const api = ensureCalendarApi();
+    if(typeof api.visibleEvents === 'function'){
+      try{
+        const events = api.visibleEvents();
+        if(Array.isArray(events)) return events;
+      }catch (_err) {}
+    }
+    return scrapeVisibleEvents();
   }
 
   function selectedIds(){
@@ -222,7 +226,7 @@
 
   const api = ensureCalendarApi();
   if(typeof api.visibleEvents !== 'function'){
-    api.visibleEvents = () => eventsForExport().map(normalizeEventRecord);
+    api.visibleEvents = () => scrapeVisibleEvents().map(normalizeEventRecord);
   }
 
   const exportsApi = window.CalendarExports = window.CalendarExports || {};
