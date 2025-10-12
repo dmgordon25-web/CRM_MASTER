@@ -103,6 +103,7 @@ export const PATCHES = [
   './ui/form_footer.js',
   './ui/merge_modal.js',
   './ui/quick_add_unified.js',
+  './ui/settings_form.js',
   './ui/strings.js',
   './util/strings.js',
   './ux/svg_sanitizer.js',
