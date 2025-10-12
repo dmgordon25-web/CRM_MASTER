@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
-import { openMergeModal } from "/js/ui/merge_modal.js";
-import { mergeContacts, pickWinnerContact } from "/js/merge/merge_core.js";
+import { openMergeModal } from './ui/merge_modal.js';
+import { mergeContacts, pickWinnerContact } from './merge/merge_core.js';
 
 // === Phase 1.6 Migration: contacts_merge_orchestrator ===
 let __wired = false;

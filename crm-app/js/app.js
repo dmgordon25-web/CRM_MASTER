@@ -3,9 +3,11 @@
   const NONE_PARTNER_ID = window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
   if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
+  const fromHere = (p) => new URL(p, import.meta.url).href;
+
   const isDebug = window.__ENV__ && window.__ENV__.DEBUG === true;
   if(window.__ENV__?.DEBUG === true){
-    import('/js/ui/debug_overlay.js')
+    import(fromHere('./ui/debug_overlay.js'))
       .then((mod) => {
         try{
           if(mod && typeof mod.initDebugOverlay === 'function') mod.initDebugOverlay();
@@ -20,7 +22,7 @@
     function maybeLoad(){
       const hasBoard = document.querySelector('[data-kanban], #kanban, .kanban-board');
       if (!hasBoard) return;
-      import('/js/pipeline/kanban_dnd.js').catch(()=>{});
+      import(fromHere('./pipeline/kanban_dnd.js')).catch(()=>{});
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', maybeLoad, { once:true });
@@ -38,7 +40,7 @@
     function maybe(){
       const host = document.querySelector('[data-dashboard-widgets], #dashboard-widgets, .dashboard-widgets, #kpi-tiles, [data-kpis]');
       if (!host) return;
-      import('/js/dashboard/widgets_dnd.js').catch(()=>{});
+      import(fromHere('./dashboard/widgets_dnd.js')).catch(()=>{});
     }
 
     if (document.readyState === 'loading') {
@@ -56,12 +58,12 @@
     if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
 
     // Lazy-load service at boot (non-blocking)
-    try { import('/js/notifications/notifier.js'); } catch (_) { }
+    try { import(fromHere('./notifications/notifier.js')); } catch (_) { }
 
     // Simple router to notifications page
     async function goNotifications(evt){
       evt && evt.preventDefault && evt.preventDefault();
-      const mod = await import('/js/pages/notifications.js');
+      const mod = await import(fromHere('./pages/notifications.js'));
       try { activate('notifications'); }
       catch (_) {
         const view = document.getElementById('view-notifications');
@@ -83,7 +85,7 @@
     if (typeof location !== 'undefined' && location.hash === '#notifications') goNotifications();
 
     // Badge: attach to a likely nav control labeled "Notifications" if no explicit data-nav exists
-    import('/js/notifications/notifier.js').catch(()=>{});
+    import(fromHere('./notifications/notifier.js')).catch(()=>{});
   })();
 
   const automationScheduler = typeof queueMicrotask === 'function'
@@ -95,7 +97,7 @@
     const run = () => {
       let loader;
       try {
-        loader = import('/js/pages/email_templates.js');
+        loader = import(fromHere('./pages/email_templates.js'));
       } catch (err) {
         console.warn('automation module skipped', err?.message || err);
         finish();
@@ -294,7 +296,7 @@
     function maybe(){
       // Load enhancer when the Doc Center surface is present or navigated to
       const has = document.querySelector('[data-doc-center], #doc-center, #settings-docs, .doc-center, [data-panel="doc-center"]');
-      if (has) import('/js/doc/doc_center_enhancer.js').catch(()=>{});
+      if (has) import(fromHere('./doc/doc_center_enhancer.js')).catch(()=>{});
     }
 
     // Delegate nav clicks (no HTML edits)
@@ -859,8 +861,8 @@
       activate('workbench');
       try{
         const [mod, selftest] = await Promise.all([
-          import('/js/pages/workbench.js'),
-          import('/js/selftest.js').catch(() => ({}))
+          import(fromHere('./pages/workbench.js')),
+          import(fromHere('./selftest.js')).catch(() => ({}))
         ]);
         const renderFn = mod.initWorkbench || mod.renderWorkbench || (()=>{});
         const options = {};
@@ -1487,7 +1489,7 @@
 
 // Load SVG sanitizer (no-op if already loaded)
 try{
-  import('/js/ux/svg_sanitizer.js').catch(() => {});
+  import(fromHere('./ux/svg_sanitizer.js')).catch(() => {});
 }catch (_) { }
 
 // Inject a tiny data-URL favicon to stop 404 noise without touching HTML

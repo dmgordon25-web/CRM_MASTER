@@ -1,6 +1,8 @@
 
 import { STR, text } from './ui/strings.js';
 
+const fromHere = (p) => new URL(p, import.meta.url).href;
+
 (function(){
   if(typeof window !== 'undefined'){
     const ready = Promise.resolve();
@@ -433,7 +435,7 @@ import { STR, text } from './ui/strings.js';
       if(!source || !source.entity || !source.id || !newDate) return false;
       const scope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
       if(typeof scope.openDB !== 'function' || typeof scope.dbGet !== 'function' || typeof scope.dbPut !== 'function'){
-        await import('/js/db.js').catch(()=>null);
+        await import(fromHere('./db.js')).catch(()=>null);
       }
       const openDB = typeof scope.openDB === 'function' ? scope.openDB : null;
       const dbGet = typeof scope.dbGet === 'function' ? scope.dbGet : null;

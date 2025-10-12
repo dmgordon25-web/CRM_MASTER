@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { chooseValue } from "/js/merge/merge_core.js";
+import { chooseValue } from '../merge/merge_core.js';
 
 export function openMergeModal({ kind = "contacts", recordA, recordB, onConfirm, onCancel }) {
   // kind is informative; currently only "contacts"

@@ -1,4 +1,4 @@
-import { openContactsMergeByIds } from "/js/contacts_merge_orchestrator.js";
+import { openContactsMergeByIds } from './contacts_merge_orchestrator.js';
 
 // === Phase 1.5 Migration: contacts_merge ===
 // Make this module safe to import and initialize repeatedly.

@@ -3,6 +3,8 @@ let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
 function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
 
+const fromHere = (p) => new URL(p, import.meta.url).href;
+
 function runPatch(){
 
     const MODULE_KEY = 'patch_2025_10_02_medium_nice';
@@ -467,7 +469,7 @@ function runPatch(){
 
     function ensureMergeModule() {
       if (window.__CONTACT_MERGE_TEST__) return Promise.resolve(window.__CONTACT_MERGE_TEST__);
-      return import('/js/patch_2025-09-27_merge_ui.js')
+      return import(fromHere('./patch_2025-09-27_merge_ui.js'))
         .catch(() => null)
         .then(() => window.__CONTACT_MERGE_TEST__ || null);
     }

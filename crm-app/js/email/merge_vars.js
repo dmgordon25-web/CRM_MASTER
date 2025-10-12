@@ -1,3 +1,5 @@
+const fromHere = (p) => new URL(p, import.meta.url).href;
+
 export function dot(obj, path, fallback = '') {
   try {
     return String(
@@ -26,7 +28,7 @@ export async function sampleData() {
       ? window.Selection.current()
       : { ids: [] };
     const id = selection && selection.ids && selection.ids[0];
-    const dbModule = await import('/js/db.js').catch(() => null);
+    const dbModule = await import(fromHere('../db.js')).catch(() => null);
     if (dbModule && dbModule.openDB) {
       await dbModule.openDB();
       if (id && (dbModule.dbGetContact || dbModule.getContact)) {

@@ -1,4 +1,6 @@
-import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from '/js/pipeline/stages.js';
+import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from './stages.js';
+
+const fromHere = (p) => new URL(p, import.meta.url).href;
 
 // Normalize a kanban stage/key to a safe, comparable form.
 function normalizeKey(x) {
@@ -111,7 +113,7 @@ async function persistStage(contactId, newStage){
   const scope = (typeof window !== 'undefined' && window) ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
   let dbm = null;
   try {
-    dbm = await import('/js/db.js');
+    dbm = await import(fromHere('../db.js'));
   } catch (_err) {
     dbm = null;
   }

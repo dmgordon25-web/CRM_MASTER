@@ -1,4 +1,4 @@
-import { listNotifications, clearNotifications, removeNotification, onNotificationsChanged } from '/js/notifications/notifier.js';
+import { listNotifications, clearNotifications, removeNotification, onNotificationsChanged } from '../notifications/notifier.js';
 
 function onNodeRemoved(node, callback) {
   if (!node || typeof callback !== 'function' || typeof MutationObserver !== 'function') {

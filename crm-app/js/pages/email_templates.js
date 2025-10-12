@@ -1,6 +1,8 @@
 import { Templates } from '../email/templates_store.js';
 import { compile, sampleData } from '../email/merge_vars.js';
 
+const fromHere = (p) => new URL(p, import.meta.url).href;
+
 function onNodeRemoved(node, callback) {
   if (!node || typeof callback !== 'function' || typeof MutationObserver !== 'function') {
     return () => {};
@@ -184,7 +186,7 @@ export function renderEmailTemplates(root) {
       const record = Templates.upsert({ id, name, subject, body });
       currentId = record.id;
       try {
-        const { pushNotification } = await import('/js/notifications/notifier.js');
+        const { pushNotification } = await import(fromHere('../notifications/notifier.js'));
         if (typeof pushNotification === 'function') {
           pushNotification({ type: 'templates', title: 'Template saved' });
         }
