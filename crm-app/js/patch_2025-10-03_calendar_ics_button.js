@@ -8,28 +8,13 @@ function runPatch(){
     if (window.__WIRED_CAL_ICS__) return;
     window.__WIRED_CAL_ICS__ = true;
 
-    function run() {
-      const view = document.getElementById('view-calendar') || document.querySelector('[data-view="calendar"]');
-      if (!view) return;
-      if (view.querySelector('[data-ics-export]')) return;
+    const apply = () => {
+      if (window.CalendarExports && typeof window.CalendarExports.ensureButtons === 'function'){
+        window.CalendarExports.ensureButtons();
+      }
+    };
 
-      const button = document.createElement('button');
-      button.textContent = 'Export .ics';
-      button.setAttribute('data-ics-export', '1');
-      button.addEventListener('click', () => {
-        try {
-          if (typeof window.exportToIcalFile === 'function') {
-            window.exportToIcalFile();
-          } else if (typeof window.exportCustomEventsToIcs === 'function') {
-            window.exportCustomEventsToIcs();
-          }
-        } catch (error) {
-          console.warn(error);
-        }
-      });
-
-      (view.querySelector('header') || view).appendChild(button);
-    }
+    const run = () => { apply(); };
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', run, { once: true });
@@ -37,7 +22,8 @@ function runPatch(){
       run();
     }
 
-    window.RenderGuard?.registerHook?.(run);
+    document.addEventListener('calendar:exports:ready', apply, { once: true });
+    window.RenderGuard?.registerHook?.(apply);
 }
 
 export async function init(ctx){

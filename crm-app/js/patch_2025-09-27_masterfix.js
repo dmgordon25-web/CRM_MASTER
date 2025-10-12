@@ -499,130 +499,17 @@ function runPatch(){
       return null;
     }
 
-    function addDays(date, offset){
-      const d = new Date(date.getTime());
-      d.setDate(d.getDate() + offset);
-      return d;
-    }
-
-    function startOfWeek(date){
-      const d = new Date(date.getTime());
-      const dow = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - dow);
-      d.setHours(0,0,0,0);
-      return d;
-    }
-
-    async function gatherCalendarEvents(rangeStart, rangeEnd){
-      if(typeof openDB !== 'function' || typeof dbGetAll !== 'function') return [];
-      await openDB();
-      const [contacts, tasks, deals] = await Promise.all([
-        dbGetAll('contacts').catch(()=>[]),
-        dbGetAll('tasks').catch(()=>[]),
-        dbGetAll('deals').catch(()=>[])
-      ]);
-      const events = [];
-      const byId = new Map((contacts||[]).map(c => [String(c.id||''), c]));
-
-      function push(dateInput, summary, description){
-        const dt = toDateStrict(dateInput);
-        if(!dt) return;
-        if(dt < rangeStart || dt >= rangeEnd) return;
-        events.push({ date: dt, summary, description });
-      }
-
-      (contacts||[]).forEach(contact => {
-        if(!contact) return;
-        const nameParts = [contact.first, contact.last].filter(Boolean).join(' ') || contact.name || 'Contact';
-        if(contact.nextFollowUp){
-          push(contact.nextFollowUp, `${nameParts} — Next Touch`, contact.stage ? `Stage: ${contact.stage}` : '');
+    let calendarExportsHooked = false;
+    function ensureCalendarExports(){
+      if (calendarExportsHooked) return;
+      calendarExportsHooked = true;
+      const apply = () => {
+        if (window.CalendarExports && typeof window.CalendarExports.ensureButtons === 'function'){
+          window.CalendarExports.ensureButtons();
         }
-        if(contact.expectedClosing || contact.closingDate){
-          push(contact.expectedClosing || contact.closingDate, `${nameParts} — Closing`, contact.loanType || 'Closing');
-        }
-        if(contact.fundedDate){
-          push(contact.fundedDate, `${nameParts} — Funded`, contact.loanAmount ? `Amount: ${contact.loanAmount}` : 'Funded');
-        }
-        if(contact.birthday){
-          push(contact.birthday, `${nameParts} — Birthday`, 'Birthday');
-        }
-        if(contact.anniversary){
-          push(contact.anniversary, `${nameParts} — Anniversary`, 'Anniversary');
-        }
-      });
-
-      (tasks||[]).forEach(task => {
-        if(!task || task.done) return;
-        const contact = task.contactId ? byId.get(String(task.contactId)) : null;
-        const label = task.title || task.text || 'Task';
-        const meta = contact ? `Contact: ${contact.first||contact.last||contact.name||contact.email||contact.phone||'Contact'}` : '';
-        push(task.due || task.date, `${label}`, meta);
-      });
-
-      (deals||[]).forEach(deal => {
-        if(!deal) return;
-        const contact = deal.contactId ? byId.get(String(deal.contactId)) : null;
-        const name = contact ? ([contact.first, contact.last].filter(Boolean).join(' ') || contact.name || 'Deal') : (deal.name || 'Deal');
-        push(deal.closingDate || deal.closeDate || deal.fundedDate, `${name} — Deal`, deal.stage || 'Deal milestone');
-      });
-
-      return events.sort((a,b)=> a.date - b.date);
-    }
-
-    async function exportCalendarRange(){
-      const state = window.__CALENDAR_STATE__ || { anchor: new Date(), view: 'month' };
-      const anchor = state.anchor instanceof Date ? new Date(state.anchor.getTime()) : new Date();
-      const view = state.view === 'week' || state.view === 'day' ? state.view : 'month';
-      let start;
-      let end;
-      if(view === 'day'){
-        start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-        end = addDays(start, 1);
-      }else if(view === 'week'){
-        start = startOfWeek(anchor);
-        end = addDays(start, 7);
-      }else{
-        const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-        start = startOfWeek(first);
-        end = addDays(start, 42);
-      }
-      const events = await gatherCalendarEvents(start, end);
-      if(!events.length){
-        if(typeof window.toast === 'function') window.toast('No events in range to export.');
-        return;
-      }
-      const normalized = events.map(ev => ({
-        summary: ev.summary || 'CRM Event',
-        description: ev.description || '',
-        date: ev.date.toISOString().slice(0,10)
-      }));
-      if(typeof window.exportCustomEventsToIcs === 'function'){
-        await window.exportCustomEventsToIcs(normalized, 'calendar-range.ics');
-      }
-    }
-
-    function ensureCalendarIcsButton(){
-      const host = document.querySelector('#view-calendar .card .row');
-      if(!host) return;
-      if(document.getElementById('cal-export-ics')) return;
-      const btn = document.createElement('button');
-      btn.id = 'cal-export-ics';
-      btn.className = 'btn';
-      btn.type = 'button';
-      btn.textContent = 'Export .ics';
-      btn.addEventListener('click', evt => {
-        evt.preventDefault();
-        exportCalendarRange().catch(err => {
-          console && console.error && console.error('calendar export', err);
-          if(typeof window.toast === 'function') window.toast('Calendar export failed');
-        });
-      });
-      const csvBtn = document.getElementById('cal-export');
-      if(csvBtn && csvBtn.parentNode){
-        csvBtn.parentNode.insertBefore(btn, csvBtn.nextSibling);
-      }else{
-        host.appendChild(btn);
-      }
+      };
+      apply();
+      document.addEventListener('calendar:exports:ready', apply, { once:true });
     }
 
     // --- Automation runner ------------------------------------------------------
@@ -884,7 +771,7 @@ function runPatch(){
       wireMergeGating();
       injectTodayDensity();
       ensureLongShotsSearch();
-      ensureCalendarIcsButton();
+      ensureCalendarExports();
       revealDashboardSections();
     }
     if(document.readyState === 'loading'){
