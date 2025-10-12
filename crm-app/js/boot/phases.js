@@ -32,7 +32,6 @@ const SERVICE_MODULES = [
 ];
 
 const CORE_FEATURE_MODULES = [
-  new URL('../dashboard/index.js', import.meta.url).href,
   new URL('../pages/workbench.js', import.meta.url).href,
   new URL('../calendar_impl.js', import.meta.url).href,
   new URL('../calendar_actions.js', import.meta.url).href,

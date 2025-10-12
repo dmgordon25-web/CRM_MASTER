@@ -35,7 +35,11 @@ function startServerProc() {
   return ps;
 }
 
-async function ensureNoConsoleErrors(errors) {
+async function ensureNoConsoleErrors(errors, networkErrors = []) {
+  if (networkErrors.length) {
+    console.error('[SMOKE] 4xx/5xx network failures (first 5):', networkErrors.slice(0,5));
+    throw new Error('network-4xx');
+  }
   if (errors.length) {
     throw new Error(`Console error detected: ${errors[0]}`);
   }
@@ -54,7 +58,7 @@ async function assertSplashHidden(page) {
   }, { timeout: 60000 });
 }
 
-async function navigateTab(page, slug, errors) {
+async function navigateTab(page, slug, errors, networkErrors) {
   const before = errors.length;
   await assertSplashHidden(page);
   await page.evaluate((target) => {
@@ -67,7 +71,7 @@ async function navigateTab(page, slug, errors) {
     return !!(btn && btn.classList.contains('active'));
   }, { timeout: 30000 }, slug);
   await assertSplashHidden(page);
-  await ensureNoConsoleErrors(errors);
+  await ensureNoConsoleErrors(errors, networkErrors);
   if (errors.length !== before) {
     throw new Error(`Console error emitted while navigating to ${slug}`);
   }
@@ -84,9 +88,33 @@ async function main() {
     server = startServerProc();
     await waitForHealth();
 
+    const networkErrors = [];
+    const IGNORE_404 = [/favicon\.ico$/i, /\.map$/i];
+
     browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(60000);
+
+    page.on('requestfailed', req => {
+      try {
+        const url = req.url();
+        const method = req.method();
+        const failure = req.failure() || {};
+        const txt = String(failure.errorText || '');
+        if ((/404|ERR_FAILED/i.test(txt)) && !IGNORE_404.some(rx => rx.test(url))) {
+          networkErrors.push({ kind:'requestfailed', method, url, error: txt });
+        }
+      } catch {}
+    });
+    page.on('response', async res => {
+      try {
+        const status = res.status();
+        const url = res.url();
+        if (status >= 400 && !IGNORE_404.some(rx => rx.test(url))) {
+          networkErrors.push({ kind:'response', status, url });
+        }
+      } catch {}
+    });
 
     page.on('console', (msg) => {
       const text = msg.text();
@@ -132,11 +160,16 @@ async function main() {
 
     await page.goto(`${ORIGIN}/`, { waitUntil: 'networkidle0' });
 
+    if (networkErrors.length) {
+      console.error('[SMOKE] 4xx/5xx network failures (first 5):', networkErrors.slice(0,5));
+      throw new Error('network-4xx');
+    }
+
     await page.waitForFunction(() => window.__BOOT_DONE__?.fatal === false, { timeout: 60000 });
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
     await assertSplashHidden(page);
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
     const toastBaselineErrors = consoleErrors.length;
     const toastStatus = await page.evaluate(async () => {
@@ -203,7 +236,7 @@ async function main() {
     if (!toastStatus.confirmAvailable || !toastStatus.confirmIsPromise || toastStatus.confirmResolved !== true) {
       throw new Error('Confirm helper did not resolve as expected');
     }
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     if (consoleErrors.length !== toastBaselineErrors) {
       throw new Error('Console error emitted during Toast/Confirm API check');
     }
@@ -229,7 +262,7 @@ async function main() {
     if (!notificationsCapability.available || !notificationsCapability.cycle) {
       throw new Error('Notifications lifecycle check failed');
     }
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
     const uiRendered = await page.evaluate(() => {
@@ -248,14 +281,14 @@ async function main() {
     ];
 
     for (const [, slug] of tabs) {
-      await navigateTab(page, slug, consoleErrors);
+      await navigateTab(page, slug, consoleErrors, networkErrors);
     }
 
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
-    await navigateTab(page, 'pipeline', consoleErrors);
-    await ensureNoConsoleErrors(consoleErrors);
+    await navigateTab(page, 'pipeline', consoleErrors, networkErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
     const pipelineFilter = await page.evaluate(() => {
@@ -290,7 +323,7 @@ async function main() {
       && pipelineFilter.visibleRestored === pipelineFilter.visibleBefore)) {
       throw new Error('Pipeline filter failed to toggle visibility');
     }
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
@@ -317,7 +350,7 @@ async function main() {
         return { ok: false, error: message };
       }
     });
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
     const infoDelta = consoleInfos.length - logBaseline.info;
@@ -333,7 +366,7 @@ async function main() {
       throw new Error('/__log success produced unexpected diagnostics');
     }
 
-    await ensureNoConsoleErrors(consoleErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
     console.log('BOOT SMOKE TEST PASS');
   } finally {

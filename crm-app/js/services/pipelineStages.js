@@ -1,4 +1,4 @@
-import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel, PIPELINE_STAGE_KEYS } from '/js/pipeline/stages.js';
+import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel, PIPELINE_STAGE_KEYS } from '../pipeline/stages.js';
 
 (function(){
   if(window.__INIT_FLAGS__ && window.__INIT_FLAGS__.pipelineStages) return;

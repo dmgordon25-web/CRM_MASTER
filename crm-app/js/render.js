@@ -1202,5 +1202,5 @@ import {
   }
 })();
 
-import { wireQuickAddUnified } from '/js/ui/quick_add_unified.js';
+import { wireQuickAddUnified } from './ui/quick_add_unified.js';
 wireQuickAddUnified();

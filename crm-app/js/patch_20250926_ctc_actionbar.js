@@ -1,7 +1,7 @@
 // patch_20250926_ctc_actionbar.js — stage canonicalization + hardened action bar
 import { setDisabled } from './patch_2025-10-02_baseline_ux_cleanup.js';
-import { openContactsMergeByIds } from '/js/contacts_merge_orchestrator.js';
-import { openPartnersMergeByIds } from '/js/partners_merge_orchestrator.js';
+import { openContactsMergeByIds } from './contacts_merge_orchestrator.js';
+import { openPartnersMergeByIds } from './partners_merge_orchestrator.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }

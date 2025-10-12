@@ -1,4 +1,4 @@
-import { getNotificationsCount, onNotificationsChanged } from '/js/notifications/notifier.js';
+import { getNotificationsCount, onNotificationsChanged } from '../notifications/notifier.js';
 
 if (!window.__WIRED_NOTIF_TAB_COUNT__) {
   window.__WIRED_NOTIF_TAB_COUNT__ = true;

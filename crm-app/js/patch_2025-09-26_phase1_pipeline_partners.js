@@ -1,5 +1,5 @@
 // patch_2025-09-26_phase1_pipeline_partners.js — Phase 1 pipeline lanes + partner core
-import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from '/js/pipeline/stages.js';
+import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
