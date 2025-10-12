@@ -14,8 +14,70 @@ function normalizeKey(x) {
     .replace(/\s/g, '_');
 }
 
-let WIRED = false;
-let WIRED_BOARD = null;
+const WIRED_BOARDS = new Set();
+const BOARD_HANDLERS = new Map();
+let HANDLER_COUNT = 0;
+let COLUMN_COUNT = 0;
+
+function exposeCounters(){
+  if (typeof window === 'undefined') return;
+  try {
+    window.__KANBAN_HANDLERS__ = Object.freeze({
+      added: Number(HANDLER_COUNT || 0),
+      columns: Number(COLUMN_COUNT || 0)
+    });
+  } catch (_) {}
+}
+
+function boardConnected(board){
+  if (!board) return false;
+  if (typeof board.isConnected === 'boolean') return board.isConnected;
+  if (typeof document !== 'undefined' && document.documentElement) {
+    try { return document.documentElement.contains(board); }
+    catch (_) { return false; }
+  }
+  return false;
+}
+
+function detachBoard(board){
+  if (!board) return;
+  const handlers = BOARD_HANDLERS.get(board);
+  if (handlers) {
+    try { board.removeEventListener('dragstart', handlers.dragstart); } catch (_) {}
+    try { board.removeEventListener('dragover', handlers.dragover); } catch (_) {}
+    try { board.removeEventListener('drop', handlers.drop); } catch (_) {}
+  }
+  BOARD_HANDLERS.delete(board);
+  if (WIRED_BOARDS.delete(board)) {
+    HANDLER_COUNT = Math.max(0, HANDLER_COUNT - 1);
+  }
+  if (WIRED_BOARDS.size === 0) {
+    COLUMN_COUNT = 0;
+  }
+  exposeCounters();
+}
+
+function detachAll(){
+  Array.from(WIRED_BOARDS).forEach((board) => detachBoard(board));
+}
+
+function cleanupDetachedBoards(){
+  Array.from(WIRED_BOARDS).forEach((board) => {
+    if (!boardConnected(board)) {
+      detachBoard(board);
+    }
+  });
+}
+
+exposeCounters();
+
+function viewFromDetail(detail){
+  if (!detail) return '';
+  if (typeof detail === 'string') return detail.toLowerCase();
+  if (typeof detail.view === 'string') return detail.view.toLowerCase();
+  if (typeof detail.target === 'string') return detail.target.toLowerCase();
+  return '';
+}
 
 const STAGE_LABEL_SET = new Set(PIPELINE_STAGES);
 const KEY_TO_LABEL = new Map();
@@ -175,55 +237,91 @@ async function persistStage(contactId, newStage){
   return true;
 }
 
-function installDnD(){
-  const root = boardEl(); if(!root) return;
-  if (WIRED && WIRED_BOARD && WIRED_BOARD !== root) { WIRED = false; }
-  if (WIRED) return; WIRED = true; WIRED_BOARD = root;
-
-  root.addEventListener('dragstart', (e) => {
-    const card = e.target.closest('[data-id]');
-    if(!card) return;
-    const id = cardId(card); if(!id) return;
-    e.dataTransfer?.setData('text/plain', JSON.stringify({ type:'contact', id }));
-    // visual cue
-    e.dataTransfer?.setDragImage?.(card, 10, 10);
-  });
-
-  root.addEventListener('dragover', (e) => {
-    const lane = e.target.closest('[data-stage],[data-lane],[data-column]');
-    if(!lane) return;
-    const st = normStage(lane.dataset.stage); if(!st) return;
-    e.preventDefault(); // allow drop
-  });
-
-  root.addEventListener('drop', async (e) => {
-    const lane = e.target.closest('[data-stage],[data-lane],[data-column]');
-    if(!lane) return;
-    const st = normStage(lane.dataset.stage); if(!st) return;
-    const laneKey = stageKeyFromLabel(st);
-    try{
-      const raw = e.dataTransfer?.getData('text/plain'); if(!raw) return;
-      const payload = JSON.parse(raw || '{}');
-      if(payload.type !== 'contact') return;
-      const ok = await persistStage(payload.id, st);
-      if(ok){
-        // Move the card DOM immediately for responsiveness (data repaint will reconcile)
+function createBoardHandlers(root){
+  return {
+    dragstart(e){
+      const card = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-id]')
+        : null;
+      if(!card) return;
+      const id = cardId(card);
+      if(!id) return;
+      try {
+        e.dataTransfer?.setData('text/plain', JSON.stringify({ type:'contact', id }));
+      } catch (_) {}
+      try { e.dataTransfer?.setDragImage?.(card, 10, 10); } catch (_) {}
+    },
+    dragover(e){
+      const lane = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-stage],[data-lane],[data-column]')
+        : null;
+      if(!lane) return;
+      const st = normStage(lane.dataset.stage);
+      if(!st) return;
+      try { e.preventDefault(); }
+      catch (_) {}
+    },
+    async drop(e){
+      const lane = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-stage],[data-lane],[data-column]')
+        : null;
+      if(!lane) return;
+      const st = normStage(lane.dataset.stage);
+      if(!st) return;
+      const laneKey = stageKeyFromLabel(st);
+      try {
+        const raw = e.dataTransfer?.getData('text/plain');
+        if(!raw) return;
+        const payload = JSON.parse(raw || '{}');
+        if(payload.type !== 'contact') return;
+        const ok = await persistStage(payload.id, st);
+        if(!ok) return;
         const card = root.querySelector(`[data-id="${payload.id}"]`);
-        if(card && lane){
-          const list = lane.querySelector('[data-list], .lane-list, .kanban-list, .cards');
-          if(list) list.appendChild(card);
-          try{ card.dataset.stage = laneKey; }catch (_) { }
+        if(!card) return;
+        const list = lane.querySelector('[data-list], .lane-list, .kanban-list, .cards');
+        if(list) {
+          try { list.appendChild(card); }
+          catch (_) {}
         }
-      }
-    }catch (_) { }
-  });
+        try { card.dataset.stage = laneKey; }
+        catch (_) {}
+      } catch (_) {}
+    }
+  };
+}
+
+function installDnD(root, laneList){
+  if(!root) return;
+  const columns = Array.isArray(laneList) ? laneList.filter(Boolean) : [];
+  COLUMN_COUNT = columns.length;
+  if (WIRED_BOARDS.has(root)) {
+    exposeCounters();
+    return;
+  }
+  const handlers = createBoardHandlers(root);
+  root.addEventListener('dragstart', handlers.dragstart);
+  root.addEventListener('dragover', handlers.dragover);
+  root.addEventListener('drop', handlers.drop);
+  WIRED_BOARDS.add(root);
+  BOARD_HANDLERS.set(root, handlers);
+  HANDLER_COUNT += 1;
+  exposeCounters();
 }
 
 // Public API (for tests)
 export function wireKanbanDnD(){
-  // stamp stage attributes if missing, then install handlers
-  lanes(); cards();
-  installDnD();
+  cleanupDetachedBoards();
+  const root = boardEl();
+  if(!root){
+    if (WIRED_BOARDS.size === 0) {
+      COLUMN_COUNT = 0;
+    }
+    exposeCounters();
+    return;
+  }
+  const laneList = lanes();
+  cards();
+  installDnD(root, laneList);
 }
 
 // Auto-wire after render
@@ -238,5 +336,15 @@ try {
   if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
     window.RenderGuard.registerHook(() => wireKanbanDnD());
   }
+} catch (_) {}
+
+try {
+  document.addEventListener('app:navigate', (evt) => {
+    const view = viewFromDetail(evt?.detail);
+    if (!view) return;
+    if (view !== 'pipeline') {
+      detachAll();
+    }
+  });
 } catch (_) {}
 
