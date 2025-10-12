@@ -11,22 +11,19 @@ function runPatch(){
     function run() {
       const view = document.getElementById('view-calendar') || document.querySelector('[data-view="calendar"]');
       if (!view) return;
-      if (view.querySelector('[data-ics-export]')) return;
+      const existing = view.querySelector('#cal-export-ics,[data-act="calendar:export:ics"],[data-ics-export]');
+      if (existing) {
+        existing.setAttribute('data-ics-export', '1');
+        existing.dataset.act = 'calendar:export:ics';
+        return;
+      }
 
       const button = document.createElement('button');
       button.textContent = 'Export .ics';
+      button.type = 'button';
+      button.id = 'cal-export-ics';
       button.setAttribute('data-ics-export', '1');
-      button.addEventListener('click', () => {
-        try {
-          if (typeof window.exportToIcalFile === 'function') {
-            window.exportToIcalFile();
-          } else if (typeof window.exportCustomEventsToIcs === 'function') {
-            window.exportCustomEventsToIcs();
-          }
-        } catch (error) {
-          console.warn(error);
-        }
-      });
+      button.dataset.act = 'calendar:export:ics';
 
       (view.querySelector('header') || view).appendChild(button);
     }

@@ -69,8 +69,23 @@ function runPatch(){
   }
 
   function detectEntity(trigger, row){
-    if(trigger && trigger.closest && trigger.closest('.edit-partner,[data-partner-id],.partner-name')) return 'partners';
-    if(row && row.closest && row.closest('#view-partners')) return 'partners';
+    if(trigger){
+      if(trigger.closest && trigger.closest('.edit-partner,[data-partner-id],.partner-name')) return 'partners';
+      const dataHints = [];
+      if(trigger.dataset){
+        dataHints.push(trigger.dataset.entity, trigger.dataset.scope, trigger.dataset.type, trigger.dataset.role);
+        if(trigger.dataset.partnerId || trigger.dataset.partner) return 'partners';
+      }
+      if(dataHints.some(hint => typeof hint === 'string' && /partner/i.test(hint))) return 'partners';
+    }
+    if(row){
+      if(row.closest && (row.closest('#view-partners,[data-view="partners"],.partners-view') || null)) return 'partners';
+      if(row.dataset){
+        if(row.dataset.partnerId || row.dataset.partner) return 'partners';
+        const hints = [row.dataset.entity, row.dataset.scope, row.dataset.type, row.dataset.role];
+        if(hints.some(hint => typeof hint === 'string' && /partner/i.test(hint))) return 'partners';
+      }
+    }
     const table = row && row.closest ? row.closest('table') : null;
     if(table){
       const hint = [
@@ -242,6 +257,30 @@ function runPatch(){
     return null;
   }
 
+  function partnerIdFromRow(row){
+    if(!row) return null;
+    const attrCandidates = ['data-partner-id','data-partner','data-id','data-row-id'];
+    for(const attr of attrCandidates){
+      if(row.getAttribute){
+        const val = row.getAttribute(attr);
+        if(val) return String(val);
+      }
+    }
+    if(row.dataset){
+      if(row.dataset.partnerId) return String(row.dataset.partnerId);
+      if(row.dataset.partner) return String(row.dataset.partner);
+      if(row.dataset.id && !row.dataset.contactId){
+        return String(row.dataset.id);
+      }
+    }
+    const nested = row.querySelector('[data-partner-id],[data-partner]');
+    if(nested){
+      const val = directId(nested);
+      if(val) return val;
+    }
+    return null;
+  }
+
   function resolveRowIdFromIndex(row, type){
     if(!row) return null;
     const nameMap = window.__NAME_ID_MAP__ || {};
@@ -249,7 +288,13 @@ function runPatch(){
     if(rawName && nameMap[rawName]) return nameMap[rawName];
     const index = getRecordIndex(type);
     if(!index) return null;
-    if(type === 'partners') return resolvePartnerFromHints(index, extractPartnerHints(row));
+    if(type === 'partners'){
+      const direct = partnerIdFromRow(row);
+      if(direct) return direct;
+      return resolvePartnerFromHints(index, extractPartnerHints(row));
+    }
+    const direct = directId(row);
+    if(direct) return direct;
     return resolveContactFromHints(index, extractContactHints(row));
   }
 

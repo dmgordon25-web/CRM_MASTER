@@ -30,6 +30,12 @@ const canonicalPatchOrder = [
   './pipeline/kanban_dnd.js'
 ];
 
+const AUDIT_IGNORE = new Set([
+  './patches/loader.js', // dev-only alternate loader, invoked outside manifest boot
+  './selftest.js', // dev self-test harness (manual import only)
+  './selftest_panel.js' // dev-only diagnostics panel wired via index.html
+]);
+
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
   const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
@@ -86,7 +92,8 @@ function fileExists(p) {
   const phList = new Set(all);
   const unphased = allJs
     .filter(p => !p.startsWith('./boot/'))
-    .filter(p => !phList.has(p));
+    .filter(p => !phList.has(p))
+    .filter(p => !AUDIT_IGNORE.has(p));
 
   // Report
   const errors = [];
