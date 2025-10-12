@@ -45,29 +45,60 @@ function fileExists(p) {
 }
 
 (function main(){
-  const { core, patches } = loadManifest();
-  const all = [...core, ...patches];
+  const { core: CORE, patches: PATCHES } = loadManifest();
+  const CORE_DISALLOWED = [
+    './ui/',
+    './calendar_',
+    './calendar/',
+    './contacts',
+    './partners',
+    './reports',
+    './notifications',
+    './importer_',
+    './importer/',
+    './merge/',
+    './doc/',
+    './dash',
+    './patch_',
+    './migrations',
+    './templates',
+    './filters',
+    './state/',
+    './actions',
+    './action_bar',
+    './quick_add',
+    './data/',
+    './ics',
+    './csv'
+  ];
+  const bad = CORE.filter(p => CORE_DISALLOWED.some(pref => p.startsWith(pref)));
+  if (bad.length) {
+    console.error('[MANIFEST AUDIT] CORE contains disallowed paths:', bad);
+    process.exit(1);
+  }
+
+  const all = [...CORE, ...PATCHES];
   const seen = new Set(), dups = [];
   for (const p of all) (seen.has(p) ? dups.push(p) : seen.add(p));
   const missing = all.filter(p => !fileExists(p));
 
   const patchSeen = new Set();
   const patchDupes = [];
-  for (const patch of patches) {
+  for (const patch of PATCHES) {
     if (patchSeen.has(patch)) patchDupes.push(patch);
     else patchSeen.add(patch);
   }
 
   const patchOrderIssues = [];
-  const prefixLength = Math.min(canonicalPatchOrder.length, patches.length);
+  const prefixLength = Math.min(canonicalPatchOrder.length, PATCHES.length);
   for (let i = 0; i < prefixLength; i += 1) {
-    if (patches[i] !== canonicalPatchOrder[i]) {
-      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${patches[i]}`);
+    if (PATCHES[i] !== canonicalPatchOrder[i]) {
+      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${PATCHES[i]}`);
       break;
     }
   }
-  if (patches.length < canonicalPatchOrder.length) {
-    const missingCanonical = canonicalPatchOrder.slice(patches.length);
+  if (PATCHES.length < canonicalPatchOrder.length) {
+    const missingCanonical = canonicalPatchOrder.slice(PATCHES.length);
     patchOrderIssues.push(`missing canonical entries: ${missingCanonical.join(', ')}`);
   }
   // Crawl js folder for unphased files (warn only)
