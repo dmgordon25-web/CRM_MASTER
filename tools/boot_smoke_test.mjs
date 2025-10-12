@@ -29,6 +29,16 @@ async function waitSelCount(page, expected, timeout = 1500) {
   return false;
 }
 
+async function waitCapsSelection(page, timeout = 1500) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const ok = await page.evaluate(() => !!(globalThis.__CAPS__ && globalThis.__CAPS__.selection));
+    if (ok) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+}
+
 function waitForHealth(timeoutMs = 30000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -192,6 +202,7 @@ async function main() {
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
+    if (!await waitCapsSelection(page)) throw new Error('caps-missing-selection');
     const caps = await page.evaluate(() => globalThis.__CAPS__ || {});
     const requiredCaps = ['toast','confirm','renderAll','selection'];
     for (const k of requiredCaps) {
@@ -201,6 +212,7 @@ async function main() {
     }
 
     await navigateTab(page, 'partners', consoleErrors, networkErrors);
+    if (!await waitCapsSelection(page)) throw new Error('caps-missing-selection-after');
     const capsAfterRoute = await page.evaluate(() => globalThis.__CAPS__ || {});
     for (const k of requiredCaps) {
       if (!capsAfterRoute[k]) {

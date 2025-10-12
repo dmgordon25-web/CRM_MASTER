@@ -106,5 +106,6 @@
         }
       } catch {}
     }
+    try { globalThis.dispatchEvent(new CustomEvent('ui:selection-ready')); } catch {}
   } catch {}
 })();
