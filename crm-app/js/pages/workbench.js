@@ -151,6 +151,7 @@ function wireTable(table, type){
   body.addEventListener('change', evt => {
     const cb = evt.target && evt.target.closest('input[type="checkbox"][data-role="select"]');
     if(!cb) return;
+    if(cb.dataset && cb.dataset.ui === 'row-check') return;
     const row = cb.closest('tr[data-id]');
     if(!row) return;
     evt.preventDefault();
@@ -184,6 +185,7 @@ function paintRows(table, rows, columns, type){
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.setAttribute('data-role', 'select');
+    checkbox.setAttribute('data-ui', 'row-check');
     checkbox.setAttribute('aria-label', 'Select row');
     selectCell.appendChild(checkbox);
     tr.appendChild(selectCell);

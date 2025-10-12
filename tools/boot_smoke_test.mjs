@@ -326,52 +326,27 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
-    const selectionPrep = await page.evaluate(() => {
-      const table = document.querySelector('#tbl-pipeline tbody');
-      if (!table) return { ok: false, reason: 'no-table' };
-      const row = table.querySelector('tr');
-      if (!row) return { ok: false, reason: 'no-row' };
-      const checkbox = row.querySelector('input[type="checkbox"][data-role="select"]');
-      if (!checkbox) return { ok: false, reason: 'no-checkbox' };
-      if (!checkbox.checked) {
-        checkbox.click();
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      const count = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : null;
-      return { ok: true, count };
-    });
-    if (!selectionPrep.ok) {
-      throw new Error(`select-failed:${selectionPrep.reason}`);
+    const rowChecks = await page.$$('[data-ui="row-check"]');
+    if (!rowChecks || rowChecks.length < 2) {
+      throw new Error('need-two-row-checks');
     }
-    if (selectionPrep.count !== null && selectionPrep.count < 1) {
-      throw new Error('selection-count-zero');
-    }
+    await rowChecks[0].click();
+    await rowChecks[1].click();
 
-    await page.waitForFunction(() => {
-      const bar = document.getElementById('actionbar');
-      return !!(bar && bar.classList.contains('has-selection'));
-    }, { timeout: 5000 });
+    const selCount = await page.evaluate(() => window.__SEL_COUNT__ || 0);
+    if (selCount < 2) throw new Error('sel-count-expected-2');
 
-    const ACTION_BTN_SELECTORS = [
-      '[data-ui="action-bar"] [data-action="tag"]',
-      '[data-ui="action-bar"] [data-action="noop"]',
-      '[data-ui="action-bar"] [data-action]'
-    ];
-    let clickedSelector = null;
-    for (const sel of ACTION_BTN_SELECTORS) {
-      const el = await page.$(sel);
-      if (el) {
-        clickedSelector = sel;
-        await el.click();
-        break;
-      }
-    }
-    console.log('smoke:action-selector', clickedSelector || 'none');
-    if (!clickedSelector) {
-      throw new Error('action-btn-missing');
-    }
+    const actionBarVisible = await page.$('[data-ui="action-bar"][data-visible="1"]');
+    if (!actionBarVisible) throw new Error('action-bar-not-visible');
+
+    const mergeBtn = await page.$('[data-ui="action-bar"] [data-action="merge"]:not([data-disabled="1"])');
+    if (!mergeBtn) throw new Error('merge-disabled');
+    await mergeBtn.click();
+
+    await page.waitForSelector('[data-ui="merge-modal"]', { timeout: 1500 });
+    const confirmBtn = await page.$('[data-ui="merge-confirm"]');
+    if (!confirmBtn) throw new Error('merge-confirm-missing');
+    await confirmBtn.click();
 
     const sawToast = await page.evaluate(async () => {
       const hasDomToast = () => !!(document.querySelector('[data-ui="toast"], .toast-message'));

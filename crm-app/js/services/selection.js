@@ -55,6 +55,33 @@
     return null;
   }
 
+  function resolveRowElement(node){
+    if(!node || typeof node.closest !== 'function') return null;
+    return node.closest('[data-row], tr[data-id], tr[data-row-id], li[data-id], [data-selectable]') || null;
+  }
+
+  function resolveSelectionType(node){
+    if(!node) return state.type;
+    if(node.dataset){
+      if(node.dataset.selectionType) return normalizeType(node.dataset.selectionType);
+      if(node.dataset.type) return normalizeType(node.dataset.type);
+    }
+    const scopeHost = typeof node.closest === 'function'
+      ? node.closest('[data-selection-type],[data-selection-scope]')
+      : null;
+    if(scopeHost){
+      const viaType = scopeHost.getAttribute && scopeHost.getAttribute('data-selection-type');
+      if(viaType) return normalizeType(viaType);
+      const viaScope = scopeHost.getAttribute && scopeHost.getAttribute('data-selection-scope');
+      if(viaScope) return normalizeType(viaScope);
+      if(scopeHost.dataset){
+        if(scopeHost.dataset.selectionType) return normalizeType(scopeHost.dataset.selectionType);
+        if(scopeHost.dataset.selectionScope) return normalizeType(scopeHost.dataset.selectionScope);
+      }
+    }
+    return state.type;
+  }
+
   function buildDetail(source, extra){
     const detail = Object.assign({ type: state.type, ids: cloneIds(), source }, extra && typeof extra === 'object' ? extra : {});
     return detail;
@@ -98,8 +125,13 @@
     return detail;
   }
 
+  function checkboxSelector(){
+    return '[data-ui="row-check"], table tbody input[type="checkbox"][data-role="select"]';
+  }
+
   function syncCheckboxes(){
-    const checkboxes = document.querySelectorAll('table tbody input[type="checkbox"]');
+    if(typeof document === 'undefined') return;
+    const checkboxes = document.querySelectorAll(checkboxSelector());
     const present = new Set();
     checkboxes.forEach(cb => {
       const id = resolveRowId(cb);
@@ -107,6 +139,15 @@
       present.add(id);
       const shouldCheck = state.ids.has(id);
       if(cb.checked !== shouldCheck) cb.checked = shouldCheck;
+      const row = resolveRowElement(cb);
+      if(row){
+        if(shouldCheck) row.setAttribute('data-selected', '1');
+        else row.removeAttribute('data-selected');
+        row.classList?.toggle?.('is-selected', shouldCheck);
+        if(row.style && !shouldCheck && row.style.backgroundColor && row.style.backgroundColor.includes('rgba')){
+          row.style.backgroundColor = '';
+        }
+      }
     });
     if(present.size || checkboxes.length){
       Array.from(state.ids).forEach(id => {
@@ -126,6 +167,19 @@
       syncScheduled = false;
       try{ syncCheckboxes(); }
       catch (err) { if(isDebug && console && console.warn) console.warn('selection sync failed', err); }
+    });
+  }
+
+  function updateMetrics(){
+    try { window.__SEL_COUNT__ = state.ids.size; }
+    catch (_) {}
+  }
+
+  function setActionBarVisibility(){
+    if(typeof document === 'undefined') return;
+    const visible = state.ids.size > 0 ? '1' : '0';
+    document.querySelectorAll('[data-ui="action-bar"]').forEach(bar => {
+      bar.setAttribute('data-visible', visible);
     });
   }
 
@@ -238,6 +292,20 @@
     return state.ids.size;
   }
 
+  function all(){
+    return cloneIds();
+  }
+
+  function getSelectedIds(){
+    return cloneIds();
+  }
+
+  function atLeast(n){
+    const limit = Number(n);
+    if(!Number.isFinite(limit)) return state.ids.size > 0;
+    return state.ids.size >= limit;
+  }
+
   function onChange(callback){
     if(typeof callback !== 'function') return ()=>{};
     listeners.add(callback);
@@ -249,6 +317,8 @@
       return { type: state.type, ids: cloneIds() };
     },
     set(ids, type, source){ setIds(ids, type, source); },
+    select(id, type){ add(id, type); },
+    deselect(id){ remove(id); },
     toggle,
     clear,
     add,
@@ -256,6 +326,9 @@
     onChange,
     count,
     size,
+    all,
+    getSelectedIds,
+    atLeast,
     idsOf,
     syncCheckboxes,
     snapshot,
@@ -275,6 +348,9 @@
     clear,
     count,
     size,
+    all,
+    getSelectedIds: cloneIds,
+    atLeast,
     getIds: cloneIds,
     idsOf,
     syncChecks: scheduleSync,
@@ -286,7 +362,41 @@
     reemit
   };
 
+  function handleCheckboxChange(event){
+    const target = event.target;
+    const InputCtor = typeof HTMLInputElement !== 'undefined' ? HTMLInputElement : null;
+    if(!target || (InputCtor && !(target instanceof InputCtor))) return;
+    const checkbox = target.closest ? target.closest(checkboxSelector()) : null;
+    if(!checkbox || checkbox !== target) return;
+    const id = resolveRowId(checkbox);
+    if(!id) return;
+    const type = resolveSelectionType(checkbox);
+    toggle(id, type);
+    const row = resolveRowElement(checkbox);
+    const active = state.ids.has(String(id));
+    if(row){
+      if(active) row.setAttribute('data-selected', '1');
+      else row.removeAttribute('data-selected');
+      row.classList?.toggle?.('is-selected', active);
+    }
+    if(checkbox.checked !== active){
+      checkbox.checked = active;
+    }
+  }
+
+  if(typeof document !== 'undefined' && !window.__SEL_CB_WIRED__){
+    window.__SEL_CB_WIRED__ = true;
+    document.addEventListener('change', handleCheckboxChange, true);
+  }
+
   window.Selection = Selection;
   window.SelectionService = compat;
   window.__SELMODEL__ = compat;
+
+  onChange(()=>{
+    updateMetrics();
+    setActionBarVisibility();
+  });
+  updateMetrics();
+  setActionBarVisibility();
 })();

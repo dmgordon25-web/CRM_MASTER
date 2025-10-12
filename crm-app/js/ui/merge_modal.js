@@ -13,7 +13,7 @@ export function openMergeModal({ kind = "contacts", recordA, recordB, onConfirm,
 
   const tpl = document.createElement("template");
   tpl.innerHTML = `
-<div class="merge-overlay" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
+<div class="merge-overlay" role="dialog" aria-modal="true" data-ui="merge-modal" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
   <div class="merge-modal" style="background:#fff;min-width:720px;max-width:960px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
       <div style="font-size:18px;font-weight:600;">Merge ${kind === "contacts" ? "Contacts" : kind === "partners" ? "Partners" : "Records"}</div>
@@ -44,7 +44,7 @@ export function openMergeModal({ kind = "contacts", recordA, recordB, onConfirm,
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
         <button class="merge-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Cancel</button>
-        <button class="merge-confirm" style="padding:8px 12px;border-radius:8px;border:1px solid #2b7;background:#2b7;color:#fff;cursor:pointer;">Merge</button>
+        <button class="merge-confirm" data-ui="merge-confirm" style="padding:8px 12px;border-radius:8px;border:1px solid #2b7;background:#2b7;color:#fff;cursor:pointer;">Merge</button>
       </div>
     </div>
   </div>
