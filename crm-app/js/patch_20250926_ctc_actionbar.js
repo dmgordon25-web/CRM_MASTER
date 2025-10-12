@@ -1064,6 +1064,7 @@ function runPatch(){
           const href = 'mailto:?bcc='+encodeURIComponent(emails.join(','));
           try{ window.open(href, '_self'); }
           catch (_err) { window.location.href = href; }
+          toast('Email composer opened');
           return { status:'ok', clear:false, dispatch:false, detail:{ emails: emails.length, mode:'together' } };
         }
         case 'emailMass':{
@@ -1136,6 +1137,7 @@ function runPatch(){
           return { status:'error', error:'bulkLog missing', dispatch:false };
         }
         case 'clear':{
+          toast('Selection cleared');
           return { status:'ok', clear:true, dispatch:false, detail:{ cleared:true } };
         }
         case 'delete':{

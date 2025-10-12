@@ -176,6 +176,35 @@ import { STR, text } from './ui/strings.js';
     return Number.isFinite(num) && num>0 ? CURRENCY.format(num) : '';
   }
 
+  function ensureCalendarApi(){
+    window.CalendarAPI = window.CalendarAPI || {};
+    return window.CalendarAPI;
+  }
+
+  function exposeVisibleEvents(list){
+    const normalized = (Array.isArray(list) ? list : []).map(ev => {
+      const baseId = ev && ev.source && ev.source.id ? ev.source.id : (ev && ev.source && ev.source.entity ? `${ev.source.entity}:${ev.source.id || ''}` : null);
+      const id = baseId || (ev && ev.type ? `${ev.type}:${ev.date ? ymd(ev.date) : ''}` : ymd(ev?.date || new Date()));
+      const dateIso = ev && ev.date instanceof Date && !Number.isNaN(ev.date.getTime()) ? ev.date.toISOString() : '';
+      return {
+        id: String(id || ''),
+        title: ev && ev.title ? ev.title : 'Event',
+        description: ev && ev.subtitle ? ev.subtitle : '',
+        location: '',
+        start: dateIso,
+        end: dateIso,
+        allDay: true,
+        type: ev && ev.type ? ev.type : '',
+        status: ev && ev.status ? ev.status : '',
+        loanKey: ev && ev.loanKey ? ev.loanKey : ''
+      };
+    });
+    window.__CALENDAR_VISIBLE_EVENTS__ = normalized;
+    const api = ensureCalendarApi();
+    api.visibleEvents = () => normalized.map(entry => Object.assign({}, entry));
+    return normalized;
+  }
+
   function collectEvents(contacts,tasks,deals,anchor){
     const events = [];
     const year = anchor.getFullYear();
@@ -393,6 +422,8 @@ import { STR, text } from './ui/strings.js';
       const first=new Date(anchor.getFullYear(), anchor.getMonth(),1);
       start=startOfWeek(first); end=addDays(start,42); cols=7;
     }
+
+    exposeVisibleEvents(events.filter(ev => ev && ev.date instanceof Date && ev.date >= start && ev.date < end));
 
     const label = document.getElementById('calendar-label');
     if(label){

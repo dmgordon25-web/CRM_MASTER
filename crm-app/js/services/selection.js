@@ -11,6 +11,7 @@
     items: new Map(),
     type: 'contacts'
   };
+  const domSelectedIds = new Set();
 
   const listeners = new Set();
   let syncScheduled = false;
@@ -56,8 +57,32 @@
   }
 
   function buildDetail(source, extra){
-    const detail = Object.assign({ type: state.type, ids: cloneIds(), source }, extra && typeof extra === 'object' ? extra : {});
+    const ids = cloneIds();
+    const items = ids.map(id => {
+      const meta = state.items.get(id);
+      return meta ? Object.assign({}, meta, { id }) : { id, type: state.type };
+    });
+    const detail = Object.assign({
+      type: state.type,
+      ids,
+      keys: ids.slice(),
+      count: ids.length,
+      items,
+      selected: items.map(entry => entry.id),
+      source
+    }, extra && typeof extra === 'object' ? extra : {});
     return detail;
+  }
+
+  function updateWindowMetrics(detail){
+    const snapshot = detail || buildDetail('metrics');
+    const ids = Array.isArray(snapshot.ids) ? snapshot.ids.slice() : [];
+    const keys = Array.isArray(snapshot.keys) ? snapshot.keys.slice() : ids.slice();
+    window.__SEL_COUNT__ = keys.length;
+    window.__SEL_KEYS__ = keys.slice();
+    window.__SEL_IDS__ = keys.slice();
+    window.__SEL_TYPE__ = snapshot.type || 'contacts';
+    window.__SEL_DETAIL__ = snapshot;
   }
 
   let emitScheduled = false;
@@ -70,12 +95,22 @@
     if(!detail) return;
     enqueueMicrotask(() => {
       try{
+        if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
+          window.dispatchEvent(new CustomEvent('selection:change', { detail }));
+        }
+      }catch (err) {
+        if(isDebug && console && console.warn){
+          console.warn('Selection change dispatch failed', err);
+        }
+      }
+      try{
         if(typeof document !== 'undefined' && document && typeof document.dispatchEvent === 'function'){
+          document.dispatchEvent(new CustomEvent('selection:change', { detail }));
           document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
         }
       }catch (err) {
         if(isDebug && console && console.warn){
-          console.warn('Selection event dispatch failed', err);
+          console.warn('Legacy selection dispatch failed', err);
         }
       }
       listeners.forEach(cb => {
@@ -93,29 +128,194 @@
 
   function emit(source, extra){
     const detail = buildDetail(source, extra);
+    updateWindowMetrics(detail);
     pendingDetail = detail;
     scheduleEmit();
     return detail;
   }
 
+  function cssEscapeSafe(value){
+    const str = value == null ? '' : String(value);
+    if(typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(str);
+    return str.replace(/[^a-zA-Z0-9_\-]/g, match => `\\${match}`);
+  }
+
+  const ROW_SELECTOR_TEMPLATES = [
+    '[data-selectable][data-id="%ID%"]',
+    '[data-selectable][data-contact-id="%ID%"]',
+    '[data-selectable][data-partner-id="%ID%"]',
+    '[data-row][data-id="%ID%"]',
+    '[data-row][data-contact-id="%ID%"]',
+    '[data-row][data-partner-id="%ID%"]',
+    'tr[data-id="%ID%"]',
+    'tr[data-contact-id="%ID%"]',
+    'tr[data-partner-id="%ID%"]',
+    '[data-selected-row="%ID%"]'
+  ];
+
+  const ROW_ROOT_SELECTOR = '[data-selectable],[data-row],tr[data-id],[data-contact-id],[data-partner-id],[data-row-id]';
+  const CHECKBOX_SELECTOR = 'input[type="checkbox"],input[data-role="select"],input[data-role="select-checkbox"]';
+  const handlerRegistry = new WeakMap();
+
+  function rowsForId(id){
+    const selector = ROW_SELECTOR_TEMPLATES.map(tpl => tpl.replace(/%ID%/g, cssEscapeSafe(id))).join(',');
+    if(!selector) return [];
+    const nodes = Array.from(document.querySelectorAll(selector));
+    return nodes
+      .map(node => node.closest('[data-selectable],[data-row],tr') || node)
+      .filter(Boolean);
+  }
+
+  function rowForNode(node){
+    if(!node) return null;
+    if(node.matches && node.matches(ROW_ROOT_SELECTOR)) return node;
+    return node.closest ? node.closest(ROW_ROOT_SELECTOR) : null;
+  }
+
+  function inferRowType(row){
+    if(!row) return state.type || 'contacts';
+    const dataset = row.dataset || {};
+    if(row.hasAttribute && (row.hasAttribute('data-partner-id') || row.hasAttribute('data-partner'))) return 'partners';
+    if(dataset.partnerId || dataset.partner) return 'partners';
+    if(row.hasAttribute && (row.hasAttribute('data-contact-id') || row.hasAttribute('data-contact'))) return 'contacts';
+    if(dataset.contactId || dataset.contact) return 'contacts';
+    if(dataset.type) return normalizeType(dataset.type);
+    const attr = row.getAttribute ? row.getAttribute('data-type') : null;
+    if(attr) return normalizeType(attr);
+    return state.type || 'contacts';
+  }
+
+  function keyForNode(node){
+    const row = rowForNode(node);
+    return row ? resolveRowId(row) : resolveRowId(node);
+  }
+
+  function syncRowsInContainer(container){
+    if(!container || typeof container.querySelectorAll !== 'function') return;
+    const rows = Array.from(container.querySelectorAll(ROW_ROOT_SELECTOR));
+    rows.forEach(row => {
+      const key = resolveRowId(row);
+      if(!key) return;
+      syncRowState(row, state.ids.has(String(key)));
+    });
+  }
+
+  function handleCheckboxChange(event){
+    const target = event && event.target;
+    if(!target) return;
+    const tag = target.tagName ? target.tagName.toLowerCase() : '';
+    const matches = typeof target.matches === 'function' ? target.matches.bind(target) : null;
+    if(matches){
+      if(!matches(CHECKBOX_SELECTOR)) return;
+    }else if(tag !== 'input'){ return; }
+    const row = rowForNode(target);
+    const key = keyForNode(row || target);
+    if(!key) return;
+    const id = String(key);
+    const desired = !!target.checked;
+    const current = state.ids.has(id);
+    if(desired === current){
+      syncRowState(row, current);
+      try{ target.checked = current; }
+      catch (_err) {}
+      return;
+    }
+    const rowType = inferRowType(row);
+    if(desired){
+      selectKey(id, rowType, 'dom:checkbox');
+    }else{
+      deselectKey(id, 'dom:checkbox');
+    }
+    const nowSelected = state.ids.has(id);
+    syncRowState(row, nowSelected);
+    try{ target.checked = nowSelected; }
+    catch (_err) {}
+  }
+
+  function attachRowHandlers(container){
+    const target = container || document;
+    if(!target || typeof target.addEventListener !== 'function') return;
+    if(!handlerRegistry.has(target)){
+      const changeListener = (event) => {
+        if(!event) return;
+        handleCheckboxChange(event);
+      };
+      target.addEventListener('change', changeListener, true);
+      handlerRegistry.set(target, { changeListener });
+    }
+    syncRowsInContainer(target);
+  }
+
+  function syncRowState(row, selected){
+    if(!row) return;
+    try{
+      if(row.classList){
+        row.classList.toggle('selected', !!selected);
+        row.classList.toggle('is-selected', !!selected);
+      }
+    }catch (_err) {}
+    try{
+      if(selected){
+        row.setAttribute('data-selected', 'true');
+        row.setAttribute('aria-selected', 'true');
+      }else{
+        row.setAttribute('data-selected', 'false');
+        row.setAttribute('aria-selected', 'false');
+      }
+    }catch (_err) {}
+    try{
+      if(row.dataset){
+        if(selected) row.dataset.selected = 'true';
+        else row.dataset.selected = 'false';
+      }
+    }catch (_err) {}
+    const control = row.querySelector('input[type="checkbox"],input[type="radio"]');
+    if(control && control.checked !== !!selected){
+      try{ control.checked = !!selected; }
+      catch (_err) {}
+    }
+  }
+
+  function syncDomSelection(){
+    const ids = Array.from(state.ids);
+    const retain = new Set(ids);
+    domSelectedIds.forEach(id => {
+      if(!retain.has(id)){
+        rowsForId(id).forEach(row => syncRowState(row, false));
+      }
+    });
+    ids.forEach(id => {
+      rowsForId(id).forEach(row => syncRowState(row, true));
+    });
+    domSelectedIds.clear();
+    ids.forEach(id => domSelectedIds.add(id));
+  }
+
   function syncCheckboxes(){
     const checkboxes = document.querySelectorAll('table tbody input[type="checkbox"]');
     const present = new Set();
+    let mutated = false;
     checkboxes.forEach(cb => {
       const id = resolveRowId(cb);
       if(!id) return;
       present.add(id);
       const shouldCheck = state.ids.has(id);
       if(cb.checked !== shouldCheck) cb.checked = shouldCheck;
+      const row = cb.closest('[data-selectable],[data-row],tr');
+      if(row) syncRowState(row, shouldCheck);
     });
     if(present.size || checkboxes.length){
       Array.from(state.ids).forEach(id => {
         if(!present.has(id)){
-          state.ids.delete(id);
+          if(state.ids.delete(id)) mutated = true;
           state.items.delete(id);
         }
       });
       if(state.ids.size === 0) state.type = 'contacts';
+    }
+    syncDomSelection();
+    if(mutated){
+      emit('sync');
     }
   }
 
@@ -129,7 +329,49 @@
     });
   }
 
-  function clear(source){
+  function selectKey(id, type, source){
+    if(id == null) return;
+    const key = String(id);
+    if(!key) return;
+    const nextType = normalizeType(type || state.type || 'contacts');
+    if(state.ids.size && state.type !== nextType){
+      clearSelection(source || 'select:retarget');
+    }
+    state.type = nextType;
+    if(state.ids.has(key)){
+      const meta = state.items.get(key) || {};
+      state.items.set(key, Object.assign({}, meta, { type: state.type }));
+      updateWindowMetrics();
+      return;
+    }
+    state.ids.add(key);
+    state.items.set(key, { type: state.type });
+    scheduleSync();
+    emit(source || 'select');
+  }
+
+  function deselectKey(id, source){
+    if(id == null) return;
+    const key = String(id);
+    if(!state.ids.has(key)) return;
+    state.ids.delete(key);
+    state.items.delete(key);
+    if(state.ids.size === 0) state.type = 'contacts';
+    scheduleSync();
+    emit(source || 'deselect');
+  }
+
+  function toggleKey(id, type, source){
+    if(id == null) return;
+    const key = String(id);
+    if(state.ids.has(key)){
+      deselectKey(key, source || 'toggle');
+      return;
+    }
+    selectKey(key, type, source || 'toggle');
+  }
+
+  function clearSelection(source){
     if(state.ids.size === 0 && state.type === 'contacts'){
       emit(source || 'clear');
       return;
@@ -141,51 +383,36 @@
     emit(source || 'clear');
   }
 
+  function clear(source){
+    clearSelection(source);
+  }
+
   function setIds(ids, type, source){
     const nextIds = Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
-    state.ids = new Set(nextIds);
-    state.items = new Map(nextIds.map(id => [id, { type: normalizeType(type) }]));
-    state.type = normalizeType(type);
+    const nextType = nextIds.length ? normalizeType(type || state.type || 'contacts') : 'contacts';
+    const prevItems = new Map(state.items);
+    state.ids.clear();
+    state.items.clear();
+    nextIds.forEach(id => {
+      state.ids.add(id);
+      const meta = prevItems.get(id) || {};
+      state.items.set(id, Object.assign({}, meta, { type: nextType }));
+    });
+    state.type = nextType;
     scheduleSync();
     emit(source || 'set');
   }
 
   function add(id, type){
-    if(id == null) return;
-    const key = String(id);
-    const nextType = normalizeType(type);
-    if(state.ids.size && state.type !== nextType){
-      clear();
-    }
-    state.type = nextType;
-    const before = state.ids.size;
-    state.ids.add(key);
-    state.items.set(key, { type: state.type });
-    if(state.ids.size !== before){
-      scheduleSync();
-      emit('add');
-    }
+    selectKey(id, type, 'add');
   }
 
   function remove(id){
-    if(id == null) return;
-    const key = String(id);
-    if(!state.ids.has(key)) return;
-    state.ids.delete(key);
-    state.items.delete(key);
-    if(state.ids.size === 0) state.type = 'contacts';
-    scheduleSync();
-    emit('remove');
+    deselectKey(id, 'remove');
   }
 
   function toggle(id, type){
-    if(id == null) return;
-    const key = String(id);
-    if(state.ids.has(key)){
-      remove(key);
-      return;
-    }
-    add(key, type);
+    toggleKey(id, type, 'toggle');
   }
 
   function prune(ids, source){
@@ -248,16 +475,21 @@
     get(){
       return { type: state.type, ids: cloneIds() };
     },
+    getIds: cloneIds,
+    getSelectedIds: cloneIds,
     set(ids, type, source){ setIds(ids, type, source); },
     toggle,
     clear,
     add,
     remove,
+    select: selectKey,
+    deselect: deselectKey,
     onChange,
     count,
     size,
     idsOf,
     syncCheckboxes,
+    attachRowHandlers,
     snapshot,
     restore,
     reemit,
@@ -273,11 +505,15 @@
     remove,
     del: remove,
     clear,
+    select: selectKey,
+    deselect: deselectKey,
     count,
     size,
     getIds: cloneIds,
+    getSelectedIds: cloneIds,
     idsOf,
     syncChecks: scheduleSync,
+    attachRowHandlers,
     set: setIds,
     prune,
     toggle,
@@ -289,4 +525,12 @@
   window.Selection = Selection;
   window.SelectionService = compat;
   window.__SELMODEL__ = compat;
+  if(typeof document !== 'undefined'){
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', () => attachRowHandlers(document), { once: true });
+    }else{
+      attachRowHandlers(document);
+    }
+  }
+  updateWindowMetrics();
 })();
