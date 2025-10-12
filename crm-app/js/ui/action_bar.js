@@ -1,4 +1,41 @@
 const BUTTON_ID = 'actionbar-merge-partners';
+const DATA_ACTION_NAME = 'clear';
+
+function markActionbarHost() {
+  if (typeof document === 'undefined') return null;
+  const bar = document.getElementById('actionbar');
+  if (!bar) return null;
+  if (!bar.dataset.ui) {
+    bar.dataset.ui = 'action-bar';
+  }
+  const clearBtn = bar.querySelector('[data-act="clear"]');
+  if (clearBtn && !clearBtn.hasAttribute('data-action')) {
+    clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
+  }
+  return bar;
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+  }
+  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
+    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
+    const setup = () => { markActionbarHost(); };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setup, { once: true });
+    } else {
+      setup();
+    }
+    document.addEventListener('click', (event) => {
+      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      if (!action) return;
+      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+    }, true);
+  }
+}
 
 function injectActionBarStyle(){
   if (typeof document === 'undefined') return;
@@ -26,6 +63,7 @@ function getActionsHost() {
 }
 
 export function ensurePartnersMergeButton() {
+  markActionbarHost();
   injectActionBarStyle();
   const host = getActionsHost();
   if (!host) return null;

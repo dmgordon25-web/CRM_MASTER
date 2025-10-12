@@ -115,6 +115,10 @@
     this.hideTimer = setTimeout(function(){
       controller.hide();
     }, duration);
+    try {
+      window.__LAST_TOAST__ = String(message || '');
+      window.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: window.__LAST_TOAST__ } }));
+    } catch {}
   };
 
   ToastController.prototype.hide = function hide(){
