@@ -312,6 +312,41 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
 
+    const kanbanBaseline = await page.evaluate(() => {
+      const state = window.__KANBAN_HANDLERS__;
+      if (!state || typeof state !== 'object') return null;
+      return {
+        added: Number(state.added || 0),
+        columns: Number(state.columns || 0)
+      };
+    });
+    if (!kanbanBaseline) {
+      throw new Error('kanban-handlers-missing');
+    }
+
+    await navigateTab(page, 'dashboard', consoleErrors, networkErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    await assertSplashHidden(page);
+
+    await navigateTab(page, 'pipeline', consoleErrors, networkErrors);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    await assertSplashHidden(page);
+
+    const kanbanAfter = await page.evaluate(() => {
+      const state = window.__KANBAN_HANDLERS__;
+      if (!state || typeof state !== 'object') return null;
+      return {
+        added: Number(state.added || 0),
+        columns: Number(state.columns || 0)
+      };
+    });
+    if (!kanbanAfter) {
+      throw new Error('kanban-handlers-missing-after');
+    }
+    if (kanbanAfter.added !== kanbanBaseline.added) {
+      throw new Error(`kanban-handlers-changed:${kanbanBaseline.added}->${kanbanAfter.added};cols:${kanbanBaseline.columns}->${kanbanAfter.columns}`);
+    }
+
     const pipelineFilter = await page.evaluate(() => {
       const input = document.querySelector('#view-pipeline input[data-table-search="#tbl-pipeline"]');
       const table = document.querySelector('#tbl-pipeline tbody');
