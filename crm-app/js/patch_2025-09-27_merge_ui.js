@@ -464,6 +464,7 @@ function runPatch(){
       dlg = document.createElement('dialog');
       dlg.id = MODAL_ID;
       dlg.className = 'record-modal merge-dialog';
+      dlg.setAttribute('data-ui', 'merge-modal');
       dlg.innerHTML = `
         <div class="merge-shell">
           <div class="merge-header">
@@ -482,7 +483,7 @@ function runPatch(){
           <div class="merge-footer">
             <div class="merge-error" data-role="error" style="display:none"></div>
             <button class="btn" type="button" data-merge-cancel>Cancel</button>
-            <button class="btn brand" type="button" data-merge-confirm disabled>Merge</button>
+            <button class="btn brand" type="button" data-merge-confirm data-ui="merge-confirm" disabled>Merge</button>
           </div>
         </div>`;
       document.body.appendChild(dlg);

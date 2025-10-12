@@ -95,6 +95,17 @@
     const detail = buildDetail(source, extra);
     pendingDetail = detail;
     scheduleEmit();
+    try {
+      const selection = (typeof window !== 'undefined' && window)
+        ? (window.SelectionService || window.Selection)
+        : null;
+      const value = typeof selection?.count === 'function'
+        ? selection.count()
+        : count();
+      if (typeof window !== 'undefined' && window) {
+        window.__SEL_COUNT__ = value | 0;
+      }
+    } catch {}
     return detail;
   }
 
@@ -248,6 +259,7 @@
     get(){
       return { type: state.type, ids: cloneIds() };
     },
+    getSelectedIds: cloneIds,
     set(ids, type, source){ setIds(ids, type, source); },
     toggle,
     clear,
@@ -276,6 +288,7 @@
     count,
     size,
     getIds: cloneIds,
+    getSelectedIds: cloneIds,
     idsOf,
     syncChecks: scheduleSync,
     set: setIds,
