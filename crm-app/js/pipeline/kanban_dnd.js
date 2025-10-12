@@ -12,8 +12,78 @@ function normalizeKey(x) {
     .replace(/\s/g, '_');
 }
 
-let WIRED = false;
-let WIRED_BOARD = null;
+const kanbanMetrics = (() => {
+  const metrics = window.__KANBAN_HANDLERS__ || { attach: 0, detach: 0, active: 0 };
+  metrics.attach = metrics.attach || 0;
+  metrics.detach = metrics.detach || 0;
+  metrics.active = metrics.active || 0;
+  return window.__KANBAN_HANDLERS__ = metrics;
+})();
+
+const wiring = {
+  root: null,
+  listeners: [],
+  observer: null
+};
+
+function updateKanbanMetrics(){
+  kanbanMetrics.active = wiring.listeners.length;
+  kanbanMetrics.root = wiring.root && wiring.root.isConnected ? 'connected' : (wiring.root ? 'detached' : 'none');
+  kanbanMetrics.timestamp = Date.now();
+}
+
+function unobserveRoot(){
+  if(wiring.observer){
+    try{ wiring.observer.disconnect(); }
+    catch (_err) {}
+    wiring.observer = null;
+  }
+}
+
+function detachAll(reason){
+  if(!wiring.listeners.length) return;
+  wiring.listeners.forEach(({ root, event, handler, options }) => {
+    try{ root.removeEventListener(event, handler, options); }
+    catch (_err) {}
+    kanbanMetrics.detach += 1;
+  });
+  wiring.listeners = [];
+  if(reason) kanbanMetrics.lastDetachReason = reason;
+  updateKanbanMetrics();
+}
+
+function recordListener(root, event, handler, options){
+  if(!root || !event || typeof handler !== 'function') return;
+  root.addEventListener(event, handler, options);
+  wiring.listeners.push({ root, event, handler, options });
+  kanbanMetrics.attach += 1;
+  updateKanbanMetrics();
+}
+
+function monitorRoot(root){
+  unobserveRoot();
+  if(!root) return;
+  const target = root.parentNode || document.body || document.documentElement;
+  if(!target) return;
+  const observer = new MutationObserver(() => {
+    if(wiring.root && !wiring.root.isConnected){
+      detachAll('disconnect');
+      wiring.root = null;
+      unobserveRoot();
+      updateKanbanMetrics();
+    }
+  });
+  try{ observer.observe(target, { childList: true, subtree: true }); }
+  catch (_err) { return; }
+  wiring.observer = observer;
+}
+
+function teardownKanban(reason){
+  detachAll(reason);
+  wiring.root = null;
+  unobserveRoot();
+  updateKanbanMetrics();
+}
 
 const STAGE_LABEL_SET = new Set(PIPELINE_STAGES);
 const KEY_TO_LABEL = new Map();
@@ -79,6 +149,8 @@ function cardId(el){
   const id = el.getAttribute('data-id') || el.dataset.id || el.getAttribute('data-contact-id') || el.dataset.contactId;
   return id ? String(id) : null;
 }
+
+updateKanbanMetrics();
 
 let pending = new Set();
 let flushScheduled = false;
@@ -174,27 +246,36 @@ async function persistStage(contactId, newStage){
 }
 
 function installDnD(){
-  const root = boardEl(); if(!root) return;
-  if (WIRED && WIRED_BOARD && WIRED_BOARD !== root) { WIRED = false; }
-  if (WIRED) return; WIRED = true; WIRED_BOARD = root;
+  const root = boardEl();
+  if(!root){
+    if(wiring.root) teardownKanban('missing-root');
+    return;
+  }
+  if(wiring.root && wiring.root !== root){
+    teardownKanban('root-changed');
+  }
+  if(wiring.root === root && wiring.listeners.length){
+    return;
+  }
 
-  root.addEventListener('dragstart', (e) => {
+  wiring.root = root;
+
+  const onDragStart = (e) => {
     const card = e.target.closest('[data-id]');
     if(!card) return;
     const id = cardId(card); if(!id) return;
     e.dataTransfer?.setData('text/plain', JSON.stringify({ type:'contact', id }));
-    // visual cue
     e.dataTransfer?.setDragImage?.(card, 10, 10);
-  });
+  };
 
-  root.addEventListener('dragover', (e) => {
+  const onDragOver = (e) => {
     const lane = e.target.closest('[data-stage],[data-lane],[data-column]');
     if(!lane) return;
     const st = normStage(lane.dataset.stage); if(!st) return;
-    e.preventDefault(); // allow drop
-  });
+    e.preventDefault();
+  };
 
-  root.addEventListener('drop', async (e) => {
+  const onDrop = async (e) => {
     const lane = e.target.closest('[data-stage],[data-lane],[data-column]');
     if(!lane) return;
     const st = normStage(lane.dataset.stage); if(!st) return;
@@ -205,7 +286,6 @@ function installDnD(){
       if(payload.type !== 'contact') return;
       const ok = await persistStage(payload.id, st);
       if(ok){
-        // Move the card DOM immediately for responsiveness (data repaint will reconcile)
         const card = root.querySelector(`[data-id="${payload.id}"]`);
         if(card && lane){
           const list = lane.querySelector('[data-list], .lane-list, .kanban-list, .cards');
@@ -213,8 +293,13 @@ function installDnD(){
           try{ card.dataset.stage = laneKey; }catch (_) { }
         }
       }
-    }catch (_) { }
-  });
+    }catch (_err) {}
+  };
+
+  recordListener(root, 'dragstart', onDragStart);
+  recordListener(root, 'dragover', onDragOver);
+  recordListener(root, 'drop', onDrop);
+  monitorRoot(root);
 }
 
 // Public API (for tests)
