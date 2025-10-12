@@ -1,4 +1,24 @@
 // app.js
+export function goto(hash){
+  if(typeof hash !== 'string' || !hash) return;
+  const target = hash.startsWith('#') ? hash : `#${hash}`;
+  try{
+    if(typeof globalThis.location === 'object' && globalThis.location){
+      const current = typeof globalThis.location.hash === 'string'
+        ? globalThis.location.hash
+        : '';
+      if(current === target) return;
+      globalThis.location.hash = target;
+    }
+  }catch (_) {}
+}
+
+if(typeof globalThis.Router !== 'object' || !globalThis.Router){
+  globalThis.Router = { goto };
+}else if(typeof globalThis.Router.goto !== 'function'){
+  globalThis.Router.goto = goto;
+}
+
 (function(){
   const NONE_PARTNER_ID = window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
   if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
@@ -775,31 +795,128 @@
   }
 
   const DEFAULT_ROUTE = 'dashboard';
+  const VIEW_HASH = {
+    dashboard: '#/dashboard',
+    longshots: '#/long-shots',
+    pipeline: '#/pipeline',
+    partners: '#/partners'
+  };
+  const HASH_TO_VIEW = new Map();
+  Object.entries(VIEW_HASH).forEach(([view, hash]) => {
+    const canonical = String(hash || '').toLowerCase();
+    if(canonical) HASH_TO_VIEW.set(canonical, view);
+    const noSlash = canonical.replace('#/', '#');
+    if(noSlash) HASH_TO_VIEW.set(noSlash, view);
+  });
+  HASH_TO_VIEW.set('#/longshots', 'longshots');
+  HASH_TO_VIEW.set('#longshots', 'longshots');
+  HASH_TO_VIEW.set('#/long-shots', 'longshots');
+  HASH_TO_VIEW.set('#long-shots', 'longshots');
+
+  const VIEW_LIFECYCLE = {
+    dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
+    longshots: { id: 'view-longshots', ui: 'longshots-root' },
+    pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
+    partners: { id: 'view-partners', ui: 'partners-table' }
+  };
+
+  let activeView = null;
+  let suppressHashUpdate = false;
+
+  function normalizeView(value){
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function normalizedHash(){
+    try{
+      if(typeof window !== 'undefined' && window.location){
+        return String(window.location.hash || '').trim().toLowerCase();
+      }
+    }catch (_) {}
+    return '';
+  }
+
+  function viewFromHash(hash){
+    const normalized = String(hash || '').trim().toLowerCase();
+    if(!normalized) return null;
+    if(normalized === '#workbench' || normalized === '#/workbench') return 'workbench';
+    return HASH_TO_VIEW.get(normalized) || null;
+  }
+
+  function syncHashForView(view){
+    if(suppressHashUpdate) return;
+    const targetHash = VIEW_HASH[view];
+    if(!targetHash) return;
+    const current = normalizedHash();
+    if(current === String(targetHash).trim().toLowerCase()) return;
+    goto(targetHash);
+  }
+
+  function ensureViewMounted(view){
+    const entry = VIEW_LIFECYCLE[view];
+    if(!entry) return;
+    const root = document.getElementById(entry.id);
+    if(!root) return;
+    if(root.getAttribute('data-mounted') === '1') return;
+    root.setAttribute('data-mounted', '1');
+    if(entry.ui && !root.getAttribute('data-ui')){
+      root.setAttribute('data-ui', entry.ui);
+    }
+    if(typeof entry.mount === 'function'){
+      try{ entry.mount(root); }
+      catch (err) {
+        if(isDebug && console && typeof console.warn === 'function'){
+          console.warn(`[view:${view}] mount failed`, err);
+        }
+      }
+    }
+  }
+
+  function handleHashChange(){
+    const currentView = viewFromHash(normalizedHash());
+    if(!currentView || currentView === 'workbench') return;
+    if(currentView === activeView) return;
+    suppressHashUpdate = true;
+    try{ activate(currentView); }
+    finally{ suppressHashUpdate = false; }
+  }
+
   const settingsButton = document.getElementById('btn-open-settings');
   const titleLink = document.getElementById('app-title-link');
 
   function activate(view){
-    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + view));
-    $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===view));
+    const normalized = normalizeView(view);
+    if(!normalized) return;
+    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
+    $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
     if(settingsButton){
-      settingsButton.classList.toggle('active', view==='settings');
+      settingsButton.classList.toggle('active', normalized==='settings');
     }
+    activeView = normalized;
     clearAllSelectionScopes();
+    ensureViewMounted(normalized);
+    if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
-    if(view==='settings') renderExtrasRegistry();
+    if(normalized==='settings') renderExtrasRegistry();
   }
 
   function enforceDefaultRoute(){
-    const canonicalHash = `#/${DEFAULT_ROUTE}`;
+    const canonicalHash = VIEW_HASH[DEFAULT_ROUTE] || `#/${DEFAULT_ROUTE}`;
     let bypass = false;
     try{
       if(window.location){
         const currentHash = typeof window.location.hash === 'string'
           ? window.location.hash
           : '';
-        if(currentHash === '#workbench' || currentHash === '#/workbench'){
+        const mappedView = viewFromHash(currentHash);
+        if(mappedView === 'workbench'){
           bypass = true;
-        }else if(currentHash !== canonicalHash){
+        }else if(mappedView){
+          suppressHashUpdate = true;
+          try{ activate(mappedView); }
+          finally{ suppressHashUpdate = false; }
+          return;
+        }else if(currentHash && currentHash !== canonicalHash){
           if(window.history && typeof window.history.replaceState === 'function'){
             window.history.replaceState(null, document.title, canonicalHash);
           }else{
@@ -818,6 +935,7 @@
   }
 
   enforceDefaultRoute();
+  window.addEventListener('hashchange', handleHashChange);
   $('#main-nav').addEventListener('click', (e)=>{
     const btn = e.target.closest('button[data-nav]'); if(!btn) return;
     const navTarget = btn.getAttribute('data-nav');

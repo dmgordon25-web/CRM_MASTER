@@ -314,6 +314,23 @@ async function main() {
     if (!uiRendered) throw new Error('Dashboard UI did not render');
     await assertSplashHidden(page);
 
+    const routeNavBaseline = consoleErrors.length;
+    const routes = [
+      { hash: '#/dashboard', sel: '[data-ui="dashboard-root"]' },
+      { hash: '#/long-shots', sel: '[data-ui="longshots-root"]' },
+      { hash: '#/pipeline', sel: '.kanban-board, [data-ui="kanban-root"]' },
+      { hash: '#/partners', sel: '[data-ui="partners-table"]' }
+    ];
+    for (const route of routes) {
+      await page.evaluate((h) => { location.hash = h; }, route.hash);
+      await page.waitForSelector(route.sel, { timeout: 1500 });
+      await assertSplashHidden(page);
+      await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    }
+    if (consoleErrors.length !== routeNavBaseline) {
+      throw new Error('Console error emitted during hash navigation sequence');
+    }
+
     const tabs = [
       ['Dashboard', 'dashboard'],
       ['Long Shots', 'longshots'],
