@@ -119,7 +119,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       try {
         loader = import(fromHere('./pages/email_templates.js'));
       } catch (err) {
-        console.warn('automation module skipped', err?.message || err);
+        console.info('automation module skipped', err?.message || err);
         finish();
         return;
       }
@@ -134,7 +134,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           }
         })
         .catch((err) => {
-          console.warn('automation module skipped', err?.message || err);
+          console.info('automation module skipped', err?.message || err);
         })
         .finally(() => finish());
     };

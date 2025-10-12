@@ -124,6 +124,8 @@ async function main() {
   const consoleErrors = [];
   const consoleWarnings = [];
   const consoleInfos = [];
+  const WARN_ALLOW = [/^Deprecation:/i, /userAgentData/i];
+  let warnCount = 0;
   try {
     await runContractLint();
     server = startServerProc();
@@ -164,6 +166,10 @@ async function main() {
           consoleErrors.push(text);
           break;
         case 'warning':
+          try {
+            const t = text || '';
+            if (!WARN_ALLOW.some(rx => rx.test(t))) warnCount++;
+          } catch {}
           consoleWarnings.push(text);
           break;
         case 'info':
@@ -634,6 +640,10 @@ async function main() {
 
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
     await assertSplashHidden(page);
+    if (warnCount > 5) {
+      console.error('[SMOKE] warn cap exceeded:', warnCount);
+      throw new Error('warn-cap');
+    }
     console.log('BOOT SMOKE TEST PASS');
   } finally {
     if (browser) {
