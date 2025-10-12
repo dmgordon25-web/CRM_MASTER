@@ -1,3 +1,146 @@
+const EMAIL_FROM_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+const TZ_FALLBACK_PATTERN = /^[A-Za-z0-9_.+-]+(?:\/[A-Za-z0-9_.+-]+)*$/;
+
+function cloneGeneralDefaults(){
+  return {
+    timezone: '',
+    workHours: { start: null, end: null },
+    email: { from: '' },
+    notifications: { enabled: null }
+  };
+}
+
+function coerceHourValue(value){
+  if(typeof value === 'number' && Number.isFinite(value)){
+    return Math.trunc(value);
+  }
+  if(typeof value === 'string'){
+    const trimmed = value.trim();
+    if(trimmed === '') return null;
+    const numeric = Number(trimmed);
+    if(Number.isFinite(numeric)){
+      return Math.trunc(numeric);
+    }
+    return trimmed;
+  }
+  return value == null ? null : value;
+}
+
+function coerceBooleanLike(value){
+  if(typeof value === 'boolean') return value;
+  if(typeof value === 'string'){
+    const normalized = value.trim().toLowerCase();
+    if(normalized === 'true') return true;
+    if(normalized === 'false') return false;
+  }
+  if(typeof value === 'number'){
+    if(value === 1) return true;
+    if(value === 0) return false;
+  }
+  return value;
+}
+
+function toTrimmedString(value){
+  if(typeof value === 'string') return value.trim();
+  if(value == null) return '';
+  return String(value).trim();
+}
+
+function extractGeneralSettings(source){
+  const defaults = cloneGeneralDefaults();
+  if(!source || typeof source !== 'object'){
+    return defaults;
+  }
+  if(Object.prototype.hasOwnProperty.call(source, 'timezone')){
+    defaults.timezone = toTrimmedString(source.timezone);
+  }
+  const workHours = source.workHours && typeof source.workHours === 'object' ? source.workHours : {};
+  if(Object.prototype.hasOwnProperty.call(workHours, 'start')){
+    defaults.workHours.start = coerceHourValue(workHours.start);
+  }
+  if(Object.prototype.hasOwnProperty.call(workHours, 'end')){
+    defaults.workHours.end = coerceHourValue(workHours.end);
+  }
+  const email = source.email && typeof source.email === 'object' ? source.email : {};
+  if(Object.prototype.hasOwnProperty.call(email, 'from')){
+    defaults.email.from = toTrimmedString(email.from);
+  }
+  const notifications = source.notifications && typeof source.notifications === 'object' ? source.notifications : {};
+  if(Object.prototype.hasOwnProperty.call(notifications, 'enabled')){
+    defaults.notifications.enabled = coerceBooleanLike(notifications.enabled);
+  }
+  return defaults;
+}
+
+function isValidTimeZone(value){
+  if(typeof value !== 'string' || !value){
+    return false;
+  }
+  try{
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  }catch (_err){
+    return TZ_FALLBACK_PATTERN.test(value);
+  }
+}
+
+export function validateSettings(settings){
+  const general = extractGeneralSettings(settings);
+  const errors = [];
+
+  const timezone = general.timezone;
+  if(!timezone){
+    errors.push({ path: 'timezone', reason: 'Timezone is required' });
+  }else if(!isValidTimeZone(timezone)){
+    errors.push({ path: 'timezone', reason: 'Timezone must be a valid IANA identifier' });
+  }
+
+  const startHour = general.workHours.start;
+  if(!Number.isInteger(startHour) || startHour < 0 || startHour > 23){
+    errors.push({ path: 'workHours.start', reason: 'Start hour must be an integer between 0 and 23' });
+  }
+
+  const endHour = general.workHours.end;
+  if(!Number.isInteger(endHour) || endHour < 0 || endHour > 23){
+    errors.push({ path: 'workHours.end', reason: 'End hour must be an integer between 0 and 23' });
+  }else if(Number.isInteger(startHour) && startHour >= endHour){
+    errors.push({ path: 'workHours.end', reason: 'End hour must be greater than start hour' });
+  }
+
+  const emailFrom = general.email.from;
+  if(!emailFrom){
+    errors.push({ path: 'email.from', reason: 'From address is required' });
+  }else if(!EMAIL_FROM_PATTERN.test(emailFrom)){
+    errors.push({ path: 'email.from', reason: 'From address must be a valid email' });
+  }
+
+  const notificationsEnabled = general.notifications.enabled;
+  if(typeof notificationsEnabled !== 'boolean'){
+    errors.push({ path: 'notifications.enabled', reason: 'Enabled must be true or false' });
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+function applyGeneralSettingsCoercion(target){
+  if(!target || typeof target !== 'object') return target;
+  const general = extractGeneralSettings(target);
+  target.timezone = general.timezone;
+  target.workHours = general.workHours;
+  target.email = general.email;
+  target.notifications = general.notifications;
+  return target;
+}
+
+function shouldValidateGeneral(partial){
+  if(!partial || typeof partial !== 'object') return false;
+  if(Object.prototype.hasOwnProperty.call(partial, 'timezone')) return true;
+  if(Object.prototype.hasOwnProperty.call(partial, 'workHours')) return true;
+  if(Object.prototype.hasOwnProperty.call(partial, 'email')) return true;
+  if(Object.prototype.hasOwnProperty.call(partial, 'notifications')) return true;
+  return false;
+}
+
 (function(){
   if(window.Settings && typeof window.Settings.get === 'function') return;
 
@@ -127,6 +270,11 @@
       dashboard: normalizeDashboard(base.dashboard),
       updatedAt: base.updatedAt || null
     };
+    const general = extractGeneralSettings(base);
+    normalized.timezone = general.timezone;
+    normalized.workHours = general.workHours;
+    normalized.email = general.email;
+    normalized.notifications = general.notifications;
     return normalized;
   }
 
@@ -255,6 +403,22 @@
   async function save(partial){
     const current = await load();
     const next = mergeSettings(current, partial);
+    applyGeneralSettingsCoercion(next);
+    if(shouldValidateGeneral(partial)){
+      const validation = validateSettings(next);
+      if(!validation.ok){
+        if(window.Toast && typeof window.Toast.show === 'function'){
+          try{
+            const first = validation.errors && validation.errors[0];
+            const path = first && first.path ? first.path : 'invalid field';
+            window.Toast.show('Settings validation: ' + path);
+          }catch (err){
+            if(console && console.warn) console.warn('[settings] validation toast failed', err);
+          }
+        }
+        return false;
+      }
+    }
     cache = next;
     if(partial && typeof partial.loProfile === 'object'){
       writeProfileLocal(normalizeProfile(partial.loProfile));
@@ -403,6 +567,9 @@
     initSettingsUX();
     wireDeleteAll();
   }
+
+  window.CRM = window.CRM || {};
+  window.CRM.validateSettings = validateSettings;
 
   window.Settings = {
     get: load,
