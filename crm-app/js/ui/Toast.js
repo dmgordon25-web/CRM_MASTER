@@ -67,6 +67,10 @@
     if(!hasAction && text === this.lastMessage && now - this.lastShownAt <= COALESCE_WINDOW){
       return;
     }
+    try {
+      window.__LAST_TOAST__ = String(message == null ? '' : message);
+      window.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: window.__LAST_TOAST__ } }));
+    } catch (_) {}
     this.lastMessage = text;
     this.lastShownAt = now;
     const host = this.ensureHost();

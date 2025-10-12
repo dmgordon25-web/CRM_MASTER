@@ -293,6 +293,90 @@ async function main() {
     await ensureNoConsoleErrors(consoleErrors);
     await assertSplashHidden(page);
 
+    const actionSelectors = [
+      '#actionbar [data-act="clear"]',
+      '#actionbar [data-action="clear"]',
+      '#actionbar button[data-act="clear"]',
+      '[data-act="clear"]'
+    ];
+
+    await page.waitForFunction(() => {
+      const ready = !!(window.SelectionService && typeof window.SelectionService.set === 'function');
+      const row = document.querySelector('#tbl-pipeline tbody tr[data-id], #tbl-pipeline tbody tr[data-contact-id]');
+      return ready && !!row;
+    }, { timeout: 60000 });
+
+    const seededSelection = await page.evaluate(() => {
+      const row = document.querySelector('#tbl-pipeline tbody tr[data-id], #tbl-pipeline tbody tr[data-contact-id]');
+      if (!row) return { ok: false };
+      const id = row.getAttribute('data-id')
+        || row.getAttribute('data-contact-id')
+        || (row.dataset ? (row.dataset.id || row.dataset.contactId) : null);
+      if (!id) return { ok: false };
+      if (window.SelectionService && typeof window.SelectionService.set === 'function') {
+        window.SelectionService.set([id], 'contacts', 'smoke');
+      } else if (window.Selection && typeof window.Selection.set === 'function') {
+        window.Selection.set([id], 'contacts', 'smoke');
+      } else {
+        return { ok: false };
+      }
+      return { ok: true, id };
+    });
+    if (!seededSelection.ok) {
+      throw new Error('Unable to seed selection for action bar test');
+    }
+
+    await page.waitForFunction(() => {
+      const bar = document.getElementById('actionbar');
+      return !!(bar && bar.classList.contains('has-selection'));
+    }, { timeout: 30000 });
+
+    let clickedSelector = null;
+    for (const selector of actionSelectors) {
+      const status = await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return { found: false };
+        const disabled = el.hasAttribute('disabled')
+          || el.getAttribute('aria-disabled') === 'true'
+          || el.classList.contains('disabled');
+        const hidden = !(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+        return { found: true, disabled, hidden };
+      }, selector);
+      if (status.found) {
+        console.log(`[SMOKE] action-bar candidate ${selector} disabled=${status.disabled} hidden=${status.hidden}`);
+        if (!status.disabled && !status.hidden) {
+          clickedSelector = selector;
+          break;
+        }
+      }
+    }
+
+    if (!clickedSelector) {
+      throw new Error('No enabled action-bar button available');
+    }
+
+    console.log(`[SMOKE] action-bar clicking selector ${clickedSelector}`);
+    await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) throw new Error(`Action bar selector missing: ${sel}`);
+      el.click();
+    }, clickedSelector);
+
+    const toastHandle = await page.waitForFunction(() => {
+      const host = document.querySelector('[data-toast-host="true"]');
+      if (host && host.textContent && host.textContent.includes('Action completed')) {
+        return { via: 'dom', text: host.textContent };
+      }
+      if (typeof window.__LAST_TOAST__ === 'string' && window.__LAST_TOAST__.includes('Action completed')) {
+        return { via: 'hook', text: window.__LAST_TOAST__ };
+      }
+      return false;
+    }, { timeout: 30000 });
+    const toastResult = await toastHandle.jsonValue();
+    console.log(`[SMOKE] action-bar toast via ${toastResult.via}`);
+    await ensureNoConsoleErrors(consoleErrors);
+    await assertSplashHidden(page);
+
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
     if (!perfPing) {
       throw new Error('Perf overlay ping missing');

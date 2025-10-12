@@ -4,6 +4,58 @@ const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
 
 const canonicalPatchOrder = [
+  './header_ui.js',
+  './ui/notifications_panel.js',
+  './ui/action_bar.js',
+  './ui/debug_overlay.js',
+  './add_contact.js',
+  './quick_add.js',
+  './doccenter_rules.js',
+  './doc/doc_center_enhancer.js',
+  './email/merge_vars.js',
+  './email/templates_store.js',
+  './contact_stage_tracker.js',
+  './contacts.js',
+  './partners.js',
+  './partners_modal.js',
+  './partners_merge.js',
+  './partners_merge_orchestrator.js',
+  './merge/merge_core.js',
+  './dash_range.js',
+  './importer.js',
+  './importer_helpers.js',
+  './importer_contacts.js',
+  './importer_partners.js',
+  './reports.js',
+  './commissions.js',
+  './notifications.js',
+  './notifications/notifier.js',
+  './calendar_impl.js',
+  './calendar_actions.js',
+  './calendar.js',
+  './calendar_ics.js',
+  './post_funding.js',
+  './qa.js',
+  './bulk_log.js',
+  './print.js',
+  './app.js',
+  './settings_forms.js',
+  './pipeline/stages.js',
+  './pages/workbench.js',
+  './pages/email_templates.js',
+  './pages/notifications.js',
+  './dashboard/widgets_dnd.js',
+  './ui/form_footer.js',
+  './ui/GhostButton.js',
+  './ui/PrimaryButton.js',
+  './ui/merge_modal.js',
+  './ui/quick_add_unified.js',
+  './ui/strings.js',
+  './util/strings.js',
+  './ux/svg_sanitizer.js',
+  './diagnostics_quiet.js',
+  './snapshot.js',
+  './selftest.js',
   './patch_20250923_baseline.js',
   './patch_20250924_bootstrap_ready.js',
   './patch_20250926_ctc_actionbar.js',
@@ -29,6 +81,11 @@ const canonicalPatchOrder = [
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js'
 ];
+
+const AUDIT_IGNORE = new Set([
+  './patches/loader.js', // dev-only, ignored by audit
+  './selftest_panel.js' // dev-only, ignored by audit
+]);
 
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
@@ -86,7 +143,8 @@ function fileExists(p) {
   const phList = new Set(all);
   const unphased = allJs
     .filter(p => !p.startsWith('./boot/'))
-    .filter(p => !phList.has(p));
+    .filter(p => !phList.has(p))
+    .filter(p => !AUDIT_IGNORE.has(p));
 
   // Report
   const errors = [];

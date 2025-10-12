@@ -120,6 +120,7 @@ function runPatch(){
     const currencyFmt = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb)=>setTimeout(cb,16);
     const warnedMissing = new Set();
+    const ACTIONBAR_TOAST_FLAG = Symbol('actionbar:toast');
 
     function canonicalizeStage(value){
       const raw = String(value==null?'':value).trim().toLowerCase();
@@ -246,9 +247,27 @@ function runPatch(){
 
     function toast(msg){
       try{
+        if(window.Toast && typeof window.Toast.show === 'function'){ window.Toast.show(msg); return; }
+      }catch (_err) {}
+      try{
         if(typeof window.toast === 'function'){ window.toast(msg); return; }
       }catch (_err) {}
       console.log('[toast]', msg);
+    }
+
+    function showActionCompletedToast(result){
+      const target = (result && typeof result === 'object') ? result : null;
+      if(target && target[ACTIONBAR_TOAST_FLAG]) return;
+      if(target){ Object.defineProperty(target, ACTIONBAR_TOAST_FLAG, { value: true, configurable: false }); }
+      try{
+        if(window.Toast && typeof window.Toast.show === 'function'){
+          window.Toast.show('Action completed');
+        }else if(typeof window.toast === 'function'){
+          window.toast('Action completed');
+        }else{
+          console.log('[toast]', 'Action completed');
+        }
+      }catch (_err) {}
     }
 
     function warnMissing(name){
@@ -941,6 +960,9 @@ function runPatch(){
         }else if(ensureSelectionService() && typeof SelectionService.reemit === 'function'){
           SelectionService.reemit(`${sourceBase}:error`);
         }
+      }
+      if(status === 'ok' && action === 'clear'){
+        showActionCompletedToast(result);
       }
       setActionbarBusy(false, action);
       actionState.current = null;
