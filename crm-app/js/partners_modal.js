@@ -1,5 +1,6 @@
 import { createFormFooter } from './ui/form_footer.js';
 import './contacts/form.js';
+import { registerModalActions } from './contacts/modal.js';
 
 window.CRM = window.CRM || {};
 
@@ -403,6 +404,14 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     });
     fillStateSelect(el('p-state'), (p.state||'').toUpperCase());
 
+    document.dispatchEvent(new CustomEvent('partner:modal:ready', {
+      detail: {
+        dialog: dlg,
+        form: partnerForm,
+        record: p
+      }
+    }));
+
     await renderLinkedCustomers(p.id);
 
     const closeDialog = ()=>{
@@ -573,3 +582,27 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     });
   }
 })();
+
+registerModalActions({
+  entity: 'partner',
+  eventName: 'partner:modal:ready',
+  store: 'partners',
+  getDialog: detail => detail?.dialog || null,
+  getHeader: dialog => dialog?.querySelector?.('.modal-header'),
+  getId: dialog => dialog?.dataset?.partnerId || '',
+  getNoteField: dialog => dialog?.querySelector?.('#p-notes'),
+  getName: dialog => {
+    const name = dialog?.querySelector?.('#p-name')?.value?.trim() || '';
+    const company = dialog?.querySelector?.('#p-company')?.value?.trim() || '';
+    if(name && company) return `${name} · ${company}`;
+    return name || company || 'Partner';
+  },
+  getEmail: dialog => dialog?.querySelector?.('#p-email')?.value?.trim() || '',
+  getPhone: dialog => dialog?.querySelector?.('#p-phone')?.value?.trim() || '',
+  getReminderLabel: (_dialog, ctx) => {
+    if(ctx && ctx.name){
+      return `Reminder for ${ctx.name}`;
+    }
+    return 'Partner reminder';
+  }
+});
