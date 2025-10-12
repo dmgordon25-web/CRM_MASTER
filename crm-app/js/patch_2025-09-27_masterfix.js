@@ -604,12 +604,19 @@ function runPatch(){
     function ensureCalendarIcsButton(){
       const host = document.querySelector('#view-calendar .card .row');
       if(!host) return;
-      if(document.getElementById('cal-export-ics')) return;
+      const existing = document.getElementById('cal-export-ics');
+      if(existing){
+        existing.dataset.act = 'calendar:export:ics';
+        existing.setAttribute('data-ics-export', '1');
+        return;
+      }
       const btn = document.createElement('button');
       btn.id = 'cal-export-ics';
       btn.className = 'btn';
       btn.type = 'button';
       btn.textContent = 'Export .ics';
+      btn.dataset.act = 'calendar:export:ics';
+      btn.setAttribute('data-ics-export', '1');
       btn.addEventListener('click', evt => {
         evt.preventDefault();
         exportCalendarRange().catch(err => {

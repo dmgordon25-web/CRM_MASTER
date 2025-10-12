@@ -1064,6 +1064,7 @@ function runPatch(){
           const href = 'mailto:?bcc='+encodeURIComponent(emails.join(','));
           try{ window.open(href, '_self'); }
           catch (_err) { window.location.href = href; }
+          toast('Email composer opened');
           return { status:'ok', clear:false, dispatch:false, detail:{ emails: emails.length, mode:'together' } };
         }
         case 'emailMass':{
@@ -1136,6 +1137,7 @@ function runPatch(){
           return { status:'error', error:'bulkLog missing', dispatch:false };
         }
         case 'clear':{
+          toast('Selection cleared');
           return { status:'ok', clear:true, dispatch:false, detail:{ cleared:true } };
         }
         case 'delete':{
@@ -1154,6 +1156,9 @@ function runPatch(){
       if(!act) return;
       if(actionState.busy) return;
       if(!ensureSelectionService()) return;
+      const beforeToastTick = typeof window !== 'undefined'
+        ? Number(window.__LAST_TOAST_TICK__ || 0)
+        : 0;
       const snapshot = typeof SelectionService.snapshot === 'function'
         ? SelectionService.snapshot()
         : { ids: typeof SelectionService.getIds === 'function' ? SelectionService.getIds() : [], type: SelectionService.type };
@@ -1185,6 +1190,15 @@ function runPatch(){
         return;
       }
       finalizeAction(act, snapshot, result);
+      if(result && result.status === 'ok'){
+        const afterToastTick = typeof window !== 'undefined'
+          ? Number(window.__LAST_TOAST_TICK__ || 0)
+          : beforeToastTick;
+        if(afterToastTick === beforeToastTick){
+          try{ toast('Action completed'); }
+          catch (_err) {}
+        }
+      }
     }
 
     function ensureTaskModal(){

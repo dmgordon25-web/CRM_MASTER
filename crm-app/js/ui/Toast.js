@@ -1,6 +1,59 @@
 (function(){
   if(typeof window === 'undefined') return;
-  if(window.Toast && typeof window.Toast.show === 'function') return;
+
+  function signalToastHook(rawMessage){
+    try{
+      const msg = String(rawMessage == null ? '' : rawMessage);
+      const prev = Number.isFinite(window.__LAST_TOAST_TICK__)
+        ? Number(window.__LAST_TOAST_TICK__)
+        : 0;
+      const tick = prev + 1;
+      window.__LAST_TOAST_TICK__ = tick;
+      window.__LAST_TOAST__ = msg;
+      if(typeof window.dispatchEvent === 'function'){
+        window.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg, tick } }));
+      }
+    }catch (_err) {}
+  }
+
+  let wrapGuard = false;
+
+  function wrapToastFn(original, resolver){
+    if(typeof original !== 'function') return original;
+    return function wrappedToast(){
+      if(!wrapGuard){
+        wrapGuard = true;
+        try{
+          const text = resolver.apply(this, arguments);
+          signalToastHook(text);
+        }finally{
+          wrapGuard = false;
+        }
+      }
+      return original.apply(this, arguments);
+    };
+  }
+
+  const existingShow = window.Toast && typeof window.Toast.show === 'function'
+    ? window.Toast.show.bind(window.Toast)
+    : null;
+  if(existingShow){
+    window.Toast.show = wrapToastFn(existingShow, function(message){
+      return String(message == null ? '' : message).trim() || 'Saved';
+    });
+    if(typeof window.toast === 'function'){
+      const existingToast = window.toast;
+      window.toast = wrapToastFn(existingToast, function(message){
+        if(message && typeof message === 'object' && !Array.isArray(message)){
+          const payload = Object.assign({}, message);
+          const text = 'message' in payload ? String(payload.message ?? '') : '';
+          return text.trim() || 'Saved';
+        }
+        return String(message == null ? '' : message).trim() || 'Saved';
+      });
+    }
+    return;
+  }
 
   const DEFAULT_DURATION = 2600;
   const COALESCE_WINDOW = 500;
@@ -61,6 +114,7 @@
 
   ToastController.prototype.show = function show(message, options){
     const text = String(message == null ? '' : message).trim() || 'Saved';
+    signalToastHook(text);
     const action = options && options.action;
     const hasAction = action && typeof action === 'object' && typeof action.onClick === 'function';
     const now = Date.now();
