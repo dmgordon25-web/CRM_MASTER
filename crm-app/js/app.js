@@ -760,7 +760,6 @@
     document.addEventListener('change', (event)=>{
       const target = event.target;
       if(!(target instanceof HTMLInputElement)) return;
-      if(target.dataset && target.dataset.ui === 'row-check') return;
       if(!target.dataset || target.dataset.role !== 'select') return;
       const scope = selectionScopeFor(target);
       const id = selectionIdFor(target);
