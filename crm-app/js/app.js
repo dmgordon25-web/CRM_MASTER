@@ -1,3 +1,5 @@
+import './dashboard/kpis.js';
+
 // app.js
 export function goto(hash){
   if(typeof hash !== 'string' || !hash) return;
@@ -24,6 +26,23 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
   const fromHere = (p) => new URL(p, import.meta.url).href;
+
+  window.CRM = window.CRM || {};
+  window.CRM.openPipelineWithFilter = function(stage){
+    try {
+      const raw = stage == null ? '' : String(stage).trim();
+      const hash = raw ? '#/pipeline?stage=' + encodeURIComponent(raw) : '#/pipeline';
+      if(typeof location !== 'undefined'){
+        if(location.hash !== hash){
+          location.hash = hash;
+        }
+      }
+      const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: raw || null } });
+      window.dispatchEvent(evt);
+    } catch (e) {
+      console.warn('pipeline filter nav failed', e);
+    }
+  };
 
   const isDebug = window.__ENV__ && window.__ENV__.DEBUG === true;
   if(window.__ENV__?.DEBUG === true){
@@ -823,6 +842,207 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   let activeView = null;
   let suppressHashUpdate = false;
 
+  const PIPELINE_FILTER_VALUES = new Set(['new', 'qualified', 'won', 'lost']);
+  const PIPELINE_FILTER_LABELS = {
+    new: 'New',
+    qualified: 'Qualified',
+    won: 'Won',
+    lost: 'Lost'
+  };
+  const PIPELINE_STAGE_LOOKUP = new Map();
+
+  function pipelineToken(value){
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  function registerPipelineAliases(group, aliases){
+    aliases.forEach(alias => {
+      const normalized = pipelineToken(alias);
+      if(!normalized) return;
+      PIPELINE_STAGE_LOOKUP.set(normalized, group);
+      const compact = normalized.replace(/-/g, '');
+      if(compact) PIPELINE_STAGE_LOOKUP.set(compact, group);
+    });
+  }
+
+  registerPipelineAliases('new', ['new', 'lead', 'leads', 'long-shot', 'longshot', 'prospect', 'application', 'app']);
+  registerPipelineAliases('qualified', ['qualified', 'preapproved', 'pre-approved', 'preapp', 'processing', 'underwriting', 'approved', 'nurture', 'active', 'pipeline', 'in-process']);
+  registerPipelineAliases('won', ['won', 'ctc', 'clear-to-close', 'cleared-to-close', 'funded', 'post-close', 'postclose', 'client', 'clients']);
+  registerPipelineAliases('lost', ['lost', 'denied', 'declined', 'dead', 'fallout', 'withdrawn', 'withdrew']);
+
+  let currentPipelineStageFilter = null;
+
+  function ensurePipelineFilterStyle(){
+    if(typeof document === 'undefined') return;
+    if(document.getElementById('pipeline-filter-style')) return;
+    const style = document.createElement('style');
+    style.id = 'pipeline-filter-style';
+    style.textContent = '.pipeline-filter-hide{display:none !important;}';
+    const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+    if(head && typeof head.appendChild === 'function') head.appendChild(style);
+  }
+
+  function groupForStageValue(value){
+    const token = pipelineToken(value);
+    if(!token) return null;
+    return PIPELINE_STAGE_LOOKUP.get(token) || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, '')) || null;
+  }
+
+  function normalizePipelineStage(stage){
+    if(stage == null) return null;
+    const token = pipelineToken(stage);
+    if(!token) return null;
+    return PIPELINE_FILTER_VALUES.has(token) ? token : null;
+  }
+
+  function renderPipelineFilterTag(stage){
+    const view = document.getElementById('view-pipeline');
+    if(!view) return;
+    let bar = view.querySelector('[data-role="pipeline-filter-bar"]');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.dataset.role = 'pipeline-filter-bar';
+      bar.className = 'row';
+      bar.style.alignItems = 'center';
+      bar.style.gap = '8px';
+      bar.style.marginBottom = '12px';
+      const firstSection = view.querySelector('section.card');
+      if(firstSection){
+        view.insertBefore(bar, firstSection);
+      }else{
+        view.appendChild(bar);
+      }
+    }
+    bar.innerHTML = '';
+    if(!stage){
+      bar.hidden = true;
+      bar.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    bar.hidden = false;
+    bar.removeAttribute('aria-hidden');
+    const label = document.createElement('span');
+    label.className = 'muted';
+    label.textContent = 'Stage filter';
+    const chip = document.createElement('span');
+    chip.className = 'badge-pill';
+    chip.dataset.qa = `filter-stage-${stage}`;
+    chip.textContent = PIPELINE_FILTER_LABELS[stage] || stage;
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn';
+    clearBtn.textContent = 'Clear';
+    clearBtn.addEventListener('click', evt => {
+      evt.preventDefault();
+      clearPipelineStageFilter();
+    });
+    bar.append(label, chip, clearBtn);
+  }
+
+  function applyPipelineStageFilterToDom(stage){
+    ensurePipelineFilterStyle();
+    if(typeof document === 'undefined') return;
+    const hideClass = 'pipeline-filter-hide';
+    const targets = ['#tbl-pipeline tbody tr', '#tbl-clients tbody tr'];
+    targets.forEach(selector => {
+      document.querySelectorAll(selector).forEach(row => {
+        const stageValue = row.dataset?.stage || '';
+        const group = groupForStageValue(stageValue);
+        const shouldShow = !stage || group === stage;
+        row.classList.toggle(hideClass, !shouldShow);
+      });
+    });
+    renderPipelineFilterTag(stage);
+  }
+
+  function setPipelineStageFilter(stage){
+    const normalized = normalizePipelineStage(stage);
+    currentPipelineStageFilter = normalized;
+    if(activeView === 'pipeline'){
+      applyPipelineStageFilterToDom(normalized);
+    }
+  }
+
+  function clearPipelineStageFilter(){
+    setPipelineStageFilter(null);
+    try {
+      const baseHash = '#/pipeline';
+      if(typeof window !== 'undefined' && window.location){
+        if(window.location.hash !== baseHash){
+          if(window.Router && typeof window.Router.goto === 'function'){
+            window.Router.goto(baseHash);
+          }else{
+            window.location.hash = baseHash;
+          }
+        }
+      }
+    }catch (_err) {}
+    try {
+      const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: null } });
+      window.dispatchEvent(evt);
+    }catch (_err) {}
+  }
+
+  function parsePipelineStageFromHash(){
+    if(typeof window === 'undefined' || !window.location) return null;
+    const raw = String(window.location.hash || '');
+    const lowered = raw.toLowerCase();
+    if(!lowered.startsWith('#/pipeline')) return null;
+    const idx = raw.indexOf('?');
+    if(idx === -1) return null;
+    const query = raw.slice(idx + 1);
+    try {
+      const params = new URLSearchParams(query);
+      const value = params.get('stage') || params.get('pipeline');
+      return normalizePipelineStage(value);
+    }catch (_err) {
+      return null;
+    }
+  }
+
+  function applyPipelineStageFilterFromHash(){
+    const stage = parsePipelineStageFromHash();
+    setPipelineStageFilter(stage);
+  }
+
+  function handlePipelineFilterEvent(evt){
+    const detail = evt && evt.detail ? evt.detail : {};
+    if(Object.prototype.hasOwnProperty.call(detail, 'stage')){
+      setPipelineStageFilter(detail.stage);
+    }else if(activeView === 'pipeline'){
+      applyPipelineStageFilterToDom(currentPipelineStageFilter);
+    }
+  }
+
+  function handlePipelineHashChange(){
+    if(activeView !== 'pipeline') return;
+    applyPipelineStageFilterFromHash();
+  }
+
+  function reapplyPipelineFilterIfActive(){
+    if(activeView !== 'pipeline') return;
+    applyPipelineStageFilterToDom(currentPipelineStageFilter);
+  }
+
+  window.addEventListener('pipeline:applyFilter', handlePipelineFilterEvent);
+  window.addEventListener('hashchange', handlePipelineHashChange);
+  if(window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
+    try { window.RenderGuard.registerHook(reapplyPipelineFilterIfActive); }
+    catch (_err) {}
+  }
+  if(typeof document !== 'undefined'){
+    document.addEventListener('app:data:changed', () => {
+      if(activeView === 'pipeline') applyPipelineStageFilterToDom(currentPipelineStageFilter);
+    });
+  }
+
+  currentPipelineStageFilter = parsePipelineStageFromHash();
+
   function normalizeView(value){
     return String(value || '').trim().toLowerCase();
   }
@@ -848,6 +1068,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const targetHash = VIEW_HASH[view];
     if(!targetHash) return;
     const current = normalizedHash();
+    if(view === 'pipeline' && current.startsWith('#/pipeline?')) return;
     if(current === String(targetHash).trim().toLowerCase()) return;
     goto(targetHash);
   }
@@ -895,6 +1116,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    if(normalized === 'pipeline'){
+      applyPipelineStageFilterFromHash();
+    }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
     if(normalized==='settings') renderExtrasRegistry();
