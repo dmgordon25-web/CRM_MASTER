@@ -129,6 +129,11 @@ export function renderStageChip(key) {
   const originalLabel = key == null ? '' : String(key).trim();
   const { label, colorVar } = meta;
   const qa = `stage-chip-${canon}`;
-  const chipLabel = originalLabel || label;
+  const normalizedOriginal = originalLabel
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const chipLabel =
+    originalLabel && normalizedOriginal !== canon ? originalLabel : label;
   return `<span class="stage-chip stage-${canon}" data-role="stage-chip" data-qa="${qa}" style="background:var(${colorVar})">${chipLabel}</span>`;
 }
