@@ -1,3 +1,5 @@
+import { chooseValue } from '../merge/merge_core.js';
+
 const ACTIVE_GUARD = '__MERGE_MODAL_ACTIVE__';
 let activeModal = null;
 
@@ -27,6 +29,155 @@ function dispatchMergeEvent(name, detail) {
   } catch (err) {
     console.warn('[merge-modal] dispatch failed', err);
   }
+}
+
+function isLegacyOptions(value) {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return false;
+  const keys = ['recordA', 'recordB', 'onConfirm', 'onCancel'];
+  return keys.some((key) => key in value);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char] || char));
+}
+
+function formatLegacyValue(value) {
+  try {
+    if (value == null) return '';
+    if (typeof value === 'string') return escapeHtml(value);
+    if (typeof value === 'number' || typeof value === 'boolean') return escapeHtml(String(value));
+    if (Array.isArray(value)) {
+      const mapped = value.map((entry) => (typeof entry === 'object' ? JSON.stringify(entry) : String(entry)));
+      return escapeHtml(mapped.join(', '));
+    }
+    return escapeHtml(JSON.stringify(value));
+  } catch (err) {
+    console.warn('[merge-modal] value format failed', err);
+    return '';
+  }
+}
+
+function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
+  if (typeof document === 'undefined') return null;
+  if (window[ACTIVE_GUARD]) {
+    console.warn('[merge-modal] already open');
+    return activeModal;
+  }
+  window[ACTIVE_GUARD] = true;
+
+  const fields = Array.from(new Set([
+    ...Object.keys(recordA || {}),
+    ...Object.keys(recordB || {}),
+  ])).filter((field) => !/^id$/i.test(field)
+    && !/^createdAt$/i.test(field)
+    && !/^updatedAt$/i.test(field)
+    && !/^__/.test(field));
+
+  const template = document.createElement('template');
+  template.innerHTML = `
+<div class="merge-overlay" data-ui="legacy-merge-modal" data-qa="merge-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
+  <div class="merge-modal" style="background:#fff;min-width:720px;max-width:960px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
+      <div style="font-size:18px;font-weight:600;">Merge ${kind === 'contacts' ? 'Contacts' : kind === 'partners' ? 'Partners' : 'Records'}</div>
+      <button class="merge-close" aria-label="Close" style="border:none;background:transparent;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="padding:12px 16px;">
+      <div style="display:grid;grid-template-columns:1fr 120px 1fr;gap:8px;align-items:center;font-weight:600;margin-bottom:8px;">
+        <div>A</div><div style="text-align:center;">Field</div><div style="text-align:right;">B</div>
+      </div>
+      <div class="merge-rows" style="max-height:52vh;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;">
+        ${fields.map((field) => {
+          const choice = chooseValue(field, recordA, recordB).from;
+          const valueA = formatLegacyValue(recordA?.[field]);
+          const valueB = formatLegacyValue(recordB?.[field]);
+          const safeField = escapeHtml(field);
+          return `
+          <div class="merge-row" data-field="${safeField}" style="display:grid;grid-template-columns:1fr 120px 1fr;gap:8px;align-items:start;padding:6px 0;border-bottom:1px solid #f6f6f6;">
+            <label style="display:flex;gap:6px;align-items:flex-start;">
+              <input type="radio" name="pick:${safeField}" value="A" ${choice === 'A' ? 'checked' : ''}/>
+              <div style="white-space:pre-wrap;">${valueA}</div>
+            </label>
+            <div style="text-align:center;color:#555;font-size:12px;">${safeField}</div>
+            <label style="display:flex;gap:6px;align-items:flex-start;justify-content:flex-end;">
+              <div style="white-space:pre-wrap;text-align:right;">${valueB}</div>
+              <input type="radio" name="pick:${safeField}" value="B" ${choice === 'B' ? 'checked' : ''}/>
+            </label>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="merge-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Cancel</button>
+        <button class="merge-confirm" data-ui="merge-confirm" style="padding:8px 12px;border-radius:8px;border:1px solid #2b7;background:#2b7;color:#fff;cursor:pointer;">Merge</button>
+      </div>
+    </div>
+  </div>
+</div>`.trim();
+
+  const modal = template.content.firstElementChild;
+  if (!modal) {
+    window[ACTIVE_GUARD] = false;
+    console.warn('[merge-modal] failed to create legacy modal');
+    return null;
+  }
+
+  document.body.appendChild(modal);
+  dispatchMergeEvent('merge:open', { count: 2, kind });
+
+  const close = ({ triggerCancel = false } = {}) => {
+    try { modal.remove(); } catch (err) {
+      console.warn('[merge-modal] close failed', err);
+    }
+    window[ACTIVE_GUARD] = false;
+    activeModal = null;
+    if (triggerCancel) {
+      try { onCancel?.(); }
+      catch (err) { console.warn('[merge-modal] cancel failed', err); }
+      dispatchMergeEvent('merge:cancel', { kind });
+    }
+  };
+
+  modal.querySelector('.merge-close')?.addEventListener('click', () => close({ triggerCancel: true }));
+  modal.querySelector('.merge-cancel')?.addEventListener('click', () => close({ triggerCancel: true }));
+
+  const confirmBtn = modal.querySelector('.merge-confirm');
+  let submitting = false;
+  const setSubmitting = (state) => {
+    submitting = state;
+    if (!confirmBtn) return;
+    confirmBtn.disabled = state;
+    confirmBtn.style.opacity = state ? '0.7' : '';
+    confirmBtn.style.cursor = state ? 'default' : 'pointer';
+  };
+
+  confirmBtn?.addEventListener('click', async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const picks = {};
+    modal.querySelectorAll('.merge-row').forEach((row) => {
+      const field = row.getAttribute('data-field');
+      if (!field) return;
+      const pickB = row.querySelector('input[value="B"]');
+      picks[field] = pickB && pickB.checked ? 'B' : 'A';
+    });
+    try {
+      await onConfirm?.(picks);
+      dispatchMergeEvent('merge:complete', { kind, picks });
+      close();
+    } catch (err) {
+      console.error('[merge-modal] confirm failed', err);
+      setSubmitting(false);
+    }
+  });
+
+  activeModal = { close };
+  return activeModal;
 }
 
 function normalizeItems(items) {
@@ -462,6 +613,10 @@ function renderSelectionModal(items) {
 }
 
 export function openMergeModal(items) {
+  if (isLegacyOptions(items)) {
+    return openLegacyMergeModal(items);
+  }
+
   const normalized = normalizeItems(items);
   if (normalized.length < 2) {
     console.warn('[merge-modal] at least two items required');
