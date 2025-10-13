@@ -61,6 +61,7 @@ export const PATCHES = [
   './ui/Toast.js',
   './ui/Confirm.js',
   './data/settings.js',
+  './data/seed.js',
   './migrations.js',
   './templates.js',
   './filters.js',
