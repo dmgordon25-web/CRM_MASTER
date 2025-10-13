@@ -29,6 +29,7 @@ let partnerModalRoot = null;
 
 function hidePartnerModal(root){
   if(!root) return;
+  const wasOpen = root.dataset?.open === '1' || root.getAttribute('aria-hidden') === 'false' || root.hasAttribute('open');
   root.dataset.open = '0';
   root.setAttribute('aria-hidden', 'true');
   root.style.display = 'none';
@@ -36,10 +37,19 @@ function hidePartnerModal(root){
   if(root.dataset){
     root.dataset.partnerId = '';
   }
+  if(root.hasAttribute('open')){
+    root.removeAttribute('open');
+  }
   const handler = root.__partnerKeyHandler;
   if(handler){
     document.removeEventListener('keydown', handler);
     root.__partnerKeyHandler = null;
+  }
+  if(wasOpen){
+    const closeEvent = new Event('close', { bubbles: false, cancelable: false });
+    try {
+      root.dispatchEvent(closeEvent);
+    }catch(_err){}
   }
 }
 
@@ -49,6 +59,9 @@ function showPartnerModal(root){
   root.classList.remove('hidden');
   root.dataset.open = '1';
   root.setAttribute('aria-hidden', 'false');
+  if(!root.hasAttribute('open')){
+    root.setAttribute('open', '');
+  }
   const handler = (evt) => {
     if(evt.key === 'Escape'){
       evt.preventDefault();
