@@ -5,64 +5,59 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
-function markActionbarHost() {
+function resolveActionbarHost() {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  const byId = document.getElementById('actionbar');
+  if (byId) return byId;
+  return document.querySelector('.actionbar');
+}
+
+function markActionbarHost() {
+  const bar = resolveActionbarHost();
   if (!bar) return null;
-  if (!bar.dataset.ui) {
-    bar.dataset.ui = 'action-bar';
+
+  if (bar.dataset && bar.dataset.ui !== 'action-bar') {
+    try { bar.dataset.ui = 'action-bar'; }
+    catch (_) {}
   }
-  if (!bar.hasAttribute('data-ui')) {
+  if (bar.getAttribute('data-ui') !== 'action-bar') {
     bar.setAttribute('data-ui', 'action-bar');
   }
   if (!bar.hasAttribute('data-visible')) {
     bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
   }
+
+  const ensureDataAction = (node, actionName) => {
+    if (!node || node.hasAttribute('data-action')) return;
+    node.setAttribute('data-action', actionName);
+  };
+
   bar.querySelectorAll('[data-act]').forEach((node) => {
     const action = node.getAttribute('data-act');
-    if (!action || node.hasAttribute('data-action')) return;
-    node.setAttribute('data-action', action);
+    if (!action) return;
+    ensureDataAction(node, action);
   });
-  const clearBtn = bar.querySelector('[data-act="clear"]');
-  if (clearBtn && !clearBtn.hasAttribute('data-action')) {
-    clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
-  }
-  const mergeBtn = bar.querySelector('[data-act="merge"]');
+
+  [
+    { selector: '[data-act="clear"]', action: DATA_ACTION_NAME },
+    { selector: '[data-qa="action-clear"]', action: DATA_ACTION_NAME },
+    { selector: '[data-act="filter"]', action: 'filter' },
+    { selector: '[data-qa="action-filter"]', action: 'filter' },
+    { selector: '[data-act="new"]', action: 'new' },
+    { selector: '[data-qa="action-new"]', action: 'new' }
+  ].forEach(({ selector, action }) => {
+    bar.querySelectorAll(selector).forEach((node) => ensureDataAction(node, action));
+  });
+
+  const mergeBtn = bar.querySelector('[data-act="merge"], [data-action="merge"]');
   if (mergeBtn) {
-    if (!mergeBtn.hasAttribute('data-action')) {
-      mergeBtn.setAttribute('data-action', 'merge');
-    }
+    ensureDataAction(mergeBtn, 'merge');
     if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
       mergeBtn.setAttribute('data-qa', 'action-merge');
     }
   }
-  return bar;
-}
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
-    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
-  }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
-    }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
-  }
+  return bar;
 }
 
 function injectActionBarStyle(){
@@ -123,7 +118,7 @@ function injectActionBarStyle(){
 }
 
 function getActionsHost() {
-  const bar = typeof document !== 'undefined' ? document.getElementById('actionbar') : null;
+  const bar = resolveActionbarHost();
   return bar ? bar.querySelector('.actionbar-actions') : null;
 }
 
@@ -304,6 +299,33 @@ function ensureGlobalNewFab() {
   ensureFabElements();
 }
 
+function ensureActionLogger() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+  }
+  if (window.__ACTION_BAR_DATA_ACTION_WIRED__) return;
+  window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const btn = target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    if (!action) return;
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+  }, true);
+}
+
+function ensureMergeRewireListener() {
+  if (typeof document === 'undefined') return;
+  if (document.__ACTION_BAR_MERGE_REWIRE__) return;
+  document.__ACTION_BAR_MERGE_REWIRE__ = true;
+  document.addEventListener('app:data:changed', () => {
+    ensureMergeHandler();
+  }, { passive: true });
+}
+
 function getSelectionStore() {
   if (typeof window === 'undefined') return null;
   const store = window.SelectionStore || null;
@@ -462,13 +484,6 @@ function ensureMergeHandler() {
   mergeBtn.__mergeHandlerWired = true;
 }
 
-if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
-  document.__ACTION_BAR_MERGE_REWIRE__ = true;
-  document.addEventListener('app:data:changed', () => {
-    ensureMergeHandler();
-  }, { passive: true });
-}
-
 function handleFabAction(kind) {
   closeFabMenu();
   if (kind === 'contact') {
@@ -510,6 +525,26 @@ function handleFabAction(kind) {
     showToast('info', 'Tasks coming soon');
     return;
   }
+}
+
+export function mountActionBar() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+  const host = markActionbarHost();
+  if (!host) return null;
+
+  const CRM = window.CRM = window.CRM || {};
+  CRM._actionBarHost = host;
+  if (CRM._actionBarMounted) {
+    return host;
+  }
+
+  ensureActionLogger();
+  ensureGlobalNewFab();
+  ensureMergeHandler();
+  ensureMergeRewireListener();
+
+  CRM._actionBarMounted = true;
+  return host;
 }
 
 export function ensurePartnersMergeButton() {
@@ -568,4 +603,11 @@ export function onPartnersMerge(handler) {
       btn.__partnersMergeHandler();
     }
   });
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('crm:shell-ready', () => mountActionBar(), { once: true });
+  if (typeof document !== 'undefined' && resolveActionbarHost()) {
+    mountActionBar();
+  }
 }

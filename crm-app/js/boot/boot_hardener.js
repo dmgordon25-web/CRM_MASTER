@@ -241,14 +241,28 @@ function gatherServiceWaiters(records) {
 }
 
 function maybeRenderAll() {
-  try {
-    if (typeof window.renderAll === 'function') {
-      window.renderAll();
+  const invoke = () => {
+    try {
+      if (typeof window.renderAll === 'function') {
+        window.renderAll();
+      }
+    } catch (err) {
+      console.error('[BOOT] renderAll failed:', err);
+      throw err;
     }
-  } catch (err) {
-    console.error('[BOOT] renderAll failed:', err);
-    throw err;
-  }
+    try {
+      window.dispatchEvent(new CustomEvent('crm:shell-ready'));
+    } catch (_) {}
+  };
+
+  try {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(invoke));
+      return;
+    }
+  } catch (_) {}
+
+  invoke();
 }
 
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
