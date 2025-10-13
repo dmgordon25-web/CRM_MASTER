@@ -1762,6 +1762,35 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   })();
 })();
 
+(function(){
+  try {
+    window.CRM = window.CRM || {};
+    window.CRM.canaries = window.CRM.canaries || {};
+
+    function markConsoleHideRequested(){
+      window.CRM.canaries.consoleHideRequested = true;
+
+      var el = document.querySelector('[data-ui="console-hide-requested"]');
+      if (!el) {
+        el = document.createElement('div');
+        el.setAttribute('data-ui', 'console-hide-requested');
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      }
+      try { window.dispatchEvent(new CustomEvent('native:hideConsole')); } catch(_){ }
+    }
+
+    const isHome = () => location.hash === '' || location.hash === '#/' || location.hash.startsWith('#/home');
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      if (isHome()) markConsoleHideRequested();
+    } else {
+      document.addEventListener('DOMContentLoaded', () => { if (isHome()) markConsoleHideRequested(); }, { once:true });
+    }
+    window.addEventListener('hashchange', () => { if (isHome()) markConsoleHideRequested(); });
+  } catch(_) { /* policy: no console.error */ }
+})();
+
 // Honestify: automatically hide obviously unwired action controls, and unhide once wired
 (function(){
   if (window.__HONESTIFY__) return; window.__HONESTIFY__ = true;
