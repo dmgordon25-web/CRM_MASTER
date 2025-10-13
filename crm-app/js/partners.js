@@ -64,6 +64,34 @@ function ensurePartnersBoot(ctx){
   }
 
   window.requestPartnerModal = requestPartnerModal;
+  // Provide a stable alias for smoke tests and external triggers
+  window.openPartnerEdit = function(id){
+    try {
+      return requestPartnerModal(id);
+    } catch (_) {
+      return Promise.resolve();
+    }
+  };
+
+  // Delegate row clicks to open the edit modal when clicking non-interactive cells
+  const partnersTable = document.getElementById('tbl-partners');
+  if (
+    partnersTable &&
+    partnersTable.tBodies &&
+    partnersTable.tBodies[0] &&
+    !partnersTable.__rowClickWired
+  ){
+    partnersTable.__rowClickWired = true;
+    partnersTable.tBodies[0].addEventListener('click', (evt) => {
+      const row = evt.target && evt.target.closest('tr[data-id]');
+      if (!row) return;
+      if (evt.target && evt.target.closest('button,a,input,select,textarea')) return;
+      const id = row.getAttribute('data-id');
+      if (!id) return;
+      evt.preventDefault();
+      window.openPartnerEdit(String(id));
+    }, { passive: true });
+  }
 
   const addBtn = document.getElementById('btn-add-partner');
   if (addBtn && !addBtn.__wired){

@@ -486,6 +486,9 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
       toastWarn('Partner not found');
       return;
     }
+    if(!dlg.hasAttribute('data-qa')){
+      dlg.setAttribute('data-qa', 'partner-edit-modal');
+    }
     await openDB();
     const loaded = await loadPartner(id);
     if(id && !loaded){
