@@ -1,6 +1,7 @@
 import { openMergeModal } from './merge_modal.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
+const ACTION_BAR_NEW_BUTTON_ID = 'actionbar-new-action';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
@@ -14,6 +15,10 @@ function markActionbarHost() {
   }
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
+  }
+  const actionsHost = bar.querySelector('.actionbar-actions');
+  if (actionsHost && !actionsHost.hasAttribute('data-ui')) {
+    actionsHost.setAttribute('data-ui', 'action-bar');
   }
   if (!bar.hasAttribute('data-visible')) {
     bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
@@ -302,6 +307,49 @@ function ensureGlobalNewFab() {
   const bar = markActionbarHost();
   if (!bar) return;
   ensureFabElements();
+  ensureNewActionButton();
+}
+
+function ensureNewActionButton() {
+  if (typeof document === 'undefined') return null;
+  const bar = document.getElementById('actionbar');
+  if (!bar) return null;
+  const host = bar.querySelector('.actionbar-actions');
+  if (!host) return null;
+  if (!host.hasAttribute('data-ui')) {
+    host.setAttribute('data-ui', 'action-bar');
+  }
+  let btn = document.getElementById(ACTION_BAR_NEW_BUTTON_ID);
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = ACTION_BAR_NEW_BUTTON_ID;
+    btn.className = 'btn';
+    btn.type = 'button';
+    btn.setAttribute('data-action', 'new');
+    btn.setAttribute('aria-label', 'New');
+    btn.textContent = 'New';
+    btn.setAttribute('data-qa', 'action-new');
+    const fabWrap = host.querySelector('.actionbar-fab');
+    if (fabWrap) {
+      host.insertBefore(btn, fabWrap);
+    } else {
+      host.appendChild(btn);
+    }
+  }
+  if (!btn.__actionBarNewWired) {
+    btn.__actionBarNewWired = true;
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      const elements = ensureFabElements();
+      const fab = elements && elements.fab;
+      if (fab && typeof fab.click === 'function') {
+        fab.click();
+        return;
+      }
+      showToast('info', 'New item');
+    });
+  }
+  return btn;
 }
 
 function getSelectionStore() {
