@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "start:win": "powershell -ExecutionPolicy Bypass -NoProfile -File ./scripts/windows/launch.ps1",
+    "start": "node ./tools/dev_server.js",
     "lint-lite": "eslint -c crm-app/.eslintrc-lite.json crm-app/js/contacts_merge.js || exit 0",
     "fix-catch": "node tools/fix_catch_syntax.js",
     "ci": "npm run ci:unit",

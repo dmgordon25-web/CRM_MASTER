@@ -28,6 +28,43 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+  window.CRM.canaries = window.CRM.canaries || {};
+
+  (function initConsoleHideCanary(){
+    if (window.__CRM_HIDE_CONSOLE_CANARY__) return;
+    window.__CRM_HIDE_CONSOLE_CANARY__ = true;
+
+    function markConsoleHideRequested(){
+      try { window.CRM.canaries.consoleHideRequested = true; }
+      catch (_) {}
+      try { window.dispatchEvent(new CustomEvent('native:hideConsole')); }
+      catch (_) {}
+    }
+
+    function isHome(){
+      try {
+        const hash = typeof location !== 'undefined' && typeof location.hash === 'string'
+          ? location.hash
+          : '';
+        return hash === '' || hash === '#/' || hash.startsWith('#/home');
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function checkAndMark(){
+      if (isHome()) markConsoleHideRequested();
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      checkAndMark();
+    } else {
+      document.addEventListener('DOMContentLoaded', checkAndMark, { once: true });
+    }
+
+    window.addEventListener('hashchange', checkAndMark);
+  })();
+
   window.CRM.openPipelineWithFilter = function(stage){
     try {
       const raw = stage == null ? '' : String(stage).trim();
