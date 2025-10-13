@@ -16,7 +16,9 @@
     "audit:watch": "node --watch devtools/audit.mjs",
     "audit:manifest": "node tools/manifest_audit.js",
     "test:boot": "node tools/boot_smoke_test.mjs",
-    "verify:build": "npm run audit:manifest && npm run test:boot"
+    "verify:build": "npm run audit:manifest && npm run test:boot",
+    "start:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/win/run-hidden.ps1 -Command \"npm run start\"",
+    "dev:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/win/run-hidden.ps1 -Command \"npm run dev\""
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",
