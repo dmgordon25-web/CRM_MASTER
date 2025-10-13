@@ -569,3 +569,83 @@ export function onPartnersMerge(handler) {
     }
   });
 }
+
+if (typeof window !== 'undefined') {
+  window.CRM = window.CRM || {};
+  if (typeof window.CRM.__diag !== 'function') {
+    window.CRM.__diag = function crmDiagnostics() {
+      if (typeof process !== 'undefined' && process && process.env && process.env.CI) {
+        return {};
+      }
+      const doc = window.document;
+      if (!doc || typeof doc.querySelector !== 'function') {
+        console.info('[crm.__diag] document unavailable');
+        return {};
+      }
+
+      const snapshot = {
+        actionBarPresent: false,
+        actionBarVisible: false,
+        visibleNonMergeActionCount: 0,
+        mergeModalPresent: false,
+        partnerModalPresent: false,
+      };
+      const isVisible = (node) => {
+        if (!node || typeof node !== 'object' || node.nodeType !== 1) return false;
+        if (typeof node.closest === 'function' && node.closest('[hidden]')) return false;
+        const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(node) : null;
+        if (style) {
+          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+            return false;
+          }
+          const opacity = Number(style.opacity);
+          if (!Number.isNaN(opacity) && opacity === 0) {
+            return false;
+          }
+        }
+        if (typeof node.offsetParent !== 'undefined' && node.offsetParent !== null) {
+          return true;
+        }
+        if (node.getClientRects && node.getClientRects().length > 0) {
+          return true;
+        }
+        if (typeof node.offsetWidth === 'number' && typeof node.offsetHeight === 'number') {
+          return node.offsetWidth > 0 && node.offsetHeight > 0;
+        }
+        return false;
+      };
+
+      const actionBar = doc.querySelector('[data-ui="action-bar"]');
+      if (actionBar) {
+        snapshot.actionBarPresent = true;
+        snapshot.actionBarVisible = isVisible(actionBar);
+        const actions = Array.from(actionBar.querySelectorAll('[data-action]'));
+        snapshot.visibleNonMergeActionCount = actions.filter((node) => {
+          const actionName = (node.getAttribute('data-action') || '').toLowerCase();
+          if (actionName === 'merge') return false;
+          return isVisible(node);
+        }).length;
+      }
+
+      const mergeModal = doc.querySelector('[data-ui][data-qa="merge-modal"]');
+      if (mergeModal) {
+        snapshot.mergeModalPresent = true;
+      }
+
+      const partnerModal = doc.querySelector('[data-qa="partner-edit-modal"]');
+      if (partnerModal) {
+        snapshot.partnerModalPresent = true;
+      }
+
+      console.info('[crm.__diag] action bar root:', {
+        present: snapshot.actionBarPresent,
+        visible: snapshot.actionBarVisible,
+      });
+      console.info('[crm.__diag] visible non-merge action count:', snapshot.visibleNonMergeActionCount);
+      console.info('[crm.__diag] merge modal present:', snapshot.mergeModalPresent);
+      console.info('[crm.__diag] partner edit modal present:', snapshot.partnerModalPresent);
+
+      return snapshot;
+    };
+  }
+}
