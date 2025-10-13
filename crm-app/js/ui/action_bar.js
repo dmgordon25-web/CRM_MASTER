@@ -4,15 +4,14 @@ const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
+const PRIMARY_NEW_BUTTON_ID = 'actionbar-primary-new';
 
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
   if (!bar) return null;
-  if (!bar.dataset.ui) {
-    bar.dataset.ui = 'action-bar';
-  }
-  if (!bar.hasAttribute('data-ui')) {
+  bar.dataset.ui = 'action-bar';
+  if (bar.getAttribute('data-ui') !== 'action-bar') {
     bar.setAttribute('data-ui', 'action-bar');
   }
   if (!bar.hasAttribute('data-visible')) {
@@ -37,32 +36,6 @@ function markActionbarHost() {
     }
   }
   return bar;
-}
-
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
-    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
-  }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
-    }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
-  }
 }
 
 function injectActionBarStyle(){
@@ -125,6 +98,53 @@ function injectActionBarStyle(){
 function getActionsHost() {
   const bar = typeof document !== 'undefined' ? document.getElementById('actionbar') : null;
   return bar ? bar.querySelector('.actionbar-actions') : null;
+}
+
+function ensureActionsHost(bar) {
+  if (!bar) return null;
+  let host = bar.querySelector('.actionbar-actions');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'actionbar-actions';
+    bar.appendChild(host);
+  }
+  return host;
+}
+
+function ensurePrimaryActionButton() {
+  const bar = markActionbarHost();
+  if (!bar) return;
+  const host = ensureActionsHost(bar);
+  if (!host) return;
+  let btn = document.getElementById(PRIMARY_NEW_BUTTON_ID);
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = PRIMARY_NEW_BUTTON_ID;
+    btn.type = 'button';
+    btn.textContent = 'New';
+    btn.setAttribute('data-qa', 'action-new');
+    btn.setAttribute('data-action', 'new');
+    btn.classList.add('btn');
+    host.insertBefore(btn, host.firstChild);
+    console.info('[action-bar] primary action button created');
+  } else if (!host.contains(btn)) {
+    host.insertBefore(btn, host.firstChild);
+  }
+  btn.disabled = false;
+  btn.classList.remove('disabled');
+  btn.removeAttribute('hidden');
+  if (btn.style && typeof btn.style.removeProperty === 'function') {
+    btn.style.removeProperty('display');
+  } else if (btn.style) {
+    btn.style.display = '';
+  }
+  if (!btn.__primaryNewWired) {
+    btn.__primaryNewWired = true;
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      handleFabAction('contact');
+    });
+  }
 }
 
 const fabState = {
@@ -462,13 +482,6 @@ function ensureMergeHandler() {
   mergeBtn.__mergeHandlerWired = true;
 }
 
-if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
-  document.__ACTION_BAR_MERGE_REWIRE__ = true;
-  document.addEventListener('app:data:changed', () => {
-    ensureMergeHandler();
-  }, { passive: true });
-}
-
 function handleFabAction(kind) {
   closeFabMenu();
   if (kind === 'contact') {
@@ -509,6 +522,45 @@ function handleFabAction(kind) {
     }
     showToast('info', 'Tasks coming soon');
     return;
+  }
+}
+
+function mount() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+  }
+
+  const setup = () => {
+    markActionbarHost();
+    ensurePrimaryActionButton();
+    ensureGlobalNewFab();
+    ensureMergeHandler();
+  };
+
+  setup();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup, { once: true });
+  }
+
+  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
+    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
+    document.addEventListener('click', (event) => {
+      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      if (!action) return;
+      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+    }, true);
+  }
+
+  if (!document.__ACTION_BAR_MERGE_REWIRE__) {
+    document.__ACTION_BAR_MERGE_REWIRE__ = true;
+    document.addEventListener('app:data:changed', () => {
+      ensureMergeHandler();
+    }, { passive: true });
   }
 }
 
@@ -568,4 +620,12 @@ export function onPartnersMerge(handler) {
       btn.__partnersMergeHandler();
     }
   });
+}
+
+if (typeof window !== 'undefined') {
+  window.CRM = window.CRM || {};
+  if (!window.CRM._actionBarMounted) {
+    window.CRM._actionBarMounted = true;
+    mount();
+  }
 }
