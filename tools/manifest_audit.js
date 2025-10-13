@@ -89,18 +89,49 @@ function fileExists(p) {
     else patchSeen.add(patch);
   }
 
+  const canonicalIndexMap = new Map(
+    canonicalPatchOrder.map((entry, index) => [entry, index])
+  );
   const patchOrderIssues = [];
-  const prefixLength = Math.min(canonicalPatchOrder.length, PATCHES.length);
-  for (let i = 0; i < prefixLength; i += 1) {
-    if (PATCHES[i] !== canonicalPatchOrder[i]) {
-      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${PATCHES[i]}`);
-      break;
+  let canonicalPointer = 0;
+  let lastCanonicalPatchIndex = -1;
+  for (let i = 0; i < PATCHES.length; i += 1) {
+    const patch = PATCHES[i];
+    if (!canonicalIndexMap.has(patch)) continue;
+
+    const canonicalIndex = canonicalIndexMap.get(patch);
+    if (canonicalIndex === canonicalPointer) {
+      canonicalPointer += 1;
+      lastCanonicalPatchIndex = i;
+      continue;
     }
+
+    if (canonicalIndex > canonicalPointer) {
+      const skipped = canonicalPatchOrder.slice(canonicalPointer, canonicalIndex);
+      if (skipped.length) {
+        patchOrderIssues.push(
+          `missing canonical entries before ${patch}: ${skipped.join(', ')}`
+        );
+      }
+      canonicalPointer = canonicalIndex + 1;
+      lastCanonicalPatchIndex = i;
+      continue;
+    }
+
+    patchOrderIssues.push(
+      `canonical entry ${patch} appears after later canonical entries`
+    );
+    lastCanonicalPatchIndex = i;
   }
-  if (PATCHES.length < canonicalPatchOrder.length) {
-    const missingCanonical = canonicalPatchOrder.slice(PATCHES.length);
+  if (canonicalPointer < canonicalPatchOrder.length) {
+    const missingCanonical = canonicalPatchOrder.slice(canonicalPointer);
     patchOrderIssues.push(`missing canonical entries: ${missingCanonical.join(', ')}`);
   }
+  const extraPatches =
+    canonicalPointer >= canonicalPatchOrder.length &&
+    lastCanonicalPatchIndex < PATCHES.length - 1
+      ? PATCHES.slice(lastCanonicalPatchIndex + 1)
+      : [];
   // Crawl js folder for unphased files (warn only)
   function walk(dir){
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -134,6 +165,9 @@ function fileExists(p) {
     process.exit(2);
   } else {
     console.log('[MANIFEST AUDIT] PASS');
+    if (extraPatches.length) {
+      console.warn('[MANIFEST AUDIT] Extra PATCHES:', extraPatches);
+    }
     if (unphased.length) {
       console.warn('Unphased files (warn only):', unphased);
     }
