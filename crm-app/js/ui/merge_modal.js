@@ -34,8 +34,8 @@ function dispatchMergeEvent(name, detail) {
 function isLegacyOptions(value) {
   if (!value || typeof value !== 'object') return false;
   if (Array.isArray(value)) return false;
-  const keys = ['recordA', 'recordB', 'onConfirm', 'onCancel'];
-  return keys.some((key) => key in value);
+  if ('picker' in value) return false;
+  return 'recordA' in value || 'recordB' in value;
 }
 
 function escapeHtml(value) {
@@ -244,8 +244,8 @@ async function mergeRecords(primary, secondaries) {
 
 function buildContainer() {
   const overlay = document.createElement('div');
-  overlay.dataset.qa = 'merge-modal';
-  overlay.dataset.ui = 'merge-modal';
+  overlay.setAttribute('data-ui', 'merge-modal');
+  overlay.setAttribute('data-qa', 'merge-modal');
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.position = 'fixed';
@@ -347,7 +347,7 @@ function describeItem(item) {
   return wrap;
 }
 
-function renderSelectionModal(items) {
+function renderSelectionModal(items, options = {}) {
   if (typeof document === 'undefined') return null;
   if (window[ACTIVE_GUARD]) {
     console.warn('[merge-modal] already open');
@@ -356,6 +356,7 @@ function renderSelectionModal(items) {
   window[ACTIVE_GUARD] = true;
 
   const { overlay, shell } = buildContainer();
+  const { picker = false, onConfirm, kind = 'records' } = options;
   const header = document.createElement('div');
   header.style.display = 'flex';
   header.style.alignItems = 'center';
@@ -364,7 +365,10 @@ function renderSelectionModal(items) {
   header.style.borderBottom = '1px solid #e2e8f0';
 
   const title = document.createElement('div');
-  title.textContent = 'Select records to merge';
+  const rawKind = typeof kind === 'string' ? kind : '';
+  const trimmedKind = rawKind.trim().replace(/\s+/g, ' ');
+  const displayKind = trimmedKind ? trimmedKind.replace(/^./, (char) => char.toUpperCase()) : '';
+  title.textContent = displayKind ? `Select ${displayKind} to merge` : 'Select records to merge';
   title.style.fontSize = '18px';
   title.style.fontWeight = '600';
   header.appendChild(title);
@@ -426,6 +430,13 @@ function renderSelectionModal(items) {
   confirmBtn.style.background = '#2563eb';
   confirmBtn.style.color = '#fff';
   confirmBtn.style.cursor = 'pointer';
+  confirmBtn.classList.add('merge-confirm');
+  if (picker) {
+    confirmBtn.disabled = true;
+    confirmBtn.setAttribute('aria-disabled', 'true');
+    confirmBtn.style.opacity = '0.5';
+    confirmBtn.style.cursor = 'not-allowed';
+  }
 
   footer.appendChild(cancelBtn);
   footer.appendChild(confirmBtn);
@@ -444,7 +455,13 @@ function renderSelectionModal(items) {
 
   const updateState = () => {
     const invalid = !primaryId || !secondaryIds.size;
-    confirmBtn.disabled = submitting || invalid;
+    const disabled = submitting || invalid;
+    confirmBtn.disabled = disabled;
+    if (disabled) {
+      confirmBtn.setAttribute('aria-disabled', 'true');
+    } else {
+      confirmBtn.removeAttribute('aria-disabled');
+    }
     confirmBtn.style.opacity = confirmBtn.disabled ? '0.5' : '1';
     confirmBtn.style.cursor = confirmBtn.disabled ? 'not-allowed' : 'pointer';
   };
@@ -471,13 +488,15 @@ function renderSelectionModal(items) {
     secondaryColumn.list.appendChild(checkboxWrap);
     checkboxes.push(checkbox);
 
-    if (index === 0) {
-      radio.checked = true;
-      primaryId = item.id;
-      previousPrimaryId = item.id;
-    } else {
-      checkbox.checked = true;
-      secondaryIds.add(item.id);
+    if (!picker) {
+      if (index === 0) {
+        radio.checked = true;
+        primaryId = item.id;
+        previousPrimaryId = item.id;
+      } else {
+        checkbox.checked = true;
+        secondaryIds.add(item.id);
+      }
     }
   });
 
@@ -486,6 +505,8 @@ function renderSelectionModal(items) {
       box.checked = false;
       box.disabled = true;
       secondaryIds.delete(box.value);
+    } else if (!picker) {
+      box.disabled = false;
     }
   });
 
@@ -554,7 +575,7 @@ function renderSelectionModal(items) {
     catch (_) {}
     window[ACTIVE_GUARD] = false;
     activeModal = null;
-    if (!silent) dispatchMergeEvent('merge:closed');
+    if (!silent) dispatchMergeEvent('merge:closed', { kind, picker });
   };
 
   const cancel = () => {
@@ -590,9 +611,28 @@ function renderSelectionModal(items) {
     try {
       const primary = items.find((item) => item.id === primaryId);
       const secondaries = items.filter((item) => secondaryIds.has(item.id));
+      const payload = {
+        primary,
+        secondaries,
+        primaryId,
+        secondaryIds: Array.from(secondaryIds),
+        picker,
+        kind,
+      };
+      if (typeof onConfirm === 'function') {
+        const outcome = await onConfirm(payload);
+        if (outcome === false) {
+          submitting = false;
+          updateState();
+          return;
+        }
+        dispatchMergeEvent('merge:complete', payload);
+        close();
+        return;
+      }
       const result = await mergeRecords(primary, secondaries);
       showToast('success', 'Merged');
-      dispatchMergeEvent('merge:complete', { primary: result.primary, secondaries: result.secondaries });
+      dispatchMergeEvent('merge:complete', { primary: result.primary, secondaries: result.secondaries, picker, kind });
       close();
     } catch (err) {
       console.warn('[merge-modal] merge failed', err);
@@ -607,21 +647,36 @@ function renderSelectionModal(items) {
   closeBtn.addEventListener('click', cancel);
   listeners.push(() => closeBtn.removeEventListener('click', cancel));
 
-  dispatchMergeEvent('merge:open', { count: items.length });
+  dispatchMergeEvent('merge:open', { count: items.length, kind, picker });
 
   activeModal = { close };
   return activeModal;
 }
 
-export function openMergeModal(items) {
-  if (isLegacyOptions(items)) {
-    return openLegacyMergeModal(items);
+export function openMergeModal(input, extraOptions = {}) {
+  if (isLegacyOptions(input)) {
+    return openLegacyMergeModal(input);
+  }
+
+  const baseOptions = (!Array.isArray(input) && input && typeof input === 'object') ? input : {};
+  const options = { ...baseOptions, ...extraOptions };
+
+  let items = Array.isArray(input) ? input : options.items;
+  if (!Array.isArray(items)) {
+    if (Array.isArray(options.selection)) {
+      items = options.selection;
+    } else if (Array.isArray(options.records)) {
+      items = options.records;
+    } else {
+      items = [];
+    }
   }
 
   const normalized = normalizeItems(items);
-  if (normalized.length < 2) {
+  if (!options.picker && normalized.length < 2) {
     console.warn('[merge-modal] at least two items required');
     return null;
   }
-  return renderSelectionModal(normalized);
+
+  return renderSelectionModal(normalized, options);
 }
