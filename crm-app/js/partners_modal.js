@@ -75,6 +75,8 @@ function showPartnerModal(root){
 function ensurePartnerModalRoot(){
   if(typeof document === 'undefined') return null;
   if(partnerModalRoot && document.body && document.body.contains(partnerModalRoot)){
+    partnerModalRoot.dataset.qa = 'partner-edit-modal';
+    partnerModalRoot.setAttribute('data-qa', 'partner-edit-modal');
     return partnerModalRoot;
   }
   const legacy = document.getElementById('partner-modal');
@@ -116,6 +118,10 @@ function ensurePartnerModalRoot(){
     wrapper.innerHTML = '<div class="dlg" tabindex="-1"></div>';
     (document.body || document.documentElement || document.createElement('div')).appendChild(wrapper);
     partnerModalRoot = wrapper;
+  }
+  if(partnerModalRoot){
+    partnerModalRoot.dataset.qa = 'partner-edit-modal';
+    partnerModalRoot.setAttribute('data-qa', 'partner-edit-modal');
   }
   const shell = partnerModalRoot?.querySelector?.('.dlg');
   if(shell && typeof shell.setAttribute === 'function'){

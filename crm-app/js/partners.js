@@ -1,5 +1,6 @@
 // partners.js — partner modal wiring & selection helpers
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
+import { openPartnerEdit } from './partners_modal.js';
 
 function ensurePartnersBoot(ctx){
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -32,6 +33,80 @@ function ensurePartnersBoot(ctx){
     });
   }
 
+  function ensurePartnerRowAttributes(){
+    if (typeof document === 'undefined') return;
+    const table = document.getElementById('tbl-partners');
+    if (!table) return;
+    const sections = table.tBodies && table.tBodies.length
+      ? Array.from(table.tBodies)
+      : [table];
+    sections.forEach(section => {
+      if (!section || typeof section.querySelectorAll !== 'function') return;
+      section.querySelectorAll('tr').forEach(row => {
+        if (!row || row.nodeType !== 1) return;
+        const dataset = row.dataset || {};
+        const id = row.getAttribute('data-id')
+          || dataset.id
+          || row.getAttribute('data-partner-id')
+          || dataset.partnerId
+          || '';
+        if (id) {
+          const normalized = String(id).trim();
+          row.setAttribute('data-id', normalized);
+          row.setAttribute('data-partner-id', normalized);
+          if (row.dataset) {
+            row.dataset.id = normalized;
+            row.dataset.partnerId = normalized;
+          }
+        }
+        row.setAttribute('data-qa', 'partner-row');
+      });
+    });
+  }
+
+  function handlePartnerRowClick(evt){
+    const table = evt.currentTarget;
+    const target = evt && evt.target ? evt.target : null;
+    if (!table || !target || typeof target.closest !== 'function') return;
+    const ignore = target.closest('input, textarea, select, button, [data-role="select"], [data-ui="row-check"]');
+    if (ignore) return;
+    const row = target.closest('tr[data-id]');
+    if (!row || !table.contains(row)) return;
+    ensurePartnerRowAttributes();
+    const id = row.getAttribute('data-id');
+    if (!id) return;
+    const link = target.closest('a');
+    if (link) {
+      evt.preventDefault();
+      evt.stopPropagation();
+    }
+    try {
+      const result = openPartnerEdit(String(id).trim());
+      if (result && typeof result.catch === 'function') {
+        result.catch(err => {
+          try {
+            console && console.warn && console.warn('partner row open failed', err);
+          } catch (_err) {}
+        });
+      }
+    } catch (err) {
+      try {
+        console && console.warn && console.warn('partner row open error', err);
+      } catch (_err) {}
+    }
+  }
+
+  function wirePartnerRowClicks(){
+    if (typeof document === 'undefined') return;
+    const table = document.getElementById('tbl-partners');
+    if (!table) return;
+    ensurePartnerRowAttributes();
+    const globalCRM = window.CRM = window.CRM || {};
+    if (globalCRM._partnersRowBound) return;
+    table.addEventListener('click', handlePartnerRowClick);
+    globalCRM._partnersRowBound = true;
+  }
+
   function wireFilter(){
     if (typeof document === 'undefined') return;
     const input = document.querySelector('#view-partners input[data-table-search="#tbl-partners"], #view-partners input[data-role="partner-search"]');
@@ -44,13 +119,20 @@ function ensurePartnersBoot(ctx){
   }
 
   wireFilter();
+  wirePartnerRowClicks();
   if (typeof document !== 'undefined'){
     document.addEventListener('DOMContentLoaded', wireFilter);
+    document.addEventListener('DOMContentLoaded', () => {
+      ensurePartnerRowAttributes();
+      wirePartnerRowClicks();
+    });
     document.addEventListener('app:data:changed', () => {
       const input = document.querySelector('#view-partners input[data-table-search="#tbl-partners"], #view-partners input[data-role="partner-search"]');
       if (input && input.value){
         applyFilter(input.value);
       }
+      ensurePartnerRowAttributes();
+      wirePartnerRowClicks();
     }, { passive: true });
   }
 
