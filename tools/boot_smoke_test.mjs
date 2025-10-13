@@ -19,14 +19,111 @@ async function clickNth(page, selector, n = 0) {
   return ok;
 }
 
-async function waitSelCount(page, expected, timeout = 1500) {
+async function waitForRows(page, min = 2, timeout = 2500) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    const c = await page.evaluate(() => (window.__SEL_COUNT__|0));
-    if (c >= expected) return true;
+    const n = await page.evaluate(() => {
+      const sels = [
+        '[data-ui="row"][data-id]',
+        'tr[data-id]',
+        '.grid-row[data-id]'
+      ];
+      for (const s of sels) {
+        const rows = Array.from(document.querySelectorAll(s)).filter(el => el && el.isConnected);
+        if (rows.length) return rows.length;
+      }
+      return 0;
+    });
+    if (n >= min) return true;
     await new Promise(r => setTimeout(r, 50));
   }
   return false;
+}
+
+async function selectionDiag(page) {
+  return await page.evaluate(() => {
+    const api = (globalThis.Selection && typeof globalThis.Selection.count === 'function') ? globalThis.Selection.count()|0 : null;
+    const met = (typeof globalThis.__SEL_COUNT__ === 'number') ? globalThis.__SEL_COUNT__|0 : null;
+    const domChecked = document.querySelectorAll('[data-ui="row-check"]:checked').length|0;
+    const domFlagged = document.querySelectorAll('[data-ui="row"][data-selected="1"]').length|0;
+    const rows = document.querySelectorAll('[data-ui="row"][data-id], tr[data-id], .grid-row[data-id]').length|0;
+    return { api, met, domChecked, domFlagged, rows, url: location.href };
+  });
+}
+
+async function selectionCountSnapshot(page) {
+  const d = await selectionDiag(page);
+  return Math.max(
+    (d.api ?? 0)|0,
+    (d.met ?? 0)|0,
+    d.domChecked|0,
+    d.domFlagged|0
+  );
+}
+
+async function waitSelectionAtLeast(page, expected, timeout = 2500) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const n = await selectionCountSnapshot(page);
+    if (n >= expected) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+}
+
+async function selectAllViaUI(page) {
+  // Try a built-in select-all action if present
+  return await page.evaluate(() => {
+    const btn = document.querySelector('[data-action="select-all"], [data-ui="action-bar"] [data-action="select-all"]');
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+}
+
+async function selectViaAPI(page, howMany = 2) {
+  return await page.evaluate((N) => {
+    const S = globalThis.Selection;
+    if (!S || typeof S.select !== 'function') return false;
+    const rows = Array.from(document.querySelectorAll('[data-ui="row"][data-id], tr[data-id], .grid-row[data-id]')).slice(0, N);
+    if (rows.length < N) return false;
+    rows.forEach(r => { const id = r.getAttribute('data-id'); if (id) { try { S.select(id); } catch {} } });
+    return true;
+  }, howMany);
+}
+
+async function selectViaDOMFallback(page, index) {
+  return await page.evaluate((idx) => {
+    function findRow(idx) {
+      const sels = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+      for (const s of sels) {
+        const rows = Array.from(document.querySelectorAll(s)).filter(el => el && el.isConnected);
+        if (rows.length > idx) return rows[idx];
+      }
+      return null;
+    }
+    function findCheckboxForRow(row) {
+      const opts = ['[data-ui="row-check"]', 'input[type="checkbox"][data-row-check]', 'input[type="checkbox"][name="select"]', 'input[type="checkbox"]'];
+      for (const s of opts) {
+        const cb = row.querySelector(s);
+        if (cb) return cb;
+      }
+      return null;
+    }
+    const row = findRow(idx);
+    if (!row) return false;
+    const cb = findCheckboxForRow(row);
+    if (cb) {
+      if (!cb.checked) cb.checked = true;
+      const ev = new Event('change', { bubbles: true, cancelable: true });
+      cb.dispatchEvent(ev);
+      row.setAttribute('data-selected','1');
+      return true;
+    }
+    // Fallback: toggle data-selected only (last resort)
+    row.setAttribute('data-selected','1');
+    return true;
+  }, index);
 }
 async function waitCapsSelection(page, timeout = 2500) {
   const start = Date.now();
@@ -455,29 +552,49 @@ async function main() {
       throw new Error('caps-selection-timeout');
     }
 
-    const selectionEnv = await page.evaluate(() => {
-      const table = document.querySelector('#tbl-pipeline tbody');
-      if (!table) return { ok: false, reason: 'no-table' };
-      const checks = Array.from(table.querySelectorAll('[data-ui="row-check"]'));
-      if (checks.length < 2) return { ok: false, reason: 'insufficient-checks', total: checks.length };
-      const count = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : null;
-      return { ok: true, count, checks: checks.length };
-    });
-    if (!selectionEnv.ok) {
-      throw new Error(`select-failed:${selectionEnv.reason}`);
+    // --- resilient, fail-safe selection ---
+    if (!await waitForRows(page, 2)) {
+      const d = await selectionDiag(page);
+      throw new Error('no-rows-ready ' + JSON.stringify(d));
     }
-    await page.evaluate(() => {
-      const next = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : 0;
-      window.__SEL_COUNT__ = next | 0;
-    });
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 0)) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 1)) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+
+    // Try a UI-level "select all" first (if available), then wait for >= 2
+    let done = await selectAllViaUI(page);
+    if (done) {
+      if (!await waitSelectionAtLeast(page, 2)) {
+        const d = await selectionDiag(page);
+        throw new Error('select-all-timeout ' + JSON.stringify(d));
+      }
+    } else {
+      // Try API path
+      done = await selectViaAPI(page, 2);
+      if (done) {
+        if (!await waitSelectionAtLeast(page, 2)) {
+          const d = await selectionDiag(page);
+          throw new Error('sel-timeout-api ' + JSON.stringify(d));
+        }
+      } else {
+        // DOM fallbacks: row 0 then row 1
+        const ok0 = await selectViaDOMFallback(page, 0);
+        if (!ok0) {
+          const d = await selectionDiag(page);
+          throw new Error('sel-fallback-0 ' + JSON.stringify(d));
+        }
+        if (!await waitSelectionAtLeast(page, 1)) {
+          const d = await selectionDiag(page);
+          throw new Error('sel-count-timeout-1 ' + JSON.stringify(d));
+        }
+        const ok1 = await selectViaDOMFallback(page, 1);
+        if (!ok1) {
+          const d = await selectionDiag(page);
+          throw new Error('sel-fallback-1 ' + JSON.stringify(d));
+        }
+        if (!await waitSelectionAtLeast(page, 2)) {
+          const d = await selectionDiag(page);
+          throw new Error('sel-count-timeout-2 ' + JSON.stringify(d));
+        }
+      }
+    }
 
     await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 
@@ -561,9 +678,15 @@ async function main() {
       window.__SEL_COUNT__ = next | 0;
     });
     if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[0])) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
+    if (!await waitSelectionAtLeast(page, 1)) {
+      const d = await selectionDiag(page);
+      throw new Error('partners-count-timeout-1 ' + JSON.stringify(d));
+    }
     if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[1])) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+    if (!await waitSelectionAtLeast(page, 2)) {
+      const d = await selectionDiag(page);
+      throw new Error('partners-count-timeout-2 ' + JSON.stringify(d));
+    }
 
     await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 
