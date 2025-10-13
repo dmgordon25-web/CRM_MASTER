@@ -4,6 +4,137 @@ import { registerModalActions } from './contacts/modal.js';
 
 window.CRM = window.CRM || {};
 
+function callToast(kind, message){
+  const text = String(message ?? '').trim();
+  if(!text) return;
+  const api = window.Toast || null;
+  if(api && typeof api[kind] === 'function'){
+    try { api[kind](text); return; }
+    catch (_err) {}
+  }
+  if(api && typeof api.show === 'function'){
+    try { api.show(text); return; }
+    catch (_err) {}
+  }
+  if(typeof window.toast === 'function'){
+    try { window.toast(text); }
+    catch (_err) {}
+  }
+}
+
+const toastSuccess = (message) => callToast('success', message);
+const toastWarn = (message) => callToast('warn', message);
+
+let partnerModalRoot = null;
+
+function hidePartnerModal(root){
+  if(!root) return;
+  const wasOpen = root.dataset?.open === '1' || root.getAttribute('aria-hidden') === 'false' || root.hasAttribute('open');
+  root.dataset.open = '0';
+  root.setAttribute('aria-hidden', 'true');
+  root.style.display = 'none';
+  root.classList.add('hidden');
+  if(root.dataset){
+    root.dataset.partnerId = '';
+  }
+  if(root.hasAttribute('open')){
+    root.removeAttribute('open');
+  }
+  const handler = root.__partnerKeyHandler;
+  if(handler){
+    document.removeEventListener('keydown', handler);
+    root.__partnerKeyHandler = null;
+  }
+  if(wasOpen){
+    const closeEvent = new Event('close', { bubbles: false, cancelable: false });
+    try {
+      root.dispatchEvent(closeEvent);
+    }catch(_err){}
+  }
+}
+
+function showPartnerModal(root){
+  if(!root) return;
+  root.style.display = 'flex';
+  root.classList.remove('hidden');
+  root.dataset.open = '1';
+  root.setAttribute('aria-hidden', 'false');
+  if(!root.hasAttribute('open')){
+    root.setAttribute('open', '');
+  }
+  const handler = (evt) => {
+    if(evt.key === 'Escape'){
+      evt.preventDefault();
+      hidePartnerModal(root);
+    }
+  };
+  document.addEventListener('keydown', handler);
+  root.__partnerKeyHandler = handler;
+}
+
+function ensurePartnerModalRoot(){
+  if(typeof document === 'undefined') return null;
+  if(partnerModalRoot && document.body && document.body.contains(partnerModalRoot)){
+    return partnerModalRoot;
+  }
+  const legacy = document.getElementById('partner-modal');
+  if(legacy){
+    if(legacy.tagName && legacy.tagName.toUpperCase() === 'DIALOG'){
+      const wrapper = document.createElement('div');
+      wrapper.id = 'partner-modal';
+      const legacyClass = legacy.className ? legacy.className.trim() : '';
+      wrapper.className = legacyClass ? legacyClass : '';
+      if(!wrapper.classList.contains('modal')) wrapper.classList.add('modal');
+      wrapper.classList.add('partner-edit-modal');
+      wrapper.dataset.qa = 'partner-edit-modal';
+      wrapper.setAttribute('role', 'dialog');
+      wrapper.setAttribute('aria-modal', 'true');
+      wrapper.setAttribute('aria-hidden', 'true');
+      wrapper.style.display = 'none';
+      wrapper.innerHTML = legacy.innerHTML;
+      legacy.replaceWith(wrapper);
+      partnerModalRoot = wrapper;
+    }else{
+      legacy.dataset.qa = 'partner-edit-modal';
+      legacy.setAttribute('role', 'dialog');
+      legacy.setAttribute('aria-modal', 'true');
+      legacy.setAttribute('aria-hidden', legacy.getAttribute('aria-hidden') || 'true');
+      if(!legacy.classList.contains('modal')) legacy.classList.add('modal');
+      legacy.classList.add('partner-edit-modal');
+      legacy.style.display = legacy.style.display || 'none';
+      partnerModalRoot = legacy;
+    }
+  }else{
+    const wrapper = document.createElement('div');
+    wrapper.id = 'partner-modal';
+    wrapper.className = 'modal partner-edit-modal';
+    wrapper.dataset.qa = 'partner-edit-modal';
+    wrapper.setAttribute('role', 'dialog');
+    wrapper.setAttribute('aria-modal', 'true');
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.style.display = 'none';
+    wrapper.innerHTML = '<div class="dlg" tabindex="-1"></div>';
+    (document.body || document.documentElement || document.createElement('div')).appendChild(wrapper);
+    partnerModalRoot = wrapper;
+  }
+  const shell = partnerModalRoot?.querySelector?.('.dlg');
+  if(shell && typeof shell.setAttribute === 'function'){
+    shell.setAttribute('tabindex', shell.getAttribute('tabindex') || '-1');
+  }
+  if(partnerModalRoot && !partnerModalRoot.dataset.qa){
+    partnerModalRoot.dataset.qa = 'partner-edit-modal';
+  }
+  if(partnerModalRoot && !partnerModalRoot.__overlayWired){
+    partnerModalRoot.__overlayWired = true;
+    partnerModalRoot.addEventListener('mousedown', evt => {
+      if(evt.target === partnerModalRoot){
+        hidePartnerModal(partnerModalRoot);
+      }
+    });
+  }
+  return partnerModalRoot;
+}
+
 export function openPartnerQuickCreate(cb){
   window.CRM = window.CRM || {};
   const existing = document.querySelector('dialog[data-qa="partner-quick-create"]');
@@ -184,6 +315,8 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
   if(window.__INIT_FLAGS__.partners_modal) return;
   window.__INIT_FLAGS__.partners_modal = true;
 
+  ensurePartnerModalRoot();
+
   async function loadPartner(id){
     await openDB();
     return id ? (await dbGet('partners', id)) : null;
@@ -347,11 +480,18 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     }
   }
 
-  window.renderPartnerModal = async function(id){
+  async function renderPartnerModal(id){
+    const dlg = ensurePartnerModalRoot();
+    if(!dlg){
+      toastWarn('Partner not found');
+      return;
+    }
     await openDB();
-    const dlg = el('partner-modal');
-    if(!dlg){ console.warn('partner-modal not found'); return; }
     const loaded = await loadPartner(id);
+    if(id && !loaded){
+      toastWarn('Partner not found');
+      return;
+    }
     const base = {
       id: (id || String(Date.now())),
       name:'', company:'', email:'', phone:'', tier:'Developing', notes:'',
@@ -362,7 +502,7 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     };
     const p = Object.assign(base, loaded||{});
     el('partner-title').textContent = (loaded && id) ? 'Edit Partner' : 'Add Partner';
-    dlg.dataset.partnerId = p.id;
+    dlg.dataset.partnerId = String(p.id || '');
     dlg.__currentPartnerBase = Object.assign({}, p);
     dlg.__partnerWasSaved = Boolean(loaded && loaded.id);
 
@@ -415,8 +555,8 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     await renderLinkedCustomers(p.id);
 
     const closeDialog = ()=>{
-      try{ dlg.close(); }
-      catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; }
+      hidePartnerModal(dlg);
+      dlg.dataset.partnerId = '';
     };
 
     let footerHandle = dlg.__partnerFooter;
@@ -477,7 +617,7 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
           updatedAt: Date.now()
         });
         dlg.__currentPartnerBase = Object.assign({}, rec);
-        dlg.dataset.partnerId = rec.id;
+        dlg.dataset.partnerId = String(rec.id || '');
         await dbPut('partners', rec);
         const action = dlg.__partnerWasSaved ? 'update' : 'create';
         const detail = {
@@ -491,8 +631,10 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
         }else{
           document.dispatchEvent(new CustomEvent('app:data:changed',{detail}));
         }
-        if(window.Toast && typeof window.Toast.show === 'function'){
-          window.Toast.show(action === 'update' ? 'Updated' : 'Created');
+        if(action === 'update'){
+          toastSuccess('Partner updated');
+        }else{
+          toastSuccess('Partner created');
         }
         dlg.__partnerWasSaved = true;
         closeDialog();
@@ -547,13 +689,14 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
       });
     }
 
-    try{ dlg.showModal(); }
-    catch (_) { dlg.setAttribute('open',''); dlg.style.display='block'; }
+    showPartnerModal(dlg);
     const shell = dlg.querySelector('.dlg');
     if(shell && typeof shell.focus==='function'){
       shell.focus({preventScroll:true});
     }
-  };
+  }
+
+  window.renderPartnerModal = renderPartnerModal;
 
   // Helper for select lists elsewhere
   window.__listPartnersForSelect = async function(){
@@ -566,7 +709,7 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
     document.__partnerLinkedWatcher = true;
     document.addEventListener('app:data:changed', (evt)=>{
       const dlg = el('partner-modal');
-      if(!dlg || !dlg.hasAttribute('open')) return;
+      if(!dlg || dlg.dataset.open !== '1') return;
       const partnerId = dlg.dataset.partnerId;
       if(!partnerId) return;
       renderLinkedCustomers(partnerId);
@@ -577,11 +720,34 @@ window.CRM.openPartnerQuickCreate = openPartnerQuickCreate;
   if(Array.isArray(pending) && pending.length){
     delete window.__PARTNER_MODAL_QUEUE__;
     pending.forEach(id => {
-      try{ window.renderPartnerModal(id); }
+      try{ renderPartnerModal(id); }
       catch (err) { console.warn('partner modal pending open failed', err); }
     });
   }
 })();
+
+export async function openPartnerEdit(id){
+  const partnerId = id == null ? '' : String(id).trim();
+  if(!partnerId){
+    toastWarn('Partner not found');
+    return;
+  }
+  const root = ensurePartnerModalRoot();
+  if(!root){
+    toastWarn('Partner not found');
+    return;
+  }
+  if(root.dataset.open === '1' && root.dataset.partnerId === partnerId){
+    return;
+  }
+  if(typeof window.renderPartnerModal !== 'function'){
+    toastWarn('Partner not found');
+    return;
+  }
+  await window.renderPartnerModal(partnerId);
+}
+
+window.openPartnerEdit = window.openPartnerEdit || openPartnerEdit;
 
 registerModalActions({
   entity: 'partner',
