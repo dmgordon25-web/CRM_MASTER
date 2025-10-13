@@ -12,9 +12,17 @@ function markActionbarHost() {
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
+  if (!bar.hasAttribute('data-ui')) {
+    bar.setAttribute('data-ui', 'action-bar');
+  }
   if (!bar.hasAttribute('data-visible')) {
     bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
   }
+  bar.querySelectorAll('[data-act]').forEach((node) => {
+    const action = node.getAttribute('data-act');
+    if (!action || node.hasAttribute('data-action')) return;
+    node.setAttribute('data-action', action);
+  });
   const clearBtn = bar.querySelector('[data-act="clear"]');
   if (clearBtn && !clearBtn.hasAttribute('data-action')) {
     clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
@@ -178,6 +186,9 @@ function ensureFabElements() {
     if (fab.getAttribute('data-qa') !== 'fab') {
       fab.setAttribute('data-qa', 'fab');
     }
+    if (!fab.hasAttribute('data-action')) {
+      fab.setAttribute('data-action', 'new');
+    }
   }
 
   let menu = document.getElementById(FAB_MENU_ID);
@@ -193,6 +204,9 @@ function ensureFabElements() {
       btn.type = 'button';
       btn.textContent = label;
       btn.setAttribute('data-qa', qa);
+      if (!btn.hasAttribute('data-action')) {
+        btn.setAttribute('data-action', qa);
+      }
       btn.setAttribute('role', 'menuitem');
       return btn;
     };
