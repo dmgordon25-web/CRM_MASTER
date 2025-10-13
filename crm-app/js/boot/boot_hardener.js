@@ -277,7 +277,13 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     }
     state.patches = patchRecords.map(({ path }) => path);
 
-    maybeRenderAll();
+    try {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        maybeRenderAll();
+        // NEW: signal shell-ready after initial render settles
+        window.dispatchEvent(new CustomEvent('crm:shell-ready'));
+      }));
+    } catch (_) {}
 
     const waiters = gatherServiceWaiters(coreRecords);
     if (waiters.length) {

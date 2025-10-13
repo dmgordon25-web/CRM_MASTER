@@ -5,9 +5,62 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
+function findActionbarHost() {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById('actionbar') || document.querySelector('.actionbar');
+}
+
+function isActionVisible(node) {
+  if (!node) return false;
+  if (node.hidden) return false;
+  if (node.hasAttribute && node.hasAttribute('hidden')) return false;
+  if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return false;
+  const style = node.style || {};
+  if (style.display === 'none') return false;
+  if (style.visibility === 'hidden') return false;
+  return true;
+}
+
+function ensurePrimaryAction(bar) {
+  if (!bar) return null;
+  const candidates = [
+    { selector: '[data-act="clear"]', action: 'clear' },
+    { selector: '[data-action="clear"]', action: 'clear' },
+    { selector: '[data-act="filter"]', action: 'filter' },
+    { selector: '[data-action="filter"]', action: 'filter' },
+    { selector: '[data-act="new"]', action: 'new' },
+    { selector: '[data-action="new"]', action: 'new' }
+  ];
+
+  for (const { selector, action } of candidates) {
+    const node = bar.querySelector(selector);
+    if (!node) continue;
+    if (!node.hasAttribute('data-action')) {
+      node.setAttribute('data-action', action);
+    }
+    if (isActionVisible(node)) {
+      return node;
+    }
+  }
+
+  const fallback = bar.querySelector('[data-action]:not([data-action="merge"])')
+    || bar.querySelector('[data-act]:not([data-act="merge"])')
+    || bar.querySelector('button:not([data-action="merge"])');
+  if (!fallback) return null;
+
+  if (!fallback.hasAttribute('data-action')) {
+    const fallbackAction = fallback.getAttribute('data-act')
+      || fallback.getAttribute('aria-label')
+      || (fallback.textContent ? fallback.textContent.trim().toLowerCase().replace(/\s+/g, '-') : '');
+    const normalized = fallbackAction || 'action';
+    fallback.setAttribute('data-action', normalized);
+  }
+  return fallback;
+}
+
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  const bar = findActionbarHost();
   if (!bar) return null;
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
@@ -36,32 +89,49 @@ function markActionbarHost() {
       mergeBtn.setAttribute('data-qa', 'action-merge');
     }
   }
+  ensurePrimaryAction(bar);
   return bar;
 }
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+function mountActionBar() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  window.CRM = window.CRM || {};
+  if (window.CRM._actionBarMounted) return;
+
+  const bar = markActionbarHost();
+  if (!bar) {
+    console.warn('[action-bar] host not found for mount');
+    return;
+  }
+
+  window.CRM._actionBarMounted = true;
+
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
+
+  ensureGlobalNewFab();
+  ensureMergeHandler();
+
   if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
-    }
     document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
+      const target = event.target;
+      const btn = target && typeof target.closest === 'function'
+        ? target.closest('[data-action]')
+        : null;
       if (!btn) return;
       const action = btn.getAttribute('data-action');
       if (!action) return;
       window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
     }, true);
+  }
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('crm:shell-ready', () => mountActionBar(), { once: true });
+  if (findActionbarHost()) {
+    mountActionBar();
   }
 }
 
