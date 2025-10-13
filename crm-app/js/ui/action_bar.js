@@ -4,16 +4,113 @@ const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
+const NEW_BUTTON_ID = 'actionbar-new';
+const NEW_BUTTON_ROLE = 'action-bar-new';
 
-function markActionbarHost() {
+let actionBarRoot = null;
+let actionBarDelegated = false;
+let visibilityObserver = null;
+let visibilityObserverTarget = null;
+
+function getActionBarContainer() {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  return document.body || document.documentElement || null;
+}
+
+function createActionBarSkeleton() {
+  if (typeof document === 'undefined') return null;
+  const root = document.createElement('div');
+  root.id = 'actionbar';
+  root.className = 'actionbar';
+  root.setAttribute('data-ui', 'action-bar');
+
+  const shell = document.createElement('div');
+  shell.className = 'container actionbar-shell';
+  root.appendChild(shell);
+
+  const meta = document.createElement('div');
+  meta.className = 'actionbar-meta';
+  shell.appendChild(meta);
+
+  const count = document.createElement('div');
+  count.className = 'actionbar-count';
+  count.setAttribute('data-role', 'count');
+  count.textContent = 'No records selected';
+  meta.appendChild(count);
+
+  const breakdown = document.createElement('div');
+  breakdown.className = 'actionbar-breakdown';
+  breakdown.setAttribute('data-role', 'breakdown');
+  breakdown.textContent = 'Select rows to unlock pipeline actions.';
+  meta.appendChild(breakdown);
+
+  const metric = document.createElement('div');
+  metric.className = 'actionbar-metric';
+  metric.setAttribute('data-role', 'amount');
+  meta.appendChild(metric);
+
+  const stages = document.createElement('div');
+  stages.className = 'actionbar-stages';
+  stages.setAttribute('data-role', 'stages');
+  shell.appendChild(stages);
+
+  const names = document.createElement('div');
+  names.className = 'actionbar-names';
+  names.setAttribute('data-role', 'names');
+  names.textContent = 'No contacts or partners in focus yet.';
+  shell.appendChild(names);
+
+  const actions = document.createElement('div');
+  actions.className = 'actionbar-actions';
+  shell.appendChild(actions);
+
+  const defaults = [
+    { text: 'Edit', act: 'edit', className: 'btn' },
+    { text: 'Merge (2)', act: 'merge', className: 'btn' },
+    { text: 'Email Together', act: 'emailTogether', className: 'btn' },
+    { text: 'Email Mass (copy)', act: 'emailMass', className: 'btn' },
+    { text: 'Add Task', act: 'task', className: 'btn' },
+    { text: 'Bulk Log', act: 'bulkLog', className: 'btn' },
+    { text: 'Clear', act: 'clear', className: 'btn' },
+    { text: 'Delete', act: 'delete', className: 'btn danger' }
+  ];
+
+  defaults.forEach((definition) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = definition.text;
+    btn.className = definition.className;
+    btn.setAttribute('data-act', definition.act);
+    actions.appendChild(btn);
+  });
+
+  return root;
+}
+
+function markActionbarHost(target) {
+  if (typeof document === 'undefined') return null;
+  let bar = target || document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
   if (!bar) return null;
-  if (!bar.dataset.ui) {
+  if (!bar.dataset.ui || bar.dataset.ui !== 'action-bar') {
     bar.dataset.ui = 'action-bar';
   }
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
+  }
+  if (!bar.id) {
+    bar.id = 'actionbar';
+  }
+  if (bar.classList && !bar.classList.contains('actionbar')) {
+    bar.classList.add('actionbar');
+  }
+  if (!bar.style.display || bar.style.display === 'none') {
+    bar.style.display = 'block';
+  }
+  if (bar.hasAttribute('hidden')) {
+    bar.removeAttribute('hidden');
+  }
+  if (bar.getAttribute('aria-hidden') === 'true') {
+    bar.removeAttribute('aria-hidden');
   }
   if (!bar.hasAttribute('data-visible')) {
     bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
@@ -39,29 +136,184 @@ function markActionbarHost() {
   return bar;
 }
 
+function ensureActionBarDelegation(root) {
+  if (!root) return;
+  if (actionBarRoot && actionBarRoot !== root && actionBarDelegated) {
+    actionBarRoot.removeEventListener('click', handleActionBarClick);
+    actionBarDelegated = false;
+  }
+  if (!actionBarDelegated) {
+    root.addEventListener('click', handleActionBarClick);
+    actionBarDelegated = true;
+  }
+  actionBarRoot = root;
+}
+
+function handleActionBarClick(event) {
+  if (!actionBarRoot) return;
+  const candidate = event.target && typeof event.target.closest === 'function'
+    ? event.target.closest('[data-action]')
+    : null;
+  if (!candidate || !actionBarRoot.contains(candidate)) return;
+  const action = candidate.getAttribute('data-action');
+  if (!action) return;
+  if (typeof window !== 'undefined') {
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+  }
+  if (action === 'new' && candidate.getAttribute('data-ui-role') === NEW_BUTTON_ROLE) {
+    event.preventDefault();
+    triggerNewAction();
+  }
+}
+
+function triggerNewAction() {
+  const root = mountActionBar();
+  ensureGlobalNewFab(root);
+  if (typeof toggleFabMenu === 'function') {
+    toggleFabMenu(true);
+    return;
+  }
+  const toast = typeof window !== 'undefined' ? window.Toast : undefined;
+  if (toast && typeof toast.info === 'function') {
+    try { toast.info('New item'); }
+    catch (_) {}
+    return;
+  }
+  showToast('info', 'New item');
+}
+
+function ensureNewButton(root) {
+  if (!root || typeof document === 'undefined') return null;
+  const host = root.querySelector('.actionbar-actions');
+  if (!host) return null;
+  let button = host.querySelector(`#${NEW_BUTTON_ID}`) || host.querySelector(`[data-ui-role="${NEW_BUTTON_ROLE}"]`);
+  if (!button) {
+    button = document.createElement('button');
+    button.id = NEW_BUTTON_ID;
+    button.type = 'button';
+    button.textContent = 'New';
+    button.setAttribute('data-action', 'new');
+    button.setAttribute('data-ui-role', NEW_BUTTON_ROLE);
+    button.setAttribute('aria-label', 'New');
+    host.insertBefore(button, host.firstChild);
+  }
+  button.hidden = false;
+  button.removeAttribute('aria-hidden');
+  if (button.style.display === 'none') {
+    button.style.display = '';
+  }
+  return button;
+}
+
+function updateActionVisibility(root) {
+  if (!root) return;
+  if (!root.style.display || root.style.display === 'none') {
+    root.style.display = 'block';
+  }
+  if (root.hasAttribute('hidden')) {
+    root.removeAttribute('hidden');
+  }
+  if (root.getAttribute('aria-hidden') === 'true') {
+    root.removeAttribute('aria-hidden');
+  }
+  const host = root.querySelector('.actionbar-actions');
+  if (!host) return;
+  const newButton = ensureNewButton(root);
+  const visible = root.classList.contains('has-selection') || root.getAttribute('data-visible') === '1';
+  host.querySelectorAll('[data-action]').forEach((node) => {
+    if (!node || node === newButton) return;
+    if (node.id === FAB_ID || node.closest('.actionbar-fab')) return;
+    if (!visible) {
+      node.dataset.actionBarManaged = '1';
+      node.dataset.actionBarPrevHidden = node.hidden ? '1' : '0';
+      const priorAria = node.getAttribute('aria-hidden');
+      if (priorAria != null) {
+        node.dataset.actionBarPrevAriaHidden = priorAria;
+      } else {
+        delete node.dataset.actionBarPrevAriaHidden;
+      }
+      node.hidden = true;
+      node.setAttribute('aria-hidden', 'true');
+    } else if (node.dataset.actionBarManaged === '1') {
+      const prevHidden = node.dataset.actionBarPrevHidden === '1';
+      const prevAria = Object.prototype.hasOwnProperty.call(node.dataset, 'actionBarPrevAriaHidden')
+        ? node.dataset.actionBarPrevAriaHidden
+        : null;
+      node.hidden = prevHidden;
+      if (prevAria != null) {
+        node.setAttribute('aria-hidden', prevAria);
+      } else {
+        node.removeAttribute('aria-hidden');
+      }
+      delete node.dataset.actionBarPrevAriaHidden;
+    }
+  });
+}
+
+function ensureVisibilityObserver(root) {
+  if (!root) return;
+  updateActionVisibility(root);
+  if (visibilityObserver && visibilityObserverTarget === root) return;
+  if (visibilityObserver) {
+    visibilityObserver.disconnect();
+  }
+  visibilityObserverTarget = root;
+  visibilityObserver = new MutationObserver(() => {
+    ensureNewButton(root);
+    updateActionVisibility(root);
+  });
+  visibilityObserver.observe(root, {
+    attributes: true,
+    attributeFilter: ['class', 'data-visible', 'hidden', 'style', 'aria-hidden'],
+    childList: true,
+    subtree: true
+  });
+}
+
+export function mountActionBar() {
+  if (typeof document === 'undefined') return null;
+  injectActionBarStyle();
+  let bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+  if (!bar) {
+    bar = createActionBarSkeleton();
+  }
+  const container = getActionBarContainer();
+  if (container && bar && !bar.isConnected) {
+    container.appendChild(bar);
+  }
+  bar = markActionbarHost(bar);
+  if (!bar) return null;
+  ensureNewButton(bar);
+  ensureActionBarDelegation(bar);
+  ensureVisibilityObserver(bar);
+  return bar;
+}
+
+function ensureActionBarReady() {
+  const bar = mountActionBar();
+  if (!bar) return null;
+  ensureGlobalNewFab(bar);
+  ensureMergeHandler();
+  return bar;
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
-    }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
+  const boot = () => {
+    ensureActionBarReady();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
+  if (!window.__ACTION_BAR_ROUTE_WIRED__) {
+    window.__ACTION_BAR_ROUTE_WIRED__ = true;
+    window.addEventListener('hashchange', () => {
+      ensureActionBarReady();
+    });
   }
 }
 
@@ -297,9 +549,9 @@ function toggleFabMenu(forceOpen) {
   }
 }
 
-function ensureGlobalNewFab() {
+function ensureGlobalNewFab(target) {
   injectActionBarStyle();
-  const bar = markActionbarHost();
+  const bar = markActionbarHost(target);
   if (!bar) return;
   ensureFabElements();
 }
@@ -513,9 +765,8 @@ function handleFabAction(kind) {
 }
 
 export function ensurePartnersMergeButton() {
-  markActionbarHost();
-  injectActionBarStyle();
-  ensureGlobalNewFab();
+  const bar = mountActionBar();
+  ensureGlobalNewFab(bar);
   const host = getActionsHost();
   if (!host) return null;
   let btn = document.getElementById(BUTTON_ID);
