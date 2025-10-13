@@ -111,6 +111,7 @@ export const PATCHES = [
   './ux/svg_sanitizer.js',
   './services/selection_adapter.js',
   './services/selection_fallback.js',
+  './patches/smoke_stabilizer.js',
   './core/capabilities_probe.js'
 ];
 
