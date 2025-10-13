@@ -4,10 +4,239 @@ const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
+const ACTION_BAR_ID = 'actionbar';
+const ACTIONS_HOST_SELECTOR = '.actionbar-actions';
+const PRIMARY_NEW_ROLE = 'action-bar-new';
+
+let verifyActionsTimer = null;
+let routeHookRegistered = false;
+
+function ensureActionBarStructure(bar, doc) {
+  if (!bar || !doc) return { bar: null, actions: null };
+
+  if (!bar.classList.contains('actionbar')) {
+    bar.classList.add('actionbar');
+  }
+
+  let shell = bar.querySelector('.actionbar-shell');
+  if (!shell) {
+    shell = doc.createElement('div');
+    shell.className = 'container actionbar-shell';
+    bar.appendChild(shell);
+  } else if (!shell.classList.contains('container')) {
+    shell.classList.add('container');
+  }
+
+  const ensureMetaSection = () => {
+    let meta = shell.querySelector('.actionbar-meta');
+    if (!meta) {
+      meta = doc.createElement('div');
+      meta.className = 'actionbar-meta';
+      shell.insertBefore(meta, shell.firstChild || null);
+    }
+
+    const ensureMetaChild = (className, role) => {
+      const selector = `[data-role="${role}"]`;
+      let node = meta.querySelector(selector);
+      if (!node) {
+        node = doc.createElement('div');
+        node.className = className;
+        node.setAttribute('data-role', role);
+        if (role === 'count') {
+          node.textContent = 'No records selected';
+        } else if (role === 'breakdown') {
+          node.textContent = 'Select rows to unlock pipeline actions.';
+        }
+        meta.appendChild(node);
+      }
+      return node;
+    };
+
+    ensureMetaChild('actionbar-count', 'count');
+    ensureMetaChild('actionbar-breakdown', 'breakdown');
+    ensureMetaChild('actionbar-metric', 'amount');
+    return meta;
+  };
+
+  ensureMetaSection();
+
+  let stages = shell.querySelector('.actionbar-stages');
+  if (!stages) {
+    stages = doc.createElement('div');
+    stages.className = 'actionbar-stages';
+    stages.setAttribute('data-role', 'stages');
+    shell.appendChild(stages);
+  }
+
+  let names = shell.querySelector('.actionbar-names');
+  if (!names) {
+    names = doc.createElement('div');
+    names.className = 'actionbar-names';
+    names.setAttribute('data-role', 'names');
+    names.textContent = 'No contacts or partners in focus yet.';
+    shell.appendChild(names);
+  }
+
+  let actions = shell.querySelector(ACTIONS_HOST_SELECTOR);
+  if (!actions) {
+    actions = doc.createElement('div');
+    actions.className = 'actionbar-actions';
+    shell.appendChild(actions);
+  }
+
+  return { bar, actions };
+}
+
+function ensureActionBarRoot() {
+  if (typeof document === 'undefined') return null;
+  const doc = document;
+  let bar = doc.getElementById(ACTION_BAR_ID);
+  if (!bar) {
+    const root = doc.body || doc.documentElement || doc;
+    if (!root || typeof root.appendChild !== 'function') return null;
+    bar = doc.createElement('div');
+    bar.id = ACTION_BAR_ID;
+    bar.className = 'actionbar';
+    ensureActionBarStructure(bar, doc);
+    root.appendChild(bar);
+  } else {
+    ensureActionBarStructure(bar, doc);
+    const root = doc.body || doc.documentElement || doc;
+    if (root && typeof root.contains === 'function' && !root.contains(bar) && typeof root.appendChild === 'function') {
+      root.appendChild(bar);
+    }
+  }
+  return bar;
+}
+
+function queueVerifyActions() {
+  if (typeof window === 'undefined') return;
+  if (verifyActionsTimer) return;
+  verifyActionsTimer = window.setTimeout(() => {
+    verifyActionsTimer = null;
+    if (typeof document === 'undefined') return;
+    const bar = document.getElementById(ACTION_BAR_ID);
+    if (!bar) return;
+    const host = bar.querySelector(ACTIONS_HOST_SELECTOR);
+    if (!host) return;
+    const hasAction = host.querySelector('[data-action]');
+    if (hasAction) return;
+    ensurePrimaryNewButton();
+  }, 0);
+}
+
+function handlePrimaryNewAction(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  let handled = false;
+  try {
+    const elements = ensureFabElements();
+    if (elements && elements.fab) {
+      toggleFabMenu(true);
+      if (typeof elements.fab.focus === 'function') {
+        elements.fab.focus();
+      }
+      handled = true;
+    }
+  } catch (_) {
+    handled = false;
+  }
+  if (!handled) {
+    try {
+      const quick = typeof window !== 'undefined' ? window.QuickAddUnified : undefined;
+      if (quick && typeof quick.open === 'function') {
+        quick.open();
+        handled = true;
+      }
+    } catch (_) {
+      handled = false;
+    }
+  }
+  if (!handled) {
+    try {
+      const toast = typeof window !== 'undefined' ? window.Toast : undefined;
+      if (toast && typeof toast.info === 'function') {
+        toast.info('New item');
+      } else {
+        showToast('info', 'New item');
+      }
+    } catch (_) {
+      showToast('info', 'New item');
+    }
+  }
+}
+
+function ensurePrimaryNewButton() {
+  if (typeof document === 'undefined') return null;
+  const bar = ensureActionBarRoot();
+  if (!bar) return null;
+  const host = bar.querySelector(ACTIONS_HOST_SELECTOR);
+  if (!host) return null;
+  let btn = host.querySelector(`button[data-ui-role="${PRIMARY_NEW_ROLE}"]`);
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = 'New';
+    btn.setAttribute('data-action', 'new');
+    btn.setAttribute('aria-label', 'New');
+    btn.setAttribute('data-ui-role', PRIMARY_NEW_ROLE);
+    btn.disabled = false;
+    btn.style.display = '';
+    const mergeBtn = host.querySelector('[data-action="merge"], [data-act="merge"]');
+    if (mergeBtn) {
+      host.insertBefore(btn, mergeBtn);
+    } else {
+      host.insertBefore(btn, host.firstChild || null);
+    }
+  } else {
+    btn.disabled = false;
+    btn.style.display = '';
+    if (btn.textContent !== 'New') {
+      btn.textContent = 'New';
+    }
+    if (btn.getAttribute('data-action') !== 'new') {
+      btn.setAttribute('data-action', 'new');
+    }
+    if (btn.getAttribute('aria-label') !== 'New') {
+      btn.setAttribute('aria-label', 'New');
+    }
+  }
+  if (!btn.__actionBarNewWired) {
+    btn.addEventListener('click', handlePrimaryNewAction);
+    btn.__actionBarNewWired = true;
+  }
+  return btn;
+}
+
+function ensureRouteReadyHook() {
+  if (routeHookRegistered) return;
+  if (typeof window === 'undefined') return;
+  routeHookRegistered = true;
+  const run = () => {
+    ensurePrimaryNewButton();
+    queueVerifyActions();
+  };
+  const guard = window.RenderGuard;
+  if (guard && typeof guard.registerHook === 'function') {
+    const hook = () => { run(); };
+    try {
+      guard.registerHook(hook);
+    } catch (_) {
+      window.setTimeout(run, 0);
+    }
+    return;
+  }
+  const handler = () => { run(); };
+  window.addEventListener('hashchange', handler);
+  run();
+}
 
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  const bar = ensureActionBarRoot();
   if (!bar) return null;
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
@@ -47,8 +276,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
     const setup = () => {
       markActionbarHost();
+      ensurePrimaryNewButton();
       ensureGlobalNewFab();
       ensureMergeHandler();
+      queueVerifyActions();
+      ensureRouteReadyHook();
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setup, { once: true });
