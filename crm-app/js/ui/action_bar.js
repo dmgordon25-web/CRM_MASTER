@@ -5,6 +5,73 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
+function ensureOutlet() {
+  if (typeof document === 'undefined') return null;
+  const existing = document.querySelector('#action-bar-outlet, [data-ui="action-bar-outlet"]');
+  if (existing) return existing;
+  if (!document.body) return null;
+  const outlet = document.createElement('div');
+  outlet.id = 'action-bar-outlet';
+  outlet.style.position = 'fixed';
+  outlet.style.bottom = '8px';
+  outlet.style.left = '8px';
+  outlet.style.zIndex = '1';
+  outlet.style.background = 'transparent';
+  document.body.appendChild(outlet);
+  return outlet;
+}
+
+function ensureActionBar() {
+  if (typeof document === 'undefined') return null;
+  const outlet = ensureOutlet();
+  const preferReal = document.querySelector('#actionbar[data-ui="action-bar"]');
+  let root = preferReal || document.querySelector('[data-ui="action-bar"]');
+  if (!root && outlet) {
+    root = document.createElement('div');
+    root.setAttribute('data-ui', 'action-bar');
+    outlet.appendChild(root);
+  }
+  if (!root) return null;
+  if (outlet && root !== preferReal && !outlet.contains(root)) {
+    outlet.appendChild(root);
+  }
+  if (!root.querySelector('[data-action]:not([data-action="merge"])')) {
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.setAttribute('data-action', 'new');
+    newBtn.setAttribute('aria-label', 'New');
+    newBtn.textContent = 'New';
+    newBtn.addEventListener('click', () => {
+      try {
+        if (window.CRM && typeof window.CRM.openUnifiedNew === 'function') { window.CRM.openUnifiedNew(); return; }
+        const fab = document.querySelector('#global-new');
+        if (fab) { fab.click(); return; }
+        if (window.Toast && typeof window.Toast.info === 'function') { window.Toast.info('New item'); }
+      } catch (_) {}
+    });
+    root.appendChild(newBtn);
+  }
+  return root;
+}
+
+(function () {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  try {
+    const safeMount = () => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(ensureActionBar);
+      } else {
+        ensureActionBar();
+      }
+    };
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      safeMount();
+    } else {
+      document.addEventListener('DOMContentLoaded', safeMount, { once: true });
+    }
+  } catch (_) {}
+})();
+
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
