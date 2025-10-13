@@ -46,7 +46,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   const isDebug = window.__ENV__ && window.__ENV__.DEBUG === true;
   if(window.__ENV__?.DEBUG === true){
-    import(fromHere('./ui/debug_overlay.js'))
+    import(fromHere('./debug/overlay.js'))
       .then((mod) => {
         try{
           if(mod && typeof mod.initDebugOverlay === 'function') mod.initDebugOverlay();
