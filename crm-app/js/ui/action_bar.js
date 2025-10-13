@@ -4,6 +4,12 @@ const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
+const FALLBACK_DELAY_MS = 275;
+
+let actionBarMounted = false;
+let routeReadySettled = false;
+let routeReadyWired = false;
+let mountFallbackTimer = null;
 
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
@@ -45,16 +51,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   }
   if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
+    const bootMount = () => {
+      mountActionBar();
+      ensureActionPresence();
+      scheduleMountFallback();
     };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
+      document.addEventListener('DOMContentLoaded', bootMount, { once: true });
     } else {
-      setup();
+      bootMount();
     }
+    wireInitialRouteReady();
     document.addEventListener('click', (event) => {
       const btn = event.target && event.target.closest && event.target.closest('[data-action]');
       if (!btn) return;
@@ -125,6 +132,19 @@ function injectActionBarStyle(){
 function getActionsHost() {
   const bar = typeof document !== 'undefined' ? document.getElementById('actionbar') : null;
   return bar ? bar.querySelector('.actionbar-actions') : null;
+}
+
+function ensureActionsHost() {
+  if (typeof document === 'undefined') return null;
+  const bar = markActionbarHost();
+  if (!bar) return null;
+  let host = bar.querySelector('.actionbar-actions');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'actionbar-actions';
+    bar.appendChild(host);
+  }
+  return host;
 }
 
 const fabState = {
@@ -299,8 +319,8 @@ function toggleFabMenu(forceOpen) {
 
 function ensureGlobalNewFab() {
   injectActionBarStyle();
-  const bar = markActionbarHost();
-  if (!bar) return;
+  const host = ensureActionsHost();
+  if (!host) return;
   ensureFabElements();
 }
 
@@ -534,6 +554,99 @@ export function ensurePartnersMergeButton() {
     host.appendChild(btn);
   }
   return btn;
+}
+
+function ensureActionPresence() {
+  const host = ensureActionsHost();
+  if (!host) return false;
+  let hasAction = !!host.querySelector('[data-action]');
+  if (hasAction) {
+    if (mountFallbackTimer) {
+      clearTimeout(mountFallbackTimer);
+      mountFallbackTimer = null;
+    }
+    return true;
+  }
+  ensureGlobalNewFab();
+  hasAction = !!host.querySelector('[data-action]');
+  if (hasAction && mountFallbackTimer) {
+    clearTimeout(mountFallbackTimer);
+    mountFallbackTimer = null;
+  }
+  return hasAction;
+}
+
+function mountActionBar() {
+  if (actionBarMounted) {
+    ensureActionPresence();
+    return true;
+  }
+  const bar = markActionbarHost();
+  if (!bar) return false;
+  ensureActionsHost();
+  ensureGlobalNewFab();
+  ensureMergeHandler();
+  const ready = ensureActionPresence();
+  if (ready) {
+    actionBarMounted = true;
+  }
+  return ready;
+}
+
+function scheduleMountFallback() {
+  if (typeof window === 'undefined') return;
+  if (mountFallbackTimer) return;
+  mountFallbackTimer = window.setTimeout(() => {
+    mountFallbackTimer = null;
+    if (actionBarMounted) return;
+    ensureActionPresence();
+  }, FALLBACK_DELAY_MS);
+}
+
+function wireInitialRouteReady() {
+  if (routeReadyWired) return;
+  routeReadyWired = true;
+  if (typeof window === 'undefined') return;
+
+  const listeners = [];
+  const cleanup = () => {
+    while (listeners.length) {
+      const { target, type, handler } = listeners.pop();
+      try { target.removeEventListener(type, handler); }
+      catch (_) {}
+    }
+  };
+
+  const handleReady = () => {
+    if (routeReadySettled) return;
+    const mountedNow = mountActionBar();
+    ensureActionPresence();
+    if (mountedNow || actionBarMounted) {
+      routeReadySettled = true;
+      cleanup();
+    }
+  };
+
+  const addListener = (target, type) => {
+    if (!target || typeof target.addEventListener !== 'function') return;
+    const handler = handleReady;
+    target.addEventListener(type, handler);
+    listeners.push({ target, type, handler });
+  };
+
+  addListener(document, 'app:route:ready');
+  addListener(window, 'app:route:ready');
+  addListener(window, 'hashchange');
+
+  const guard = window.RenderGuard;
+  if (guard && typeof guard.registerHook === 'function') {
+    try {
+      guard.registerHook(() => {
+        if (routeReadySettled) return;
+        handleReady();
+      });
+    } catch (_) {}
+  }
 }
 
 export function setPartnersMergeState(options) {
