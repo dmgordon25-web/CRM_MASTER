@@ -19,7 +19,7 @@ function isSafeMode(){
 const SHELL_MODULES = [
   new URL('../ui_shims.js', import.meta.url).href,
   new URL('../ui/action_bar.js', import.meta.url).href,
-  new URL('../ui/debug_overlay.js', import.meta.url).href,
+  new URL('../debug/overlay.js', import.meta.url).href,
   new URL('../templates.js', import.meta.url).href,
   new URL('../filters.js', import.meta.url).href,
   new URL('../render.js', import.meta.url).href
