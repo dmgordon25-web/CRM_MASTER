@@ -27,16 +27,32 @@ function markActionbarHost() {
   if (clearBtn && !clearBtn.hasAttribute('data-action')) {
     clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
   }
-  const mergeBtn = bar.querySelector('[data-act="merge"]');
-  if (mergeBtn) {
-    if (!mergeBtn.hasAttribute('data-action')) {
-      mergeBtn.setAttribute('data-action', 'merge');
-    }
-    if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
-      mergeBtn.setAttribute('data-qa', 'action-merge');
-    }
-  }
+  ensureMergeButton(bar);
   return bar;
+}
+
+function ensureMergeButton(bar) {
+  if (!bar || typeof bar.querySelector !== 'function') return null;
+  let mergeBtn = bar.querySelector('[data-action="merge"]');
+  if (!mergeBtn) {
+    mergeBtn = bar.querySelector('[data-act="merge"]');
+  }
+  if (!mergeBtn) {
+    const host = bar.querySelector('.actionbar-actions') || bar;
+    mergeBtn = document.createElement('button');
+    mergeBtn.type = 'button';
+    mergeBtn.className = 'btn';
+    mergeBtn.textContent = 'Merge';
+    host.appendChild(mergeBtn);
+  }
+  if (!mergeBtn) return null;
+  if (mergeBtn.getAttribute('data-action') !== 'merge') {
+    mergeBtn.setAttribute('data-action', 'merge');
+  }
+  if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
+    mergeBtn.setAttribute('data-qa', 'action-merge');
+  }
+  return mergeBtn;
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -439,27 +455,29 @@ function ensureMergeHandler() {
   if (typeof document === 'undefined') return;
   const bar = markActionbarHost();
   if (!bar) return;
-  const mergeBtn = bar.querySelector('[data-act="merge"]');
-  if (!mergeBtn) return;
-  if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
-    mergeBtn.setAttribute('data-qa', 'action-merge');
-  }
-  if (mergeBtn.__mergeHandlerWired) return;
+  ensureMergeButton(bar);
+  if (bar.__mergeDelegatedHandler) return;
   const handler = (event) => {
+    const target = event?.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const button = target.closest('[data-action="merge"]');
+    if (!button || !bar.contains(button)) return;
     event.preventDefault();
-    const selection = gatherCurrentSelection();
-    if (!Array.isArray(selection) || selection.length < 2) {
-      showToast('warn', 'Select at least two items to merge');
-      return;
+    let selection = [];
+    try {
+      selection = gatherCurrentSelection();
+    } catch (err) {
+      console.warn('[action-bar] selection gather failed', err);
+      selection = [];
     }
     try {
-      openMergeModal(selection);
+      openMergeModal(Array.isArray(selection) ? selection : []);
     } catch (err) {
       console.warn('[action-bar] merge modal failed', err);
     }
   };
-  mergeBtn.addEventListener('click', handler);
-  mergeBtn.__mergeHandlerWired = true;
+  bar.addEventListener('click', handler);
+  bar.__mergeDelegatedHandler = handler;
 }
 
 if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
@@ -527,7 +545,7 @@ export function ensurePartnersMergeButton() {
   btn.textContent = 'Merge (Partners)';
   btn.disabled = true;
   btn.style.display = 'none';
-  const mergeBtn = host.querySelector('[data-act="merge"]');
+  const mergeBtn = host.querySelector('[data-action="merge"]') || host.querySelector('[data-act="merge"]');
   if (mergeBtn && mergeBtn.nextSibling) {
     host.insertBefore(btn, mergeBtn.nextSibling);
   } else {

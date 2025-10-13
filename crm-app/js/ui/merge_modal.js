@@ -82,7 +82,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
 
   const template = document.createElement('template');
   template.innerHTML = `
-<div class="merge-overlay" data-ui="legacy-merge-modal" data-qa="merge-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
+<div class="merge-overlay" data-ui="merge-modal" data-qa="merge-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
   <div class="merge-modal" style="background:#fff;min-width:720px;max-width:960px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
       <div style="font-size:18px;font-weight:600;">Merge ${kind === 'contacts' ? 'Contacts' : kind === 'partners' ? 'Partners' : 'Records'}</div>
@@ -171,7 +171,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
       dispatchMergeEvent('merge:complete', { kind, picks });
       close();
     } catch (err) {
-      console.error('[merge-modal] confirm failed', err);
+      console.warn('[merge-modal] confirm failed', err);
       setSubmitting(false);
     }
   });
@@ -619,9 +619,5 @@ export function openMergeModal(items) {
   }
 
   const normalized = normalizeItems(items);
-  if (normalized.length < 2) {
-    console.warn('[merge-modal] at least two items required');
-    return null;
-  }
   return renderSelectionModal(normalized);
 }
