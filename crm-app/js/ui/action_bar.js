@@ -5,10 +5,19 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
-function markActionbarHost() {
+let __abarMounted = false;
+let __actionBarTelemetryWired = false;
+
+function markActionbarHost(explicitRoot) {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  let bar = explicitRoot || document.querySelector('[data-ui="action-bar"]');
+  if (!bar) {
+    bar = document.getElementById('actionbar');
+  }
   if (!bar) return null;
+  if (!bar.id) {
+    bar.id = 'actionbar';
+  }
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
@@ -36,32 +45,101 @@ function markActionbarHost() {
       mergeBtn.setAttribute('data-qa', 'action-merge');
     }
   }
+  let actionsHost = bar.querySelector('.actionbar-actions');
+  if (!actionsHost) {
+    actionsHost = document.createElement('div');
+    actionsHost.className = 'actionbar-actions';
+    bar.appendChild(actionsHost);
+  }
   return bar;
 }
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+function ensureActionTelemetry() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
+  if (__actionBarTelemetryWired) return;
+  document.addEventListener('click', (event) => {
+    const btn = event.target && event.target.closest ? event.target.closest('[data-action]') : null;
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    if (!action) return;
+    window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+  }, true);
+  __actionBarTelemetryWired = true;
+}
+
+function ensureFallbackNewButton(root) {
+  if (!root || typeof document === 'undefined') return null;
+  const host = getActionsHost(root) || root;
+  if (!host) return null;
+  const existing = host.querySelector('[data-action]:not([data-action="merge"])');
+  if (existing) return existing;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.setAttribute('data-action', 'new');
+  btn.setAttribute('aria-label', 'New');
+  btn.textContent = 'New';
+  btn.addEventListener('click', () => {
+    try {
+      if (window.CRM && typeof window.CRM.openUnifiedNew === 'function') {
+        window.CRM.openUnifiedNew();
+        return;
+      }
+      const globalNew = document.querySelector('#global-new');
+      if (globalNew) {
+        globalNew.click();
+        return;
+      }
+      if (window.Toast && typeof window.Toast.info === 'function') {
+        window.Toast.info('New item');
+      }
+    } catch (_) {
+      /* no-op */
     }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
+  });
+  host.appendChild(btn);
+  return btn;
+}
+
+export function mountActionBar() {
+  try {
+    if (typeof document === 'undefined') return null;
+    let root = document.querySelector('[data-ui="action-bar"]');
+    if (!root) {
+      root = document.getElementById('actionbar');
+    }
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'actionbar';
+      root.setAttribute('data-ui', 'action-bar');
+      const outlet = document.querySelector('#action-bar-outlet, [data-ui="action-bar-outlet"]') || document.body;
+      outlet.appendChild(root);
+    }
+    markActionbarHost(root);
+    const fallback = ensureFallbackNewButton(root);
+    injectActionBarStyle();
+    ensureGlobalNewFab();
+    ensureMergeHandler();
+    ensureActionTelemetry();
+    __abarMounted = true;
+    if (fallback) {
+      const host = fallback.parentElement || root;
+      const nonMergeActions = host.querySelectorAll('[data-action]:not([data-action="merge"])');
+      if (nonMergeActions.length > 1) {
+        fallback.remove();
+      }
+    }
+    if (!document.querySelector('[data-ui="action-bar-ready"]')) {
+      const canary = document.createElement('div');
+      canary.setAttribute('data-ui', 'action-bar-ready');
+      canary.style.display = 'none';
+      document.body.appendChild(canary);
+    }
+    return root;
+  } catch (_) {
+    return null;
   }
 }
 
@@ -122,9 +200,16 @@ function injectActionBarStyle(){
   document.head.appendChild(s);
 }
 
-function getActionsHost() {
-  const bar = typeof document !== 'undefined' ? document.getElementById('actionbar') : null;
-  return bar ? bar.querySelector('.actionbar-actions') : null;
+function getActionsHost(root) {
+  const bar = markActionbarHost(root);
+  if (!bar) return null;
+  let host = bar.querySelector('.actionbar-actions');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'actionbar-actions';
+    bar.appendChild(host);
+  }
+  return host;
 }
 
 const fabState = {
@@ -467,6 +552,29 @@ if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
   document.addEventListener('app:data:changed', () => {
     ensureMergeHandler();
   }, { passive: true });
+}
+
+if (typeof document !== 'undefined') {
+  (function () {
+    try {
+      const safeMount = () => {
+        if (!__abarMounted && typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => mountActionBar());
+        } else if (!__abarMounted) {
+          mountActionBar();
+        }
+      };
+      document.addEventListener('app:boot:ready', safeMount, { once: true });
+      document.addEventListener('app:route:ready', safeMount, { once: true });
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        safeMount();
+      } else {
+        document.addEventListener('DOMContentLoaded', safeMount, { once: true });
+      }
+    } catch (_) {
+      /* no-op */
+    }
+  })();
 }
 
 function handleFabAction(kind) {
