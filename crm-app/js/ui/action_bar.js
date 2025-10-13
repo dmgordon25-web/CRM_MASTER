@@ -15,8 +15,17 @@ function markActionbarHost() {
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
   }
+  // Make the floating action bar discoverable to smoke at boot without route mutations.
+  // We drive visibility via a data attribute so we can keep CSS discipline.
   if (!bar.hasAttribute('data-visible')) {
     bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
+  }
+  // Ensure an override style exists: show the bar whenever data-visible is present.
+  if (!document.getElementById('actionbar-visibility-style')) {
+    const style = document.createElement('style');
+    style.id = 'actionbar-visibility-style';
+    style.textContent = '.actionbar[data-visible="0"], .actionbar[data-visible="1"]{display:block}';
+    document.head.appendChild(style);
   }
   bar.querySelectorAll('[data-act]').forEach((node) => {
     const action = node.getAttribute('data-act');
