@@ -4,10 +4,89 @@ const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
+const CRM_MOUNT_FLAG = '_actionBarMounted';
+
+function getCrmNamespace() {
+  if (typeof window === 'undefined') return null;
+  const ns = window.CRM;
+  if (typeof ns === 'undefined') {
+    window.CRM = {};
+    return window.CRM;
+  }
+  return ns && typeof ns === 'object' ? ns : null;
+}
+
+function locateActionbarHost() {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById('actionbar')
+    || document.querySelector('[data-ui="action-bar"]')
+    || document.querySelector('.actionbar');
+}
+
+function ensureHostVisible(host) {
+  if (!host || !host.style) return host;
+  if (host.style.display === 'none') {
+    host.style.display = 'block';
+  }
+  return host;
+}
+
+function ensureNonMergeAction(host) {
+  if (!host) return null;
+  const actionsHost = host.querySelector('.actionbar-actions') || host;
+  const existing = actionsHost.querySelector('[data-action]:not([data-action="merge"])');
+  if (existing) return existing;
+
+  const fallback = actionsHost.querySelector('[data-qa="action-help"]');
+  if (fallback) {
+    if (!fallback.hasAttribute('data-action')) {
+      fallback.setAttribute('data-action', 'help');
+    }
+    return fallback;
+  }
+
+  const interactive = Array.from(actionsHost.querySelectorAll('button, a'));
+  for (const el of interactive) {
+    const action = el.getAttribute('data-action');
+    if (action && action !== 'merge') return el;
+    const act = el.getAttribute('data-act');
+    if (act && act !== 'merge') {
+      el.setAttribute('data-action', act);
+      return el;
+    }
+    const text = (el.textContent || '').trim();
+    if (text && !/merge/i.test(text)) {
+      el.setAttribute('data-action', 'clear');
+      return el;
+    }
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-sm';
+  btn.textContent = 'Help';
+  btn.setAttribute('aria-label', 'Help');
+  btn.setAttribute('data-action', 'help');
+  btn.setAttribute('data-qa', 'action-help');
+  actionsHost.appendChild(btn);
+  return btn;
+}
+
+function ensureStructuralActionBar() {
+  const bar = markActionbarHost();
+  if (!bar) return null;
+  ensureHostVisible(bar);
+  ensureNonMergeAction(bar);
+  const ns = getCrmNamespace();
+  if (ns && ns[CRM_MOUNT_FLAG] !== true) {
+    ns[CRM_MOUNT_FLAG] = true;
+  }
+  return bar;
+}
 
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
-  const bar = document.getElementById('actionbar');
+  const bar = locateActionbarHost();
   if (!bar) return null;
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
@@ -46,7 +125,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
     const setup = () => {
-      markActionbarHost();
+      ensureStructuralActionBar();
       ensureGlobalNewFab();
       ensureMergeHandler();
     };
@@ -123,8 +202,9 @@ function injectActionBarStyle(){
 }
 
 function getActionsHost() {
-  const bar = typeof document !== 'undefined' ? document.getElementById('actionbar') : null;
-  return bar ? bar.querySelector('.actionbar-actions') : null;
+  const bar = locateActionbarHost();
+  if (!bar) return null;
+  return bar.querySelector('.actionbar-actions') || bar;
 }
 
 const fabState = {
@@ -299,7 +379,7 @@ function toggleFabMenu(forceOpen) {
 
 function ensureGlobalNewFab() {
   injectActionBarStyle();
-  const bar = markActionbarHost();
+  const bar = ensureStructuralActionBar();
   if (!bar) return;
   ensureFabElements();
 }
@@ -437,7 +517,7 @@ function gatherCurrentSelection() {
 
 function ensureMergeHandler() {
   if (typeof document === 'undefined') return;
-  const bar = markActionbarHost();
+  const bar = ensureStructuralActionBar();
   if (!bar) return;
   const mergeBtn = bar.querySelector('[data-act="merge"]');
   if (!mergeBtn) return;
@@ -513,7 +593,7 @@ function handleFabAction(kind) {
 }
 
 export function ensurePartnersMergeButton() {
-  markActionbarHost();
+  ensureStructuralActionBar();
   injectActionBarStyle();
   ensureGlobalNewFab();
   const host = getActionsHost();

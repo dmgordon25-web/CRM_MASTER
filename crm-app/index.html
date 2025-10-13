@@ -1668,8 +1668,8 @@
   </main>
 </main>
   </div>
-  <!-- Floating Action Bar -->
-  <div class="actionbar" id="actionbar">
+  <!-- Structural Action Bar host (upgraded by js/ui/action_bar.js) -->
+  <div class="actionbar" id="actionbar" data-ui="action-bar">
    <div class="container actionbar-shell">
     <div class="actionbar-meta">
      <div class="actionbar-count" data-role="count">
@@ -1687,28 +1687,28 @@
      No contacts or partners in focus yet.
     </div>
     <div class="actionbar-actions">
-     <button class="btn" data-act="edit">
+     <button class="btn" data-act="edit" data-action="edit">
       Edit
      </button>
-     <button class="btn" data-act="merge">
+     <button class="btn" data-act="merge" data-action="merge">
       Merge (2)
      </button>
-     <button class="btn" data-act="emailTogether">
+     <button class="btn" data-act="emailTogether" data-action="emailTogether">
       Email Together
      </button>
-     <button class="btn" data-act="emailMass">
+     <button class="btn" data-act="emailMass" data-action="emailMass">
       Email Mass (copy)
      </button>
-     <button class="btn" data-act="task">
+     <button class="btn" data-act="task" data-action="task">
       Add Task
      </button>
-     <button class="btn" data-act="bulkLog">
+     <button class="btn" data-act="bulkLog" data-action="bulkLog">
       Bulk Log
      </button>
-     <button class="btn" data-act="clear">
+     <button class="btn" data-act="clear" data-action="clear">
       Clear
      </button>
-     <button class="btn danger" data-act="delete">
+     <button class="btn danger" data-act="delete" data-action="delete">
       Delete
      </button>
     </div>
