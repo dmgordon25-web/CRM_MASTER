@@ -9,6 +9,18 @@ let fadeTimer = null;
 let isVisible = true;
 let hotkeyAttached = false;
 let counterListenerAttached = false;
+let counterListenerTarget = null;
+let domReadyListener = null;
+let beforeUnloadAttached = false;
+let visibilityChangeAttached = false;
+let routeChangeAttached = false;
+
+function ensureCanariesFlag(){
+  const root = typeof window !== 'undefined' ? window : globalThis;
+  if(!root) return;
+  root.CRM = root.CRM || {};
+  root.CRM.canaries = root.CRM.canaries || {};
+}
 
 function ensureOverlay(){
   if(overlayEl) return overlayEl;
@@ -18,6 +30,7 @@ function ensureOverlay(){
 
   const pill = doc.createElement('div');
   pill.setAttribute('data-debug-overlay', 'repaint');
+  pill.setAttribute('data-qa', 'debug-overlay');
   pill.style.position = 'fixed';
   pill.style.top = '12px';
   pill.style.right = '12px';
@@ -50,12 +63,14 @@ function ensureOverlay(){
   pill.appendChild(counterSpan);
 
   const append = () => {
-    if(doc.body && !doc.body.contains(pill)){
+    if(!doc || !doc.body || !pill) return;
+    if(!doc.body.contains(pill)){
       doc.body.appendChild(pill);
     }
   };
+  domReadyListener = append;
   if(doc.readyState === 'loading'){
-    doc.addEventListener('DOMContentLoaded', append, { once: true });
+    doc.addEventListener('DOMContentLoaded', domReadyListener, { once: true });
   }else{
     append();
   }
@@ -90,9 +105,14 @@ function handleHotkey(ev){
 }
 
 export function initDebugOverlay(){
+  if(typeof window === 'undefined') return;
   if(window.__ENV__?.DEBUG !== true) return;
   const pill = ensureOverlay();
   if(!pill) return;
+  ensureCanariesFlag();
+  if(window.CRM && window.CRM.canaries){
+    window.CRM.canaries.logOverlayClosed = false;
+  }
   updateCounter();
   if(!hotkeyAttached){
     window.addEventListener('keydown', handleHotkey, { passive: true });
@@ -104,7 +124,31 @@ export function initDebugOverlay(){
       : window;
     target.addEventListener('app:data:changed', updateCounter);
     counterListenerAttached = true;
+    counterListenerTarget = target;
   }
+  if(!beforeUnloadAttached){
+    window.addEventListener('beforeunload', teardownDebugOverlay, { once: true });
+    beforeUnloadAttached = true;
+  }
+  if(!visibilityChangeAttached && typeof document !== 'undefined' && document && typeof document.addEventListener === 'function'){
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    visibilityChangeAttached = true;
+  }
+  if(!routeChangeAttached){
+    window.addEventListener('hashchange', handleRouteChange);
+    routeChangeAttached = true;
+  }
+}
+
+function handleVisibilityChange(){
+  if(typeof document === 'undefined' || !document) return;
+  if(document.visibilityState === 'hidden'){
+    teardownDebugOverlay();
+  }
+}
+
+function handleRouteChange(){
+  teardownDebugOverlay();
 }
 
 function applyColor(ms){
@@ -123,6 +167,7 @@ function applyColor(ms){
 }
 
 export function noteRepaint(ms){
+  if(typeof window === 'undefined') return;
   if(window.__ENV__?.DEBUG !== true) return;
   const pill = ensureOverlay();
   if(!pill || typeof ms !== 'number' || Number.isNaN(ms)) return;
@@ -145,4 +190,66 @@ export function noteRepaint(ms){
   }, FADE_DELAY_MS);
 }
 
-export default { initDebugOverlay, noteRepaint };
+export function teardownDebugOverlay(){
+  try{
+    if(domReadyListener && typeof document !== 'undefined' && document && typeof document.removeEventListener === 'function'){
+      document.removeEventListener('DOMContentLoaded', domReadyListener);
+    }
+  }catch (_err){}
+  domReadyListener = null;
+
+  if(fadeTimer){
+    clearTimeout(fadeTimer);
+    fadeTimer = null;
+  }
+
+  if(counterListenerAttached && counterListenerTarget && typeof counterListenerTarget.removeEventListener === 'function'){
+    try{
+      counterListenerTarget.removeEventListener('app:data:changed', updateCounter);
+    }catch (_err){}
+  }
+  counterListenerAttached = false;
+  counterListenerTarget = null;
+
+  if(hotkeyAttached){
+    try{ window.removeEventListener('keydown', handleHotkey); }
+    catch (_err){}
+  }
+  hotkeyAttached = false;
+
+  if(beforeUnloadAttached){
+    try{ window.removeEventListener('beforeunload', teardownDebugOverlay); }
+    catch (_err){}
+  }
+  beforeUnloadAttached = false;
+
+  if(visibilityChangeAttached && typeof document !== 'undefined' && document && typeof document.removeEventListener === 'function'){
+    try{ document.removeEventListener('visibilitychange', handleVisibilityChange); }
+    catch (_err){}
+  }
+  visibilityChangeAttached = false;
+
+  if(routeChangeAttached){
+    try{ window.removeEventListener('hashchange', handleRouteChange); }
+    catch (_err){}
+  }
+  routeChangeAttached = false;
+
+  if(overlayEl && overlayEl.parentNode){
+    try{ overlayEl.parentNode.removeChild(overlayEl); }
+    catch (_err){}
+  }
+  overlayEl = null;
+  msEl = null;
+  counterEl = null;
+  isVisible = true;
+
+  ensureCanariesFlag();
+  if(typeof window !== 'undefined' && window && window.CRM && window.CRM.canaries){
+    window.CRM.canaries.logOverlayClosed = true;
+  }
+}
+
+ensureCanariesFlag();
+
+export default { initDebugOverlay, noteRepaint, teardownDebugOverlay };
