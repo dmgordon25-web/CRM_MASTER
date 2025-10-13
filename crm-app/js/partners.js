@@ -44,14 +44,42 @@ function ensurePartnersBoot(ctx){
   }
 
   wireFilter();
+  bindPartnerRowClicks();
   if (typeof document !== 'undefined'){
     document.addEventListener('DOMContentLoaded', wireFilter);
+    document.addEventListener('DOMContentLoaded', bindPartnerRowClicks);
     document.addEventListener('app:data:changed', () => {
       const input = document.querySelector('#view-partners input[data-table-search="#tbl-partners"], #view-partners input[data-role="partner-search"]');
       if (input && input.value){
         applyFilter(input.value);
       }
+      normalizePartnerRows();
     }, { passive: true });
+    document.addEventListener('partners:list:refresh', () => {
+      normalizePartnerRows();
+      bindPartnerRowClicks();
+    });
+  }
+
+  function normalizePartnerRows(){
+    if (typeof document === 'undefined') return;
+    const table = document.getElementById('tbl-partners');
+    if (!table || !table.tBodies || !table.tBodies[0]) return;
+    table.tBodies[0].querySelectorAll('tr').forEach(row => {
+      const dataset = row.dataset || {};
+      const rawId = dataset.id || dataset.partnerId || row.getAttribute('data-partner-id');
+      if (!rawId) return;
+      const normalized = String(rawId).trim();
+      if (!normalized) return;
+      if (dataset){
+        row.dataset.id = normalized;
+        if (!row.dataset.partnerId) row.dataset.partnerId = normalized;
+      }
+      row.setAttribute('data-id', normalized);
+      if (!row.getAttribute('data-partner-id')){
+        row.setAttribute('data-partner-id', normalized);
+      }
+    });
   }
 
   function requestPartnerModal(partnerId){
@@ -64,6 +92,40 @@ function ensurePartnersBoot(ctx){
   }
 
   window.requestPartnerModal = requestPartnerModal;
+  window.openPartnerEdit = (id) => requestPartnerModal(id);
+
+  function bindPartnerRowClicks(){
+    if (typeof document === 'undefined') return;
+    const tbody = document.querySelector('#tbl-partners tbody');
+    if (!tbody || tbody.__partnerRowClicksWired) return;
+    normalizePartnerRows();
+    tbody.__partnerRowClicksWired = true;
+    tbody.addEventListener('click', evt => {
+      if (evt.defaultPrevented) return;
+      const interactive = evt.target && typeof evt.target.closest === 'function'
+        ? evt.target.closest('button, a, input, select, textarea, label, [role="button"], [data-role="select"]')
+        : null;
+      if (interactive && tbody.contains(interactive)) return;
+      const row = evt.target && typeof evt.target.closest === 'function'
+        ? evt.target.closest('tr[data-id]')
+        : null;
+      if (!row || !tbody.contains(row)) return;
+      const id = row.getAttribute('data-id');
+      if (!id) return;
+      try {
+        const result = window.openPartnerEdit ? window.openPartnerEdit(id) : requestPartnerModal(id);
+        if (result && typeof result.catch === 'function'){
+          result.catch(err => {
+            try { console && console.warn && console.warn('openPartnerEdit failed', err); }
+            catch (_err){}
+          });
+        }
+      } catch (err) {
+        try { console && console.warn && console.warn('openPartnerEdit error', err); }
+        catch (_err){}
+      }
+    });
+  }
 
   const addBtn = document.getElementById('btn-add-partner');
   if (addBtn && !addBtn.__wired){

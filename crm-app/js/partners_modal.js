@@ -87,6 +87,7 @@ function ensurePartnerModalRoot(){
       if(!wrapper.classList.contains('modal')) wrapper.classList.add('modal');
       wrapper.classList.add('partner-edit-modal');
       wrapper.dataset.qa = 'partner-edit-modal';
+      wrapper.setAttribute('data-qa', 'partner-edit-modal');
       wrapper.setAttribute('role', 'dialog');
       wrapper.setAttribute('aria-modal', 'true');
       wrapper.setAttribute('aria-hidden', 'true');
@@ -96,6 +97,7 @@ function ensurePartnerModalRoot(){
       partnerModalRoot = wrapper;
     }else{
       legacy.dataset.qa = 'partner-edit-modal';
+      legacy.setAttribute('data-qa', 'partner-edit-modal');
       legacy.setAttribute('role', 'dialog');
       legacy.setAttribute('aria-modal', 'true');
       legacy.setAttribute('aria-hidden', legacy.getAttribute('aria-hidden') || 'true');
@@ -109,6 +111,7 @@ function ensurePartnerModalRoot(){
     wrapper.id = 'partner-modal';
     wrapper.className = 'modal partner-edit-modal';
     wrapper.dataset.qa = 'partner-edit-modal';
+    wrapper.setAttribute('data-qa', 'partner-edit-modal');
     wrapper.setAttribute('role', 'dialog');
     wrapper.setAttribute('aria-modal', 'true');
     wrapper.setAttribute('aria-hidden', 'true');
@@ -121,8 +124,9 @@ function ensurePartnerModalRoot(){
   if(shell && typeof shell.setAttribute === 'function'){
     shell.setAttribute('tabindex', shell.getAttribute('tabindex') || '-1');
   }
-  if(partnerModalRoot && !partnerModalRoot.dataset.qa){
+  if(partnerModalRoot){
     partnerModalRoot.dataset.qa = 'partner-edit-modal';
+    partnerModalRoot.setAttribute('data-qa', 'partner-edit-modal');
   }
   if(partnerModalRoot && !partnerModalRoot.__overlayWired){
     partnerModalRoot.__overlayWired = true;
