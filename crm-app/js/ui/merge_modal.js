@@ -245,6 +245,7 @@ async function mergeRecords(primary, secondaries) {
 function buildContainer() {
   const overlay = document.createElement('div');
   overlay.dataset.qa = 'merge-modal';
+  overlay.dataset.ui = 'merge-modal';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.position = 'fixed';
