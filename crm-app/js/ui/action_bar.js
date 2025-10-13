@@ -1,3 +1,5 @@
+import { openMergeModal } from './merge_modal.js';
+
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
@@ -18,8 +20,13 @@ function markActionbarHost() {
     clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
   }
   const mergeBtn = bar.querySelector('[data-act="merge"]');
-  if (mergeBtn && !mergeBtn.hasAttribute('data-action')) {
-    mergeBtn.setAttribute('data-action', 'merge');
+  if (mergeBtn) {
+    if (!mergeBtn.hasAttribute('data-action')) {
+      mergeBtn.setAttribute('data-action', 'merge');
+    }
+    if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
+      mergeBtn.setAttribute('data-qa', 'action-merge');
+    }
   }
   return bar;
 }
@@ -33,6 +40,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const setup = () => {
       markActionbarHost();
       ensureGlobalNewFab();
+      ensureMergeHandler();
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setup, { once: true });
@@ -280,6 +288,171 @@ function ensureGlobalNewFab() {
   const bar = markActionbarHost();
   if (!bar) return;
   ensureFabElements();
+}
+
+function getSelectionStore() {
+  if (typeof window === 'undefined') return null;
+  const store = window.SelectionStore || null;
+  return store && typeof store.get === 'function' ? store : null;
+}
+
+function inferSelectionScopes() {
+  if (typeof document === 'undefined') return ['contacts'];
+  const scopes = new Set();
+  document.querySelectorAll('[data-selection-scope]').forEach((node) => {
+    const scope = node.getAttribute('data-selection-scope');
+    if (scope && scope.trim()) scopes.add(scope.trim());
+  });
+  if (!scopes.size) {
+    scopes.add('contacts');
+  }
+  return Array.from(scopes);
+}
+
+function inferRowForSelection(scope, id) {
+  if (typeof document === 'undefined') return null;
+  const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+  const idKey = String(id ?? '');
+  if (!idKey) return null;
+  const hosts = Array.from(document.querySelectorAll('[data-selection-scope]'));
+  for (const host of hosts) {
+    const hostScope = host.getAttribute && host.getAttribute('data-selection-scope');
+    const normalizedScope = hostScope && hostScope.trim() ? hostScope.trim() : 'contacts';
+    if (normalizedScope !== scopeKey) continue;
+    const rows = Array.from(host.querySelectorAll('tr[data-id]'));
+    const match = rows.find((row) => row.getAttribute && row.getAttribute('data-id') === idKey);
+    if (match) return match;
+  }
+  return null;
+}
+
+function extractLabelFromRow(row) {
+  if (!row) return '';
+  const preferredAttrs = ['data-label', 'data-name', 'data-title'];
+  for (const key of preferredAttrs) {
+    const value = row.getAttribute(key);
+    if (value && value.trim()) return value.trim();
+  }
+  const dataset = row.dataset || {};
+  for (const key of ['label', 'name', 'title']) {
+    const value = dataset[key];
+    if (value && value.trim()) return value.trim();
+  }
+  const cell = row.querySelector('[data-field="name"], td');
+  const text = cell && cell.textContent ? cell.textContent.trim() : '';
+  return text || '';
+}
+
+function extractRecordFromRow(row, scope, id) {
+  const base = { id: String(id ?? ''), scope: scope || 'contacts' };
+  if (!row) return base;
+  const dataset = row.dataset || {};
+  const record = { ...base };
+  Object.keys(dataset).forEach((key) => {
+    if (!(key in record)) {
+      record[key] = dataset[key];
+    }
+  });
+  if (!record.label) {
+    const label = extractLabelFromRow(row);
+    if (label) record.label = label;
+  }
+  const summaryCell = row.querySelector('[data-field], td');
+  if (summaryCell && summaryCell.textContent && !record.summary) {
+    record.summary = summaryCell.textContent.trim();
+  }
+  return record;
+}
+
+function gatherSelectionFromStore() {
+  const store = getSelectionStore();
+  if (!store) return [];
+  const scopes = inferSelectionScopes();
+  const selection = [];
+  const seen = new Set();
+  scopes.forEach((scope) => {
+    try {
+      const ids = store.get(scope);
+      if (!ids || typeof ids.forEach !== 'function') return;
+      ids.forEach((value) => {
+        const id = String(value ?? '');
+        if (!id) return;
+        const key = `${scope}::${id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const row = inferRowForSelection(scope, id);
+        const label = extractLabelFromRow(row) || `${scope} #${id}`;
+        const record = extractRecordFromRow(row, scope, id);
+        selection.push({ id, scope, label, record });
+      });
+    } catch (err) {
+      console.warn('[action-bar] selection read failed', err);
+    }
+  });
+  return selection;
+}
+
+function gatherSelectionFromDom() {
+  if (typeof document === 'undefined') return [];
+  const nodes = Array.from(document.querySelectorAll('[data-role="select"]'));
+  const selection = [];
+  const seen = new Set();
+  nodes.forEach((node) => {
+    if (!node.checked) return;
+    const scopeHost = typeof node.closest === 'function' ? node.closest('[data-selection-scope]') : null;
+    const scope = scopeHost && scopeHost.getAttribute ? scopeHost.getAttribute('data-selection-scope') : 'contacts';
+    const row = typeof node.closest === 'function' ? node.closest('tr[data-id]') : null;
+    const id = row && row.getAttribute ? row.getAttribute('data-id') : null;
+    if (!id) return;
+    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+    const key = `${scopeKey}::${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const label = extractLabelFromRow(row) || `${scopeKey} #${id}`;
+    const record = extractRecordFromRow(row, scopeKey, id);
+    selection.push({ id, scope: scopeKey, label, record });
+  });
+  return selection;
+}
+
+function gatherCurrentSelection() {
+  const viaStore = gatherSelectionFromStore();
+  if (viaStore.length) return viaStore;
+  return gatherSelectionFromDom();
+}
+
+function ensureMergeHandler() {
+  if (typeof document === 'undefined') return;
+  const bar = markActionbarHost();
+  if (!bar) return;
+  const mergeBtn = bar.querySelector('[data-act="merge"]');
+  if (!mergeBtn) return;
+  if (mergeBtn.getAttribute('data-qa') !== 'action-merge') {
+    mergeBtn.setAttribute('data-qa', 'action-merge');
+  }
+  if (mergeBtn.__mergeHandlerWired) return;
+  const handler = (event) => {
+    event.preventDefault();
+    const selection = gatherCurrentSelection();
+    if (!Array.isArray(selection) || selection.length < 2) {
+      showToast('warn', 'Select at least two items to merge');
+      return;
+    }
+    try {
+      openMergeModal(selection);
+    } catch (err) {
+      console.warn('[action-bar] merge modal failed', err);
+    }
+  };
+  mergeBtn.addEventListener('click', handler);
+  mergeBtn.__mergeHandlerWired = true;
+}
+
+if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
+  document.__ACTION_BAR_MERGE_REWIRE__ = true;
+  document.addEventListener('app:data:changed', () => {
+    ensureMergeHandler();
+  }, { passive: true });
 }
 
 function handleFabAction(kind) {
