@@ -176,7 +176,34 @@ export async function openPartnersMergeByIds(idA, idB) {
   });
 }
 
+function determineSelectionCount(selection) {
+  if (selection && typeof selection.count === "number") return selection.count;
+  if (selection && Array.isArray(selection.ids)) return selection.ids.length;
+  if (selection && Array.isArray(selection.items)) return selection.items.length;
+  return 0;
+}
+
+function openMergeAction(selection = {}) {
+  const count = determineSelectionCount(selection);
+  const shouldUsePicker = count < 2;
+  try {
+    if (shouldUsePicker) {
+      openMergeModal({ picker: true });
+      return null;
+    }
+    if (Array.isArray(selection.items) && selection.items.length) {
+      return openMergeModal(selection.items);
+    }
+    console.warn("[partners_merge_orchestrator] no items provided for merge action");
+    return null;
+  } catch (err) {
+    console.warn("[partners_merge_orchestrator] merge action failed", err);
+    return null;
+  }
+}
+
 ensureCRM();
 window.CRM.modules.partnersMergeOrchestrator = window.CRM.modules.partnersMergeOrchestrator || {};
 window.CRM.modules.partnersMergeOrchestrator.init = init;
 window.CRM.modules.partnersMergeOrchestrator.openPartnersMergeByIds = openPartnersMergeByIds;
+window.CRM.modules.partnersMergeOrchestrator.openMergeAction = openMergeAction;
