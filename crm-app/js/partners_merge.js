@@ -1,4 +1,5 @@
 import { ensurePartnersMergeButton, setPartnersMergeState, onPartnersMerge } from './ui/action_bar.js';
+import { openMergeModal } from './ui/merge_modal.js';
 
 const SCORE_FIELDS = [
   'name','company','email','phone','tier','partnerType','focus','priority','preferredContact','cadence','address','city','state','zip','referralVolume','lastTouch','nextTouch','relationshipOwner','collaborationFocus','notes'
@@ -225,6 +226,14 @@ function initActionBarBridge() {
   ensurePartnersMergeButton();
   onPartnersMerge(() => {
     const ids = currentPartnerSelection();
+    if (!ids || ids.length < 2) {
+      try {
+        openMergeModal({ kind: 'partners', recordA: {}, recordB: {}, picker: true });
+      } catch (err) {
+        console.warn('[partners:merge] unable to open picker modal', err);
+      }
+      return;
+    }
     performMerge(ids);
   });
 }

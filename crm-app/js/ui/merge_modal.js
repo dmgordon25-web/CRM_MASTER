@@ -64,7 +64,7 @@ function formatLegacyValue(value) {
   }
 }
 
-function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
+function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel, picker = false }) {
   if (typeof document === 'undefined') return null;
   if (window[ACTIVE_GUARD]) {
     console.warn('[merge-modal] already open');
@@ -151,30 +151,35 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   const setSubmitting = (state) => {
     submitting = state;
     if (!confirmBtn) return;
-    confirmBtn.disabled = state;
-    confirmBtn.style.opacity = state ? '0.7' : '';
-    confirmBtn.style.cursor = state ? 'default' : 'pointer';
+    const disabled = !!state || picker;
+    confirmBtn.disabled = disabled;
+    confirmBtn.style.opacity = disabled ? '0.7' : '';
+    confirmBtn.style.cursor = disabled ? 'default' : 'pointer';
   };
 
-  confirmBtn?.addEventListener('click', async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    const picks = {};
-    modal.querySelectorAll('.merge-row').forEach((row) => {
-      const field = row.getAttribute('data-field');
-      if (!field) return;
-      const pickB = row.querySelector('input[value="B"]');
-      picks[field] = pickB && pickB.checked ? 'B' : 'A';
+  setSubmitting(false);
+
+  if (!picker && confirmBtn) {
+    confirmBtn.addEventListener('click', async () => {
+      if (submitting) return;
+      setSubmitting(true);
+      const picks = {};
+      modal.querySelectorAll('.merge-row').forEach((row) => {
+        const field = row.getAttribute('data-field');
+        if (!field) return;
+        const pickB = row.querySelector('input[value="B"]');
+        picks[field] = pickB && pickB.checked ? 'B' : 'A';
+      });
+      try {
+        await onConfirm?.(picks);
+        dispatchMergeEvent('merge:complete', { kind, picks });
+        close();
+      } catch (err) {
+        console.error('[merge-modal] confirm failed', err);
+        setSubmitting(false);
+      }
     });
-    try {
-      await onConfirm?.(picks);
-      dispatchMergeEvent('merge:complete', { kind, picks });
-      close();
-    } catch (err) {
-      console.error('[merge-modal] confirm failed', err);
-      setSubmitting(false);
-    }
-  });
+  }
 
   activeModal = { close };
   return activeModal;
