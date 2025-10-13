@@ -1,20 +1,27 @@
 Param(
-  [string]$Entry = "./tools/dev_server.js"
+  [string]$Entry = "./tools/dev_server.js",
+  [switch]$HiddenLaunch
 )
 
 # Relaunch hidden if not already hidden
-if ($Host.UI.RawUI.WindowTitle -notlike "*HIDDEN*") {
+if (-not $HiddenLaunch) {
   $args = @(
     "-NoProfile",
     "-ExecutionPolicy", "Bypass",
     "-WindowStyle", "Hidden",
-    "-File", "$PSCommandPath"
+    "-File", "$PSCommandPath",
+    "-HiddenLaunch"
   )
+
+  if ($PSBoundParameters.ContainsKey('Entry')) {
+    $args += @('-Entry', $Entry)
+  }
+
   Start-Process -FilePath "powershell.exe" -ArgumentList $args -WindowStyle Hidden
   exit 0
 }
 
-# Mark window as hidden (for sanity), then start Node detached/hidden
+# Start Node detached/hidden
 $nodeArgs = @($Entry)
 $proc = Start-Process -FilePath "node.exe" -ArgumentList $nodeArgs -PassThru -WindowStyle Hidden
 
