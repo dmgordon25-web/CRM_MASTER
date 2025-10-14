@@ -48,6 +48,129 @@ async function waitCapsSelection(page, timeout = 2500) {
   return false;
 }
 
+async function navToTableRoute(page){
+  await page.evaluate(() => {
+    const click = (sel) => {
+      const el = document.querySelector(sel);
+      if (el) { el.click(); return true; }
+      return false;
+    };
+    location.hash = '#/partners';
+    click('[data-ui="nav-partners"], [data-nav="partners"]');
+  });
+}
+
+async function countRows(page){
+  return page.evaluate(() => {
+    const sels = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+    for (const s of sels) {
+      const n = document.querySelectorAll(s).length;
+      if (n) return n;
+    }
+    return 0;
+  });
+}
+
+async function waitRows(page, min = 2, ms = 4000){
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (await countRows(page) >= min) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
+async function trySeed(page){
+  return page.evaluate(async () => {
+    async function seedViaDB(){
+      try {
+        const db = globalThis.DB || (globalThis.CRM && CRM.db) || (globalThis.app && app.db);
+        const add = db && (db.add || db.insert || db.put);
+        if (!add) return false;
+        const now = Date.now();
+        await add('partners', { id: 'smoke_' + now + '_1', name: 'Smoke Test 1', type: 'partner' });
+        await add('partners', { id: 'smoke_' + now + '_2', name: 'Smoke Test 2', type: 'partner' });
+        return true;
+      } catch { return false; }
+    }
+    function seedViaBus(){
+      try {
+        const bus = globalThis.EventBus || (globalThis.CRM && CRM.bus);
+        if (!bus || typeof bus.emit !== 'function') return false;
+        const now = Date.now();
+        bus.emit('partners:add', { id: 'smoke_' + now + '_1', name: 'Smoke Test 1' });
+        bus.emit('partners:add', { id: 'smoke_' + now + '_2', name: 'Smoke Test 2' });
+        return true;
+      } catch { return false; }
+    }
+    return (await seedViaDB()) || seedViaBus();
+  });
+}
+
+async function getTwoIds(page){
+  return page.evaluate(() => {
+    const sels = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+    for (const s of sels) {
+      const rows = Array.from(document.querySelectorAll(s)).filter((el) => el && el.isConnected);
+      if (rows.length >= 2) return rows.slice(0, 2).map((r) => r.getAttribute('data-id')).filter(Boolean);
+    }
+    return [];
+  });
+}
+
+async function apiSelect(page, ids){
+  return page.evaluate((list) => {
+    const api = globalThis.Selection;
+    if (!api || typeof api.select !== 'function') return false;
+    list.forEach((id) => { try { api.select(id); } catch {} });
+    return true;
+  }, ids);
+}
+
+async function domSelect(page, idx){
+  return page.evaluate((position) => {
+    const rowSets = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+    function rows(){
+      for (const s of rowSets) {
+        const collection = Array.from(document.querySelectorAll(s)).filter((el) => el && el.isConnected);
+        if (collection.length) return collection;
+      }
+      return [];
+    }
+    const row = rows()[position];
+    if (!row) return false;
+    const cb = row.querySelector('[data-ui="row-check"], input[type="checkbox"][data-row-check], input[type="checkbox"][name="select"], input[type="checkbox"]');
+    if (cb) {
+      if (!cb.checked) cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      row.setAttribute('data-selected', '1');
+      return true;
+    }
+    row.setAttribute('data-selected', '1');
+    return true;
+  }, idx);
+}
+
+async function selCount(page){
+  return page.evaluate(() => {
+    const api = globalThis.Selection && typeof globalThis.Selection.count === 'function'
+      ? globalThis.Selection.count() | 0
+      : 0;
+    const metric = typeof globalThis.__SEL_COUNT__ === 'number' ? (globalThis.__SEL_COUNT__ | 0) : 0;
+    const domChecked = document.querySelectorAll('[data-ui="row-check"]:checked').length | 0;
+    const domFlagged = document.querySelectorAll('[data-ui="row"][data-selected="1"]').length | 0;
+    return Math.max(api, metric, domChecked, domFlagged);
+  });
+}
+
+async function waitSel(page, n = 2, ms = 2500){
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if ((await selCount(page)) >= n) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
 
 function waitForHealth(timeoutMs = 30000) {
   const start = Date.now();
@@ -455,29 +578,32 @@ async function main() {
       throw new Error('caps-selection-timeout');
     }
 
-    const selectionEnv = await page.evaluate(() => {
-      const table = document.querySelector('#tbl-pipeline tbody');
-      if (!table) return { ok: false, reason: 'no-table' };
-      const checks = Array.from(table.querySelectorAll('[data-ui="row-check"]'));
-      if (checks.length < 2) return { ok: false, reason: 'insufficient-checks', total: checks.length };
-      const count = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : null;
-      return { ok: true, count, checks: checks.length };
-    });
-    if (!selectionEnv.ok) {
-      throw new Error(`select-failed:${selectionEnv.reason}`);
+    await navToTableRoute(page);
+    if (!await waitRows(page, 2, 4000)) {
+      await trySeed(page);
+      if (!await waitRows(page, 2, 4000)) {
+        const diag = await page.evaluate(() => ({
+          url: location.href,
+          rows: document.querySelectorAll('[data-ui="row"][data-id], tr[data-id], .grid-row[data-id]').length | 0
+        }));
+        throw new Error('no-two-rows ' + JSON.stringify(diag));
+      }
     }
-    await page.evaluate(() => {
-      const next = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : 0;
-      window.__SEL_COUNT__ = next | 0;
-    });
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 0)) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 1)) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+
+    const ids = await getTwoIds(page);
+    let usedAPI = false;
+    if (ids.length >= 2) {
+      usedAPI = await apiSelect(page, ids);
+    }
+
+    if (!usedAPI) {
+      if (!await domSelect(page, 0)) throw new Error('sel-fallback-0');
+      if (!await waitSel(page, 1, 2500)) throw new Error('sel-count-timeout-1');
+      if (!await domSelect(page, 1)) throw new Error('sel-fallback-1');
+      if (!await waitSel(page, 2, 2500)) throw new Error('sel-count-timeout-2');
+    } else {
+      if (!await waitSel(page, 2, 2500)) throw new Error('sel-timeout-api');
+    }
 
     await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 

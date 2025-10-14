@@ -132,23 +132,54 @@ const fabState = {
   keyHandler: null
 };
 
+let toastEmitLock = false;
+
+function announceToast(kind, text) {
+  if (toastEmitLock) return;
+  toastEmitLock = true;
+  try {
+    if (typeof window !== 'undefined') {
+      try { window.__LAST_TOAST__ = String(text); }
+      catch {}
+      try {
+        window.dispatchEvent(new CustomEvent('ui:toast', {
+          detail: { msg: String(text), kind: kind || 'info' }
+        }));
+      } catch {}
+    }
+  } finally {
+    toastEmitLock = false;
+  }
+}
+
 function showToast(kind, message) {
   const text = String(message == null ? '' : message).trim();
   if (!text) return;
   const toast = typeof window !== 'undefined' ? window.Toast : undefined;
   const legacy = typeof window !== 'undefined' ? window.toast : undefined;
+  let emitted = false;
   if (toast && typeof toast[kind] === 'function') {
-    try { toast[kind](text); return; }
+    try {
+      toast[kind](text);
+      emitted = true;
+    }
     catch (_) {}
   }
-  if (toast && typeof toast.show === 'function') {
-    try { toast.show(text); return; }
+  if (!emitted && toast && typeof toast.show === 'function') {
+    try {
+      toast.show(text);
+      emitted = true;
+    }
     catch (_) {}
   }
-  if (typeof legacy === 'function') {
-    try { legacy(text); }
+  if (!emitted && typeof legacy === 'function') {
+    try {
+      legacy(text);
+      emitted = true;
+    }
     catch (_) {}
   }
+  announceToast(kind, text);
 }
 
 function ensureFabElements() {

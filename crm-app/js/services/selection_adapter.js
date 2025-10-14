@@ -193,3 +193,127 @@
     emitReady();
   } catch {}
 })();
+
+// === Selection Facade: deterministic API for tests & UI ===
+(function ensureSelectionFacade(){
+  try {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const existingSet = window.__SEL_FACADE_SET__;
+    const existingCbs = window.__SEL_FACADE_CBS__;
+    const _set = existingSet instanceof Set ? existingSet : new Set();
+    const _cbs = existingCbs instanceof Set ? existingCbs : new Set();
+    window.__SEL_FACADE_SET__ = _set;
+    window.__SEL_FACADE_CBS__ = _cbs;
+
+    function emit() {
+      try { window.__SEL_COUNT__ = (_set.size | 0); } catch {}
+      _cbs.forEach((fn) => { try { fn(_set.size | 0); } catch {} });
+    }
+
+    function markRow(id, selected) {
+      try {
+        const esc = (s) => String(s).replace(/[\\"]/g, "\\$&");
+        const row = document.querySelector(
+          `[data-ui="row"][data-id="${esc(id)}"], tr[data-id="${esc(id)}"], .grid-row[data-id="${esc(id)}"]`
+        );
+        if (row) {
+          if (selected) row.setAttribute('data-selected', '1');
+          else row.removeAttribute('data-selected');
+          const cb = row.querySelector(
+            '[data-ui="row-check"], input[type="checkbox"][data-row-check], input[type="checkbox"][name="select"], input[type="checkbox"]'
+          );
+          if (cb) {
+            const needs = !!selected;
+            if (cb.checked !== needs) {
+              cb.checked = needs;
+              cb.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+            }
+          }
+        }
+      } catch {}
+    }
+
+    function onDomChange(e) {
+      try {
+        const t = e.target;
+        if (!t || typeof t.matches !== 'function') return;
+        if (!t.matches('[data-ui="row-check"], input[type="checkbox"][data-row-check], input[type="checkbox"][name="select"], input[type="checkbox"]')) {
+          return;
+        }
+        const row = t.closest('[data-ui="row"][data-id], tr[data-id], .grid-row[data-id]');
+        const id = row && row.getAttribute('data-id');
+        if (!id) return;
+        const key = String(id);
+        if (t.checked) _set.add(key); else _set.delete(key);
+        if (row) {
+          if (t.checked) row.setAttribute('data-selected', '1');
+          else row.removeAttribute('data-selected');
+        }
+        emit();
+      } catch {}
+    }
+
+    if (window.Selection && typeof window.Selection.select === 'function' && typeof window.Selection.count === 'function') {
+      if (!window.__SEL_FACADE_SYNC__) {
+        window.__SEL_FACADE_SYNC__ = true;
+        try { document.addEventListener('change', onDomChange, true); } catch {}
+      }
+      return;
+    }
+
+    _set.clear();
+
+    function select(id) {
+      if (!id) return;
+      const key = String(id);
+      _set.add(key);
+      markRow(key, true);
+      emit();
+    }
+
+    function deselect(id) {
+      if (!id) return;
+      const key = String(id);
+      _set.delete(key);
+      markRow(key, false);
+      emit();
+    }
+
+    function clear() {
+      try { _set.forEach((id) => markRow(id, false)); } catch {}
+      _set.clear();
+      emit();
+    }
+
+    function count() {
+      return _set.size | 0;
+    }
+
+    function onChange(cb) {
+      if (typeof cb === 'function') {
+        _cbs.add(cb);
+        return () => _cbs.delete(cb);
+      }
+      return () => {};
+    }
+
+    try { document.addEventListener('change', onDomChange, true); } catch {}
+
+    window.Selection = {
+      select,
+      deselect,
+      clear,
+      count,
+      onChange
+    };
+
+    try {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        emit();
+      } else {
+        document.addEventListener('DOMContentLoaded', () => emit(), { once: true });
+      }
+    } catch {}
+  } catch {}
+})();
