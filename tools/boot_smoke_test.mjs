@@ -72,14 +72,17 @@ async function navToTableRoute(page) {
 async function waitForRows(page, min = 2, timeout = 4000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    const n = await page.evaluate(() => {
+    const n = await page.evaluate((minRows) => {
       const sels = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+      let max = 0;
       for (const s of sels) {
         const rows = Array.from(document.querySelectorAll(s)).filter(el => el && el.isConnected);
-        if (rows.length) return rows.length;
+        const count = rows.length;
+        if (count >= minRows) return count;
+        if (count > max) max = count;
       }
-      return 0;
-    });
+      return max;
+    }, min);
     if (n >= min) return n;
     await new Promise(r => setTimeout(r, 50));
   }
