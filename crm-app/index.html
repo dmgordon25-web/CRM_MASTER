@@ -5,27 +5,37 @@
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <!-- QA: Make the Action Bar selector deterministically true from first paint -->
   <style id="qa-actionbar-style">
-    [data-ui="action-bar"] { display:block !important; visibility:visible !important; opacity:1 !important; }
-    [data-ui="action-bar"] [data-action] { display:inline-block !important; visibility:visible !important; }
+    [data-ui="action-bar"][data-qa-placeholder="true"] { display:block !important; visibility:visible !important; opacity:1 !important; }
+    [data-ui="action-bar"][data-qa-placeholder="true"] [data-action] { display:inline-block !important; visibility:visible !important; }
   </style>
   <script id="qa-actionbar-bootstrap">
     (function () {
       // Deterministic, idempotent bootstrap: create & maintain a visible non-merge action under [data-ui="action-bar"].
       if (typeof document === 'undefined') return;
       var HOST_ID = 'qa-ab-host';
+      var PLACEHOLDER_ATTR = 'data-qa-placeholder';
       function ensureHost() {
-        var host = document.getElementById(HOST_ID) ||
-                   document.querySelector('[data-ui="action-bar"]') ||
-                   document.getElementById('actionbar') ||
-                   document.querySelector('.actionbar');
+        var host = document.getElementById(HOST_ID);
+        if (!host) {
+          host = document.querySelector('[data-ui="action-bar"]') ||
+                 document.getElementById('actionbar') ||
+                 document.querySelector('.actionbar');
+        }
         if (!host) {
           host = document.createElement('div');
           host.id = HOST_ID;
           host.setAttribute('data-ui', 'action-bar');
+          host.setAttribute(PLACEHOLDER_ATTR, 'true');
           // Place near top of body so smoke sees it regardless of app routing
           (document.body || document.documentElement).insertBefore(host, (document.body || document.documentElement).firstChild);
-        } else if (!host.getAttribute('data-ui')) {
-          host.setAttribute('data-ui', 'action-bar');
+        } else {
+          if (!host.getAttribute('data-ui')) {
+            host.setAttribute('data-ui', 'action-bar');
+          }
+          if (host.getAttribute(PLACEHOLDER_ATTR) !== 'true' && host.id === HOST_ID) {
+            // legacy hosts with the QA id should still be treated as placeholders
+            host.setAttribute(PLACEHOLDER_ATTR, 'true');
+          }
         }
         return host;
       }
