@@ -30,6 +30,29 @@ const canonicalPatchOrder = [
   './pipeline/kanban_dnd.js'
 ];
 
+// --- Begin 2025-09-27 canonical cluster normalization ---
+(function normalizeSep2025Cluster(order) {
+  const NTH = './patch_2025-09-27_nth_bundle_and_qa.js';
+  const FIX = './patch_2025-09-27_masterfix.js';
+  const REL = './patch_2025-09-27_release_prep.js';
+
+  const haveAll = [NTH, FIX, REL].every(x => order.includes(x));
+  if (!haveAll) return; // nothing to do if any missing
+
+  // Pull them out wherever they currently sit.
+  const filtered = order.filter(x => x !== NTH && x !== FIX && x !== REL);
+
+  // Reinsert in the stable, logical order (QA/Bundle → Fix → Final Prep).
+  // Find the earliest prior index among where they originally were and use that as insertion point.
+  const startIndex = Math.min(order.indexOf(NTH), order.indexOf(FIX), order.indexOf(REL));
+  filtered.splice(startIndex, 0, NTH, FIX, REL);
+
+  // Mutate original array in place to preserve references elsewhere in the file.
+  order.length = 0;
+  order.push(...filtered);
+})(canonicalPatchOrder);
+// --- End 2025-09-27 canonical cluster normalization ---
+
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
   const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
