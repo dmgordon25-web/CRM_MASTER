@@ -1,5 +1,6 @@
 /* Headless boot verification: starts server, waits for health, loads app,
    asserts diagnostics splash is hidden and dashboard text is present. */
+import { strict as assert } from 'node:assert';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import puppeteer from 'puppeteer';
@@ -46,6 +47,60 @@ async function waitCapsSelection(page, timeout = 2500) {
     await new Promise(r => setTimeout(r, 50));
   }
   return false;
+}
+
+// Deep, resilient selector: searches top document, shadow DOM, and same-origin iframes; checks real visibility.
+async function waitForVisible(page, selector, { timeout = 8000 } = {}) {
+  const visibilityCounter = (sel) => {
+    const isVisible = (el) => {
+      if (!el || !el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width <= 0 || r.height <= 0) return false;
+      const cs = getComputedStyle(el);
+      if (!cs) return false;
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      const opacity = Number.parseFloat(cs.opacity || '1');
+      if (Number.isFinite(opacity) && opacity === 0) return false;
+      return true;
+    };
+    const collectDeep = (root, out) => {
+      if (!root) return;
+      try {
+        const list = root.querySelectorAll(sel);
+        for (const el of list) out.push(el);
+      } catch (_) {}
+      const walker = (node) => {
+        if (!node) return;
+        try {
+          if (node.shadowRoot) collectDeep(node.shadowRoot, out);
+        } catch (_) {}
+        if (!node.children) return;
+        for (const child of node.children) walker(child);
+      };
+      if (root.children) {
+        for (const child of root.children) walker(child);
+      }
+    };
+    const uniques = new Set();
+    const found = [];
+    collectDeep(document, found);
+    for (const frame of Array.from(document.querySelectorAll('iframe'))) {
+      try {
+        const doc = frame.contentDocument;
+        if (doc) collectDeep(doc, found);
+      } catch (_) {}
+    }
+    let count = 0;
+    for (const el of found) {
+      if (uniques.has(el)) continue;
+      uniques.add(el);
+      if (isVisible(el)) count++;
+    }
+    return count;
+  };
+
+  await page.waitForFunction(visibilityCounter, { timeout }, selector);
+  return page.evaluate(visibilityCounter, selector);
 }
 
 
@@ -505,6 +560,9 @@ async function main() {
     if (!clickedSelector) {
       throw new Error('action-btn-missing');
     }
+
+    const actionVisibleCount = await waitForVisible(page, clickedSelector, { timeout: 8000 });
+    assert.ok(actionVisibleCount > 0, 'expected at least one visible non-merge action in the action bar');
 
     const sawToast = await page.evaluate(async () => {
       const hasDomToast = () => !!(document.querySelector('[data-ui="toast"], .toast-message'));
