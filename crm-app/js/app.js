@@ -782,6 +782,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
+    try { window.__SEL_COUNT__ = (ids.size | 0); } catch {}
+    try {
+      const bar = document.querySelector('[data-ui="action-bar"]');
+      if (bar) bar.setAttribute('data-visible', ids.size > 0 ? '1' : '0');
+    } catch {}
   }
 
   function clearAllSelectionScopes(){
