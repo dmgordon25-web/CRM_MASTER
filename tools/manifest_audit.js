@@ -89,17 +89,23 @@ function fileExists(p) {
     else patchSeen.add(patch);
   }
 
-  const patchOrderIssues = [];
-  const prefixLength = Math.min(canonicalPatchOrder.length, PATCHES.length);
-  for (let i = 0; i < prefixLength; i += 1) {
-    if (PATCHES[i] !== canonicalPatchOrder[i]) {
-      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${PATCHES[i]}`);
-      break;
+  let patchHeadIssue = null;
+  try {
+    const canonicalHead = canonicalPatchOrder.slice();
+    const actualPatches = PATCHES.slice(0);
+    const head = actualPatches.slice(0, canonicalHead.length);
+    if (head.length !== canonicalHead.length || head.some((p, i) => p !== canonicalHead[i])) {
+      throw new Error('[MANIFEST AUDIT] PATCHES head diverged (order or contents).');
     }
-  }
-  if (PATCHES.length < canonicalPatchOrder.length) {
-    const missingCanonical = canonicalPatchOrder.slice(PATCHES.length);
-    patchOrderIssues.push(`missing canonical entries: ${missingCanonical.join(', ')}`);
+    const tail = actualPatches.slice(canonicalHead.length);
+    if (tail.length) {
+      console.log('Unphased tail patches (allowed):', JSON.stringify(tail));
+    }
+  } catch (err) {
+    const detail = err && err.message ? err.message : String(err);
+    const expected = canonicalPatchOrder.slice();
+    const actualHead = PATCHES.slice(0, expected.length);
+    patchHeadIssue = { message: detail, expected, actual: actualHead };
   }
   // Crawl js folder for unphased files (warn only)
   function walk(dir){
@@ -124,7 +130,7 @@ function fileExists(p) {
   if (dups.length) errors.push(['Duplicates:', dups]);
   if (missing.length) errors.push(['Missing:', missing]);
   if (patchDupes.length) errors.push(['PATCHES duplicates:', patchDupes]);
-  if (patchOrderIssues.length) errors.push(['PATCHES out of order:', patchOrderIssues]);
+  if (patchHeadIssue) errors.push(['PATCHES head diverged:', patchHeadIssue]);
 
   if (errors.length) {
     console.error('[MANIFEST AUDIT] FAIL');

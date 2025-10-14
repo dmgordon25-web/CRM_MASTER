@@ -115,10 +115,8 @@ export const PATCHES = [
 ];
 
 export const REQUIRED = new Set([
-  './env.js',
-  './db.js',
-  './utils.js',
-  './render.js',
-  './ui/Toast.js',
-  './ui/Confirm.js'
+  './env.js', '../env.js',
+  '../db.js', '../utils.js', '../render.js',
+  '../ui/Toast.js', '../ui/Confirm.js',
+  '../core/renderGuard.js', '../services/selection.js'
 ]);

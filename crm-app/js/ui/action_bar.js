@@ -39,32 +39,6 @@ function markActionbarHost() {
   return bar;
 }
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
-    window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
-  }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
-    } else {
-      setup();
-    }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
-  }
-}
-
 function injectActionBarStyle(){
   if (typeof document === 'undefined') return;
   if (document.getElementById('ab-inline-style')) return;
@@ -461,6 +435,63 @@ function ensureMergeHandler() {
   mergeBtn.addEventListener('click', handler);
   mergeBtn.__mergeHandlerWired = true;
 }
+
+(function(){
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  let wired = false;
+
+  function host() {
+    try {
+      return document.querySelector('[data-ui="action-bar"], #actionbar');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function ensureGlobals() {
+    if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
+      window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
+    }
+  }
+
+  function wireOnce() {
+    if (wired) return true;
+    if (!host()) return false;
+
+    ensureGlobals();
+    markActionbarHost();
+    ensureGlobalNewFab();
+    ensureMergeHandler();
+
+    if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
+      window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
+      document.addEventListener('click', (event) => {
+        const btn = event.target && event.target.closest && event.target.closest('[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        if (!action) return;
+        window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+      }, true);
+    }
+
+    wired = true;
+    return true;
+  }
+
+  ensureGlobals();
+  if (!wireOnce()) {
+    try {
+      const tryWire = () => { wireOnce(); };
+      document.addEventListener('DOMContentLoaded', tryWire, { once: true });
+      let n = 0;
+      const t = setInterval(() => {
+        if (wireOnce() || ++n > 40) {
+          clearInterval(t);
+        }
+      }, 50);
+    } catch (_) {}
+  }
+})();
 
 if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
   document.__ACTION_BAR_MERGE_REWIRE__ = true;

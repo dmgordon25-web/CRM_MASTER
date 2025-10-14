@@ -14,6 +14,28 @@ async function dynImport(spec) {
   return import(normalized);
 }
 
+function domRootReady() {
+  try {
+    return !!(document.querySelector('#app, [data-ui="app-root"], [data-ui="shell"]'));
+  } catch (_) {
+    return false;
+  }
+}
+
+function corePrereqsReady() {
+  try {
+    const w = window;
+    return typeof w.openDB === 'function'
+      && (w.Selection || w.SelectionService)
+      && typeof w.renderAll === 'function'
+      && w.Toast && typeof w.Toast.show === 'function'
+      && w.Confirm && typeof w.Confirm.show === 'function'
+      && domRootReady();
+  } catch (_) {
+    return false;
+  }
+}
+
 const originalConsoleError = console.error.bind(console);
 console.error = (...args) => {
   const first = args[0];
@@ -262,6 +284,12 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await waitForDomReady();
     await evaluatePrereqs(coreRecords, 'hard');
+
+    let __tries = 0;
+    while (!corePrereqsReady() && __tries < 40) {
+      await new Promise((r) => setTimeout(r, 50));
+      __tries += 1;
+    }
     splash.hide();
 
     const safe = isSafeMode();
