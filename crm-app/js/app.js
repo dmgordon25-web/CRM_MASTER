@@ -782,6 +782,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
+    try { window.__SEL_COUNT__ = (ids.size | 0); } catch {}
   }
 
   function clearAllSelectionScopes(){
@@ -809,6 +810,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       if(target.checked) next.add(id);
       else next.delete(id);
       store.set(next, scope);
+    });
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.dataset || target.dataset.role !== 'select') return;
+      queueMicrotask(() => {
+        const scope = selectionScopeFor(target);
+        const id = selectionIdFor(target);
+        if (!id) return;
+        const next = getSelectionStore().get(scope);
+        if (target.checked) next.add(id); else next.delete(id);
+        getSelectionStore().set(next, scope);
+      });
     });
     updateActionBarGuards(0);
   }
