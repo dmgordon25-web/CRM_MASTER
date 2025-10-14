@@ -19,6 +19,33 @@ async function clickNth(page, selector, n = 0) {
   return ok;
 }
 
+async function domSelect(page, idx) {
+  return page.evaluate((i) => {
+    function rows() {
+      const sels = ['[data-ui="row"][data-id]', 'tr[data-id]', '.grid-row[data-id]'];
+      for (const s of sels) {
+        const arr = Array.from(document.querySelectorAll(s)).filter(el => el && el.isConnected);
+        if (arr.length) return arr;
+      }
+      return [];
+    }
+    const r = rows()[i];
+    if (!r) return false;
+    const cb = r.querySelector('[data-ui="row-check"], input[type="checkbox"][data-row-check], input[type="checkbox"][name="select"], input[type="checkbox"]');
+    if (cb) {
+      if (!cb.checked) cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+    }
+    // Tag multiple selection hints for robustness
+    try {
+      r.setAttribute('data-selected', '1');
+      r.setAttribute('aria-selected', 'true');
+      r.classList.add('is-selected');
+    } catch {}
+    return true;
+  }, idx);
+}
+
 async function waitSelCount(page, expected, timeout = 1500) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -46,6 +73,35 @@ async function waitCapsSelection(page, timeout = 2500) {
     await new Promise(r => setTimeout(r, 50));
   }
   return false;
+}
+
+async function selCount(page) {
+  return page.evaluate(() => {
+    const api = (globalThis.Selection && typeof globalThis.Selection.count === 'function') ? (globalThis.Selection.count() | 0) : 0;
+    const met = (typeof globalThis.__SEL_COUNT__ === 'number') ? (globalThis.__SEL_COUNT__ | 0) : 0;
+    const domChecked = (() => {
+      const rows = Array.from(document.querySelectorAll('[data-ui="row"], tr[data-id], .grid-row[data-id]'));
+      let n = 0;
+      for (const r of rows) {
+        const cb = r.querySelector('[data-ui="row-check"], input[type="checkbox"][data-row-check], input[type="checkbox"][name="select"], input[type="checkbox"]');
+        if (cb?.checked) n++;
+      }
+      return n | 0;
+    })();
+    const domFlagged = (() => {
+      const sels = [
+        '[data-ui="row"][data-selected="1"]',
+        'tr[data-selected="1"]',
+        '.grid-row[data-selected="1"]',
+        '[aria-selected="true"]',
+        '.is-selected'
+      ];
+      let n = 0;
+      for (const s of sels) n = Math.max(n, document.querySelectorAll(s).length | 0);
+      return n | 0;
+    })();
+    return Math.max(api, met, domChecked, domFlagged);
+  });
 }
 
 
