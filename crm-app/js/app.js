@@ -780,6 +780,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const ids = snapshot.ids instanceof Set
       ? snapshot.ids
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
+    window.__SEL_COUNT__ = (ids.size | 0);
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
   }
