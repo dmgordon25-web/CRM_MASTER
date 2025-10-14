@@ -814,6 +814,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       store.set(next, scope);
     });
     // Headless .click() → ensure the store mirrors the checkbox state
+    const enqueueMicrotask = typeof queueMicrotask === 'function'
+      ? queueMicrotask
+      : (callback) => Promise.resolve().then(callback);
     document.addEventListener('click', (event) => {
       const target = event.target;
       if(!(target instanceof HTMLInputElement)) return;
@@ -821,7 +824,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const store = getSelectionStore(); if(!store) return;
       const scope = selectionScopeFor(target);
       const id = selectionIdFor(target); if(!id) return;
-      queueMicrotask(() => {
+      enqueueMicrotask(() => {
         const next = store.get(scope);
         if(target.checked) next.add(id); else next.delete(id);
         store.set(next, scope);
