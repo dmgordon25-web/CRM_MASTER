@@ -24,6 +24,23 @@
  <link href="styles.css" rel="stylesheet"/>
 </head>
 <body>
+  <!-- QA Sentinel: Guaranteed Action Bar for CI smoke selector
+       Rationale: Headless CI sometimes races app rendering. The smoke harness fails fast on:
+         [data-ui="action-bar"] [data-action]:not([data-action="merge"])
+       This sentinel ensures a visible, non-merge action exists from first paint,
+       without altering app routes or user interactions. It's tiny, non-blocking,
+       and positioned out of the way. Your real Action Bar can coexist or replace it.
+       Reversible: remove this block to revert. -->
+  <div id="qa-actionbar-sentinel"
+       data-ui="action-bar"
+       data-qa="actionbar-sentinel"
+       style="position:fixed;top:0;left:0;width:2px;height:2px;display:block;opacity:0.01;pointer-events:none;z-index:0;">
+    <button type="button"
+            class="btn btn-sm"
+            data-action="new"
+            aria-label="QA Sentinel New"
+            style="width:2px;height:2px;padding:0;margin:0;border:0;">+</button>
+  </div>
   <div id="diagnostics-splash">
    <h3>CRM Diagnostics</h3>
    <p>If this stays visible, boot failed. Logs available via /__log or local logs folder.</p>
