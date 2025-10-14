@@ -782,6 +782,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
+    try { window.__SEL_COUNT__ = (ids.size | 0); } catch {}
+    const bar = document.querySelector('[data-ui="action-bar"]');
+    if (bar) bar.setAttribute('data-visible', ids.size > 0 ? '1' : '0');
   }
 
   function clearAllSelectionScopes(){
@@ -795,7 +798,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function initSelectionBindings(){
     if(initSelectionBindings.__wired) return;
     const store = getSelectionStore();
-    if(!store) return;
+    if(!store){
+      // PATCHES load after CORE; selection_adapter emits this when ready
+      if (!initSelectionBindings.__waiting__) {
+        initSelectionBindings.__waiting__ = true;
+        window.addEventListener('ui:selection-ready', () => {
+          initSelectionBindings.__waiting__ = false;
+          initSelectionBindings();
+        }, { once: true });
+      }
+      return;
+    }
     initSelectionBindings.__wired = true;
     store.subscribe(handleSelectionSnapshot);
     document.addEventListener('change', (event)=>{
@@ -810,6 +823,22 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       else next.delete(id);
       store.set(next, scope);
     });
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.dataset || target.dataset.role !== 'select') return;
+      const scope = selectionScopeFor(target);
+      const id = selectionIdFor(target);
+      if (!id) return;
+      const store = getSelectionStore();
+      if (!store) return;
+      // Mirror the DOM state into the store after the click toggles 'checked'
+      queueMicrotask(() => {
+        const next = store.get(scope);
+        if (target.checked) next.add(id); else next.delete(id);
+        store.set(next, scope);
+      });
+    }, true);
     updateActionBarGuards(0);
   }
 
