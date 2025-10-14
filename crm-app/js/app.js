@@ -782,6 +782,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
+    try { window.__SEL_COUNT__ = (ids.size | 0); } catch {}
+    const bar = document.querySelector('[data-ui="action-bar"]');
+    if(bar) bar.setAttribute('data-visible', ids.size > 0 ? '1' : '0');
   }
 
   function clearAllSelectionScopes(){
@@ -810,6 +813,20 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       else next.delete(id);
       store.set(next, scope);
     });
+    // Headless .click() → ensure the store mirrors the checkbox state
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if(!(target instanceof HTMLInputElement)) return;
+      if(!target.dataset || target.dataset.role !== 'select') return;
+      const store = getSelectionStore(); if(!store) return;
+      const scope = selectionScopeFor(target);
+      const id = selectionIdFor(target); if(!id) return;
+      queueMicrotask(() => {
+        const next = store.get(scope);
+        if(target.checked) next.add(id); else next.delete(id);
+        store.set(next, scope);
+      });
+    }, true); // capture-phase
     updateActionBarGuards(0);
   }
 
@@ -1236,6 +1253,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       goWB();
     }
   })();
+
+  // Defer selection wiring until PATCHES create the store
+  try {
+    window.addEventListener('ui:selection-ready', () => {
+      try { initSelectionBindings(); } catch {}
+    });
+    // Also retry once next tick in case store lands before the event
+    setTimeout(() => { try { initSelectionBindings(); } catch {} }, 0);
+  } catch {}
 
   initSelectionBindings();
 

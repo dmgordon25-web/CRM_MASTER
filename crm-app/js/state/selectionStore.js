@@ -21,6 +21,7 @@ function ensureScope(scope) {
 
 function notify(scope) {
   const snapshot = { scope: normalizeScope(scope), ids: cloneIds(ensureScope(scope)) };
+  try { globalThis.__SEL_COUNT__ = (snapshot.ids.size | 0); } catch {}
   SUBSCRIBERS.forEach((fn) => {
     try {
       fn({ scope: snapshot.scope, ids: cloneIds(snapshot.ids), count: snapshot.ids.size });
