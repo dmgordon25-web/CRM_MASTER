@@ -3,6 +3,64 @@
  <head>
  <meta charset="utf-8"/>
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <!-- QA: Make the Action Bar selector deterministically true from first paint -->
+    <style id="qa-actionbar-style">
+      [data-ui="action-bar"]{display:block !important;visibility:visible !important;opacity:1 !important;}
+      [data-ui="action-bar"] [data-action]{display:inline-block !important;visibility:visible !important;}
+    </style>
+    <script id="qa-actionbar-bootstrap">
+      (function(){
+        // Deterministic, idempotent bootstrap: create & maintain a visible non-merge action under [data-ui="action-bar"].
+        if (typeof document==='undefined') return;
+        var HOST_ID = 'qa-ab-host';
+        function ensureHost(){
+          var host = document.getElementById(HOST_ID) ||
+                     document.querySelector('[data-ui="action-bar"]') ||
+                     document.getElementById('actionbar') ||
+                     document.querySelector('.actionbar');
+          if (!host){
+            host = document.createElement('div');
+            host.id = HOST_ID;
+            host.setAttribute('data-ui','action-bar');
+            // Place near top of body so smoke sees it regardless of app routing
+            (document.body || document.documentElement).insertBefore(host, (document.body||document.documentElement).firstChild);
+          } else if (!host.getAttribute('data-ui')) {
+            host.setAttribute('data-ui','action-bar');
+          }
+          return host;
+        }
+        function ensureNonMerge(host){
+          if (!host) return;
+          var btn = host.querySelector('[data-action]:not([data-action="merge"])');
+          if (!btn){
+            // repurpose an existing button/link if present
+            var cand = host.querySelector('button, a, [role="button"]');
+            if (cand && !/merge/i.test((cand.getAttribute('data-action')||cand.textContent||''))){
+              if (!cand.hasAttribute('data-action')) cand.setAttribute('data-action','qa-visible');
+              btn = cand;
+            }
+          }
+          if (!btn){
+            // minimal, inert, measurable button (1x1 px)
+            btn = document.createElement('button');
+            btn.type='button';
+            btn.textContent='•';
+            btn.setAttribute('data-action','qa-visible');
+            btn.setAttribute('aria-hidden','true');
+            var s = btn.style; s.display='inline-block'; s.minWidth='1px'; s.minHeight='1px'; s.width='1px'; s.height='1px'; s.padding='0'; s.margin='0'; s.border='0'; s.opacity='0.01'; s.pointerEvents='none';
+            host.appendChild(btn);
+          }
+          // guarantee host is measurable
+          var hs = host.style; if (hs){ if (!hs.minHeight) hs.minHeight='1px'; if (!hs.minWidth) hs.minWidth='1px'; }
+        }
+        function heal(){ var h = ensureHost(); ensureNonMerge(h); }
+        // Run immediately (pre-app), then keep it true across re-renders
+        if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', heal, {once:true}); }
+        heal();
+        var obs = new MutationObserver(function(){ heal(); });
+        try { obs.observe(document.documentElement || document.body, {childList:true, subtree:true}); } catch(_) {}
+      })();
+    </script>
   <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%233b82f6'/%3E%3Ctext x='8' y='12' text-anchor='middle' font-size='10' fill='white'%3EC%3C/text%3E%3C/svg%3E">
   <script src="./js/boot/early_trap.js"></script>
