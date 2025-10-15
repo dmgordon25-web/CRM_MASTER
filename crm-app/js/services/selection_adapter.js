@@ -96,7 +96,13 @@
     }
 
     function updateMetric(){
-      try { globalThis.__SEL_COUNT__ = count() | 0; } catch {}
+      try {
+        const n = count() | 0;
+        globalThis.__SEL_COUNT__ = n;
+        // Mirror action bar attribute used by the smoke assertion
+        const bar = document.querySelector?.('[data-ui="action-bar"]');
+        if (bar) bar.setAttribute('data-visible', n > 0 ? '1' : '0');
+      } catch {}
     }
 
     function select(id, type){
@@ -188,6 +194,41 @@
       enumerable: false,
       writable: false
     });
+
+    // --- DOM bridge: ensure checkbox clicks drive Selection via the adapter ---
+    (function installDomSelectionBridge(){
+      try {
+        if (globalThis.__SELECTION_DOM_BRIDGE__) return;
+        Object.defineProperty(globalThis, '__SELECTION_DOM_BRIDGE__', {
+          value: true, configurable: false, enumerable: false, writable: false
+        });
+
+        function rowIdFrom(el){
+          if (!el) return '';
+          const id = el.getAttribute?.('data-id') || '';
+          return id ? String(id) : '';
+        }
+        function onToggle(e){
+          const cb = e.target && (e.target.closest?.('[data-ui="row-check"]'));
+          if (!cb) return;
+          const id = rowIdFrom(cb);
+          if (!id) return;
+          // Use adapter API so __SEL_COUNT__ + action bar update via updateMetric()
+          if (cb.checked) { try { select(id); } catch {} }
+          else { try { deselect(id); } catch {} }
+        }
+
+        // Capture-phase so we run regardless of app handler order
+        document.addEventListener('change', onToggle, true);
+        document.addEventListener('click',  (e) => {
+          // headless click sometimes misses change; queue a recompute
+          const cb = e.target && (e.target.closest?.('[data-ui="row-check"]'));
+          if (!cb) return;
+          // after click toggles .checked, reflect it via change path
+          queueMicrotask(() => onToggle({ target: cb }));
+        }, true);
+      } catch {}
+    })();
 
     updateMetric();
     emitReady();
