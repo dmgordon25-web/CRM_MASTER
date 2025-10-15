@@ -25,8 +25,9 @@ function exposeCounters(){
   if (typeof window === 'undefined') return;
   try {
     window.__KANBAN_HANDLERS__ = Object.freeze({
-      added: Number(HANDLER_TOTAL || 0),
+      added: Number(ACTIVE_HANDLERS || 0),
       active: Number(ACTIVE_HANDLERS || 0),
+      total: Number(HANDLER_TOTAL || 0),
       columns: Number(COLUMN_COUNT || 0)
     });
   } catch (_) {}
