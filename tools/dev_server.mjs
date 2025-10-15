@@ -62,14 +62,13 @@ function spaFallback(res) {
   serveFile(res, INDEX);
 }
 
-// Basic static server with SPA fallback and a dev-only shutdown
+// Static server with SPA fallback and a dev-only shutdown
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/__shutdown') {
     send(res, 200, 'bye');
     setTimeout(() => process.exit(0), 10);
     return;
   }
-
   const raw = (req.url || '/').split('?')[0].split('#')[0] || '/';
   let rel = decodeURIComponent(raw);
   if (rel.length > 1 && rel.endsWith('/')) rel = rel.slice(0, -1);
