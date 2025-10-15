@@ -208,24 +208,51 @@
           const id = el.getAttribute?.('data-id') || '';
           return id ? String(id) : '';
         }
-        function onToggle(e){
-          const cb = e.target && (e.target.closest?.('[data-ui="row-check"]'));
-          if (!cb) return;
+        const pendingSync = typeof WeakSet === 'function' ? new WeakSet() : new Set();
+
+        function syncCheckbox(cb){
           const id = rowIdFrom(cb);
           if (!id) return;
-          // Use adapter API so __SEL_COUNT__ + action bar update via updateMetric()
-          if (cb.checked) { try { select(id); } catch {} }
-          else { try { deselect(id); } catch {} }
+          let ids;
+          try { ids = new Set(readIds()); }
+          catch { ids = new Set(); }
+          const shouldBeSelected = !!cb.checked;
+          const isSelected = ids.has(id);
+          if (shouldBeSelected && !isSelected) {
+            try { select(id); } catch {}
+            return;
+          }
+          if (!shouldBeSelected && isSelected) {
+            try { deselect(id); } catch {}
+          }
+        }
+
+        function scheduleSync(cb, viaClick){
+          if (!cb) return;
+          if (pendingSync.has(cb)) return;
+          pendingSync.add(cb);
+          const run = () => {
+            try { syncCheckbox(cb); } catch {}
+            try { pendingSync.delete(cb); } catch {}
+          };
+          if (viaClick) {
+            try { setTimeout(run, 0); }
+            catch { queueMicrotask(run); }
+          } else {
+            queueMicrotask(run);
+          }
         }
 
         // Capture-phase so we run regardless of app handler order
-        document.addEventListener('change', onToggle, true);
-        document.addEventListener('click',  (e) => {
-          // headless click sometimes misses change; queue a recompute
+        document.addEventListener('change', (e) => {
           const cb = e.target && (e.target.closest?.('[data-ui="row-check"]'));
           if (!cb) return;
-          // after click toggles .checked, reflect it via change path
-          queueMicrotask(() => onToggle({ target: cb }));
+          scheduleSync(cb, false);
+        }, true);
+        document.addEventListener('click',  (e) => {
+          const cb = e.target && (e.target.closest?.('[data-ui="row-check"]'));
+          if (!cb) return;
+          scheduleSync(cb, true);
         }, true);
       } catch {}
     })();
