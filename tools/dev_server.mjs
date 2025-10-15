@@ -5,145 +5,230 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-// Resolve WEBROOT relative to this file so it works from any folder
 const WEBROOT = process.env.WEBROOT
   ? path.resolve(process.env.WEBROOT)
   : path.resolve(__dirname, '../crm-app');
 
-const INDEX = path.join(WEBROOT, 'index.html');
+const INDEX_HTML = path.join(WEBROOT, 'index.html');
 
-const MIME = {
+const MIME_TYPES = {
+  '.css': 'text/css; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript; charset=utf-8',
-  '.mjs':  'application/javascript; charset=utf-8',
-  '.css':  'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg':  'image/svg+xml',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
+  '.ico': 'image/x-icon',
   '.jpeg': 'image/jpeg',
-  '.ico':  'image/x-icon',
-  '.map':  'application/json; charset=utf-8',
+  '.jpg': 'image/jpeg',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
 };
 
-function send(res, code, body, headers = {}) {
-  res.writeHead(code, {
+const isCI = Boolean(process.env.CI || process.env.GITHUB_ACTIONS || process.env.SMOKE);
+const isWindows = process.platform === 'win32';
+
+function send(res, status, body, headers = {}) {
+  const payload = typeof body === 'string' || Buffer.isBuffer(body) ? body : String(body ?? '');
+  res.writeHead(status, {
     'Cache-Control': 'no-store, must-revalidate',
     'Pragma': 'no-cache',
     'Expires': '0',
     ...headers
   });
-  res.end(body);
+  res.end(payload);
 }
 
-function serveFile(res, filePath) {
-  try {
-    const ext = path.extname(filePath).toLowerCase();
-    const type = MIME[ext] || 'application/octet-stream';
-    const stream = fs.createReadStream(filePath);
-    res.writeHead(200, {
-      'Content-Type': type,
-      'Cache-Control': 'no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-    });
-    stream.pipe(res);
-  } catch {
-    send(res, 404, 'Not found');
-  }
-}
+function serveFile(req, res, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
 
-function spaFallback(res) {
-  if (!fs.existsSync(INDEX)) {
-    return send(res, 500, `[DEV SERVER] index.html missing at ${INDEX}`);
-  }
-  serveFile(res, INDEX);
-}
+  const headers = {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  };
 
-// Basic static server with SPA fallback and a dev-only shutdown
-const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/__shutdown') {
-    send(res, 200, 'bye');
-    setTimeout(() => process.exit(0), 10);
+  if (req.method === 'HEAD') {
+    res.writeHead(200, headers);
+    res.end();
     return;
   }
 
-  const raw = (req.url || '/').split('?')[0].split('#')[0] || '/';
-  let rel = decodeURIComponent(raw);
-  if (rel.length > 1 && rel.endsWith('/')) rel = rel.slice(0, -1);
+  const stream = fs.createReadStream(filePath);
 
-  const filePath = path.join(WEBROOT, rel);
-  try {
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
-      if (stat.isDirectory()) {
-        const dirIndex = path.join(filePath, 'index.html');
-        return fs.existsSync(dirIndex) ? serveFile(res, dirIndex) : spaFallback(res);
-      }
-      if (stat.isFile()) return serveFile(res, filePath);
+  stream.on('open', () => {
+    res.writeHead(200, headers);
+  });
+
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      send(res, 404, 'Not found');
+    } else {
+      res.end();
     }
-    return spaFallback(res);
-  } catch {
-    return spaFallback(res);
+  });
+
+  stream.pipe(res);
+}
+
+function spaFallback(req, res) {
+  if (!fs.existsSync(INDEX_HTML)) {
+    send(res, 500, `[SERVER] index.html missing at ${INDEX_HTML}`);
+    return;
+  }
+  serveFile(req, res, INDEX_HTML);
+}
+
+function isShutdownRequest(req) {
+  if (!req.url || req.method !== 'GET') return false;
+  const parsed = new URL(req.url, 'http://127.0.0.1');
+  return parsed.pathname === '/__shutdown';
+}
+
+function safeResolve(targetPath) {
+  const normalised = path.posix.normalize(targetPath || '/');
+  const trimmed = normalised === '/' ? '' : normalised.replace(/^\/+/, '');
+  const absolute = path.resolve(WEBROOT, trimmed);
+  const relative = path.relative(WEBROOT, absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null;
+  }
+  return absolute;
+}
+
+const server = http.createServer((req, res) => {
+  try {
+    if (isShutdownRequest(req)) {
+      send(res, 200, 'bye');
+      if (!isCI) {
+        setImmediate(() => process.exit(0));
+      }
+      return;
+    }
+
+    const requestUrl = req.url ? new URL(req.url, 'http://127.0.0.1') : new URL('http://127.0.0.1/');
+    const pathname = decodeURIComponent(requestUrl.pathname || '/');
+    const absolutePath = safeResolve(pathname);
+
+    if (!absolutePath) {
+      spaFallback(req, res);
+      return;
+    }
+
+    let stat = null;
+    try {
+      stat = fs.statSync(absolutePath);
+    } catch (error) {
+      stat = null;
+    }
+
+    if (stat && stat.isDirectory()) {
+      const directoryIndex = path.join(absolutePath, 'index.html');
+      if (fs.existsSync(directoryIndex)) {
+        serveFile(req, res, directoryIndex);
+        return;
+      }
+      spaFallback(req, res);
+      return;
+    }
+
+    if (stat && stat.isFile()) {
+      serveFile(req, res, absolutePath);
+      return;
+    }
+
+    spaFallback(req, res);
+  } catch (error) {
+    send(res, 500, '[SERVER] request handling error');
   }
 });
 
-async function findPort(start, attempts = 13) {
-  for (let p = start; p < start + attempts; p++) {
-    try {
-      await new Promise((resolve, reject) => {
-        const t = http.createServer()
-          .once('error', reject)
-          .once('listening', function () { this.close(resolve); })
-          .listen(p, '127.0.0.1');
-      });
-      return p;
-    } catch {}
-  }
-  throw new Error(`No free port found starting at ${start}`);
-}
-
 function openBrowser(url) {
   try {
-    // Use shell so Windows default-browser changes don't break us
-    spawn('cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore', windowsHide: true, detached: true });
-  } catch {
-    try {
-      spawn('explorer.exe', [url], { stdio: 'ignore', windowsHide: true, detached: true });
-    } catch {}
+    spawn('cmd', ['/c', 'start', '', url], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }).unref();
+  } catch (error) {
+    // Best effort only; failure should not crash the dev server.
   }
 }
 
-(async () => {
+async function findFreePort(start, end) {
+  for (let port = start; port <= end; port += 1) {
+    const available = await new Promise((resolve) => {
+      const tester = http.createServer();
+      tester.once('error', () => resolve(false));
+      tester.once('listening', () => {
+        tester.close(() => resolve(true));
+      });
+      tester.listen(port, '127.0.0.1');
+    });
+    if (available) {
+      return port;
+    }
+  }
+  throw new Error(`No free port available between ${start} and ${end}`);
+}
+
+function ensureWebroot() {
   if (!fs.existsSync(WEBROOT)) {
-    console.error('[DEV] WEBROOT missing:', WEBROOT);
+    throw new Error(`WEBROOT missing: ${WEBROOT}`);
+  }
+}
+
+async function startServer() {
+  ensureWebroot();
+
+  const port = isCI
+    ? 8080
+    : (process.env.PORT ? Number(process.env.PORT) : await findFreePort(8087, 8099));
+
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error('Invalid port configuration');
+  }
+
+  const rootUrl = `http://127.0.0.1:${port}/`;
+  const appUrl = `${rootUrl}index.html#/`;
+
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', resolve);
+  });
+
+  server.on('error', (err) => {
+    console.error(`[SERVER] ${err && err.message ? err.message : err}`);
     process.exit(1);
+  });
+
+  console.log(`[SERVER] listening on ${rootUrl} (root: ${WEBROOT})`);
+
+  if (isCI) {
+    return;
   }
-  if (!fs.existsSync(INDEX)) {
-    console.warn('[DEV] index.html not found at', INDEX);
-  }
 
-  const IS_CI  = !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.SMOKE);
-  const WINDEV = process.platform === 'win32' && !IS_CI;
-
-  const port = IS_CI
-    ? Number(process.env.PORT || 8080)
-    : Number(process.env.PORT || await findPort(8087));
-
-  const urlRoot = `http://127.0.0.1:${port}/`;
-  const urlApp  = `${urlRoot}index.html#/`;
-
-  server.listen(port, '127.0.0.1', () => {
-    // Keep CI log signature stable for the smoke harness
-    console.log(`[SERVER] listening on ${urlRoot} (root: ${WEBROOT})`);
+  if (isWindows) {
     console.log('[SERVER] server: node:http');
-    if (WINDEV) { try { openBrowser(urlApp); } catch {} }
-  });
+    console.log(`[SERVE] URL : ${appUrl}`);
+    try {
+      openBrowser(appUrl);
+    } catch (error) {
+      // Non-fatal if the browser fails to open.
+    }
+  }
+}
 
-  server.on('error', (e) => {
-    console.error('[DEV SERVER] error:', e && e.message ? e.message : e);
-    process.exit(1);
-  });
-})();
+startServer().catch((error) => {
+  console.error(`[SERVER] ${error && error.message ? error.message : error}`);
+  process.exit(1);
+});
