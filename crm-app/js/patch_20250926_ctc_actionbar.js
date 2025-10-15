@@ -605,6 +605,9 @@ function runPatch(){
           else{ el.removeAttribute('disabled'); }
           el.setAttribute('aria-disabled', off ? 'true' : 'false');
         }
+        try {
+          el.setAttribute('data-disabled', off ? '1' : '0');
+        } catch (_err) {}
         try{
           if(el.classList){
             el.classList.toggle('disabled', off);

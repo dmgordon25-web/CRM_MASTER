@@ -75,6 +75,54 @@
     });
   }
 
+  function pad(number){
+    return number < 10 ? `0${number}` : String(number);
+  }
+
+  function formatDateValue(date){
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    return `${y}${m}${d}`;
+  }
+
+  function escapeIcsValue(value){
+    return String(value ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n');
+  }
+
+  function buildFallbackIcs(payload){
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//CRM//Calendar Export//EN'
+    ];
+    payload.forEach((item, index) => {
+      if (!item || !(item.start instanceof Date) || Number.isNaN(item.start.getTime())) return;
+      const uid = escapeIcsValue(item.id || `event-${index}`);
+      const title = escapeIcsValue(item.title || 'CRM Event');
+      const description = item.desc ? escapeIcsValue(item.desc) : '';
+      const location = item.location ? escapeIcsValue(item.location) : '';
+      const startDate = new Date(item.start.getTime());
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${uid}`);
+      lines.push(`SUMMARY:${title}`);
+      if (description) lines.push(`DESCRIPTION:${description}`);
+      if (location) lines.push(`LOCATION:${location}`);
+      if (item.allDay) {
+        lines.push(`DTSTART;VALUE=DATE:${formatDateValue(startDate)}`);
+      } else {
+        lines.push(`DTSTART:${formatDateValue(startDate)}T000000`);
+      }
+      lines.push('END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    return `${lines.join('\r\n')}\r\n`;
+  }
+
   function triggerDownload(blob, filename){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -125,8 +173,8 @@
       download('calendar-export.ics', ics);
       return;
     }
-    const head = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n';
-    triggerDownload(new Blob([head], { type: 'text/calendar;charset=utf-8' }), 'calendar-export.ics');
+    const icsText = buildFallbackIcs(payload);
+    triggerDownload(new Blob([icsText], { type: 'text/calendar;charset=utf-8' }), 'calendar-export.ics');
   }
 
   function handleCsv(){

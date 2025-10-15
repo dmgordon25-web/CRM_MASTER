@@ -17,14 +17,16 @@ function normalizeKey(x) {
 
 const WIRED_BOARDS = new Set();
 const BOARD_HANDLERS = new Map();
-let HANDLER_COUNT = 0;
+let HANDLER_TOTAL = 0;
+let ACTIVE_HANDLERS = 0;
 let COLUMN_COUNT = 0;
 
 function exposeCounters(){
   if (typeof window === 'undefined') return;
   try {
     window.__KANBAN_HANDLERS__ = Object.freeze({
-      added: Number(HANDLER_COUNT || 0),
+      added: Number(HANDLER_TOTAL || 0),
+      active: Number(ACTIVE_HANDLERS || 0),
       columns: Number(COLUMN_COUNT || 0)
     });
   } catch (_) {}
@@ -50,7 +52,7 @@ function detachBoard(board){
   }
   BOARD_HANDLERS.delete(board);
   if (WIRED_BOARDS.delete(board)) {
-    HANDLER_COUNT = Math.max(0, HANDLER_COUNT - 1);
+    ACTIVE_HANDLERS = Math.max(0, ACTIVE_HANDLERS - 1);
   }
   if (WIRED_BOARDS.size === 0) {
     COLUMN_COUNT = 0;
@@ -363,7 +365,8 @@ function installDnD(root, laneList){
   root.addEventListener('drop', handlers.drop);
   WIRED_BOARDS.add(root);
   BOARD_HANDLERS.set(root, handlers);
-  HANDLER_COUNT += 1;
+  HANDLER_TOTAL += 1;
+  ACTIVE_HANDLERS += 1;
   exposeCounters();
 }
 

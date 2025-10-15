@@ -1,4 +1,4 @@
-import { openPartnerEdit } from '../partners_modal.js';
+import { openPartnerEditModal } from '../ui/partner_edit_modal.js';
 
 function ready(fn){
   if(typeof document === 'undefined'){ return; }
@@ -71,6 +71,12 @@ let dataWatcherAttached = false;
 
 function handleClick(event){
   const root = event.currentTarget;
+  const table = typeof root.closest === 'function'
+    ? root.closest('#tbl-partners')
+    : null;
+  if(table && table.getAttribute('data-mounted') === '1'){
+    return;
+  }
   const trigger = event.target && typeof event.target.closest === 'function'
     ? event.target.closest('a.partner-name, [data-role="partner-name"], [data-partner-id]')
     : null;
@@ -82,7 +88,7 @@ function handleClick(event){
   const normalized = normalizeId(id);
   if(!normalized) return;
   try{
-    const result = openPartnerEdit(normalized);
+    const result = openPartnerEditModal(normalized);
     if(result && typeof result.catch === 'function'){
       result.catch(err => {
         try{ console && console.warn && console.warn('openPartnerEdit failed', err); }

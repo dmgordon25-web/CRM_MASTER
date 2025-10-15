@@ -1,4 +1,5 @@
 import './dashboard/kpis.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 // app.js
 export function goto(hash){
@@ -836,7 +837,29 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
     longshots: { id: 'view-longshots', ui: 'longshots-root' },
     pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
-    partners: { id: 'view-partners', ui: 'partners-table' }
+    partners: {
+      id: 'view-partners',
+      ui: 'partners-table',
+      mount(root){
+        if(!root) return;
+        const table = root.querySelector('#tbl-partners');
+        if(!table) return;
+        if(table.getAttribute('data-mounted') === '1') return;
+        table.setAttribute('data-mounted', '1');
+        const handler = (event)=>{
+          const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
+          if(!trigger || !table.contains(trigger)) return;
+          if(trigger instanceof HTMLInputElement) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const row = trigger.closest('[data-id]');
+          const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
+          if(!partnerId) return;
+          openPartnerEditModal(partnerId);
+        };
+        table.addEventListener('click', handler);
+      }
+    }
   };
 
   let activeView = null;
@@ -1105,9 +1128,24 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const settingsButton = document.getElementById('btn-open-settings');
   const titleLink = document.getElementById('app-title-link');
 
+  function dispatchAppEvent(type, detail){
+    const payload = detail ? { detail } : undefined;
+    try {
+      if(typeof document !== 'undefined' && document?.dispatchEvent){
+        document.dispatchEvent(new CustomEvent(type, payload));
+      }
+    } catch (_) {}
+    try {
+      if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
+        window.dispatchEvent(new CustomEvent(type, payload));
+      }
+    } catch (_) {}
+  }
+
   function activate(view){
     const normalized = normalizeView(view);
     if(!normalized) return;
+    const previous = activeView;
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
     if(settingsButton){
@@ -1116,12 +1154,31 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    const lifecycle = VIEW_LIFECYCLE[normalized];
+    let root = null;
+    if(lifecycle && lifecycle.id){
+      root = document.getElementById(lifecycle.id);
+      if(root && lifecycle.ui && !root.getAttribute('data-ui')){
+        root.setAttribute('data-ui', lifecycle.ui);
+      }
+    }else{
+      root = document.getElementById('view-' + normalized) || null;
+    }
     if(normalized === 'pipeline'){
       applyPipelineStageFilterFromHash();
     }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
     if(normalized==='settings') renderExtrasRegistry();
+    if(previous !== normalized || root){
+      const detail = {
+        view: normalized,
+        previous: previous || null,
+        element: root
+      };
+      dispatchAppEvent('app:navigate', detail);
+      dispatchAppEvent('app:view:changed', detail);
+    }
   }
 
   function enforceDefaultRoute(){

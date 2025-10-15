@@ -447,13 +447,18 @@ function ensureMergeHandler() {
   if (mergeBtn.__mergeHandlerWired) return;
   const handler = (event) => {
     event.preventDefault();
+    const disabled = mergeBtn.getAttribute('data-disabled') === '1'
+      || mergeBtn.hasAttribute('disabled');
+    if (disabled) return;
     const selection = gatherCurrentSelection();
     if (!Array.isArray(selection) || selection.length < 2) {
-      showToast('warn', 'Select at least two items to merge');
+      mergeBtn.setAttribute('data-disabled', '1');
+      mergeBtn.setAttribute('aria-disabled', 'true');
+      mergeBtn.setAttribute('disabled', '');
       return;
     }
     try {
-      openMergeModal(selection);
+      openMergeModal(selection, { source: 'action-bar' });
     } catch (err) {
       console.warn('[action-bar] merge modal failed', err);
     }

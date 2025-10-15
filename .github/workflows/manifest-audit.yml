@@ -25,27 +25,10 @@ jobs:
           sudo apt-get update
           install_pkg() { sudo apt-get install -y "$1" || sudo apt-get install -y "$2" || true; }
           sudo apt-get install -y \
-            libatk-bridge2.0-0 \
-            libatk1.0-0 \
-            libnss3 \
-            libx11-xcb1 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxrandr2 \
-            libgbm1 \
-            libcups2 \
-            libpangocairo-1.0-0 \
-            libpango-1.0-0 \
-            libgtk-3-0 \
-            libxshmfence1 \
-            libdrm2 \
-            libxext6 \
-            libxss1 \
-            libxtst6 \
-            fonts-liberation \
-            xdg-utils \
-            ca-certificates
+            libatk-bridge2.0-0 libatk1.0-0 libnss3 libx11-xcb1 libxcomposite1 libxdamage1 \
+            libxfixes3 libxrandr2 libgbm1 libcups2 libpangocairo-1.0-0 libpango-1.0-0 \
+            libgtk-3-0 libxshmfence1 libdrm2 libxext6 libxss1 libxtst6 fonts-liberation \
+            xdg-utils ca-certificates
           install_pkg libasound2 libasound2t64
           install_pkg libappindicator3-1 libayatana-appindicator3-1
           sudo rm -rf /var/lib/apt/lists/*
@@ -53,7 +36,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '20'
           cache: 'npm'
         continue-on-error: false
 
