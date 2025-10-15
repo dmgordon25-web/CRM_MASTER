@@ -17,15 +17,7 @@ async function toggleCheckboxAndNotify(page, rootSelector, index, checked = true
     const boxes = Array.from(root.querySelectorAll('[data-ui="row-check"]'));
     const el = boxes[index];
     if (!el) throw new Error('checkbox index out of range');
-    const want = !!checked;
-    el.checked = want;
-    try {
-      const clickEvt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-      el.dispatchEvent(clickEvt);
-      if (!clickEvt.defaultPrevented) {
-        el.checked = want;
-      }
-    } catch {}
+    el.checked = !!checked;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }, { rootSelector, index, checked });
@@ -197,8 +189,6 @@ async function main() {
           const q = (s) => document.querySelectorAll(s).length;
           const n = q('#tbl-pipeline [data-ui="row-check"]:checked') +
                     q('#tbl-partners [data-ui="row-check"]:checked');
-          const bar = document.querySelector('[data-ui="action-bar"]');
-          if (bar) bar.setAttribute('data-visible', n > 0 ? '1' : '0');
           return n | 0;
         } catch {
           return 0;
@@ -516,8 +506,18 @@ async function main() {
         } catch {}
         return false;
       }, { timeout: 5000 }).catch(() => {});
-
-      await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
+      await page.waitForFunction(() => {
+        const el = document.querySelector('[data-ui="action-bar"]');
+        if (!el) return false;
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        const visibleByStyle = s.display !== 'none'
+          && s.visibility !== 'hidden'
+          && r.width > 0
+          && r.height > 0
+          && s.opacity !== '0';
+        return visibleByStyle && el.getAttribute('data-visible') === '1';
+      }, { timeout: 5000 });
 
       const ACTION_BTN_SELECTORS = [
         '[data-ui="action-bar"] [data-action="tag"]',
@@ -544,26 +544,17 @@ async function main() {
       }
     } catch (e) {
       try {
-        const diag = await page.evaluate(() => ({
-          havePartners: !!document.querySelector('#tbl-partners'),
-          havePipeline: !!document.querySelector('#tbl-pipeline'),
-          checkedP: document.querySelectorAll('#tbl-pipeline [data-ui="row-check"]:checked').length,
-          checkedR: document.querySelectorAll('#tbl-partners  [data-ui="row-check"]:checked').length,
-          sel: (window.__SEL_COUNT__ | 0),
-          svcCount: (() => {
-            try {
-              const svc = window.SelectionService;
-              if (typeof svc?.count === 'function') return svc.count();
-            } catch {}
-            try {
-              const fall = window.Selection;
-              if (typeof fall?.count === 'function') return fall.count();
-            } catch {}
-            return null;
-          })(),
-          barVisible: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null
+        console.log('[SMOKE DIAG]', JSON.stringify({
+          sel: await page.evaluate(() => (window.__SEL_COUNT__ | 0)),
+          barAttr: await page.evaluate(() => document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null),
+          barShown: await page.evaluate(() => {
+            const el = document.querySelector('[data-ui="action-bar"]');
+            if (!el) return false;
+            const s = getComputedStyle(el);
+            const r = el.getBoundingClientRect();
+            return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && s.opacity !== '0';
+          })
         }));
-        console.log('[SMOKE DIAG]', JSON.stringify(diag));
       } catch {}
       throw e;
     }
@@ -673,31 +664,31 @@ async function main() {
         return !!bar && bar.getAttribute('data-selection-type') === 'partners';
       }, { timeout: 5000 }).catch(() => {});
 
-      await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
-      const abVisible = await page.$('[data-ui="action-bar"][data-visible="1"]');
-      if (!abVisible) throw new Error('action-bar-not-visible');
+      await page.waitForFunction(() => {
+        const el = document.querySelector('[data-ui="action-bar"]');
+        if (!el) return false;
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        const visibleByStyle = s.display !== 'none'
+          && s.visibility !== 'hidden'
+          && r.width > 0
+          && r.height > 0
+          && s.opacity !== '0';
+        return visibleByStyle && el.getAttribute('data-visible') === '1';
+      }, { timeout: 5000 });
     } catch (e) {
       try {
-        const diag = await page.evaluate(() => ({
-          havePartners: !!document.querySelector('#tbl-partners'),
-          havePipeline: !!document.querySelector('#tbl-pipeline'),
-          checkedP: document.querySelectorAll('#tbl-pipeline [data-ui="row-check"]:checked').length,
-          checkedR: document.querySelectorAll('#tbl-partners  [data-ui="row-check"]:checked').length,
-          sel: (window.__SEL_COUNT__ | 0),
-          svcCount: (() => {
-            try {
-              const svc = window.SelectionService;
-              if (typeof svc?.count === 'function') return svc.count();
-            } catch {}
-            try {
-              const fall = window.Selection;
-              if (typeof fall?.count === 'function') return fall.count();
-            } catch {}
-            return null;
-          })(),
-          barVisible: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null
+        console.log('[SMOKE DIAG]', JSON.stringify({
+          sel: await page.evaluate(() => (window.__SEL_COUNT__ | 0)),
+          barAttr: await page.evaluate(() => document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null),
+          barShown: await page.evaluate(() => {
+            const el = document.querySelector('[data-ui="action-bar"]');
+            if (!el) return false;
+            const s = getComputedStyle(el);
+            const r = el.getBoundingClientRect();
+            return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && s.opacity !== '0';
+          })
         }));
-        console.log('[SMOKE DIAG]', JSON.stringify(diag));
       } catch {}
       throw e;
     }
