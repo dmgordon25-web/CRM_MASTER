@@ -1,4 +1,5 @@
 import './dashboard/kpis.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 // app.js
 export function goto(hash){
@@ -836,7 +837,29 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
     longshots: { id: 'view-longshots', ui: 'longshots-root' },
     pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
-    partners: { id: 'view-partners', ui: 'partners-table' }
+    partners: {
+      id: 'view-partners',
+      ui: 'partners-table',
+      mount(root){
+        if(!root) return;
+        const table = root.querySelector('#tbl-partners');
+        if(!table) return;
+        if(table.getAttribute('data-mounted') === '1') return;
+        table.setAttribute('data-mounted', '1');
+        const handler = (event)=>{
+          const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
+          if(!trigger || !table.contains(trigger)) return;
+          if(trigger instanceof HTMLInputElement) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const row = trigger.closest('[data-id]');
+          const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
+          if(!partnerId) return;
+          openPartnerEditModal(partnerId);
+        };
+        table.addEventListener('click', handler);
+      }
+    }
   };
 
   let activeView = null;
