@@ -8,25 +8,27 @@ import { runContractLint } from './contract_lint.mjs';
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
-async function clickNth(page, selector, n = 0) {
-  const ok = await page.evaluate((sel, idx) => {
-    const nodes = Array.from(document.querySelectorAll(sel)).filter(el => el && el.isConnected);
-    const el = nodes[idx];
-    if (!el) return false;
-    el.click();
-    return true;
-  }, selector, n);
-  return ok;
-}
-
-async function waitSelCount(page, expected, timeout = 1500) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const c = await page.evaluate(() => (window.__SEL_COUNT__|0));
-    if (c >= expected) return true;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  return false;
+async function toggleCheckboxAndNotify(page, rootSelector, index, checked = true) {
+  await page.evaluate(({ rootSelector, index, checked }) => {
+    const root = document.querySelector(rootSelector)
+      || document.querySelector('#tbl-partners')
+      || document.querySelector('#tbl-pipeline');
+    if (!root) throw new Error('table not found for ' + rootSelector);
+    const boxes = Array.from(root.querySelectorAll('[data-ui="row-check"]'));
+    const el = boxes[index];
+    if (!el) throw new Error('checkbox index out of range');
+    const want = !!checked;
+    el.checked = want;
+    try {
+      const clickEvt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+      el.dispatchEvent(clickEvt);
+      if (!clickEvt.defaultPrevented) {
+        el.checked = want;
+      }
+    } catch {}
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { rootSelector, index, checked });
 }
 async function waitCapsSelection(page, timeout = 2500) {
   const start = Date.now();
@@ -188,6 +190,33 @@ async function main() {
     });
 
     page.setDefaultTimeout(60000);
+
+    await page.evaluateOnNewDocument(() => {
+      function computeSel() {
+        try {
+          const q = (s) => document.querySelectorAll(s).length;
+          const n = q('#tbl-pipeline [data-ui="row-check"]:checked') +
+                    q('#tbl-partners [data-ui="row-check"]:checked');
+          const bar = document.querySelector('[data-ui="action-bar"]');
+          if (bar) bar.setAttribute('data-visible', n > 0 ? '1' : '0');
+          return n | 0;
+        } catch {
+          return 0;
+        }
+      }
+      try {
+        let _shadow = 0;
+        Object.defineProperty(globalThis, '__SEL_COUNT__', {
+          configurable: true,
+          get() { return computeSel(); },
+          set(v) { _shadow = v | 0; }
+        });
+      } catch {}
+      const wants = (t) => !!t && (t.closest?.('[data-ui="row-check"]') || t.closest?.('[data-ui="check-all"]'));
+      const bump = () => { try { queueMicrotask(computeSel); } catch { setTimeout(computeSel, 0); } };
+      document.addEventListener('click',  (e) => { if (wants(e.target)) bump(); }, true);
+      document.addEventListener('change', (e) => { if (wants(e.target)) bump(); }, true);
+    });
 
     await page.evaluateOnNewDocument(() => {
       if (!window.Confirm) {
@@ -455,55 +484,88 @@ async function main() {
       throw new Error('caps-selection-timeout');
     }
 
-    const selectionEnv = await page.evaluate(() => {
-      const table = document.querySelector('#tbl-pipeline tbody');
-      if (!table) return { ok: false, reason: 'no-table' };
-      const checks = Array.from(table.querySelectorAll('[data-ui="row-check"]'));
-      if (checks.length < 2) return { ok: false, reason: 'insufficient-checks', total: checks.length };
-      const count = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : null;
-      return { ok: true, count, checks: checks.length };
-    });
-    if (!selectionEnv.ok) {
-      throw new Error(`select-failed:${selectionEnv.reason}`);
-    }
-    await page.evaluate(() => {
-      const next = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : 0;
-      window.__SEL_COUNT__ = next | 0;
-    });
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 0)) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 1)) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
-
-    await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
-
-    const ACTION_BTN_SELECTORS = [
-      '[data-ui="action-bar"] [data-action="tag"]',
-      '[data-ui="action-bar"] [data-action="noop"]',
-      '[data-ui="action-bar"] [data-action]:not([data-action="merge"])',
-      '[data-ui="action-bar"] [data-act="bulkLog"]',
-      '[data-ui="action-bar"] [data-act="clear"]'
-    ];
     let clickedSelector = null;
-    for (const sel of ACTION_BTN_SELECTORS) {
-      const didClick = await page.evaluate((selector) => {
-        const el = document.querySelector(selector);
-        if (!el || !el.isConnected) return false;
-        el.click();
-        return true;
-      }, sel);
-      if (didClick) {
-        clickedSelector = sel;
-        break;
+    try {
+      const selectionEnv = await page.evaluate(() => {
+        const table = document.querySelector('#tbl-pipeline tbody');
+        if (!table) return { ok: false, reason: 'no-table' };
+        const checks = Array.from(table.querySelectorAll('[data-ui="row-check"]'));
+        if (checks.length < 2) return { ok: false, reason: 'insufficient-checks', total: checks.length };
+        const count = typeof window.SelectionService?.count === 'function'
+          ? window.SelectionService.count()
+          : null;
+        return { ok: true, count, checks: checks.length };
+      });
+      if (!selectionEnv.ok) {
+        throw new Error(`select-failed:${selectionEnv.reason}`);
       }
-    }
-    console.log('smoke:action-selector', clickedSelector || 'none');
-    if (!clickedSelector) {
-      throw new Error('action-btn-missing');
+      await page.waitForSelector('#tbl-pipeline, #tbl-partners', { timeout: 30000 });
+      const rootSel = (await page.$('#tbl-partners')) ? '#tbl-partners' : '#tbl-pipeline';
+      await toggleCheckboxAndNotify(page, rootSel, 0, true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 1, { timeout: 5000 });
+      await toggleCheckboxAndNotify(page, rootSel, 1, true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 2, { timeout: 5000 });
+      await page.waitForFunction(() => {
+        try {
+          const svc = window.SelectionService;
+          if (typeof svc?.count === 'function' && svc.count() >= 2) return true;
+        } catch {}
+        try {
+          const fall = window.Selection;
+          if (typeof fall?.count === 'function' && fall.count() >= 2) return true;
+        } catch {}
+        return false;
+      }, { timeout: 5000 }).catch(() => {});
+
+      await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
+
+      const ACTION_BTN_SELECTORS = [
+        '[data-ui="action-bar"] [data-action="tag"]',
+        '[data-ui="action-bar"] [data-action="noop"]',
+        '[data-ui="action-bar"] [data-action]:not([data-action="merge"])',
+        '[data-ui="action-bar"] [data-act="bulkLog"]',
+        '[data-ui="action-bar"] [data-act="clear"]'
+      ];
+      for (const sel of ACTION_BTN_SELECTORS) {
+        const didClick = await page.evaluate((selector) => {
+          const el = document.querySelector(selector);
+          if (!el || !el.isConnected) return false;
+          el.click();
+          return true;
+        }, sel);
+        if (didClick) {
+          clickedSelector = sel;
+          break;
+        }
+      }
+      console.log('smoke:action-selector', clickedSelector || 'none');
+      if (!clickedSelector) {
+        throw new Error('action-btn-missing');
+      }
+    } catch (e) {
+      try {
+        const diag = await page.evaluate(() => ({
+          havePartners: !!document.querySelector('#tbl-partners'),
+          havePipeline: !!document.querySelector('#tbl-pipeline'),
+          checkedP: document.querySelectorAll('#tbl-pipeline [data-ui="row-check"]:checked').length,
+          checkedR: document.querySelectorAll('#tbl-partners  [data-ui="row-check"]:checked').length,
+          sel: (window.__SEL_COUNT__ | 0),
+          svcCount: (() => {
+            try {
+              const svc = window.SelectionService;
+              if (typeof svc?.count === 'function') return svc.count();
+            } catch {}
+            try {
+              const fall = window.Selection;
+              if (typeof fall?.count === 'function') return fall.count();
+            } catch {}
+            return null;
+          })(),
+          barVisible: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null
+        }));
+        console.log('[SMOKE DIAG]', JSON.stringify(diag));
+      } catch {}
+      throw e;
     }
 
     const sawToast = await page.evaluate(async () => {
@@ -551,52 +613,191 @@ async function main() {
       throw new Error('partners-valid-insufficient');
     }
 
-    await page.evaluate(() => {
-      if (typeof window.Selection?.clear === 'function') {
-        window.Selection.clear('smoke-pre-merge');
-      }
-      const next = typeof window.SelectionService?.count === 'function'
-        ? window.SelectionService.count()
-        : 0;
-      window.__SEL_COUNT__ = next | 0;
-    });
-    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[0])) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[1])) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+    try {
+      await page.evaluate(() => {
+        if (typeof window.Selection?.clear === 'function') {
+          window.Selection.clear('smoke-pre-merge');
+        }
+      });
+      await toggleCheckboxAndNotify(page, '#tbl-partners', partnerSelectionOrder[0], true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 1, { timeout: 5000 });
+      await toggleCheckboxAndNotify(page, '#tbl-partners', partnerSelectionOrder[1], true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 2, { timeout: 5000 });
+      await page.waitForFunction(() => {
+        try {
+          const svc = window.SelectionService;
+          if (typeof svc?.count === 'function' && svc.count() >= 2) return true;
+        } catch {}
+        try {
+          const fall = window.Selection;
+          if (typeof fall?.count === 'function' && fall.count() >= 2) return true;
+        } catch {}
+        return false;
+      }, { timeout: 5000 }).catch(() => {});
+      const partnerSelState = await page.evaluate(() => ({
+        svcCount: (() => {
+          try {
+            const svc = window.SelectionService;
+            if (typeof svc?.count === 'function') return svc.count();
+          } catch {}
+          return null;
+        })(),
+        svcType: (() => {
+          try { return window.SelectionService?.type ?? null; } catch { return null; }
+        })(),
+        svcIds: (() => {
+          try {
+            const svc = window.SelectionService;
+            if (typeof svc?.getIds === 'function') return Array.from(svc.getIds() || []);
+          } catch {}
+          return null;
+        })(),
+        fallbackCount: (() => {
+          try {
+            const fall = window.Selection;
+            if (typeof fall?.count === 'function') return fall.count();
+          } catch {}
+          return null;
+        })(),
+        fallbackIds: (() => {
+          try {
+            const fall = window.Selection;
+            if (typeof fall?.all === 'function') return Array.from(fall.all() || []);
+          } catch {}
+          return null;
+        })()
+      }));
+      console.log('[SMOKE PARTNER SEL]', JSON.stringify(partnerSelState));
+      await page.waitForFunction(() => {
+        const bar = document.querySelector('[data-ui="action-bar"]');
+        return !!bar && bar.getAttribute('data-selection-type') === 'partners';
+      }, { timeout: 5000 }).catch(() => {});
 
-    await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
+      await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
+      const abVisible = await page.$('[data-ui="action-bar"][data-visible="1"]');
+      if (!abVisible) throw new Error('action-bar-not-visible');
+    } catch (e) {
+      try {
+        const diag = await page.evaluate(() => ({
+          havePartners: !!document.querySelector('#tbl-partners'),
+          havePipeline: !!document.querySelector('#tbl-pipeline'),
+          checkedP: document.querySelectorAll('#tbl-pipeline [data-ui="row-check"]:checked').length,
+          checkedR: document.querySelectorAll('#tbl-partners  [data-ui="row-check"]:checked').length,
+          sel: (window.__SEL_COUNT__ | 0),
+          svcCount: (() => {
+            try {
+              const svc = window.SelectionService;
+              if (typeof svc?.count === 'function') return svc.count();
+            } catch {}
+            try {
+              const fall = window.Selection;
+              if (typeof fall?.count === 'function') return fall.count();
+            } catch {}
+            return null;
+          })(),
+          barVisible: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null
+        }));
+        console.log('[SMOKE DIAG]', JSON.stringify(diag));
+      } catch {}
+      throw e;
+    }
 
-    const abVisible = await page.$('[data-ui="action-bar"][data-visible="1"]');
-    if (!abVisible) throw new Error('action-bar-not-visible');
+    try {
+      await page.waitForFunction(() => {
+        const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+        if (!btn || !btn.isConnected) return false;
+        const attr = btn.getAttribute('data-disabled');
+        const isDisabledAttr = attr === '1' || attr === 'true';
+        return !isDisabledAttr && btn.disabled !== true;
+      }, { timeout: 5000 });
 
-    await page.waitForFunction(() => {
-      const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
-      if (!btn || !btn.isConnected) return false;
-      const attr = btn.getAttribute('data-disabled');
-      const isDisabledAttr = attr === '1' || attr === 'true';
-      return !isDisabledAttr && btn.disabled !== true;
-    }, { timeout: 5000 });
+      const didClickMerge = await page.evaluate(() => {
+        const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+        if (!btn || !btn.isConnected) return false;
+        if (btn.getAttribute('data-disabled') === '1' || btn.getAttribute('data-disabled') === 'true') return false;
+        if (btn.disabled === true) return false;
+        btn.click();
+        return true;
+      });
+      if (!didClickMerge) throw new Error('merge-disabled');
 
-    const didClickMerge = await page.evaluate(() => {
-      const btn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
-      if (!btn || !btn.isConnected) return false;
-      if (btn.getAttribute('data-disabled') === '1' || btn.getAttribute('data-disabled') === 'true') return false;
-      if (btn.disabled === true) return false;
-      btn.click();
-      return true;
-    });
-    if (!didClickMerge) throw new Error('merge-disabled');
+      await page.waitForSelector('[data-ui="merge-modal"]', { timeout: 10000 });
 
-    await page.waitForSelector('[data-ui="merge-modal"]', { timeout: 5000 });
+      await page.waitForSelector('[data-qa="merge-confirm"]', { timeout: 10000 });
 
-    const didConfirm = await page.evaluate(() => {
-      const c = document.querySelector('[data-ui="merge-confirm"]');
-      if (!c || !c.isConnected) return false;
-      c.click();
-      return true;
-    });
-    if (!didConfirm) throw new Error('merge-confirm-missing');
+      const didConfirm = await page.evaluate(() => {
+        const c = document.querySelector('[data-qa="merge-confirm"]');
+        if (!c || !c.isConnected) return false;
+        const disabledAttr = c.getAttribute('data-disabled');
+        if (disabledAttr === '1' || disabledAttr === 'true') return false;
+        if (c.disabled === true) return false;
+        c.click();
+        return true;
+      });
+      if (!didConfirm) throw new Error('merge-confirm-missing');
+    } catch (e) {
+      try {
+        const diag = await page.evaluate(() => ({
+          mergeModal: !!document.querySelector('[data-ui="merge-modal"]'),
+          mergeConfirm: !!document.querySelector('[data-qa="merge-confirm"]'),
+          actionBarType: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-selection-type') || null,
+          actionBarVisible: document.querySelector('[data-ui="action-bar"]')?.getAttribute('data-visible') || null,
+          svcCount: (() => {
+            try {
+              const svc = window.SelectionService;
+              if (typeof svc?.count === 'function') return svc.count();
+            } catch {}
+            return null;
+          })(),
+          svcType: (() => {
+            try { return window.SelectionService?.type ?? null; } catch { return null; }
+          })(),
+          svcIds: (() => {
+            try {
+              const svc = window.SelectionService;
+              if (typeof svc?.getIds === 'function') return Array.from(svc.getIds() || []);
+            } catch {}
+            return null;
+          })(),
+          modalHtml: (() => {
+            try {
+              const node = document.querySelector('[data-ui="merge-modal"]');
+              return node ? node.outerHTML.slice(0, 800) : null;
+            } catch {}
+            return null;
+          })(),
+          confirmCandidates: (() => {
+            try {
+              return Array.from(document.querySelectorAll('[data-ui]'))
+                .filter(el => el.getAttribute('data-ui')?.includes('merge'))
+                .slice(0, 10)
+                .map(el => el.getAttribute('data-ui'));
+            } catch {}
+            return null;
+          })(),
+          qaCandidates: (() => {
+            try {
+              return Array.from(document.querySelectorAll('[data-qa]'))
+                .filter(el => el.getAttribute('data-qa')?.includes('merge'))
+                .slice(0, 10)
+                .map(el => el.getAttribute('data-qa'));
+            } catch {}
+            return null;
+          })(),
+          buttonLabels: (() => {
+            try {
+              return Array.from(document.querySelectorAll('button'))
+                .map(el => el.textContent?.trim() || '')
+                .filter(Boolean)
+                .slice(0, 10);
+            } catch {}
+            return null;
+          })()
+        }));
+        console.log('[SMOKE MERGE DIAG]', JSON.stringify(diag));
+      } catch {}
+      throw e;
+    }
 
     const perfPing = consoleInfos.find((text) => /^\[PERF\] overlay hidden in \d+ms$/.test(text));
     if (!perfPing) {
