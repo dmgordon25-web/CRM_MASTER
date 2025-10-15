@@ -8,11 +8,12 @@
 
 1. `npm ci`
 2. `npm run verify:build`
+3. `node tools/node_static_server.js crm-app` (then browse to `http://127.0.0.1:8080/`)
 
 Additional guardrails:
 
 - **SAFE mode** – append `?safe=1` (or set `window.__SAFE_MODE__ = true` before boot) to load only CORE modules and HARD probes. Use this when isolating loader regressions; patches and experimental panels stay dormant.
-- **Patches stay pure** – PATCH modules must ship with **no** top-level side-effects. Keep DOM reads, timers, and storage access inside readiness hooks so Safe Mode and the boot contracts stay deterministic.
+- **Patches stay pure** – PATCH modules must ship with **no** top-level side-effects. Keep DOM reads, timers, and storage access inside readiness hooks so Safe Mode and the boot contracts stay deterministic and warn-cap compliant.
 
 ## Boot discipline
 

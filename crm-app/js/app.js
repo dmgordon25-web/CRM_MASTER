@@ -1105,9 +1105,24 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const settingsButton = document.getElementById('btn-open-settings');
   const titleLink = document.getElementById('app-title-link');
 
+  function dispatchAppEvent(type, detail){
+    const payload = detail ? { detail } : undefined;
+    try {
+      if(typeof document !== 'undefined' && document?.dispatchEvent){
+        document.dispatchEvent(new CustomEvent(type, payload));
+      }
+    } catch (_) {}
+    try {
+      if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
+        window.dispatchEvent(new CustomEvent(type, payload));
+      }
+    } catch (_) {}
+  }
+
   function activate(view){
     const normalized = normalizeView(view);
     if(!normalized) return;
+    const previous = activeView;
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
     if(settingsButton){
@@ -1116,12 +1131,31 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    const lifecycle = VIEW_LIFECYCLE[normalized];
+    let root = null;
+    if(lifecycle && lifecycle.id){
+      root = document.getElementById(lifecycle.id);
+      if(root && lifecycle.ui && !root.getAttribute('data-ui')){
+        root.setAttribute('data-ui', lifecycle.ui);
+      }
+    }else{
+      root = document.getElementById('view-' + normalized) || null;
+    }
     if(normalized === 'pipeline'){
       applyPipelineStageFilterFromHash();
     }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
     if(normalized==='settings') renderExtrasRegistry();
+    if(previous !== normalized || root){
+      const detail = {
+        view: normalized,
+        previous: previous || null,
+        element: root
+      };
+      dispatchAppEvent('app:navigate', detail);
+      dispatchAppEvent('app:view:changed', detail);
+    }
   }
 
   function enforceDefaultRoute(){
