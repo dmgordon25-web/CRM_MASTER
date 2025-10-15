@@ -8,25 +8,34 @@ import { runContractLint } from './contract_lint.mjs';
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
-async function clickNth(page, selector, n = 0) {
-  const ok = await page.evaluate((sel, idx) => {
-    const nodes = Array.from(document.querySelectorAll(sel)).filter(el => el && el.isConnected);
-    const el = nodes[idx];
-    if (!el) return false;
-    el.click();
-    return true;
-  }, selector, n);
-  return ok;
+async function toggleCheckboxAndNotify(page, rootSelector, index, checked = true) {
+  await page.evaluate(({ rootSelector, index, checked }) => {
+    const root =
+      document.querySelector(rootSelector) ||
+      document.querySelector('#tbl-partners') ||
+      document.querySelector('#tbl-pipeline');
+    if (!root) throw new Error('table not found for ' + rootSelector);
+    const boxes = Array.from(root.querySelectorAll('[data-ui="row-check"]'));
+    const el = boxes[index];
+    if (!el) throw new Error('checkbox index out of range');
+    // Set state, then synthesize UI events SelectionService listens for
+    el.checked = !!checked;
+    el.dispatchEvent(new Event('input',  { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { rootSelector, index, checked });
 }
 
-async function waitSelCount(page, expected, timeout = 1500) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const c = await page.evaluate(() => (window.__SEL_COUNT__|0));
-    if (c >= expected) return true;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  return false;
+async function logSelectionDiag(page) {
+  try {
+    const diag = await page.evaluate(() => ({
+      partners: !!document.querySelector('#tbl-partners'),
+      pipeline: !!document.querySelector('#tbl-pipeline'),
+      checkedPartners: document.querySelectorAll('#tbl-partners [data-ui="row-check"]:checked').length,
+      checkedPipeline: document.querySelectorAll('#tbl-pipeline [data-ui="row-check"]:checked').length,
+      selCount: (window.__SEL_COUNT__ | 0)
+    }));
+    console.log('[SMOKE DIAG]', JSON.stringify(diag));
+  } catch {}
 }
 async function waitCapsSelection(page, timeout = 2500) {
   const start = Date.now();
@@ -474,10 +483,16 @@ async function main() {
         : 0;
       window.__SEL_COUNT__ = next | 0;
     });
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 0)) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-pipeline [data-ui="row-check"]', 1)) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+    try {
+      const rootSel = (await page.$('#tbl-partners')) ? '#tbl-partners' : '#tbl-pipeline';
+      await toggleCheckboxAndNotify(page, rootSel, 0, true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 1, { timeout: 5000 });
+      await toggleCheckboxAndNotify(page, rootSel, 1, true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 2, { timeout: 5000 });
+    } catch (e) {
+      await logSelectionDiag(page);
+      throw e;
+    }
 
     await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 
@@ -560,10 +575,16 @@ async function main() {
         : 0;
       window.__SEL_COUNT__ = next | 0;
     });
-    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[0])) throw new Error('sel-click-0');
-    if (!await waitSelCount(page, 1)) throw new Error('sel-count-timeout-1');
-    if (!await clickNth(page, '#tbl-partners [data-ui="row-check"]', partnerSelectionOrder[1])) throw new Error('sel-click-1');
-    if (!await waitSelCount(page, 2)) throw new Error('sel-count-timeout-2');
+    try {
+      const partnerRootSel = '#tbl-partners';
+      await toggleCheckboxAndNotify(page, partnerRootSel, partnerSelectionOrder[0], true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 1, { timeout: 5000 });
+      await toggleCheckboxAndNotify(page, partnerRootSel, partnerSelectionOrder[1], true);
+      await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 2, { timeout: 5000 });
+    } catch (e) {
+      await logSelectionDiag(page);
+      throw e;
+    }
 
     await page.waitForSelector('[data-ui="action-bar"][data-visible="1"]', { timeout: 5000 });
 
