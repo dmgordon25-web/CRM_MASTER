@@ -29,6 +29,7 @@ async function waitCapsSelection(page, timeout = 2500) {
       const caps = window.__CAPS__;
       if (!caps || typeof caps !== 'object') return false;
       const sel = caps.selection;
+      if (typeof sel === 'boolean') return sel;
       if (!sel || typeof sel !== 'object') return false;
       if (sel.ok === false) return false;
       if (sel.ok === true) return true;
@@ -159,13 +160,20 @@ async function main() {
         case 'error':
           consoleErrors.push(text);
           break;
-        case 'warning':
+        case 'warning': {
+          let allow = false;
           try {
             const t = text || '';
-            if (!WARN_ALLOW.some(rx => rx.test(t))) warnCount++;
+            allow = WARN_ALLOW.some(rx => rx.test(t));
           } catch {}
-          consoleWarnings.push(text);
+          if (allow) {
+            consoleInfos.push(text);
+          } else {
+            warnCount++;
+            consoleWarnings.push(text);
+          }
           break;
+        }
         case 'info':
           consoleInfos.push(text);
           break;

@@ -75,6 +75,11 @@ function showPartnerModal(root){
 function ensurePartnerModalRoot(){
   if(typeof document === 'undefined') return null;
   if(partnerModalRoot && document.body && document.body.contains(partnerModalRoot)){
+    if(!partnerModalRoot.getAttribute('data-ui')){
+      try { partnerModalRoot.setAttribute('data-ui', 'partner-edit-modal'); }
+      catch (_err) {}
+      if(partnerModalRoot.dataset){ partnerModalRoot.dataset.ui = partnerModalRoot.dataset.ui || 'partner-edit-modal'; }
+    }
     return partnerModalRoot;
   }
   const legacy = document.getElementById('partner-modal');
@@ -87,6 +92,8 @@ function ensurePartnerModalRoot(){
       if(!wrapper.classList.contains('modal')) wrapper.classList.add('modal');
       wrapper.classList.add('partner-edit-modal');
       wrapper.dataset.qa = 'partner-edit-modal';
+      wrapper.dataset.ui = 'partner-edit-modal';
+      wrapper.setAttribute('data-ui', 'partner-edit-modal');
       wrapper.setAttribute('role', 'dialog');
       wrapper.setAttribute('aria-modal', 'true');
       wrapper.setAttribute('aria-hidden', 'true');
@@ -101,6 +108,8 @@ function ensurePartnerModalRoot(){
       legacy.setAttribute('aria-hidden', legacy.getAttribute('aria-hidden') || 'true');
       if(!legacy.classList.contains('modal')) legacy.classList.add('modal');
       legacy.classList.add('partner-edit-modal');
+      legacy.dataset.ui = legacy.dataset.ui || 'partner-edit-modal';
+      legacy.setAttribute('data-ui', legacy.getAttribute('data-ui') || 'partner-edit-modal');
       legacy.style.display = legacy.style.display || 'none';
       partnerModalRoot = legacy;
     }
@@ -109,6 +118,8 @@ function ensurePartnerModalRoot(){
     wrapper.id = 'partner-modal';
     wrapper.className = 'modal partner-edit-modal';
     wrapper.dataset.qa = 'partner-edit-modal';
+    wrapper.dataset.ui = 'partner-edit-modal';
+    wrapper.setAttribute('data-ui', 'partner-edit-modal');
     wrapper.setAttribute('role', 'dialog');
     wrapper.setAttribute('aria-modal', 'true');
     wrapper.setAttribute('aria-hidden', 'true');
@@ -123,6 +134,12 @@ function ensurePartnerModalRoot(){
   }
   if(partnerModalRoot && !partnerModalRoot.dataset.qa){
     partnerModalRoot.dataset.qa = 'partner-edit-modal';
+  }
+  if(partnerModalRoot && !partnerModalRoot.getAttribute('data-ui')){
+    partnerModalRoot.setAttribute('data-ui', 'partner-edit-modal');
+  }
+  if(partnerModalRoot && partnerModalRoot.dataset){
+    partnerModalRoot.dataset.ui = partnerModalRoot.dataset.ui || 'partner-edit-modal';
   }
   if(partnerModalRoot && !partnerModalRoot.__overlayWired){
     partnerModalRoot.__overlayWired = true;

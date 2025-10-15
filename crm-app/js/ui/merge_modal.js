@@ -67,7 +67,7 @@ function formatLegacyValue(value) {
 function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
   if (typeof document === 'undefined') return null;
   if (window[ACTIVE_GUARD]) {
-    console.warn('[merge-modal] already open');
+    console.info('[merge-modal] already open');
     return activeModal;
   }
   window[ACTIVE_GUARD] = true;
@@ -242,6 +242,102 @@ async function mergeRecords(primary, secondaries) {
   return { primary: { ...primary, record: primaryRecord }, secondaries: mergedSecondaries, merged: primaryRecord };
 }
 
+function inferSelectionTypeFromItems(primary, secondaries, items) {
+  const candidates = [];
+  const push = (entry) => {
+    if (!entry) return;
+    const scope = entry.scope || entry.record?.scope;
+    if (typeof scope === 'string' && scope.trim()) {
+      candidates.push(String(scope).trim().toLowerCase());
+    }
+  };
+  push(primary);
+  (Array.isArray(secondaries) ? secondaries : []).forEach(push);
+  (Array.isArray(items) ? items : []).forEach(push);
+  for (const candidate of candidates) {
+    if (candidate.includes('partner')) return 'partners';
+    if (candidate.includes('contact')) return 'contacts';
+  }
+  return candidates.find((value) => value) || 'contacts';
+}
+
+function dispatchUiMerge(detail) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('ui:merge', { detail }));
+      return;
+    }
+  } catch (err) {
+    console.warn('[merge-modal] ui:merge dispatch failed', err);
+  }
+  try {
+    if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+      document.dispatchEvent(new CustomEvent('ui:merge', { detail }));
+    }
+  } catch (err) {
+    console.warn('[merge-modal] ui:merge fallback dispatch failed', err);
+  }
+}
+
+async function delegateSelectionMerge(context = {}) {
+  if (typeof window === 'undefined') return false;
+  const { primary, secondaries = [], type } = context;
+  const primaryId = primary?.id != null ? String(primary.id) : '';
+  const target = Array.isArray(secondaries) ? secondaries.find((entry) => entry?.id != null) : null;
+  if (!primaryId || !target) return false;
+  const secondaryId = String(target.id);
+  const pair = [primaryId, secondaryId];
+  const scope = (type || '').toLowerCase();
+
+  const crm = window.CRM || {};
+  const modules = crm.modules || {};
+
+  const delegates = [];
+  if (scope === 'partners') {
+    delegates.push(
+      modules.partnersMergeOrchestrator?.openPartnersMergeByIds,
+      window.openPartnersMergeByIds
+    );
+  } else {
+    delegates.push(
+      window.mergeContactsWithIds,
+      modules.contactsMerge?.mergeContactsWithIds,
+      modules.contactsMergeOrchestrator?.openContactsMergeByIds,
+      window.openContactsMergeByIds
+    );
+  }
+
+  const svc = window.MergeService;
+  if (svc && typeof svc === 'object') {
+    if (typeof svc.merge === 'function') {
+      delegates.push((a, b) => svc.merge({ type: scope || 'contacts', primaryId: a, secondaryId: b }));
+    }
+    if (scope !== 'partners' && typeof svc.mergeContacts === 'function') {
+      delegates.push((a, b) => svc.mergeContacts(a, b));
+    }
+    if (scope === 'partners' && typeof svc.mergePartners === 'function') {
+      delegates.push((a, b) => svc.mergePartners(a, b));
+    }
+  }
+
+  for (const fn of delegates) {
+    if (typeof fn !== 'function') continue;
+    try {
+      const result = fn.length > 1 ? fn(primaryId, secondaryId) : fn(pair);
+      const resolved = await result;
+      if (resolved && typeof resolved === 'object') {
+        if (resolved.status === 'cancel') continue;
+        if (resolved.status === 'error') continue;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[merge-modal] delegate failed', err);
+    }
+  }
+
+  return false;
+}
+
 function buildContainer() {
   const overlay = document.createElement('div');
   overlay.dataset.qa = 'merge-modal';
@@ -347,10 +443,10 @@ function describeItem(item) {
   return wrap;
 }
 
-function renderSelectionModal(items) {
+function renderSelectionModal(items, options = {}) {
   if (typeof document === 'undefined') return null;
   if (window[ACTIVE_GUARD]) {
-    console.warn('[merge-modal] already open');
+    console.info('[merge-modal] already open');
     return activeModal;
   }
   window[ACTIVE_GUARD] = true;
@@ -419,6 +515,7 @@ function renderSelectionModal(items) {
   const confirmBtn = document.createElement('button');
   confirmBtn.type = 'button';
   confirmBtn.dataset.qa = 'merge-confirm';
+  confirmBtn.dataset.ui = 'merge-confirm';
   confirmBtn.textContent = 'Merge';
   confirmBtn.style.padding = '8px 20px';
   confirmBtn.style.border = 'none';
@@ -587,18 +684,58 @@ function renderSelectionModal(items) {
     if (!primaryId || !secondaryIds.size) return;
     submitting = true;
     updateState();
+
+    const primary = items.find((item) => item.id === primaryId) || null;
+    const chosen = items.filter((item) => secondaryIds.has(item.id));
+    const type = inferSelectionTypeFromItems(primary, chosen, items);
+    const secondaryIdsList = chosen
+      .map((entry) => (entry && entry.id != null ? String(entry.id) : ''))
+      .filter((value) => value);
+    const context = {
+      source: options && typeof options === 'object' ? options.source || null : null,
+      items: items.slice(),
+      primary,
+      secondaries: chosen,
+      primaryId,
+      secondaryIds: secondaryIdsList,
+      type,
+      ids: [primaryId, ...secondaryIdsList]
+    };
+
+    close({ silent: true });
+
+    let handled = false;
     try {
-      const primary = items.find((item) => item.id === primaryId);
-      const secondaries = items.filter((item) => secondaryIds.has(item.id));
-      const result = await mergeRecords(primary, secondaries);
-      showToast('success', 'Merged');
-      dispatchMergeEvent('merge:complete', { primary: result.primary, secondaries: result.secondaries });
-      close();
+      if (options && typeof options.onConfirm === 'function') {
+        handled = await options.onConfirm(context);
+      } else {
+        handled = await delegateSelectionMerge(context);
+      }
     } catch (err) {
-      console.warn('[merge-modal] merge failed', err);
-      submitting = false;
-      updateState();
+      console.warn('[merge-modal] confirm delegate failed', err);
     }
+
+    if (!handled) {
+      let result = null;
+      try {
+        result = await mergeRecords(primary, chosen);
+      } catch (err) {
+        console.warn('[merge-modal] merge preview failed', err);
+      }
+      const detail = {
+        type,
+        source: context.source,
+        primary,
+        secondaries: chosen,
+        items: context.items,
+        ids: context.ids,
+        result
+      };
+      dispatchUiMerge(detail);
+      dispatchMergeEvent('merge:complete', detail);
+    }
+
+    dispatchMergeEvent('merge:closed', { delegated: handled, type, ids: context.ids });
   };
 
   confirmBtn.addEventListener('click', confirm);
@@ -613,15 +750,15 @@ function renderSelectionModal(items) {
   return activeModal;
 }
 
-export function openMergeModal(items) {
+export function openMergeModal(items, options = {}) {
   if (isLegacyOptions(items)) {
     return openLegacyMergeModal(items);
   }
 
   const normalized = normalizeItems(items);
   if (normalized.length < 2) {
-    console.warn('[merge-modal] at least two items required');
+    console.info('[merge-modal] at least two items required');
     return null;
   }
-  return renderSelectionModal(normalized);
+  return renderSelectionModal(normalized, options);
 }

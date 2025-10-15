@@ -10,6 +10,12 @@ Boot contracts keep the loader deterministic. They expose tiny, idempotent readi
 4. **SOFT prerequisites** – executed only after the overlay hides. SOFT probes return `false` while a feature warms up but must never throw. They may emit a one-time `console.info` during warm-up, but must go quiet once the feature is ready.
 5. **Patches** – optional modules load after SOFT probes schedule, unless Safe Mode disables them. Never promote a PATCH into CORE without a dedicated readiness shim.
 
+### HARD vs SOFT in practice
+
+- **HARD** checks guard the boot overlay: every failure keeps the diagnostics curtain visible and aborts navigation. HARD probes can only emit a single `[BOOT] HARD failed: …` error before the loader stops.
+- **SOFT** checks light up telemetry without blocking boot. They may return `false` until a feature is usable, but must stay silent and deterministic while warming up. SOFT probes update the capability registry so downstream patches can no-op safely.
+- The `crm-app/js/core/capabilities_probe.js` shim snapshots both phases into `window.__CAPS__`, exposing booleans such as `toast`, `confirm`, `renderAll`, and `selection`. The smoke suite flips routes and asserts that these flags stay truthful across view changes.
+
 The diagnostics overlay hides exactly once the HARD phase succeeds. A `[PERF] overlay hidden in <ms>` info log captures that moment so the smoke test can assert the boot budget without relying on timers.
 
 ## HARD prerequisite checklist
@@ -42,6 +48,7 @@ Each SOFT probe pairs with a capability canary exercised by the smoke suite:
 - **Merge dialog** – open/close workflow validates modal wiring and service subscriptions.
 - **Navigation shell** – route transitions (`Dashboard → Long Shots → Pipeline → Partners`) stay error-free.
 - **Calendar bridge** – ensures event hydration and timezone formatting succeed.
+- **Capability registry** – `window.__CAPS__` flips `toast`, `confirm`, `renderAll`, and `selection` booleans as routes change so diagnostics can assert parity between HARD/SOFT promotions.
 
 Adding a new canary? Document its selector or hook here and extend `tools/boot_smoke_test.mjs`.
 
@@ -49,7 +56,7 @@ Adding a new canary? Document its selector or hook here and extend `tools/boot_s
 
 - **Zero console errors** outside module import/HARD prerequisite failures. Any other `console.error` is a release blocker.
 - **Manifest discipline** – every script in `/crm-app/js` and `/crm-app/js/patches` appears exactly once in the loader manifest; SAFE-only entries set `safe:false` explicitly.
-- **Capability gaps gate CI** – smoke canaries fail fast when a capability hook throws, returns the wrong shape, or logs an unexpected error. CI surfaces the first failure and the PR must fix or extend the contract before merge.
+- **Capability gaps gate CI** – smoke canaries fail fast when a capability hook throws, returns the wrong shape, logs unexpected errors, or trips the console warn cap. CI surfaces the first failure and the PR must fix or extend the contract before merge.
 
 ## Console discipline
 
