@@ -1,627 +1,252 @@
 import { chooseValue } from '../merge/merge_core.js';
 
-const ACTIVE_GUARD = '__MERGE_MODAL_ACTIVE__';
-let activeModal = null;
+let mergeModalEl = null;
+let modalState = { mode: null, ids: [], legacy: null };
 
-function showToast(kind, message) {
-  const text = String(message == null ? '' : message).trim();
-  if (!text) return;
-  const toast = typeof window !== 'undefined' ? window.Toast : undefined;
-  if (toast && typeof toast[kind] === 'function') {
-    try { toast[kind](text); return; }
-    catch (_) {}
-  }
-  if (toast && typeof toast.show === 'function') {
-    try { toast.show(text); return; }
-    catch (_) {}
-  }
-  const legacy = typeof window !== 'undefined' ? window.toast : undefined;
-  if (typeof legacy === 'function') {
-    try { legacy(text); }
-    catch (_) {}
-  }
-}
+function ensureModal(){
+  if (mergeModalEl && mergeModalEl.isConnected) return mergeModalEl;
+  const modal = document.createElement('div');
+  modal.setAttribute('data-ui', 'merge-modal');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.style.position = 'fixed';
+  modal.style.inset = '0';
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  modal.style.backgroundColor = 'rgba(15, 23, 42, 0.6)';
+  modal.style.zIndex = '2147483647';
+  modal.style.padding = '16px';
 
-function dispatchMergeEvent(name, detail) {
-  if (typeof document === 'undefined' || typeof document.dispatchEvent !== 'function') return;
-  try {
-    document.dispatchEvent(new CustomEvent(name, { detail }));
-  } catch (err) {
-    console.warn('[merge-modal] dispatch failed', err);
-  }
-}
+  const content = document.createElement('div');
+  content.setAttribute('data-ui', 'merge-content');
+  content.style.background = '#fff';
+  content.style.borderRadius = '8px';
+  content.style.minWidth = '280px';
+  content.style.maxWidth = '420px';
+  content.style.width = '100%';
+  content.style.boxShadow = '0 20px 45px rgba(15, 23, 42, 0.2)';
+  content.style.padding = '20px';
+  content.style.color = '#0f172a';
+  content.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-function isLegacyOptions(value) {
-  if (!value || typeof value !== 'object') return false;
-  if (Array.isArray(value)) return false;
-  const keys = ['recordA', 'recordB', 'onConfirm', 'onCancel'];
-  return keys.some((key) => key in value);
-}
+  const heading = document.createElement('h2');
+  heading.textContent = 'Merge';
+  heading.style.margin = '0 0 16px';
+  heading.style.fontSize = '20px';
+  heading.style.lineHeight = '1.2';
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[char] || char));
-}
+  const columns = document.createElement('div');
+  columns.setAttribute('data-ui', 'merge-columns');
+  columns.style.display = 'grid';
+  columns.style.gridTemplateColumns = '1fr 1fr';
+  columns.style.gap = '12px';
+  columns.style.marginBottom = '20px';
 
-function formatLegacyValue(value) {
-  try {
-    if (value == null) return '';
-    if (typeof value === 'string') return escapeHtml(value);
-    if (typeof value === 'number' || typeof value === 'boolean') return escapeHtml(String(value));
-    if (Array.isArray(value)) {
-      const mapped = value.map((entry) => (typeof entry === 'object' ? JSON.stringify(entry) : String(entry)));
-      return escapeHtml(mapped.join(', '));
-    }
-    return escapeHtml(JSON.stringify(value));
-  } catch (err) {
-    console.warn('[merge-modal] value format failed', err);
-    return '';
-  }
-}
+  const left = document.createElement('div');
+  left.setAttribute('data-ui', 'merge-left');
+  left.style.padding = '12px';
+  left.style.border = '1px solid rgba(148, 163, 184, 0.6)';
+  left.style.borderRadius = '6px';
+  left.style.wordBreak = 'break-word';
+  left.style.background = 'rgba(248, 250, 252, 0.8)';
 
-function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
-  if (typeof document === 'undefined') return null;
-  if (window[ACTIVE_GUARD]) {
-    console.warn('[merge-modal] already open');
-    return activeModal;
-  }
-  window[ACTIVE_GUARD] = true;
+  const right = document.createElement('div');
+  right.setAttribute('data-ui', 'merge-right');
+  right.style.padding = '12px';
+  right.style.border = '1px solid rgba(148, 163, 184, 0.6)';
+  right.style.borderRadius = '6px';
+  right.style.wordBreak = 'break-word';
+  right.style.background = 'rgba(248, 250, 252, 0.8)';
 
-  const fields = Array.from(new Set([
-    ...Object.keys(recordA || {}),
-    ...Object.keys(recordB || {}),
-  ])).filter((field) => !/^id$/i.test(field)
-    && !/^createdAt$/i.test(field)
-    && !/^updatedAt$/i.test(field)
-    && !/^__/.test(field));
-
-  const template = document.createElement('template');
-  template.innerHTML = `
-<div class="merge-overlay" data-ui="legacy-merge-modal" data-qa="merge-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
-  <div class="merge-modal" style="background:#fff;min-width:720px;max-width:960px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
-      <div style="font-size:18px;font-weight:600;">Merge ${kind === 'contacts' ? 'Contacts' : kind === 'partners' ? 'Partners' : 'Records'}</div>
-      <button class="merge-close" aria-label="Close" style="border:none;background:transparent;font-size:20px;cursor:pointer;">×</button>
-    </div>
-    <div style="padding:12px 16px;">
-      <div style="display:grid;grid-template-columns:1fr 120px 1fr;gap:8px;align-items:center;font-weight:600;margin-bottom:8px;">
-        <div>A</div><div style="text-align:center;">Field</div><div style="text-align:right;">B</div>
-      </div>
-      <div class="merge-rows" style="max-height:52vh;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;">
-        ${fields.map((field) => {
-          const choice = chooseValue(field, recordA, recordB).from;
-          const valueA = formatLegacyValue(recordA?.[field]);
-          const valueB = formatLegacyValue(recordB?.[field]);
-          const safeField = escapeHtml(field);
-          return `
-          <div class="merge-row" data-field="${safeField}" style="display:grid;grid-template-columns:1fr 120px 1fr;gap:8px;align-items:start;padding:6px 0;border-bottom:1px solid #f6f6f6;">
-            <label style="display:flex;gap:6px;align-items:flex-start;">
-              <input type="radio" name="pick:${safeField}" value="A" ${choice === 'A' ? 'checked' : ''}/>
-              <div style="white-space:pre-wrap;">${valueA}</div>
-            </label>
-            <div style="text-align:center;color:#555;font-size:12px;">${safeField}</div>
-            <label style="display:flex;gap:6px;align-items:flex-start;justify-content:flex-end;">
-              <div style="white-space:pre-wrap;text-align:right;">${valueB}</div>
-              <input type="radio" name="pick:${safeField}" value="B" ${choice === 'B' ? 'checked' : ''}/>
-            </label>
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-        <button class="merge-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Cancel</button>
-        <button class="merge-confirm" data-ui="merge-confirm" style="padding:8px 12px;border-radius:8px;border:1px solid #2b7;background:#2b7;color:#fff;cursor:pointer;">Merge</button>
-      </div>
-    </div>
-  </div>
-</div>`.trim();
-
-  const modal = template.content.firstElementChild;
-  if (!modal) {
-    window[ACTIVE_GUARD] = false;
-    console.warn('[merge-modal] failed to create legacy modal');
-    return null;
-  }
-
-  document.body.appendChild(modal);
-  dispatchMergeEvent('merge:open', { count: 2, kind });
-
-  const close = ({ triggerCancel = false } = {}) => {
-    try { modal.remove(); } catch (err) {
-      console.warn('[merge-modal] close failed', err);
-    }
-    window[ACTIVE_GUARD] = false;
-    activeModal = null;
-    if (triggerCancel) {
-      try { onCancel?.(); }
-      catch (err) { console.warn('[merge-modal] cancel failed', err); }
-      dispatchMergeEvent('merge:cancel', { kind });
-    }
-  };
-
-  modal.querySelector('.merge-close')?.addEventListener('click', () => close({ triggerCancel: true }));
-  modal.querySelector('.merge-cancel')?.addEventListener('click', () => close({ triggerCancel: true }));
-
-  const confirmBtn = modal.querySelector('.merge-confirm');
-  let submitting = false;
-  const setSubmitting = (state) => {
-    submitting = state;
-    if (!confirmBtn) return;
-    confirmBtn.disabled = state;
-    confirmBtn.style.opacity = state ? '0.7' : '';
-    confirmBtn.style.cursor = state ? 'default' : 'pointer';
-  };
-
-  confirmBtn?.addEventListener('click', async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    const picks = {};
-    modal.querySelectorAll('.merge-row').forEach((row) => {
-      const field = row.getAttribute('data-field');
-      if (!field) return;
-      const pickB = row.querySelector('input[value="B"]');
-      picks[field] = pickB && pickB.checked ? 'B' : 'A';
-    });
-    try {
-      await onConfirm?.(picks);
-      dispatchMergeEvent('merge:complete', { kind, picks });
-      close();
-    } catch (err) {
-      console.error('[merge-modal] confirm failed', err);
-      setSubmitting(false);
-    }
-  });
-
-  activeModal = { close };
-  return activeModal;
-}
-
-function normalizeItems(items) {
-  if (!Array.isArray(items)) return [];
-  return items.map((entry, index) => {
-    if (!entry || typeof entry !== 'object') {
-      const id = String(entry ?? index + 1);
-      return { id, scope: 'default', label: `Record ${index + 1}`, record: { id, scope: 'default' } };
-    }
-    const id = entry.id != null ? String(entry.id) : `item-${index + 1}`;
-    const scope = entry.scope && String(entry.scope).trim() ? String(entry.scope).trim() : 'default';
-    const labelSource = entry.label ?? entry.name ?? entry.title ?? entry.record?.label ?? entry.record?.name;
-    const label = labelSource ? String(labelSource) : `Record ${index + 1}`;
-    const recordBase = typeof entry.record === 'object' && entry.record
-      ? { ...entry.record }
-      : typeof entry.data === 'object' && entry.data
-        ? { ...entry.data }
-        : {};
-    if (!recordBase.id) recordBase.id = id;
-    if (!recordBase.scope) recordBase.scope = scope;
-    if (!recordBase.label && label) recordBase.label = label;
-    return { id, scope, label, record: recordBase };
-  });
-}
-
-function isEmptyValue(value) {
-  if (value == null) return true;
-  if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
-  return false;
-}
-
-async function mergeRecords(primary, secondaries) {
-  const primaryRecord = { ...(primary?.record || {}), id: primary?.id, scope: primary?.scope };
-  secondaries.forEach((item) => {
-    const data = item?.record || {};
-    Object.keys(data).forEach((key) => {
-      if (key === 'id' || key === 'scope') return;
-      if (isEmptyValue(primaryRecord[key]) && !isEmptyValue(data[key])) {
-        primaryRecord[key] = data[key];
-      }
-    });
-  });
-
-  const store = typeof window !== 'undefined' ? window.SelectionStore : null;
-  if (store && typeof store.get === 'function' && typeof store.set === 'function') {
-    try {
-      const scope = primary?.scope || 'default';
-      const snapshot = store.get(scope);
-      if (snapshot instanceof Set) {
-        secondaries.forEach((item) => snapshot.delete(item.id));
-        if (primary?.id) snapshot.add(primary.id);
-        store.set(snapshot, scope);
-      }
-    } catch (err) {
-      console.warn('[merge-modal] selection cleanup failed', err);
-    }
-  }
-
-  const mergedSecondaries = secondaries.map((item) => ({ ...item, mergedInto: primary?.id }));
-  return { primary: { ...primary, record: primaryRecord }, secondaries: mergedSecondaries, merged: primaryRecord };
-}
-
-function buildContainer() {
-  const overlay = document.createElement('div');
-  overlay.dataset.qa = 'merge-modal';
-  overlay.dataset.ui = 'merge-modal';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.style.position = 'fixed';
-  overlay.style.inset = '0';
-  overlay.style.zIndex = '10000';
-  overlay.style.display = 'flex';
-  overlay.style.alignItems = 'center';
-  overlay.style.justifyContent = 'center';
-  overlay.style.background = 'rgba(15, 23, 42, 0.55)';
-
-  const shell = document.createElement('div');
-  shell.style.width = 'min(92vw, 960px)';
-  shell.style.maxHeight = '80vh';
-  shell.style.background = '#fff';
-  shell.style.borderRadius = '12px';
-  shell.style.boxShadow = '0 20px 48px rgba(15, 23, 42, 0.25)';
-  shell.style.display = 'flex';
-  shell.style.flexDirection = 'column';
-  shell.style.overflow = 'hidden';
-
-  overlay.appendChild(shell);
-  return { overlay, shell };
-}
-
-function createColumn(title, description) {
-  const column = document.createElement('div');
-  column.style.flex = '1';
-  column.style.display = 'flex';
-  column.style.flexDirection = 'column';
-  column.style.gap = '12px';
-
-  const header = document.createElement('div');
-  header.style.display = 'flex';
-  header.style.flexDirection = 'column';
-  header.style.gap = '4px';
-
-  const titleEl = document.createElement('div');
-  titleEl.style.fontSize = '16px';
-  titleEl.style.fontWeight = '600';
-  titleEl.textContent = title;
-  header.appendChild(titleEl);
-
-  if (description) {
-    const desc = document.createElement('div');
-    desc.style.fontSize = '12px';
-    desc.style.color = '#64748b';
-    desc.textContent = description;
-    header.appendChild(desc);
-  }
-
-  column.appendChild(header);
-
-  const list = document.createElement('div');
-  list.style.flex = '1';
-  list.style.overflow = 'auto';
-  list.style.border = '1px solid #e2e8f0';
-  list.style.borderRadius = '8px';
-  list.style.padding = '8px';
-  list.style.background = '#f8fafc';
-  list.style.display = 'flex';
-  list.style.flexDirection = 'column';
-  list.style.gap = '8px';
-
-  column.appendChild(list);
-
-  return { column, list };
-}
-
-function describeItem(item) {
-  const wrap = document.createElement('label');
-  wrap.style.display = 'flex';
-  wrap.style.alignItems = 'center';
-  wrap.style.gap = '12px';
-  wrap.style.padding = '8px 10px';
-  wrap.style.borderRadius = '8px';
-  wrap.style.background = '#fff';
-  wrap.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.05)';
-
-  const textWrap = document.createElement('div');
-  textWrap.style.flex = '1';
-  textWrap.style.display = 'flex';
-  textWrap.style.flexDirection = 'column';
-  textWrap.style.gap = '2px';
-
-  const name = document.createElement('span');
-  name.textContent = item.label || item.record?.label || item.id;
-  name.style.fontWeight = '600';
-  name.style.fontSize = '14px';
-  textWrap.appendChild(name);
-
-  const meta = document.createElement('span');
-  meta.style.fontSize = '12px';
-  meta.style.color = '#64748b';
-  const summary = item.record?.summary || item.record?.email || item.scope;
-  meta.textContent = summary ? String(summary) : `ID: ${item.id}`;
-  textWrap.appendChild(meta);
-
-  wrap.appendChild(textWrap);
-  return wrap;
-}
-
-function renderSelectionModal(items) {
-  if (typeof document === 'undefined') return null;
-  if (window[ACTIVE_GUARD]) {
-    console.warn('[merge-modal] already open');
-    return activeModal;
-  }
-  window[ACTIVE_GUARD] = true;
-
-  const { overlay, shell } = buildContainer();
-  const header = document.createElement('div');
-  header.style.display = 'flex';
-  header.style.alignItems = 'center';
-  header.style.justifyContent = 'space-between';
-  header.style.padding = '16px 20px';
-  header.style.borderBottom = '1px solid #e2e8f0';
-
-  const title = document.createElement('div');
-  title.textContent = 'Select records to merge';
-  title.style.fontSize = '18px';
-  title.style.fontWeight = '600';
-  header.appendChild(title);
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '×';
-  closeBtn.setAttribute('aria-label', 'Close');
-  closeBtn.style.fontSize = '22px';
-  closeBtn.style.lineHeight = '1';
-  closeBtn.style.background = 'transparent';
-  closeBtn.style.border = 'none';
-  closeBtn.style.cursor = 'pointer';
-  closeBtn.style.color = '#0f172a';
-  header.appendChild(closeBtn);
-
-  shell.appendChild(header);
-
-  const body = document.createElement('div');
-  body.style.display = 'flex';
-  body.style.gap = '16px';
-  body.style.padding = '20px';
-  body.style.flex = '1';
-
-  const primaryColumn = createColumn('Primary record', 'Keep data from this record');
-  primaryColumn.column.dataset.qa = 'merge-primary';
-  const secondaryColumn = createColumn('Secondary records', 'These will merge into the primary');
-  secondaryColumn.column.dataset.qa = 'merge-secondary';
-
-  body.appendChild(primaryColumn.column);
-  body.appendChild(secondaryColumn.column);
-
-  shell.appendChild(body);
-
-  const footer = document.createElement('div');
-  footer.style.display = 'flex';
-  footer.style.justifyContent = 'flex-end';
-  footer.style.gap = '12px';
-  footer.style.padding = '16px 20px';
-  footer.style.borderTop = '1px solid #e2e8f0';
+  const actions = document.createElement('div');
+  actions.setAttribute('data-ui', 'merge-actions');
+  actions.style.display = 'flex';
+  actions.style.justifyContent = 'flex-end';
+  actions.style.gap = '12px';
 
   const cancelBtn = document.createElement('button');
+  cancelBtn.setAttribute('data-ui', 'merge-cancel');
   cancelBtn.type = 'button';
-  cancelBtn.dataset.qa = 'merge-cancel';
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.padding = '8px 16px';
-  cancelBtn.style.border = '1px solid #cbd5f5';
-  cancelBtn.style.borderRadius = '8px';
+  cancelBtn.style.padding = '8px 14px';
+  cancelBtn.style.borderRadius = '6px';
+  cancelBtn.style.border = '1px solid rgba(148, 163, 184, 0.8)';
   cancelBtn.style.background = '#fff';
+  cancelBtn.style.color = '#0f172a';
   cancelBtn.style.cursor = 'pointer';
 
   const confirmBtn = document.createElement('button');
+  confirmBtn.setAttribute('data-ui', 'merge-confirm');
   confirmBtn.type = 'button';
-  confirmBtn.dataset.qa = 'merge-confirm';
-  confirmBtn.textContent = 'Merge';
-  confirmBtn.style.padding = '8px 20px';
+  confirmBtn.textContent = 'Confirm Merge';
+  confirmBtn.style.padding = '8px 14px';
+  confirmBtn.style.borderRadius = '6px';
   confirmBtn.style.border = 'none';
-  confirmBtn.style.borderRadius = '8px';
   confirmBtn.style.background = '#2563eb';
   confirmBtn.style.color = '#fff';
   confirmBtn.style.cursor = 'pointer';
 
-  footer.appendChild(cancelBtn);
-  footer.appendChild(confirmBtn);
+  actions.append(cancelBtn, confirmBtn);
+  columns.append(left, right);
+  content.append(heading, columns, actions);
+  modal.appendChild(content);
 
-  shell.appendChild(footer);
+  cancelBtn.addEventListener('click', () => handleCancel());
+  confirmBtn.addEventListener('click', () => handleConfirm());
 
-  document.body.appendChild(overlay);
-
-  let primaryId = '';
-  let previousPrimaryId = '';
-  const secondaryIds = new Set();
-  let submitting = false;
-
-  const radios = [];
-  const checkboxes = [];
-
-  const updateState = () => {
-    const invalid = !primaryId || !secondaryIds.size;
-    confirmBtn.disabled = submitting || invalid;
-    confirmBtn.style.opacity = confirmBtn.disabled ? '0.5' : '1';
-    confirmBtn.style.cursor = confirmBtn.disabled ? 'not-allowed' : 'pointer';
-  };
-
-  items.forEach((item, index) => {
-    const radioWrap = describeItem(item);
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = 'merge-primary';
-    radio.value = item.id;
-    radio.dataset.qa = 'merge-primary';
-    radio.style.margin = '0';
-    radioWrap.insertBefore(radio, radioWrap.firstChild);
-    primaryColumn.list.appendChild(radioWrap);
-    radios.push(radio);
-
-    const checkboxWrap = describeItem(item);
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.value = item.id;
-    checkbox.dataset.qa = 'merge-secondary';
-    checkbox.style.margin = '0';
-    checkboxWrap.insertBefore(checkbox, checkboxWrap.firstChild);
-    secondaryColumn.list.appendChild(checkboxWrap);
-    checkboxes.push(checkbox);
-
-    if (index === 0) {
-      radio.checked = true;
-      primaryId = item.id;
-      previousPrimaryId = item.id;
-    } else {
-      checkbox.checked = true;
-      secondaryIds.add(item.id);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      handleCancel();
     }
   });
 
-  checkboxes.forEach((box) => {
-    if (box.value === primaryId) {
-      box.checked = false;
-      box.disabled = true;
-      secondaryIds.delete(box.value);
-    }
-  });
-
-  updateState();
-
-  const changePrimary = (event) => {
-    const value = event && event.target ? event.target.value : '';
-    if (!value || value === primaryId) return;
-    previousPrimaryId = primaryId;
-    primaryId = value;
-    checkboxes.forEach((box) => {
-      if (box.value === primaryId) {
-        box.checked = false;
-        box.disabled = true;
-        secondaryIds.delete(box.value);
-        return;
-      }
-      if (box.value === previousPrimaryId) {
-        box.disabled = false;
-        box.checked = true;
-        secondaryIds.add(box.value);
-        return;
-      }
-      if (box.checked) {
-        secondaryIds.add(box.value);
-      } else {
-        secondaryIds.delete(box.value);
-      }
-    });
-    updateState();
-  };
-
-  const changeSecondary = (event) => {
-    const target = event?.target;
-    if (!target) return;
-    const { checked, value } = target;
-    if (value === primaryId) {
-      target.checked = false;
-      return;
-    }
-    if (checked) {
-      secondaryIds.add(value);
-    } else {
-      secondaryIds.delete(value);
-    }
-    updateState();
-  };
-
-  const listeners = [];
-
-  radios.forEach((radio) => {
-    radio.addEventListener('change', changePrimary);
-    listeners.push(() => radio.removeEventListener('change', changePrimary));
-  });
-
-  checkboxes.forEach((box) => {
-    box.addEventListener('change', changeSecondary);
-    listeners.push(() => box.removeEventListener('change', changeSecondary));
-  });
-
-  const close = ({ silent } = {}) => {
-    if (!window[ACTIVE_GUARD]) return;
-    listeners.forEach((stop) => { try { stop(); } catch (_) {} });
-    listeners.length = 0;
-    try { overlay.remove(); }
-    catch (_) {}
-    window[ACTIVE_GUARD] = false;
-    activeModal = null;
-    if (!silent) dispatchMergeEvent('merge:closed');
-  };
-
-  const cancel = () => {
-    close();
-  };
-
-  const outsideClick = (event) => {
-    if (event.target === overlay) {
-      close();
-    }
-  };
-
-  overlay.addEventListener('click', outsideClick);
-  listeners.push(() => overlay.removeEventListener('click', outsideClick));
-
-  cancelBtn.addEventListener('click', cancel);
-  listeners.push(() => cancelBtn.removeEventListener('click', cancel));
-
-  const keydown = (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close();
-    }
-  };
-  document.addEventListener('keydown', keydown, true);
-  listeners.push(() => document.removeEventListener('keydown', keydown, true));
-
-  const confirm = async () => {
-    if (submitting) return;
-    if (!primaryId || !secondaryIds.size) return;
-    submitting = true;
-    updateState();
-    try {
-      const primary = items.find((item) => item.id === primaryId);
-      const secondaries = items.filter((item) => secondaryIds.has(item.id));
-      const result = await mergeRecords(primary, secondaries);
-      showToast('success', 'Merged');
-      dispatchMergeEvent('merge:complete', { primary: result.primary, secondaries: result.secondaries });
-      close();
-    } catch (err) {
-      console.warn('[merge-modal] merge failed', err);
-      submitting = false;
-      updateState();
-    }
-  };
-
-  confirmBtn.addEventListener('click', confirm);
-  listeners.push(() => confirmBtn.removeEventListener('click', confirm));
-
-  closeBtn.addEventListener('click', cancel);
-  listeners.push(() => closeBtn.removeEventListener('click', cancel));
-
-  dispatchMergeEvent('merge:open', { count: items.length });
-
-  activeModal = { close };
-  return activeModal;
+  mergeModalEl = modal;
+  return modal;
 }
 
-export function openMergeModal(items) {
-  if (isLegacyOptions(items)) {
-    return openLegacyMergeModal(items);
-  }
+function formatRecordSummary(record, fallback){
+  if (!record || typeof record !== 'object') return fallback;
+  const name = [record.first, record.last].filter(Boolean).join(' ').trim();
+  if (name) return `${name}${record.id ? ` (${record.id})` : ''}`;
+  if (record.name) return `${record.name}${record.id ? ` (${record.id})` : ''}`;
+  if (record.id) return String(record.id);
+  return fallback;
+}
 
-  const normalized = normalizeItems(items);
-  if (normalized.length < 2) {
-    console.warn('[merge-modal] at least two items required');
-    return null;
+function updateModalContent(state){
+  if (!mergeModalEl) return;
+  const left = mergeModalEl.querySelector('[data-ui="merge-left"]');
+  const right = mergeModalEl.querySelector('[data-ui="merge-right"]');
+  const [a, b] = state.ids;
+  if (state.mode === 'legacy' && state.legacy){
+    const { options } = state.legacy;
+    const textA = formatRecordSummary(options?.recordA, a || 'Record A');
+    const textB = formatRecordSummary(options?.recordB, b || 'Record B');
+    if (left) left.textContent = textA;
+    if (right) right.textContent = textB;
+  } else {
+    if (left) left.textContent = a != null ? String(a) : '';
+    if (right) right.textContent = b != null ? String(b) : '';
   }
-  return renderSelectionModal(normalized);
+}
+
+function isLegacyOptions(value){
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if ('recordA' in value || 'recordB' in value) return true;
+  if (Array.isArray(value.contacts) && value.contacts.length >= 2) return true;
+  return false;
+}
+
+function buildLegacyPicks(recordA = {}, recordB = {}){
+  const keys = new Set([...Object.keys(recordA || {}), ...Object.keys(recordB || {})]);
+  const picks = {};
+  keys.forEach((field) => {
+    if (/^id$/i.test(field) || /^createdAt$/i.test(field) || /^updatedAt$/i.test(field)) return;
+    if (/^__/.test(field)) return;
+    const va = recordA?.[field];
+    const vb = recordB?.[field];
+    if (Array.isArray(va) || Array.isArray(vb)){
+      if (Array.isArray(va) && Array.isArray(vb)) picks[field] = 'UNION';
+      else if (Array.isArray(va)) picks[field] = 'A';
+      else if (Array.isArray(vb)) picks[field] = 'B';
+      return;
+    }
+    const choice = chooseValue(field, recordA || {}, recordB || {});
+    picks[field] = choice.from;
+  });
+  return picks;
+}
+
+function openLegacyMergeModal(options){
+  const contacts = Array.isArray(options?.contacts) ? options.contacts : null;
+  if (contacts && contacts.length >= 2){
+    const [first, second] = contacts;
+    modalState = {
+      mode: 'legacy',
+      ids: [first?.id ? String(first.id) : '', second?.id ? String(second.id) : ''],
+      legacy: { options: { recordA: first, recordB: second, onConfirm: options.onConfirm, onCancel: options.onCancel }, picks: buildLegacyPicks(first, second) }
+    };
+  } else {
+    const recordA = options?.recordA || {};
+    const recordB = options?.recordB || {};
+    modalState = {
+      mode: 'legacy',
+      ids: [recordA?.id ? String(recordA.id) : '', recordB?.id ? String(recordB.id) : ''],
+      legacy: { options: options || {}, picks: buildLegacyPicks(recordA, recordB) }
+    };
+  }
+  const modal = ensureModal();
+  updateModalContent(modalState);
+  if (modal && document?.body){
+    if (!document.body.contains(modal)) document.body.appendChild(modal);
+  }
+}
+
+function handleConfirm(){
+  const ids = Array.isArray(modalState.ids) ? modalState.ids.slice(0, 2) : [];
+  try {
+    console.info('merge-confirm', { ids });
+  } catch (_) {}
+  if (modalState.mode === 'legacy' && modalState.legacy){
+    const { options, picks } = modalState.legacy;
+    try {
+      if (typeof options?.onConfirm === 'function'){
+        options.onConfirm(Object.assign({}, picks));
+      }
+    } catch (err) {
+      console.warn('[merge-modal] legacy confirm failed', err);
+    }
+  }
+  closeMergeModal();
+}
+
+function handleCancel(){
+  if (modalState.mode === 'legacy' && modalState.legacy){
+    const { options } = modalState.legacy;
+    try {
+      if (typeof options?.onCancel === 'function'){
+        options.onCancel();
+      }
+    } catch (err) {
+      console.warn('[merge-modal] legacy cancel failed', err);
+    }
+  }
+  closeMergeModal();
+}
+
+function openIdsModal(values){
+  const normalized = Array.from(values || []).map((value) => {
+    if (value == null) return '';
+    if (typeof value === 'object'){
+      if (value.id != null) return String(value.id);
+      if ('value' in value && value.value != null) return String(value.value);
+      if ('record' in value && value.record && value.record.id != null) return String(value.record.id);
+    }
+    return String(value);
+  }).filter(Boolean);
+  if (normalized.length < 2) return;
+  modalState = { mode: 'ids', ids: normalized.slice(0, 2), legacy: null };
+  const modal = ensureModal();
+  updateModalContent(modalState);
+  if (modal && document?.body){
+    if (!document.body.contains(modal)) document.body.appendChild(modal);
+  }
+}
+
+export function openMergeModal(input){
+  if (isLegacyOptions(input)){
+    openLegacyMergeModal(input || {});
+    return;
+  }
+  const list = Array.isArray(input) ? input : (input == null ? [] : [input]);
+  openIdsModal(list);
+}
+
+export function closeMergeModal(){
+  if (mergeModalEl && mergeModalEl.isConnected){
+    mergeModalEl.remove();
+  }
+  mergeModalEl = null;
+  modalState = { mode: null, ids: [], legacy: null };
 }

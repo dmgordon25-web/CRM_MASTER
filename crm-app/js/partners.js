@@ -98,6 +98,10 @@ function ensurePartnersBoot(ctx){
       ? snapshot.ids
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes('partners', ids);
+    const mergeBtn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+    if (mergeBtn) {
+      mergeBtn.setAttribute('data-disabled', ids.size >= 2 ? '0' : '1');
+    }
   }
 
   function initSelectionMirror(){

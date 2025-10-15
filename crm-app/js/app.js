@@ -1,4 +1,5 @@
 import './dashboard/kpis.js';
+import { openMergeModal } from './ui/merge_modal.js';
 
 // app.js
 export function goto(hash){
@@ -731,6 +732,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     });
   }
 
+  function syncMergeButtonState(count){
+    const mergeBtn = document.querySelector('[data-ui="action-bar"] [data-action="merge"]');
+    if (!mergeBtn) return;
+    const total = Number(count) || 0;
+    mergeBtn.setAttribute('data-disabled', total >= 2 ? '0' : '1');
+  }
+
   function updateActionBarGuards(count){
     const bar = document.getElementById('actionbar');
     if(!bar) return;
@@ -773,6 +781,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       bar.classList.remove('has-selection');
       bar.setAttribute('data-visible', '0');
     }
+    syncMergeButtonState(total);
   }
 
   function handleSelectionSnapshot(snapshot){
@@ -782,6 +791,101 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
     updateActionBarGuards(ids.size);
+  }
+
+  function readIdFromNode(node){
+    if (!node) return null;
+    const host = typeof node.closest === 'function' ? node.closest('[data-id]') : null;
+    if (host && typeof host.getAttribute === 'function'){
+      const viaHost = host.getAttribute('data-id');
+      if (viaHost) return String(viaHost);
+    }
+    if (typeof node.getAttribute === 'function'){
+      const direct = node.getAttribute('data-id');
+      if (direct) return String(direct);
+    }
+    if (node.value != null && node.value !== ''){
+      return String(node.value);
+    }
+    return null;
+  }
+
+  function collectSelectedIds(){
+    const seen = new Set();
+    const push = (value) => {
+      if (value == null) return;
+      const str = String(value);
+      if (str) seen.add(str);
+    };
+
+    try {
+      const svc = window.SelectionService || window.Selection || null;
+      if (svc){
+        const fromSvc = typeof svc.getSelectedIds === 'function'
+          ? svc.getSelectedIds()
+          : typeof svc.getIds === 'function'
+            ? svc.getIds()
+            : Array.isArray(svc.ids)
+              ? svc.ids
+              : svc.ids instanceof Set
+                ? Array.from(svc.ids)
+                : null;
+        if (fromSvc){
+          Array.from(fromSvc).forEach(push);
+        }
+      }
+    } catch (_) {}
+
+    if (seen.size >= 2) return Array.from(seen);
+
+    try {
+      const store = getSelectionStore();
+      if (store && typeof store.get === 'function'){
+        const scopes = Array.isArray(SELECTION_SCOPES) ? SELECTION_SCOPES : ['contacts', 'partners', 'pipeline'];
+        scopes.forEach((scope) => {
+          try {
+            const ids = store.get(scope);
+            if (!ids) return;
+            Array.from(ids).forEach(push);
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
+
+    if (seen.size >= 2) return Array.from(seen);
+
+    if (typeof document !== 'undefined'){
+      ['#tbl-pipeline [data-ui="row-check"]:checked', '#tbl-partners [data-ui="row-check"]:checked']
+        .forEach((selector) => {
+          document.querySelectorAll(selector).forEach((node) => {
+            const id = readIdFromNode(node);
+            if (id) push(id);
+          });
+        });
+    }
+
+    return Array.from(seen);
+  }
+
+  function wireMergeAction(){
+    if (wireMergeAction.__wired) return;
+    wireMergeAction.__wired = true;
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      const trigger = target && typeof target.closest === 'function'
+        ? target.closest('[data-action="merge"]')
+        : null;
+      if (!trigger) return;
+      const ids = collectSelectedIds();
+      if (ids.length < 2){
+        trigger.setAttribute('data-disabled', '1');
+        event.preventDefault();
+        return;
+      }
+      trigger.setAttribute('data-disabled', '0');
+      event.preventDefault();
+      openMergeModal(ids.slice(0, 2));
+    });
   }
 
   function clearAllSelectionScopes(){
@@ -1238,6 +1342,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   })();
 
   initSelectionBindings();
+  wireMergeAction();
 
   if(settingsButton && !settingsButton.__wired){
     settingsButton.__wired = true;
