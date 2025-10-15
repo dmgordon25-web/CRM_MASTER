@@ -484,7 +484,27 @@ async function main() {
       window.__SEL_COUNT__ = next | 0;
     });
     try {
-      const rootSel = (await page.$('#tbl-partners')) ? '#tbl-partners' : '#tbl-pipeline';
+      const rootSel = await page.evaluate(() => {
+        const isVisible = (el) => {
+          if (!el || !el.isConnected) return false;
+          const style = window.getComputedStyle(el);
+          if (style.visibility === 'hidden' || style.display === 'none') return false;
+          if (typeof el.offsetParent === 'undefined') {
+            return el.getClientRects().length > 0;
+          }
+          return el.offsetParent !== null;
+        };
+        const pipeline = document.querySelector('#tbl-pipeline');
+        const partners = document.querySelector('#tbl-partners');
+        if (isVisible(pipeline)) return '#tbl-pipeline';
+        if (isVisible(partners)) return '#tbl-partners';
+        if (pipeline) return '#tbl-pipeline';
+        if (partners) return '#tbl-partners';
+        return null;
+      });
+      if (!rootSel) {
+        throw new Error('selection-root-missing');
+      }
       await toggleCheckboxAndNotify(page, rootSel, 0, true);
       await page.waitForFunction(() => (window.__SEL_COUNT__ | 0) >= 1, { timeout: 5000 });
       await toggleCheckboxAndNotify(page, rootSel, 1, true);
