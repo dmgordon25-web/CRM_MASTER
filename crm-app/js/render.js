@@ -608,7 +608,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       const tierKey = attr(String(tier||'').toLowerCase());
       return `<tr data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
-        <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-partner-id="${pid}">${safe(name)}</a></td>
+        <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${safe(name)}</a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
     }).join('');
     $all('#tbl-partners tbody tr').forEach(tr => {
