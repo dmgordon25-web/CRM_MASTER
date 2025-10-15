@@ -1,6 +1,15 @@
 /* P6d: Import helpers (deterministic None partner, hashing, dedupe) */
 (function(){
-  if (window.__IMPORT_HELPERS_V1__) return; window.__IMPORT_HELPERS_V1__ = true;
+  const globalScope = typeof globalThis !== 'undefined'
+    ? globalThis
+    : (typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : {}));
+  const runtime = globalScope && globalScope.window ? globalScope.window : globalScope;
+
+  if (!runtime || runtime.__IMPORT_HELPERS_V1__) {
+    if(runtime) runtime.__IMPORT_HELPERS_V1__ = true;
+    return;
+  }
+  runtime.__IMPORT_HELPERS_V1__ = true;
 
   function hash32(s){
     let h = 2166136261 >>> 0;
@@ -15,20 +24,20 @@
 
   const NONE_PARTNER_NAME = "None";
   const NONE_PARTNER_ID = uuidFromSeed("PARTNER:NONE:CANONICAL");
-  if (!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
+  if (!runtime.NONE_PARTNER_ID) runtime.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
   async function ensureNonePartner(){
     try {
       let existing = null;
-      if (typeof window.dbGet === 'function'){
-        existing = await window.dbGet('partners', NONE_PARTNER_ID);
+      if (typeof runtime.dbGet === 'function'){
+        existing = await runtime.dbGet('partners', NONE_PARTNER_ID);
       } else {
-        existing = await window.db?.get?.('partners', NONE_PARTNER_ID);
+        existing = await runtime.db?.get?.('partners', NONE_PARTNER_ID);
       }
       if (existing) return existing;
       const row = { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME, tier:'-', phone:'', email:'', createdAt: Date.now() };
-      if (typeof window.dbPut === 'function') await window.dbPut('partners', row);
-      else await window.db?.put?.('partners', row);
+      if (typeof runtime.dbPut === 'function') await runtime.dbPut('partners', row);
+      else await runtime.db?.put?.('partners', row);
       return row;
     } catch (e) { return { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME }; }
   }
@@ -44,5 +53,5 @@
     return { email, phone, name, city };
   }
 
-  window.IMPORT_HELPERS = { NONE_PARTNER_ID, ensureNonePartner, keyTuple };
+  runtime.IMPORT_HELPERS = { NONE_PARTNER_ID, ensureNonePartner, keyTuple };
 })();

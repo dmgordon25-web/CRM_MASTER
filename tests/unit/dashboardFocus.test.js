@@ -225,6 +225,7 @@ function setupEnvironment() {
     body,
     readyState: 'complete',
     createElement: () => new StubElement(),
+    createDocumentFragment: () => new StubElement(),
     addEventListener: (type, handler) => {
       if (typeof handler !== 'function') return;
       if (!documentListeners.has(type)) documentListeners.set(type, new Set());
@@ -318,7 +319,8 @@ async function resetEnvironment() {
   await deleteDatabase(DB_NAME).catch(() => {});
   setupEnvironment();
   runScript('db.js');
-  runScript('data/settings.js');
+  vi.resetModules();
+  await import(new URL('../../crm-app/js/data/settings.js', import.meta.url).href);
   runScript('patch_2025-09-26_phase3_dashboard_reports.js');
 }
 

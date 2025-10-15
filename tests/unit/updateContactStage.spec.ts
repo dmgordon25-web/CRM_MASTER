@@ -45,6 +45,10 @@ async function loadModule(initialContacts: any[]){
       innerHTML: '',
       textContent: ''
     })),
+    createDocumentFragment: vi.fn().mockReturnValue({
+      appendChild: noop,
+      firstChild: null
+    }),
     head: {
       appendChild: noop,
       querySelector: vi.fn().mockReturnValue(null)

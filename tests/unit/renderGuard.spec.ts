@@ -62,6 +62,8 @@ describe('App render coordination', () => {
       querySelector: vi.fn(() => createElementStub()),
       querySelectorAll: vi.fn(() => []),
       setAttribute: vi.fn(),
+      getAttribute: vi.fn(() => null),
+      removeAttribute: vi.fn(),
       style: {},
       innerHTML: '',
       appendChild: vi.fn(),
@@ -105,6 +107,7 @@ describe('App render coordination', () => {
         return true;
       }),
       createElement: vi.fn(() => createElementStub()),
+      createDocumentFragment: vi.fn(() => createElementStub()),
       body: createElementStub(),
       head: createElementStub(),
       readyState: 'complete',

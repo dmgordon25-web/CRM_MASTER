@@ -88,7 +88,8 @@ async function resetEnvironment() {
   window.Toast = { show: vi.fn() };
   delete window.Settings;
   runScript('db.js');
-  runScript('data/settings.js');
+  vi.resetModules();
+  await import(new URL('../../crm-app/js/data/settings.js', import.meta.url).href);
   window.dispatchAppDataChanged = detail => {
     window.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
   };
