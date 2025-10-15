@@ -26,13 +26,40 @@ jobs:
           cache: 'npm'
         continue-on-error: false
 
-      - name: Install Chromium native deps
+      - name: Install Chromium dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxrandr2 \
-            libgbm1 libgtk-3-0 libasound2t64 libnss3 libxshmfence1 libxcb1 libxdamage1 \
-            libpango-1.0-0 libpangocairo-1.0-0 fonts-liberation libu2f-udev libvulkan1 xdg-utils
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libnss3 \
+            libx11-xcb1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libcups2 \
+            libasound2 \
+            libpangocairo-1.0-0 \
+            libpango-1.0-0 \
+            libgtk-3-0 \
+            libxshmfence1 \
+            libdrm2 \
+            libxext6 \
+            libxss1 \
+            libxtst6 \
+            fonts-liberation \
+            libappindicator3-1 \
+            xdg-utils \
+            ca-certificates
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Cache Puppeteer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
       - name: Install dependencies
         run: npm ci
