@@ -1,5 +1,6 @@
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\Start-CRM.ps1" -Verbose -KeepOpen
-set EXIT_CODE=%ERRORLEVEL%
-endlocal & exit /b %EXIT_CODE%
+pushd %~dp0
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'tools/dev_server.mjs' -WorkingDirectory '%CD%' -WindowStyle Hidden"
+popd
+exit /b 0
