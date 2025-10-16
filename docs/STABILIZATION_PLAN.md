@@ -4,7 +4,7 @@
 **Discipline:** Tiny, reversible patches; run `npm run verify:build` after every change; stop on red.
 
 ## Current Signals (from `npm run verify:build`)
-- Manifest audit: PASS (canonical vs live manifest alignment holds; outstanding unphased warnings only).
+- Manifest audit: PASS (canonical vs live manifest alignment holds; duplicate/unreachable/order failures now hard-stop the gate).
 - Boot smoke: PASS.
 - Lint / type checks: Not run in gate (n/a).
 - Notes: Zero-error policy enforced; diagnostics overlay hidden on happy path.

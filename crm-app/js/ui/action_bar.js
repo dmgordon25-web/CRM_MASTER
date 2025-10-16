@@ -5,24 +5,70 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
-const microTask = typeof queueMicrotask === 'function'
-  ? queueMicrotask
-  : (fn) => Promise.resolve().then(fn);
-const raf = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
-  ? window.requestAnimationFrame.bind(window)
-  : (cb) => setTimeout(cb, 16);
+const globalWiringState = typeof window !== 'undefined'
+  ? (window.__ACTION_BAR_WIRING__ = window.__ACTION_BAR_WIRING__ || {
+    windowListeners: new Map(),
+    documentListeners: new Map(),
+    teardown() {}
+  })
+  : { windowListeners: new Map(), documentListeners: new Map(), teardown() {} };
 
-const selectionReadyEvents = ['selection:ready', 'selectionReady'];
-const selectionChangeEvents = ['selection:changed', 'selectionChanged'];
+let __actionBarResizeTimer = null;
 
-let visibilityScheduled = false;
-let pendingVisibilityDetail;
-let lastSelectionDetail = null;
-let releaseSelectionChannel = null;
-
-function normalizeSelectionType(value) {
-  return value === 'partners' ? 'partners' : 'contacts';
+function toOptionsKey(options) {
+  if (!options) return 'default';
+  if (typeof options === 'boolean') return options ? 'bool:true' : 'bool:false';
+  const keys = Object.keys(options);
+  if (!keys.length) return 'object:{}';
+  return keys.sort().map((key) => `${key}:${options[key]}`).join('|');
 }
+
+function registerListener(target, registry, type, handler, options) {
+  if (!target || typeof target.addEventListener !== 'function') return () => {};
+  const optionsKey = toOptionsKey(options);
+  const existing = registry.get(type);
+  if (existing && existing.handler === handler && existing.optionsKey === optionsKey) {
+    return existing.off;
+  }
+  if (existing) {
+    target.removeEventListener(type, existing.handler, existing.options);
+    registry.delete(type);
+  }
+  target.addEventListener(type, handler, options);
+  const off = () => {
+    const current = registry.get(type);
+    if (!current || current.handler !== handler || current.optionsKey !== optionsKey) return;
+    target.removeEventListener(type, handler, options);
+    registry.delete(type);
+  };
+  registry.set(type, { handler, options, optionsKey, off });
+  return off;
+}
+
+function registerWindowListener(type, handler, options) {
+  return registerListener(typeof window !== 'undefined' ? window : null, globalWiringState.windowListeners, type, handler, options);
+}
+
+function registerDocumentListener(type, handler, options) {
+  return registerListener(typeof document !== 'undefined' ? document : null, globalWiringState.documentListeners, type, handler, options);
+}
+
+function teardownAll() {
+  if (typeof window !== 'undefined') {
+    globalWiringState.windowListeners.forEach((entry, type) => {
+      window.removeEventListener(type, entry.handler, entry.options);
+    });
+    globalWiringState.windowListeners.clear();
+  }
+  if (typeof document !== 'undefined') {
+    globalWiringState.documentListeners.forEach((entry, type) => {
+      document.removeEventListener(type, entry.handler, entry.options);
+    });
+    globalWiringState.documentListeners.clear();
+  }
+}
+
+globalWiringState.teardown = teardownAll;
 
 function _isActuallyVisible(el) {
   if (!el || !el.isConnected) return false;
@@ -128,16 +174,21 @@ function scheduleVisibilityUpdate(detail) {
   });
 }
 
+function handleActionBarResize() {
+  clearTimeout(__actionBarResizeTimer);
+  __actionBarResizeTimer = setTimeout(() => {
+    const root = document.getElementById('actionbar');
+    if (root) _updateDataVisible(root);
+  }, 100);
+}
+
 function _attachActionBarVisibilityHooks(actionBarRoot) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  if (!window.__ACTION_BAR_VISIBILITY_RESIZE__) {
-    window.__ACTION_BAR_VISIBILITY_RESIZE__ = true;
-    window.addEventListener('resize', () => {
-      scheduleVisibilityUpdate();
-    }, { passive: true });
-  }
-  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible(detail) {
-    scheduleVisibilityUpdate(detail);
+  registerWindowListener('resize', handleActionBarResize, { passive: true });
+  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
+    const root = document.getElementById('actionbar');
+    if (!root) return;
+    queueMicrotask(() => _updateDataVisible(root));
   };
   if (actionBarRoot) {
     scheduleVisibilityUpdate();
@@ -284,45 +335,31 @@ function markActionbarHost() {
   return bar;
 }
 
+function initializeActionBar() {
+  markActionbarHost();
+  ensureGlobalNewFab();
+  ensureMergeHandler();
+}
+
+function trackLastActionBarClick(event) {
+  const target = event && event.target;
+  const btn = target && typeof target.closest === 'function' ? target.closest('[data-action]') : null;
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+  if (!action) return;
+  window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
-  if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
-    window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const readySetup = () => {
-      const bar = markActionbarHost();
-      if (bar) {
-        bar.setAttribute('data-state', 'loading');
-      }
-      ensureGlobalNewFab();
-      ensureMergeHandler();
-      if (typeof releaseSelectionChannel === 'function') {
-        try { releaseSelectionChannel(); }
-        catch (_) {}
-      }
-      releaseSelectionChannel = subscribeToSelectionLifecycle((detail) => {
-        const host = markActionbarHost();
-        if (host && host.getAttribute('data-state') !== 'ready') {
-          host.setAttribute('data-state', 'ready');
-        }
-        scheduleVisibilityUpdate(detail);
-      });
-      scheduleVisibilityUpdate(lastSelectionDetail);
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', readySetup, { once: true });
-    } else {
-      readySetup();
-    }
-    document.addEventListener('click', (event) => {
-      const btn = event.target && event.target.closest && event.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.getAttribute('data-action');
-      if (!action) return;
-      window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
-    }, true);
+  if (document.readyState === 'loading') {
+    registerDocumentListener('DOMContentLoaded', initializeActionBar, { once: true });
+  } else {
+    initializeActionBar();
   }
+  registerDocumentListener('click', trackLastActionBarClick, true);
 }
 
 function injectActionBarStyle(){
@@ -727,11 +764,12 @@ function ensureMergeHandler() {
   mergeBtn.__mergeHandlerWired = true;
 }
 
-if (typeof document !== 'undefined' && !document.__ACTION_BAR_MERGE_REWIRE__) {
-  document.__ACTION_BAR_MERGE_REWIRE__ = true;
-  document.addEventListener('app:data:changed', () => {
-    ensureMergeHandler();
-  }, { passive: true });
+function handleActionBarDataChanged() {
+  ensureMergeHandler();
+}
+
+if (typeof document !== 'undefined') {
+  registerDocumentListener('app:data:changed', handleActionBarDataChanged, { passive: true });
 }
 
 function handleFabAction(kind) {
@@ -833,4 +871,8 @@ export function onPartnersMerge(handler) {
       btn.__partnersMergeHandler();
     }
   });
+}
+
+export function teardownActionBarWiring() {
+  teardownAll();
 }
