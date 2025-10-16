@@ -5,3 +5,25 @@
   transition: opacity 120ms ease-out;
 }
 
+
+/* PATCH: ensure row selection checkboxes are rendered and clickable at boot */
+[data-ui="row-check"] {
+  display: inline-flex !important;   /* prevent accidental display:none */
+  align-items: center;
+  visibility: visible !important;    /* prevent visibility:hidden gating */
+  opacity: 1 !important;             /* avoid faint/0 opacity states */
+  pointer-events: auto !important;   /* allow click */
+}
+
+[data-ui="row-check"] input[type="checkbox"],
+[data-ui="row-check"] [role="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* In loading states, keep layout stable but do not hide the control */
+[data-state="loading"] [data-ui="row-check"] {
+  opacity: 0.8;
+}
+
