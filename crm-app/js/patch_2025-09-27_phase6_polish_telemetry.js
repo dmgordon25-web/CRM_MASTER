@@ -189,7 +189,13 @@ function runPatch(){
           console.warn('[telemetry] payload stringify failed', err);
           return;
         }
-        const ok = navigator.sendBeacon('/__log', body);
+        let beaconBody = body;
+        if(typeof Blob === 'function'){
+          beaconBody = new Blob([body], { type: 'application/json' });
+        }else{
+          console.info('[telemetry] Blob unavailable; sending plain text beacon');
+        }
+        const ok = navigator.sendBeacon('/__log', beaconBody);
         performance?.mark?.('telemetry-sent');
         if(!ok){
           console.info('[telemetry] beacon send rejected');
