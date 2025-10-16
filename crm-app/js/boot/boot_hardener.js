@@ -218,14 +218,28 @@ async function runProbe(fn) {
   }
 }
 
-async function evaluatePrereqs(records, kind) {
+async function evaluatePrereqs(records, kind, overridesByPath = null) {
   const extractor = kind === 'hard'
     ? (mod) => mod?.HARD_PREREQS || mod?.CORE_PREREQS || {}
     : (mod) => mod?.SOFT_PREREQS || {};
 
+  const hardOverrides = kind === 'hard' && overridesByPath && typeof overridesByPath === 'object'
+    ? overridesByPath
+    : null;
+
   for (const { path, module } of records) {
-    const checks = extractor(module) || {};
-    for (const [name, probe] of Object.entries(checks)) {
+    const overrideChecks = hardOverrides && Object.prototype.hasOwnProperty.call(hardOverrides, path)
+      ? hardOverrides[path]
+      : null;
+    const overrideEntries = (overrideChecks && typeof overrideChecks === 'object')
+      ? Object.entries(overrideChecks)
+      : [];
+    const baseEntries = Object.entries(extractor(module) || {});
+    const combined = overrideEntries.length
+      ? overrideEntries.concat(baseEntries)
+      : baseEntries;
+
+    for (const [name, probe] of combined) {
       const ok = await runProbe(probe);
       if (!ok) {
         if (kind === 'hard') {
@@ -311,6 +325,9 @@ function maybeRenderAll() {
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
   const requiredSet = new Set(REQUIRED || []);
+  const hardPrereqOverrides = (CORE && typeof CORE === 'object' && CORE.PREREQS && typeof CORE.PREREQS === 'object')
+    ? CORE.PREREQS
+    : null;
   splash.show();
 
   try {
@@ -318,7 +335,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     state.core = coreRecords.map(({ path }) => path);
 
     await waitForDomReady();
-    await evaluatePrereqs(coreRecords, 'hard');
+    await evaluatePrereqs(coreRecords, 'hard', hardPrereqOverrides);
     splash.hide();
 
     const safe = isSafeMode();
@@ -346,11 +363,16 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     return { reason: 'ok' };
   } catch (err) {
-    const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
-      ? 'required_import'
+    const failingPath = (err && typeof err === 'object' && typeof err.path === 'string')
+      ? err.path
+      : null;
+    const reason = failingPath && requiredSet.has(failingPath)
+      ? 'required_failure'
       : 'boot_failure';
-    recordFatal(reason, String(err?.stack || err));
-    throw err;
+    const detail = String(err?.stack || err);
+    recordFatal(reason, detail);
+    try { window.__BOOT_FATAL__ = true; } catch (_) {}
+    return { reason, fatal: true, path: failingPath, probe: err?.probe || null, detail };
   }
 }
 
