@@ -92,16 +92,21 @@ function fileExists(p) {
   }
 
   const patchOrderIssues = [];
-  const prefixLength = Math.min(canonicalPatchOrder.length, PATCHES.length);
-  for (let i = 0; i < prefixLength; i += 1) {
-    if (PATCHES[i] !== canonicalPatchOrder[i]) {
-      patchOrderIssues.push(`index ${i}: expected ${canonicalPatchOrder[i]} but found ${PATCHES[i]}`);
-      break;
+  for (let i = 0; i < canonicalPatchOrder.length; i += 1) {
+    const expected = canonicalPatchOrder[i];
+    const actual = PATCHES[i];
+    if (actual === undefined) {
+      patchOrderIssues.push(`index ${i}: expected ${expected} but manifest ended`);
+      continue;
     }
-  }
-  if (PATCHES.length < canonicalPatchOrder.length) {
-    const missingCanonical = canonicalPatchOrder.slice(PATCHES.length);
-    patchOrderIssues.push(`missing canonical entries: ${missingCanonical.join(', ')}`);
+    if (actual !== expected) {
+      const foundAt = PATCHES.indexOf(expected);
+      if (foundAt === -1) {
+        patchOrderIssues.push(`index ${i}: expected ${expected} but found ${actual} (missing expected entry)`);
+      } else {
+        patchOrderIssues.push(`index ${i}: expected ${expected} but found ${actual} (expected entry currently at index ${foundAt})`);
+      }
+    }
   }
   // Crawl js folder for unphased files (warn only)
   function walk(dir){
@@ -124,7 +129,7 @@ function fileExists(p) {
   // Report
   const errors = [];
   if (dups.length) errors.push(['Duplicates:', dups]);
-  if (missing.length) errors.push(['Missing:', missing]);
+  if (missing.length) errors.push(['Missing or unreachable modules:', missing]);
   if (patchDupes.length) errors.push(['PATCHES duplicates:', patchDupes]);
   if (patchOrderIssues.length) errors.push(['PATCHES out of order:', patchOrderIssues]);
 

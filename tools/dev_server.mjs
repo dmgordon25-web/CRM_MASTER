@@ -10,6 +10,12 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const APP_INDEX = path.join(REPO_ROOT, 'crm-app', 'index.html');
 const SERVER_HEADER_NAME = 'X-CRM-Server';
 const SERVER_HEADER_VALUE = 'dev';
+const LOG_ENDPOINT_PATH = '/__log';
+const CRM_LOG_ROOT = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, 'CRM', 'logs')
+  : path.join(REPO_ROOT, 'logs');
+const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
+const MAX_LOG_PAYLOAD = 64 * 1024;
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -74,6 +80,64 @@ function send(res, statusCode, body, extraHeaders = {}) {
   res.end(body);
 }
 
+function handleLogPost(req, res) {
+  let body = '';
+  let aborted = false;
+  req.setEncoding('utf8');
+
+  const abort = (status, message) => {
+    if (aborted) return;
+    aborted = true;
+    send(res, status, message);
+  };
+
+  req.on('data', (chunk) => {
+    if (aborted) return;
+    body += chunk;
+    if (body.length > MAX_LOG_PAYLOAD) {
+      abort(413, 'Payload Too Large');
+      req.destroy();
+    }
+  });
+
+  req.on('error', () => {
+    if (aborted) return;
+    aborted = true;
+    if (!res.headersSent) {
+      send(res, 400, 'Bad Request');
+    } else {
+      res.destroy();
+    }
+  });
+
+  req.on('end', () => {
+    if (aborted) return;
+    const trimmed = body.trim();
+    if (!trimmed) {
+      send(res, 204, '');
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      send(res, 400, 'Invalid JSON');
+      return;
+    }
+
+    const line = `${JSON.stringify(parsed)}\n`;
+    try {
+      fs.mkdirSync(path.dirname(FRONTEND_LOG_PATH), { recursive: true });
+      fs.appendFileSync(FRONTEND_LOG_PATH, line, 'utf8');
+    } catch {
+      send(res, 500, 'Failed to write log');
+      return;
+    }
+
+    send(res, 204, '');
+  });
+}
+
 function serveStream(req, res, filePath, stats) {
   const ext = path.extname(filePath).toLowerCase();
   const headers = {
@@ -122,10 +186,6 @@ function shouldSpaFallback(method, normalized, hasExtension) {
 
 const server = http.createServer((req, res) => {
   const method = (req.method || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') {
-    send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
-    return;
-  }
   const parsed = toPosix(req.url || '/');
   if (parsed.error === 400) {
     send(res, 400, 'Bad Request');
@@ -133,6 +193,16 @@ const server = http.createServer((req, res) => {
   }
   if (parsed.error === 403) {
     send(res, 403, 'Forbidden');
+    return;
+  }
+
+  if (method === 'POST' && parsed.normalized === LOG_ENDPOINT_PATH) {
+    handleLogPost(req, res);
+    return;
+  }
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
     return;
   }
 
