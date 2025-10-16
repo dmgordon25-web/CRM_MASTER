@@ -18,6 +18,21 @@
     ? queueMicrotask
     : (fn) => Promise.resolve().then(fn);
 
+  const readyListeners = new Set();
+  let readyResolved = false;
+  let readyDetail = null;
+  let resolveReadyPromise = null;
+  const readyPromise = new Promise((resolve) => {
+    resolveReadyPromise = resolve;
+  });
+
+  if (typeof window !== 'undefined') {
+    try { window.__SELECTION_READY__ = false; }
+    catch (_) {}
+    try { delete window.__SELECTION_READY_DETAIL__; }
+    catch (_) {}
+  }
+
   function cloneIds(){
     return Array.from(state.ids);
   }
@@ -83,6 +98,56 @@
         catch (err) { if(isDebug && console && console.warn) console.warn('Selection listener failed', err); }
       });
     });
+  }
+
+  function notifyReady(detail){
+    if(readyResolved) return readyDetail;
+    readyResolved = true;
+    readyDetail = detail;
+    try {
+      if(typeof resolveReadyPromise === 'function') resolveReadyPromise(detail);
+    } catch (_) {}
+    const listenersCopy = Array.from(readyListeners);
+    readyListeners.clear();
+    listenersCopy.forEach(cb => {
+      try { cb(detail); }
+      catch (err) { if(isDebug && console && console.warn) console.warn('Selection ready listener failed', err); }
+    });
+    if(typeof window !== 'undefined'){
+      try { window.__SELECTION_READY__ = true; }
+      catch (_) {}
+      try { window.__SELECTION_READY_DETAIL__ = detail; }
+      catch (_) {}
+    }
+    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+      try { document.dispatchEvent(new CustomEvent('selection:ready', { detail })); }
+      catch (err) { if(isDebug && console && console.warn) console.warn('Selection ready event dispatch failed', err); }
+      try { document.dispatchEvent(new CustomEvent('selectionReady', { detail })); }
+      catch (err) { if(isDebug && console && console.warn) console.warn('Selection ready legacy event failed', err); }
+    }
+    return detail;
+  }
+
+  function ensureReadyEmission(){
+    if(readyResolved) return readyDetail;
+    const detail = emit('ready');
+    return notifyReady(detail);
+  }
+
+  function whenReady(callback){
+    if(typeof callback === 'function'){
+      if(readyResolved){
+        enqueueMicrotask(() => {
+          try { callback(readyDetail); }
+          catch (err) { if(isDebug && console && console.warn) console.warn('Selection ready listener failed', err); }
+        });
+        return ()=>{};
+      }
+      readyListeners.add(callback);
+      return () => readyListeners.delete(callback);
+    }
+    if(readyResolved) return Promise.resolve(readyDetail);
+    return readyPromise;
   }
 
   function scheduleEmit(){
@@ -273,7 +338,11 @@
     snapshot,
     restore,
     reemit,
-    prune
+    prune,
+    whenReady,
+    ready: whenReady,
+    readyPromise: () => whenReady(),
+    isReady(){ return readyResolved; }
   };
 
   const compat = {
@@ -292,14 +361,35 @@
     idsOf,
     syncChecks: scheduleSync,
     set: setIds,
+    onChange,
     prune,
     toggle,
     snapshot,
     restore,
-    reemit
+    reemit,
+    whenReady,
+    ready: whenReady,
+    readyPromise: () => whenReady(),
+    isReady(){ return readyResolved; }
   };
 
   window.Selection = Selection;
   window.SelectionService = compat;
   window.__SELMODEL__ = compat;
+
+  function scheduleReady(){
+    if(readyResolved) return;
+    const run = () => enqueueMicrotask(ensureReadyEmission);
+    if(typeof document !== 'undefined' && document && typeof document.addEventListener === 'function'){
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', run, { once: true });
+      }else{
+        run();
+      }
+    }else{
+      run();
+    }
+  }
+
+  scheduleReady();
 })();
