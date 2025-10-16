@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Chromium system libraries
+        run: |
+          set -eux
+          sudo apt-get update
+          install_pkg() { sudo apt-get install -y "$1" || sudo apt-get install -y "$2"; }
+          sudo apt-get install -y \
+            libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 libc6 libdrm2 libgbm1 \
+            libgtk-3-0 libnss3 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 \
+            libxext6 libxfixes3 libxrandr2 libxrender1 libpango-1.0-0 libcairo2 fonts-liberation
+          install_pkg libasound2 libasound2t64
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: verify:build
+        run: npm run verify:build
