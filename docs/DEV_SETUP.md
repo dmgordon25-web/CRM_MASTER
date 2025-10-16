@@ -15,3 +15,10 @@ sudo apt-get update && sudo apt-get install -y \
 
 > Windows and macOS developers do not need this step. Our CI runners install
 > these packages automatically before executing the headless smoke test.
+
+## SAFE mode for debugging
+
+To bootstrap the application without running PATCHES, append `?safe=1` to the
+app URL or set `localStorage.SAFE` to `'1'` in the browser console. SAFE mode
+still loads CORE modules and the interactive shell so you can inspect the app
+without patch side effects.
