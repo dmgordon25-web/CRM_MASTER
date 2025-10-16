@@ -1,8 +1,16 @@
 import { openPartnerEdit as legacyOpenPartnerEdit } from '../partners_modal.js';
+import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from './modal_singleton.js';
 
+const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
 const CONTACT_MODAL_SELECTOR = '[data-ui="contact-modal"], #contact-modal';
 const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
+const scheduleMicrotask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => Promise.resolve().then(fn);
+
+let pendingOpen = null;
+let lastInvoker = null;
 
 function asArray(value){
   return Array.isArray(value) ? value : Array.from(value || []);
@@ -20,6 +28,7 @@ function isVisible(node){
 }
 
 function findPartnerModal(){
+  if(typeof document === 'undefined') return null;
   const modal = document.querySelector(MODAL_SELECTOR);
   return modal || null;
 }
@@ -35,17 +44,6 @@ function cleanupNodeHandles(node){
     catch(_err){}
     node.__partnerFocusTrapCleanup = null;
   }
-}
-
-function removeExtraPartnerModals(keep){
-  const nodes = asArray(document.querySelectorAll('[data-ui="partner-edit-modal"]'));
-  nodes.forEach(node => {
-    if(keep && node === keep) return;
-    cleanupNodeHandles(node);
-    if(node.parentNode){
-      node.parentNode.removeChild(node);
-    }
-  });
 }
 
 function hideContactModals(){
@@ -68,12 +66,17 @@ function hideContactModals(){
 
 function ensureModalAttributes(root){
   if(!root) return;
+  root.setAttribute('data-modal-key', MODAL_KEY);
   root.setAttribute('data-ui', 'partner-edit-modal');
-  if(root.dataset) root.dataset.ui = 'partner-edit-modal';
+  if(root.dataset){
+    root.dataset.modalKey = MODAL_KEY;
+    root.dataset.ui = 'partner-edit-modal';
+    root.dataset.open = '1';
+    root.dataset.opening = root.dataset.opening || '1';
+  }
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   root.setAttribute('aria-hidden', 'false');
-  root.dataset.open = '1';
   root.classList.remove('hidden');
   root.style.display = 'flex';
   root.style.alignItems = root.style.alignItems || 'center';
@@ -173,35 +176,153 @@ function wireCloseButtons(root){
   });
 }
 
-export function closePartnerEditModal(){
-  const root = findPartnerModal();
-  if(!root) return;
-  cleanupNodeHandles(root);
-  const wasOpen = root.dataset?.open === '1' || root.getAttribute('aria-hidden') === 'false' || root.hasAttribute('open');
-  root.dataset.open = '0';
-  root.setAttribute('aria-hidden', 'true');
-  root.classList.add('hidden');
-  root.style.display = 'none';
-  if(root.hasAttribute('open')) root.removeAttribute('open');
-  if(root.dataset) root.dataset.partnerId = '';
-  if(wasOpen){
-    try{ root.dispatchEvent(new Event('close', { bubbles: false, cancelable: false })); }
-    catch(_err){}
+function ensurePartnerShell(){
+  const existing = findPartnerModal();
+  if(existing) return existing;
+  const template = typeof document !== 'undefined' ? document.getElementById('partner-modal') : null;
+  if(template) return template;
+  if(typeof document === 'undefined') return null;
+  const host = document.querySelector('[data-ui="modal-root"]')
+    || document.body
+    || document.documentElement
+    || null;
+  if(!host) return null;
+  const wrapper = document.createElement('div');
+  wrapper.id = 'partner-modal';
+  wrapper.className = 'modal partner-edit-modal';
+  wrapper.innerHTML = '<div class="dlg" tabindex="-1"></div>';
+  wrapper.setAttribute('data-ui', 'partner-edit-modal');
+  wrapper.setAttribute('aria-hidden', 'true');
+  wrapper.style.display = 'none';
+  if(wrapper.dataset){
+    wrapper.dataset.ui = 'partner-edit-modal';
+    wrapper.dataset.qa = 'partner-edit-modal';
   }
+  host.appendChild(wrapper);
+  return wrapper;
 }
 
-export async function openPartnerEditModal(id){
-  closePartnerEditModal();
-  const keep = findPartnerModal();
-  removeExtraPartnerModals(keep || null);
-  hideContactModals();
-  await legacyOpenPartnerEdit(id);
-  const root = findPartnerModal();
+function resolveInvoker(source){
+  if(!source) return null;
+  if(source instanceof HTMLElement) return source;
+  if(typeof source === 'object'){
+    if(source.trigger instanceof HTMLElement) return source.trigger;
+    if(source.currentTarget instanceof HTMLElement) return source.currentTarget;
+    if(source.target instanceof HTMLElement) return source.target;
+  }
+  return null;
+}
+
+export function closePartnerEditModal(){
+  const root = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`) || findPartnerModal();
   if(!root) return;
-  ensureModalAttributes(root);
-  wireCloseButtons(root);
-  installEscHandler(root);
-  focusFirstElement(root);
+  const wasOpen = root.dataset?.open === '1'
+    || root.getAttribute('aria-hidden') === 'false'
+    || root.hasAttribute('open');
+  cleanupNodeHandles(root);
+  if(root.dataset){
+    root.dataset.opening = '0';
+  }
+  const beforeRemove = (node)=>{
+    if(node.dataset){
+      node.dataset.open = '0';
+      node.dataset.opening = '0';
+      node.dataset.partnerId = '';
+    }
+    node.setAttribute('aria-hidden', 'true');
+    node.classList.add('hidden');
+    node.style.display = 'none';
+    if(node.hasAttribute('open')) node.removeAttribute('open');
+    if(wasOpen){
+      try{ node.dispatchEvent(new Event('close', { bubbles: false, cancelable: false })); }
+      catch(_err){}
+    }
+  };
+  closeSingletonModal(root, { beforeRemove, remove: false });
+  const invoker = root.__partnerInvoker || lastInvoker;
+  if(invoker && typeof invoker.focus === 'function'){
+    try{ invoker.focus({ preventScroll: true }); }
+    catch(_err){
+      try{ invoker.focus(); }
+      catch(__err){}
+    }
+  }
+  root.__partnerInvoker = null;
+  lastInvoker = null;
+}
+
+export async function openPartnerEditModal(id, options){
+  const partnerId = id == null ? '' : String(id).trim();
+  if(!partnerId) return null;
+
+  const invoker = resolveInvoker(options);
+  if(invoker) lastInvoker = invoker;
+
+  const existing = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`);
+  if(existing && existing.dataset?.open === '1' && existing.dataset.partnerId === partnerId){
+    focusFirstElement(existing);
+    return existing;
+  }
+
+  if(pendingOpen){
+    return pendingOpen;
+  }
+
+  const sequence = (async () => {
+    let base = ensureSingletonModal(MODAL_KEY, () => ensurePartnerShell());
+    base = base instanceof Promise ? await base : base;
+    if(!base) return null;
+
+    if(base.dataset?.opening === '1'){
+      return base;
+    }
+
+    if(base.dataset){
+      base.dataset.opening = '1';
+    }
+    base.__partnerInvoker = invoker || base.__partnerInvoker || null;
+
+    hideContactModals();
+
+    await legacyOpenPartnerEdit(partnerId);
+
+    let root = findPartnerModal();
+    if(root !== base && root){
+      let ensured = ensureSingletonModal(MODAL_KEY, () => root);
+      root = ensured instanceof Promise ? await ensured : ensured;
+    }else{
+      root = base;
+    }
+    if(!root) return null;
+
+    if(root.dataset){
+      root.dataset.opening = '1';
+      root.dataset.partnerId = partnerId;
+    }
+    root.__partnerInvoker = invoker || root.__partnerInvoker || null;
+
+    cleanupNodeHandles(root);
+    registerModalCleanup(root, cleanupNodeHandles);
+    ensureModalAttributes(root);
+    wireCloseButtons(root);
+    installEscHandler(root);
+    focusFirstElement(root);
+
+    const clearOpening = () => {
+      if(root.dataset) root.dataset.opening = '0';
+    };
+    root.addEventListener('shown', clearOpening, { once: true });
+
+    scheduleMicrotask(() => {
+      try{ root.dispatchEvent(new Event('shown', { bubbles: false, cancelable: false })); }
+      catch(_err){}
+    });
+
+    return root;
+  })();
+
+  pendingOpen = sequence.finally(() => { pendingOpen = null; });
+  return sequence;
 }
 
 export default {
