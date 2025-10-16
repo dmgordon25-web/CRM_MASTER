@@ -1,4 +1,5 @@
 /* Manifest with relative paths (relative to crm-app/js). Dedupe and phase separation. */
+import { normalizeModuleId } from './boot_hardener.js';
 export const CORE = [
   './env.js',
   './db.js',
@@ -115,11 +116,21 @@ export const PATCHES = [
   './core/capabilities_probe.js'
 ];
 
-export const REQUIRED = new Set([
+const REQUIRED_MODULES = [
   './env.js',
   './db.js',
   './utils.js',
   './render.js',
   './ui/Toast.js',
   './ui/Confirm.js'
-]);
+];
+
+export const REQUIRED = new Set(REQUIRED_MODULES.map((spec) => {
+  try {
+    return normalizeModuleId(spec);
+  } catch (_) {
+    return spec;
+  }
+}));
+
+export { normalizeModuleId };

@@ -24,7 +24,7 @@ const LOG_ENDPOINT = (() => {
 
 const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
-function normalize(spec) {
+export function normalizeModuleId(spec) {
   if (typeof spec !== 'string') throw new TypeError('invalid module specifier');
   const trimmed = spec.trim();
   if (!trimmed) throw new TypeError('invalid module specifier');
@@ -53,8 +53,87 @@ function normalize(spec) {
 }
 
 async function dynImport(spec) {
-  const normalized = normalize(spec);
+  const normalized = normalizeModuleId(spec);
   return import(normalized);
+}
+
+const globalScope = (typeof window !== 'undefined')
+  ? window
+  : (typeof globalThis !== 'undefined' ? globalThis : null);
+const documentRef = (typeof document !== 'undefined') ? document : null;
+const earlyTrap = globalScope && globalScope.__BOOT_EARLY_TRAP__;
+let finalizedState = earlyTrap && earlyTrap.state && earlyTrap.state.bootState
+  ? String(earlyTrap.state.bootState)
+  : null;
+let readyFinalizationPromise = null;
+
+function ensureBodyBootAttr(value) {
+  if (!documentRef || !documentRef.body) return;
+  if (!value) {
+    documentRef.body.removeAttribute('data-boot');
+    return;
+  }
+  documentRef.body.setAttribute('data-boot', value);
+}
+
+function showOverlayPayload(payload) {
+  if (!globalScope) return;
+  try {
+    if (typeof globalScope.showDiagnosticsOverlay === 'function') {
+      globalScope.showDiagnosticsOverlay(payload);
+      return;
+    }
+  } catch (_) {}
+  const diagnosticsHost = documentRef && documentRef.getElementById('diagnostics');
+  if (diagnosticsHost) {
+    try { diagnosticsHost.hidden = false; } catch (_) {}
+  }
+}
+
+function finalizeOnce(state, payload) {
+  if (state !== 'fatal' && state !== 'ready') return;
+  if (state === 'fatal') {
+    if (finalizedState === 'fatal') return;
+    finalizedState = 'fatal';
+    if (earlyTrap && typeof earlyTrap.markFatal === 'function') {
+      try {
+        earlyTrap.markFatal(payload || {});
+        return;
+      } catch (_) {}
+    }
+    ensureBodyBootAttr('fatal');
+    showOverlayPayload(payload);
+    return;
+  }
+
+  if (finalizedState === 'fatal' || finalizedState === 'ready') return;
+  finalizedState = 'ready';
+  if (earlyTrap && typeof earlyTrap.markReady === 'function') {
+    try {
+      earlyTrap.markReady();
+      return;
+    } catch (_) {}
+  }
+  ensureBodyBootAttr('ready');
+}
+
+function afterFirstPaint() {
+  if (!globalScope || typeof globalScope.requestAnimationFrame !== 'function') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    globalScope.requestAnimationFrame(() => {
+      globalScope.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function scheduleReadyFinalization() {
+  if (readyFinalizationPromise) return readyFinalizationPromise;
+  readyFinalizationPromise = afterFirstPaint()
+    .then(() => finalizeOnce('ready'))
+    .catch(() => {});
+  return readyFinalizationPromise;
 }
 
 const originalConsoleError = console.error.bind(console);
@@ -245,14 +324,23 @@ async function evaluatePrereqs(records, kind) {
 async function loadModules(paths, { fatalOnFailure = true } = {}) {
   const records = [];
   for (const spec of paths || []) {
+    let normalized = null;
     try {
-      const module = await dynImport(spec);
-      records.push({ path: spec, module });
+      normalized = normalizeModuleId(spec);
+      const module = await import(normalized);
+      records.push({ path: normalized, original: spec, module });
     } catch (err) {
       const detail = String(err?.stack || err);
       if (fatalOnFailure) {
-        console.error('[BOOT] import failed:', spec, detail);
-        if (err && typeof err === 'object') err.path = spec;
+        if (!normalized) {
+          try { normalized = normalizeModuleId(spec); }
+          catch (_) { normalized = spec; }
+        }
+        console.error('[BOOT] import failed:', normalized, detail);
+        if (err && typeof err === 'object') {
+          err.path = normalized;
+          err.originalPath = spec;
+        }
         throw err;
       } else {
         console.warn('[BOOT] optional import failed:', spec, detail);
@@ -262,11 +350,34 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
   return records;
 }
 
-function recordFatal(reason, detail) {
+function buildFatalPayload(reason, detail, err) {
+  const name = (err && err.name) ? String(err.name) : 'Boot failure';
+  const message = (err && err.message)
+    ? String(err.message)
+    : (reason === 'required_import'
+      ? 'Required module failed to load'
+      : 'Boot sequence halted');
+  const modulePath = (err && err.path) ? String(err.path) : (err && err.originalPath ? String(err.originalPath) : '');
+  const moduleInfo = modulePath ? `module: ${modulePath}` : '';
+  const detailText = moduleInfo
+    ? `${moduleInfo}\n${detail}`
+    : detail;
+  return {
+    kind: reason,
+    at: Date.now(),
+    name,
+    message,
+    detail: detailText
+  };
+}
+
+function recordFatal(reason, detail, err) {
   try {
     window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
   } catch (_) {}
   splash.show();
+  const payload = buildFatalPayload(reason, detail, err);
+  finalizeOnce('fatal', payload);
   postLog('boot.fail', { reason, detail });
 }
 
@@ -283,6 +394,7 @@ function recordSuccess(meta) {
     } catch (_) {}
     perfPingNoted = true;
   }
+  scheduleReadyFinalization();
   postLog('boot.success', meta || {});
 }
 
@@ -310,7 +422,13 @@ function maybeRenderAll() {
 
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
-  const requiredSet = new Set(REQUIRED || []);
+  const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
+    try {
+      return normalizeModuleId(value);
+    } catch (_) {
+      return value;
+    }
+  }));
   splash.show();
 
   try {
@@ -320,6 +438,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await waitForDomReady();
     await evaluatePrereqs(coreRecords, 'hard');
     splash.hide();
+    const readyPromise = scheduleReadyFinalization();
 
     const safe = isSafeMode();
     state.safe = safe;
@@ -343,16 +462,18 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await evaluatePrereqs(coreRecords, 'soft');
 
+    await readyPromise;
+
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     return { reason: 'ok' };
   } catch (err) {
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
       ? 'required_import'
       : 'boot_failure';
-    recordFatal(reason, String(err?.stack || err));
+    recordFatal(reason, String(err?.stack || err), err);
     throw err;
   }
 }
 
-export const __private = { normalize, dynImport, isSafeMode };
+export const __private = { normalize: normalizeModuleId, dynImport, isSafeMode };
 /* End of file */
