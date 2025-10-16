@@ -13,6 +13,192 @@ function runPatch(){
       window.__PATCHES_LOADED__.push('/js/patch_2025-09-27_phase6_polish_telemetry.js');
     }
 
+    function scheduleIdle(fn, timeout = 1500){
+      if(typeof window.requestIdleCallback === 'function'){
+        try{ return window.requestIdleCallback(fn, { timeout }); }
+        catch (_) { /* fallthrough */ }
+      }
+      return setTimeout(()=> setTimeout(fn, 0), 0);
+    }
+
+    const getTelemetrySessionId = (function(){
+      const storageKey = 'crm.telemetry.session';
+      let cached = null;
+      function makeId(){
+        if(typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function'){
+          try{ return crypto.randomUUID(); }
+          catch (_) { }
+        }
+        const rand = Math.random().toString(36).slice(2, 10);
+        return `s-${rand}${Date.now().toString(36)}`;
+      }
+      return function(){
+        if(cached) return cached;
+        try{
+          const store = window.sessionStorage;
+          if(store){
+            const existing = store.getItem(storageKey);
+            if(existing){ cached = existing; return cached; }
+            const created = makeId();
+            store.setItem(storageKey, created);
+            cached = created;
+            return cached;
+          }
+        }catch (_) { }
+        cached = makeId();
+        return cached;
+      };
+    })();
+
+    function summarizeContractStatus(contract){
+      if(!contract || typeof contract !== 'object') return null;
+      const summary = {};
+      if(typeof contract.ok === 'boolean') summary.ok = contract.ok;
+      if(Array.isArray(contract.fails)) summary.failCount = contract.fails.length;
+      return Object.keys(summary).length ? summary : null;
+    }
+
+    function collectContractSummary(){
+      const logs = window.__BOOT_LOGS__;
+      if(!Array.isArray(logs) || !logs.length) return null;
+      for(let i = logs.length - 1; i >= 0; i--){
+        const entry = logs[i];
+        if(!entry || entry.kind !== 'contracts') continue;
+        const summary = {};
+        const shell = summarizeContractStatus(entry.SHELL);
+        const services = summarizeContractStatus(entry.SERVICES);
+        const features = summarizeContractStatus(entry.FEATURES);
+        if(shell) summary.shell = shell;
+        if(services) summary.services = services;
+        if(features) summary.features = features;
+        return Object.keys(summary).length ? summary : null;
+      }
+      return null;
+    }
+
+    function collectNavigationMetrics(){
+      try{
+        if(!performance || typeof performance.getEntriesByType !== 'function') return null;
+      }catch (_) { return null; }
+      let entries;
+      try{ entries = performance.getEntriesByType('navigation'); }
+      catch (_) { entries = null; }
+      if(!entries || !entries.length) return null;
+      const nav = entries[0];
+      if(!nav) return null;
+      const summary = {};
+      if(typeof nav.type === 'string' && nav.type) summary.type = nav.type.slice(0, 20);
+      if(typeof nav.domInteractive === 'number') summary.domInteractive = Math.round(nav.domInteractive);
+      if(typeof nav.domContentLoadedEventEnd === 'number') summary.domContentLoaded = Math.round(nav.domContentLoadedEventEnd);
+      if(typeof nav.loadEventEnd === 'number') summary.loadEventEnd = Math.round(nav.loadEventEnd);
+      if(typeof nav.responseEnd === 'number') summary.responseEnd = Math.round(nav.responseEnd);
+      return Object.keys(summary).length ? summary : null;
+    }
+
+    function collectPaintMetrics(){
+      try{ if(!performance) return null; }
+      catch (_) { return null; }
+      const result = {};
+      try{
+        if(typeof performance.getEntriesByName === 'function'){
+          const paints = performance.getEntriesByName('first-contentful-paint');
+          if(paints && paints.length){
+            const entry = paints[paints.length - 1];
+            if(entry && typeof entry.startTime === 'number'){
+              result.firstContentfulPaint = Math.round(entry.startTime);
+            }
+          }
+        }
+      }catch (_) { }
+      try{
+        if(typeof performance.getEntriesByType === 'function'){
+          const lcp = performance.getEntriesByType('largest-contentful-paint');
+          if(lcp && lcp.length){
+            const entry = lcp[lcp.length - 1];
+            if(entry && typeof entry.startTime === 'number'){
+              result.largestContentfulPaint = Math.round(entry.startTime);
+            }
+          }
+        }
+      }catch (_) { }
+      return Object.keys(result).length ? result : null;
+    }
+
+    function gatherBootMeta(){
+      const boot = {};
+      const done = window.__BOOT_DONE__;
+      if(done && typeof done === 'object'){
+        if(typeof done.at === 'number') boot.completedAt = done.at;
+        if(typeof done.fatal === 'boolean') boot.fatal = !!done.fatal;
+      }
+      const initFlags = window.__INIT_FLAGS__;
+      if(initFlags && typeof initFlags === 'object'){
+        const names = Object.keys(initFlags);
+        if(names.length) boot.phaseCount = names.length;
+      }
+      const patchesLoaded = window.__PATCHES_LOADED__;
+      if(Array.isArray(patchesLoaded) && patchesLoaded.length){
+        boot.patchCount = patchesLoaded.length;
+      }
+      const contracts = collectContractSummary();
+      if(contracts) boot.contracts = contracts;
+      return Object.keys(boot).length ? boot : null;
+    }
+
+    function gatherPerfMeta(){
+      const perf = {};
+      const navigation = collectNavigationMetrics();
+      if(navigation) perf.navigation = navigation;
+      const paints = collectPaintMetrics();
+      if(paints) perf.paint = paints;
+      return Object.keys(perf).length ? perf : null;
+    }
+
+    function buildTelemetryPayload(){
+      const session = getTelemetrySessionId();
+      if(!session) return null;
+      const appVersion = typeof window.APP_VERSION === 'string' && window.APP_VERSION
+        ? window.APP_VERSION
+        : 'unknown';
+      const payload = {
+        kind: 'telemetry.phase6',
+        ts: Date.now(),
+        session,
+        app: { version: appVersion }
+      };
+      const boot = gatherBootMeta();
+      if(boot) payload.boot = boot;
+      const perf = gatherPerfMeta();
+      if(perf) payload.perf = perf;
+      return payload;
+    }
+
+    scheduleIdle(()=>{
+      try{
+        performance?.mark?.('telemetry-scheduled');
+        const canBeacon = typeof navigator !== 'undefined' && navigator && typeof navigator.sendBeacon === 'function';
+        if(!canBeacon){
+          console.info('[telemetry] beacon unavailable; skipping');
+          return;
+        }
+        const payload = buildTelemetryPayload();
+        if(!payload) return;
+        let body = null;
+        try{ body = JSON.stringify(payload); }
+        catch (err) {
+          console.warn('[telemetry] payload stringify failed', err);
+          return;
+        }
+        const ok = navigator.sendBeacon('/__log', body);
+        performance?.mark?.('telemetry-sent');
+        if(!ok){
+          console.info('[telemetry] beacon send rejected');
+        }
+      }catch (err) {
+        console.warn('[telemetry]', err);
+      }
+    });
+
     const isDebug = window.__ENV__ && window.__ENV__.DEBUG === true;
     const diagNoop = window.DIAG = window.DIAG || {};
     if(typeof diagNoop.getStoreSizes !== 'function'){
