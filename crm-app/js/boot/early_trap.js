@@ -2,8 +2,9 @@
 (function(){
   function log(kind, payload){
     try {
+      if (typeof fetch !== 'function') return;
       fetch('/__log', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ kind, ts: Date.now(), ...payload }) }).catch(()=>{});
+        body: JSON.stringify({ kind, ts: Date.now(), href: location.href, ...payload }), keepalive:true }).catch(()=>{});
     } catch (e) {}
   }
   function showSplash(){
