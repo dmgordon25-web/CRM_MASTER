@@ -67,6 +67,125 @@
     }
   }
 
+  function restoreOverlay(overlay){
+    if (!overlay) return false;
+    let changed = false;
+    try {
+      if (overlay.dataset && typeof overlay.dataset.overlayHidden !== 'undefined') {
+        try { delete overlay.dataset.overlayHidden; }
+        catch (_) { overlay.dataset.overlayHidden = '0'; }
+        changed = true;
+      }
+    } catch (_) {}
+    try {
+      if (typeof overlay.getAttribute === 'function' && typeof overlay.removeAttribute === 'function') {
+        if (overlay.getAttribute('data-state') === 'hidden') {
+          overlay.removeAttribute('data-state');
+          changed = true;
+        }
+      }
+    } catch (_) {}
+    if (overlay.style) {
+      try { overlay.style.opacity = ''; } catch (_) {}
+      try { overlay.style.pointerEvents = ''; } catch (_) {}
+      try { overlay.style.visibility = ''; } catch (_) {}
+    }
+    return changed;
+  }
+
+  function installOverlayRevealWatcher(overlay){
+    if (!overlay || overlay.__overlayRevealWatcherInstalled__) return;
+    overlay.__overlayRevealWatcherInstalled__ = true;
+    const global = (typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null));
+    const getDisplayState = () => {
+      try {
+        if (overlay.style && typeof overlay.style.display === 'string') {
+          return overlay.style.display.trim();
+        }
+      } catch (_) {}
+      return '';
+    };
+
+    const shouldRestore = () => {
+      const datasetHidden = !!(overlay.dataset && overlay.dataset.overlayHidden === '1');
+      let attrHidden = false;
+      try {
+        attrHidden = typeof overlay.getAttribute === 'function'
+          ? overlay.getAttribute('data-state') === 'hidden'
+          : false;
+      } catch (_) {}
+      let inlineHidden = false;
+      try {
+        if (overlay.style) {
+          inlineHidden = overlay.style.opacity === '0'
+            || overlay.style.pointerEvents === 'none'
+            || overlay.style.visibility === 'hidden';
+        }
+      } catch (_) {}
+      if (!datasetHidden && !attrHidden && !inlineHidden) return false;
+      const display = getDisplayState();
+      if (!display || display === 'none') return false;
+      restoreOverlay(overlay);
+      return true;
+    };
+
+    let observer = null;
+    let timer = null;
+    const clearTimer = () => {
+      if (timer == null) return;
+      try {
+        const clear = (global && typeof global.clearInterval === 'function') ? global.clearInterval : clearInterval;
+        if (typeof clear === 'function') clear(timer);
+      } catch (_) {}
+      timer = null;
+    };
+    const cleanup = () => {
+      if (observer) {
+        try { observer.disconnect(); }
+        catch (_) {}
+        observer = null;
+      }
+      clearTimer();
+      try { delete overlay.__overlayRevealWatcherInstalled__; }
+      catch (_) { overlay.__overlayRevealWatcherInstalled__ = false; }
+    };
+
+    const check = () => {
+      try {
+        if (shouldRestore()) {
+          cleanup();
+        }
+      } catch (err) {
+        logWarn(err);
+        cleanup();
+      }
+    };
+
+    if (typeof MutationObserver === 'function') {
+      try {
+        observer = new MutationObserver(check);
+        observer.observe(overlay, { attributes: true, attributeFilter: ['style', 'data-state', 'data-overlay-hidden'] });
+      } catch (err) {
+        logWarn(err);
+        observer = null;
+      }
+    }
+
+    if (!shouldRestore()) {
+      const setInt = (global && typeof global.setInterval === 'function') ? global.setInterval : setInterval;
+      if (typeof setInt === 'function') {
+        try {
+          timer = setInt(check, POLL_INTERVAL_MS);
+        } catch (err) {
+          logWarn(err);
+          timer = null;
+        }
+      }
+    } else {
+      cleanup();
+    }
+  }
+
   function positiveFlag(value, seen){
     if (value === true) return true;
     if (typeof value === 'number') {
@@ -210,6 +329,7 @@
       if (typeof document === 'undefined' || !document) return;
       const overlay = document.querySelector(OVERLAY_SELECTOR);
       if (!overlay) return;
+      installOverlayRevealWatcher(overlay);
       if (overlay.dataset && overlay.dataset.overlayHidden === '1') return;
       if (overlay.dataset) overlay.dataset.overlayHidden = '1';
       try { overlay.setAttribute('data-state', 'hidden'); }
