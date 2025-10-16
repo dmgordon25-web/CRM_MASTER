@@ -277,7 +277,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         }catch (_err) { window.location.hash = '#settings/automation'; }
       }catch (err) {
         if(!scheduled) rendering = false;
-        console.error('automation surface render failed', err);
+        console.warn('[soft] automation surface render failed', err);
       }
     }
 
@@ -370,9 +370,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function appRender(){
     if(typeof window.renderAll !== 'function'){
-      if(!window.__RENDER_ALL_MISSING_LOGGED__ && console && typeof console.error === 'function'){
+      if(!window.__RENDER_ALL_MISSING_LOGGED__ && console && typeof console.warn === 'function'){
         window.__RENDER_ALL_MISSING_LOGGED__ = true;
-        console.error('renderAll missing — module load failed or not executed');
+        console.warn('[soft] renderAll missing — module load failed or not executed');
       }
       return;
     }
@@ -382,10 +382,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     try{
       const result = window.renderAll();
       if(result && typeof result.then === 'function'){
-        result.catch(err => console.error('[app] renderAll failed', err));
+        result.catch(err => console.warn('[soft] [app] renderAll failed', err));
       }
     }catch (err) {
-      console.error('[app] renderAll failed', err);
+      console.warn('[soft] [app] renderAll failed', err);
     }
   }
 
@@ -1275,7 +1275,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           await outcome;
         }
       }catch (err) {
-        console.error('[workbench] render failed', err);
+        console.warn('[soft] [workbench] render failed', err);
       }
       updateHash();
     }
@@ -1677,10 +1677,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     try{
       const result = fn();
       if(result && typeof result.then === 'function'){
-        result.catch(err => console.error(`[app] ${label} repaint failed`, err));
+        result.catch(err => console.warn('[soft] [app] ' + label + ' repaint failed', err));
       }
     }catch (err) {
-      console.error(`[app] ${label} repaint failed`, err);
+      console.warn('[soft] [app] ' + label + ' repaint failed', err);
     }
     return true;
   }

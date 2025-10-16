@@ -17,7 +17,7 @@ function ensureCRM() {
 export async function init(ctx) {
   ensureCRM();
   const log = (ctx?.logger?.log) || console.log;
-  const error = (ctx?.logger?.error) || console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
   if (__wired) {
     log("[partners_merge_orchestrator.init] already wired");
     window.CRM.health.partnersMergeOrchestrator ??= "ok";
@@ -127,7 +127,7 @@ export async function openPartnersMergeByIds(idA, idB) {
   const [a, b] = await Promise.all([dbGetSafe("partners", idA), dbGetSafe("partners", idB)]);
   if (!a || !b) {
     const error = new Error("partners not found");
-    console.error("[merge] partners not found", { idA, idB, a: !!a, b: !!b });
+    console.warn("[soft] [merge] partners not found", { idA, idB, a: !!a, b: !!b });
     return { status: "error", error };
   }
 
@@ -167,7 +167,7 @@ export async function openPartnersMergeByIds(idA, idB) {
 
           finish({ status: "ok", winnerId, loserId, merged });
         } catch (err) {
-          console.error("[merge] partners failed", err);
+          console.warn("[soft] [merge] partners failed", err);
           finish({ status: "error", error: err });
         }
       },

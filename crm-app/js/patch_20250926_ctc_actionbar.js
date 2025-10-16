@@ -62,7 +62,7 @@ function runPatch(){
           console.warn('[merge] Unable to infer active view; expected contacts or partners. ids=', ids);
         }
       } catch (err) {
-        console.error('[merge] handler failed', err);
+        console.warn('[soft] [merge] handler failed', err);
       }
     }, false);
   }
@@ -1079,7 +1079,7 @@ function runPatch(){
             }
             return { status:'ok', clear:true, dispatch:false, detail:{ merged: ids, entity:'contacts' } };
           }catch (err) {
-            console.error('[merge] orchestrator failed', err);
+            console.warn('[soft] [merge] orchestrator failed', err);
             toast('Merge failed');
             return { status:'error', error: err, dispatch:false };
           }
@@ -1132,7 +1132,7 @@ function runPatch(){
             toast('Moved to pipeline');
             return { status:'ok', clear:true, dispatch:false, detail:{ converted: contact.id, ok: result && result.ok !== false } };
           }catch (err) {
-            console.error('convertLongShotToPipeline', err);
+            console.warn('[soft] convertLongShotToPipeline', err);
             toast('Conversion failed');
             return { status:'error', error: err, dispatch:false };
           }
@@ -1198,7 +1198,7 @@ function runPatch(){
       try{
         result = await handleAction(act, snapshot);
       }catch (err) {
-        console.error('handleAction failed', act, err);
+        console.warn('[soft] handleAction failed', act, err);
         result = { status:'error', error: err, dispatch:false };
       }
       if(!result) result = { status:'cancel', dispatch:false };
@@ -1513,7 +1513,7 @@ function runPatch(){
 
     function bootstrap(){
       if(!ensureSelectionService()){
-        console.error('SelectionService unavailable during bootstrap');
+        console.warn('[soft] SelectionService unavailable during bootstrap');
         return;
       }
       bindActionbar();
@@ -1565,14 +1565,14 @@ function runPatch(){
         Promise.resolve(bootDone)
           .then(() => {
             if(ensureSelectionService()) onDomReady(bootstrap);
-            else console.error('SelectionService unavailable after boot');
+            else console.warn('[soft] SelectionService unavailable after boot');
           })
           .catch(err => {
-            console.error('SelectionService bootstrap failed', err);
+            console.warn('[soft] SelectionService bootstrap failed', err);
           });
         return;
       }
-      console.error('SelectionService unavailable');
+      console.warn('[soft] SelectionService unavailable');
     }
 
     initActionbar();
@@ -1581,7 +1581,7 @@ function runPatch(){
 export async function init(ctx){
   ensureCRM();
   const log = (ctx?.logger?.log)||console.log;
-  const error = (ctx?.logger?.error)||console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
 
   if(__wired){
     log('[patch_20250926_ctc_actionbar.init] already wired');

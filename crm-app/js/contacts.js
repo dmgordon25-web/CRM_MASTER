@@ -694,8 +694,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       };
       if(typeof window.dispatchAppDataChanged === 'function'){
         window.dispatchAppDataChanged(detail);
-      }else if(console && typeof console.error === 'function'){
-        console.error('dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+      }else if(console && typeof console.warn === 'function'){
+        console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
       }
       if(window.Toast && typeof window.Toast.show === 'function'){
         window.Toast.show(existed ? 'Updated' : 'Created');

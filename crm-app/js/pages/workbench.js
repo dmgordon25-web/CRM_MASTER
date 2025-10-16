@@ -351,7 +351,7 @@ export async function renderWorkbench(root, options = {}){
       runBtn.disabled = true;
       runBtn.setAttribute('aria-busy', 'true');
       try{ await options.onRunSelfTest(); }
-      catch (err) { console && console.error && console.error('[workbench] self-test failed', err); }
+      catch (err) { console && console.warn && console.warn('[soft] [workbench] self-test failed', err); }
       finally{
         runBtn.removeAttribute('aria-busy');
         runBtn.disabled = false;

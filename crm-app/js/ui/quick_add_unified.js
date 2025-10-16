@@ -123,7 +123,7 @@ export function wireQuickAddUnified() {
           console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec);
         }
       } catch (err) {
-        console.error("[quickAdd] contact save failed", err);
+        console.warn("[soft] [quickAdd] contact save failed", err);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
         if (saved) {
@@ -156,7 +156,7 @@ export function wireQuickAddUnified() {
           console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec);
         }
       } catch (err) {
-        console.error("[quickAdd] partner save failed", err);
+        console.warn("[soft] [quickAdd] partner save failed", err);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
         if (saved) {

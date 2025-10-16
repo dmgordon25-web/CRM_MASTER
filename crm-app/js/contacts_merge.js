@@ -44,7 +44,7 @@ export async function mergeContactsWithIds(ids) {
     }
     return result;
   } catch (err) {
-    console.error("[merge] orchestration failed", err);
+    console.warn("[soft] [merge] orchestration failed", err);
     if (typeof window !== "undefined" && typeof window.toast === "function") window.toast("Merge failed.");
     throw err;
   }
@@ -55,7 +55,8 @@ mergeContactsWithIds.__fieldChooser = true;
 export async function init(ctx) {
   const crm = ensureCRM();
   const log = ctx?.logger?.log ? ctx.logger.log.bind(ctx.logger) : console.log.bind(console);
-  const error = ctx?.logger?.error ? ctx.logger.error.bind(ctx.logger) : console.error.bind(console);
+  const fallbackError = (...args) => console.warn('[soft]', ...args);
+  const error = ctx?.logger?.error ? ctx.logger.error.bind(ctx.logger) : fallbackError;
 
   if (crm) {
     crm.modules.contactsMerge = crm.modules.contactsMerge || { initCalled: false };
@@ -113,7 +114,7 @@ if (crm) {
       try {
         await _oldInit(ctx);
       } catch (err) {
-        (ctx?.logger?.error || console.error).call(ctx?.logger || console, "[contacts_merge.legacyInit] old init failed", err);
+        (ctx?.logger?.error || ((...args) => console.warn('[soft]', ...args))).call(ctx?.logger || console, "[contacts_merge.legacyInit] old init failed", err);
       }
     }
     return init(ctx);

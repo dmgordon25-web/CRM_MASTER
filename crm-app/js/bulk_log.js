@@ -131,7 +131,7 @@
           toast(`Logged to ${count} contact${count===1?'':'s'}`);
           finish({ status:'ok', count, detail:{ scope:'contacts', action:'bulk-log', count, ids: list.slice().map(val => String(val)) } });
         }catch (err) {
-          console.error('bulkAppendLog', err);
+          console.warn('[soft] bulkAppendLog', err);
           toast('Failed to log activity');
           finish({ status:'error', error: err });
         }
