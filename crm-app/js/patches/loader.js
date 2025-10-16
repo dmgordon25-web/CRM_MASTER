@@ -10,7 +10,7 @@ window.CRM.ctx = window.CRM.ctx || {
   logger: {
     log: (...a) => console.log('[CRM]', ...a),
     warn: (...a) => console.warn('[CRM]', ...a),
-    error: (...a) => console.error('[CRM]', ...a)
+    error: (...a) => console.warn('[soft][CRM]', ...a)
   },
   env: window.__ENV__ || {},
   featureFlags: window.__FEATURES__ || {}

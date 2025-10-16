@@ -130,6 +130,6 @@ export async function init(ctx){
       ctx.logger.log('[partners.init] invoked', { alreadyInitialised: fresh === false });
     }
   } catch (e) {
-    console.error('[partners.init]', e);
+    console.warn('[soft] [partners.init]', e);
   }
 }

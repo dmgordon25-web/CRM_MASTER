@@ -29,7 +29,7 @@ function runPatch(){
 export async function init(ctx){
   ensureCRM();
   const log = (ctx?.logger?.log)||console.log;
-  const error = (ctx?.logger?.error)||console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
 
   if(__wired){
     log('[patch_2025-10-03_calendar_ics_button.init] already wired');

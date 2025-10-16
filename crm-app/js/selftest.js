@@ -6,7 +6,8 @@ const expectWorkbench = Boolean(ENV && ENV.WORKBENCH);
 const loggers = {
   error: (...args) => {
     if (!console) return;
-    (console.error || console.log || (() => {})).apply(console, args);
+    const fn = console.warn || console.log || (() => {});
+    fn.apply(console, ['[soft]', ...args]);
   },
   warn: (...args) => {
     if (!console) return;

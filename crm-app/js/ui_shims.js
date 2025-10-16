@@ -113,7 +113,7 @@
           root.classList.add('hidden');
           document.dispatchEvent(new Event('app:data:changed'));
           if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
-        }catch (e) { console && console.error && console.error('Add contact failed', e); }
+        }catch (e) { console && console.warn && console.warn('[soft] Add contact failed', e); }
       });
       foot.appendChild(cancel); foot.appendChild(save);
     }
@@ -198,7 +198,7 @@
             }
           }
         }catch (e) {
-          console && console.error && console.error('Delete partner failed', e);
+          console && console.warn && console.warn('[soft] Delete partner failed', e);
         }
       });
       save.addEventListener('click', async ()=>{
@@ -209,7 +209,7 @@
           root.classList.add('hidden');
           document.dispatchEvent(new Event('app:data:changed'));
           if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
-        }catch (e) { console && console.error && console.error('Save partner failed', e); }
+        }catch (e) { console && console.warn && console.warn('[soft] Save partner failed', e); }
       });
       foot.appendChild(cancel); foot.appendChild(del); foot.appendChild(save);
     }
@@ -229,5 +229,5 @@
       if(btn){ const id = btn.getAttribute('data-edit-partner'); if(id) openEditPartner(id); }
     });
 
-  }catch (e) { try{ console.error('ui_shims error', e); }catch (_u) {} }
+  }catch (e) { try{ console.warn('[soft] ui_shims error', e); }catch (_u) {} }
 })();

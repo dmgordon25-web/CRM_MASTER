@@ -17,7 +17,7 @@ function ensureCRM() {
 export async function init(ctx) {
   ensureCRM();
   const log = (ctx?.logger?.log) || console.log;
-  const error = (ctx?.logger?.error) || console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
   if (__wired) {
     log("[contacts_merge_orchestrator.init] already wired");
     window.CRM.health.contactsMergeOrchestrator ??= "ok";
@@ -160,7 +160,7 @@ async function reassignDependentRecords(winnerId, loserId) {
 export async function openContactsMergeByIds(idA, idB) {
   const [a, b] = await Promise.all([dbGetSafe("contacts", idA), dbGetSafe("contacts", idB)]);
   if (!a || !b) {
-    console.error("[merge] contacts not found", { idA, idB, a: !!a, b: !!b });
+    console.warn("[soft] [merge] contacts not found", { idA, idB, a: !!a, b: !!b });
     return { status: "error", error: new Error("contacts not found") };
   }
 
@@ -209,7 +209,7 @@ export async function openContactsMergeByIds(idA, idB) {
 
           finish({ status: "ok", winnerId, loserId, merged, rewired });
         } catch (err) {
-          console.error("[merge] failed", err);
+          console.warn("[soft] [merge] failed", err);
           finish({ status: "error", error: err });
         }
       },

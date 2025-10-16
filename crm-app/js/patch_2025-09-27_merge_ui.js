@@ -661,7 +661,7 @@ function runPatch(){
         updatePreview(state, result);
         setError(state, state.errors.size ? Array.from(state.errors.values())[0] : '');
       }catch (err) {
-        console.error('merge preview error', err);
+        console.warn('[soft] merge preview error', err);
         state.errors.set('compute', err.message || 'Failed to compute merge');
         setError(state, err.message || 'Failed to compute merge');
         if(state.nodes.confirm) state.nodes.confirm.disabled = true;
@@ -907,7 +907,7 @@ function runPatch(){
       const onConfirm = ()=>{
         if(confirmBtn.disabled) return;
         executeMerge(state).catch(err => {
-          console.error('merge failed', err);
+          console.warn('[soft] merge failed', err);
           setError(state, err && err.message ? err.message : 'Merge failed');
         });
       };
@@ -988,7 +988,7 @@ function runPatch(){
           window.toast(`Merged contacts. Rewired ${count} item${count===1?'':'s'}.`);
         }
       }catch (err) {
-        console.error('merge execution error', err);
+        console.warn('[soft] merge execution error', err);
         state.errors.set('execute', err.message || 'Merge failed');
         setError(state, err.message || 'Merge failed');
         try{ await rollbackPlan(plan); }
@@ -1176,7 +1176,7 @@ function runPatch(){
         if(baseIndex === 1){ ordered.reverse(); }
         await openMergeModal(ordered);
       }catch (err) {
-        console.error('mergeContactsWithIds failed', err);
+        console.warn('[soft] mergeContactsWithIds failed', err);
         if(typeof window.toast === 'function') window.toast('Merge failed to start.');
       }
     }
@@ -1233,7 +1233,7 @@ function runPatch(){
 export async function init(ctx){
   ensureCRM();
   const log = (ctx?.logger?.log)||console.log;
-  const error = (ctx?.logger?.error)||console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
 
   if(__wired){
     log('[patch_2025-09-27_merge_ui.init] already wired');

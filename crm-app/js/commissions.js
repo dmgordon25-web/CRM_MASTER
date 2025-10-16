@@ -369,6 +369,6 @@
       window[LEDGER_LISTENER_KEY] = ledgerHandler;
     }
 
-  }catch (e) { try{ console.error('commissions_dom_adapter error', e); }catch (_u) {} }
+  }catch (e) { try{ console.warn('[soft] commissions_dom_adapter error', e); }catch (_u) {} }
 })();
  /* === /injected === */

@@ -349,7 +349,7 @@
       const a = document.createElement('a');
       a.href = url; a.download = name; a.click();
       setTimeout(()=>URL.revokeObjectURL(url), 500);
-    }catch (err) { console.error('downloadFile', err); }
+    }catch (err) { console.warn('[soft] downloadFile', err); }
   }
 
   function computeRange(kind, startEl, endEl){

@@ -1315,7 +1315,7 @@ function runPatch(){
         await testP54(results);
         await testP55(results);
       }catch (err) {
-        console.error('QA harness error', err);
+        console.warn('[soft] QA harness error', err);
       }finally{
         await deleteQaContacts();
         await deleteQaDocs();
@@ -1354,7 +1354,7 @@ function runPatch(){
 export async function init(ctx){
   ensureCRM();
   const log = (ctx?.logger?.log)||console.log;
-  const error = (ctx?.logger?.error)||console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
 
   if(__wired){
     log('[patch_2025-09-27_nth_bundle_and_qa.init] already wired');

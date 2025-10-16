@@ -354,7 +354,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       row.body = bodyField ? bodyField.value : '';
       row.updatedAt = Date.now();
       row.isNew = false;
-      saveSignatures(card).catch(err => console.error(text?.('toast.signature.save-failed') ?? __textFallback__('toast.signature.save-failed'), err));
+      saveSignatures(card).catch(err => console.warn('[soft]', text?.('toast.signature.save-failed') ?? __textFallback__('toast.signature.save-failed'), err));
       return;
     }
     if(action === 'delete'){
@@ -363,7 +363,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       if(signatureState.defaultId === rowId){
         signatureState.defaultId = signatureState.rows[0] ? signatureState.rows[0].id : null;
       }
-      saveSignatures(card).catch(err => console.error(text?.('toast.signature.delete-failed') ?? __textFallback__('toast.signature.delete-failed'), err));
+      saveSignatures(card).catch(err => console.warn('[soft]', text?.('toast.signature.delete-failed') ?? __textFallback__('toast.signature.delete-failed'), err));
       return;
     }
   }
@@ -375,7 +375,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     const rowId = target.value;
     if(!rowId) return;
     signatureState.defaultId = rowId;
-    saveSignatures(card).catch(err => console.error(text?.('toast.signature.default-failed') ?? __textFallback__('toast.signature.default-failed'), err));
+    saveSignatures(card).catch(err => console.warn('[soft]', text?.('toast.signature.default-failed') ?? __textFallback__('toast.signature.default-failed'), err));
   }
 
   function handleSignatureInput(card, evt){
@@ -490,7 +490,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       syncSignatureState(data.signature || {});
       await hydrateSignatures(data);
     }catch (err) {
-      console.error(text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
+      console.warn('[soft]', text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
     }finally{
       hydrating = false;
     }

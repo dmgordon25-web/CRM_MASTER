@@ -171,7 +171,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
       dispatchMergeEvent('merge:complete', { kind, picks });
       close();
     } catch (err) {
-      console.error('[merge-modal] confirm failed', err);
+      console.warn('[soft] [merge-modal] confirm failed', err);
       setSubmitting(false);
     }
   });

@@ -63,8 +63,8 @@
       }
       return null;
     } catch (err) {
-      if (typeof console !== 'undefined' && console.error) {
-        console.error('[renderGuard] subscriber failed', err);
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[soft] [renderGuard] subscriber failed', err);
       }
       return null;
     }

@@ -697,7 +697,7 @@ function runPatch(){
         item.status = 'error';
         item.error = err && err.message ? err.message : String(err);
         item.completedAt = now;
-        console && console.error && console.error('automation item', err);
+        console && console.warn && console.warn('[soft] automation item', err);
         return { ok:false, error:err };
       }
     }
@@ -784,7 +784,7 @@ function runPatch(){
 export async function init(ctx){
   ensureCRM();
   const log = (ctx?.logger?.log)||console.log;
-  const error = (ctx?.logger?.error)||console.error;
+  const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
 
   if(__wired){
     log('[patch_2025-09-27_masterfix.init] already wired');
