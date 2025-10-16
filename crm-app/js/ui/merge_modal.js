@@ -5,6 +5,31 @@ let activeModal = null;
 let __mergeModalEl = null;
 let __mergeInvoker = null;
 
+function _syncMergeModalVisibility(modalEl) {
+  if (!modalEl) return;
+  queueMicrotask(() => {
+    try {
+      const cs = getComputedStyle(modalEl);
+      const rects = modalEl.getClientRects();
+      const visible = modalEl.isConnected
+        && cs.display !== 'none'
+        && cs.visibility !== 'hidden'
+        && parseFloat(cs.opacity || '1') > 0
+        && rects.length > 0
+        && rects[0].width > 0
+        && rects[0].height > 0;
+      if (visible) modalEl.setAttribute('data-visible', '1');
+      else modalEl.removeAttribute('data-visible');
+    } catch {}
+  });
+}
+
+function _clearMergeModalVisibility(modalEl) {
+  try {
+    modalEl?.removeAttribute('data-visible');
+  } catch {}
+}
+
 function showToast(kind, message) {
   const text = String(message == null ? '' : message).trim();
   if (!text) return;
@@ -142,6 +167,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
 
   const closeInternal = ({ triggerCancel = false } = {}) => {
     if (!window[ACTIVE_GUARD]) return;
+    _clearMergeModalVisibility(__mergeModalEl);
     window[ACTIVE_GUARD] = false;
     activeModal = null;
     if (triggerCancel) {
@@ -169,6 +195,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   __mergeModalEl.__onKeyDown = onKeyDown;
 
   document.body.appendChild(modal);
+  _syncMergeModalVisibility(modal);
   dispatchMergeEvent('merge:open', { count: 2, kind });
 
   queueMicrotask(() => focusFirst(__mergeModalEl));
@@ -578,11 +605,13 @@ function renderSelectionModal(items, options = {}) {
 
   __mergeModalEl = overlay;
   __mergeModalEl.setAttribute('data-ui', 'merge-modal');
+  _syncMergeModalVisibility(__mergeModalEl);
 
   const listeners = [];
 
   const closeInternal = ({ silent } = {}) => {
     if (!window[ACTIVE_GUARD]) return;
+    _clearMergeModalVisibility(__mergeModalEl);
     listeners.forEach((stop) => { try { stop(); } catch (_) {} });
     listeners.length = 0;
     window[ACTIVE_GUARD] = false;
@@ -857,6 +886,7 @@ function closeMergeModal(meta) {
       document.removeEventListener('keydown', handler);
     }
     node.__onKeyDown = null;
+    _clearMergeModalVisibility(node);
     if (node.parentNode) node.parentNode.removeChild(node);
   } catch (err) {
     console.warn('[soft] merge modal close issue', err);
