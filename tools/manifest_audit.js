@@ -20,6 +20,7 @@ const canonicalPatchOrder = [
   './patch_2025-09-27_phase6_polish_telemetry.js',
   './patch_2025-09-27_nth_bundle_and_qa.js',
   './patch_2025-09-27_masterfix.js',
+  './patches/polish_overlay_ready.js',
   './patch_2025-09-27_release_prep.js',
   './patch_2025-10-02_baseline_ux_cleanup.js',
   './patch_2025-10-02_medium_nice.js',
