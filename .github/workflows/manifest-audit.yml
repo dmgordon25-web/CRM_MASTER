@@ -19,19 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Chromium dependencies (Jammy/Noble compatible)
+      - name: Install Chromium system libraries
+        if: runner.os == 'Linux'
         run: |
-          set -eux
           sudo apt-get update
-          install_pkg() { sudo apt-get install -y "$1" || sudo apt-get install -y "$2" || true; }
           sudo apt-get install -y \
-            libatk-bridge2.0-0 libatk1.0-0 libnss3 libx11-xcb1 libxcomposite1 libxdamage1 \
-            libxfixes3 libxrandr2 libgbm1 libcups2 libpangocairo-1.0-0 libpango-1.0-0 \
-            libgtk-3-0 libxshmfence1 libdrm2 libxext6 libxss1 libxtst6 fonts-liberation \
-            xdg-utils ca-certificates
-          install_pkg libasound2 libasound2t64
-          install_pkg libappindicator3-1 libayatana-appindicator3-1
-          sudo rm -rf /var/lib/apt/lists/*
+            libasound2 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 libc6 libdrm2 libgbm1 \
+            libgtk-3-0 libnss3 libnspr4 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 \
+            libxext6 libxfixes3 libxrandr2 libxrender1 libxshmfence1 libpango-1.0-0 libcairo2 \
+            libglib2.0-0 libexpat1 fonts-liberation ca-certificates
+          ldconfig -p | grep -E 'libatk-1.0.so.0|libgtk-3.so.0|libnss3.so' || true
 
       - name: Setup Node
         uses: actions/setup-node@v4
