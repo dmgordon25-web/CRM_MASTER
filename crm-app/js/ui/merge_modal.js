@@ -4,6 +4,8 @@ const ACTIVE_GUARD = '__MERGE_MODAL_ACTIVE__';
 let activeModal = null;
 let __mergeModalEl = null;
 let __mergeInvoker = null;
+let __mergeRestoreFocus = null;
+let mergeModalIdCounter = 0;
 
 function _syncMergeModalVisibility(modalEl) {
   if (!modalEl) return;
@@ -91,6 +93,36 @@ function formatLegacyValue(value) {
   }
 }
 
+function rememberActiveElement() {
+  if (typeof document === 'undefined') return null;
+  const active = document.activeElement;
+  if (active && typeof active.focus === 'function') {
+    __mergeRestoreFocus = active;
+    return active;
+  }
+  __mergeRestoreFocus = null;
+  return null;
+}
+
+function createScreenReaderDescription(text, id) {
+  const el = document.createElement('p');
+  el.id = id;
+  el.textContent = text;
+  el.style.position = 'absolute';
+  el.style.width = '1px';
+  el.style.height = '1px';
+  el.style.margin = '0';
+  el.style.padding = '0';
+  el.style.border = '0';
+  el.style.clip = 'rect(0 0 0 0)';
+  el.style.clipPath = 'inset(50%)';
+  el.style.overflow = 'hidden';
+  el.style.whiteSpace = 'nowrap';
+  el.style.left = '0';
+  el.style.top = '0';
+  return el;
+}
+
 function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
   if (typeof document === 'undefined') return null;
   if (__mergeModalEl && document.body && document.body.contains(__mergeModalEl)) {
@@ -107,6 +139,12 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
     __mergeInvoker = document.querySelector('[data-action="merge"]') || __mergeInvoker;
   }
 
+  rememberActiveElement();
+
+  const modalId = ++mergeModalIdCounter;
+  const titleId = `merge-modal-title-${modalId}`;
+  const descriptionId = `merge-modal-description-${modalId}`;
+
   const fields = Array.from(new Set([
     ...Object.keys(recordA || {}),
     ...Object.keys(recordB || {}),
@@ -119,8 +157,8 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   template.innerHTML = `
 <div class="merge-overlay" data-ui="legacy-merge-modal" data-qa="merge-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
   <div class="merge-modal" style="background:#fff;min-width:720px;max-width:960px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
-      <div style="font-size:18px;font-weight:600;">Merge ${kind === 'contacts' ? 'Contacts' : kind === 'partners' ? 'Partners' : 'Records'}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eee;">
+      <div data-merge-modal-title style="font-size:18px;font-weight:600;">Merge ${kind === 'contacts' ? 'Contacts' : kind === 'partners' ? 'Partners' : 'Records'}</div>
       <button class="merge-close" aria-label="Close" style="border:none;background:transparent;font-size:20px;cursor:pointer;">×</button>
     </div>
     <div style="padding:12px 16px;">
@@ -163,7 +201,18 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   }
 
   modal.setAttribute('data-ui', 'merge-modal');
+  modal.setAttribute('tabindex', '-1');
+  modal.setAttribute('aria-labelledby', titleId);
+  modal.setAttribute('aria-describedby', descriptionId);
   __mergeModalEl = modal;
+
+  const titleEl = modal.querySelector('[data-merge-modal-title]');
+  if (titleEl) titleEl.id = titleId;
+  const description = createScreenReaderDescription('Review the differences between records, choose the values to keep, and confirm to merge.', descriptionId);
+  const modalShell = modal.querySelector('.merge-modal');
+  if (modalShell) {
+    modalShell.insertBefore(description, modalShell.firstChild);
+  }
 
   const closeInternal = ({ triggerCancel = false } = {}) => {
     if (!window[ACTIVE_GUARD]) return;
@@ -198,7 +247,7 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   _syncMergeModalVisibility(modal);
   dispatchMergeEvent('merge:open', { count: 2, kind });
 
-  queueMicrotask(() => focusFirst(__mergeModalEl));
+  setupFocusTrap(__mergeModalEl);
 
   const close = (meta) => closeMergeModal(meta);
 
@@ -523,6 +572,12 @@ function renderSelectionModal(items, options = {}) {
     }
   }
 
+  rememberActiveElement();
+
+  const modalId = ++mergeModalIdCounter;
+  const titleId = `merge-modal-title-${modalId}`;
+  const descriptionId = `merge-modal-description-${modalId}`;
+
   const { overlay, shell } = buildContainer();
   const header = document.createElement('div');
   header.style.display = 'flex';
@@ -535,6 +590,7 @@ function renderSelectionModal(items, options = {}) {
   title.textContent = 'Select records to merge';
   title.style.fontSize = '18px';
   title.style.fontWeight = '600';
+  title.id = titleId;
   header.appendChild(title);
 
   const closeBtn = document.createElement('button');
@@ -550,6 +606,9 @@ function renderSelectionModal(items, options = {}) {
   header.appendChild(closeBtn);
 
   shell.appendChild(header);
+
+  const srDescription = createScreenReaderDescription('Select a primary record, choose additional records to merge into it, then confirm to complete the merge.', descriptionId);
+  shell.appendChild(srDescription);
 
   const content = document.createElement('div');
   content.style.display = 'flex';
@@ -605,6 +664,9 @@ function renderSelectionModal(items, options = {}) {
 
   __mergeModalEl = overlay;
   __mergeModalEl.setAttribute('data-ui', 'merge-modal');
+  __mergeModalEl.setAttribute('tabindex', '-1');
+  __mergeModalEl.setAttribute('aria-labelledby', titleId);
+  __mergeModalEl.setAttribute('aria-describedby', descriptionId);
   _syncMergeModalVisibility(__mergeModalEl);
 
   const listeners = [];
@@ -636,7 +698,7 @@ function renderSelectionModal(items, options = {}) {
   document.addEventListener('keydown', onKeyDown);
   __mergeModalEl.__onKeyDown = onKeyDown;
 
-  queueMicrotask(() => focusFirst(__mergeModalEl));
+  setupFocusTrap(__mergeModalEl);
 
   let primaryId = '';
   let previousPrimaryId = '';
@@ -884,8 +946,12 @@ function closeMergeModal(meta) {
     const handler = node.__onKeyDown || (() => {});
     if (typeof document !== 'undefined') {
       document.removeEventListener('keydown', handler);
+      if (node.__onFocusIn) {
+        document.removeEventListener('focusin', node.__onFocusIn, true);
+      }
     }
     node.__onKeyDown = null;
+    node.__onFocusIn = null;
     _clearMergeModalVisibility(node);
     if (node.parentNode) node.parentNode.removeChild(node);
   } catch (err) {
@@ -895,41 +961,114 @@ function closeMergeModal(meta) {
       window[ACTIVE_GUARD] = false;
     }
     activeModal = null;
-    if (typeof document !== 'undefined' && __mergeInvoker && document.body && document.body.contains(__mergeInvoker)) {
-      try { __mergeInvoker.focus(); }
-      catch (_) {}
+    if (typeof document !== 'undefined') {
+      const body = document.body;
+      const candidates = [__mergeInvoker, __mergeRestoreFocus];
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        if (!body || !body.contains(candidate)) continue;
+        if (typeof candidate.focus !== 'function') continue;
+        focusElement(candidate);
+        break;
+      }
     }
     __mergeModalEl = null;
+    __mergeRestoreFocus = null;
   }
+}
+
+function focusElement(element) {
+  if (!element) return;
+  try {
+    element.focus({ preventScroll: true });
+  } catch (err) {
+    try { element.focus(); }
+    catch (_) {}
+  }
+}
+
+function isFocusable(el) {
+  if (!el) return false;
+  if (el.hasAttribute && el.hasAttribute('disabled')) return false;
+  if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+  const tabAttr = el.getAttribute ? el.getAttribute('tabindex') : null;
+  if (tabAttr !== null && Number.parseInt(tabAttr, 10) < 0) return false;
+  if (typeof el.tabIndex === 'number' && el.tabIndex < 0) return false;
+  if (!el.isConnected) return false;
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+  }
+  const rects = typeof el.getClientRects === 'function' ? el.getClientRects() : [];
+  if (rects.length === 0) return false;
+  const rect = rects[0];
+  if (rect.width === 0 && rect.height === 0) return false;
+  return true;
 }
 
 function getFocusables(root) {
   if (!root) return [];
-  return Array.from(root.querySelectorAll('a[href],button,[tabindex],input,select,textarea'))
-    .filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
+  const selector = 'a[href],button,input,select,textarea,[tabindex],[contenteditable="true"]';
+  return Array.from(root.querySelectorAll(selector)).filter((el) => isFocusable(el));
 }
 
 function focusFirst(root) {
   const els = getFocusables(root);
-  if (els[0]) {
-    try { els[0].focus(); }
-    catch (_) {}
+  const target = els.find((el) => el.hasAttribute('data-autofocus') || el.hasAttribute('autofocus')) || els[0];
+  if (target) {
+    focusElement(target);
+    return;
+  }
+  if (root && typeof root.focus === 'function') {
+    focusElement(root);
   }
 }
 
 function trapTab(root, event) {
   const els = getFocusables(root);
-  if (els.length === 0) return;
+  if (els.length === 0) {
+    event.preventDefault();
+    if (root && typeof root.focus === 'function') {
+      focusElement(root);
+    }
+    return;
+  }
   const first = els[0];
   const last = els[els.length - 1];
   const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (!els.includes(active)) {
+    event.preventDefault();
+    focusElement(event.shiftKey ? last : first);
+    return;
+  }
   if (event.shiftKey && active === first) {
     event.preventDefault();
-    try { last.focus(); }
-    catch (_) {}
-  } else if (!event.shiftKey && active === last) {
-    event.preventDefault();
-    try { first.focus(); }
-    catch (_) {}
+    focusElement(last);
+    return;
   }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    focusElement(first);
+  }
+}
+
+function setupFocusTrap(node) {
+  if (!node || typeof document === 'undefined') return;
+  if (!node.hasAttribute('tabindex')) {
+    node.setAttribute('tabindex', '-1');
+  }
+  const enforceFocus = (event) => {
+    if (!__mergeModalEl) return;
+    const target = event?.target;
+    if (!target || !__mergeModalEl.contains(target)) {
+      queueMicrotask(() => {
+        if (__mergeModalEl) {
+          focusFirst(__mergeModalEl);
+        }
+      });
+    }
+  };
+  document.addEventListener('focusin', enforceFocus, true);
+  node.__onFocusIn = enforceFocus;
+  queueMicrotask(() => focusFirst(node));
 }
