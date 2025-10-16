@@ -372,7 +372,17 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const detail = String(err?.stack || err);
     recordFatal(reason, detail);
     try { window.__BOOT_FATAL__ = true; } catch (_) {}
-    return { reason, fatal: true, path: failingPath, probe: err?.probe || null, detail };
+
+    const failure = { reason, fatal: true, path: failingPath, probe: err?.probe || null, detail };
+
+    if (err && typeof err === 'object') {
+      try { err.bootFailure = failure; } catch (_) {}
+      throw err;
+    }
+
+    const wrappedError = new Error(detail);
+    wrappedError.bootFailure = failure;
+    throw wrappedError;
   }
 }
 
