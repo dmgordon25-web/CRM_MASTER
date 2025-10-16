@@ -1,0 +1,7 @@
+#diagnostics-splash[data-state="hidden"] {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 120ms ease-out;
+}
+
