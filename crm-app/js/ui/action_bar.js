@@ -5,7 +5,22 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
-let __actionBarResizeTimer = null;
+const microTask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => Promise.resolve().then(fn);
+const raf = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+  ? window.requestAnimationFrame.bind(window)
+  : (cb) => setTimeout(cb, 16);
+
+const selectionReadyEvents = ['selection:ready', 'selectionReady'];
+const selectionChangeEvents = ['selection:changed', 'selectionChanged'];
+
+let visibilityScheduled = false;
+let pendingVisibilityDetail;
+
+function normalizeSelectionType(value) {
+  return value === 'partners' ? 'partners' : 'contacts';
+}
 
 function _isActuallyVisible(el) {
   if (!el || !el.isConnected) return false;
@@ -15,12 +30,75 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
-function _updateDataVisible(el) {
+function gatherSelectionSnapshot(detail) {
+  const baseDetail = detail && typeof detail === 'object' ? detail : null;
+  if (baseDetail && Array.isArray(baseDetail.ids)) {
+    return {
+      ids: baseDetail.ids.map((value) => String(value ?? '')).filter(Boolean),
+      type: normalizeSelectionType(baseDetail.type || baseDetail.scope)
+    };
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.Selection && typeof window.Selection.get === 'function') {
+        const snap = window.Selection.get();
+        if (snap && Array.isArray(snap.ids)) {
+          return {
+            ids: snap.ids.map((value) => String(value ?? '')).filter(Boolean),
+            type: normalizeSelectionType(snap.type)
+          };
+        }
+      }
+    } catch (_) {}
+    try {
+      if (window.Selection && typeof window.Selection.getSelectedIds === 'function') {
+        const ids = window.Selection.getSelectedIds() || [];
+        return {
+          ids: Array.from(ids).map((value) => String(value ?? '')).filter(Boolean),
+          type: normalizeSelectionType(window.Selection.type)
+        };
+      }
+    } catch (_) {}
+    try {
+      if (window.SelectionService && typeof window.SelectionService.getIds === 'function') {
+        const ids = window.SelectionService.getIds() || [];
+        return {
+          ids: Array.from(ids).map((value) => String(value ?? '')).filter(Boolean),
+          type: normalizeSelectionType(window.SelectionService.type)
+        };
+      }
+    } catch (_) {}
+  }
+  return { ids: [], type: 'contacts' };
+}
+
+function applyActionBarVisibility(detail) {
+  if (typeof document === 'undefined') return;
+  const root = document.getElementById('actionbar');
+  if (!root) return;
   try {
-    if (!el) return;
-    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
-    else el.removeAttribute('data-visible');
-  } catch {}
+    const snapshot = gatherSelectionSnapshot(detail);
+    const count = snapshot.ids.length;
+    root.setAttribute('data-selection-count', String(count));
+    root.setAttribute('data-selection-type', normalizeSelectionType(snapshot.type));
+    if (count > 0 && _isActuallyVisible(root)) root.setAttribute('data-visible', '1');
+    else root.removeAttribute('data-visible');
+  } catch (_) {}
+}
+
+function scheduleVisibilityUpdate(detail) {
+  if (typeof document === 'undefined') return;
+  if (detail !== undefined) {
+    pendingVisibilityDetail = detail;
+  }
+  if (visibilityScheduled) return;
+  visibilityScheduled = true;
+  raf(() => {
+    visibilityScheduled = false;
+    const detailRef = pendingVisibilityDetail;
+    pendingVisibilityDetail = undefined;
+    applyActionBarVisibility(detailRef);
+  });
 }
 
 function _attachActionBarVisibilityHooks(actionBarRoot) {
@@ -28,21 +106,67 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
   if (!window.__ACTION_BAR_VISIBILITY_RESIZE__) {
     window.__ACTION_BAR_VISIBILITY_RESIZE__ = true;
     window.addEventListener('resize', () => {
-      clearTimeout(__actionBarResizeTimer);
-      __actionBarResizeTimer = setTimeout(() => {
-        const root = document.getElementById('actionbar');
-        if (root) _updateDataVisible(root);
-      }, 100);
+      scheduleVisibilityUpdate();
     }, { passive: true });
   }
-  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
-    const root = document.getElementById('actionbar');
-    if (!root) return;
-    queueMicrotask(() => _updateDataVisible(root));
+  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible(detail) {
+    scheduleVisibilityUpdate(detail);
   };
   if (actionBarRoot) {
-    queueMicrotask(() => _updateDataVisible(actionBarRoot));
+    scheduleVisibilityUpdate();
   }
+}
+
+function onSelectionReady(callback) {
+  if (typeof callback !== 'function') return () => {};
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    try { callback({ ids: [], type: 'contacts' }); }
+    catch (_) {}
+    return () => {};
+  }
+
+  const invoke = (detail) => {
+    try { callback(detail); }
+    catch (err) {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[action-bar] selection ready callback failed', err);
+      }
+    }
+  };
+
+  if (window.__SELECTION_READY__) {
+    microTask(() => invoke(window.__SELECTION_READY_DETAIL__));
+    return () => {};
+  }
+
+  const candidate = [window.Selection, window.SelectionService]
+    .find((svc) => svc && typeof svc.whenReady === 'function');
+  if (candidate && typeof candidate.whenReady === 'function') {
+    return candidate.whenReady((detail) => invoke(detail));
+  }
+
+  let active = true;
+  const handler = (event) => {
+    if (!active) return;
+    active = false;
+    cleanup();
+    invoke(event && event.detail);
+  };
+  const cleanup = () => {
+    selectionReadyEvents.forEach((evt) => {
+      try { document.removeEventListener(evt, handler); }
+      catch (_) {}
+    });
+  };
+  selectionReadyEvents.forEach((evt) => {
+    try { document.addEventListener(evt, handler, { once: true }); }
+    catch (_) {}
+  });
+  return () => {
+    if (!active) return;
+    active = false;
+    cleanup();
+  };
 }
 
 function markActionbarHost() {
@@ -54,6 +178,9 @@ function markActionbarHost() {
   }
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
+  }
+  if (!bar.hasAttribute('data-state')) {
+    bar.setAttribute('data-state', 'loading');
   }
   _attachActionBarVisibilityHooks(bar);
   bar.querySelectorAll('[data-act]').forEach((node) => {
@@ -83,15 +210,26 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   }
   if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
+    const readySetup = () => {
+      const bar = markActionbarHost();
+      if (bar) {
+        bar.setAttribute('data-state', 'loading');
+      }
       ensureGlobalNewFab();
       ensureMergeHandler();
+      scheduleVisibilityUpdate();
+      onSelectionReady((detail) => {
+        const host = markActionbarHost();
+        if (host) {
+          host.setAttribute('data-state', 'ready');
+        }
+        scheduleVisibilityUpdate(detail);
+      });
     };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
+      document.addEventListener('DOMContentLoaded', readySetup, { once: true });
     } else {
-      setup();
+      readySetup();
     }
     document.addEventListener('click', (event) => {
       const btn = event.target && event.target.closest && event.target.closest('[data-action]');
@@ -101,6 +239,18 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       window.__ACTION_BAR_LAST_DATA_ACTION__ = action;
     }, true);
   }
+}
+
+if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.__ACTION_BAR_SELECTION_WATCH__) {
+  window.__ACTION_BAR_SELECTION_WATCH__ = true;
+  const selectionEvents = [...selectionReadyEvents, ...selectionChangeEvents];
+  const handler = (event) => {
+    scheduleVisibilityUpdate(event && event.detail);
+  };
+  selectionEvents.forEach((evt) => {
+    try { document.addEventListener(evt, handler, { passive: true }); }
+    catch (_) {}
+  });
 }
 
 function injectActionBarStyle(){
