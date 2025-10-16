@@ -27,3 +27,31 @@
   opacity: 0.8;
 }
 
+
+/* PATCH: make Merge modal reliably visible and clickable at open */
+[data-ui="merge-modal"] {
+  display: flex !important;          /* avoid display:none from gates */
+  visibility: visible !important;     /* avoid visibility:hidden */
+  opacity: 1 !important;              /* prevent accidental 0 opacity */
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;                      /* above app chrome */
+  pointer-events: auto !important;    /* allow interaction */
+}
+
+/* Ensure the confirm control is not visually or interactively suppressed */
+[data-ui="merge-confirm"] {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  min-height: 32px;
+  line-height: 32px;
+  padding: 0 12px;
+}
+
+/* If a loading state is used, keep things visible but avoid accidental clicks */
+[data-ui="merge-modal"][data-state="loading"] [data-ui="merge-confirm"] {
+  pointer-events: none;
+  opacity: 0.6;
+}
