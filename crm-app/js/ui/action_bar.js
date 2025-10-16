@@ -5,7 +5,24 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
-let __actionBarResizeTimer = null;
+const microTask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => Promise.resolve().then(fn);
+const raf = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+  ? window.requestAnimationFrame.bind(window)
+  : (cb) => setTimeout(cb, 16);
+
+const selectionReadyEvents = ['selection:ready', 'selectionReady'];
+const selectionChangeEvents = ['selection:changed', 'selectionChanged'];
+
+let visibilityScheduled = false;
+let pendingVisibilityDetail;
+let lastSelectionDetail = null;
+let releaseSelectionChannel = null;
+
+function normalizeSelectionType(value) {
+  return value === 'partners' ? 'partners' : 'contacts';
+}
 
 function _isActuallyVisible(el) {
   if (!el || !el.isConnected) return false;
@@ -15,12 +32,100 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
-function _updateDataVisible(el) {
+function gatherSelectionSnapshot(detail) {
+  const baseDetail = detail && typeof detail === 'object' ? detail : null;
+  if (baseDetail && Array.isArray(baseDetail.ids)) {
+    return {
+      ids: baseDetail.ids.map((value) => String(value ?? '')).filter(Boolean),
+      type: normalizeSelectionType(baseDetail.type || baseDetail.scope)
+    };
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.Selection && typeof window.Selection.get === 'function') {
+        const snap = window.Selection.get();
+        if (snap && Array.isArray(snap.ids)) {
+          return {
+            ids: snap.ids.map((value) => String(value ?? '')).filter(Boolean),
+            type: normalizeSelectionType(snap.type)
+          };
+        }
+      }
+    } catch (_) {}
+    try {
+      if (window.Selection && typeof window.Selection.getSelectedIds === 'function') {
+        const ids = window.Selection.getSelectedIds() || [];
+        return {
+          ids: Array.from(ids).map((value) => String(value ?? '')).filter(Boolean),
+          type: normalizeSelectionType(window.Selection.type)
+        };
+      }
+    } catch (_) {}
+    try {
+      if (window.SelectionService && typeof window.SelectionService.getIds === 'function') {
+        const ids = window.SelectionService.getIds() || [];
+        return {
+          ids: Array.from(ids).map((value) => String(value ?? '')).filter(Boolean),
+          type: normalizeSelectionType(window.SelectionService.type)
+        };
+      }
+    } catch (_) {}
+  }
+  return { ids: [], type: 'contacts' };
+}
+
+function applyActionBarVisibility(detail) {
+  if (typeof document === 'undefined') return;
+  const root = document.getElementById('actionbar');
+  if (!root) return;
   try {
-    if (!el) return;
-    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
-    else el.removeAttribute('data-visible');
-  } catch {}
+    const snapshot = gatherSelectionSnapshot(detail);
+    const count = snapshot.ids.length;
+    root.setAttribute('data-selection-count', String(count));
+    root.setAttribute('data-selection-type', normalizeSelectionType(snapshot.type));
+    const actionsReady = hasDiscoverableActions();
+    if (count > 0 && actionsReady) root.setAttribute('data-visible', '1');
+    else root.removeAttribute('data-visible');
+  } catch (_) {}
+}
+
+function isActionUsable(node) {
+  if (!node || !node.isConnected) return false;
+  if (node.hasAttribute('hidden')) return false;
+  if (node.getAttribute('aria-hidden') === 'true') return false;
+  if (node.getAttribute('data-disabled') === '1') return false;
+  if (node.hasAttribute('disabled')) return false;
+  return _isActuallyVisible(node);
+}
+
+function hasDiscoverableActions() {
+  const host = getActionsHost();
+  if (!host) return false;
+  const nodes = host.querySelectorAll('[data-action]');
+  for (const node of nodes) {
+    const action = node.getAttribute('data-action');
+    if (!action || action === 'merge') continue;
+    if (isActionUsable(node)) return true;
+  }
+  return false;
+}
+
+function scheduleVisibilityUpdate(detail) {
+  if (typeof document === 'undefined') return;
+  if (detail !== undefined) {
+    pendingVisibilityDetail = detail;
+    lastSelectionDetail = detail;
+  }
+  if (visibilityScheduled) return;
+  visibilityScheduled = true;
+  raf(() => {
+    visibilityScheduled = false;
+    const detailRef = pendingVisibilityDetail !== undefined
+      ? pendingVisibilityDetail
+      : lastSelectionDetail;
+    pendingVisibilityDetail = undefined;
+    applyActionBarVisibility(detailRef);
+  });
 }
 
 function _attachActionBarVisibilityHooks(actionBarRoot) {
@@ -28,21 +133,120 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
   if (!window.__ACTION_BAR_VISIBILITY_RESIZE__) {
     window.__ACTION_BAR_VISIBILITY_RESIZE__ = true;
     window.addEventListener('resize', () => {
-      clearTimeout(__actionBarResizeTimer);
-      __actionBarResizeTimer = setTimeout(() => {
-        const root = document.getElementById('actionbar');
-        if (root) _updateDataVisible(root);
-      }, 100);
+      scheduleVisibilityUpdate();
     }, { passive: true });
   }
-  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
-    const root = document.getElementById('actionbar');
-    if (!root) return;
-    queueMicrotask(() => _updateDataVisible(root));
+  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible(detail) {
+    scheduleVisibilityUpdate(detail);
   };
   if (actionBarRoot) {
-    queueMicrotask(() => _updateDataVisible(actionBarRoot));
+    scheduleVisibilityUpdate();
   }
+}
+
+function getSelectionChannel() {
+  if (typeof window === 'undefined') return null;
+  const candidates = [window.Selection, window.SelectionService, window.__SELMODEL__];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const hasReady = typeof candidate.whenReady === 'function';
+    const hasChange = typeof candidate.onChange === 'function';
+    if (hasReady || hasChange) return candidate;
+  }
+  return null;
+}
+
+function subscribeToSelectionLifecycle(callback) {
+  if (typeof callback !== 'function') return () => {};
+  if (typeof document === 'undefined') return () => {};
+
+  const selection = getSelectionChannel();
+  const cleanups = [];
+  let active = true;
+
+  const safeInvoke = (detail) => {
+    if (!active) return;
+    try { callback(detail); }
+    catch (err) {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[action-bar] selection handler failed', err);
+      }
+    }
+  };
+
+  if (selection && typeof selection.onChange === 'function') {
+    try {
+      const dispose = selection.onChange((detail) => safeInvoke(detail));
+      if (typeof dispose === 'function') cleanups.push(dispose);
+    } catch (err) {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[action-bar] selection.onChange failed', err);
+      }
+    }
+  }
+
+  if (selection && typeof selection.whenReady === 'function') {
+    try {
+      const disposeReady = selection.whenReady((detail) => safeInvoke(detail));
+      if (typeof disposeReady === 'function') cleanups.push(disposeReady);
+    } catch (err) {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[action-bar] selection.whenReady failed', err);
+      }
+    }
+  }
+
+  const fallbackEvents = new Set();
+  if (!selection || typeof selection.whenReady !== 'function') {
+    selectionReadyEvents.forEach((evt) => fallbackEvents.add(evt));
+  }
+  if (!selection || typeof selection.onChange !== 'function') {
+    selectionChangeEvents.forEach((evt) => fallbackEvents.add(evt));
+  }
+
+  if (fallbackEvents.size) {
+    const handler = (event) => safeInvoke(event && event.detail);
+    fallbackEvents.forEach((evt) => {
+      try { document.addEventListener(evt, handler, { passive: true }); }
+      catch (_) {}
+    });
+    cleanups.push(() => {
+      fallbackEvents.forEach((evt) => {
+        try { document.removeEventListener(evt, handler); }
+        catch (_) {}
+      });
+    });
+  }
+
+  if (selection) {
+    microTask(() => {
+      if (!active) return;
+      let snapshot = null;
+      try {
+        if (typeof selection.get === 'function') {
+          snapshot = selection.get();
+        } else if (typeof selection.snapshot === 'function') {
+          snapshot = selection.snapshot();
+        } else if (typeof selection.getSelectedIds === 'function') {
+          const ids = selection.getSelectedIds() || [];
+          snapshot = {
+            ids: Array.from(ids).map((value) => String(value ?? '')).filter(Boolean),
+            type: normalizeSelectionType(selection.type)
+          };
+        }
+      } catch (_) {}
+      safeInvoke(snapshot);
+    });
+  }
+
+  return () => {
+    if (!active) return;
+    active = false;
+    cleanups.forEach((dispose) => {
+      try { dispose(); }
+      catch (_) {}
+    });
+  };
 }
 
 function markActionbarHost() {
@@ -54,6 +258,9 @@ function markActionbarHost() {
   }
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
+  }
+  if (!bar.hasAttribute('data-state')) {
+    bar.setAttribute('data-state', 'loading');
   }
   _attachActionBarVisibilityHooks(bar);
   bar.querySelectorAll('[data-act]').forEach((node) => {
@@ -83,15 +290,30 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   }
   if (!window.__ACTION_BAR_DATA_ACTION_WIRED__) {
     window.__ACTION_BAR_DATA_ACTION_WIRED__ = true;
-    const setup = () => {
-      markActionbarHost();
+    const readySetup = () => {
+      const bar = markActionbarHost();
+      if (bar) {
+        bar.setAttribute('data-state', 'loading');
+      }
       ensureGlobalNewFab();
       ensureMergeHandler();
+      if (typeof releaseSelectionChannel === 'function') {
+        try { releaseSelectionChannel(); }
+        catch (_) {}
+      }
+      releaseSelectionChannel = subscribeToSelectionLifecycle((detail) => {
+        const host = markActionbarHost();
+        if (host && host.getAttribute('data-state') !== 'ready') {
+          host.setAttribute('data-state', 'ready');
+        }
+        scheduleVisibilityUpdate(detail);
+      });
+      scheduleVisibilityUpdate(lastSelectionDetail);
     };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setup, { once: true });
+      document.addEventListener('DOMContentLoaded', readySetup, { once: true });
     } else {
-      setup();
+      readySetup();
     }
     document.addEventListener('click', (event) => {
       const btn = event.target && event.target.closest && event.target.closest('[data-action]');
