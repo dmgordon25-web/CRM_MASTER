@@ -12,6 +12,16 @@ const scheduleMicrotask = typeof queueMicrotask === 'function'
 let pendingOpen = null;
 let lastInvoker = null;
 
+function setPendingOpen(promise, partnerId){
+  const tracked = promise.finally(() => {
+    if(pendingOpen && pendingOpen.promise === tracked){
+      pendingOpen = null;
+    }
+  });
+  pendingOpen = { promise: tracked, partnerId };
+  return promise;
+}
+
 function asArray(value){
   return Array.isArray(value) ? value : Array.from(value || []);
 }
@@ -251,6 +261,59 @@ export function closePartnerEditModal(){
   lastInvoker = null;
 }
 
+async function performOpen(partnerId, invoker){
+  let base = ensureSingletonModal(MODAL_KEY, () => ensurePartnerShell());
+  base = base instanceof Promise ? await base : base;
+  if(!base) return null;
+
+  if(base.dataset?.opening === '1'){
+    return base;
+  }
+
+  if(base.dataset){
+    base.dataset.opening = '1';
+  }
+  base.__partnerInvoker = invoker || base.__partnerInvoker || null;
+
+  hideContactModals();
+
+  await legacyOpenPartnerEdit(partnerId);
+
+  let root = findPartnerModal();
+  if(root !== base && root){
+    let ensured = ensureSingletonModal(MODAL_KEY, () => root);
+    root = ensured instanceof Promise ? await ensured : ensured;
+  }else{
+    root = base;
+  }
+  if(!root) return null;
+
+  if(root.dataset){
+    root.dataset.opening = '1';
+    root.dataset.partnerId = partnerId;
+  }
+  root.__partnerInvoker = invoker || root.__partnerInvoker || null;
+
+  cleanupNodeHandles(root);
+  registerModalCleanup(root, cleanupNodeHandles);
+  ensureModalAttributes(root);
+  wireCloseButtons(root);
+  installEscHandler(root);
+  focusFirstElement(root);
+
+  const clearOpening = () => {
+    if(root.dataset) root.dataset.opening = '0';
+  };
+  root.addEventListener('shown', clearOpening, { once: true });
+
+  scheduleMicrotask(() => {
+    try{ root.dispatchEvent(new Event('shown', { bubbles: false, cancelable: false })); }
+    catch(_err){}
+  });
+
+  return root;
+}
+
 export async function openPartnerEditModal(id, options){
   const partnerId = id == null ? '' : String(id).trim();
   if(!partnerId) return null;
@@ -265,64 +328,15 @@ export async function openPartnerEditModal(id, options){
   }
 
   if(pendingOpen){
-    return pendingOpen;
+    if(pendingOpen.partnerId === partnerId){
+      return pendingOpen.promise;
+    }
+    const chained = pendingOpen.promise.then(() => performOpen(partnerId, invoker));
+    return setPendingOpen(chained, partnerId);
   }
 
-  const sequence = (async () => {
-    let base = ensureSingletonModal(MODAL_KEY, () => ensurePartnerShell());
-    base = base instanceof Promise ? await base : base;
-    if(!base) return null;
-
-    if(base.dataset?.opening === '1'){
-      return base;
-    }
-
-    if(base.dataset){
-      base.dataset.opening = '1';
-    }
-    base.__partnerInvoker = invoker || base.__partnerInvoker || null;
-
-    hideContactModals();
-
-    await legacyOpenPartnerEdit(partnerId);
-
-    let root = findPartnerModal();
-    if(root !== base && root){
-      let ensured = ensureSingletonModal(MODAL_KEY, () => root);
-      root = ensured instanceof Promise ? await ensured : ensured;
-    }else{
-      root = base;
-    }
-    if(!root) return null;
-
-    if(root.dataset){
-      root.dataset.opening = '1';
-      root.dataset.partnerId = partnerId;
-    }
-    root.__partnerInvoker = invoker || root.__partnerInvoker || null;
-
-    cleanupNodeHandles(root);
-    registerModalCleanup(root, cleanupNodeHandles);
-    ensureModalAttributes(root);
-    wireCloseButtons(root);
-    installEscHandler(root);
-    focusFirstElement(root);
-
-    const clearOpening = () => {
-      if(root.dataset) root.dataset.opening = '0';
-    };
-    root.addEventListener('shown', clearOpening, { once: true });
-
-    scheduleMicrotask(() => {
-      try{ root.dispatchEvent(new Event('shown', { bubbles: false, cancelable: false })); }
-      catch(_err){}
-    });
-
-    return root;
-  })();
-
-  pendingOpen = sequence.finally(() => { pendingOpen = null; });
-  return sequence;
+  const sequence = performOpen(partnerId, invoker);
+  return setPendingOpen(sequence, partnerId);
 }
 
 export default {
