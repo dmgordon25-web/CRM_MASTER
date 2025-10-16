@@ -18,6 +18,123 @@
     'pass', 'passed', 'green', 'success', 'succeeded'
   ]);
   const READINESS_KEYS = ['ready', 'status', 'state', 'value', 'result', 'ok', 'health', 'healthy'];
+  const NO_INLINE_VALUE = Symbol('overlay:no-inline');
+  const overlayOriginals = new WeakMap();
+  const overlayResetHandlers = new WeakMap();
+  const overlayResetObservers = new WeakMap();
+  const overlayResetTimers = new WeakMap();
+
+  function snapshotOverlayState(overlay){
+    if (!overlay || overlayOriginals.has(overlay)) return;
+    const record = { dataState: NO_INLINE_VALUE, styles: {} };
+    try {
+      if (typeof overlay.hasAttribute === 'function' && overlay.hasAttribute('data-state')) {
+        record.dataState = overlay.getAttribute('data-state');
+      }
+    } catch (_) {}
+    if (overlay.style) {
+      ['opacity', 'pointerEvents', 'visibility'].forEach((prop) => {
+        try {
+          const current = overlay.style[prop];
+          record.styles[prop] = (current == null || current === '') ? NO_INLINE_VALUE : current;
+        } catch (_) {
+          record.styles[prop] = NO_INLINE_VALUE;
+        }
+      });
+    }
+    overlayOriginals.set(overlay, record);
+  }
+
+  function cleanupOverlayReset(overlay){
+    const observer = overlayResetObservers.get(overlay);
+    if (observer) {
+      try { observer.disconnect(); } catch (_) {}
+      overlayResetObservers.delete(overlay);
+    }
+    const timer = overlayResetTimers.get(overlay);
+    if (timer) {
+      try {
+        if (typeof timer.clear === 'function') timer.clear(timer.id);
+      } catch (_) {}
+      overlayResetTimers.delete(overlay);
+    }
+    overlayResetHandlers.delete(overlay);
+  }
+
+  function restoreOverlayState(overlay){
+    if (!overlay) return;
+    const record = overlayOriginals.get(overlay);
+    if (record) {
+      if (record.dataState === NO_INLINE_VALUE || record.dataState == null) {
+        try { overlay.removeAttribute('data-state'); } catch (_) {}
+      } else {
+        try { overlay.setAttribute('data-state', record.dataState); } catch (_) {}
+      }
+      if (overlay.style) {
+        ['opacity', 'pointerEvents', 'visibility'].forEach((prop) => {
+          const value = record.styles[prop];
+          try {
+            if (value === NO_INLINE_VALUE || value == null) {
+              overlay.style[prop] = '';
+            } else {
+              overlay.style[prop] = value;
+            }
+          } catch (_) {}
+        });
+      }
+    } else {
+      try { overlay.removeAttribute('data-state'); } catch (_) {}
+      if (overlay.style) {
+        ['opacity', 'pointerEvents', 'visibility'].forEach((prop) => {
+          try { overlay.style[prop] = ''; } catch (_) {}
+        });
+      }
+    }
+    overlayOriginals.delete(overlay);
+    if (overlay && overlay.dataset) {
+      try { delete overlay.dataset.overlayHidden; } catch (_) {}
+    }
+    cleanupOverlayReset(overlay);
+  }
+
+  function maybeRestoreOverlay(overlay){
+    if (!overlay) return;
+    const data = overlay && overlay.dataset;
+    if (!data || data.overlayHidden !== '1') return;
+    let display = '';
+    try {
+      display = overlay.style ? overlay.style.display : '';
+    } catch (_) {}
+    const normalized = (typeof display === 'string') ? display.trim().toLowerCase() : '';
+    if (normalized && normalized !== 'none') {
+      restoreOverlayState(overlay);
+    }
+  }
+
+  function ensureOverlayResetHooks(overlay){
+    if (!overlay) return;
+    if (overlayResetHandlers.has(overlay)) return;
+    const handler = () => { maybeRestoreOverlay(overlay); };
+    overlayResetHandlers.set(overlay, handler);
+    if (typeof MutationObserver === 'function') {
+      try {
+        const observer = new MutationObserver(handler);
+        observer.observe(overlay, { attributes: true, attributeFilter: ['style'] });
+        overlayResetObservers.set(overlay, observer);
+        return;
+      } catch (_) {}
+    }
+    const doc = overlay.ownerDocument;
+    const view = (doc && doc.defaultView) ? doc.defaultView : ((typeof window !== 'undefined') ? window : null);
+    const setInt = (view && typeof view.setInterval === 'function') ? view.setInterval : setInterval;
+    const clearInt = (view && typeof view.clearInterval === 'function') ? view.clearInterval : clearInterval;
+    if (typeof setInt === 'function' && typeof clearInt === 'function') {
+      try {
+        const id = setInt(handler, 250);
+        overlayResetTimers.set(overlay, { id, clear: clearInt });
+      } catch (_) {}
+    }
+  }
 
   function logWarn(detail){
     try { console.warn('[overlay]', detail); }
@@ -211,7 +328,9 @@
       const overlay = document.querySelector(OVERLAY_SELECTOR);
       if (!overlay) return;
       if (overlay.dataset && overlay.dataset.overlayHidden === '1') return;
+      snapshotOverlayState(overlay);
       if (overlay.dataset) overlay.dataset.overlayHidden = '1';
+      ensureOverlayResetHooks(overlay);
       try { overlay.setAttribute('data-state', 'hidden'); }
       catch (_) {}
       if (overlay.style) {
