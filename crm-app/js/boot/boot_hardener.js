@@ -74,6 +74,8 @@ const bootStart = timeSource();
 let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
+let readyMarkerScheduled = false;
+let terminalBootState = null;
 
 function noteOverlayHidden() {
   if (overlayHiddenAt == null) {
@@ -276,11 +278,106 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
   return records;
 }
 
-function recordFatal(reason, detail) {
+function setBodyBootState(state) {
+  if (typeof document === 'undefined' || !document) return;
+  const body = document.body || document.documentElement;
+  if (!body) return;
+  if (!state) {
+    body.removeAttribute('data-boot');
+    return;
+  }
+  try {
+    body.setAttribute('data-boot', state);
+  } catch (_) {}
+}
+
+function ensureFatalMessage(failure) {
+  try {
+    const el = splash.el();
+    if (!el) return;
+    const doc = el.ownerDocument || document;
+    if (!doc) return;
+    let messageEl = el.querySelector('[data-role="boot-fatal-message"]');
+    if (!messageEl) {
+      messageEl = doc.createElement('p');
+      messageEl.setAttribute('data-role', 'boot-fatal-message');
+      messageEl.style.marginTop = '12px';
+      messageEl.style.fontWeight = '600';
+      const header = el.querySelector('h3');
+      if (header && header.parentNode === el) {
+        const next = header.nextSibling;
+        if (next) {
+          el.insertBefore(messageEl, next);
+        } else {
+          el.appendChild(messageEl);
+        }
+      } else {
+        el.appendChild(messageEl);
+      }
+    }
+    const parts = [];
+    const reason = failure?.reason || 'boot_failure';
+    if (reason === 'required_failure') {
+      parts.push('Fatal: required module failed to initialize.');
+    } else {
+      parts.push('Fatal boot failure detected.');
+    }
+    const path = failure?.path;
+    if (typeof path === 'string' && path) {
+      parts.push(`Module: ${path}`);
+    }
+    const probe = failure?.probe;
+    if (typeof probe === 'string' && probe) {
+      parts.push(`Probe: ${probe}`);
+    }
+    messageEl.textContent = parts.join(' ');
+    try { el.setAttribute('data-state', 'fatal'); } catch (_) {}
+  } catch (_) {}
+}
+
+function noteFatalState(failure) {
+  terminalBootState = 'fatal';
+  setBodyBootState('fatal');
+  ensureFatalMessage(failure);
+}
+
+function scheduleBootReadyMarker() {
+  if (readyMarkerScheduled || terminalBootState === 'fatal') return;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const body = document.body || document.documentElement;
+  if (!body) return;
+  readyMarkerScheduled = true;
+  const queue = typeof window.requestAnimationFrame === 'function'
+    ? window.requestAnimationFrame.bind(window)
+    : null;
+  const applyReady = () => {
+    if (terminalBootState === 'fatal') return;
+    terminalBootState = 'ready';
+    setBodyBootState('ready');
+  };
+  if (queue) {
+    queue(() => {
+      if (terminalBootState === 'fatal') return;
+      queue(() => {
+        if (terminalBootState === 'fatal') return;
+        applyReady();
+      });
+    });
+  } else {
+    Promise.resolve().then(() => {
+      if (terminalBootState === 'fatal') return;
+      applyReady();
+    }).catch(() => {});
+  }
+}
+
+function recordFatal(reason, detail, failureMeta = null) {
+  splash.show();
+  const failure = { reason, detail, ...(failureMeta || {}) };
+  noteFatalState(failure);
   try {
     window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
   } catch (_) {}
-  splash.show();
   postLog('boot.fail', { reason, detail });
 }
 
@@ -337,6 +434,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await waitForDomReady();
     await evaluatePrereqs(coreRecords, 'hard', hardPrereqOverrides);
     splash.hide();
+    scheduleBootReadyMarker();
 
     const safe = isSafeMode();
     state.safe = safe;
@@ -370,7 +468,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       ? 'required_failure'
       : 'boot_failure';
     const detail = String(err?.stack || err);
-    recordFatal(reason, detail);
+    recordFatal(reason, detail, { path: failingPath, probe: err?.probe || null });
     try { window.__BOOT_FATAL__ = true; } catch (_) {}
 
     const failure = { reason, fatal: true, path: failingPath, probe: err?.probe || null, detail };
