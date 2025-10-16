@@ -14,6 +14,8 @@ let domReadyListener = null;
 let beforeUnloadAttached = false;
 let visibilityChangeAttached = false;
 let routeChangeAttached = false;
+let bootFatalListenerAttached = false;
+let bootFatalHandler = null;
 
 function ensureCanariesFlag(){
   const root = typeof window !== 'undefined' ? window : globalThis;
@@ -104,9 +106,16 @@ function handleHotkey(ev){
   overlayEl.style.display = isVisible ? 'flex' : 'none';
 }
 
+function handleBootFatal(){
+  teardownDebugOverlay();
+}
+
 export function initDebugOverlay(){
   if(typeof window === 'undefined') return;
   if(window.__ENV__?.DEBUG !== true) return;
+  if(typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset && document.documentElement.dataset.bootState === 'fatal'){
+    return;
+  }
   const pill = ensureOverlay();
   if(!pill) return;
   ensureCanariesFlag();
@@ -137,6 +146,12 @@ export function initDebugOverlay(){
   if(!routeChangeAttached){
     window.addEventListener('hashchange', handleRouteChange);
     routeChangeAttached = true;
+  }
+  if(!bootFatalListenerAttached){
+    bootFatalHandler = handleBootFatal;
+    try{ window.addEventListener('crm:boot:fatal', bootFatalHandler, { once: true }); }
+    catch (_err){}
+    bootFatalListenerAttached = true;
   }
 }
 
@@ -234,6 +249,12 @@ export function teardownDebugOverlay(){
     catch (_err){}
   }
   routeChangeAttached = false;
+  if(bootFatalListenerAttached && bootFatalHandler){
+    try{ window.removeEventListener('crm:boot:fatal', bootFatalHandler); }
+    catch (_err){}
+  }
+  bootFatalListenerAttached = false;
+  bootFatalHandler = null;
 
   if(overlayEl && overlayEl.parentNode){
     try{ overlayEl.parentNode.removeChild(overlayEl); }

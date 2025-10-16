@@ -74,6 +74,11 @@ const bootStart = timeSource();
 let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
+let fatalBlockEl = null;
+let fatalSummaryEl = null;
+let fatalDetailEl = null;
+
+const FATAL_DETAIL_MAX_LEN = 1800;
 
 function noteOverlayHidden() {
   if (overlayHiddenAt == null) {
@@ -153,13 +158,164 @@ if (typeof window !== 'undefined' && nativeFetch && !window.__LOG_FETCH_PATCHED_
   } catch (_) {}
 }
 
+function resetFatalElements() {
+  if (!fatalBlockEl) return;
+  try { fatalBlockEl.style.display = 'none'; } catch (_) {}
+  try { fatalBlockEl.removeAttribute('data-state'); } catch (_) {}
+  if (fatalSummaryEl) {
+    try { fatalSummaryEl.textContent = ''; } catch (_) {}
+  }
+  if (fatalDetailEl) {
+    try { fatalDetailEl.textContent = ''; } catch (_) {}
+    try { fatalDetailEl.style.display = 'none'; } catch (_) {}
+  }
+}
+
+function ensureFatalElements(root) {
+  if (!root) return null;
+  if (fatalBlockEl && fatalBlockEl.isConnected) return fatalBlockEl;
+  const doc = root.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return null;
+  const block = doc.createElement('section');
+  block.setAttribute('data-role', 'boot-fatal');
+  block.style.marginTop = '16px';
+  block.style.padding = '14px';
+  block.style.borderRadius = '8px';
+  block.style.background = 'rgba(15, 23, 42, 0.75)';
+  block.style.border = '1px solid rgba(248, 113, 113, 0.65)';
+  block.style.fontFamily = "var(--font-mono, Menlo, monospace)";
+  block.style.fontSize = '12px';
+  block.style.lineHeight = '1.45';
+  block.style.whiteSpace = 'pre-wrap';
+  block.style.wordBreak = 'break-word';
+
+  const summary = doc.createElement('div');
+  summary.setAttribute('data-role', 'boot-fatal-summary');
+  summary.style.marginBottom = '8px';
+  summary.style.fontWeight = '700';
+  summary.style.color = '#fecaca';
+
+  const detail = doc.createElement('pre');
+  detail.setAttribute('data-role', 'boot-fatal-detail');
+  detail.style.margin = '0';
+  detail.style.whiteSpace = 'pre-wrap';
+  detail.style.wordBreak = 'break-word';
+  detail.style.background = 'rgba(15, 23, 42, 0.8)';
+  detail.style.borderRadius = '6px';
+  detail.style.padding = '10px';
+  detail.style.maxHeight = '320px';
+  detail.style.overflow = 'auto';
+  detail.style.display = 'none';
+
+  block.appendChild(summary);
+  block.appendChild(detail);
+  root.appendChild(block);
+
+  fatalBlockEl = block;
+  fatalSummaryEl = summary;
+  fatalDetailEl = detail;
+  return fatalBlockEl;
+}
+
+function applyFatalElements(root, meta) {
+  const block = ensureFatalElements(root);
+  if (!block) return;
+  try { block.style.display = 'block'; } catch (_) {}
+  try { block.setAttribute('data-state', 'fatal'); } catch (_) {}
+  if (fatalSummaryEl) {
+    try { fatalSummaryEl.textContent = meta.summary || ''; } catch (_) {}
+  }
+  if (fatalDetailEl) {
+    const detailText = meta.detail ? String(meta.detail) : '';
+    if (detailText) {
+      const trimmed = detailText.length > FATAL_DETAIL_MAX_LEN
+        ? `${detailText.slice(0, FATAL_DETAIL_MAX_LEN)}...`
+        : detailText;
+      try { fatalDetailEl.textContent = trimmed; } catch (_) {}
+      try { fatalDetailEl.style.display = 'block'; } catch (_) {}
+    } else {
+      try { fatalDetailEl.textContent = ''; } catch (_) {}
+      try { fatalDetailEl.style.display = 'none'; } catch (_) {}
+    }
+  }
+}
+
 const splash = {
   el() { return document.getElementById('diagnostics-splash'); },
-  show() { const e = this.el(); if (e) e.style.display = 'block'; },
+  clearFatal(target) {
+    const el = target || this.el();
+    if (!el) return;
+    resetFatalElements();
+    try { el.removeAttribute('role'); } catch (_) {}
+    try { el.removeAttribute('aria-live'); } catch (_) {}
+    try {
+      if (el.dataset) {
+        if (el.dataset.state === 'fatal') delete el.dataset.state;
+        delete el.dataset.reason;
+        delete el.dataset.path;
+        delete el.dataset.probe;
+      }
+    } catch (_) {}
+    try {
+      if (typeof document !== 'undefined' && document && document.body && document.body.dataset) {
+        delete document.body.dataset.bootFatal;
+      }
+    } catch (_) {}
+    try {
+      if (typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset) {
+        delete document.documentElement.dataset.bootState;
+      }
+    } catch (_) {}
+  },
+  show() {
+    const e = this.el();
+    if (!e) return;
+    try { e.style.display = 'block'; } catch (_) {}
+    try { e.hidden = false; } catch (_) {}
+    try { e.style.visibility = 'visible'; } catch (_) {}
+    try { e.style.opacity = ''; } catch (_) {}
+    try {
+      if (e.dataset && e.dataset.state !== 'fatal') e.dataset.state = 'visible';
+    } catch (_) {}
+  },
   hide() {
     const e = this.el();
-    if (e) e.style.display = 'none';
+    if (e) {
+      this.clearFatal(e);
+      try { e.style.display = 'none'; } catch (_) {}
+      try { e.hidden = true; } catch (_) {}
+      try { if (e.dataset) e.dataset.state = 'hidden'; } catch (_) {}
+      try { e.style.visibility = 'hidden'; } catch (_) {}
+      try { e.style.opacity = '0'; } catch (_) {}
+    }
     noteOverlayHidden();
+  },
+  renderFatal(meta = {}) {
+    const e = this.el();
+    if (!e) return;
+    this.show();
+    this.clearFatal(e);
+    try { if (e.dataset) e.dataset.state = 'fatal'; } catch (_) {}
+    try { if (e.dataset && meta.reason) e.dataset.reason = meta.reason; } catch (_) {}
+    try { if (e.dataset && meta.path) e.dataset.path = meta.path; } catch (_) {}
+    try { if (e.dataset && meta.probe) e.dataset.probe = meta.probe; } catch (_) {}
+    try { e.setAttribute('role', 'alert'); } catch (_) {}
+    try { e.setAttribute('aria-live', 'assertive'); } catch (_) {}
+    try { e.hidden = false; } catch (_) {}
+    try { e.style.visibility = 'visible'; } catch (_) {}
+    try { e.style.opacity = '1'; } catch (_) {}
+    try { e.style.display = 'block'; } catch (_) {}
+    try {
+      if (typeof document !== 'undefined' && document && document.body && document.body.dataset) {
+        document.body.dataset.bootFatal = '1';
+      }
+    } catch (_) {}
+    try {
+      if (typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset) {
+        document.documentElement.dataset.bootState = 'fatal';
+      }
+    } catch (_) {}
+    applyFatalElements(e, meta);
   }
 };
 
@@ -218,14 +374,28 @@ async function runProbe(fn) {
   }
 }
 
-async function evaluatePrereqs(records, kind) {
+async function evaluatePrereqs(records, kind, overridesByPath = null) {
   const extractor = kind === 'hard'
     ? (mod) => mod?.HARD_PREREQS || mod?.CORE_PREREQS || {}
     : (mod) => mod?.SOFT_PREREQS || {};
 
+  const hardOverrides = kind === 'hard' && overridesByPath && typeof overridesByPath === 'object'
+    ? overridesByPath
+    : null;
+
   for (const { path, module } of records) {
-    const checks = extractor(module) || {};
-    for (const [name, probe] of Object.entries(checks)) {
+    const overrideChecks = hardOverrides && Object.prototype.hasOwnProperty.call(hardOverrides, path)
+      ? hardOverrides[path]
+      : null;
+    const overrideEntries = (overrideChecks && typeof overrideChecks === 'object')
+      ? Object.entries(overrideChecks)
+      : [];
+    const baseEntries = Object.entries(extractor(module) || {});
+    const combined = overrideEntries.length
+      ? overrideEntries.concat(baseEntries)
+      : baseEntries;
+
+    for (const [name, probe] of combined) {
       const ok = await runProbe(probe);
       if (!ok) {
         if (kind === 'hard') {
@@ -262,17 +432,60 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
   return records;
 }
 
-function recordFatal(reason, detail) {
+function formatFatalSummary(reason, meta = {}) {
+  if (meta && typeof meta.summary === 'string' && meta.summary.trim()) {
+    return meta.summary.trim();
+  }
+  const required = meta.required === true || reason === 'required_failure';
+  const path = meta.path ? String(meta.path) : '';
+  const probe = meta.probe ? String(meta.probe) : '';
+  const base = required
+    ? 'Fatal boot failure — required module unavailable.'
+    : 'Boot failure — core prerequisite missing.';
+  const fragments = [];
+  if (path) fragments.push(path);
+  if (probe) fragments.push(`probe: ${probe}`);
+  if (fragments.length) {
+    return `${base} (${fragments.join(' · ')})`;
+  }
+  return base;
+}
+
+function emitBootFatal(payload) {
+  if (typeof window === 'undefined') return;
   try {
-    window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
+    if (typeof window.dispatchEvent === 'function') {
+      if (typeof CustomEvent === 'function') {
+        const evt = new CustomEvent('crm:boot:fatal', { detail: payload });
+        window.dispatchEvent(evt);
+      } else if (typeof document !== 'undefined' && document && typeof document.createEvent === 'function') {
+        const evt = document.createEvent('CustomEvent');
+        evt.initCustomEvent('crm:boot:fatal', false, false, payload);
+        window.dispatchEvent(evt);
+      }
+    }
   } catch (_) {}
-  splash.show();
-  postLog('boot.fail', { reason, detail });
+}
+
+function recordFatal(reason, detail, meta = {}) {
+  const summary = formatFatalSummary(reason, meta);
+  const payload = { fatal: true, reason, detail, summary, at: Date.now(), ...meta };
+  try {
+    window.__BOOT_DONE__ = payload;
+    window.__BOOT_FATAL__ = true;
+    window.__BOOT_FATAL_DETAIL__ = payload;
+  } catch (_) {}
+  splash.renderFatal({ ...meta, reason, detail, summary });
+  postLog('boot.fail', { reason, detail, summary, ...meta });
+  emitBootFatal(payload);
 }
 
 function recordSuccess(meta) {
+  const payload = { fatal: false, at: Date.now(), ...meta };
   try {
-    window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
+    window.__BOOT_DONE__ = payload;
+    window.__BOOT_FATAL__ = false;
+    try { delete window.__BOOT_FATAL_DETAIL__; } catch (_) {}
   } catch (_) {}
   splash.hide();
   if (!perfPingNoted) {
@@ -311,6 +524,9 @@ function maybeRenderAll() {
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
   const requiredSet = new Set(REQUIRED || []);
+  const hardPrereqOverrides = (CORE && typeof CORE === 'object' && CORE.PREREQS && typeof CORE.PREREQS === 'object')
+    ? CORE.PREREQS
+    : null;
   splash.show();
 
   try {
@@ -318,7 +534,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     state.core = coreRecords.map(({ path }) => path);
 
     await waitForDomReady();
-    await evaluatePrereqs(coreRecords, 'hard');
+    await evaluatePrereqs(coreRecords, 'hard', hardPrereqOverrides);
     splash.hide();
 
     const safe = isSafeMode();
@@ -346,11 +562,21 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     return { reason: 'ok' };
   } catch (err) {
-    const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
-      ? 'required_import'
+    const failingPath = (err && typeof err === 'object' && typeof err.path === 'string')
+      ? err.path
+      : null;
+    const required = !!(failingPath && requiredSet.has(failingPath));
+    const reason = required
+      ? 'required_failure'
       : 'boot_failure';
-    recordFatal(reason, String(err?.stack || err));
-    throw err;
+    const detail = String(err?.stack || err);
+    const meta = {
+      path: failingPath,
+      probe: err?.probe || null,
+      required
+    };
+    recordFatal(reason, detail, meta);
+    return { reason, fatal: true, path: failingPath, probe: meta.probe, detail, required };
   }
 }
 

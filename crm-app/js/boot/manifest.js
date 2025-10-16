@@ -33,6 +33,88 @@ export const CORE = [
   './boot/phases.js'
 ];
 
+function getGlobal() {
+  if (typeof window !== 'undefined') return window;
+  if (typeof globalThis !== 'undefined') return globalThis;
+  return {};
+}
+
+function isFunction(target, key) {
+  try {
+    return typeof target[key] === 'function';
+  } catch (_) {
+    return false;
+  }
+}
+
+CORE.PREREQS = {
+  './db.js': {
+    'db api ready': () => {
+      const global = getGlobal();
+      if (!global) return false;
+      try {
+        const meta = global.DB_META;
+        const hasMeta = meta && Array.isArray(meta.STORES);
+        const apiFns = ['dbGet', 'dbPut', 'dbDelete', 'dbClear'];
+        return Boolean(
+          hasMeta &&
+          apiFns.every((name) => isFunction(global, name))
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+  },
+  './services/selection.js': {
+    'selection service ready': () => {
+      const global = getGlobal();
+      if (!global) return false;
+      try {
+        const service = global.SelectionService || global.Selection;
+        if (!service || typeof service !== 'object') return false;
+        return (
+          typeof service.count === 'function' &&
+          typeof service.get === 'function' &&
+          typeof service.set === 'function' &&
+          typeof service.clear === 'function'
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+  },
+  './utils.js': {
+    'dom query helpers ready': () => {
+      const global = getGlobal();
+      if (!global) return false;
+      return isFunction(global, '$') && isFunction(global, '$all');
+    }
+  },
+  './render.js': {
+    'renderAll ready': () => {
+      const global = getGlobal();
+      return isFunction(global, 'renderAll');
+    }
+  },
+  './ui/Toast.js': {
+    'toast controller ready': () => {
+      const global = getGlobal();
+      try {
+        const toast = global.Toast;
+        return !!toast && typeof toast.show === 'function';
+      } catch (_) {
+        return false;
+      }
+    }
+  },
+  './ui/Confirm.js': {
+    'confirm dialog ready': () => {
+      const global = getGlobal();
+      return isFunction(global, 'confirmAction');
+    }
+  }
+};
+
 export const PATCHES = [
   './patch_20250923_baseline.js',
   './patch_20250924_bootstrap_ready.js',
@@ -118,6 +200,7 @@ export const PATCHES = [
 export const REQUIRED = new Set([
   './env.js',
   './db.js',
+  './services/selection.js',
   './utils.js',
   './render.js',
   './ui/Toast.js',
