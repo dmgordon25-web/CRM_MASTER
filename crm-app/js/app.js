@@ -769,10 +769,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
     if(total > 0){
       bar.classList.add('has-selection');
-      bar.setAttribute('data-visible', '1');
     }else{
       bar.classList.remove('has-selection');
-      bar.setAttribute('data-visible', '0');
+    }
+    if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+      queueMicrotask(() => {
+        try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+        catch (_) {}
+      });
     }
   }
 

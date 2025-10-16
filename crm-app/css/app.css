@@ -66,3 +66,8 @@
   outline: 2px solid #2684FF;
   outline-offset: 2px;
 }
+
+/* PATCH: data-visible attribute is informational; no style change, but keep hook stable */
+[data-ui="action-bar"][data-visible="1"] {}
+[data-ui="merge-modal"][data-visible="1"] {}
+

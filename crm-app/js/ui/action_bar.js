@@ -5,6 +5,46 @@ const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
 const FAB_MENU_ID = 'global-new-menu';
 
+let __actionBarResizeTimer = null;
+
+function _isActuallyVisible(el) {
+  if (!el || !el.isConnected) return false;
+  const cs = getComputedStyle(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') === 0) return false;
+  const rects = el.getClientRects();
+  return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
+}
+
+function _updateDataVisible(el) {
+  try {
+    if (!el) return;
+    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
+    else el.removeAttribute('data-visible');
+  } catch {}
+}
+
+function _attachActionBarVisibilityHooks(actionBarRoot) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (!window.__ACTION_BAR_VISIBILITY_RESIZE__) {
+    window.__ACTION_BAR_VISIBILITY_RESIZE__ = true;
+    window.addEventListener('resize', () => {
+      clearTimeout(__actionBarResizeTimer);
+      __actionBarResizeTimer = setTimeout(() => {
+        const root = document.getElementById('actionbar');
+        if (root) _updateDataVisible(root);
+      }, 100);
+    }, { passive: true });
+  }
+  window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
+    const root = document.getElementById('actionbar');
+    if (!root) return;
+    queueMicrotask(() => _updateDataVisible(root));
+  };
+  if (actionBarRoot) {
+    queueMicrotask(() => _updateDataVisible(actionBarRoot));
+  }
+}
+
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
@@ -15,9 +55,7 @@ function markActionbarHost() {
   if (!bar.hasAttribute('data-ui')) {
     bar.setAttribute('data-ui', 'action-bar');
   }
-  if (!bar.hasAttribute('data-visible')) {
-    bar.setAttribute('data-visible', bar.classList.contains('has-selection') ? '1' : '0');
-  }
+  _attachActionBarVisibilityHooks(bar);
   bar.querySelectorAll('[data-act]').forEach((node) => {
     const action = node.getAttribute('data-act');
     if (!action || node.hasAttribute('data-action')) return;

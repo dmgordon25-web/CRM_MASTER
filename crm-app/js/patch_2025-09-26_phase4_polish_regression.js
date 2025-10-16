@@ -500,8 +500,13 @@ function runPatch(){
       if(svc.count() === 0){
         bar.style.display = 'none';
         bar.classList.remove('has-selection');
-        bar.setAttribute('data-visible', '0');
         bar.removeAttribute('data-selection-type');
+        if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+          queueMicrotask(() => {
+            try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+            catch (_) {}
+          });
+        }
       }
     }
     document.addEventListener(EVT.selectionChanged, hideActionbarWhenEmpty);

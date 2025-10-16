@@ -745,7 +745,6 @@ function runPatch(){
       if(!count){
         bar.style.display = 'none';
         bar.classList.remove('has-selection');
-        bar.setAttribute('data-visible', '0');
         bar.removeAttribute('data-selection-type');
         if(countEl) countEl.textContent = 'No records selected';
         if(breakdownEl) breakdownEl.textContent = 'Select rows to unlock pipeline actions.';
@@ -755,14 +754,25 @@ function runPatch(){
         detailStore = { contacts: [], partners: [] };
         lastHydratedVersion = selectionVersion;
         updateConvertButtonState(detailStore);
+        if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+          queueMicrotask(() => {
+            try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+            catch (_) {}
+          });
+        }
         return;
       }
       bar.style.display = '';
       bar.classList.add('has-selection');
-      bar.setAttribute('data-visible', '1');
       bar.setAttribute('data-selection-type', SelectionService.type);
       if(countEl) countEl.textContent = count === 1 ? '1 Selected' : `${count} Selected`;
       updatePrimaryButtons();
+      if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+        queueMicrotask(() => {
+          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+          catch (_) {}
+        });
+      }
     }
 
     async function fetchSelectionRecords(){
