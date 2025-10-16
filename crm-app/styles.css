@@ -583,3 +583,32 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
 [data-ui="action-bar"][data-state="loading"] [data-action]:not([data-action="merge"]) {
   pointer-events: none;
 }
+
+/* PATCH: center the action bar without affecting smoke/test selectors */
+[data-ui="action-bar"] {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;   /* center horizontally */
+  gap: 8px;                  /* even spacing between buttons */
+  width: 100%;
+  margin: 8px auto;
+}
+
+/* Keep buttons consistent sizing and prevent layout shift while loading */
+[data-ui="action-bar"] [data-action] {
+  min-height: 32px;
+  line-height: 32px;
+  padding: 0 10px;
+}
+
+/* On narrow viewports, let items wrap cleanly */
+@media (max-width: 640px) {
+  [data-ui="action-bar"] {
+    justify-content: center;
+    gap: 6px;
+  }
+  [data-ui="action-bar"] [data-action] {
+    flex: 0 0 auto;
+  }
+}
