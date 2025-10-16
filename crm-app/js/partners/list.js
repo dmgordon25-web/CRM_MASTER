@@ -88,7 +88,7 @@ function handleClick(event){
   const normalized = normalizeId(id);
   if(!normalized) return;
   try{
-    const result = openPartnerEditModal(normalized, { trigger });
+    const result = openPartnerEditModal(normalized);
     if(result && typeof result.catch === 'function'){
       result.catch(err => {
         try{ console && console.warn && console.warn('openPartnerEdit failed', err); }

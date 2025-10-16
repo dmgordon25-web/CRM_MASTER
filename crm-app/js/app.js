@@ -855,7 +855,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           const row = trigger.closest('[data-id]');
           const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
           if(!partnerId) return;
-          openPartnerEditModal(partnerId, { trigger });
+          openPartnerEditModal(partnerId);
         };
         table.addEventListener('click', handler);
       }
