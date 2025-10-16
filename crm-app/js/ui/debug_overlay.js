@@ -212,6 +212,14 @@
       render(payload);
       state.lastRenderedOverlay = payload;
       state.pendingOverlay = null;
+      try { state.bootState = 'fatal'; }
+      catch (_) {}
+      if (doc && doc.body) {
+        try { doc.body.setAttribute('data-boot', 'fatal'); }
+        catch (_) {}
+      }
+      try { global.__BOOT_FATAL__ = true; }
+      catch (_) {}
     } catch (err) {
       console.warn('[diagnostics-overlay] show failed', err);
     }
