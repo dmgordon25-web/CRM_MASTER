@@ -55,3 +55,14 @@
   pointer-events: none;
   opacity: 0.6;
 }
+
+/* ----------------------------------------------------------------------------
+   PATCH: visible focus while merge modal is open
+   ---------------------------------------------------------------------------- */
+[data-ui="merge-modal"] :is(button, [role="button"], [tabindex]) {
+  outline: none;
+}
+[data-ui="merge-modal"] :is(button, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid #2684FF;
+  outline-offset: 2px;
+}

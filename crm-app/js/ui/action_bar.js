@@ -458,7 +458,7 @@ function ensureMergeHandler() {
       return;
     }
     try {
-      openMergeModal(selection, { source: 'action-bar' });
+      openMergeModal(selection, { source: 'action-bar', event });
     } catch (err) {
       console.warn('[action-bar] merge modal failed', err);
     }
