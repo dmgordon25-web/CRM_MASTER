@@ -488,10 +488,10 @@ function renderSelectionModal(items, options = {}) {
   window[ACTIVE_GUARD] = true;
 
   const event = options && typeof options === 'object' ? options.event : null;
-  const body = document.body;
-  if (!__mergeInvoker || !body || !body.contains(__mergeInvoker) || event?.currentTarget) {
+  const docBody = document.body;
+  if (!__mergeInvoker || !docBody || !docBody.contains(__mergeInvoker) || event?.currentTarget) {
     const candidate = event?.currentTarget || __mergeInvoker || document.querySelector('[data-action="merge"]');
-    if (candidate && (!body || body.contains(candidate))) {
+    if (candidate && (!docBody || docBody.contains(candidate))) {
       __mergeInvoker = candidate;
     }
   }
@@ -524,21 +524,21 @@ function renderSelectionModal(items, options = {}) {
 
   shell.appendChild(header);
 
-  const body = document.createElement('div');
-  body.style.display = 'flex';
-  body.style.gap = '16px';
-  body.style.padding = '20px';
-  body.style.flex = '1';
+  const content = document.createElement('div');
+  content.style.display = 'flex';
+  content.style.gap = '16px';
+  content.style.padding = '20px';
+  content.style.flex = '1';
 
   const primaryColumn = createColumn('Primary record', 'Keep data from this record');
   primaryColumn.column.dataset.qa = 'merge-primary';
   const secondaryColumn = createColumn('Secondary records', 'These will merge into the primary');
   secondaryColumn.column.dataset.qa = 'merge-secondary';
 
-  body.appendChild(primaryColumn.column);
-  body.appendChild(secondaryColumn.column);
+  content.appendChild(primaryColumn.column);
+  content.appendChild(secondaryColumn.column);
 
-  shell.appendChild(body);
+  shell.appendChild(content);
 
   const footer = document.createElement('div');
   footer.style.display = 'flex';
