@@ -1,16 +1,59 @@
 /* Boot Orchestrator: deterministic, idempotent, with hard fail/success lanes */
-const BASE_URL = new URL('../', import.meta.url);
+const BOOT_BASE_HINT = (typeof window !== 'undefined')
+  ? window.__CRM_BOOT_BASE__
+  : null;
+
+const BASE_URL = (() => {
+  if (BOOT_BASE_HINT) {
+    try {
+      return new URL(BOOT_BASE_HINT);
+    } catch (_) {
+      try { return new URL(BOOT_BASE_HINT, import.meta.url); } catch (__) {}
+    }
+  }
+  return new URL('../', import.meta.url);
+})();
+
+const APP_BASE_URL = (() => {
+  try { return new URL('../', BASE_URL); } catch (_) { return BASE_URL; }
+})();
+
+const LOG_ENDPOINT = (() => {
+  try { return new URL('__log', APP_BASE_URL); } catch (_) { return null; }
+})();
+
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
 function normalize(spec) {
   if (typeof spec !== 'string') throw new TypeError('invalid module specifier');
   const trimmed = spec.trim();
   if (!trimmed) throw new TypeError('invalid module specifier');
-  const rel = (trimmed.startsWith('./') || trimmed.startsWith('../')) ? trimmed : `./${trimmed}`;
-  return new URL(rel, BASE_URL).href;
+
+  const withExt = (trimmed.endsWith('.js') || trimmed.endsWith('.mjs'))
+    ? trimmed
+    : `${trimmed}.js`;
+
+  if (SCHEME_RE.test(withExt)) {
+    return withExt;
+  }
+
+  if (withExt.startsWith('//')) {
+    try { return new URL(withExt, APP_BASE_URL).href; } catch (_) { return withExt; }
+  }
+
+  if (withExt.startsWith('./') || withExt.startsWith('../')) {
+    return new URL(withExt, BASE_URL).href;
+  }
+
+  if (withExt.startsWith('/')) {
+    try { return new URL(`.${withExt}`, APP_BASE_URL).href; } catch (_) { return withExt; }
+  }
+
+  return withExt;
 }
 
 async function dynImport(spec) {
-  const normalized = normalize(spec.endsWith('.js') || spec.endsWith('.mjs') ? spec : `${spec}.js`);
+  const normalized = normalize(spec);
   return import(normalized);
 }
 
@@ -66,13 +109,27 @@ function applyLogFallback(promise) {
   });
 }
 
+const LOG_ENDPOINT_HREF = LOG_ENDPOINT ? LOG_ENDPOINT.href : null;
+const LOG_ENDPOINT_PATH = LOG_ENDPOINT ? LOG_ENDPOINT.pathname : null;
+
+function matchesLogEndpoint(candidate) {
+  if (!LOG_ENDPOINT) return false;
+  try {
+    const url = new URL(candidate, APP_BASE_URL);
+    return url.href === LOG_ENDPOINT_HREF || url.pathname === LOG_ENDPOINT_PATH;
+  } catch (_) {
+    return candidate === LOG_ENDPOINT_HREF || candidate === LOG_ENDPOINT_PATH;
+  }
+}
+
 function shouldWatchLogEndpoint(resource) {
+  if (!LOG_ENDPOINT) return false;
   try {
     if (typeof resource === 'string') {
-      return resource.includes('/__log');
+      return matchesLogEndpoint(resource);
     }
     if (resource && typeof resource.url === 'string') {
-      return resource.url.includes('/__log');
+      return matchesLogEndpoint(resource.url);
     }
   } catch (_) {}
   return false;
@@ -107,9 +164,9 @@ const splash = {
 };
 
 const postLog = (kind, payload) => {
-  if (!nativeFetch) return;
+  if (!nativeFetch || !LOG_ENDPOINT) return;
   try {
-    const promise = nativeFetch('/__log', {
+    const promise = nativeFetch(LOG_ENDPOINT_HREF, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind, ts: Date.now(), ...payload })

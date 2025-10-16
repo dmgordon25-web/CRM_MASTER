@@ -2055,7 +2055,17 @@
   </dialog>
 
 
-  <script>window.__APP_VERSION__='v2025.09.27';window.__INIT_FLAGS__=window.__INIT_FLAGS__||{};window.__PATCHES_LOADED__=[];</script>
+  <script>
+    window.__APP_VERSION__ = 'v2025.09.27';
+    window.__INIT_FLAGS__ = window.__INIT_FLAGS__ || {};
+    window.__PATCHES_LOADED__ = [];
+    try {
+      const hint = new URL('./js/', document.baseURI).href;
+      if (!window.__CRM_BOOT_BASE__) {
+        window.__CRM_BOOT_BASE__ = hint;
+      }
+    } catch (_) {}
+  </script>
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';
