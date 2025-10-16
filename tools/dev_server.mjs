@@ -158,6 +158,32 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  if ((!filePath || !stats || !stats.isFile())
+    && normalized
+    && normalized !== '/'
+    && !normalized.startsWith('/crm-app')) {
+    const fallbackNormalized = path.posix.normalize(`/crm-app${normalized}`);
+    if (fallbackNormalized === '/crm-app' || fallbackNormalized.startsWith('/crm-app/')) {
+      const fallbackPath = path.join(REPO_ROOT, fallbackNormalized.slice(1));
+      try {
+        const fallbackStats = fs.statSync(fallbackPath);
+        if (fallbackStats.isDirectory()) {
+          const indexPath = path.join(fallbackPath, 'index.html');
+          const indexStats = fs.statSync(indexPath);
+          if (indexStats.isFile()) {
+            filePath = indexPath;
+            stats = indexStats;
+            normalized = fallbackNormalized;
+          }
+        } else if (fallbackStats.isFile()) {
+          filePath = fallbackPath;
+          stats = fallbackStats;
+          normalized = fallbackNormalized;
+        }
+      } catch {}
+    }
+  }
+
   if (filePath && stats && stats.isFile()) {
     serveStream(req, res, filePath, stats);
     return;
