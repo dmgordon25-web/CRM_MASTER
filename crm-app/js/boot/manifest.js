@@ -1,5 +1,5 @@
 /* Manifest with relative paths (relative to crm-app/js). Dedupe and phase separation. */
-import { normalizeModuleId } from './boot_hardener.js';
+import { normalizeModuleId, isSafeMode } from './boot_hardener.js';
 export const CORE = [
   './env.js',
   './db.js',
@@ -116,6 +116,10 @@ export const PATCHES = [
   './core/capabilities_probe.js'
 ];
 
+export const SAFE_MODE = isSafeMode();
+
+export const ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES;
+
 const REQUIRED_MODULES = [
   './env.js',
   './db.js',
@@ -133,4 +137,4 @@ export const REQUIRED = new Set(REQUIRED_MODULES.map((spec) => {
   }
 }));
 
-export { normalizeModuleId };
+export { normalizeModuleId, isSafeMode };

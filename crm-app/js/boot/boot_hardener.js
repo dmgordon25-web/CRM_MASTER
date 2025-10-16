@@ -264,7 +264,7 @@ function truthyFlag(v) {
   return s === '1' || s === 'true' || s === 'yes';
 }
 
-function isSafeMode() {
+export function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
     if (truthyFlag(q.get('safe'))) return true;
@@ -442,6 +442,19 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     const safe = isSafeMode();
     state.safe = safe;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const expected = safe
+          ? []
+          : (PATCHES || []).map((spec) => {
+            try { return normalizeModuleId(spec); }
+            catch (_) { return spec; }
+          });
+        window.__EXPECTED_PATCHES__ = expected;
+        window.__SAFE_MODE__ = safe ? 1 : 0;
+      } catch (_) {}
+    }
 
     const patchRecords = safe
       ? []
