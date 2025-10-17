@@ -196,8 +196,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (method === 'POST' && parsed.normalized === LOG_ENDPOINT_PATH) {
-    handleLogPost(req, res);
+  if (parsed.normalized === LOG_ENDPOINT_PATH) {
+    if (method === 'POST') {
+      handleLogPost(req, res);
+    } else {
+      send(res, 204, '');
+    }
     return;
   }
 

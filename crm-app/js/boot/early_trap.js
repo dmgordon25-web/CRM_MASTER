@@ -127,7 +127,6 @@
   }
 
   function sendLog(kind, payload){
-    if (typeof fetch !== 'function') return;
     try {
       const basePayload = {
         kind,
@@ -135,6 +134,14 @@
         href: (typeof location !== 'undefined' && location && location.href) ? location.href : ''
       };
       const body = JSON.stringify({ ...basePayload, ...payload });
+      let delivered = false;
+      if (typeof navigator !== 'undefined' && navigator && typeof navigator.sendBeacon === 'function') {
+        try {
+          delivered = navigator.sendBeacon('/__log', body) === true;
+        } catch (_) {}
+      }
+      if (delivered) return;
+      if (typeof fetch !== 'function') return;
       fetch('/__log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
