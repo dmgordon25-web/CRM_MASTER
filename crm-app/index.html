@@ -9,7 +9,47 @@
     #diagnostics-splash { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
       color:#fff; padding:20px; z-index:99999; }
   </style>
-  <base href="./"/>
+  <script>
+    (function(){
+      var base = '/';
+      try {
+        var loc = window.location;
+        if (loc && typeof loc.pathname === 'string') {
+          var path = loc.pathname || '/';
+          var lower = path.toLowerCase();
+          if (lower === '/crm') {
+            base = '/crm/';
+          } else if (lower.startsWith('/crm/')) {
+            base = '/crm/';
+          }
+        }
+      } catch (_) {}
+      if (typeof base !== 'string' || !base) {
+        base = '/';
+      }
+      if (base !== '/' && !base.endsWith('/')) {
+        base += '/';
+      }
+      if (base && base !== '/' && !base.startsWith('/')) {
+        base = '/' + base;
+      }
+      try {
+        document.write('<base href="' + base.replace(/"/g, '%22') + '"/>');
+      } catch (_) {
+        var baseEl = document.createElement('base');
+        baseEl.setAttribute('href', base);
+        var head = document.head || document.getElementsByTagName('head')[0];
+        if (head && head.firstChild) {
+          head.insertBefore(baseEl, head.firstChild);
+        } else if (head) {
+          head.appendChild(baseEl);
+        }
+      }
+      try {
+        window.__CRM_ROUTER_BASE__ = base;
+      } catch (_) {}
+    })();
+  </script>
   <script type="importmap">
   {
     "imports": {
@@ -2066,6 +2106,7 @@
       }
     } catch (_) {}
   </script>
+  <script type="module" src="./js/router/init.js"></script>
   <script type="module" src="./js/ui/debug_overlay.js"></script>
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
