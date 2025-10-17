@@ -2,6 +2,7 @@
 import { setDisabled } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openContactsMergeByIds } from './contacts_merge_orchestrator.js';
 import { openPartnersMergeByIds } from './partners_merge_orchestrator.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -1043,12 +1044,26 @@ function runPatch(){
           if(!snap || snap.ids.length !== 1){ toast('Select exactly one record to edit'); return { status:'cancel', dispatch:false }; }
           const id = snap.ids[0];
           if(snap.type === 'partners'){
-            if(typeof window.renderPartnerModal === 'function'){
+            let opened = false;
+            let lastError = null;
+            try{
+              const node = await openPartnerEditModal(id, { trigger: document.activeElement });
+              opened = !!node;
+            }catch(err){
+              lastError = err;
+              try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+              catch(_warnErr){}
+            }
+            if(!opened && typeof window.renderPartnerModal === 'function'){
               window.renderPartnerModal(id);
+              opened = true;
+            }
+            if(opened){
               return { status:'pending', clear:true, dispatch:false, monitor:{ type:'edit', entity:'partners', id } };
             }
-            warnMissing('renderPartnerModal');
-            return { status:'error', error:'renderPartnerModal missing', dispatch:false };
+            warnMissing('openPartnerEditModal');
+            if(lastError) return { status:'error', error:lastError, dispatch:false };
+            return { status:'error', error:'partner edit unavailable', dispatch:false };
           }
           if(typeof window.renderContactModal === 'function'){
             window.renderContactModal(id);
