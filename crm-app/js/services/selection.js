@@ -55,13 +55,42 @@
     return null;
   }
 
+  let emitScheduled = false;
+  let pendingDetail = null;
+  let serviceReady = false;
+  let readyEventDispatched = false;
+  let lastDetail = null;
+
   function buildDetail(source, extra){
     const detail = Object.assign({ type: state.type, ids: cloneIds(), source }, extra && typeof extra === 'object' ? extra : {});
+    if(serviceReady && detail.ready !== true) detail.ready = true;
     return detail;
   }
 
-  let emitScheduled = false;
-  let pendingDetail = null;
+  lastDetail = buildDetail('init');
+
+  function snapshotDetail(source){
+    const base = lastDetail ? { ...lastDetail } : buildDetail(source || 'snapshot');
+    base.ids = Array.isArray(base.ids) ? base.ids.slice() : [];
+    if(source) base.source = source;
+    if(serviceReady && base.ready !== true) base.ready = true;
+    return base;
+  }
+
+  function dispatchReady(detail){
+    if(readyEventDispatched) return;
+    readyEventDispatched = true;
+    const payload = detail ? { ...detail, ids: Array.isArray(detail.ids) ? detail.ids.slice() : [] } : snapshotDetail('ready-dispatch');
+    try{
+      if(typeof document !== 'undefined' && document && typeof document.dispatchEvent === 'function'){
+        document.dispatchEvent(new CustomEvent('selection:ready', { detail: payload }));
+      }
+    }catch (err) {
+      if(isDebug && console && console.warn){
+        console.warn('Selection ready event dispatch failed', err);
+      }
+    }
+  }
 
   function flushEmit(){
     emitScheduled = false;
@@ -93,6 +122,14 @@
 
   function emit(source, extra){
     const detail = buildDetail(source, extra);
+    if(extra && Object.prototype.hasOwnProperty.call(extra, 'ready')){
+      serviceReady = !!extra.ready;
+    }
+    if(serviceReady){
+      detail.ready = true;
+      dispatchReady(detail);
+    }
+    lastDetail = detail;
     pendingDetail = detail;
     scheduleEmit();
     try {
@@ -252,6 +289,11 @@
   function onChange(callback){
     if(typeof callback !== 'function') return ()=>{};
     listeners.add(callback);
+    try{
+      callback(snapshotDetail('subscribe'));
+    }catch (err) {
+      if(isDebug && console && console.warn) console.warn('Selection listener replay failed', err);
+    }
     return ()=> listeners.delete(callback);
   }
 
@@ -302,4 +344,5 @@
   window.Selection = Selection;
   window.SelectionService = compat;
   window.__SELMODEL__ = compat;
+  emit('ready', { ready: true });
 })();
