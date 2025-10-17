@@ -1,4 +1,188 @@
 const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
+const MODAL_DEBUG_PARAM = 'modaldebug';
+const ENTITY_PARAM_HINTS = ['id', 'partnerId', 'partner', 'contactId', 'contact', 'entityId', 'recordId', 'loanId'];
+
+let modalDebugSticky = false;
+let modalDebugStorageHooked = false;
+
+function hasDebugToken(input){
+  return typeof input === 'string' && input.includes(`${MODAL_DEBUG_PARAM}=1`);
+}
+
+function computeModalDebugEnabled(){
+  if(typeof window === 'undefined') return false;
+  try{
+    const loc = window.location;
+    if(loc){
+      if(hasDebugToken(loc.search)) return true;
+      const hash = typeof loc.hash === 'string' ? loc.hash : '';
+      if(hasDebugToken(hash)) return true;
+      const hashQueryIndex = hash.indexOf('?');
+      if(hashQueryIndex !== -1 && hasDebugToken(hash.slice(hashQueryIndex))){
+        return true;
+      }
+    }
+  }catch(_err){}
+  try{
+    if(window.localStorage && window.localStorage.getItem(MODAL_DEBUG_PARAM) === '1'){
+      return true;
+    }
+  }catch(_err){}
+  return false;
+}
+
+function hookStorageListener(){
+  if(modalDebugStorageHooked) return;
+  modalDebugStorageHooked = true;
+  if(typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  try{
+    window.addEventListener('storage', (event) => {
+      if(!event) return;
+      if(event.key === MODAL_DEBUG_PARAM){
+        modalDebugSticky = false;
+      }
+    });
+  }catch(_err){}
+}
+
+function isModalDebugEnabled(){
+  if(modalDebugSticky) return true;
+  const enabled = computeModalDebugEnabled();
+  if(enabled){
+    modalDebugSticky = true;
+  }else{
+    hookStorageListener();
+  }
+  return enabled;
+}
+
+function deriveModalId(key, node){
+  if(typeof key === 'string' && key) return key;
+  const el = toElement(node);
+  if(el){
+    if(typeof el.dataset?.modalKey === 'string' && el.dataset.modalKey){
+      return el.dataset.modalKey;
+    }
+    const attr = el.getAttribute && el.getAttribute('data-modal-key');
+    if(typeof attr === 'string' && attr) return attr;
+    if(typeof el.dataset?.ui === 'string' && el.dataset.ui){
+      return el.dataset.ui.replace(/-modal$/, '');
+    }
+  }
+  return 'unknown';
+}
+
+function readModalContext(){
+  const context = { route: '', tab: '', entityId: '', sourceHint: '' };
+  if(typeof window === 'undefined' || !window?.location) return context;
+  try{
+    const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
+    const trimmed = hash.startsWith('#') ? hash.slice(1) : hash;
+    const queryIndex = trimmed.indexOf('?');
+    const pathPart = queryIndex === -1 ? trimmed : trimmed.slice(0, queryIndex);
+    const queryPart = queryIndex === -1 ? '' : trimmed.slice(queryIndex + 1);
+    const segments = pathPart.split('/').map(seg => seg.trim()).filter(Boolean);
+    if(segments.length){
+      context.route = segments[0];
+      if(segments.length > 1){
+        context.tab = segments[1];
+      }
+    }
+    if(queryPart){
+      let params;
+      try{
+        params = new URLSearchParams(queryPart);
+      }catch(_err){ params = null; }
+      if(params){
+        if(!context.tab){
+          context.tab = params.get('tab')
+            || params.get('view')
+            || params.get('section')
+            || '';
+        }
+        for(const key of ENTITY_PARAM_HINTS){
+          const value = params.get(key);
+          if(value){
+            context.entityId = value;
+            break;
+          }
+        }
+      }
+    }
+    if(!context.entityId && segments.length > 1){
+      const tail = segments.slice(1).reverse().find(seg => /[0-9A-Za-z_-]{3,}/.test(seg));
+      if(tail) context.entityId = tail;
+    }
+  }catch(_err){}
+  return context;
+}
+
+function postModalDebug(payload){
+  if(!payload || typeof payload !== 'object') return;
+  try{
+    const body = JSON.stringify(payload);
+    if(typeof navigator !== 'undefined'
+      && navigator
+      && typeof navigator.sendBeacon === 'function'){
+      try{
+        if(navigator.sendBeacon('/__log', body)) return;
+      }catch(_err){}
+    }
+    if(typeof fetch === 'function'){
+      fetch('/__log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true
+      }).catch(() => {});
+    }
+  }catch(_err){}
+}
+
+function emitModalOpenDebug(modalId, debugState, details = {}){
+  if(!debugState) return;
+  const payload = {
+    kind: 'modal-open',
+    modalId,
+    ts: debugState.time,
+    context: debugState.context,
+    stack: debugState.stack,
+    reused: details.reused === true,
+    promise: details.promise === true
+  };
+  try{
+    console.info('[MODAL_OPEN]', {
+      modalId,
+      time: debugState.time,
+      context: debugState.context,
+      reused: details.reused === true,
+      promise: details.promise === true
+    });
+    if(debugState.stack){
+      console.info('[MODAL_STACK]', debugState.stack);
+    }
+  }catch(_err){}
+  postModalDebug(payload);
+}
+
+function emitModalCloseDebug(modalId){
+  if(!isModalDebugEnabled()) return;
+  const time = Date.now();
+  try{
+    console.info('[MODAL_CLOSE]', { modalId, time });
+  }catch(_err){}
+  postModalDebug({ kind: 'modal-close', modalId, ts: time });
+}
+
+function prepareModalOpenDebug(modalId){
+  if(!isModalDebugEnabled()) return null;
+  const time = Date.now();
+  let stack = '';
+  try{ stack = new Error('modal-open').stack || ''; }
+  catch(_err){ stack = ''; }
+  const context = readModalContext();
+  return { time, stack, context };
+}
 
 function toElement(node){
   if(!node) return null;
@@ -49,11 +233,17 @@ function tagModalKey(root, key){
 
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
+  const initialId = deriveModalId(key);
+  const debugState = prepareModalOpenDebug(initialId);
   const selector = `[data-modal-key="${key}"]`;
   const existing = document.querySelector(selector);
   if(existing){
     const el = tagModalKey(existing, key);
     focusModalRoot(el);
+    if(debugState){
+      const modalId = deriveModalId(key, el);
+      emitModalOpenDebug(modalId, debugState, { reused: true });
+    }
     return el;
   }
   const created = typeof createFn === 'function' ? createFn() : null;
@@ -61,11 +251,19 @@ export function ensureSingletonModal(key, createFn){
     return created.then(node => {
       const el = tagModalKey(node, key);
       focusModalRoot(el);
+      if(debugState){
+        const modalId = deriveModalId(key, el);
+        emitModalOpenDebug(modalId, debugState, { promise: true });
+      }
       return el;
     });
   }
   const el = tagModalKey(created, key);
   focusModalRoot(el);
+  if(debugState){
+    const modalId = deriveModalId(key, el);
+    emitModalOpenDebug(modalId, debugState);
+  }
   return el;
 }
 
@@ -91,6 +289,7 @@ export function closeSingletonModal(target, options = {}){
     root = toElement(target);
   }
   if(!root) return;
+  const modalId = deriveModalId(key, root);
   const bucket = root[CLEANUP_SYMBOL];
   if(bucket && bucket.size){
     bucket.forEach(fn => {
@@ -110,4 +309,5 @@ export function closeSingletonModal(target, options = {}){
     }
   }
   root[CLEANUP_SYMBOL] = new Set();
+  emitModalCloseDebug(modalId);
 }
