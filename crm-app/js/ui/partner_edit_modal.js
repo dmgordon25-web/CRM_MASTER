@@ -77,6 +77,13 @@ function hidePartnerProfileModal(){
   }
   if(profile.style){ profile.style.display = 'none'; }
   if(profile.setAttribute){ profile.setAttribute('aria-hidden', 'true'); }
+  if(profile.parentNode){
+    try{ profile.parentNode.removeChild(profile); }
+    catch(_err){ try{ profile.remove(); }catch(__err){} }
+  }else if(typeof profile.remove === 'function'){
+    try{ profile.remove(); }
+    catch(_err){}
+  }
 }
 
 function ensureModalAttributes(root){

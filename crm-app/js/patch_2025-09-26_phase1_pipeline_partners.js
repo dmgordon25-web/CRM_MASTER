@@ -36,6 +36,20 @@ function runPatch(){
     window.PARTNER_NONE_ID = PARTNER_NONE_ID;
     if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = PARTNER_NONE_ID;
 
+    const strayProfile = document.getElementById('partner-profile-modal');
+    if(strayProfile){
+      try{
+        if(typeof strayProfile.close === 'function') strayProfile.close();
+      }catch(_err){}
+      if(strayProfile.parentNode){
+        try{ strayProfile.parentNode.removeChild(strayProfile); }
+        catch(_err){ try{ strayProfile.remove(); }catch(__err){} }
+      }else if(typeof strayProfile.remove === 'function'){
+        try{ strayProfile.remove(); }
+        catch(_err){}
+      }
+    }
+
     const state = {
       contacts: new Map(),
       partners: new Map(),
@@ -1196,8 +1210,8 @@ function runPatch(){
       });
       host.appendChild(list);
     }
-  
-  async function openPartnerProfile(partnerId, options){
+
+    async function openPartnerProfile(partnerId, options){
       if(!partnerId){
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
@@ -1207,7 +1221,7 @@ function runPatch(){
     }
     window.openPartnerProfile = openPartnerProfile;
 
-  async function reassignContacts(fromId, toId){
+    async function reassignContacts(fromId, toId){
       if(typeof openDB!=='function' || typeof dbGetAll!=='function' || typeof dbBulkPut!=='function') return 0;
       await openDB();
       const contacts = await dbGetAll('contacts') || [];
