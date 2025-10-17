@@ -4,6 +4,7 @@ import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
 const CONTACT_MODAL_SELECTOR = '[data-ui="contact-modal"], #contact-modal';
+const PARTNER_PROFILE_SELECTOR = '#partner-profile-modal';
 const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -62,6 +63,20 @@ function hideContactModals(){
       node.removeAttribute('open');
     }
   });
+}
+
+function hidePartnerProfileModal(){
+  if(typeof document === 'undefined') return;
+  const profile = document.querySelector(PARTNER_PROFILE_SELECTOR);
+  if(!profile) return;
+  try{
+    if(typeof profile.close === 'function') profile.close();
+  }catch(_err){
+    try{ profile.removeAttribute && profile.removeAttribute('open'); }
+    catch(__err){}
+  }
+  if(profile.style){ profile.style.display = 'none'; }
+  if(profile.setAttribute){ profile.setAttribute('aria-hidden', 'true'); }
 }
 
 function ensureModalAttributes(root){
@@ -283,6 +298,7 @@ export async function openPartnerEditModal(id, options){
     base.__partnerInvoker = invoker || base.__partnerInvoker || null;
 
     hideContactModals();
+    hidePartnerProfileModal();
 
     await legacyOpenPartnerEdit(partnerId);
 
