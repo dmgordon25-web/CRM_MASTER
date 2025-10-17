@@ -13,6 +13,131 @@ const globalWiringState = typeof window !== 'undefined'
   })
   : { windowListeners: new Map(), documentListeners: new Map(), teardown() {} };
 
+if (!('selectionOff' in globalWiringState)) globalWiringState.selectionOff = null;
+if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0;
+if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = false;
+if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
+if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
+
+const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => {
+    try {
+      if (typeof Promise === 'function') {
+        Promise.resolve().then(() => fn()).catch(() => {});
+        return;
+      }
+    } catch (_) {}
+    try { fn(); }
+    catch (_) {}
+  };
+
+function refreshActionBarVisibility() {
+  if (typeof document === 'undefined') return;
+  const root = document.getElementById('actionbar');
+  if (root) _updateDataVisible(root);
+}
+
+function requestVisibilityRefresh() {
+  scheduleVisibilityRefresh(() => {
+    refreshActionBarVisibility();
+  });
+}
+
+function setActionsReady(flag) {
+  const next = !!flag;
+  if (globalWiringState.actionsReady === next) return;
+  globalWiringState.actionsReady = next;
+  requestVisibilityRefresh();
+}
+
+function setSelectedCount(count) {
+  const numeric = typeof count === 'number' && Number.isFinite(count) ? count : 0;
+  const next = numeric > 0 ? Math.max(0, Math.floor(numeric)) : 0;
+  if (globalWiringState.selectedCount === next) return;
+  globalWiringState.selectedCount = next;
+  requestVisibilityRefresh();
+}
+
+function resetActionBarState() {
+  globalWiringState.actionsReady = false;
+  globalWiringState.selectedCount = 0;
+  requestVisibilityRefresh();
+}
+
+function handleSelectionChanged(detail) {
+  const payload = detail && typeof detail === 'object' ? detail : {};
+  globalWiringState.hasSelectionSnapshot = true;
+  globalWiringState.lastSelection = payload;
+  const ids = Array.isArray(payload.ids) ? payload.ids : [];
+  const count = typeof payload.count === 'number' && Number.isFinite(payload.count)
+    ? payload.count
+    : ids.length;
+  setSelectedCount(count);
+}
+
+function clearSelectionSubscription() {
+  const off = globalWiringState.selectionOff;
+  globalWiringState.selectionOff = null;
+  if (typeof off === 'function') {
+    try { off(); }
+    catch (_) {}
+  }
+  globalWiringState.hasSelectionSnapshot = false;
+  globalWiringState.lastSelection = null;
+}
+
+function getSelectionApi() {
+  if (typeof window === 'undefined') return null;
+  const svc = window.Selection;
+  if (svc && typeof svc.onChange === 'function') return svc;
+  const compat = window.SelectionService;
+  if (compat && typeof compat.onChange === 'function') return compat;
+  return null;
+}
+
+function readSelectionSnapshot(selection) {
+  if (!selection) return { ids: [], type: 'contacts' };
+  try {
+    if (typeof selection.get === 'function') {
+      const value = selection.get();
+      if (value && typeof value === 'object' && Array.isArray(value.ids)) {
+        return { ...value, ids: value.ids.slice() };
+      }
+    }
+  } catch (_) {}
+  try {
+    if (typeof selection.getSelectedIds === 'function') {
+      const ids = selection.getSelectedIds();
+      if (Array.isArray(ids)) {
+        const type = typeof selection.type === 'string' && selection.type.trim()
+          ? selection.type.trim()
+          : 'contacts';
+        return { ids: ids.slice(), type };
+      }
+    }
+  } catch (_) {}
+  return { ids: [], type: 'contacts' };
+}
+
+function ensureSelectionSubscription() {
+  if (globalWiringState.selectionOff) return;
+  const selection = getSelectionApi();
+  if (!selection || typeof selection.onChange !== 'function') return;
+  try {
+    const off = selection.onChange((detail) => {
+      handleSelectionChanged(detail);
+    });
+    globalWiringState.selectionOff = typeof off === 'function' ? off : null;
+  } catch (_) {
+    return;
+  }
+  if (!globalWiringState.hasSelectionSnapshot) {
+    const snapshot = readSelectionSnapshot(selection);
+    handleSelectionChanged({ ...snapshot, source: snapshot.source || 'snapshot' });
+  }
+}
+
 let __actionBarResizeTimer = null;
 
 function toOptionsKey(options) {
@@ -66,6 +191,8 @@ function teardownAll() {
     });
     globalWiringState.documentListeners.clear();
   }
+  clearSelectionSubscription();
+  resetActionBarState();
 }
 
 globalWiringState.teardown = teardownAll;
@@ -81,6 +208,12 @@ function _isActuallyVisible(el) {
 function _updateDataVisible(el) {
   try {
     if (!el) return;
+    const ready = globalWiringState.actionsReady === true;
+    const hasSelection = (globalWiringState.selectedCount || 0) > 0;
+    if (!ready || !hasSelection) {
+      el.removeAttribute('data-visible');
+      return;
+    }
     if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
     else el.removeAttribute('data-visible');
   } catch {}
@@ -98,19 +231,22 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   registerWindowListener('resize', handleActionBarResize, { passive: true });
   window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
-    const root = document.getElementById('actionbar');
-    if (!root) return;
-    queueMicrotask(() => _updateDataVisible(root));
+    requestVisibilityRefresh();
   };
   if (actionBarRoot) {
-    queueMicrotask(() => _updateDataVisible(actionBarRoot));
+    requestVisibilityRefresh();
   }
 }
 
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
-  if (!bar) return null;
+  if (!bar) {
+    setActionsReady(false);
+    return null;
+  }
+  setActionsReady(true);
+  requestVisibilityRefresh();
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
@@ -143,6 +279,7 @@ function initializeActionBar() {
   markActionbarHost();
   ensureGlobalNewFab();
   ensureMergeHandler();
+  ensureSelectionSubscription();
 }
 
 function trackLastActionBarClick(event) {
@@ -574,6 +711,13 @@ function handleActionBarDataChanged() {
 
 if (typeof document !== 'undefined') {
   registerDocumentListener('app:data:changed', handleActionBarDataChanged, { passive: true });
+  registerDocumentListener('selection:ready', () => {
+    ensureSelectionSubscription();
+  }, { passive: true });
+}
+
+if (typeof window !== 'undefined') {
+  ensureSelectionSubscription();
 }
 
 function handleFabAction(kind) {
