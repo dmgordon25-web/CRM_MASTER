@@ -1,3 +1,4 @@
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -266,8 +267,42 @@ function runPatch(){
     if(!id) return;
     e.preventDefault();
     if(entity === 'partners'){
-      if(typeof window.requestPartnerModal === 'function') window.requestPartnerModal(id);
-      else if(typeof window.renderPartnerModal === 'function') window.renderPartnerModal(id);
+      e.__partnerEditHandled = true;
+      const trigger = e.target?.closest('a.partner-name, [data-partner-id]') || nameCell;
+      if(trigger && id){
+        const normalizedId = String(id).trim();
+        try {
+          if(trigger.dataset){
+            if(!trigger.dataset.partnerId) trigger.dataset.partnerId = normalizedId;
+          }
+          if(typeof trigger.setAttribute === 'function' && !trigger.getAttribute('data-partner-id')){
+            trigger.setAttribute('data-partner-id', normalizedId);
+          }
+        }catch(_err){}
+      }
+      if(typeof openPartnerEditModal === 'function'){
+        try{
+          const result = openPartnerEditModal(id, { trigger });
+          if(result && typeof result.catch === 'function'){
+            result.catch(err => {
+              try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+              catch(_warnErr){}
+            });
+          }
+        }catch(err){
+          try{ console && console.warn && console.warn('openPartnerEditModal error', err); }
+          catch(_err){}
+        }
+        return;
+      }
+      if(typeof window.requestPartnerModal === 'function'){
+        window.requestPartnerModal(id);
+        return;
+      }
+      if(typeof window.renderPartnerModal === 'function'){
+        window.renderPartnerModal(id);
+        return;
+      }
     }else if(typeof window.renderContactModal === 'function'){
       window.renderContactModal(id);
     }

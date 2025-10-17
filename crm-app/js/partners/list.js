@@ -70,6 +70,7 @@ function ensureLinkData(root){
 let dataWatcherAttached = false;
 
 function handleClick(event){
+  if(event.__partnerEditHandled) return;
   const root = event.currentTarget;
   const table = typeof root.closest === 'function'
     ? root.closest('#tbl-partners')
@@ -87,6 +88,7 @@ function handleClick(event){
   event.stopPropagation();
   const normalized = normalizeId(id);
   if(!normalized) return;
+  event.__partnerEditHandled = true;
   try{
     const result = openPartnerEditModal(normalized, { trigger });
     if(result && typeof result.catch === 'function'){
