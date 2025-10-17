@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase1_pipeline_partners.js — Phase 1 pipeline lanes + partner core
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -1246,8 +1247,13 @@ function runPatch(){
         const partnerId = dlg.dataset.partnerId;
         if(!partnerId) return;
         if(action==='edit'){
-          if(typeof renderPartnerModalOriginal === 'function') renderPartnerModalOriginal(partnerId);
-          else if(typeof requestPartnerModalOriginal === 'function') requestPartnerModalOriginal(partnerId);
+          closePartnerProfileDialog(dlg);
+          try{
+            await openPartnerEditCanonical(partnerId, { trigger: btn });
+          }catch(err){
+            try{ console && console.warn && console.warn('partner profile edit fallback', err); }
+            catch(_warnErr){}
+          }
         }else if(action==='reassign'){
           btn.disabled = true;
           try{
@@ -1294,6 +1300,8 @@ function runPatch(){
       }
       dlg.dataset.partnerId = String(partnerId);
       renderPartnerProfile(dlg, partner);
+      if(dlg.style){ dlg.style.display = ''; }
+      if(dlg.setAttribute){ dlg.setAttribute('aria-hidden', 'false'); }
       dlg.showModal();
     }
     window.openPartnerProfile = openPartnerProfile;
@@ -1433,13 +1441,50 @@ function runPatch(){
 
     const requestPartnerModalOriginal = window.requestPartnerModal;
     const renderPartnerModalOriginal = window.renderPartnerModal;
-    window.requestPartnerModal = function(partnerId){
+
+    function closePartnerProfileDialog(node){
+      if(!node) return;
+      try{ if(typeof node.close === 'function') node.close(); }
+      catch(_err){
+        try{ node.removeAttribute && node.removeAttribute('open'); }
+        catch(__err){}
+      }
+      if(node.style){ node.style.display = 'none'; }
+      if(node.setAttribute){ node.setAttribute('aria-hidden', 'true'); }
+    }
+
+    async function openPartnerEditCanonical(partnerId, options){
+      try{
+        if(typeof openPartnerEditModal === 'function'){
+          const modal = await openPartnerEditModal(partnerId, options);
+          if(modal) return modal;
+        }
+      }catch(err){
+        try{ console && console.warn && console.warn('partner edit modal fallback', err); }
+        catch(_warnErr){}
+      }
+      if(typeof renderPartnerModalOriginal === 'function'){
+        return renderPartnerModalOriginal.call(this, partnerId);
+      }
+      if(typeof requestPartnerModalOriginal === 'function'){
+        return requestPartnerModalOriginal.call(this, partnerId, options);
+      }
+      return null;
+    }
+
+    window.requestPartnerModal = function(partnerId, options){
       if(!partnerId){
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal.apply(this, arguments);
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal.apply(this, arguments);
-        return;
+        return openPartnerEditCanonical.call(this, partnerId, options);
       }
-      return openPartnerProfile(partnerId);
+      const preferProfile = options && (options.mode === 'profile' || options.view === 'profile' || options.profile === true);
+      if(preferProfile){
+        return openPartnerProfile(partnerId);
+      }
+      const profile = document.getElementById('partner-profile-modal');
+      if(profile) closePartnerProfileDialog(profile);
+      return openPartnerEditCanonical.call(this, partnerId, options);
     };
 
     const softDeleteOriginal = window.softDelete;
