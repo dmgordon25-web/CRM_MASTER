@@ -1196,8 +1196,8 @@ function runPatch(){
       });
       host.appendChild(list);
     }
-
-    async function openPartnerProfile(partnerId, options){
+  
+  async function openPartnerProfile(partnerId, options){
       if(!partnerId){
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
@@ -1207,7 +1207,7 @@ function runPatch(){
     }
     window.openPartnerProfile = openPartnerProfile;
 
-    async function reassignContacts(fromId, toId){
+  async function reassignContacts(fromId, toId){
       if(typeof openDB!=='function' || typeof dbGetAll!=='function' || typeof dbBulkPut!=='function') return 0;
       await openDB();
       const contacts = await dbGetAll('contacts') || [];
