@@ -252,7 +252,18 @@
   function onChange(callback){
     if(typeof callback !== 'function') return ()=>{};
     listeners.add(callback);
-    return ()=> listeners.delete(callback);
+    const off = ()=> listeners.delete(callback);
+    enqueueMicrotask(() => {
+      if(!listeners.has(callback)) return;
+      try {
+        callback(buildDetail('subscribe'));
+      } catch (err) {
+        if(isDebug && console && console.warn){
+          console.warn('Selection listener failed', err);
+        }
+      }
+    });
+    return off;
   }
 
   const Selection = {

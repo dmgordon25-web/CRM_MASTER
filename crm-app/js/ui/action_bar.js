@@ -53,6 +53,115 @@ function registerDocumentListener(type, handler, options) {
   return registerListener(typeof document !== 'undefined' ? document : null, globalWiringState.documentListeners, type, handler, options);
 }
 
+const enqueueMicrotask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => {
+    if (typeof fn !== 'function') return;
+    if (typeof Promise === 'function') {
+      Promise.resolve().then(fn);
+      return;
+    }
+    setTimeout(fn, 0);
+  };
+
+const visibilityState = {
+  selectedCount: 0,
+  actionsReady: false,
+  selectionOff: null,
+  visibilityScheduled: false
+};
+
+function scheduleVisibilityUpdate() {
+  if (visibilityState.visibilityScheduled) return;
+  visibilityState.visibilityScheduled = true;
+  enqueueMicrotask(() => {
+    visibilityState.visibilityScheduled = false;
+    if (typeof document === 'undefined') return;
+    const root = document.getElementById('actionbar');
+    if (root) _updateDataVisible(root);
+  });
+}
+
+function readSelectionCount(detail, svc) {
+  if (detail && typeof detail.count === 'number' && Number.isFinite(detail.count)) {
+    return detail.count;
+  }
+  const ids = detail && detail.ids;
+  if (Array.isArray(ids)) return ids.length;
+  if (ids && typeof ids.size === 'number') return ids.size;
+  if (svc && typeof svc.count === 'function') {
+    const value = Number(svc.count());
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+  if (svc && typeof svc.size === 'function') {
+    const value = Number(svc.size());
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+  return 0;
+}
+
+function setSelectedCount(count) {
+  const next = count > 0 && Number.isFinite(count) ? Math.floor(count) : 0;
+  if (visibilityState.selectedCount === next) {
+    scheduleVisibilityUpdate();
+    return;
+  }
+  visibilityState.selectedCount = next;
+  scheduleVisibilityUpdate();
+}
+
+function setActionsReady(value) {
+  const next = !!value;
+  if (visibilityState.actionsReady === next) {
+    scheduleVisibilityUpdate();
+    return;
+  }
+  visibilityState.actionsReady = next;
+  scheduleVisibilityUpdate();
+}
+
+function getSelectionService() {
+  if (typeof window === 'undefined') return null;
+  const svc = window.SelectionService || window.Selection || null;
+  if (!svc || typeof svc.onChange !== 'function') return null;
+  return svc;
+}
+
+function teardownSelectionSubscription() {
+  if (visibilityState.selectionOff) {
+    try { visibilityState.selectionOff(); }
+    catch (_) {}
+    visibilityState.selectionOff = null;
+  }
+  setSelectedCount(0);
+  setActionsReady(false);
+}
+
+function ensureSelectionSubscription() {
+  if (visibilityState.selectionOff) return;
+  const svc = getSelectionService();
+  if (!svc) return;
+  try {
+    const off = svc.onChange((detail) => {
+      setSelectedCount(readSelectionCount(detail, svc));
+    });
+    visibilityState.selectionOff = typeof off === 'function'
+      ? () => {
+        try { off(); }
+        catch (_) {}
+      }
+      : () => {};
+  } catch (_) {
+    visibilityState.selectionOff = null;
+    return;
+  }
+  setSelectedCount(readSelectionCount(null, svc));
+}
+
+function handleSelectionReadyEvent() {
+  ensureSelectionSubscription();
+}
+
 function teardownAll() {
   if (typeof window !== 'undefined') {
     globalWiringState.windowListeners.forEach((entry, type) => {
@@ -66,6 +175,7 @@ function teardownAll() {
     });
     globalWiringState.documentListeners.clear();
   }
+  teardownSelectionSubscription();
 }
 
 globalWiringState.teardown = teardownAll;
@@ -78,10 +188,17 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
+function shouldExposeActionBar(el) {
+  if (!el) return false;
+  if (!visibilityState.actionsReady) return false;
+  if (visibilityState.selectedCount <= 0) return false;
+  return _isActuallyVisible(el);
+}
+
 function _updateDataVisible(el) {
   try {
     if (!el) return;
-    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
+    if (shouldExposeActionBar(el)) el.setAttribute('data-visible', '1');
     else el.removeAttribute('data-visible');
   } catch {}
 }
@@ -110,7 +227,10 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
-  if (!bar) return null;
+  if (!bar) {
+    setActionsReady(false);
+    return null;
+  }
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
@@ -136,6 +256,8 @@ function markActionbarHost() {
       mergeBtn.setAttribute('data-qa', 'action-merge');
     }
   }
+  const actionsHost = bar.querySelector('.actionbar-actions');
+  setActionsReady(!!actionsHost);
   return bar;
 }
 
@@ -143,6 +265,8 @@ function initializeActionBar() {
   markActionbarHost();
   ensureGlobalNewFab();
   ensureMergeHandler();
+  ensureSelectionSubscription();
+  scheduleVisibilityUpdate();
 }
 
 function trackLastActionBarClick(event) {
@@ -158,6 +282,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
+  ensureSelectionSubscription();
+  registerWindowListener('ui:selection-ready', handleSelectionReadyEvent);
   if (document.readyState === 'loading') {
     registerDocumentListener('DOMContentLoaded', initializeActionBar, { once: true });
   } else {
