@@ -120,13 +120,15 @@ export const SAFE_MODE = isSafeMode();
 
 export const ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES;
 
+const pickSpec = (list, suffix) => list.find((entry) => entry.endsWith(suffix)) ?? `./${suffix}`;
+
 const REQUIRED_MODULES = [
-  './env.js',
-  './db.js',
-  './utils.js',
-  './render.js',
-  './ui/Toast.js',
-  './ui/Confirm.js'
+  pickSpec(CORE, 'env.js'),
+  pickSpec(CORE, 'db.js'),
+  pickSpec(CORE, 'utils.js'),
+  pickSpec(CORE, 'render.js'),
+  pickSpec(PATCHES, 'ui/Toast.js'),
+  pickSpec(PATCHES, 'ui/Confirm.js')
 ];
 
 export const REQUIRED = new Set(REQUIRED_MODULES.map((spec) => {
