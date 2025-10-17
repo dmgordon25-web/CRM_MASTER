@@ -22,3 +22,5 @@ To bootstrap the application without running PATCHES, append `?safe=1` to the
 app URL or set `localStorage.SAFE` to `'1'` in the browser console. SAFE mode
 still loads CORE modules and the interactive shell so you can inspect the app
 without patch side effects.
+
+Router patterns are precompiled with escaping so malformed dynamic segments fall back safely.
