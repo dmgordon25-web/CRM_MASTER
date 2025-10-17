@@ -52,6 +52,61 @@ export function normalizeModuleId(spec) {
   return withExt;
 }
 
+function normalizePatchId(spec) {
+  if (typeof spec !== 'string') {
+    return spec;
+  }
+
+  const trimmed = spec.trim();
+  if (!trimmed) {
+    return spec;
+  }
+
+  const withExt = (trimmed.endsWith('.js') || trimmed.endsWith('.mjs'))
+    ? trimmed
+    : `${trimmed}.js`;
+
+  if (withExt.startsWith('/')) {
+    return withExt;
+  }
+
+  const stripAppBase = (asUrl) => {
+    if (!asUrl) return withExt;
+    if (APP_BASE_URL && asUrl.origin === APP_BASE_URL.origin) {
+      const basePathname = APP_BASE_URL.pathname || '/';
+      if (basePathname !== '/' && asUrl.pathname.startsWith(basePathname)) {
+        const rel = asUrl.pathname.slice(basePathname.length);
+        return rel.startsWith('/') ? rel : `/${rel}`;
+      }
+      return asUrl.pathname;
+    }
+    return asUrl.pathname || withExt;
+  };
+
+  try {
+    const normalized = normalizeModuleId(withExt);
+
+    if (SCHEME_RE.test(normalized)) {
+      try {
+        const asUrl = new URL(normalized);
+        return stripAppBase(asUrl);
+      } catch (_) {
+        return normalized;
+      }
+    }
+
+    try {
+      const base = APP_BASE_URL || BASE_URL;
+      const asUrl = new URL(normalized, base);
+      return stripAppBase(asUrl);
+    } catch (_) {
+      return normalized;
+    }
+  } catch (_) {
+    return withExt;
+  }
+}
+
 async function dynImport(spec) {
   const normalized = normalizeModuleId(spec);
   return import(normalized);
@@ -447,10 +502,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       try {
         const expected = safe
           ? []
-          : (PATCHES || []).map((spec) => {
-            try { return normalizeModuleId(spec); }
-            catch (_) { return spec; }
-          });
+          : (PATCHES || []).map((spec) => normalizePatchId(spec));
         window.__EXPECTED_PATCHES__ = expected;
         window.__SAFE_MODE__ = safe ? 1 : 0;
       } catch (_) {}
