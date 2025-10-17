@@ -36,19 +36,30 @@ function runPatch(){
     window.PARTNER_NONE_ID = PARTNER_NONE_ID;
     if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = PARTNER_NONE_ID;
 
-    const strayProfile = document.getElementById('partner-profile-modal');
-    if(strayProfile){
+    function removeNode(node){
+      if(!node) return;
       try{
-        if(typeof strayProfile.close === 'function') strayProfile.close();
-      }catch(_err){}
-      if(strayProfile.parentNode){
-        try{ strayProfile.parentNode.removeChild(strayProfile); }
-        catch(_err){ try{ strayProfile.remove(); }catch(__err){} }
-      }else if(typeof strayProfile.remove === 'function'){
-        try{ strayProfile.remove(); }
+        if(typeof node.close === 'function') node.close();
+      }catch(_err){
+        try{ node.removeAttribute && node.removeAttribute('open'); }
+        catch(__err){}
+      }
+      if(node.parentNode){
+        try{ node.parentNode.removeChild(node); }
+        catch(_err){ try{ node.remove(); }catch(__err){} }
+      }else if(typeof node.remove === 'function'){
+        try{ node.remove(); }
         catch(_err){}
       }
     }
+
+    const strayProfile = document.getElementById('partner-profile-modal');
+    if(strayProfile) removeNode(strayProfile);
+
+    const strayProfiles = Array.from(document.querySelectorAll('dialog .profile-shell'))
+      .map(shell => shell.closest('dialog'))
+      .filter(Boolean);
+    strayProfiles.forEach(removeNode);
 
     const state = {
       contacts: new Map(),
