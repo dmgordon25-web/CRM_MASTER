@@ -29,6 +29,7 @@
    - Symptom: `smoke:action-selector` `sel-count-timeout-1` for `[data-ui="action-bar"] [data-action]:not([data-action="merge"])`.
    - Hypothesis: Initial render gating (`data-visible`, layout/CSS) hides actions on first tick.
    - Strategy: CSS/layout-only first (no test edits); ensure at least one non-merge action renders and is visible by the time smoke queries.
+   - Contract: Keep `data-visible` present with string values (`"true"`/`"false"`) and only flip to `"true"` when `(selectedCount > 0 && actionsReady === true)` with idempotent listener wiring and selection snapshot replay on subscribe.
    - Acceptance: Smoke passes with stable timing across two consecutive runs.
 
 3) **Partner Edit Dual-Modal Bug (readiness)**
