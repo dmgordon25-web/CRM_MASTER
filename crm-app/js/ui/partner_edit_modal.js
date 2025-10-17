@@ -4,6 +4,8 @@ import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
 const CONTACT_MODAL_SELECTOR = '[data-ui="contact-modal"], #contact-modal';
+const PARTNER_PROFILE_SELECTOR = '#partner-profile-modal';
+const PROFILE_SHELL_SELECTOR = 'dialog .profile-shell';
 const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -60,6 +62,47 @@ function hideContactModals(){
     node.setAttribute?.('aria-hidden', 'true');
     if(node.hasAttribute?.('open')){
       node.removeAttribute('open');
+    }
+  });
+}
+
+function hidePartnerProfileModal(){
+  if(typeof document === 'undefined') return;
+  const profile = document.querySelector(PARTNER_PROFILE_SELECTOR);
+  if(profile){
+    try{
+      if(typeof profile.close === 'function') profile.close();
+    }catch(_err){
+      try{ profile.removeAttribute && profile.removeAttribute('open'); }
+      catch(__err){}
+    }
+    if(profile.style){ profile.style.display = 'none'; }
+    if(profile.setAttribute){ profile.setAttribute('aria-hidden', 'true'); }
+    if(profile.parentNode){
+      try{ profile.parentNode.removeChild(profile); }
+      catch(_err){ try{ profile.remove(); }catch(__err){} }
+    }else if(typeof profile.remove === 'function'){
+      try{ profile.remove(); }
+      catch(_err){}
+    }
+  }
+
+  const shells = Array.from(document.querySelectorAll(PROFILE_SHELL_SELECTOR))
+    .map(shell => shell.closest('dialog'))
+    .filter(Boolean);
+  shells.forEach(dialog => {
+    try{
+      if(typeof dialog.close === 'function') dialog.close();
+    }catch(_err){
+      try{ dialog.removeAttribute && dialog.removeAttribute('open'); }
+      catch(__err){}
+    }
+    if(dialog.parentNode){
+      try{ dialog.parentNode.removeChild(dialog); }
+      catch(_err){ try{ dialog.remove(); }catch(__err){} }
+    }else if(typeof dialog.remove === 'function'){
+      try{ dialog.remove(); }
+      catch(_err){}
     }
   });
 }
@@ -283,6 +326,7 @@ export async function openPartnerEditModal(id, options){
     base.__partnerInvoker = invoker || base.__partnerInvoker || null;
 
     hideContactModals();
+    hidePartnerProfileModal();
 
     await legacyOpenPartnerEdit(partnerId);
 

@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase1_pipeline_partners.js — Phase 1 pipeline lanes + partner core
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -34,6 +35,31 @@ function runPatch(){
 
     window.PARTNER_NONE_ID = PARTNER_NONE_ID;
     if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = PARTNER_NONE_ID;
+
+    function removeNode(node){
+      if(!node) return;
+      try{
+        if(typeof node.close === 'function') node.close();
+      }catch(_err){
+        try{ node.removeAttribute && node.removeAttribute('open'); }
+        catch(__err){}
+      }
+      if(node.parentNode){
+        try{ node.parentNode.removeChild(node); }
+        catch(_err){ try{ node.remove(); }catch(__err){} }
+      }else if(typeof node.remove === 'function'){
+        try{ node.remove(); }
+        catch(_err){}
+      }
+    }
+
+    const strayProfile = document.getElementById('partner-profile-modal');
+    if(strayProfile) removeNode(strayProfile);
+
+    const strayProfiles = Array.from(document.querySelectorAll('dialog .profile-shell'))
+      .map(shell => shell.closest('dialog'))
+      .filter(Boolean);
+    strayProfiles.forEach(removeNode);
 
     const state = {
       contacts: new Map(),
@@ -171,17 +197,6 @@ function runPatch(){
       #referral-leaderboard .leaderboard-name{flex:1 1 auto}
       #referral-leaderboard .leaderboard-count{width:56px;text-align:right;font-variant-numeric:tabular-nums}
       #referral-leaderboard .leaderboard-volume{width:120px;text-align:right;font-variant-numeric:tabular-nums}
-      #partner-profile-modal::backdrop{background:rgba(15,23,42,.35)}
-      #partner-profile-modal .profile-shell{min-width:420px;max-width:640px}
-      #partner-profile-modal .profile-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-      #partner-profile-modal .profile-meta{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
-      #partner-profile-modal .profile-meta div{display:flex;flex-direction:column;font-size:13px;color:#475569}
-      #partner-profile-modal .profile-meta strong{color:#0f172a;font-size:18px}
-      #partner-profile-modal .profile-actions{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-      #partner-profile-modal table{width:100%;border-collapse:collapse}
-      #partner-profile-modal thead th{font-size:12px;text-transform:uppercase;color:#64748b;padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
-      #partner-profile-modal tbody td{padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:13px}
-      #partner-profile-modal tbody tr:hover{background:#f8fafc}
       #partner-delete-guard::backdrop{background:rgba(15,23,42,.3)}
       #partner-delete-guard .guard-shell{min-width:360px;max-width:480px}
       #partner-delete-guard .guard-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
@@ -1158,7 +1173,7 @@ function runPatch(){
           evt.preventDefault();
           evt.stopPropagation();
           const id = row.getAttribute('data-partner');
-          if(id) openPartnerProfile(id);
+          if(id) openPartnerProfile(id, { trigger: row });
         });
       }
       return host;
@@ -1207,142 +1222,15 @@ function runPatch(){
       host.appendChild(list);
     }
 
-    function ensurePartnerProfileModal(){
-      let dlg = document.getElementById('partner-profile-modal');
-      if(dlg && dlg.__phase1Ready) return dlg;
-      if(!dlg){
-        dlg = document.createElement('dialog');
-        dlg.id = 'partner-profile-modal';
-        document.body.appendChild(dlg);
-      }
-      dlg.innerHTML = `
-        <form method="dialog" class="modal-form-shell profile-shell">
-          <div class="profile-header">
-            <strong data-role="name">Partner</strong>
-            <span class="muted" data-role="tier"></span>
-            <span class="grow"></span>
-            <button class="btn" data-action="close" type="submit">Close</button>
-          </div>
-          <div class="profile-meta">
-            <div><span>YTD Referrals</span><strong data-role="ytd-referrals">0</strong></div>
-            <div><span>YTD Funded Volume</span><strong data-role="ytd-volume">$0</strong></div>
-          </div>
-          <div class="profile-actions">
-            <button class="btn" data-action="reassign" type="button">Reassign all to None</button>
-            <button class="btn" data-action="edit" type="button">Edit Partner</button>
-            <button class="btn danger" data-action="delete" type="button">Delete Partner</button>
-          </div>
-          <table>
-            <thead><tr><th>Contact</th><th>Stage</th><th>Amount</th><th>Funded</th></tr></thead>
-            <tbody data-role="deals"></tbody>
-          </table>
-        </form>`;
-      const form = dlg.querySelector('form');
-      form.addEventListener('click', async evt => {
-        const btn = evt.target && evt.target.closest('[data-action]');
-        if(!btn) return;
-        evt.preventDefault();
-        const action = btn.getAttribute('data-action');
-        const partnerId = dlg.dataset.partnerId;
-        if(!partnerId) return;
-        if(action==='edit'){
-          if(typeof renderPartnerModalOriginal === 'function') renderPartnerModalOriginal(partnerId);
-          else if(typeof requestPartnerModalOriginal === 'function') requestPartnerModalOriginal(partnerId);
-        }else if(action==='reassign'){
-          btn.disabled = true;
-          try{
-            const changed = await reassignContacts(partnerId, PARTNER_NONE_ID);
-            if(typeof window.toast === 'function') window.toast(`Reassigned ${changed} deal${changed===1?'':'s'} to None`);
-            await fullRefresh();
-            await openPartnerProfile(partnerId);
-          }finally{ btn.disabled = false; }
-        }else if(action==='delete'){
-          if(partnerId===PARTNER_NONE_ID){
-            if(typeof window.toast === 'function') window.toast('Cannot delete the system "None" partner');
-            return;
-          }
-          const confirmed = await showPartnerDeleteGuard(partnerId);
-          if(!confirmed) return;
-          try{
-            if(typeof window.softDelete === 'function') await window.softDelete('partners', partnerId, {source:'profile'});
-          }catch (err) { console && console.warn && console.warn('delete partner', err); }
-        }
-      });
-      dlg.__phase1Ready = true;
-      return dlg;
-    }
-
-    async function openPartnerProfile(partnerId){
-      const dlg = ensurePartnerProfileModal();
+    async function openPartnerProfile(partnerId, options){
       if(!partnerId){
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
-        return;
+        return null;
       }
-      if(!state.partners.size) await fullRefresh();
-      let partner = state.partners.get(String(partnerId));
-      if(!partner){
-        if(typeof openDB==='function' && typeof dbGet==='function'){
-          await openDB();
-          partner = await dbGet('partners', partnerId) || null;
-          if(partner){ state.partners.set(String(partner.id), partner); }
-        }
-      }
-      if(!partner){
-        if(typeof window.toast === 'function') window.toast('Partner not found');
-        return;
-      }
-      dlg.dataset.partnerId = String(partnerId);
-      renderPartnerProfile(dlg, partner);
-      dlg.showModal();
+      return openPartnerEditCanonical(partnerId, options);
     }
     window.openPartnerProfile = openPartnerProfile;
-
-    function renderPartnerProfile(dlg, partner){
-      if(!dlg) return;
-      const nameEl = dlg.querySelector('[data-role="name"]');
-      const tierEl = dlg.querySelector('[data-role="tier"]');
-      if(nameEl) nameEl.textContent = partner.name || partner.company || 'Partner';
-      if(tierEl) tierEl.textContent = partner.tier ? `Tier ${partner.tier}` : 'Tier —';
-      const deals = [];
-      state.contacts.forEach(contact => {
-        if(!contact) return;
-        const ids = new Set([contact.buyerPartnerId, contact.listingPartnerId].map(val=>String(val||'')));
-        if(ids.has(String(partner.id))){ deals.push(contact); }
-      });
-      const tbody = dlg.querySelector('[data-role="deals"]');
-      if(tbody){
-        tbody.innerHTML = deals.length ? deals.map(contact => {
-          const stageKey = laneKeyFromStage(contact.stage);
-          return `<tr data-id="${safe(contact.id)}"><td>${safe(displayName(contact))}</td><td>${safe(LANE_LABELS[stageKey] || stageKey)}</td><td>${safe(currencyFmt.format(Number(contact.loanAmount||0)))}</td><td>${safe(contact.fundedDate || '—')}</td></tr>`;
-        }).join('') : '<tr><td colspan="4" class="muted">No linked deals yet.</td></tr>';
-      }
-      if(tbody){
-        tbody.querySelectorAll('tr[data-id]').forEach(row => {
-          row.addEventListener('click', evt => {
-            evt.preventDefault();
-            evt.stopPropagation();
-            const id = row.getAttribute('data-id');
-            if(id && typeof window.renderContactModal === 'function') window.renderContactModal(id);
-          }, {once:true});
-        });
-      }
-      const start = new Date(new Date().getFullYear(),0,1).getTime();
-      let count = 0;
-      let volume = 0;
-      deals.forEach(contact => {
-        const funded = contact.fundedDate ? Date.parse(contact.fundedDate) : NaN;
-        if(Number.isNaN(funded) || funded < start) return;
-        count += 1;
-        volume += Number(contact.loanAmount||0);
-      });
-      const countEl = dlg.querySelector('[data-role="ytd-referrals"]');
-      const volumeEl = dlg.querySelector('[data-role="ytd-volume"]');
-      if(countEl) countEl.textContent = String(count);
-      if(volumeEl) volumeEl.textContent = currencyFmt.format(volume);
-      const deleteBtn = dlg.querySelector('[data-action="delete"]');
-      if(deleteBtn) deleteBtn.disabled = String(partner.id)===PARTNER_NONE_ID;
-    }
 
     async function reassignContacts(fromId, toId){
       if(typeof openDB!=='function' || typeof dbGetAll!=='function' || typeof dbBulkPut!=='function') return 0;
@@ -1433,13 +1321,33 @@ function runPatch(){
 
     const requestPartnerModalOriginal = window.requestPartnerModal;
     const renderPartnerModalOriginal = window.renderPartnerModal;
-    window.requestPartnerModal = function(partnerId){
+
+    async function openPartnerEditCanonical(partnerId, options){
+      try{
+        if(typeof openPartnerEditModal === 'function'){
+          const modal = await openPartnerEditModal(partnerId, options);
+          if(modal) return modal;
+        }
+      }catch(err){
+        try{ console && console.warn && console.warn('partner edit modal fallback', err); }
+        catch(_warnErr){}
+      }
+      if(typeof renderPartnerModalOriginal === 'function'){
+        return renderPartnerModalOriginal.call(this, partnerId);
+      }
+      if(typeof requestPartnerModalOriginal === 'function'){
+        return requestPartnerModalOriginal.call(this, partnerId, options);
+      }
+      return null;
+    }
+
+    window.requestPartnerModal = function(partnerId, options){
       if(!partnerId){
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal.apply(this, arguments);
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal.apply(this, arguments);
-        return;
+        return openPartnerEditCanonical.call(this, partnerId, options);
       }
-      return openPartnerProfile(partnerId);
+      return openPartnerEditCanonical.call(this, partnerId, options);
     };
 
     const softDeleteOriginal = window.softDelete;
