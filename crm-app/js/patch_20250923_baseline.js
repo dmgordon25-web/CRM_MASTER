@@ -282,7 +282,10 @@ function runPatch(){
       }
       if(typeof openPartnerEditModal === 'function'){
         try{
-          const result = openPartnerEditModal(id, { trigger });
+          const result = openPartnerEditModal(id, {
+            trigger,
+            sourceHint: 'partners:baseline-capture'
+          });
           if(result && typeof result.catch === 'function'){
             result.catch(err => {
               try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }

@@ -853,13 +853,18 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         const handler = (event)=>{
           const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
           if(!trigger || !table.contains(trigger)) return;
+          if(event.__partnerEditHandled) return;
           if(trigger instanceof HTMLInputElement) return;
           event.preventDefault();
           event.stopPropagation();
           const row = trigger.closest('[data-id]');
           const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
           if(!partnerId) return;
-          openPartnerEditModal(partnerId, { trigger });
+          event.__partnerEditHandled = true;
+          openPartnerEditModal(partnerId, {
+            trigger,
+            sourceHint: 'partners:view-table-click'
+          });
         };
         table.addEventListener('click', handler);
       }

@@ -90,7 +90,10 @@ function handleClick(event){
   if(!normalized) return;
   event.__partnerEditHandled = true;
   try{
-    const result = openPartnerEditModal(normalized, { trigger });
+    const result = openPartnerEditModal(normalized, {
+      trigger,
+      sourceHint: 'partners:list-name-click'
+    });
     if(result && typeof result.catch === 'function'){
       result.catch(err => {
         try{ console && console.warn && console.warn('openPartnerEdit failed', err); }
