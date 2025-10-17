@@ -24,3 +24,13 @@ still loads CORE modules and the interactive shell so you can inspect the app
 without patch side effects.
 
 Router patterns are precompiled with escaping so malformed dynamic segments fall back safely.
+
+## Action Bar Lifecycle
+
+Smoke tests assert a deterministic visibility contract on `[data-ui="action-bar"]`:
+
+- Always keep the `data-visible` attribute present with the string value `"true"` or `"false"`; never drop the attribute entirely.
+- Flip the flag to `"true"` only when both `selectedCount > 0` and `actionsReady === true`; otherwise leave it at `"false"`.
+- Wire selection listeners idempotently and replay the current selection snapshot on subscribe so the initial render honors the active selection.
+
+Preserve these invariants when touching selection plumbing or action registration.
