@@ -271,11 +271,16 @@ export function closePartnerEditModal(){
       node.dataset.open = '0';
       node.dataset.opening = '0';
       node.dataset.partnerId = '';
+      node.dataset.sourceHint = '';
     }
     node.setAttribute('aria-hidden', 'true');
     node.classList.add('hidden');
     node.style.display = 'none';
     if(node.hasAttribute('open')) node.removeAttribute('open');
+    if(typeof node.removeAttribute === 'function'){
+      try{ node.removeAttribute('data-source-hint'); }
+      catch(_err){}
+    }
     if(wasOpen){
       try{ node.dispatchEvent(new Event('close', { bubbles: false, cancelable: false })); }
       catch(_err){}
@@ -292,11 +297,25 @@ export function closePartnerEditModal(){
   }
   root.__partnerInvoker = null;
   lastInvoker = null;
+  root.__partnerSourceHint = '';
+  if(typeof window !== 'undefined'){
+    try{ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
+    catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
+  }
 }
 
 export async function openPartnerEditModal(id, options){
   const partnerId = id == null ? '' : String(id).trim();
   if(!partnerId) return null;
+
+  const sourceHint = options && typeof options.sourceHint === 'string'
+    ? options.sourceHint.trim()
+    : '';
+
+  if(typeof window !== 'undefined'){
+    try{ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }
+    catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }
+  }
 
   const invoker = resolveInvoker(options);
   if(invoker) lastInvoker = invoker;
@@ -330,6 +349,8 @@ export async function openPartnerEditModal(id, options){
 
     await legacyOpenPartnerEdit(partnerId);
 
+    hidePartnerProfileModal();
+
     let root = findPartnerModal();
     if(root !== base && root){
       let ensured = ensureSingletonModal(MODAL_KEY, () => root);
@@ -342,8 +363,16 @@ export async function openPartnerEditModal(id, options){
     if(root.dataset){
       root.dataset.opening = '1';
       root.dataset.partnerId = partnerId;
+      root.dataset.sourceHint = sourceHint || '';
+    }
+    if(typeof root.setAttribute === 'function'){
+      try{
+        if(sourceHint){ root.setAttribute('data-source-hint', sourceHint); }
+        else{ root.removeAttribute('data-source-hint'); }
+      }catch(_err){}
     }
     root.__partnerInvoker = invoker || root.__partnerInvoker || null;
+    root.__partnerSourceHint = sourceHint || '';
 
     cleanupNodeHandles(root);
     registerModalCleanup(root, cleanupNodeHandles);
@@ -365,7 +394,16 @@ export async function openPartnerEditModal(id, options){
     return root;
   })();
 
-  pendingOpen = sequence.finally(() => { pendingOpen = null; });
+  pendingOpen = sequence.finally(() => {
+    pendingOpen = null;
+    if(typeof window !== 'undefined'){
+      const existing = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`);
+      if(!existing || existing.dataset?.open !== '1'){
+        try{ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
+        catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
+      }
+    }
+  });
   return sequence;
 }
 
