@@ -2,6 +2,11 @@
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
+const MODULE_LABEL = typeof __filename === 'string'
+  ? __filename
+  : 'crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js';
+const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
+
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
 function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
@@ -1289,8 +1294,15 @@ function runPatch(){
             catch(_err){}
           }
         }
-        if(!opened && typeof window.openPartnerProfile === 'function'){
-          window.openPartnerProfile(pid, { trigger: row });
+        if(!opened){
+          if(FEATURE_DISABLE_PARTNER_OVERVIEW){
+            try{
+              console && console.warn && console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
+            }catch(_err){}
+          }
+          if(typeof window.openPartnerProfile === 'function'){
+            window.openPartnerProfile(pid, { trigger: row, suppressOverviewLog: true });
+          }
         }
         return;
       }

@@ -2,6 +2,11 @@
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
+const MODULE_LABEL = typeof __filename === 'string'
+  ? __filename
+  : 'crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js';
+const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
+
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
 function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
@@ -61,12 +66,10 @@ function runPatch(){
       .filter(Boolean);
     strayProfiles.forEach(removeNode);
 
-    const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
-
     function warnOverviewDisabled(){
       try{
         if(console && typeof console.warn === 'function'){
-          console.warn('[OVERVIEW_DISABLED]');
+          console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
         }
       }catch(_err){}
     }
@@ -1202,8 +1205,15 @@ function runPatch(){
               catch(_err){}
             }
           }
-          if(!handled && typeof window.openPartnerProfile === 'function'){
-            window.openPartnerProfile(id, { trigger: row });
+          if(!handled){
+            if(FEATURE_DISABLE_PARTNER_OVERVIEW){
+              try{
+                console && console.warn && console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
+              }catch(_err){}
+            }
+            if(typeof window.openPartnerProfile === 'function'){
+              window.openPartnerProfile(id, { trigger: row, suppressOverviewLog: true });
+            }
           }
         });
       }
@@ -1254,10 +1264,13 @@ function runPatch(){
     }
 
     async function openPartnerProfile(partnerId, options){
+      const opts = options || {};
       if(FEATURE_DISABLE_PARTNER_OVERVIEW){
-        warnOverviewDisabled();
+        if(opts.suppressOverviewLog !== true){
+          warnOverviewDisabled();
+        }
         if(partnerId){
-          return openPartnerEditCanonical(partnerId, options);
+          return openPartnerEditCanonical(partnerId, opts);
         }
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
@@ -1268,7 +1281,7 @@ function runPatch(){
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
         return null;
       }
-      return openPartnerEditCanonical(partnerId, options);
+      return openPartnerEditCanonical(partnerId, opts);
     }
     window.openPartnerProfile = openPartnerProfile;
 
