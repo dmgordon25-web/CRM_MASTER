@@ -1,4 +1,5 @@
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
+import { installPartnerNameClickGate } from '../ui/guards/partner_click_gate.js';
 
 const DEBUG_FLAG_PARAM = 'partnerdebug';
 const DEBUG_FLAG_VALUE = '1';
@@ -111,76 +112,88 @@ function ensureLinkData(root){
   root.querySelectorAll('a.partner-name, [data-partner-id]').forEach(link => {
     const id = extractPartnerId(link);
     if(id) assignIdAttributes(link, id);
+    if(typeof link.removeAttribute === 'function'){
+      try{ link.removeAttribute('onclick'); }
+      catch(_err){}
+    }
+    try{ link.onclick = null; }
+    catch(_err){}
   });
 }
 
 let dataWatcherAttached = false;
 
-function handleClick(event){
-  if(event.__partnerEditHandled) return;
-  const root = event.currentTarget;
-  const table = typeof root.closest === 'function'
-    ? root.closest('#tbl-partners')
-    : null;
-  if(table && table.getAttribute('data-mounted') === '1'){
-    return;
+function invokePartnerEdit(partnerId, context){
+  const normalized = normalizeId(partnerId);
+  if(!normalized) return null;
+  const trigger = context && context.trigger ? context.trigger : null;
+  if(trigger){
+    assignIdAttributes(trigger, normalized);
   }
-  const trigger = event.target && typeof event.target.closest === 'function'
-    ? event.target.closest('a.partner-name, [data-role="partner-name"], [data-partner-id]')
-    : null;
-  if(!trigger || !root.contains(trigger)) return;
-  const id = extractPartnerId(trigger);
-  if(!id) return;
   const debugEnabled = isPartnerDebugEnabled();
-  if(typeof event.stopImmediatePropagation === 'function'){
-    event.stopImmediatePropagation();
-  }
-  event.preventDefault();
-  event.stopPropagation();
-  const normalized = normalizeId(id);
-  if(!normalized) return;
-  event.__partnerEditHandled = true;
+  let result = null;
   try{
-    const result = openPartnerEditModal(normalized, {
+    result = openPartnerEditModal(normalized, {
       trigger,
       sourceHint: 'partners:list-name-click'
     });
-    if(result && typeof result.catch === 'function'){
-      result.catch(err => {
-        try{ console && console.warn && console.warn('openPartnerEdit failed', err); }
-        catch(_err){}
-      });
-    }
-    if(debugEnabled){
-      const modulePromise = ensurePartnerDebugModule();
-      const resolvedResult = Promise.resolve(result).catch(() => null);
-      Promise.all([modulePromise, resolvedResult]).then(values => {
-        const [mod, modalRoot] = values;
-        const api = mod && typeof mod.softKillPartnerDialogs === 'function'
-          ? mod
-          : (typeof window !== 'undefined' && window.__PARTNER_DEBUG__ ? window.__PARTNER_DEBUG__ : null);
-        const softKill = api && typeof api.softKillPartnerDialogs === 'function'
-          ? api.softKillPartnerDialogs
-          : null;
-        if(softKill){
-          try{ softKill({ preserve: modalRoot, trigger }); }
-          catch(err){ safeConsoleWarn('partnerdebug soft kill failed', err); }
-        }
-      }).catch(err => {
-        safeConsoleWarn('partnerdebug soft kill scheduling failed', err);
-      });
-    }
   }catch(err){
     try{ console && console.warn && console.warn('openPartnerEdit error', err); }
     catch(_err){}
+    return null;
   }
+
+  if(result && typeof result.catch === 'function'){
+    result.catch(err => {
+      try{ console && console.warn && console.warn('openPartnerEdit failed', err); }
+      catch(_err){}
+    });
+  }
+
+  if(debugEnabled){
+    const triggerEl = trigger || null;
+    const modulePromise = ensurePartnerDebugModule();
+    const resolvedResult = Promise.resolve(result).catch(() => null);
+    Promise.all([modulePromise, resolvedResult]).then(values => {
+      const [mod, modalRoot] = values;
+      const api = mod && typeof mod.softKillPartnerDialogs === 'function'
+        ? mod
+        : (typeof window !== 'undefined' && window.__PARTNER_DEBUG__ ? window.__PARTNER_DEBUG__ : null);
+      const softKill = api && typeof api.softKillPartnerDialogs === 'function'
+        ? api.softKillPartnerDialogs
+        : null;
+      if(softKill){
+        try{ softKill({ preserve: modalRoot, trigger: triggerEl }); }
+        catch(err){ safeConsoleWarn('partnerdebug soft kill failed', err); }
+      }
+    }).catch(err => {
+      safeConsoleWarn('partnerdebug soft kill scheduling failed', err);
+    });
+  }
+
+  return result;
 }
 
 function wireRoot(root){
   if(!root || root.__partnerEditWired) return;
   root.__partnerEditWired = true;
-  root.addEventListener('click', handleClick);
   ensureLinkData(root);
+  installPartnerNameClickGate(root, (id, ctx) => invokePartnerEdit(id, ctx), {
+    resolveId(trigger){
+      const id = extractPartnerId(trigger);
+      return normalizeId(id);
+    },
+    beforeOpen(){
+      ensureLinkData(root);
+      const table = typeof root.closest === 'function'
+        ? root.closest('#tbl-partners')
+        : null;
+      if(table && table.getAttribute('data-mounted') === '1'){
+        return false;
+      }
+      return true;
+    }
+  });
 }
 
 function refresh(){
