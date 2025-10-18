@@ -1,4 +1,4 @@
-const ALLOWED_DIALOG_SELECTOR = '[data-ui="merge-modal"], [data-ui="merge-confirm"], [data-ui="toast"]';
+const ALLOWED_DIALOG_SELECTOR = '[data-ui="merge-modal"], [data-ui="merge-confirm"], [data-ui="toast"], [data-qa="partner-quick-create"]';
 
 function isElement(node){
   return !!node && typeof node === 'object' && node.nodeType === 1;
