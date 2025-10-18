@@ -71,3 +71,7 @@
 [data-ui="action-bar"][data-visible="1"] {}
 [data-ui="merge-modal"][data-visible="1"] {}
 
+
+.is-hidden {
+  display: none !important;
+}

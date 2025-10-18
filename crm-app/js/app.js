@@ -1,5 +1,6 @@
 import './dashboard/kpis.js';
-import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { ensurePartnersKillSwitch } from './ui/guards/partners_killswitch.js';
 
 // app.js
 export function goto(hash){
@@ -850,6 +851,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         if(!table) return;
         if(table.getAttribute('data-mounted') === '1') return;
         table.setAttribute('data-mounted', '1');
+        ensurePartnersKillSwitch();
         const handler = (event)=>{
           const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
           if(!trigger || !table.contains(trigger)) return;

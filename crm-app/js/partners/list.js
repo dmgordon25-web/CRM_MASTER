@@ -1,4 +1,4 @@
-import { openPartnerEditModal } from '../ui/partner_edit_modal.js';
+import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 
 const DEBUG_FLAG_PARAM = 'partnerdebug';
 const DEBUG_FLAG_VALUE = '1';
@@ -132,7 +132,7 @@ function handleClick(event){
   const id = extractPartnerId(trigger);
   if(!id) return;
   const debugEnabled = isPartnerDebugEnabled();
-  if(debugEnabled && typeof event.stopImmediatePropagation === 'function'){
+  if(typeof event.stopImmediatePropagation === 'function'){
     event.stopImmediatePropagation();
   }
   event.preventDefault();
