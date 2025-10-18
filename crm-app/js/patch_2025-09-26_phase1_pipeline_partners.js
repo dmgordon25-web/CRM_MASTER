@@ -6,6 +6,7 @@ const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
   : 'crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js';
 const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
+let overviewDisabledWarned = false;
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -67,6 +68,8 @@ function runPatch(){
     strayProfiles.forEach(removeNode);
 
     function warnOverviewDisabled(){
+      if(overviewDisabledWarned) return;
+      overviewDisabledWarned = true;
       try{
         if(console && typeof console.warn === 'function'){
           console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
@@ -1207,9 +1210,7 @@ function runPatch(){
           }
           if(!handled){
             if(FEATURE_DISABLE_PARTNER_OVERVIEW){
-              try{
-                console && console.warn && console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
-              }catch(_err){}
+              warnOverviewDisabled();
             }
             if(typeof window.openPartnerProfile === 'function'){
               window.openPartnerProfile(id, { trigger: row, suppressOverviewLog: true });

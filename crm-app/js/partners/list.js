@@ -4,6 +4,7 @@ import { installPartnersDialogGuard } from '../routes/partners_dialog_guard.js';
 
 const DEBUG_FLAG_PARAM = 'partnerdebug';
 const DEBUG_FLAG_VALUE = '1';
+const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role="partner-name"]';
 
 let partnerDebugModulePromise = null;
 let partnersDialogGuardHandle = null;
@@ -145,6 +146,51 @@ function ensureLinkData(root){
   });
 }
 
+function ensureCanonicalNameCapture(root){
+  if(!root || typeof root.addEventListener !== 'function') return;
+  if(root.__partnerCanonicalCapture) return;
+
+  const handler = (event) => {
+    const rawTarget = event?.target;
+    let target = null;
+    if(rawTarget && typeof rawTarget === 'object'){
+      if(typeof Element !== 'undefined' && rawTarget instanceof Element){
+        target = rawTarget;
+      }else if(rawTarget.nodeType === 1){
+        target = rawTarget;
+      }else if(rawTarget.parentElement){
+        target = rawTarget.parentElement;
+      }
+    }
+    if(!target) return;
+    const trigger = typeof target.closest === 'function'
+      ? target.closest(NAME_LINK_SELECTOR)
+      : null;
+    if(!trigger || !root.contains(trigger)) return;
+    const cell = typeof trigger.closest === 'function'
+      ? trigger.closest('td, th')
+      : null;
+    if(cell && cell.classList && !cell.classList.contains('cell-edit')) return;
+
+    const partnerId = extractPartnerId(trigger);
+    if(!partnerId) return;
+
+    if(typeof event.preventDefault === 'function') event.preventDefault();
+    if(typeof event.stopPropagation === 'function') event.stopPropagation();
+    if(typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    event.__partnerEditHandled = true;
+
+    ensureLinkData(root);
+    const result = invokePartnerEdit(partnerId, { trigger, event });
+    if(result && typeof result.catch === 'function'){
+      result.catch(() => {});
+    }
+  };
+
+  root.addEventListener('click', handler, true);
+  root.__partnerCanonicalCapture = handler;
+}
+
 let dataWatcherAttached = false;
 
 function invokePartnerEdit(partnerId, context){
@@ -227,6 +273,7 @@ function wireRoot(root){
   if(!root || root.__partnerEditWired) return;
   root.__partnerEditWired = true;
   ensureLinkData(root);
+  ensureCanonicalNameCapture(root);
   installPartnerNameClickGate(root, (id, ctx) => invokePartnerEdit(id, ctx), {
     resolveId(trigger){
       const id = extractPartnerId(trigger);
