@@ -61,6 +61,16 @@ function runPatch(){
       .filter(Boolean);
     strayProfiles.forEach(removeNode);
 
+    const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
+
+    function warnOverviewDisabled(){
+      try{
+        if(console && typeof console.warn === 'function'){
+          console.warn('[OVERVIEW_DISABLED]');
+        }
+      }catch(_err){}
+    }
+
     const state = {
       contacts: new Map(),
       partners: new Map(),
@@ -1171,9 +1181,30 @@ function runPatch(){
           const row = evt.target && evt.target.closest('[data-partner]');
           if(!row) return;
           evt.preventDefault();
-          evt.stopPropagation();
+          if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
+          if(typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
           const id = row.getAttribute('data-partner');
-          if(id) openPartnerProfile(id, { trigger: row });
+          if(!id) return;
+          let handled = false;
+          if(typeof openPartnerEditModal === 'function'){
+            try{
+              const result = openPartnerEditModal(id, { trigger: row, sourceHint: 'pipeline:leaderboard-click' });
+              handled = true;
+              if(result && typeof result.catch === 'function'){
+                result.catch(err => {
+                  try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+                  catch(_err){}
+                });
+              }
+            }catch(err){
+              handled = false;
+              try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+              catch(_err){}
+            }
+          }
+          if(!handled && typeof window.openPartnerProfile === 'function'){
+            window.openPartnerProfile(id, { trigger: row });
+          }
         });
       }
       return host;
@@ -1223,6 +1254,15 @@ function runPatch(){
     }
 
     async function openPartnerProfile(partnerId, options){
+      if(FEATURE_DISABLE_PARTNER_OVERVIEW){
+        warnOverviewDisabled();
+        if(partnerId){
+          return openPartnerEditCanonical(partnerId, options);
+        }
+        if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
+        if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
+        return null;
+      }
       if(!partnerId){
         if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
         if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();

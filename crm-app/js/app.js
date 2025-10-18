@@ -868,7 +868,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
             sourceHint: 'partners:view-table-click'
           });
         };
-        table.addEventListener('click', handler);
+        table.addEventListener('click', (event) => {
+          handler(event);
+          if(event && event.__partnerEditHandled && typeof event.stopImmediatePropagation === 'function'){
+            event.stopImmediatePropagation();
+          }
+        });
       }
     }
   };
