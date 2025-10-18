@@ -23,119 +23,81 @@ function findCanonicalModal(){
     || null;
 }
 
-function collectOverlayNodes(){
-  if(typeof document === 'undefined') return [];
-  const selectors = [
-    'dialog',
-    '[role="dialog"]',
-    '[aria-modal="true"]',
-    '.modal',
-    '.modal-container',
-    '.modal-overlay'
-  ];
-  const joined = selectors.join(',');
-  return Array.from(document.querySelectorAll(joined));
+function canonicalDialog(node){
+  if(!isElement(node)) return null;
+  if(typeof node.closest !== 'function') return null;
+  if(node.tagName && node.tagName.toLowerCase() === 'dialog') return node;
+  return node.closest('dialog');
 }
 
-function tryCloseNode(node){
-  if(!isElement(node)) return false;
-  const candidates = Array.from(
-    node.querySelectorAll('[data-ui="close"], [data-action="close"], button, [role="button"], a')
-  );
-  for(const candidate of candidates){
+function dismissDialog(dialog){
+  if(!isElement(dialog)) return false;
+  const selectors = [
+    '[data-ui="close"]',
+    '[data-action="close"]',
+    '[data-role="close"]',
+    'button[aria-label*="close" i]',
+    'button[name="close" i]',
+    'button.close',
+    '.close'
+  ];
+  for(const selector of selectors){
+    const candidate = dialog.querySelector(selector);
     if(!(candidate instanceof HTMLElement)) continue;
-    const label = (candidate.getAttribute('aria-label') || candidate.textContent || '').trim().toLowerCase();
-    if(!label) continue;
-    if(label === 'close' || label.includes('close') || label.includes('dismiss')){
-      try {
-        candidate.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      } catch (_err) {}
-      try {
-        if(typeof candidate.click === 'function') candidate.click();
-      } catch (_err) {}
-      return true;
-    }
-  }
-  if(typeof node.close === 'function'){
     try {
-      node.close();
+      candidate.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    } catch (_err) {}
+    try {
+      candidate.click();
+    } catch (_err) {}
+    return true;
+  }
+  if(typeof dialog.close === 'function'){
+    try {
+      dialog.close();
       return true;
     } catch (_err) {}
   }
   return false;
 }
 
-function forceHide(node){
-  if(!isElement(node)) return;
-  node.classList?.add('is-hidden');
-  node.setAttribute?.('aria-hidden', 'true');
-  if(node.style){
-    node.style.setProperty('display', 'none', 'important');
-    node.style.visibility = 'hidden';
+function hideDialog(dialog){
+  if(!isElement(dialog)) return;
+  dialog.classList?.add('is-hidden');
+  dialog.setAttribute?.('aria-hidden', 'true');
+  if(dialog.style){
+    dialog.style.setProperty('display', 'none', 'important');
+    dialog.style.visibility = 'hidden';
   }
 }
 
-const PARTNER_SIGNATURE_PATTERN = /(partner|profile|overview)/i;
-const ROGUE_HINT_PATTERN = /(partner-profile|partner-overview|profile-shell|partner\s*summary)/i;
-const ROGUE_TEXT_PATTERNS = [
-  /ytd referrals/i,
-  /ytd funded/i,
-  /delete partner/i,
-  /reassign all/i,
-  /partner overview/i
-];
-
-function looksCanonical(node, canonical){
-  if(!isElement(node)) return false;
-  if(node === canonical) return true;
-  if(node.dataset?.modalKey === 'partner-edit') return true;
-  if(typeof node.matches === 'function' && node.matches('[data-ui="partner-edit-modal"], #partner-modal')) return true;
-  const text = (node.innerText || node.textContent || '').toLowerCase();
-  if(text.includes('save partner')) return true;
-  return false;
-}
-
-function looksPartnerish(node){
-  if(!isElement(node)) return false;
-  const signature = `${node.id || ''} ${node.className || ''}`;
-  if(PARTNER_SIGNATURE_PATTERN.test(signature)) return true;
-  const text = (node.innerText || node.textContent || '').toLowerCase();
-  if(text.includes('partner')) return true;
-  return false;
-}
-
-function shouldPrune(node, canonical){
-  if(!isElement(node)) return false;
-  if(looksCanonical(node, canonical)) return false;
-  if(canonical && (node.contains(canonical) || canonical.contains?.(node))) return false;
-  const signature = `${node.id || ''} ${node.className || ''}`;
-  if(ROGUE_HINT_PATTERN.test(signature)) return true;
-  if(!looksPartnerish(node)) return false;
-  const text = (node.innerText || node.textContent || '').toLowerCase();
-  return ROGUE_TEXT_PATTERNS.some(pattern => pattern.test(text));
-}
-
-function pruneNode(node){
-  if(!isElement(node) || node.__partnerNameGatePruned) return;
-  node.__partnerNameGatePruned = true;
-  if(!tryCloseNode(node)){
-    forceHide(node);
-  }
-  const id = typeof node.id === 'string' ? node.id : '';
-  const cls = typeof node.className === 'string' ? node.className : '';
-  safeWarn('[PARTNER_NAME_CLICK_GATE] pruned stray overlay', { id, cls });
-}
-
-function pruneStrayOverlays(preserve){
+function closeStrayPartnerDialogs(preserve){
   if(typeof document === 'undefined') return;
-  const canonical = isElement(preserve) ? preserve : findCanonicalModal();
-  const overlays = collectOverlayNodes();
-  overlays.forEach(node => {
-    if(node === canonical) return;
-    if(!isElement(node)) return;
-    if(node.dataset?.ui === 'merge-modal') return;
-    if(!shouldPrune(node, canonical)) return;
-    pruneNode(node);
+  const keep = new Set();
+  const canonical = findCanonicalModal();
+  if(isElement(canonical)) keep.add(canonical);
+  const preservedDialog = canonicalDialog(preserve);
+  if(preservedDialog) keep.add(preservedDialog);
+  const dialogs = document.querySelectorAll('dialog[open]');
+  dialogs.forEach(dialog => {
+    if(!isElement(dialog)) return;
+    if(keep.has(dialog)) return;
+    const id = dialog.id || '';
+    const cls = dialog.className || '';
+    const dataUi = dialog.getAttribute?.('data-ui') || '';
+    const lowerCls = cls.toLowerCase();
+    const lowerUi = dataUi.toLowerCase();
+    if(id === 'partner-modal' || lowerCls.includes('partner-edit-modal') || lowerUi.includes('partner-edit-modal')){
+      keep.add(dialog);
+      return;
+    }
+    const signature = `${id} ${cls} ${dataUi}`.toLowerCase();
+    if(!signature.includes('partner')) return;
+    const dismissed = dismissDialog(dialog);
+    if(!dismissed){
+      hideDialog(dialog);
+    }
+    safeWarn('[PARTNERS_CANONICALIZE] closed stray partner dialog', { id, cls });
   });
 }
 
@@ -201,12 +163,12 @@ export function installPartnerNameClickGate(root, openEditFn, options = {}){
     }
 
     const schedulePrune = (candidate) => {
-      scheduleMicrotask(() => pruneStrayOverlays(candidate));
+      scheduleMicrotask(() => closeStrayPartnerDialogs(candidate));
     };
 
     schedulePrune(null);
     if(result && typeof result.then === 'function'){
-      result.then(modal => pruneStrayOverlays(modal)).catch(() => pruneStrayOverlays(null));
+      result.then(modal => closeStrayPartnerDialogs(modal)).catch(() => closeStrayPartnerDialogs(null));
     } else {
       schedulePrune(result);
     }
@@ -228,7 +190,7 @@ export function installPartnerNameClickGate(root, openEditFn, options = {}){
 }
 
 export function prunePartnerOverlays(preserve){
-  pruneStrayOverlays(preserve);
+  closeStrayPartnerDialogs(preserve);
 }
 
 export default { installPartnerNameClickGate, prunePartnerOverlays };
