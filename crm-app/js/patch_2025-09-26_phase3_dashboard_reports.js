@@ -6,6 +6,7 @@ const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
   : 'crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js';
 const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
+let overviewDisabledWarned = false;
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -18,6 +19,16 @@ function runPatch(){
     window.__INIT_FLAGS__.patch_2025_09_26_phase3_dashboard_reports = true;
     if(Array.isArray(window.__PATCHES_LOADED__) && !window.__PATCHES_LOADED__.includes('/js/patch_2025-09-26_phase3_dashboard_reports.js')){
       window.__PATCHES_LOADED__.push('/js/patch_2025-09-26_phase3_dashboard_reports.js');
+    }
+
+    function warnOverviewDisabled(){
+      if(overviewDisabledWarned) return;
+      overviewDisabledWarned = true;
+      try{
+        if(console && typeof console.warn === 'function'){
+          console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
+        }
+      }catch(_err){}
     }
 
     const DAY_MS = 86400000;
@@ -1294,16 +1305,14 @@ function runPatch(){
             catch(_err){}
           }
         }
-        if(!opened){
-          if(FEATURE_DISABLE_PARTNER_OVERVIEW){
-            try{
-              console && console.warn && console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
-            }catch(_err){}
+          if(!opened){
+            if(FEATURE_DISABLE_PARTNER_OVERVIEW){
+              warnOverviewDisabled();
+            }
+            if(typeof window.openPartnerProfile === 'function'){
+              window.openPartnerProfile(pid, { trigger: row, suppressOverviewLog: true });
+            }
           }
-          if(typeof window.openPartnerProfile === 'function'){
-            window.openPartnerProfile(pid, { trigger: row, suppressOverviewLog: true });
-          }
-        }
         return;
       }
       const tab = evt.target.closest('[data-report-tab]');
