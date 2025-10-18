@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase3_dashboard_reports.js — Phase 3 dashboard + reports
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
+import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -1267,8 +1268,30 @@ function runPatch(){
       const row = evt.target.closest('#referral-leaderboard [data-partner-id]');
       if(row){
         evt.preventDefault();
+        if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
+        if(typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
         const pid = row.getAttribute('data-partner-id');
-        if(pid && typeof window.openPartnerProfile === 'function') window.openPartnerProfile(pid);
+        if(!pid) return;
+        let opened = false;
+        if(typeof openPartnerEditModal === 'function'){
+          try{
+            const result = openPartnerEditModal(pid, { trigger: row, sourceHint: 'dashboard:leaderboard-click' });
+            opened = true;
+            if(result && typeof result.catch === 'function'){
+              result.catch(err => {
+                try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+                catch(_err){}
+              });
+            }
+          }catch(err){
+            opened = false;
+            try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+            catch(_err){}
+          }
+        }
+        if(!opened && typeof window.openPartnerProfile === 'function'){
+          window.openPartnerProfile(pid, { trigger: row });
+        }
         return;
       }
       const tab = evt.target.closest('[data-report-tab]');
