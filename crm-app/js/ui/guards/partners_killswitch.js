@@ -116,11 +116,9 @@ function handleCanonical(node){
   if(!isElement(node)) return;
   if(node.__partnerKillSwitchCanonical) return;
   node.__partnerKillSwitchCanonical = true;
-  stopObserver();
   const resume = ()=>{
     node.removeEventListener('close', resume);
     node.__partnerKillSwitchCanonical = false;
-    startObserver();
     scanExisting();
   };
   node.addEventListener('close', resume, { once: true });
