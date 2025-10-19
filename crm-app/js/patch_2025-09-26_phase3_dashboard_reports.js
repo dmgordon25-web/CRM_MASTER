@@ -26,7 +26,7 @@ function runPatch(){
       overviewDisabledWarned = true;
       try{
         if(console && typeof console.warn === 'function'){
-          console.warn('[OVERVIEW_DISABLED]', { module: MODULE_LABEL });
+          console.warn('[OVERVIEW_DISABLED] partners overview disabled; use canonical editor');
         }
       }catch(_err){}
     }
