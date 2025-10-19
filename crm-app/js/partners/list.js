@@ -1,6 +1,4 @@
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
-import { installPartnerNameClickGate } from '../ui/guards/partner_click_gate.js';
-import { installPartnersDialogGuard } from '../routes/partners_dialog_guard.js';
 import { quarantineStrays } from '../routes/partners_quarantine.js';
 
 const DEBUG_FLAG_PARAM = 'partnerdebug';
@@ -8,7 +6,6 @@ const DEBUG_FLAG_VALUE = '1';
 const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role="partner-name"]';
 
 let partnerDebugModulePromise = null;
-let partnersDialogGuardHandle = null;
 let transientObserver = null;
 let transientTimer = null;
 
@@ -46,32 +43,10 @@ function armTransientObserver(){
   }
 }
 
-const scheduleMicrotask = typeof queueMicrotask === 'function'
-  ? queueMicrotask
-  : (fn) => Promise.resolve().then(fn);
-
 function safeConsoleWarn(...args){
   try{
     console && console.warn && console.warn(...args);
   }catch(_err){}
-}
-
-function ensurePartnersDialogGuard(){
-  if(partnersDialogGuardHandle) return partnersDialogGuardHandle;
-  try{
-    const guard = installPartnersDialogGuard();
-    partnersDialogGuardHandle = guard && typeof guard === 'object'
-      ? guard
-      : null;
-    if(partnersDialogGuardHandle && typeof partnersDialogGuardHandle.sweep === 'function'){
-      try{ partnersDialogGuardHandle.sweep(); }
-      catch(_err){}
-    }
-  }catch(err){
-    safeConsoleWarn('partners dialog guard install failed', err);
-    partnersDialogGuardHandle = null;
-  }
-  return partnersDialogGuardHandle;
 }
 
 function isPartnerDebugEnabled(){
@@ -250,10 +225,6 @@ function invokePartnerEdit(partnerId, context){
   if(trigger){
     assignIdAttributes(trigger, normalized);
   }
-  const guardHandle = ensurePartnersDialogGuard();
-  const guardSweep = guardHandle && typeof guardHandle.sweep === 'function'
-    ? guardHandle.sweep
-    : null;
   const debugEnabled = isPartnerDebugEnabled();
   let result = null;
   try{
@@ -272,27 +243,6 @@ function invokePartnerEdit(partnerId, context){
       try{ console && console.warn && console.warn('openPartnerEdit failed', err); }
       catch(_err){}
     });
-  }
-
-  if(guardSweep){
-    try{
-      scheduleMicrotask(() => {
-        try{ guardSweep(); }
-        catch(_err){}
-      });
-    }catch(_err){
-      try{ guardSweep(); }
-      catch(__err){}
-    }
-    if(result && typeof result.then === 'function'){
-      result.then(() => {
-        try{ guardSweep(); }
-        catch(_err){}
-      }).catch(() => {
-        try{ guardSweep(); }
-        catch(_err){}
-      });
-    }
   }
 
   if(debugEnabled){
@@ -324,22 +274,6 @@ function wireRoot(root){
   root.__partnerEditWired = true;
   ensureLinkData(root);
   ensureCanonicalNameCapture(root);
-  installPartnerNameClickGate(root, (id, ctx) => invokePartnerEdit(id, ctx), {
-    resolveId(trigger){
-      const id = extractPartnerId(trigger);
-      return normalizeId(id);
-    },
-    beforeOpen(){
-      ensureLinkData(root);
-      const table = typeof root.closest === 'function'
-        ? root.closest('#tbl-partners')
-        : null;
-      if(table && table.getAttribute('data-mounted') === '1'){
-        return false;
-      }
-      return true;
-    }
-  });
 }
 
 function refresh(){
@@ -351,7 +285,6 @@ function refresh(){
 }
 
 ready(() => {
-  ensurePartnersDialogGuard();
   refresh();
   if(!dataWatcherAttached && typeof document !== 'undefined'){
     dataWatcherAttached = true;
