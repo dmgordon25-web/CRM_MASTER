@@ -1,6 +1,7 @@
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { installPartnerNameClickGate } from '../ui/guards/partner_click_gate.js';
 import { installPartnersDialogGuard } from '../routes/partners_dialog_guard.js';
+import { quarantineStrays } from '../routes/partners_quarantine.js';
 
 const DEBUG_FLAG_PARAM = 'partnerdebug';
 const DEBUG_FLAG_VALUE = '1';
@@ -8,6 +9,42 @@ const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role
 
 let partnerDebugModulePromise = null;
 let partnersDialogGuardHandle = null;
+let transientObserver = null;
+let transientTimer = null;
+
+function armTransientObserver(){
+  if(typeof MutationObserver !== 'function') return;
+  if(typeof document === 'undefined') return;
+  const target = document.body || document.documentElement;
+  if(!target) return;
+  if(transientObserver){
+    try{ transientObserver.disconnect(); }
+    catch(_err){}
+    transientObserver = null;
+  }
+  if(transientTimer){
+    try{ clearTimeout(transientTimer); }
+    catch(_err){}
+    transientTimer = null;
+  }
+  const observer = new MutationObserver(() => {
+    try{ quarantineStrays.onMutation(); }
+    catch(_err){}
+  });
+  try{
+    observer.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'class', 'style', 'data-ui'] });
+    transientObserver = observer;
+    transientTimer = setTimeout(() => {
+      try{ observer.disconnect(); }
+      catch(_err){}
+      if(transientObserver === observer) transientObserver = null;
+      transientTimer = null;
+    }, 300);
+  }catch(_err){
+    try{ observer.disconnect(); }
+    catch(__err){}
+  }
+}
 
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -182,6 +219,19 @@ function ensureCanonicalNameCapture(root){
 
     ensureLinkData(root);
     const result = invokePartnerEdit(partnerId, { trigger, event });
+    try{ quarantineStrays.runNow(); }
+    catch(_err){}
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(() => {
+        try{ quarantineStrays.runNow(); }
+        catch(_err){}
+      });
+    }
+    setTimeout(() => {
+      try{ quarantineStrays.runNow(); }
+      catch(_err){}
+    }, 0);
+    armTransientObserver();
     if(result && typeof result.catch === 'function'){
       result.catch(() => {});
     }

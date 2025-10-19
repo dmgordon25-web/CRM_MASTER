@@ -1,5 +1,6 @@
 import { openPartnerEdit as legacyOpenPartnerEdit } from '../partners_modal.js';
 import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from './modal_singleton.js';
+import { quarantineStrays } from '../routes/partners_quarantine.js';
 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
@@ -262,6 +263,8 @@ export function closePartnerEditModal(){
   const wasOpen = root.dataset?.open === '1'
     || root.getAttribute('aria-hidden') === 'false'
     || root.hasAttribute('open');
+  try{ quarantineStrays.disable(); }
+  catch(_err){}
   cleanupNodeHandles(root);
   if(root.dataset){
     root.dataset.opening = '0';
@@ -312,6 +315,9 @@ export async function openPartnerEditModal(id, options){
     ? options.sourceHint.trim()
     : '';
 
+  try{ quarantineStrays.enableWhileEditorOpen(); }
+  catch(_err){}
+
   if(typeof window !== 'undefined'){
     try{ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }
     catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }
@@ -323,6 +329,8 @@ export async function openPartnerEditModal(id, options){
   const existing = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`);
   if(existing && existing.dataset?.open === '1' && existing.dataset.partnerId === partnerId){
     focusFirstElement(existing);
+    try{ quarantineStrays.runNow(); }
+    catch(_err){}
     return existing;
   }
 
@@ -380,6 +388,18 @@ export async function openPartnerEditModal(id, options){
     wireCloseButtons(root);
     installEscHandler(root);
     focusFirstElement(root);
+    try{ quarantineStrays.runNow(); }
+    catch(_err){}
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(() => {
+        try{ quarantineStrays.runNow(); }
+        catch(_err){}
+      });
+    }
+    setTimeout(() => {
+      try{ quarantineStrays.runNow(); }
+      catch(_err){}
+    }, 0);
 
     const clearOpening = () => {
       if(root.dataset) root.dataset.opening = '0';
