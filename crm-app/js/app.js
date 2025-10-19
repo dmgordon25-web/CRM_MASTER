@@ -838,6 +838,47 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   HASH_TO_VIEW.set('#/long-shots', 'longshots');
   HASH_TO_VIEW.set('#long-shots', 'longshots');
 
+  function ensurePartnersBlindfold(){
+    if(typeof document === 'undefined') return;
+    if(document.getElementById('partners-blindfold-style')) return;
+    const css = `
+      /* Partners-only: hide any non-allowlisted overlays while on this route.
+         We do NOT touch the canonical editor (#partner-modal) or merge/confirm modals. */
+      body[data-partners] dialog[open]:not([data-ui="merge-modal"]):not([data-ui="merge-confirm"]),
+      body[data-partners] [role="dialog"]:not(#partner-modal):not([data-ui="merge-modal"]):not([data-ui="merge-confirm"]),
+      /* Common DIV-based “overview/profile/quick-view” overlays (route-scoped heuristics) */
+      body[data-partners] [data-ui*="overview"]:not(#partner-modal),
+      body[data-partners] [id*="overview"]:not(#partner-modal),
+      body[data-partners] [class*="overview"]:not(#partner-modal),
+      body[data-partners] [data-ui*="profile"]:not(#partner-modal),
+      body[data-partners] [id*="profile"]:not(#partner-modal),
+      body[data-partners] [class*="profile"]:not(#partner-modal),
+      body[data-partners] [data-ui*="quick"]:not(#partner-modal),
+      body[data-partners] [id*="quick"]:not(#partner-modal),
+      body[data-partners] [class*="quick"]:not(#partner-modal) {
+        display: none !important;
+      }
+    `;
+    const style = document.createElement('style');
+    style.id = 'partners-blindfold-style';
+    style.textContent = css;
+    const target = document.head || document.body || document.documentElement;
+    if(target && typeof target.appendChild === 'function'){
+      target.appendChild(style);
+    }
+  }
+
+  function syncPartnersRouteState(isActive){
+    if(typeof document === 'undefined') return;
+    const body = document.body;
+    if(!body) return;
+    if(isActive){
+      body.setAttribute('data-partners', '1');
+    }else{
+      body.removeAttribute('data-partners');
+    }
+  }
+
   const VIEW_LIFECYCLE = {
     dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
     longshots: { id: 'view-longshots', ui: 'longshots-root' },
@@ -1170,6 +1211,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    const partnersActive = normalized === 'partners';
+    if(partnersActive) ensurePartnersBlindfold();
+    syncPartnersRouteState(partnersActive);
     const lifecycle = VIEW_LIFECYCLE[normalized];
     let root = null;
     if(lifecycle && lifecycle.id){
