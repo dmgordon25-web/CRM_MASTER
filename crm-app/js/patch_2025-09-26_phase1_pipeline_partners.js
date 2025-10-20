@@ -5,8 +5,6 @@ import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
   : 'crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js';
-const FEATURE_DISABLE_PARTNER_OVERVIEW = true;
-let overviewDisabledWarned = false;
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -41,41 +39,6 @@ function runPatch(){
 
     window.PARTNER_NONE_ID = PARTNER_NONE_ID;
     if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = PARTNER_NONE_ID;
-
-    function removeNode(node){
-      if(!node) return;
-      try{
-        if(typeof node.close === 'function') node.close();
-      }catch(_err){
-        try{ node.removeAttribute && node.removeAttribute('open'); }
-        catch(__err){}
-      }
-      if(node.parentNode){
-        try{ node.parentNode.removeChild(node); }
-        catch(_err){ try{ node.remove(); }catch(__err){} }
-      }else if(typeof node.remove === 'function'){
-        try{ node.remove(); }
-        catch(_err){}
-      }
-    }
-
-    const strayProfile = document.getElementById('partner-profile-modal');
-    if(strayProfile) removeNode(strayProfile);
-
-    const strayProfiles = Array.from(document.querySelectorAll('dialog .profile-shell'))
-      .map(shell => shell.closest('dialog'))
-      .filter(Boolean);
-    strayProfiles.forEach(removeNode);
-
-    function warnOverviewDisabled(){
-      if(overviewDisabledWarned) return;
-      overviewDisabledWarned = true;
-      try{
-        if(console && typeof console.warn === 'function'){
-          console.warn('[OVERVIEW_DISABLED] partners overview disabled; use canonical editor');
-        }
-      }catch(_err){}
-    }
 
     const state = {
       contacts: new Map(),
@@ -1191,30 +1154,17 @@ function runPatch(){
           if(typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
           const id = row.getAttribute('data-partner');
           if(!id) return;
-          let handled = false;
-          if(typeof openPartnerEditModal === 'function'){
-            try{
-              const result = openPartnerEditModal(id, { trigger: row, sourceHint: 'pipeline:leaderboard-click' });
-              handled = true;
-              if(result && typeof result.catch === 'function'){
-                result.catch(err => {
-                  try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
-                  catch(_err){}
-                });
-              }
-            }catch(err){
-              handled = false;
-              try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
-              catch(_err){}
+          try{
+            const result = openPartnerEditCanonical(id, { trigger: row, sourceHint: 'pipeline:leaderboard-click' });
+            if(result && typeof result.catch === 'function'){
+              result.catch(err => {
+                try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+                catch(_err){}
+              });
             }
-          }
-          if(!handled){
-            if(FEATURE_DISABLE_PARTNER_OVERVIEW){
-              warnOverviewDisabled();
-            }
-            if(typeof window.openPartnerProfile === 'function'){
-              window.openPartnerProfile(id, { trigger: row, suppressOverviewLog: true });
-            }
+          }catch(err){
+            try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+            catch(_err){}
           }
         });
       }
@@ -1263,28 +1213,6 @@ function runPatch(){
       });
       host.appendChild(list);
     }
-
-    async function openPartnerProfile(partnerId, options){
-      const opts = options || {};
-      if(FEATURE_DISABLE_PARTNER_OVERVIEW){
-        if(opts.suppressOverviewLog !== true){
-          warnOverviewDisabled();
-        }
-        if(partnerId){
-          return openPartnerEditCanonical(partnerId, opts);
-        }
-        if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
-        if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
-        return null;
-      }
-      if(!partnerId){
-        if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal();
-        if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal();
-        return null;
-      }
-      return openPartnerEditCanonical(partnerId, opts);
-    }
-    window.openPartnerProfile = openPartnerProfile;
 
     async function reassignContacts(fromId, toId){
       if(typeof openDB!=='function' || typeof dbGetAll!=='function' || typeof dbBulkPut!=='function') return 0;
