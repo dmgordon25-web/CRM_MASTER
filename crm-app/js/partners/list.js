@@ -1,51 +1,6 @@
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 
-const DEBUG_FLAG_PARAM = 'partnerdebug';
-const DEBUG_FLAG_VALUE = '1';
 const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role="partner-name"]';
-
-let partnerDebugModulePromise = null;
-function safeConsoleWarn(...args){
-  try{
-    console && console.warn && console.warn(...args);
-  }catch(_err){}
-}
-
-function isPartnerDebugEnabled(){
-  if(typeof window === 'undefined') return false;
-  try{
-    const search = typeof window.location?.search === 'string' ? window.location.search : '';
-    if(search){
-      try{
-        const params = new URLSearchParams(search);
-        if(params.get(DEBUG_FLAG_PARAM) === DEBUG_FLAG_VALUE){
-          return true;
-        }
-      }catch(_err){}
-    }
-  }catch(_err){}
-  try{
-    if(window.localStorage?.getItem(DEBUG_FLAG_PARAM) === DEBUG_FLAG_VALUE){
-      return true;
-    }
-  }catch(_err){}
-  return false;
-}
-
-function ensurePartnerDebugModule(){
-  if(partnerDebugModulePromise) return partnerDebugModulePromise;
-  partnerDebugModulePromise = import('../boot/partners_dom_debug.js').then(mod => {
-    if(mod && typeof mod.ensurePartnerDomDebug === 'function'){
-      try{ mod.ensurePartnerDomDebug(); }
-      catch(_err){}
-    }
-    return mod;
-  }).catch(err => {
-    safeConsoleWarn('partnerdebug module load failed', err);
-    return null;
-  });
-  return partnerDebugModulePromise;
-}
 
 function ready(fn){
   if(typeof document === 'undefined'){ return; }
@@ -174,7 +129,6 @@ function invokePartnerEdit(partnerId, context){
   if(trigger){
     assignIdAttributes(trigger, normalized);
   }
-  const debugEnabled = isPartnerDebugEnabled();
   let result = null;
   try{
     result = openPartnerEditModal(normalized, {
@@ -191,27 +145,6 @@ function invokePartnerEdit(partnerId, context){
     result.catch(err => {
       try{ console && console.warn && console.warn('openPartnerEdit failed', err); }
       catch(_err){}
-    });
-  }
-
-  if(debugEnabled){
-    const triggerEl = trigger || null;
-    const modulePromise = ensurePartnerDebugModule();
-    const resolvedResult = Promise.resolve(result).catch(() => null);
-    Promise.all([modulePromise, resolvedResult]).then(values => {
-      const [mod, modalRoot] = values;
-      const api = mod && typeof mod.softKillPartnerDialogs === 'function'
-        ? mod
-        : (typeof window !== 'undefined' && window.__PARTNER_DEBUG__ ? window.__PARTNER_DEBUG__ : null);
-      const softKill = api && typeof api.softKillPartnerDialogs === 'function'
-        ? api.softKillPartnerDialogs
-        : null;
-      if(softKill){
-        try{ softKill({ preserve: modalRoot, trigger: triggerEl }); }
-        catch(err){ safeConsoleWarn('partnerdebug soft kill failed', err); }
-      }
-    }).catch(err => {
-      safeConsoleWarn('partnerdebug soft kill scheduling failed', err);
     });
   }
 
