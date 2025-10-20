@@ -1301,34 +1301,19 @@ function runPatch(){
       return { allowed:true, blocked:false };
     }
 
-    const requestPartnerModalOriginal = window.requestPartnerModal;
-    const renderPartnerModalOriginal = window.renderPartnerModal;
-
     async function openPartnerEditCanonical(partnerId, options){
       try{
         if(typeof openPartnerEditModal === 'function'){
-          const modal = await openPartnerEditModal(partnerId, options);
-          if(modal) return modal;
+          return await openPartnerEditModal(partnerId, options);
         }
       }catch(err){
         try{ console && console.warn && console.warn('partner edit modal fallback', err); }
         catch(_warnErr){}
       }
-      if(typeof renderPartnerModalOriginal === 'function'){
-        return renderPartnerModalOriginal.call(this, partnerId);
-      }
-      if(typeof requestPartnerModalOriginal === 'function'){
-        return requestPartnerModalOriginal.call(this, partnerId, options);
-      }
       return null;
     }
 
     window.requestPartnerModal = function(partnerId, options){
-      if(!partnerId){
-        if(typeof requestPartnerModalOriginal === 'function') return requestPartnerModalOriginal.apply(this, arguments);
-        if(typeof renderPartnerModalOriginal === 'function') return renderPartnerModalOriginal.apply(this, arguments);
-        return openPartnerEditCanonical.call(this, partnerId, options);
-      }
       return openPartnerEditCanonical.call(this, partnerId, options);
     };
 

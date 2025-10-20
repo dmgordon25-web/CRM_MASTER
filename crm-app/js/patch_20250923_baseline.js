@@ -302,10 +302,6 @@ function runPatch(){
         window.requestPartnerModal(id);
         return;
       }
-      if(typeof window.renderPartnerModal === 'function'){
-        window.renderPartnerModal(id);
-        return;
-      }
     }else if(typeof window.renderContactModal === 'function'){
       window.renderContactModal(id);
     }

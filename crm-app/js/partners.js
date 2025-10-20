@@ -1,5 +1,6 @@
 // partners.js — partner modal wiring & selection helpers
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
 function ensurePartnersBoot(ctx){
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -54,13 +55,15 @@ function ensurePartnersBoot(ctx){
     }, { passive: true });
   }
 
-  function requestPartnerModal(partnerId){
-    if (typeof window.renderPartnerModal === 'function'){
-      return window.renderPartnerModal(partnerId);
+  function requestPartnerModal(partnerId, options){
+    const normalized = partnerId == null ? '' : String(partnerId).trim();
+    try {
+      const result = openPartnerEditModal(normalized, options);
+      return result && typeof result.then === 'function' ? result : Promise.resolve(result);
+    } catch (err) {
+      console && console.warn && console.warn('openPartnerEditModal failed', err);
+      return Promise.resolve(null);
     }
-    const queue = window.__PARTNER_MODAL_QUEUE__ = window.__PARTNER_MODAL_QUEUE__ || [];
-    queue.push(partnerId);
-    return Promise.resolve();
   }
 
   window.requestPartnerModal = requestPartnerModal;

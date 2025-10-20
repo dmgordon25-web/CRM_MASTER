@@ -1054,10 +1054,6 @@ function runPatch(){
               try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
               catch(_warnErr){}
             }
-            if(!opened && typeof window.renderPartnerModal === 'function'){
-              window.renderPartnerModal(id);
-              opened = true;
-            }
             if(opened){
               return { status:'pending', clear:true, dispatch:false, monitor:{ type:'edit', entity:'partners', id } };
             }
