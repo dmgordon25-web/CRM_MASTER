@@ -118,100 +118,37 @@
       foot.appendChild(cancel); foot.appendChild(save);
     }
 
-    // Partners inline editor (name + bps)
-    async function openEditPartner(id){
-      await openDB();
-      const p = await dbGet('partners', id);
-      if(!p) return;
-      const body = `
-        <div class="grid-2">
-          <div class="col"><label>Name</label><input id="ep-name" value="${(p.name||'').replace(/"/g,'&quot;')}"></div>
-          <div class="col"><label>BPS</label><input id="ep-bps" type="number" step="1" value="${Number(p.bps||0)}"></div>
-        </div>
-      `;
-      const {root,foot} = modal('Edit Partner', body);
-      const save = el('<button class="btn btn-primary">Save</button>');
-      const del = el('<button class="btn">Delete</button>');
-      const cancel = el('<button class="btn">Cancel</button>');
-      cancel.addEventListener('click', ()=> root.classList.add('hidden'));
-      del.addEventListener('click', async ()=>{
-        const partnerName = p && p.name ? String(p.name).trim() : '';
-        const prompt = partnerName
-          ? `Delete partner "${partnerName}"?`
-          : 'Delete this partner?';
-        let confirmed = true;
-        if(typeof window.confirmAction === 'function'){
-          confirmed = await window.confirmAction({
-            title: 'Delete partner',
-            message: prompt,
-            confirmLabel: 'Delete',
-            cancelLabel: 'Cancel',
-            destructive: true
-          });
-        }else if(typeof window.confirm === 'function'){
-          confirmed = window.confirm(prompt);
-        }
-        if(!confirmed) return;
+    // Partner edit shim — forward to canonical modal
+    async function openEditPartner(id, context){
+      const partnerId = id == null ? '' : String(id).trim();
+      if(!partnerId) return null;
+
+      const trigger = context && context.trigger ? context.trigger : null;
+      const event = context && context.event ? context.event : null;
+      const openModal = typeof window.openPartnerEdit === 'function'
+        ? window.openPartnerEdit
+        : (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
+
+      if(openModal){
+        const options = { sourceHint: 'ui-shims:edit-partner' };
+        if(trigger) options.trigger = trigger;
+        if(event) options.event = event;
         try{
-          let removed = false;
-          if(typeof window.softDelete === 'function'){
-            const result = await window.softDelete('partners', id, {
-              source: 'ui-shims:edit-partner',
-              message: partnerName
-                ? `Deleted partner "${partnerName}".`
-                : 'Deleted partner.',
-              undoLabel: 'Undo'
-            });
-            removed = !!(result && result.ok);
-            if(!removed && typeof window.dbDelete === 'function'){
-              await window.dbDelete('partners', id);
-              removed = true;
-            }
-          }else if(typeof window.dbDelete === 'function'){
-            await window.dbDelete('partners', id);
-            removed = true;
-          }
-          if(!removed) return;
-          root.classList.add('hidden');
-          if(typeof renderAll === 'function'){
-            try{ await renderAll(); }
-            catch (_err) {}
-          }
-          if(typeof window.softDelete !== 'function'){
-            const detail = {
-              source: 'ui-shims:edit-partner',
-              action: 'delete',
-              entity: 'partners',
-              id: String(id)
-            };
-            if(typeof window.dispatchAppDataChanged === 'function'){
-              window.dispatchAppDataChanged(detail);
-            }else{
-              document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
-            }
-            if(typeof window.toast === 'function'){
-              window.toast({
-                message: partnerName
-                  ? `Deleted partner "${partnerName}".`
-                  : 'Deleted partner.'
-              });
-            }
-          }
-        }catch (e) {
-          console && console.warn && console.warn('[soft] Delete partner failed', e);
+          const result = openModal.call(window, partnerId, options);
+          return typeof result?.then === 'function' ? await result : result;
+        }catch (err){
+          try{ console && console.warn && console.warn('[soft] openPartnerEditModal failed', err); }
+          catch(_warnErr){}
         }
-      });
-      save.addEventListener('click', async ()=>{
-        try{
-          p.name = document.getElementById('ep-name').value.trim() || p.name;
-          p.bps = Number(document.getElementById('ep-bps').value||0);
-          await dbPut('partners', p);
-          root.classList.add('hidden');
-          document.dispatchEvent(new Event('app:data:changed'));
-          if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
-        }catch (e) { console && console.warn && console.warn('[soft] Save partner failed', e); }
-      });
-      foot.appendChild(cancel); foot.appendChild(del); foot.appendChild(save);
+      }
+
+      try{ console && console.warn && console.warn('[soft] Partner editor unavailable', { id: partnerId }); }
+      catch(_err){}
+      if(typeof window.toast === 'function'){
+        try{ window.toast('Partner editor unavailable'); }
+        catch(_toastErr){}
+      }
+      return null;
     }
 
     // Wire header buttons if present
@@ -226,7 +163,14 @@
     // Delegate for partner edit buttons if any table uses [data-edit-partner]
     document.addEventListener('click', (e)=>{
       const btn = e.target.closest('[data-edit-partner]');
-      if(btn){ const id = btn.getAttribute('data-edit-partner'); if(id) openEditPartner(id); }
+      if(!btn) return;
+      const id = btn.getAttribute('data-edit-partner');
+      if(!id) return;
+      if(typeof e.preventDefault === 'function') e.preventDefault();
+      if(typeof e.stopPropagation === 'function') e.stopPropagation();
+      if(typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      e.__partnerEditHandled = true;
+      openEditPartner(id, { trigger: btn, event: e });
     });
 
   }catch (e) { try{ console.warn('[soft] ui_shims error', e); }catch (_u) {} }
