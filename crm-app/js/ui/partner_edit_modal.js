@@ -424,7 +424,8 @@ async function renderPartnerEditor(root, partnerId){
         scope:'partners',
         partnerId:String(rec.id||''),
         action,
-        source:'partner:modal'
+        source:'partner:modal',
+        sourceHint: root.__partnerSourceHint || root.dataset?.sourceHint || ''
       };
       if(typeof window.dispatchAppDataChanged === 'function'){
         window.dispatchAppDataChanged(detail);
