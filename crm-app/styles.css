@@ -569,23 +569,8 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
 .page-of,.pagination-info{display:none!important}
 .status-panel summary::after{content:'▾';margin-left:auto;font-size:12px;color:#475569;transition:transform .2s ease}
 .status-panel:not([open]) summary::after{transform:rotate(-90deg)}
-/* PATCH: ensure non-merge actions are visible at boot for smoke stability.
-   Keep them cosmetically subdued but present; actual enablement remains app logic. */
-[data-ui="action-bar"] {
-  visibility: visible !important;
-}
-[data-ui="action-bar"] [data-action]:not([data-action="merge"]) {
-  display: inline-flex !important;   /* override any display:none gates */
-  visibility: visible !important;    /* override visibility:hidden gates */
-  opacity: 0.6;                      /* read as “not yet actionable” */
-}
-/* When the bar is in a pre-ready state, keep buttons non-interactive but visible */
-[data-ui="action-bar"][data-state="loading"] [data-action]:not([data-action="merge"]) {
-  pointer-events: none;
-}
-
 /* PATCH: center the action bar without affecting smoke/test selectors */
-[data-ui="action-bar"] {
+[data-ui="action-bar"][data-visible="1"] {
   display: flex !important;
   flex-wrap: wrap;
   align-items: center;
@@ -596,7 +581,7 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
 }
 
 /* Keep buttons consistent sizing and prevent layout shift while loading */
-[data-ui="action-bar"] [data-action] {
+[data-ui="action-bar"][data-visible="1"] [data-action] {
   min-height: 32px;
   line-height: 32px;
   padding: 0 10px;
@@ -604,11 +589,11 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
 
 /* On narrow viewports, let items wrap cleanly */
 @media (max-width: 640px) {
-  [data-ui="action-bar"] {
+  [data-ui="action-bar"][data-visible="1"] {
     justify-content: center;
     gap: 6px;
   }
-  [data-ui="action-bar"] [data-action] {
+  [data-ui="action-bar"][data-visible="1"] [data-action] {
     flex: 0 0 auto;
   }
 }

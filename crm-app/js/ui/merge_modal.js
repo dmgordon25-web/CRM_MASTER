@@ -21,14 +21,14 @@ function _syncMergeModalVisibility(modalEl) {
         && rects[0].width > 0
         && rects[0].height > 0;
       if (visible) modalEl.setAttribute('data-visible', '1');
-      else modalEl.removeAttribute('data-visible');
+      else modalEl.setAttribute('data-visible', '0');
     } catch {}
   });
 }
 
 function _clearMergeModalVisibility(modalEl) {
   try {
-    modalEl?.removeAttribute('data-visible');
+    modalEl?.setAttribute('data-visible', '0');
   } catch {}
 }
 

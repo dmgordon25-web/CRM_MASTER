@@ -211,11 +211,11 @@ function _updateDataVisible(el) {
     const ready = globalWiringState.actionsReady === true;
     const hasSelection = (globalWiringState.selectedCount || 0) > 0;
     if (!ready || !hasSelection) {
-      el.removeAttribute('data-visible');
+      el.setAttribute('data-visible', '0');
       return;
     }
     if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
-    else el.removeAttribute('data-visible');
+    else el.setAttribute('data-visible', '0');
   } catch {}
 }
 
@@ -246,6 +246,9 @@ function markActionbarHost() {
     return null;
   }
   setActionsReady(true);
+  if (!bar.hasAttribute('data-visible')) {
+    bar.setAttribute('data-visible', '0');
+  }
   requestVisibilityRefresh();
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
