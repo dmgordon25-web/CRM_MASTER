@@ -1,7 +1,7 @@
 const ROUTE_TABLE = [
+  { segments: ['dashboard'], hash: '#/dashboard' },
   { segments: ['partners'], hash: '#/partners' },
   { segments: ['workbench'], hash: '#workbench' },
-  { segments: ['dashboard'], hash: '#/dashboard' },
   { segments: [], hash: '#/dashboard', allowIndex: true }
 ];
 
