@@ -1,6 +1,6 @@
 const ELEMENT_NODE = 1;
 const FRAGMENT_NODE = 11;
-const ROGUE_CLASS_PATTERN = /(partner-profile|partner-overview)/i;
+const ROGUE_CLASS_PATTERN = /partner-overview/i;
 const CANONICAL_PATTERN = /(partner-modal|partner-edit)/i;
 const ROGUE_TEXT_PATTERNS = [
   /ytd referrals/i,

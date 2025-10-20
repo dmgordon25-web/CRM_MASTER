@@ -72,13 +72,6 @@
 [data-ui="merge-modal"][data-visible="1"] {}
 
 
-/* Partners overview (rogue) hard-hide fallback — keep tiny and specific */
-#partner-profile-modal,
-[data-ui="partner-profile-modal"],
-.partner-profile-modal {
-  display: none !important;
-}
-
 .is-hidden {
   display: none !important;
 }
