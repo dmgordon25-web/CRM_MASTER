@@ -8,6 +8,7 @@ export function openPartnerQuickCreate(cb){
   const token = `partner-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let dialog = null;
   let cleaned = false;
+  let listening = false;
 
   const focusNameField = (root)=>{
     if(!root) return;
@@ -29,7 +30,10 @@ export function openPartnerQuickCreate(cb){
   const cleanup = ()=>{
     if(cleaned) return;
     cleaned = true;
-    document.removeEventListener('app:data:changed', handleAppDataChanged, true);
+    if(listening){
+      document.removeEventListener('app:data:changed', handleAppDataChanged, true);
+      listening = false;
+    }
     if(dialog){
       try{ dialog.removeEventListener('close', cleanupHandler); }
       catch(_err){}
@@ -45,6 +49,7 @@ export function openPartnerQuickCreate(cb){
     if(!event || !event.detail) return;
     const detail = event.detail;
     if(detail.scope !== 'partners' || detail.action !== 'create') return;
+    if(detail.source !== 'partner:modal' || detail.sourceHint !== 'partner:quick-create') return;
     const partnerId = detail.partnerId ? String(detail.partnerId) : '';
     if(!partnerId) return;
     if(dialog && dialog.dataset && dialog.dataset.quickCreateToken !== token) return;
@@ -67,8 +72,6 @@ export function openPartnerQuickCreate(cb){
     catch(_err){}
   };
 
-  document.addEventListener('app:data:changed', handleAppDataChanged, true);
-
   const result = Promise.resolve(openPartnerEditModal('', { sourceHint: 'partner:quick-create' }));
   result.then(root => {
     dialog = root || null;
@@ -78,6 +81,10 @@ export function openPartnerQuickCreate(cb){
     }
     if(dialog.dataset){
       dialog.dataset.quickCreateToken = token;
+    }
+    if(!listening){
+      document.addEventListener('app:data:changed', handleAppDataChanged, true);
+      listening = true;
     }
     try{ dialog.addEventListener('close', cleanupHandler, { once: true }); }
     catch(_err){ dialog.addEventListener('close', cleanupHandler); }
