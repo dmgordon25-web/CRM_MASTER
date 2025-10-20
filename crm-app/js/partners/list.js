@@ -116,7 +116,7 @@ function ensureCanonicalNameCapture(root){
     }
   };
 
-  root.addEventListener('click', handler, true);
+  root.addEventListener('click', handler);
   root.__partnerCanonicalCapture = handler;
 }
 
