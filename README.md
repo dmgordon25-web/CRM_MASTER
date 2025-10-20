@@ -35,14 +35,16 @@ Additional guardrails:
 
 ## Packaging
 
-Build the single-file launcher and emit a `Start CRM.exe_` artifact (note the trailing underscore) to avoid browser and antivirus blocks:
+Build the single-file launcher and emit a `Start CRM.exe_` artifact (note the trailing underscore) to avoid browser and antivirus blocks. First copy the sample script so it can run locally without being tracked in git:
 
 ```
+copy tools\build-server.ps1.sample tools\build-server.ps1
 powershell -ExecutionPolicy Bypass -File tools/build-server.ps1
 ```
 
-After downloading a release, restore the launcher locally before running it:
+After downloading a release, restore the launcher locally before running it (copy the sample first, if needed):
 
 ```
+copy tools\restore_exe.ps1.sample tools\restore_exe.ps1
 powershell -ExecutionPolicy Bypass -File tools/restore_exe.ps1
 ```
