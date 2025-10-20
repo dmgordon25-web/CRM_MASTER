@@ -6,6 +6,26 @@ const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
 const CONTACT_MODAL_SELECTOR = '[data-ui="contact-modal"], #contact-modal';
 const PARTNER_PROFILE_SELECTOR = '#partner-profile-modal';
 const PROFILE_SHELL_SELECTOR = 'dialog .profile-shell';
+const LEGACY_PARTNER_DIALOG_SELECTORS = [
+  '#partner-profile-modal',
+  '[data-ui*="partner-overview"]',
+  '[data-ui*="partner-profile"]',
+  '[data-role*="partner-overview"]',
+  '[data-role*="partner-profile"]',
+  '.partner-overview-modal',
+  '.partner-profile-modal',
+  'dialog.partner-overview',
+  'dialog.partner-profile'
+];
+const LEGACY_PARTNER_DIALOG_TEXT_PATTERNS = [
+  /partner\s+overview/i,
+  /partner\s+profile/i,
+  /relationship\s+pulse/i,
+  /tier\s+(?:top|core|developing|keep)/i,
+  /ytd\s+(?:referrals|funded)/i,
+  /reassign/i,
+  /delete\s+partner/i
+];
 const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -15,7 +35,114 @@ let pendingOpen = null;
 let lastInvoker = null;
 
 function asArray(value){
-  return Array.isArray(value) ? value : Array.from(value || []);
+  if(value == null) return [];
+  if(Array.isArray(value)) return value;
+  if(typeof value[Symbol.iterator] === 'function'){
+    return Array.from(value);
+  }
+  return [value];
+}
+
+function isElement(node){
+  return !!(node && node.nodeType === 1);
+}
+
+function isCanonicalPartnerModal(node){
+  if(!isElement(node)) return false;
+  if(node.dataset?.modalKey === MODAL_KEY) return true;
+  const id = typeof node.id === 'string' ? node.id.toLowerCase() : '';
+  if(id === 'partner-modal') return true;
+  const dataUi = typeof node.getAttribute === 'function' ? (node.getAttribute('data-ui') || '') : '';
+  if(dataUi && dataUi.toLowerCase().includes('partner-edit-modal')) return true;
+  const className = typeof node.className === 'string' ? node.className.toLowerCase() : '';
+  return className.includes('partner-edit-modal');
+}
+
+function legacyDialogSignature(node){
+  if(!isElement(node)) return '';
+  const id = typeof node.id === 'string' ? node.id : '';
+  const cls = typeof node.className === 'string' ? node.className : '';
+  return `${id} ${cls}`.trim().toLowerCase();
+}
+
+function legacyDialogText(node){
+  if(!isElement(node)) return '';
+  const text = typeof node.innerText === 'string' ? node.innerText : node.textContent;
+  return String(text == null ? '' : text).slice(0, 2000);
+}
+
+function looksLikeLegacyPartnerDialog(node){
+  if(!isElement(node) || isCanonicalPartnerModal(node)) return false;
+  const signature = legacyDialogSignature(node);
+  if(/partner[-_\s]*(?:overview|profile)/i.test(signature)) return true;
+  if(/partner[-_\s]*(?:summary|detail)/i.test(signature) && !signature.includes('edit')) return true;
+  const text = legacyDialogText(node);
+  if(!text) return false;
+  return LEGACY_PARTNER_DIALOG_TEXT_PATTERNS.some(pattern => pattern.test(text));
+}
+
+function collectLegacyPartnerDialogs(){
+  if(typeof document === 'undefined') return [];
+  const nodes = new Set();
+  LEGACY_PARTNER_DIALOG_SELECTORS.forEach(selector => {
+    try{
+      document.querySelectorAll(selector).forEach(node => {
+        if(isElement(node)) nodes.add(node);
+      });
+    }catch(_err){}
+  });
+  try{
+    document.querySelectorAll('dialog,[role="dialog"],.modal').forEach(node => {
+      if(isElement(node)) nodes.add(node);
+    });
+  }catch(_err){}
+  return Array.from(nodes);
+}
+
+function preserveAncestors(target, preserveSet){
+  if(!target || !preserveSet) return;
+  let current = target;
+  let depth = 0;
+  while(current && depth < 6){
+    preserveSet.add(current);
+    current = current.parentNode;
+    depth += 1;
+  }
+}
+
+function purgeLegacyPartnerDialogs(options = {}){
+  if(typeof document === 'undefined') return;
+  const preserveSet = new Set();
+  const preserveList = asArray(options.preserve).filter(Boolean);
+  preserveList.forEach(node => preserveAncestors(node, preserveSet));
+  const trigger = options.trigger && isElement(options.trigger) ? options.trigger : null;
+  if(trigger) preserveAncestors(trigger, preserveSet);
+
+  collectLegacyPartnerDialogs().forEach(node => {
+    if(!isElement(node)) return;
+    if(preserveSet.has(node)) return;
+    if(isCanonicalPartnerModal(node)) return;
+    if(!looksLikeLegacyPartnerDialog(node)) return;
+    try{
+      if(typeof node.close === 'function'){
+        node.close();
+      }
+    }catch(_err){}
+    if(node.classList){
+      node.classList.add('hidden');
+    }
+    node.setAttribute?.('aria-hidden', 'true');
+    if(node.parentNode && !preserveSet.has(node.parentNode)){
+      try{ node.parentNode.removeChild(node); }
+      catch(_err){
+        try{ node.remove(); }
+        catch(__err){}
+      }
+    }else if(typeof node.remove === 'function'){
+      try{ node.remove(); }
+      catch(_err){}
+    }
+  });
 }
 
 function isVisible(node){
@@ -298,6 +425,7 @@ export function closePartnerEditModal(){
   root.__partnerInvoker = null;
   lastInvoker = null;
   root.__partnerSourceHint = '';
+  purgeLegacyPartnerDialogs({ preserve: root });
   if(typeof window !== 'undefined'){
     try{ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
     catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = ''; }
@@ -346,10 +474,12 @@ export async function openPartnerEditModal(id, options){
 
     hideContactModals();
     hidePartnerProfileModal();
+    purgeLegacyPartnerDialogs({ preserve: base, trigger: invoker });
 
     await legacyOpenPartnerEdit(partnerId);
 
     hidePartnerProfileModal();
+    purgeLegacyPartnerDialogs({ preserve: base, trigger: invoker });
 
     let root = findPartnerModal();
     if(root !== base && root){
