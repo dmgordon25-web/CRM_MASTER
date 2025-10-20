@@ -35,7 +35,7 @@ Additional guardrails:
 
 ## Packaging
 
-Build the single-file launcher and emit a `Start CRM.exe_` artifact (note the trailing underscore) to avoid browser and antivirus blocks:
+Build the single-file launcher and emit a `Start CRM.exe_` artifact (note the trailing underscore) to avoid browser and antivirus blocks. Run:
 
 ```
 powershell -ExecutionPolicy Bypass -File tools/build-server.ps1
