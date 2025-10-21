@@ -88,9 +88,28 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   ensurePartnerModalClosed();
   ensureActionBarHidden();
 
+  function ensureDefaultRoute(){
+    if(typeof window === 'undefined' || !window?.location) return;
+    const hash = typeof window.location.hash === 'string' ? window.location.hash.trim() : '';
+    if(hash && hash !== '#') return;
+    try {
+      window.location.hash = '#/dashboard';
+      return;
+    } catch (_err) {}
+    try {
+      const { pathname = '', search = '' } = window.location;
+      if(window.history && typeof window.history.replaceState === 'function'){
+        window.history.replaceState(null, '', `${pathname}${search}#/dashboard`);
+      }
+    } catch (__err) {}
+  }
+
+  ensureDefaultRoute();
+
   onDomReady(() => {
     ensurePartnerModalClosed();
     ensureActionBarHidden();
+    ensureDefaultRoute();
   });
 
   try {

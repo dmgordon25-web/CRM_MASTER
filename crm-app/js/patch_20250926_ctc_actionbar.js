@@ -1597,13 +1597,11 @@ function runPatch(){
         return;
       }
       deselectAllRows();
-      syncActionBarVisibility(0);
       bindActionbar();
       bindCheckboxes();
       bindNavReset();
       installObservers();
       updateActionbarBase();
-      syncActionBarVisibility(0);
       if(typeof window.registerRenderHook === 'function'){
         window.registerRenderHook(() => {
           scheduleSyncChecks();
