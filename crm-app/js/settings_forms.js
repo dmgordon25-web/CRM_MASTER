@@ -44,6 +44,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   })();
 
   const profileState = { name:'', email:'', phone:'', signature:'', photoDataUrl:'' };
+  const PHOTO_MAX_BYTES = 256 * 1024;
   const signatureState = { rows: [], defaultId: null };
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
@@ -260,6 +261,34 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     }
   }
 
+  function renderProfilePhotoControls(){
+    const preview = document.getElementById('lo-photo-preview');
+    const emptyState = document.getElementById('lo-photo-empty');
+    const clearBtn = document.getElementById('btn-lo-photo-clear');
+    const hasPhoto = !!profileState.photoDataUrl;
+    if(preview){
+      if(hasPhoto){
+        preview.src = profileState.photoDataUrl;
+        preview.style.display = '';
+      }else{
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
+      }
+    }
+    if(emptyState){
+      emptyState.style.display = hasPhoto ? 'none' : '';
+    }
+    if(clearBtn){
+      clearBtn.disabled = !hasPhoto;
+    }
+  }
+
+  function applyProfilePhoto(dataUrl){
+    profileState.photoDataUrl = typeof dataUrl === 'string' ? dataUrl : '';
+    renderProfilePhotoControls();
+    renderProfileBadge();
+  }
+
   function normalizeSignatureRows(){
     return signatureState.rows
       .map(row => ({
@@ -437,6 +466,8 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     const emailInput = document.getElementById('lo-email');
     const phoneInput = document.getElementById('lo-phone');
     const signatureInput = document.getElementById('lo-signature');
+    const photoInput = document.getElementById('lo-photo');
+    const clearPhotoBtn = document.getElementById('btn-lo-photo-clear');
     const localProfile = readProfileLocal();
     const mergedProfile = Object.assign({}, profile || {}, localProfile || {});
     profileState.name = mergedProfile && mergedProfile.name ? mergedProfile.name : '';
@@ -449,6 +480,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     if(emailInput) emailInput.value = profileState.email;
     if(phoneInput) phoneInput.value = profileState.phone;
     if(signatureInput) signatureInput.value = profileState.signature;
+    renderProfilePhotoControls();
     const saveBtn = document.getElementById('btn-lo-save');
     if(saveBtn && !saveBtn.__wired){
       saveBtn.__wired = true;
@@ -471,6 +503,56 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
           catch (err) { console.warn('renderAll profiles:saved failed', err); }
         }
         toastSafe(text?.('settings.toast.profile-saved') ?? __textFallback__('settings.toast.profile-saved'));
+      });
+    }
+    if(photoInput && !photoInput.__wired){
+      photoInput.__wired = true;
+      photoInput.addEventListener('change', evt => {
+        const input = evt.target instanceof HTMLInputElement ? evt.target : photoInput;
+        if(!input || !(input instanceof HTMLInputElement)) return;
+        const file = input.files && input.files[0];
+        if(!file){
+          input.value = '';
+          return;
+        }
+        if(file.size > PHOTO_MAX_BYTES){
+          toastSafe('Please choose an image under 256 KB.');
+          input.value = '';
+          return;
+        }
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+          const result = reader.result;
+          if(typeof result === 'string'){
+            applyProfilePhoto(result);
+          }else{
+            toastSafe('Unable to read image.');
+          }
+          input.value = '';
+        });
+        reader.addEventListener('error', () => {
+          toastSafe('Unable to read image.');
+          input.value = '';
+        });
+        try{
+          reader.readAsDataURL(file);
+        }catch (_err){
+          toastSafe('Unable to read image.');
+          input.value = '';
+        }
+      });
+    }
+    if(clearPhotoBtn && !clearPhotoBtn.__wired){
+      clearPhotoBtn.__wired = true;
+      clearPhotoBtn.addEventListener('click', evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if(!profileState.photoDataUrl) return;
+        applyProfilePhoto('');
+        if(photoInput){
+          try{ photoInput.value = ''; }
+          catch (_err) {}
+        }
       });
     }
     const card = document.getElementById('signatures-editor');
