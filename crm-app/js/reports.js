@@ -1,3 +1,5 @@
+import { normalizeStatus } from './pipeline/constants.js';
+
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){
   if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -45,6 +47,7 @@
     underwriting:'Underwriting',
     approved:'Approved',
     'cleared-to-close':'Cleared to Close',
+    clear_to_close:'Cleared to Close',
     funded:'Funded',
     'post-close':'Post-Close',
     nurture:'Nurture',
@@ -58,6 +61,7 @@
     underwriting:'#f59e0b',
     approved:'#10b981',
     'cleared-to-close':'#0ea5e9',
+    clear_to_close:'#0ea5e9',
     funded:'#0f172a',
     'post-close':'#0284c7',
     nurture:'#0ea5e9',
@@ -168,7 +172,8 @@
       const tier = partner.tier ? `<span class="insight-tag light">${safe(partner.tier)}</span>` : '';
       const details = [partner.company, partner.phone, partner.email].filter(Boolean).map(val=>safe(val)).join(' • ');
       const stageCounts = stat.contacts.reduce((acc, contact)=>{
-        const key = String(contact.stage||'').toLowerCase();
+        const key = normalizeStatus(contact.stage);
+        if(!key) return acc;
         acc[key] = (acc[key]||0)+1;
         return acc;
       },{});
@@ -196,7 +201,8 @@
     const openTasks = (tasks||[]).filter(task=> task && task.due && !task.done).map(task=>{
       const dueDate = toDate(task.due);
       const contact = contactById.get(String(task.contactId||''));
-      const stage = contact ? String(contact.stage||'').replace(/-/g,' ') : '';
+      const stageKey = contact ? normalizeStatus(contact.stage) : '';
+      const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g,' ')) : '';
       const diff = dueDate ? Math.floor((dueDate.getTime()-today.getTime())/86400000) : null;
       let status = 'ready';
       if(diff!=null){
@@ -255,7 +261,8 @@
 
     // Pipeline stage breakdown
     const stageCounts = contacts.reduce((map, contact)=>{
-      const stage = String(contact.stage||'').toLowerCase();
+      const stage = normalizeStatus(contact.stage);
+      if(!stage) return map;
       map[stage] = (map[stage]||0)+1;
       return map;
     },{});
@@ -419,7 +426,7 @@
     const fundedVolume = enrichedDeals.reduce((sum, c)=> sum + (c.__amountValue||0), 0);
 
     const openPipeline = (contacts||[]).filter(c => {
-      const stage = String(c.stage||'').toLowerCase();
+      const stage = normalizeStatus(c.stage);
       const status = String(c.status||'').toLowerCase();
       const isOpen = stage!=='funded' && stage!=='closed' && status!=='lost';
       if(!isOpen) return false;

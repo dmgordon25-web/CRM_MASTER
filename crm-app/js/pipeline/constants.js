@@ -10,8 +10,15 @@ export const STAGES = {
   lost: { label: 'Lost', colorVar: '--stage-lost' }
 };
 
+export const STATUS_ALIASES = Object.freeze({
+  CTC: 'cleared-to-close',
+  'Clear to Close': 'cleared-to-close',
+  'Clear-to-Close': 'cleared-to-close'
+});
+
 export const STAGE_ALIASES = Object.assign(
   Object.create(null),
+  STATUS_ALIASES,
   {
     CTC: 'clear_to_close',
     'Clear to Close': 'clear_to_close',
@@ -96,6 +103,49 @@ export const STAGE_ALIASES = Object.assign(
     'Closed Lost': 'lost'
   }
 );
+
+const STATUS_LOOKUP = new Map();
+Object.entries(STATUS_ALIASES).forEach(([alias, target]) => {
+  if (!alias) return;
+  const base = String(alias);
+  const normalizedTarget = String(target || '').trim();
+  if (!normalizedTarget) return;
+  const tokens = new Set([
+    base,
+    base.toLowerCase(),
+    base.replace(/\s+/g, ''),
+    base.toLowerCase().replace(/\s+/g, ''),
+    base.replace(/[^a-z0-9]/gi, ''),
+    base.toLowerCase().replace(/[^a-z0-9]/g, '')
+  ]);
+  tokens.forEach((token) => {
+    if (token) STATUS_LOOKUP.set(token, normalizedTarget);
+  });
+});
+['cleared-to-close', 'cleared to close', 'clearedtoclose', 'cleared_to_close'].forEach((token) => {
+  const key = String(token || '').trim().toLowerCase();
+  if (key) STATUS_LOOKUP.set(key, 'cleared-to-close');
+});
+['long shot', 'long-shot', 'longshot'].forEach((token) => {
+  const key = String(token || '').trim().toLowerCase();
+  if (key) STATUS_LOOKUP.set(key, 'long shot');
+});
+
+export function normalizeStatus(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (STATUS_LOOKUP.has(raw)) return STATUS_LOOKUP.get(raw);
+  const lowered = raw.toLowerCase();
+  if (STATUS_LOOKUP.has(lowered)) return STATUS_LOOKUP.get(lowered);
+  const squished = lowered.replace(/[^a-z0-9]/g, '');
+  if (STATUS_LOOKUP.has(squished)) return STATUS_LOOKUP.get(squished);
+  const dashed = lowered.replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (STATUS_LOOKUP.has(dashed)) return STATUS_LOOKUP.get(dashed);
+  const compact = lowered.replace(/\s+/g, '');
+  if (STATUS_LOOKUP.has(compact)) return STATUS_LOOKUP.get(compact);
+  return lowered;
+}
 
 const ALIAS_LOOKUP = new Map();
 Object.entries(STAGE_ALIASES).forEach(([alias, target]) => {

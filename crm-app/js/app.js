@@ -1023,7 +1023,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const PIPELINE_STAGE_LOOKUP = new Map();
 
   function pipelineToken(value){
-    return String(value ?? '')
+    const normalized = normalizeStatus(value);
+    const source = normalized || (value == null ? '' : value);
+    return String(source ?? '')
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')

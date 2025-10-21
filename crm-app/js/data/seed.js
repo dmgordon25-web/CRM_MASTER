@@ -1,4 +1,4 @@
-import { toCanonicalStage } from '../pipeline/constants.js';
+import { normalizeStatus } from '../pipeline/constants.js';
 
 function getGlobalScope(){
   if (typeof window !== 'undefined') return window;
@@ -7,7 +7,7 @@ function getGlobalScope(){
 }
 
 function normalizeStageValue(stage){
-  const canonical = toCanonicalStage(stage);
+  const canonical = normalizeStatus(stage);
   if (canonical) return canonical;
   return null;
 }
@@ -27,13 +27,13 @@ function canonicalizeContacts(dataset){
     if (record.id != null) seenIds.add(String(record.id));
     if (!Object.prototype.hasOwnProperty.call(record, 'stage')) return;
     const canonical = normalizeStageValue(record.stage);
-    if (canonical === 'clear_to_close') {
+    if (canonical === 'cleared-to-close') {
       record.stage = canonical;
       hasCtc = true;
       return;
     }
     const raw = record.stage == null ? '' : String(record.stage).trim();
-    if (raw === 'clear_to_close') {
+    if (normalizeStageValue(raw) === 'cleared-to-close') {
       hasCtc = true;
     }
   });

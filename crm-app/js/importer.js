@@ -1,6 +1,7 @@
 import { STR, text } from './ui/strings.js';
 import { safeMax, normalizePhone, normalizeEmail } from './util/strings.js';
 import { stageKeyFromLabel } from './pipeline/stages.js';
+import { normalizeStatus } from './pipeline/constants.js';
 import './importer_helpers.js';
 import './importer_partners.js';
 import './importer_contacts.js';
@@ -162,7 +163,11 @@ function clampPartner(record, stats) {
 }
 
 function normalizeStageValue(value) {
-  return stageKeyFromLabel(value);
+  const key = stageKeyFromLabel(value);
+  const source = key || value;
+  const normalized = normalizeStatus(source);
+  if (normalized) return normalized;
+  return key || '';
 }
 
 function mergeContactRecord(existing, incoming) {
