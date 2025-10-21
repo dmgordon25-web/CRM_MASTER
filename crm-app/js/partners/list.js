@@ -1,6 +1,51 @@
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 
 const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role="partner-name"]';
+const DIALOG_ALLOWLIST = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
+function closeDisallowedDialogs(){
+  if(typeof document === 'undefined') return;
+  const allow = DIALOG_ALLOWLIST;
+  document.querySelectorAll('dialog[open]').forEach(dialog => {
+    try {
+      if(dialog.matches?.(allow)) return;
+    } catch (_err) {
+      // If matches throws, fall through and attempt close.
+    }
+    try {
+      if(typeof dialog.close === 'function'){
+        dialog.close();
+        return;
+      }
+    } catch (_err) {}
+    try {
+      dialog.removeAttribute?.('open');
+    } catch (__err) {}
+  });
+}
+
+function isPartnersRoute(){
+  if(typeof window === 'undefined' || !window?.location) return false;
+  const raw = typeof window.location.hash === 'string' ? window.location.hash : '';
+  if(!raw || raw === '#') return false;
+  const cleaned = raw.replace(/^#/, '').replace(/^\/+/, '').toLowerCase();
+  if(!cleaned) return false;
+  const segment = cleaned.split('?')[0];
+  return segment === 'partners' || segment.startsWith('partners/');
+}
+
+function guardPartnerRouteDialogs(){
+  if(!isPartnersRoute()) return;
+  closeDisallowedDialogs();
+}
+
+function ensureDialogGuard(){
+  if(typeof window === 'undefined' || window.__PARTNERS_DIALOG_GUARD__) return;
+  window.__PARTNERS_DIALOG_GUARD__ = true;
+  window.addEventListener('hashchange', guardPartnerRouteDialogs);
+  document.addEventListener('partners:list:refresh', guardPartnerRouteDialogs);
+  document.addEventListener('app:data:changed', guardPartnerRouteDialogs);
+}
 
 function ready(fn){
   if(typeof document === 'undefined'){ return; }
@@ -188,9 +233,11 @@ function refresh(){
     wireRoot(root);
   }
   ensureLinkData(root);
+  guardPartnerRouteDialogs();
 }
 
 ready(() => {
+  ensureDialogGuard();
   resetPartnerSelection();
   refresh();
   if(!dataWatcherAttached && typeof document !== 'undefined'){
