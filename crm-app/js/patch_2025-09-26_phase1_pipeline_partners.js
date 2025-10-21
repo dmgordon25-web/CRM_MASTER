@@ -1324,6 +1324,9 @@ function runPatch(){
           return null;
         }
       }
+      if(!openOptions.sourceHint || typeof openOptions.sourceHint !== 'string' || !openOptions.sourceHint.trim()){
+        openOptions.sourceHint = normalizedId ? 'partners:canonical-edit' : 'partners:canonical-new';
+      }
       try{
         if(typeof openPartnerEditModal === 'function'){
           return await openPartnerEditModal(normalizedId, openOptions);
