@@ -72,7 +72,7 @@ export function openPartnerQuickCreate(cb){
     catch(_err){}
   };
 
-  const result = Promise.resolve(openPartnerEditModal('', { sourceHint: 'partner:quick-create' }));
+  const result = Promise.resolve(openPartnerEditModal('', { sourceHint: 'partner:quick-create', allowAutoOpen: true }));
   result.then(root => {
     dialog = root || null;
     if(!dialog){

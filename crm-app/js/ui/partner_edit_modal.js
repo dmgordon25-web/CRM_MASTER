@@ -5,6 +5,7 @@ import { registerModalActions } from '../contacts/modal.js';
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
 const CONTACT_MODAL_SELECTOR = '[data-ui="contact-modal"], #contact-modal';
+const INVALID_PARTNER_ID_TOKENS = new Set(['undefined', 'null']);
 const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -728,15 +729,24 @@ export function closePartnerEditModal(){
 }
 
 export async function openPartnerEditModal(id, options){
-  const partnerId = id == null ? '' : String(id).trim();
+  const rawPartnerId = id == null ? '' : String(id).trim();
+  const normalizedToken = rawPartnerId ? rawPartnerId.toLowerCase() : '';
+  const partnerId = rawPartnerId && !INVALID_PARTNER_ID_TOKENS.has(normalizedToken)
+    ? rawPartnerId
+    : '';
 
   const sourceHint = options && typeof options.sourceHint === 'string'
     ? options.sourceHint.trim()
     : '';
 
-  if(!partnerId && !sourceHint){
+  const allowAutoOpen = options && options.allowAutoOpen === true;
+
+  if(!partnerId && !allowAutoOpen){
     try {
-      console && console.warn && console.warn('[soft] openPartnerEditModal blocked: missing id & sourceHint');
+      console && console.warn && console.warn('[soft] openPartnerEditModal blocked: missing id & allowAutoOpen', {
+        sourceHint: sourceHint || '(none)',
+        requestedId: rawPartnerId || ''
+      });
     } catch (_) {}
     return null;
   }

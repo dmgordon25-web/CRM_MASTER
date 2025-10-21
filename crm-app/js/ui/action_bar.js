@@ -68,12 +68,24 @@ function resetActionBarState() {
 
 function handleSelectionChanged(detail) {
   const payload = detail && typeof detail === 'object' ? detail : {};
+  const hadSnapshot = globalWiringState.hasSelectionSnapshot === true;
   globalWiringState.hasSelectionSnapshot = true;
   globalWiringState.lastSelection = payload;
   const ids = Array.isArray(payload.ids) ? payload.ids : [];
-  const count = typeof payload.count === 'number' && Number.isFinite(payload.count)
+  let count = typeof payload.count === 'number' && Number.isFinite(payload.count)
     ? payload.count
     : ids.length;
+  const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
+  const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
+  if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
+    count = 0;
+    try { window.Selection?.clear?.('actionbar:init'); }
+    catch (_) {}
+    try { window.SelectionService?.clear?.('actionbar:init'); }
+    catch (_) {}
+    try { window.SelectionStore?.clear?.('partners'); }
+    catch (_) {}
+  }
   setSelectedCount(count);
 }
 
@@ -206,6 +218,26 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
+function hasDomSelectionSnapshot() {
+  if (typeof document === 'undefined') return false;
+  const selectors = [
+    '[data-ui="row-check"][aria-checked="true"]',
+    '[data-ui="row-check"]:checked',
+    '[data-ui="row-check"][data-selected="true"]',
+    '[data-selected="true"]',
+    'tr.selected',
+    '[data-row].is-selected'
+  ];
+  for (const selector of selectors) {
+    try {
+      if (document.querySelector(selector)) return true;
+    } catch (_) {
+      /* noop */
+    }
+  }
+  return false;
+}
+
 function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
   const bar = explicitEl
@@ -291,11 +323,12 @@ function markActionbarHost() {
 }
 
 function initializeActionBar() {
-  markActionbarHost();
+  resetActionBarState();
+  const bar = markActionbarHost();
   ensureGlobalNewFab();
   ensureMergeHandler();
   ensureSelectionSubscription();
-  syncActionBarVisibility(0);
+  syncActionBarVisibility(0, bar);
 }
 
 function trackLastActionBarClick(event) {
