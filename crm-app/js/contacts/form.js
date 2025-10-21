@@ -88,10 +88,20 @@ function ensureButton(state){
     button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn ghost compact';
-    button.textContent = '+';
-    button.setAttribute('title', 'Quick add partner');
-    button.setAttribute('aria-label', 'Quick add partner');
     button.setAttribute('data-qa', QA_BUTTON);
+
+    const icon = document.createElement('span');
+    icon.className = 'btn-icon';
+    icon.textContent = '+';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const labelText = document.createElement('span');
+    labelText.textContent = 'Add Contact';
+
+    button.append(icon, labelText);
+    button.setAttribute('title', 'Add Contact • Shortcut: Quick Add (Q)');
+    button.setAttribute('aria-label', 'Add Contact');
+
     select.insertAdjacentElement('afterend', button);
   }
   if(!button.__wired){
