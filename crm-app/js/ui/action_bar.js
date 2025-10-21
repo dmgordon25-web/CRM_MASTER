@@ -18,6 +18,7 @@ if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0
 if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = false;
 if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
+if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
 
 const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -43,6 +44,61 @@ function requestVisibilityRefresh() {
   scheduleVisibilityRefresh(() => {
     refreshActionBarVisibility();
   });
+}
+
+function flushPostPaintVisibilityRefresh() {
+  globalWiringState.postPaintRefreshScheduled = false;
+  try {
+    refreshActionBarVisibility();
+  } catch (_) {}
+}
+
+function schedulePostPaintVisibilityRefresh() {
+  if (globalWiringState.postPaintRefreshScheduled) return;
+  globalWiringState.postPaintRefreshScheduled = true;
+  const invoke = () => {
+    scheduleVisibilityRefresh(() => {
+      flushPostPaintVisibilityRefresh();
+    });
+  };
+  try {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        invoke();
+      });
+      return;
+    }
+  } catch (_) {}
+  invoke();
+}
+
+export function ensureActionBarPostPaintRefresh() {
+  schedulePostPaintVisibilityRefresh();
+}
+
+function shouldSchedulePostPaintForRoute(value) {
+  const raw = String(value == null ? '' : value).trim().toLowerCase();
+  if (!raw) return false;
+  if (raw === 'partners' || raw === 'contacts') return true;
+  let normalized = raw;
+  normalized = normalized.replace(/^#/, '');
+  normalized = normalized.replace(/^\/+/, '');
+  const segment = normalized.split(/[?&#]/)[0];
+  return segment === 'partners' || segment === 'contacts';
+}
+
+function handleAppViewChanged(event) {
+  const detail = event && event.detail ? event.detail : {};
+  const view = typeof detail.view === 'string' ? detail.view : '';
+  if (!shouldSchedulePostPaintForRoute(view)) return;
+  ensureActionBarPostPaintRefresh();
+}
+
+function handleRouteHashChange() {
+  if (typeof window === 'undefined' || !window.location) return;
+  const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
+  if (!shouldSchedulePostPaintForRoute(hash)) return;
+  ensureActionBarPostPaintRefresh();
 }
 
 function setActionsReady(flag) {
@@ -284,9 +340,17 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
 function markActionbarHost() {
   if (typeof document === 'undefined') return null;
   const bar = document.getElementById('actionbar');
-  if (!bar) {
+  if (!bar || !bar.isConnected) {
     setActionsReady(false);
     return null;
+  }
+  if (typeof document.contains === 'function') {
+    try {
+      if (!document.contains(bar)) {
+        setActionsReady(false);
+        return null;
+      }
+    } catch (_) {}
   }
   setActionsReady(true);
   if (bar.hasAttribute('data-visible') && bar.getAttribute('data-visible') !== '1') {
@@ -351,6 +415,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   }
   syncActionBarVisibility(0);
   registerDocumentListener('click', trackLastActionBarClick, true);
+  registerDocumentListener('app:view:changed', handleAppViewChanged);
+  registerWindowListener('hashchange', handleRouteHashChange, { passive: true });
+  handleRouteHashChange();
 }
 
 function injectActionBarStyle(){

@@ -1,5 +1,6 @@
 import './dashboard/kpis.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 
 // app.js
 export function goto(hash){
@@ -1301,6 +1302,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    if (normalized === 'partners' || normalized === 'contacts') {
+      ensureActionBarPostPaintRefresh();
+    }
     const lifecycle = VIEW_LIFECYCLE[normalized];
     let root = null;
     if(lifecycle && lifecycle.id){
