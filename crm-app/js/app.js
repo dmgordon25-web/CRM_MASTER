@@ -1,5 +1,6 @@
 import './dashboard/kpis.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { normalizeStatus } from './pipeline/constants.js';
 
 // app.js
 export function goto(hash){
@@ -1022,7 +1023,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const PIPELINE_STAGE_LOOKUP = new Map();
 
   function pipelineToken(value){
-    return String(value ?? '')
+    const normalized = normalizeStatus(value);
+    const source = normalized || (value == null ? '' : value);
+    return String(source ?? '')
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')

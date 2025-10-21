@@ -7,7 +7,7 @@ import {
   stageKeyFromLabel,
   stageLabelFromKey,
 } from './pipeline/stages.js';
-import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
+import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normalizeStatus } from './pipeline/constants.js';
 
 (function(){
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
@@ -89,10 +89,22 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
 
   function stageInfo(value){
     const raw = value == null ? '' : String(value);
-    const normalizedKey = raw.toLowerCase();
-    const mappedLabel = stageLabels[normalizedKey] || raw.trim();
-    const canonicalKey = canonicalStage(raw) || canonicalStage(mappedLabel);
-    const chipHtml = renderStageChip(raw) || renderStageChip(mappedLabel);
+    const trimmed = raw.trim();
+    const normalizedStage = normalizeStatus(trimmed);
+    const normalizedKey = normalizedStage || trimmed.toLowerCase();
+    const mappedLabel =
+      stageLabels[normalizedKey] ||
+      stageLabels[trimmed.toLowerCase()] ||
+      trimmed;
+    const canonicalSource = normalizedStage || mappedLabel || trimmed;
+    const canonicalKey =
+      canonicalStage(canonicalSource) ||
+      canonicalStage(mappedLabel) ||
+      canonicalStage(trimmed);
+    const chipHtml =
+      renderStageChip(canonicalSource) ||
+      renderStageChip(trimmed) ||
+      renderStageChip(mappedLabel);
     const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || mappedLabel) : mappedLabel;
     const label = canonicalLabel || mappedLabel || 'Stage';
     const html = chipHtml || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${safe(label)}</span>`;
@@ -505,7 +517,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           if(!contact) return null;
           const date = toDate(contact.nextFollowUp || contact.lastContact);
           if(!date) return null;
-          const stage = stageLabels[String(contact.stage||'').toLowerCase()] || (contact.stage||STR['stage.pipeline']);
+          const stageKey = normalizeStatus(contact.stage);
+          const stage = stageLabels[stageKey] || (contact.stage||STR['stage.pipeline']);
           const parts = [stage];
           if(contact.loanType) parts.push(contact.loanType);
           if(contact.loanAmount) parts.push(`Amount: ${money(contact.loanAmount)}`);
@@ -517,7 +530,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           const date = toDate(contact.nextFollowUp || contact.anniversary || contact.fundedDate);
           if(!date) return null;
           const parts = [];
-          const stage = stageLabels[String(contact.stage||'').toLowerCase()] || (contact.stage||STR['kanban.placeholder.client']);
+          const stageKey = normalizeStatus(contact.stage);
+          const stage = stageLabels[stageKey] || (contact.stage||STR['kanban.placeholder.client']);
           parts.push(stage);
           if(contact.fundedDate) parts.push(`Funded: ${contact.fundedDate}`);
           return { date, summary: `Nurture — ${fullName(contact)}`, description: parts.filter(Boolean).join(' • ') };
@@ -528,7 +542,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           const date = item.date instanceof Date ? item.date : toDate(item.date);
           if(!date) return null;
           const contact = item.contact;
-          const stage = stageLabels[String(contact.stage||'').toLowerCase()] || (contact.stage||'');
+          const stageKey = normalizeStatus(contact.stage);
+          const stage = stageLabels[stageKey] || (contact.stage||'');
           const parts = [stage];
           if(contact.loanAmount) parts.push(`Amount: ${money(contact.loanAmount)}`);
           return { date, summary: `Closing — ${fullName(contact)}`, description: parts.filter(Boolean).join(' • ') };
@@ -707,7 +722,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
 
     const total = contacts.length;
-    const funded = contacts.filter(c=> String(c.stage).toLowerCase()==='funded').length;
+    const funded = contacts.filter(c=> normalizeStatus(c.stage)==='funded').length;
     const loanVol = contacts.reduce((s,c)=> s + (Number(c.loanAmount||0)||0), 0);
     setText($('#kpi-total'), total);
     setText($('#kpi-funded'), funded);
@@ -757,7 +772,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       const tier = p.tier ? `<span class="insight-tag light">${safe(p.tier)}</span>` : '';
       const details = [p.company, p.phone, p.email].filter(Boolean).map(val=>safe(val)).join(' • ');
       const stageCounts = stat.contacts.reduce((acc,contact)=>{
-        const key = String(contact.stage||'').toLowerCase();
+        const key = normalizeStatus(contact.stage);
+        if(!key) return acc;
         acc[key] = (acc[key]||0)+1;
         return acc;
       },{});
@@ -784,7 +800,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
       const dueDate = toDate(t.due);
       const contact = contactById.get(String(t.contactId||''));
-      const stage = contact ? String(contact.stage||'').replace(/-/g,' ') : '';
+      const stageKey = contact ? normalizeStatus(contact.stage) : '';
+      const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g,' ')) : '';
       const diffFromToday = dueDate ? Math.floor((dueDate.getTime()-today.getTime())/86400000) : null;
       let status = 'ready';
       if(diffFromToday!=null){
@@ -845,7 +862,12 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 
-    const stageCounts = contacts.reduce((m,c)=>{ const s = String(c.stage||'').toLowerCase(); m[s]=(m[s]||0)+1; return m; },{});
+    const stageCounts = contacts.reduce((m,c)=>{
+      const key = normalizeStatus(c.stage);
+      if(!key) return m;
+      m[key] = (m[key]||0)+1;
+      return m;
+    },{});
     const orderedStages = ['application','processing','underwriting','approved','cleared-to-close','funded','post-close','nurture','lost','denied','long shot'];
     const stageTotal = Object.values(stageCounts).reduce((sum,val)=>sum+val,0);
     const orderedSet = new Set(orderedStages);
@@ -924,14 +946,24 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       }
     }
 
-    const inpr = contacts.filter(c => STAGES_PIPE.includes(String(c.stage||'').toLowerCase()) || String(c.status||'').toLowerCase()==='inprogress');
+    const inpr = contacts.filter(c => {
+      const stageKey = normalizeStatus(c.stage);
+      const status = String(c.status||'').toLowerCase();
+      return STAGES_PIPE.includes(stageKey) || status==='inprogress';
+    });
     const lshot = contacts.filter(c => {
       const status = String(c.status||'').toLowerCase();
-      const stage = String(c.stage||'').toLowerCase();
-      return status==='prospect' || status==='longshot' || status==='nurture' || status==='paused' || stage.includes('long') || stage.includes('nurture');
+      const stageKey = normalizeStatus(c.stage);
+      return status==='prospect' || status==='longshot' || status==='nurture' || status==='paused' || (stageKey||'').includes('long') || (stageKey||'').includes('nurture');
     });
-    const pipe = contacts.filter(c => STAGES_PIPE.includes(String(c.stage||'').toLowerCase()));
-    const clientsTbl = contacts.filter(c => STAGES_CLIENT.includes(String(c.stage||'').toLowerCase()));
+    const pipe = contacts.filter(c => {
+      const stageKey = normalizeStatus(c.stage);
+      return STAGES_PIPE.includes(stageKey);
+    });
+    const clientsTbl = contacts.filter(c => {
+      const stageKey = normalizeStatus(c.stage);
+      return STAGES_CLIENT.includes(stageKey);
+    });
 
     setText($('#count-inprog'), inpr.length);
     setText($('#count-active'), pipe.length);
@@ -963,7 +995,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       const name = fullName(c);
       const last = item.days==null ? 'No touches yet' : (item.days<=0 ? 'Touched today' : `${item.days}d since touch`);
       const urgencyClass = item.days==null || item.days>14 ? 'bad' : 'warn';
-      const stage = stageLabels[String(c.stage||'').toLowerCase()] || (c.stage||'');
+      const stageKey = normalizeStatus(c.stage);
+      const stage = stageLabels[stageKey] || (c.stage||'');
       const amount = Number(c.loanAmount||0) ? ` • ${money(c.loanAmount)}` : '';
       return `<li data-id="${attr(c.id||'')}" data-widget="rel-opps">
         <div class="list-main">
@@ -991,7 +1024,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       const c = item.contact;
       const name = fullName(c);
       const last = item.days==null ? 'Never nurtured' : `${item.days}d since touch`;
-      const stage = stageLabels[String(c.stage||'').toLowerCase()] || (c.stage||STR['kanban.placeholder.client']);
+      const stageKey = normalizeStatus(c.stage);
+      const stage = stageLabels[stageKey] || (c.stage||STR['kanban.placeholder.client']);
       const funded = c.fundedDate ? `${translate('calendar.event.funded')} ${safe(c.fundedDate)}` : STR['kanban.placeholder.client'];
       return `<li data-id="${attr(c.id||'')}" data-widget="nurture">
         <div class="list-main">
@@ -1006,10 +1040,10 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }).join('') : '<li class="empty">All clients recently nurtured. Schedule your next campaign!</li>');
 
     const closingCandidates = contacts.map(c=>{
-      const stage = String(c.stage||'').toLowerCase();
+      const stageKey = normalizeStatus(c.stage);
       const dateValue = c.expectedClosing || c.closingDate || c.fundedDate;
       const date = toDate(dateValue);
-      return {contact:c, date, stage};
+      return {contact:c, date, stage: stageKey};
     }).filter(row=> row.date).sort((a,b)=> a.date.getTime()-b.date.getTime()).slice(0,5);
 
     html($('#closing-watch'), closingCandidates.length ? closingCandidates.map(item=>{
@@ -1055,7 +1089,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     });
     contacts.forEach(c=>{
       if(c.nextFollowUp){
-        const stage = stageLabels[String(c.stage||'').toLowerCase()] || c.stage || STR['stage.pipeline'];
+        const stageKey = normalizeStatus(c.stage);
+        const stage = stageLabels[stageKey] || c.stage || STR['stage.pipeline'];
         addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup');
       }
       if(c.preApprovalExpires){

@@ -1,3 +1,5 @@
+import { normalizeStatus } from './pipeline/constants.js';
+
 // filters.js — Phase 8 query-aware filtering
 (function(){
   const DEFAULTS={
@@ -278,7 +280,7 @@
     const s = getState(scope);
     const keyword = lc(s.q||'');
     const loanSet = new Set((s.loanTypes||[]).map(lc));
-    const stageSet = new Set((s.stages||[]).map(lc));
+    const stageSet = new Set((s.stages||[]).map(value => normalizeStatus(value)).filter(Boolean));
     const tierSet = new Set((s.tiers||[]).map(lc));
     const milestoneNeedle = lc(s.milestone||'');
     const partnerNeedle = lc(s.partner||'');
@@ -311,7 +313,7 @@
           return true;
         }
         case 'active':{
-          const stage = lc(tr.dataset?.stage||'');
+          const stage = normalizeStatus(tr.dataset?.stage || tr.dataset?.stageCanonical || '');
           if(stageSet.size && !stageSet.has(stage)) return false;
           const loan = lc(tr.dataset?.loan||'');
           if(loanSet.size && !loanSet.has(loan)) return false;
@@ -321,7 +323,7 @@
           return true;
         }
         case 'clients':{
-          const stage = lc(tr.dataset?.stage||'');
+          const stage = normalizeStatus(tr.dataset?.stage || tr.dataset?.stageCanonical || '');
           if(stageSet.size && !stageSet.has(stage)) return false;
           const loan = lc(tr.dataset?.loan||'');
           if(loanSet.size && !loanSet.has(loan)) return false;
@@ -332,7 +334,7 @@
         }
         case 'inprog':
         default:{
-          const stage = lc(tr.dataset?.stage||'');
+          const stage = normalizeStatus(tr.dataset?.stage || tr.dataset?.stageCanonical || '');
           if(stageSet.size && !stageSet.has(stage)) return false;
           const loan = lc(tr.dataset?.loan||'');
           if(loanSet.size && !loanSet.has(loan)) return false;
