@@ -61,6 +61,9 @@ function ensurePartnersBoot(ctx){
     if(!openOptions.sourceHint || typeof openOptions.sourceHint !== 'string' || !openOptions.sourceHint.trim()){
       openOptions.sourceHint = normalized ? 'partners:request-edit' : 'partners:request-new';
     }
+    if(!normalized){
+      openOptions.allowAutoOpen = true;
+    }
     try {
       const result = openPartnerEditModal(normalized, openOptions);
       return result && typeof result.then === 'function' ? result : Promise.resolve(result);
