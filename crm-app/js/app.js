@@ -1218,7 +1218,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       return;
     }
 
-    let bypass = false;
+    let initialView = DEFAULT_ROUTE;
     try{
       if(window.location){
         const currentHash = typeof window.location.hash === 'string'
@@ -1226,15 +1226,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           : '';
         const mappedView = viewFromHash(currentHash);
         if(mappedView === 'workbench'){
-          bypass = true;
-        }else if(mappedView && mappedView !== DEFAULT_ROUTE){
-          if(window.history && typeof window.history.replaceState === 'function'){
-            const title = typeof document !== 'undefined' ? document.title : '';
-            window.history.replaceState(null, title, canonicalHash);
-          }else if(currentHash !== canonicalHash){
-            window.location.hash = canonicalHash;
-          }
-        }else if(!mappedView && currentHash && currentHash !== canonicalHash){
+          activate('workbench');
+          return;
+        }
+        if(mappedView){
+          initialView = mappedView;
+        }else if(currentHash && currentHash !== canonicalHash){
           if(window.history && typeof window.history.replaceState === 'function'){
             const title = typeof document !== 'undefined' ? document.title : '';
             window.history.replaceState(null, title, canonicalHash);
@@ -1243,14 +1240,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           }
         }
       }
-    }catch (_) {
-      if(!bypass){
+    }catch (_){
+      if(initialView === DEFAULT_ROUTE){
         try{ window.location.hash = canonicalHash; }
         catch (__) { /* noop */ }
       }
     }
-    if(bypass) return;
-    activate(DEFAULT_ROUTE);
+
+    activate(initialView);
   }
 
   enforceDefaultRoute();
