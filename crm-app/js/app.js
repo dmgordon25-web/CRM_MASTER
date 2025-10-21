@@ -1,5 +1,5 @@
 import './dashboard/kpis.js';
-import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 
 // app.js
 export function goto(hash){
@@ -29,6 +29,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+  try {
+    closePartnerEditModal();
+  } catch (_) {}
   window.CRM.openPipelineWithFilter = function(stage){
     try {
       const raw = stage == null ? '' : String(stage).trim();
