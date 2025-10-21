@@ -2,12 +2,33 @@
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
+const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
 function ensurePartnersBoot(ctx){
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if (window.__INIT_FLAGS__.partners_plus) return false;
   window.__INIT_FLAGS__.partners_plus = true;
 
   function $$(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+
+  function closePartnerRouteDialogs(){
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('dialog[open]').forEach(dialog => {
+      let allowed = false;
+      try {
+        allowed = typeof dialog.matches === 'function' && dialog.matches(STRAY_DIALOG_ALLOW);
+      } catch (_) {
+        allowed = false;
+      }
+      if (allowed) return;
+      try { dialog.close?.(); }
+      catch (_) {}
+      try { dialog.removeAttribute?.('open'); }
+      catch (_) {}
+      try { dialog.classList?.add('is-hidden'); }
+      catch (_) {}
+    });
+  }
 
   [
     '#adv-query',
@@ -45,8 +66,10 @@ function ensurePartnersBoot(ctx){
   }
 
   wireFilter();
+  closePartnerRouteDialogs();
   if (typeof document !== 'undefined'){
     document.addEventListener('DOMContentLoaded', wireFilter);
+    document.addEventListener('DOMContentLoaded', closePartnerRouteDialogs, { once: true });
     document.addEventListener('app:data:changed', () => {
       const input = document.querySelector('#view-partners input[data-table-search="#tbl-partners"], #view-partners input[data-role="partner-search"]');
       if (input && input.value){
