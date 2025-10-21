@@ -577,11 +577,30 @@ function runPatch(){
             try{ node.checked = false; }
             catch (_err) {}
           }
+          const row = node && typeof node.closest === 'function'
+            ? node.closest('[data-id],[data-row]')
+            : null;
+          if(row){
+            if(typeof row.removeAttribute === 'function'){
+              row.removeAttribute('data-selected');
+              row.removeAttribute('aria-selected');
+            }
+            if(row.classList){
+              row.classList.remove('selected');
+              row.classList.remove('is-selected');
+            }
+          }
         });
       }
       if(ensureSelectionService() && typeof SelectionService.clear === 'function'){
         try{ SelectionService.clear('patch_20250926:init'); }
         catch (_err) { console.warn('SelectionService.clear failed', _err); }
+      }
+      if(typeof window !== 'undefined'){
+        try { window.Selection?.clear?.('patch_20250926:init'); }
+        catch (_err) {}
+        try { window.SelectionStore?.clear?.('partners'); }
+        catch (_err) {}
       }
     }
 
@@ -1084,7 +1103,10 @@ function runPatch(){
             let opened = false;
             let lastError = null;
             try{
-              const node = await openPartnerEditModal(id, { trigger: document.activeElement });
+              const node = await openPartnerEditModal(id, {
+                trigger: document.activeElement,
+                sourceHint: 'actionbar:edit'
+              });
               opened = !!node;
             }catch(err){
               lastError = err;
