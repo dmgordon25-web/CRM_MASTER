@@ -10,6 +10,34 @@ const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:n
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
   : (fn) => Promise.resolve().then(fn);
+const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
+function __closeStrayDialogsOnce(label = '[STRAY_DIALOG_CLOSED]'){
+  if(typeof document === 'undefined') return;
+  const closeStrays = () => {
+    if(typeof document === 'undefined') return;
+    document.querySelectorAll('dialog[open]').forEach(dialog => {
+      let allowed = false;
+      try {
+        allowed = typeof dialog.matches === 'function' && dialog.matches(STRAY_DIALOG_ALLOW);
+      } catch (_) {
+        allowed = false;
+      }
+      if(allowed) return;
+      try { dialog.close?.(); }
+      catch (_) {}
+      try { dialog.removeAttribute?.('open'); }
+      catch (_) {}
+      try { dialog.classList?.add('is-hidden'); }
+      catch (_) {}
+      try { console && console.warn && console.warn(label, dialog.id || dialog.className || dialog.nodeName); }
+      catch (_) {}
+    });
+  };
+  closeStrays();
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+  raf(() => { closeStrays(); });
+}
 
 function callToast(kind, message){
   const text = String(message ?? '').trim();
@@ -821,6 +849,7 @@ export async function openPartnerEditModal(id, options){
     wireCloseButtons(root);
     installEscHandler(root);
     focusFirstElement(root);
+    __closeStrayDialogsOnce();
     const clearOpening = () => {
       if(root.dataset) root.dataset.opening = '0';
     };
