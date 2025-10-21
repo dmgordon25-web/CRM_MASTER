@@ -1195,8 +1195,29 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   }
 
+  function readGotoOverride(){
+    if(typeof window === 'undefined' || !window?.location) return '';
+    try{
+      const search = typeof window.location.search === 'string'
+        ? window.location.search
+        : '';
+      if(!search) return '';
+      const params = new URLSearchParams(search);
+      return (params.get('goto') || '').trim();
+    }catch (_err){
+      return '';
+    }
+  }
+
   function enforceDefaultRoute(){
     const canonicalHash = VIEW_HASH[DEFAULT_ROUTE] || `#/${DEFAULT_ROUTE}`;
+    const gotoOverride = readGotoOverride().toLowerCase();
+    if(gotoOverride === 'partners'){
+      const target = VIEW_HASH.partners || '#/partners';
+      goto(target);
+      return;
+    }
+
     let bypass = false;
     try{
       if(window.location){
@@ -1206,14 +1227,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         const mappedView = viewFromHash(currentHash);
         if(mappedView === 'workbench'){
           bypass = true;
-        }else if(mappedView){
-          suppressHashUpdate = true;
-          try{ activate(mappedView); }
-          finally{ suppressHashUpdate = false; }
-          return;
-        }else if(currentHash && currentHash !== canonicalHash){
+        }else if(mappedView && mappedView !== DEFAULT_ROUTE){
           if(window.history && typeof window.history.replaceState === 'function'){
-            window.history.replaceState(null, document.title, canonicalHash);
+            const title = typeof document !== 'undefined' ? document.title : '';
+            window.history.replaceState(null, title, canonicalHash);
+          }else if(currentHash !== canonicalHash){
+            window.location.hash = canonicalHash;
+          }
+        }else if(!mappedView && currentHash && currentHash !== canonicalHash){
+          if(window.history && typeof window.history.replaceState === 'function'){
+            const title = typeof document !== 'undefined' ? document.title : '';
+            window.history.replaceState(null, title, canonicalHash);
           }else{
             window.location.hash = canonicalHash;
           }

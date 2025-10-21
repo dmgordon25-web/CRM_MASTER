@@ -68,7 +68,7 @@
 }
 
 /* PATCH: data-visible attribute is informational; no style change, but keep hook stable */
-[data-ui="action-bar"][data-visible="1"] {}
+[data-ui="action-bar"][data-visible="true"] {}
 [data-ui="merge-modal"][data-visible="1"] {}
 
 

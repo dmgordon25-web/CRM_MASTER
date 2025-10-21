@@ -211,11 +211,11 @@ function _updateDataVisible(el) {
     const ready = globalWiringState.actionsReady === true;
     const hasSelection = (globalWiringState.selectedCount || 0) > 0;
     if (!ready || !hasSelection) {
-      el.setAttribute('data-visible', '0');
+      el.setAttribute('data-visible', 'false');
       return;
     }
-    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
-    else el.setAttribute('data-visible', '0');
+    if (_isActuallyVisible(el)) el.setAttribute('data-visible', 'true');
+    else el.setAttribute('data-visible', 'false');
   } catch {}
 }
 
@@ -247,7 +247,7 @@ function markActionbarHost() {
   }
   setActionsReady(true);
   if (!bar.hasAttribute('data-visible')) {
-    bar.setAttribute('data-visible', '0');
+    bar.setAttribute('data-visible', 'false');
   }
   requestVisibilityRefresh();
   if (!bar.dataset.ui) {
