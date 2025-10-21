@@ -1301,10 +1301,32 @@ function runPatch(){
       return { allowed:true, blocked:false };
     }
 
+    const allowCanonicalNew = (() => {
+      try {
+        const params = new URLSearchParams(window.location?.search || location?.search || '');
+        return params.has('openPartnerEditor');
+      } catch (_err) {
+        return false;
+      }
+    })();
+
     async function openPartnerEditCanonical(partnerId, options){
+      const normalizedId = partnerId == null ? '' : String(partnerId).trim();
+      const openOptions = options && typeof options === 'object' ? { ...options } : {};
+      const rawHint = typeof openOptions.sourceHint === 'string' ? openOptions.sourceHint.trim() : '';
+      if(!rawHint){
+        openOptions.sourceHint = normalizedId ? 'partners:canonical-edit' : 'partners:canonical-new';
+      }
+      if(!normalizedId){
+        const hint = String(openOptions.sourceHint || '').trim();
+        const explicitAllow = options && options.allowAutoOpen === true;
+        if(hint === 'partners:canonical-new' && !allowCanonicalNew && !explicitAllow){
+          return null;
+        }
+      }
       try{
         if(typeof openPartnerEditModal === 'function'){
-          return await openPartnerEditModal(partnerId, options);
+          return await openPartnerEditModal(normalizedId, openOptions);
         }
       }catch(err){
         try{ console && console.warn && console.warn('partner edit modal fallback', err); }

@@ -57,8 +57,12 @@ function ensurePartnersBoot(ctx){
 
   function requestPartnerModal(partnerId, options){
     const normalized = partnerId == null ? '' : String(partnerId).trim();
+    const openOptions = options && typeof options === 'object' ? { ...options } : {};
+    if(!openOptions.sourceHint || typeof openOptions.sourceHint !== 'string' || !openOptions.sourceHint.trim()){
+      openOptions.sourceHint = normalized ? 'partners:request-edit' : 'partners:request-new';
+    }
     try {
-      const result = openPartnerEditModal(normalized, options);
+      const result = openPartnerEditModal(normalized, openOptions);
       return result && typeof result.then === 'function' ? result : Promise.resolve(result);
     } catch (err) {
       console && console.warn && console.warn('openPartnerEditModal failed', err);

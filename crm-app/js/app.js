@@ -32,6 +32,23 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   try {
     closePartnerEditModal();
   } catch (_) {}
+  try {
+    const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+    if(bar){
+      bar.classList.remove('has-selection');
+      bar.removeAttribute('data-visible');
+      bar.style.display = 'none';
+    }
+  } catch (_) {}
+  try {
+    window.Selection?.clear?.('app:boot');
+  } catch (_) {}
+  try {
+    window.SelectionService?.clear?.('app:boot');
+  } catch (_) {}
+  try {
+    window.SelectionStore?.clear?.('partners');
+  } catch (_) {}
   window.CRM.openPipelineWithFilter = function(stage){
     try {
       const raw = stage == null ? '' : String(stage).trim();
