@@ -1313,16 +1313,8 @@ function runPatch(){
     async function openPartnerEditCanonical(partnerId, options){
       const normalizedId = partnerId == null ? '' : String(partnerId).trim();
       const openOptions = options && typeof options === 'object' ? { ...options } : {};
-      const rawHint = typeof openOptions.sourceHint === 'string' ? openOptions.sourceHint.trim() : '';
-      if(!rawHint){
+      if(!openOptions.sourceHint || typeof openOptions.sourceHint !== 'string' || !openOptions.sourceHint.trim()){
         openOptions.sourceHint = normalizedId ? 'partners:canonical-edit' : 'partners:canonical-new';
-      }
-      if(!normalizedId){
-        const hint = String(openOptions.sourceHint || '').trim();
-        const explicitAllow = options && options.allowAutoOpen === true;
-        if(hint === 'partners:canonical-new' && !allowCanonicalNew && !explicitAllow){
-          return null;
-        }
       }
       try{
         if(typeof openPartnerEditModal === 'function'){
