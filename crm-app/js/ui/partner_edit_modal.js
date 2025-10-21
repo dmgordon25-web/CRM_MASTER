@@ -734,6 +734,13 @@ export async function openPartnerEditModal(id, options){
     ? options.sourceHint.trim()
     : '';
 
+  if(!partnerId && !sourceHint){
+    try {
+      console && console.warn && console.warn('[soft] openPartnerEditModal blocked: missing id & sourceHint');
+    } catch (_) {}
+    return null;
+  }
+
   if(typeof window !== 'undefined'){
     try{ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }
     catch(_err){ window.__PARTNER_MODAL_SOURCE_HINT__ = sourceHint; }

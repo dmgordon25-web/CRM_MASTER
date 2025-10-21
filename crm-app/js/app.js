@@ -29,8 +29,78 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+
+  function onDomReady(fn){
+    if(typeof document === 'undefined' || typeof fn !== 'function') return;
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    }else{
+      fn();
+    }
+  }
+
+  function forceHidePartnerModal(){
+    if(typeof document === 'undefined') return;
+    const node = document.querySelector('#partner-modal.partner-edit-modal, [data-ui="partner-edit-modal"]');
+    if(!node) return;
+    if(node.dataset){
+      node.dataset.open = '0';
+      node.dataset.opening = '0';
+      node.dataset.partnerId = '';
+      node.dataset.sourceHint = '';
+    }
+    try { node.classList.add('hidden'); }
+    catch (_) {}
+    try { node.style.display = 'none'; }
+    catch (_) {}
+    try { node.setAttribute('aria-hidden', 'true'); }
+    catch (_) {}
+    try { node.removeAttribute('open'); }
+    catch (_) {}
+  }
+
+  function forceHideActionBar(){
+    if(typeof document === 'undefined') return;
+    const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+    if(!bar) return;
+    try { bar.classList.remove('has-selection'); }
+    catch (_) {}
+    try { bar.removeAttribute('data-visible'); }
+    catch (_) {}
+    if(bar.dataset){
+      delete bar.dataset.visible;
+      bar.dataset.count = '0';
+    }
+    try { bar.style.display = 'none'; }
+    catch (_) {}
+  }
+
+  function ensurePartnerModalClosed(){
+    try { closePartnerEditModal(); }
+    catch (_) {}
+    forceHidePartnerModal();
+  }
+
+  function ensureActionBarHidden(){
+    forceHideActionBar();
+  }
+
+  ensurePartnerModalClosed();
+  ensureActionBarHidden();
+
+  onDomReady(() => {
+    ensurePartnerModalClosed();
+    ensureActionBarHidden();
+  });
+
   try {
-    closePartnerEditModal();
+    window.Selection?.clear?.('app:boot');
+  } catch (_) {}
+  try {
+    window.SelectionService?.clear?.('app:boot');
+  } catch (_) {}
+  try {
+    window.SelectionStore?.clear?.('partners');
   } catch (_) {}
   window.CRM.openPipelineWithFilter = function(stage){
     try {
