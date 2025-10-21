@@ -49,7 +49,7 @@ function setupGlobalNewButton() {
 
   window[STATE_KEY] = true;
 
-  const legacyButtons = header.querySelectorAll('#btn-add-contact, #quick-add');
+  const legacyButtons = header.querySelectorAll('#btn-add-contact');
   legacyButtons.forEach((btn) => {
     if (btn && btn.parentNode) {
       btn.parentNode.removeChild(btn);
