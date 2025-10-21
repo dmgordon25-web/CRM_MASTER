@@ -1,4 +1,5 @@
 import { createFormFooter } from './ui/form_footer.js';
+import { setReferredBy } from './contacts/form.js';
 import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
@@ -465,6 +466,76 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     });
     syncStageSlider(c.stage||'application');
     updateSummary();
+
+    const ensureReferredByButton = ()=>{
+      const select = body.querySelector('#c-ref');
+      if(!select) return;
+      const host = select.closest('label') || select.parentElement || body;
+      if(!host) return;
+      const affordance = host.querySelector('[data-qa="referred-by-quick-add"], [data-role="referred-by-quick-add"], .referred-by-quick-add');
+      if(affordance && affordance.tagName !== 'BUTTON'){
+        affordance.remove();
+      }
+      let button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
+      if(!button){
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn ghost compact';
+        button.dataset.qa = 'referred-by-quick-add';
+        button.dataset.role = 'referred-by-quick-add';
+        button.classList.add('btn-add-contact');
+        button.setAttribute('aria-label', 'Add Contact');
+        button.title = 'Add Contact • Shortcut: Quick Add (Q)';
+        const icon = document.createElement('span');
+        icon.className = 'btn-icon';
+        icon.textContent = '+';
+        icon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        label.textContent = 'Add Contact';
+        button.append(icon, label);
+        select.insertAdjacentElement('afterend', button);
+      }else{
+        button.setAttribute('aria-label', 'Add Contact');
+        button.title = 'Add Contact • Shortcut: Quick Add (Q)';
+        let icon = button.querySelector('.btn-icon');
+        if(!icon){
+          icon = document.createElement('span');
+          icon.className = 'btn-icon';
+          icon.setAttribute('aria-hidden', 'true');
+          button.insertBefore(icon, button.firstChild || null);
+        }
+        icon.textContent = '+';
+        const spanLabel = button.querySelector('span:last-child');
+        if(spanLabel){ spanLabel.textContent = 'Add Contact'; }
+      }
+      if(button && !button.__referredByWired){
+        button.__referredByWired = true;
+        button.addEventListener('click', (evt)=>{
+          evt.preventDefault();
+          const opener = (window.CRM && typeof window.CRM.openPartnerQuickCreate === 'function')
+            ? window.CRM.openPartnerQuickCreate
+            : (typeof window.openPartnerQuickCreate === 'function' ? window.openPartnerQuickCreate : null);
+          if(typeof opener !== 'function'){
+            if(window.Toast && typeof window.Toast.show === 'function'){
+              window.Toast.show('Partner quick create unavailable');
+            }else{
+              notify('Partner quick create unavailable');
+            }
+            return;
+          }
+          try{
+            opener((partner)=>{
+              try{ setReferredBy(partner); }
+              catch (err) { console.warn('referred-by quick add failed', err); }
+            });
+          }catch (err){
+            console.warn('partner quick create launch failed', err);
+          }
+        });
+      }
+    };
+
+    ensureReferredByButton();
 
     const docListEl = $('#c-doc-list', body);
     const docSummaryEl = $('#c-doc-summary', body);

@@ -539,6 +539,17 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
+    const raf = globalScope && typeof globalScope.requestAnimationFrame === 'function'
+      ? globalScope.requestAnimationFrame.bind(globalScope)
+      : null;
+    if(raf){
+      raf(()=>{
+        if(overlay && typeof overlay.hide === 'function'){
+          overlay.hide();
+        }
+      });
+    }
+
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     return { reason: 'ok' };
   } catch (err) {
