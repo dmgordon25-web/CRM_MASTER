@@ -16,6 +16,13 @@ function ensureArray(input){
   return Array.isArray(input) ? input : [];
 }
 
+function isClearedToCloseStage(stage){
+  const canonical = normalizeStageValue(stage);
+  if (canonical === 'clear_to_close') return 'cleared-to-close';
+  if (canonical === 'cleared-to-close') return 'cleared-to-close';
+  return null;
+}
+
 function canonicalizeContacts(dataset){
   if (!dataset || typeof dataset !== 'object') return { contacts: [], hasCtc: false };
   const contacts = Array.isArray(dataset.contacts) ? dataset.contacts : (dataset.contacts = []);
@@ -26,14 +33,14 @@ function canonicalizeContacts(dataset){
     if (!record || typeof record !== 'object') return;
     if (record.id != null) seenIds.add(String(record.id));
     if (!Object.prototype.hasOwnProperty.call(record, 'stage')) return;
-    const canonical = normalizeStageValue(record.stage);
-    if (canonical === 'cleared-to-close') {
-      record.stage = canonical;
+    const ctcStage = isClearedToCloseStage(record.stage);
+    if (ctcStage) {
+      record.stage = ctcStage;
       hasCtc = true;
       return;
     }
     const raw = record.stage == null ? '' : String(record.stage).trim();
-    if (normalizeStageValue(raw) === 'cleared-to-close') {
+    if (isClearedToCloseStage(raw)) {
       hasCtc = true;
     }
   });
