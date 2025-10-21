@@ -1302,9 +1302,14 @@ function runPatch(){
     }
 
     async function openPartnerEditCanonical(partnerId, options){
+      const normalizedId = partnerId == null ? '' : String(partnerId).trim();
+      const openOptions = options && typeof options === 'object' ? { ...options } : {};
+      if(!openOptions.sourceHint || typeof openOptions.sourceHint !== 'string' || !openOptions.sourceHint.trim()){
+        openOptions.sourceHint = normalizedId ? 'partners:canonical-edit' : 'partners:canonical-new';
+      }
       try{
         if(typeof openPartnerEditModal === 'function'){
-          return await openPartnerEditModal(partnerId, options);
+          return await openPartnerEditModal(normalizedId, openOptions);
         }
       }catch(err){
         try{ console && console.warn && console.warn('partner edit modal fallback', err); }
