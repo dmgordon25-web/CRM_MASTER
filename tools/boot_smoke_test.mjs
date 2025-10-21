@@ -524,7 +524,7 @@ async function main() {
           && r.width > 0
           && r.height > 0
           && s.opacity !== '0';
-        return visibleByStyle && el.getAttribute('data-visible') === '1';
+        return visibleByStyle && el.getAttribute('data-visible') === 'true';
       }, { timeout: 5000 });
 
       const ACTION_BTN_SELECTORS = [
@@ -682,7 +682,7 @@ async function main() {
           && r.width > 0
           && r.height > 0
           && s.opacity !== '0';
-        return visibleByStyle && el.getAttribute('data-visible') === '1';
+        return visibleByStyle && el.getAttribute('data-visible') === 'true';
       }, { timeout: 5000 });
     } catch (e) {
       try {
