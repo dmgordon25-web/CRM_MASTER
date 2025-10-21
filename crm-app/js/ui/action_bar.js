@@ -34,8 +34,9 @@ const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
 
 function refreshActionBarVisibility() {
   if (typeof document === 'undefined') return;
-  const root = document.getElementById('actionbar');
+  const root = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
   if (root) _updateDataVisible(root);
+  else syncActionBarVisibility(globalWiringState.selectedCount || 0);
 }
 
 function requestVisibilityRefresh() {
@@ -205,17 +206,26 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
+function syncActionBarVisibility(selCount, explicitEl) {
+  if (typeof document === 'undefined') return;
+  const bar = explicitEl
+    || document.querySelector('[data-ui="action-bar"]')
+    || document.getElementById('actionbar');
+  if (!bar) return;
+  const ready = globalWiringState.actionsReady === true;
+  const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
+    ? Math.max(0, Math.floor(selCount))
+    : 0;
+  if (ready && numeric > 0 && _isActuallyVisible(bar)) {
+    bar.setAttribute('data-visible', '1');
+  } else {
+    bar.removeAttribute('data-visible');
+  }
+}
+
 function _updateDataVisible(el) {
   try {
-    if (!el) return;
-    const ready = globalWiringState.actionsReady === true;
-    const hasSelection = (globalWiringState.selectedCount || 0) > 0;
-    if (!ready || !hasSelection) {
-      el.setAttribute('data-visible', '0');
-      return;
-    }
-    if (_isActuallyVisible(el)) el.setAttribute('data-visible', '1');
-    else el.setAttribute('data-visible', '0');
+    syncActionBarVisibility(globalWiringState.selectedCount || 0, el);
   } catch {}
 }
 
@@ -224,6 +234,7 @@ function handleActionBarResize() {
   __actionBarResizeTimer = setTimeout(() => {
     const root = document.getElementById('actionbar');
     if (root) _updateDataVisible(root);
+    else syncActionBarVisibility(globalWiringState.selectedCount || 0);
   }, 100);
 }
 
@@ -246,10 +257,11 @@ function markActionbarHost() {
     return null;
   }
   setActionsReady(true);
-  if (!bar.hasAttribute('data-visible')) {
-    bar.setAttribute('data-visible', '0');
+  if (bar.hasAttribute('data-visible') && bar.getAttribute('data-visible') !== '1') {
+    bar.removeAttribute('data-visible');
   }
   requestVisibilityRefresh();
+  syncActionBarVisibility(globalWiringState.selectedCount || 0, bar);
   if (!bar.dataset.ui) {
     bar.dataset.ui = 'action-bar';
   }
@@ -283,6 +295,7 @@ function initializeActionBar() {
   ensureGlobalNewFab();
   ensureMergeHandler();
   ensureSelectionSubscription();
+  syncActionBarVisibility(0);
 }
 
 function trackLastActionBarClick(event) {
@@ -303,6 +316,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   } else {
     initializeActionBar();
   }
+  syncActionBarVisibility(0);
   registerDocumentListener('click', trackLastActionBarClick, true);
 }
 

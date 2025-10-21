@@ -61,6 +61,30 @@ function extractPartnerId(node){
   return '';
 }
 
+function resetPartnerSelection(){
+  if(typeof document !== 'undefined'){
+    document.querySelectorAll('#tbl-partners [data-ui="row-check"]').forEach(node => {
+      node.removeAttribute('aria-checked');
+      if ('checked' in node) {
+        try { node.checked = false; }
+        catch (_) {}
+      }
+      const row = node.closest('[data-id]');
+      if(row && row.hasAttribute('data-selected')){
+        row.removeAttribute('data-selected');
+      }
+    });
+  }
+  if (typeof window !== 'undefined') {
+    try { window.SelectionStore?.clear?.('partners'); }
+    catch (_) {}
+    try { window.Selection?.clear?.('partners:list-init'); }
+    catch (_) {}
+    try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
+    catch (_) {}
+  }
+}
+
 function ensureLinkData(root){
   if(!root || typeof root.querySelectorAll !== 'function') return;
   root.querySelectorAll('a.partner-name, [data-partner-id]').forEach(link => {
@@ -167,6 +191,7 @@ function refresh(){
 }
 
 ready(() => {
+  resetPartnerSelection();
   refresh();
   if(!dataWatcherAttached && typeof document !== 'undefined'){
     dataWatcherAttached = true;

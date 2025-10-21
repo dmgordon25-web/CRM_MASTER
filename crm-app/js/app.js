@@ -791,10 +791,34 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function clearAllSelectionScopes(){
     const store = getSelectionStore();
-    if(!store) return;
-    SELECTION_SCOPES.forEach(scope => {
-      if(store.count(scope)) store.clear(scope);
-    });
+    let storeCleared = false;
+    if(store){
+      SELECTION_SCOPES.forEach(scope => {
+        if(store.count(scope)){
+          store.clear(scope);
+          storeCleared = true;
+        }
+      });
+    }
+    let selectionCleared = false;
+    try {
+      if (typeof window !== 'undefined') {
+        const selection = window.Selection;
+        if (selection && typeof selection.count === 'function' && typeof selection.clear === 'function') {
+          if (selection.count() > 0) {
+            selection.clear('app:scopes-reset');
+            selectionCleared = true;
+          }
+        } else if (selection && typeof selection.clear === 'function') {
+          selection.clear('app:scopes-reset');
+          selectionCleared = true;
+        }
+      }
+    } catch (_) {}
+    if (storeCleared || selectionCleared) {
+      try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
+      catch (_) {}
+    }
   }
 
   function initSelectionBindings(){
