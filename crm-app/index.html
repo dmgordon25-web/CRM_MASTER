@@ -1581,6 +1581,16 @@
           Signature
           <textarea id="lo-signature" placeholder="Footer / signature block" rows="3"></textarea>
          </label>
+         <label>
+          Photo
+          <input accept="image/*" id="lo-photo" type="file"/>
+          <span class="fine-print muted">Square images look best under 256 KB.</span>
+          <div class="row" style="align-items:center;gap:10px;margin-top:8px">
+           <img alt="" id="lo-photo-preview" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:none"/>
+           <span class="muted fine-print" id="lo-photo-empty">No photo selected</span>
+           <button class="btn danger" id="btn-lo-photo-clear" type="button">Remove</button>
+          </div>
+         </label>
         </div>
        </section>
       </div>

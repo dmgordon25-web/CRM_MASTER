@@ -232,14 +232,76 @@ if (typeof window !== 'undefined' && nativeFetch && !window.__LOG_FETCH_PATCHED_
   } catch (_) {}
 }
 
-const splash = {
-  el() { return document.getElementById('diagnostics-splash'); },
-  show() { const e = this.el(); if (e) e.style.display = 'block'; },
-  hide() {
-    const e = this.el();
-    if (e) e.style.display = 'none';
-    noteOverlayHidden();
+const splash = (() => {
+  let originalMarkup = null;
+  let showingMessage = false;
+  let lastMessage = null;
+
+  function el() {
+    try {
+      return document.getElementById('diagnostics-splash');
+    } catch (_) {
+      return null;
+    }
   }
+
+  function restore(elRef) {
+    if (!elRef || originalMarkup == null || !showingMessage) return;
+    try { elRef.innerHTML = originalMarkup; }
+    catch (_) {}
+    showingMessage = false;
+    lastMessage = null;
+  }
+
+  function applyMessage(elRef, message) {
+    if (!elRef || !message) {
+      restore(elRef);
+      return;
+    }
+    const text = String(message);
+    if (!text) {
+      restore(elRef);
+      return;
+    }
+    if (!showingMessage) {
+      try { originalMarkup = elRef.innerHTML; }
+      catch (_) { originalMarkup = null; }
+    }
+    if (showingMessage && lastMessage === text) {
+      return;
+    }
+    try {
+      elRef.textContent = text;
+      showingMessage = true;
+      lastMessage = text;
+    } catch (_) {
+      restore(elRef);
+    }
+  }
+
+  return {
+    el,
+    show(message) {
+      const element = el();
+      if (!element) return;
+      applyMessage(element, message);
+      try { element.style.display = 'block'; }
+      catch (_) {}
+    },
+    hide() {
+      const element = el();
+      if (!element) return;
+      restore(element);
+      try { element.style.display = 'none'; }
+      catch (_) {}
+      noteOverlayHidden();
+    }
+  };
+})();
+
+const overlay = {
+  show(message) { splash.show(message); },
+  hide() { splash.hide(); }
 };
 
 const postLog = (kind, payload) => {
@@ -375,7 +437,7 @@ function recordFatal(reason, detail, err) {
   try {
     window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
   } catch (_) {}
-  splash.show();
+  overlay.show();
   const payload = buildFatalPayload(reason, detail, err);
   finalizeOnce('fatal', payload);
   postLog('boot.fail', { reason, detail });
@@ -385,7 +447,7 @@ function recordSuccess(meta) {
   try {
     window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
   } catch (_) {}
-  splash.hide();
+  overlay.hide();
   if (!perfPingNoted) {
     const stop = overlayHiddenAt == null ? timeSource() : overlayHiddenAt;
     const elapsed = Math.max(0, Math.round(stop - bootStart));
@@ -429,7 +491,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       return value;
     }
   }));
-  splash.show();
+  overlay.show('Loading…');
 
   try {
     const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
@@ -437,7 +499,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await waitForDomReady();
     await evaluatePrereqs(coreRecords, 'hard');
-    splash.hide();
+    overlay.hide();
     const readyPromise = scheduleReadyFinalization();
 
     const safe = isSafeMode();
