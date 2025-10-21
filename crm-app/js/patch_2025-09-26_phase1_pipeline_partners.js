@@ -1301,6 +1301,15 @@ function runPatch(){
       return { allowed:true, blocked:false };
     }
 
+    const allowCanonicalNew = (() => {
+      try {
+        const params = new URLSearchParams(window.location?.search || location?.search || '');
+        return params.has('openPartnerEditor');
+      } catch (_err) {
+        return false;
+      }
+    })();
+
     async function openPartnerEditCanonical(partnerId, options){
       const normalizedId = partnerId == null ? '' : String(partnerId).trim();
       const openOptions = options && typeof options === 'object' ? { ...options } : {};
