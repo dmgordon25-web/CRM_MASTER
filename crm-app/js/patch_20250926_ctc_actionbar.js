@@ -555,7 +555,35 @@ function runPatch(){
     let hydrationPromise = null;
     let detailStore = { contacts: [], partners: [] };
 
-    function actionbar(){ return document.getElementById('actionbar'); }
+    function actionbar(){
+      if(typeof document === 'undefined') return null;
+      return document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+    }
+
+    function syncActionBarVisibility(selCount){
+      if(typeof document === 'undefined') return;
+      const bar = actionbar();
+      if(!bar) return;
+      const numeric = typeof selCount === 'number' && Number.isFinite(selCount) ? selCount : 0;
+      if(numeric > 0) bar.setAttribute('data-visible','1');
+      else bar.removeAttribute('data-visible');
+    }
+
+    function deselectAllRows(){
+      if(typeof document !== 'undefined'){
+        document.querySelectorAll('[data-ui="row-check"]').forEach(node => {
+          if(node && typeof node.removeAttribute === 'function') node.removeAttribute('aria-checked');
+          if(node && 'checked' in node) {
+            try{ node.checked = false; }
+            catch (_err) {}
+          }
+        });
+      }
+      if(ensureSelectionService() && typeof SelectionService.clear === 'function'){
+        try{ SelectionService.clear('patch_20250926:init'); }
+        catch (_err) { console.warn('SelectionService.clear failed', _err); }
+      }
+    }
 
     function wireActionbarRules(){
       if(window.__WIRED_ACTIONBAR_RULES__) return window.__APPLY_ACTIONBAR_RULES__;
@@ -708,7 +736,14 @@ function runPatch(){
       const bar = actionbar();
       if(!bar) return;
       ensureConvertButton();
-      const count = SelectionService.count();
+      let count = 0;
+      try{
+        const raw = typeof SelectionService.count === 'function' ? SelectionService.count() : 0;
+        count = Number.isFinite(raw) ? raw : Number(raw) || 0;
+      }catch (_err) {}
+      if(!Number.isFinite(count)) count = 0;
+      count = count > 0 ? Math.max(0, Math.floor(count)) : 0;
+      syncActionBarVisibility(count);
       if(typeof window.applyActionBarGuards === 'function'){
         try{ window.applyActionBarGuards(bar, count); }
         catch (err) { console.warn('applyActionBarGuards failed', err); }
@@ -755,6 +790,7 @@ function runPatch(){
         detailStore = { contacts: [], partners: [] };
         lastHydratedVersion = selectionVersion;
         updateConvertButtonState(detailStore);
+        syncActionBarVisibility(0);
         if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
           queueMicrotask(() => {
             try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
@@ -768,6 +804,7 @@ function runPatch(){
       bar.setAttribute('data-selection-type', SelectionService.type);
       if(countEl) countEl.textContent = count === 1 ? '1 Selected' : `${count} Selected`;
       updatePrimaryButtons();
+      syncActionBarVisibility(count);
       if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
         queueMicrotask(() => {
           try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
@@ -1537,11 +1574,14 @@ function runPatch(){
         console.warn('[soft] SelectionService unavailable during bootstrap');
         return;
       }
+      deselectAllRows();
+      syncActionBarVisibility(0);
       bindActionbar();
       bindCheckboxes();
       bindNavReset();
       installObservers();
       updateActionbarBase();
+      syncActionBarVisibility(0);
       if(typeof window.registerRenderHook === 'function'){
         window.registerRenderHook(() => {
           scheduleSyncChecks();
@@ -1566,6 +1606,7 @@ function runPatch(){
         queueSelectionTick();
       };
       normalizeStagesOnBoot(false);
+      syncActionBarVisibility(0);
     }
 
     function onDomReady(fn){
