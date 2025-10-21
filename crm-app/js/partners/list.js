@@ -2,11 +2,35 @@ import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 
 const NAME_LINK_SELECTOR = 'a.partner-name, [data-ui="partner-name"], [data-role="partner-name"]';
 const DIALOG_ALLOWLIST = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+const LEGACY_DIALOG_SELECTOR = '#partner-profile-modal,.partner-profile-modal,[data-legacy-partner-dialog]';
+
+function removeLegacyDialog(dialog){
+  if(!dialog || String(dialog.nodeName || '').toLowerCase() !== 'dialog') return false;
+  try {
+    if(dialog.matches?.(LEGACY_DIALOG_SELECTOR)){
+      dialog.close?.();
+      dialog.remove?.();
+      return true;
+    }
+  } catch (_err) {}
+  const id = (dialog.id || '').toLowerCase();
+  const className = (dialog.className || '').toLowerCase();
+  if(id.includes('partner-profile') || className.includes('partner-profile')){
+    try { dialog.close?.(); }
+    catch (_err) {}
+    try { dialog.remove?.(); }
+    catch (_err) {}
+    return true;
+  }
+  return false;
+}
 
 function closeDisallowedDialogs(){
   if(typeof document === 'undefined') return;
   const allow = DIALOG_ALLOWLIST;
-  document.querySelectorAll('dialog[open]').forEach(dialog => {
+  document.querySelectorAll('dialog').forEach(dialog => {
+    if(removeLegacyDialog(dialog)) return;
+    if(!dialog.hasAttribute?.('open')) return;
     try {
       if(dialog.matches?.(allow)) return;
     } catch (_err) {
