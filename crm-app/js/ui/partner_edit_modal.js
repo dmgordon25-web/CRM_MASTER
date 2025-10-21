@@ -10,6 +10,62 @@ const FOCUSABLE_SELECTOR = 'a[href], area[href], button:not([disabled]), input:n
 const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
   : (fn) => Promise.resolve().then(fn);
+const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+const LEGACY_DIALOG_SELECTOR = '#partner-profile-modal,.partner-profile-modal,[data-legacy-partner-dialog]';
+
+function isLegacyPartnerDialog(node){
+  if(!node || String(node.nodeName || '').toLowerCase() !== 'dialog') return false;
+  try {
+    if(node.matches?.(LEGACY_DIALOG_SELECTOR)) return true;
+  } catch (_err) {}
+  const id = (node.id || '').toLowerCase();
+  if(id.includes('partner-profile')) return true;
+  const className = (node.className || '').toLowerCase();
+  if(className.includes('partner-profile')) return true;
+  const content = (node.textContent || '').toLowerCase();
+  if(content.includes('relationship overview') && content.includes('contact') && content.includes('funded')) return true;
+  return false;
+}
+
+function destroyLegacyPartnerDialog(node, label){
+  if(!isLegacyPartnerDialog(node)) return false;
+  try { node.close?.(); }
+  catch (_err) {}
+  try { node.remove?.(); }
+  catch (_err) {}
+  try { console && console.warn && console.warn(label || '[LEGACY_PARTNER_DIALOG_REMOVED]', node.id || node.className || node.nodeName); }
+  catch (_err) {}
+  return true;
+}
+
+function __closeStrayDialogsOnce(label = '[STRAY_DIALOG_CLOSED]'){
+  if(typeof document === 'undefined') return;
+  const closeStrays = () => {
+    if(typeof document === 'undefined') return;
+    document.querySelectorAll('dialog').forEach(dialog => {
+      if(destroyLegacyPartnerDialog(dialog, label)) return;
+      if(!dialog.hasAttribute?.('open')) return;
+      let allowed = false;
+      try {
+        allowed = typeof dialog.matches === 'function' && dialog.matches(STRAY_DIALOG_ALLOW);
+      } catch (_) {
+        allowed = false;
+      }
+      if(allowed) return;
+      try { dialog.close?.(); }
+      catch (_) {}
+      try { dialog.removeAttribute?.('open'); }
+      catch (_) {}
+      try { dialog.classList?.add('is-hidden'); }
+      catch (_) {}
+      try { console && console.warn && console.warn(label, dialog.id || dialog.className || dialog.nodeName); }
+      catch (_) {}
+    });
+  };
+  closeStrays();
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+  raf(() => { closeStrays(); });
+}
 
 function callToast(kind, message){
   const text = String(message ?? '').trim();
@@ -821,6 +877,7 @@ export async function openPartnerEditModal(id, options){
     wireCloseButtons(root);
     installEscHandler(root);
     focusFirstElement(root);
+    __closeStrayDialogsOnce();
     const clearOpening = () => {
       if(root.dataset) root.dataset.opening = '0';
     };
