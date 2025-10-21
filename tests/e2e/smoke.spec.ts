@@ -99,7 +99,8 @@ test('contact modal resolves pipeline rows and persists changes', async ({ page 
   const email = `modal.tester${suffix}@example.com`;
   const phone = `555${suffix}`;
 
-  await page.click('#btn-add-contact');
+  await page.click('#btn-header-new');
+  await page.click('#header-new-menu [data-role="header-new-contact"]');
   await page.waitForSelector('#contact-modal[open]');
   await page.fill('#c-first', firstName);
   await page.fill('#c-last', lastName);
