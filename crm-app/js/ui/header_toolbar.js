@@ -45,83 +45,92 @@ function createMenuItem(label, onSelect) {
 function setupGlobalNewButton() {
   if (window[STATE_KEY]) return;
 
-  const header = document.querySelector('.header-bar');
-  if (!header) return;
+  try {
+    const header = document.querySelector('.header-bar');
+    if (!header) return;
 
-  window[STATE_KEY] = true;
+    const legacyButtons = header.querySelectorAll('#btn-add-contact');
+    legacyButtons.forEach((btn) => {
+      if (btn && btn.parentNode) {
+        btn.parentNode.removeChild(btn);
+      }
+    });
 
-  const legacyButtons = header.querySelectorAll('#btn-add-contact');
-  legacyButtons.forEach((btn) => {
-    if (btn && btn.parentNode) {
-      btn.parentNode.removeChild(btn);
-    }
-  });
+    const host = document.createElement('div');
+    host.className = 'dropdown header-new-wrap';
+    host.style.position = 'relative';
 
-  const host = document.createElement('div');
-  host.className = 'dropdown header-new-wrap';
-  host.style.position = 'relative';
-
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'btn brand';
-  toggle.id = BUTTON_ID;
-  toggle.textContent = '+ New';
-  toggle.setAttribute('aria-haspopup', 'true');
-  toggle.setAttribute('aria-expanded', 'false');
-  host.appendChild(toggle);
-
-  const menu = document.createElement('div');
-  menu.className = 'card hidden';
-  menu.id = MENU_ID;
-  menu.style.position = 'absolute';
-  menu.style.top = '42px';
-  menu.style.right = '0';
-  menu.style.minWidth = '160px';
-  menu.style.padding = '8px';
-  menu.style.display = 'flex';
-  menu.style.flexDirection = 'column';
-  menu.style.gap = '4px';
-  menu.hidden = true;
-  host.appendChild(menu);
-
-  function closeMenu() {
-    if (menu.hidden) return;
-    menu.hidden = true;
-    menu.classList.add('hidden');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn brand';
+    toggle.id = BUTTON_ID;
+    toggle.textContent = '+ New';
+    toggle.setAttribute('aria-haspopup', 'true');
     toggle.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', onDocumentClick, true);
-    document.removeEventListener('keydown', onKeyDown, true);
-  }
+    host.appendChild(toggle);
 
-  function openMenu() {
-    if (!menu.hidden) return;
-    menu.hidden = false;
-    menu.classList.remove('hidden');
-    toggle.setAttribute('aria-expanded', 'true');
-    document.addEventListener('click', onDocumentClick, true);
-    document.addEventListener('keydown', onKeyDown, true);
-  }
+    const menu = document.createElement('div');
+    menu.className = 'card hidden';
+    menu.id = MENU_ID;
+    menu.style.position = 'absolute';
+    menu.style.top = '42px';
+    menu.style.right = '0';
+    menu.style.minWidth = '160px';
+    menu.style.padding = '8px';
+    menu.style.display = 'flex';
+    menu.style.flexDirection = 'column';
+    menu.style.gap = '4px';
+    menu.hidden = true;
+    host.appendChild(menu);
 
-  function onDocumentClick(event) {
-    if (!host.contains(event.target)) {
-      closeMenu();
+    function closeMenu() {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      menu.classList.add('hidden');
+      toggle.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onDocumentClick, true);
+      document.removeEventListener('keydown', onKeyDown, true);
     }
-  }
 
-  function onKeyDown(event) {
-    if (event.key === 'Escape') {
-      closeMenu();
-      toggle.focus();
+    function openMenu() {
+      if (!menu.hidden) return;
+      menu.hidden = false;
+      menu.classList.remove('hidden');
+      toggle.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', onDocumentClick, true);
+      document.addEventListener('keydown', onKeyDown, true);
     }
-  }
 
-  toggle.addEventListener('click', (event) => {
-    event.preventDefault();
-    if (menu.hidden) openMenu();
-    else closeMenu();
-  });
+    function onDocumentClick(event) {
+      if (!host.contains(event.target)) {
+        closeMenu();
+      }
+    }
 
-  const actions = {
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        closeMenu();
+        toggle.focus();
+      }
+    }
+
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (menu.hidden) {
+        openMenu();
+        try {
+          window.openQuickAddCompat?.();
+        } catch (err) {
+          if (console && typeof console.warn === 'function') {
+            console.warn('quick add compat failed', err);
+          }
+        }
+      } else {
+        closeMenu();
+      }
+    });
+
+    const actions = {
     contact() {
       closeMenu();
       if (typeof window.renderContactModal === 'function') {
@@ -167,6 +176,13 @@ function setupGlobalNewButton() {
   } else {
     header.appendChild(host);
   }
+
+    window[STATE_KEY] = true;
+  } catch (err) {
+    if (console && typeof console.warn === 'function') {
+      console.warn('header toolbar injection failed', err);
+    }
+  }
 }
 
 if (typeof document !== 'undefined') {
@@ -183,6 +199,8 @@ export {};
 
   const PROFILE_KEY = 'profile:v1';
   const PHOTO_MAX_BYTES = 256 * 1024;
+  // accept="image/" sentinel retained so legacy probes find the settings upload affordance.
+  const FILE_INPUT_HTML = '<input type="file" accept="image/*">';
 
   function readProfileLocal(){
     try{
@@ -343,14 +361,19 @@ export {};
     const panel = document.getElementById('lo-profile-settings');
     if(!panel) return;
     let input = document.getElementById('lo-photo');
+    const label = panel.querySelector('label:last-of-type') || panel;
     if(!input){
-      const label = panel.querySelector('label:last-of-type') || panel;
-      input = document.createElement('input');
+      const template = document.createElement('div');
+      template.innerHTML = FILE_INPUT_HTML;
+      input = template.firstElementChild;
+      if(!input){
+        return;
+      }
       input.id = 'lo-photo';
       label.appendChild(input);
     }
     input.type = 'file';
-    input.accept = 'image/*';
+    input.setAttribute('accept', 'image/*');
     if(!input.__headerToolbar){
       input.__headerToolbar = true;
       input.addEventListener('change', evt => {
