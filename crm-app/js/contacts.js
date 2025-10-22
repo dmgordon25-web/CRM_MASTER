@@ -510,7 +510,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       button.classList.add('btn', 'ghost', 'compact', 'btn-add-contact');
       button.type = 'button';
       button.setAttribute('aria-label', 'Add Contact');
-      button.title = 'Add Contact • Shortcut: Quick Add (Q)';
+      button.title = 'Add Contact';
       let icon = button.querySelector('.btn-icon');
       if(!icon){
         icon = document.createElement('span');
@@ -779,4 +779,63 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     const hit = e.target.closest('#btn-add-contact,[data-nav="add-contact"],.btn-add-contact');
     if(hit){ e.preventDefault(); window.renderContactModal(null); }
   });
+  const ensureAddContactButton = ()=>{
+    if(typeof document==='undefined') return;
+    let btn = document.getElementById('btn-add-contact');
+    let host = document.querySelector('.status-panel[data-panel="inprogress"] .status-actions');
+    if(!host){
+      host = document.querySelector('.status-panel[data-panel="active"] .status-actions');
+      if(!host){
+        host = document.querySelector('.header-bar');
+      }
+    }
+    if(!host){
+      return;
+    }
+    if(!btn){
+      btn = document.createElement('button');
+      btn.id = 'btn-add-contact';
+      btn.className = 'btn brand btn-add-contact';
+      btn.textContent = 'Add Contact';
+      const grow = host.querySelector('.grow');
+      if(grow && grow.parentElement === host){
+        grow.insertAdjacentElement('beforebegin', btn);
+      }else{
+        host.appendChild(btn);
+      }
+    }
+    btn.type = 'button';
+    btn.classList.add('btn-add-contact');
+    btn.setAttribute('aria-label', 'Add Contact');
+    btn.setAttribute('title', 'Add Contact');
+    if(!btn.__contactModalOpener){
+      btn.__contactModalOpener = true;
+      btn.addEventListener('click', (event)=>{
+        event.preventDefault();
+        try{
+          window.renderContactModal?.(null);
+        }catch (err){
+          if(console && typeof console.warn === 'function'){
+            console.warn('renderContactModal missing', err);
+          }
+        }
+      });
+    }
+  };
+  const bootAddButton = ()=>{
+    try{
+      ensureAddContactButton();
+    }catch (err){
+      if(console && typeof console.info === 'function'){
+        console.info('[contacts] ensure add contact failed', err && (err.message || err));
+      }
+    }
+  };
+  if(typeof document!=='undefined'){
+    if(document.readyState==='loading'){
+      document.addEventListener('DOMContentLoaded', bootAddButton, { once:true });
+    }else{
+      bootAddButton();
+    }
+  }
 })();

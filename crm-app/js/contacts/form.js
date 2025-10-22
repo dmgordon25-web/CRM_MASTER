@@ -99,7 +99,7 @@ function ensureButton(state){
     labelText.textContent = 'Add Contact';
 
     button.append(icon, labelText);
-    button.setAttribute('title', 'Add Contact • Shortcut: Quick Add (Q)');
+    button.setAttribute('title', 'Add Contact');
     button.setAttribute('aria-label', 'Add Contact');
 
     select.insertAdjacentElement('afterend', button);

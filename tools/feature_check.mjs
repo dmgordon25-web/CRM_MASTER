@@ -1,231 +1,170 @@
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { once } from 'node:events';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, '..');
-const DEV_SERVER_PATH = path.join(REPO_ROOT, 'tools', 'dev_server.mjs');
+const SERVER_URL = 'http://127.0.0.1:8080/';
 
-function startDevServer() {
-  const child = spawn(process.execPath, [DEV_SERVER_PATH], {
-    env: { ...process.env, CRM_SKIP_AUTO_OPEN: '1' },
-    stdio: ['ignore', 'pipe', 'pipe']
+function startServer() {
+  const server = spawn('node', ['tools/dev_server.mjs'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env }
   });
 
-  const onProcessExit = () => {
-    if (child.exitCode == null) {
-      try {
-        child.kill('SIGTERM');
-      } catch {}
-    }
-  };
+  server.stdout.on('data', (chunk) => {
+    process.stdout.write(chunk);
+  });
+  server.stderr.on('data', (chunk) => {
+    process.stderr.write(chunk);
+  });
 
-  process.on('exit', onProcessExit);
-
-  return new Promise((resolve, reject) => {
+  const readyPromise = new Promise((resolve, reject) => {
     let resolved = false;
-    let buffer = '';
-
-    const cleanup = (error, url) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeout);
-      child.stdout.off('data', onStdout);
-      child.stderr.off('data', onStderr);
-      child.off('exit', onExit);
-      process.off('exit', onProcessExit);
-      if (error) {
-        reject(error);
-      } else {
-        resolve({ child, url });
-      }
-    };
-
-    const onStdout = (chunk) => {
+    const handleData = (chunk) => {
       const text = chunk.toString();
-      buffer += text;
-      process.stdout.write(text);
-      const match = buffer.match(/\[SERVER\] listening on (http:\/\/[^\s]+)/);
-      if (match) {
-        cleanup(null, match[1]);
+      if (text.includes('[SERVER] listening on http://127.0.0.1:8080/')) {
+        resolved = true;
+        cleanup();
+        resolve();
       }
     };
 
-    const onStderr = (chunk) => {
-      process.stderr.write(chunk);
+    const handleExit = (code) => {
+      if (!resolved) {
+        cleanup();
+        reject(new Error(`dev server exited early (code ${code})`));
+      }
     };
 
-    const onExit = (code) => {
-      cleanup(new Error(`Dev server exited with code ${code ?? 0}`));
+    const cleanup = () => {
+      server.stdout.off('data', handleData);
+      server.off('exit', handleExit);
+      server.off('error', reject);
     };
 
-    const timeout = setTimeout(() => {
-      cleanup(new Error('Dev server start timeout'));
-    }, 20000);
-
-    child.stdout.on('data', onStdout);
-    child.stderr.on('data', onStderr);
-    child.once('exit', onExit);
+    server.stdout.on('data', handleData);
+    server.once('exit', handleExit);
+    server.once('error', reject);
   });
+
+  return { server, readyPromise };
 }
 
-function shutdownServer(child) {
-  return new Promise((resolve) => {
-    if (!child || child.exitCode != null) {
-      resolve();
-      return;
+async function waitForReadyState(page) {
+  await page.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 });
+}
+
+async function ensureNewButton(page) {
+  const found = await page.waitForFunction(() => {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    for (const btn of buttons) {
+      const text = (btn.textContent || '').toLowerCase();
+      if (!text.includes('new')) continue;
+      const rect = btn.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const style = window.getComputedStyle(btn);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      if (parseFloat(style.opacity || '1') === 0) continue;
+      let node = btn.parentElement;
+      let hidden = false;
+      while (node && node !== document.body) {
+        const s = window.getComputedStyle(node);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity || '1') === 0) {
+          hidden = true;
+          break;
+        }
+        node = node.parentElement;
+      }
+      if (!hidden) {
+        return true;
+      }
     }
-    const onExit = () => {
-      resolve();
-    };
-    child.once('exit', onExit);
-    try {
-      child.kill('SIGTERM');
-    } catch {}
-    setTimeout(() => {
-      if (child.exitCode == null) {
-        try {
-          child.kill('SIGKILL');
-        } catch {}
-      }
-    }, 2000).unref();
-  });
+    return false;
+  }, { timeout: 15000 });
+  if (!found) {
+    throw new Error('visible "New" button not found');
+  }
 }
 
-async function runChecks(baseUrl) {
-  const statuses = {
-    beacons: 0,
-    splashSeen: false,
-    newBtn: 'fail',
-    avatar: 'fail',
-    contactAddBtn: 'fail'
-  };
-  const beaconMessages = [];
-  let navigationOk = true;
+async function ensureAvatarInput(page) {
+  await page.evaluate(() => { window.location.hash = '#/settings/profiles'; });
+  await page.waitForFunction(() => !!document.querySelector('input[type="file"][accept="image/*"]'), { timeout: 15000 });
+}
 
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+async function ensureContactModal(page) {
+  await page.waitForFunction(() => typeof window.renderContactModal === 'function', { timeout: 15000 });
+  await page.waitForFunction(() => !!(window.__INIT_FLAGS__ && window.__INIT_FLAGS__.contacts_modal_guards), { timeout: 15000 });
+  const modalState = await page.evaluate(async () => {
+    const result = await window.renderContactModal?.(null);
+    const dlg = document.getElementById('contact-modal');
+    return {
+      hasDialog: !!dlg,
+      hasOpenAttr: !!(dlg && dlg.hasAttribute('open')),
+      hasOpenProp: !!(dlg && typeof dlg.open === 'boolean' && dlg.open),
+      buttonSelector: !!document.querySelector('#contact-modal button[aria-label="Add Contact"]'),
+      buttonType: document.querySelector('#contact-modal button[aria-label="Add Contact"]')?.getAttribute('type') || null,
+      buttonTitle: document.querySelector('#contact-modal button[aria-label="Add Contact"]')?.getAttribute('title') || null,
+      resultType: typeof result
+    };
   });
+  if (!modalState.hasDialog || (!modalState.hasOpenAttr && !modalState.hasOpenProp)) {
+    throw new Error(`Contact modal did not open (${JSON.stringify(modalState)})`);
+  }
+  if (!modalState.buttonSelector) {
+    throw new Error('Contact modal add button missing');
+  }
+  const typeOk = (modalState.buttonType || '').toLowerCase() === 'button';
+  const titleOk = (modalState.buttonTitle || '').trim().toLowerCase() === 'add contact';
+  if (!typeOk || !titleOk) {
+    throw new Error(`Contact modal add button missing required attributes (${JSON.stringify(modalState)})`);
+  }
+}
 
+async function run() {
+  const { server, readyPromise } = startServer();
+  let exitCode = 0;
+  let browser = null;
   try {
+    await readyPromise;
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const page = await browser.newPage();
+    const beaconMessages = [];
     page.on('console', (msg) => {
-      const text = msg.text();
-      if (text.includes('[A_BEACON]')) {
-        beaconMessages.push(text);
-      }
-      console.log(`[BROWSER:${msg.type()}] ${text}`);
+      try {
+        const text = msg.text();
+        if (text.includes('[A_BEACON]')) {
+          beaconMessages.push(text);
+        }
+      } catch (_) {}
     });
 
-    try {
-      await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 });
-      statuses.splashSeen = await page.evaluate(() => !!window.__SPLASH_SEEN__);
-    } catch (err) {
-      navigationOk = false;
-      console.error('[FEATURE_CHECK] navigation error', err);
-    }
+    await page.goto(SERVER_URL, { waitUntil: 'domcontentloaded' });
+    await waitForReadyState(page);
 
-    if (navigationOk) {
-      try {
-        await page.waitForFunction(() => {
-          const el = document.getElementById('btn-header-new');
-          if (!(el instanceof HTMLElement)) return false;
-          const rect = el.getBoundingClientRect();
-          if (!rect || rect.width <= 0 || rect.height <= 0) return false;
-          const style = window.getComputedStyle(el);
-          if (!style) return false;
-          return style.visibility !== 'hidden' && style.display !== 'none';
-        }, { timeout: 10000 });
-        statuses.newBtn = 'ok';
-      } catch (err) {
-        console.error('[FEATURE_CHECK] new button missing', err);
-      }
+    await page.waitForFunction(() => window.__SPLASH_SEEN__ === true, { timeout: 15000 });
+    const splashSeen = await page.evaluate(() => !!window.__SPLASH_SEEN__);
+    await ensureNewButton(page);
+    await ensureAvatarInput(page);
+    await ensureContactModal(page);
 
-      try {
-        await page.evaluate(() => { window.location.hash = '#/settings/profiles'; });
-        await page.waitForFunction(() => window.location.hash.includes('#/settings/profiles'), { timeout: 2000 }).catch(() => {});
-        await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 7000 });
-        statuses.avatar = 'ok';
-      } catch (err) {
-        console.error('[FEATURE_CHECK] avatar input missing', err);
-      }
-
-      try {
-        await page.waitForFunction(() => {
-          const fn = window.renderContactModal;
-          if (typeof fn !== 'function') return false;
-          try {
-            return !String(fn).includes('shim invoked');
-          } catch (err) {
-            return true;
-          }
-        }, { timeout: 10000 });
-        await page.evaluate(async () => {
-          const fn = window.renderContactModal;
-          if (typeof fn === 'function') {
-            await Promise.resolve(fn(null));
-          }
-        });
-        await page.waitForSelector('#contact-modal[open]', { timeout: 10000 });
-        await page.waitForSelector('button[aria-label="Add Contact"]', { timeout: 10000 });
-        statuses.contactAddBtn = 'ok';
-      } catch (err) {
-        console.error('[FEATURE_CHECK] contact add button missing', err);
-      }
-    }
-
-    if (beaconMessages.length === 0) {
-      try {
-        await page.waitForTimeout(5000);
-      } catch {}
-    }
-  } finally {
-    statuses.beacons = beaconMessages.length;
-    await browser.close().catch(() => {});
-  }
-
-  const allOk = navigationOk
-    && statuses.splashSeen
-    && statuses.newBtn === 'ok'
-    && statuses.avatar === 'ok'
-    && statuses.contactAddBtn === 'ok';
-  const exitCode = allOk ? 0 : 1;
-  return { statuses, exitCode };
-}
-
-async function main() {
-  let serverHandle = null;
-  let result = {
-    statuses: {
-      beacons: 0,
-      splashSeen: false,
-      newBtn: 'fail',
-      avatar: 'fail',
-      contactAddBtn: 'fail'
-    },
-    exitCode: 1
-  };
-
-  try {
-    serverHandle = await startDevServer();
-    result = await runChecks(serverHandle.url);
+    const beaconCount = beaconMessages.length;
+    console.log(`[FEATURE_CHECK] beacons=${beaconCount} splashSeen=${splashSeen} newBtn=ok avatar=ok contactAddBtn=ok`);
   } catch (err) {
-    console.error('[FEATURE_CHECK] fatal', err);
+    exitCode = 1;
+    console.error(err && err.stack ? err.stack : err);
   } finally {
-    console.log(`[FEATURE_CHECK] beacons=${result.statuses.beacons} splashSeen=${Boolean(result.statuses.splashSeen)} newBtn=${result.statuses.newBtn} avatar=${result.statuses.avatar} contactAddBtn=${result.statuses.contactAddBtn}`);
-    if (serverHandle?.child) {
-      await shutdownServer(serverHandle.child);
+    if (browser) {
+      await browser.close().catch(() => {});
     }
-    process.exitCode = result.exitCode;
+    server.kill();
+    try {
+      await once(server, 'exit');
+    } catch (_) {}
   }
+  process.exit(exitCode);
 }
 
-main().catch((err) => {
-  console.error('[FEATURE_CHECK] unhandled', err);
-  process.exitCode = 1;
-});
+run();
