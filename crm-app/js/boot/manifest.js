@@ -71,6 +71,7 @@ export const PATCHES = [
   './state/actionBarGuards.js',
   './ui/notifications_panel.js',
   './ui/action_bar.js',
+  './ui/header_toolbar.js',
   './ui/merge_modal.js',
   './debug/overlay.js',
   './quick_add.js',
