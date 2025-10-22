@@ -2,21 +2,21 @@ import { spawn } from 'node:child_process';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
-const PORT = Number.parseInt(process.env.PORT || '8080', 10);
-const ORIGIN = `http://127.0.0.1:${PORT}`;
+const BASE_PORT = Number.parseInt(process.env.PORT || '8080', 10);
+const SERVER_READY_RE = /\[SERVER\] listening on (http:\/\/127\.0\.0\.1:(\d+)\/) \(root: ([^)]+)\)/;
 
 function startServer() {
   const server = spawn(process.execPath, ['tools/dev_server.mjs'], {
-    env: { ...process.env, PORT: String(PORT) },
+    env: { ...process.env, PORT: String(BASE_PORT) },
     stdio: ['ignore', 'pipe', 'pipe']
   });
-  const log = (stream, data) => {
-    const text = String(data || '');
+  const forward = (stream, chunk) => {
+    const text = String(chunk || '');
     if (!text) return;
     stream.write(text);
   };
-  server.stdout.on('data', (chunk) => log(process.stdout, chunk));
-  server.stderr.on('data', (chunk) => log(process.stderr, chunk));
+  server.stdout.on('data', (chunk) => forward(process.stdout, chunk));
+  server.stderr.on('data', (chunk) => forward(process.stderr, chunk));
   return server;
 }
 
@@ -25,43 +25,57 @@ async function waitForServerReady(server) {
   const timeout = 30000;
   let buffer = '';
   return new Promise((resolve, reject) => {
-    const onData = (data) => {
-      buffer += String(data || '');
-      if (buffer.includes('listening on http://127.0.0.1:8080/')) {
+    const handleData = (chunk) => {
+      buffer += String(chunk || '');
+      const match = buffer.match(SERVER_READY_RE);
+      if (match) {
         cleanup();
-        resolve();
+        const port = Number.parseInt(match[2], 10);
+        const url = match[1];
+        const root = match[3];
+        resolve({ port, url, root });
       }
     };
-    const onExit = (code) => {
+    const handleExit = (code) => {
       cleanup();
       reject(new Error(`dev server exited with code ${code ?? 'null'}`));
     };
-    const onError = (err) => {
+    const handleError = (err) => {
       cleanup();
       reject(err);
     };
-    let timerId = null;
+    let timer = null;
     const cleanup = () => {
-      server.stdout.off('data', onData);
-      server.stderr.off('data', onData);
-      server.off('exit', onExit);
-      server.off('error', onError);
-      if (timerId) {
-        clearInterval(timerId);
-        timerId = null;
+      server.stdout.off('data', handleData);
+      server.stderr.off('data', handleData);
+      server.off('exit', handleExit);
+      server.off('error', handleError);
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
       }
     };
-    server.stdout.on('data', onData);
-    server.stderr.on('data', onData);
-    server.once('exit', onExit);
-    server.once('error', onError);
-    timerId = setInterval(() => {
+    server.stdout.on('data', handleData);
+    server.stderr.on('data', handleData);
+    server.once('exit', handleExit);
+    server.once('error', handleError);
+    timer = setInterval(() => {
       if (Date.now() - started > timeout) {
         cleanup();
         reject(new Error('dev server start timeout'));
       }
     }, 250);
   });
+}
+
+async function fetchWhoAmI(origin) {
+  const res = await fetch(`${origin}/__whoami`, {
+    headers: { 'cache-control': 'no-cache' }
+  });
+  if (!res.ok) {
+    throw new Error(`whoami request failed with status ${res.status}`);
+  }
+  return res.json();
 }
 
 async function ensureSplash(page) {
@@ -71,25 +85,22 @@ async function ensureSplash(page) {
 
 async function ensureNewButton(page) {
   await page.waitForFunction(() => {
-    const nodes = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-    return nodes.some((node) => {
-      const text = (node.textContent || '').trim();
-      return /(^|\b)New\b/i.test(text);
-    });
+    return Array.from(document.querySelectorAll('button, a, [role="button"]'))
+      .some((node) => /(^|\b)New\b/i.test((node.textContent || '').trim()));
   }, { timeout: 8000 });
 }
 
-async function ensureAvatarUpload(page) {
-  await page.goto(`${ORIGIN}/#/settings/profiles`, { waitUntil: 'domcontentloaded' });
+async function ensureAvatarUpload(page, origin) {
+  await page.goto(`${origin}/#/settings/profiles`, { waitUntil: 'domcontentloaded' });
   const selector = 'input[type="file"][accept="image/*"]';
   await page.waitForSelector(selector, { timeout: 8000 });
-  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-  await page.evaluate((sel, fileBase64) => {
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+  await page.evaluate((sel, base64) => {
     const input = document.querySelector(sel);
     if (!(input instanceof HTMLInputElement)) {
       throw new Error('avatar input not found');
     }
-    const binary = atob(fileBase64);
+    const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) {
       bytes[i] = binary.charCodeAt(i);
@@ -97,25 +108,21 @@ async function ensureAvatarUpload(page) {
     const file = new File([bytes], 'avatar.png', { type: 'image/png' });
     const transfer = new DataTransfer();
     transfer.items.add(file);
-    const proto = Object.getPrototypeOf(input);
-    const descriptor = proto && Object.getOwnPropertyDescriptor(proto, 'files');
-    if (!descriptor || typeof descriptor.set !== 'function') {
-      throw new Error('unable to assign files on avatar input');
-    }
-    descriptor.set.call(input, transfer.files);
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      get() { return transfer.files; }
+    });
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, selector, base64);
+  }, selector, pngBase64);
   await page.waitForFunction(() => {
-    const header = document.querySelector('.header-bar');
-    if (!header) return false;
-    return Array.from(header.querySelectorAll('img')).some((img) => {
-      try {
-        return /^data:/i.test(img.src || '');
-      } catch (_) {
-        return false;
-      }
-    });
+    const img = document.querySelector('.header-bar img[data-role="lo-photo"]');
+    if (!img) return false;
+    try {
+      return /^data:/i.test(img.src || '');
+    } catch (_) {
+      return false;
+    }
   }, { timeout: 8000 });
 }
 
@@ -126,7 +133,26 @@ async function ensureContactButton(page) {
     }
   });
   await page.waitForSelector('#contact-modal[open]', { timeout: 8000 });
-  await page.waitForSelector('button[aria-label="Add Contact"]', { timeout: 8000 });
+  await page.waitForSelector('button[aria-label="Add Contact"][title="Add Contact"]', { timeout: 8000 });
+}
+
+async function closeServer(server) {
+  if (!server) return;
+  if (server.exitCode == null && server.signalCode == null) {
+    server.kill('SIGTERM');
+  }
+  await new Promise((resolve) => {
+    if (server.exitCode != null || server.signalCode != null) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, 5000);
+    if (typeof timer.unref === 'function') timer.unref();
+    server.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 async function run() {
@@ -134,41 +160,32 @@ async function run() {
   let browser;
   try {
     server = startServer();
-    await waitForServerReady(server);
+    const ready = await waitForServerReady(server);
+    const origin = `http://127.0.0.1:${ready.port}`;
+
+    const whoami = await fetchWhoAmI(origin);
+    if (!whoami || whoami.indexContainsBootStamp !== true) {
+      const path = whoami && whoami.indexPath ? whoami.indexPath : '<unknown>';
+      const root = whoami && whoami.servedRoot ? whoami.servedRoot : '<unknown>';
+      throw new Error(`index missing boot stamp at ${path} (served from ${root})`);
+    }
+    console.log('[WHOAMI]', JSON.stringify(whoami));
 
     browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
-    await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
+    await page.goto(origin, { waitUntil: 'domcontentloaded' });
 
     await ensureSplash(page);
     await ensureNewButton(page);
-    await ensureAvatarUpload(page);
+    await ensureAvatarUpload(page, origin);
     await ensureContactButton(page);
 
-    console.log('[FEATURE_CHECK] splash=ok newBtn=ok avatar=ok contactAdd=ok');
+    console.log('[FEATURE_CHECK] whoami=ok splash=ok newBtn=ok avatar=ok contactAdd=ok');
   } finally {
     if (browser) {
       await browser.close();
     }
-    if (server) {
-      if (server.exitCode == null && server.signalCode == null) {
-        server.kill('SIGTERM');
-      }
-      await new Promise((resolve) => {
-        if (server.exitCode != null || server.signalCode != null) {
-          resolve();
-          return;
-        }
-        const timer = setTimeout(resolve, 5000);
-        if (typeof timer.unref === 'function') {
-          timer.unref();
-        }
-        server.once('exit', () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
-    }
+    await closeServer(server);
   }
 }
 

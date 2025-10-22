@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
@@ -176,6 +177,33 @@ function serveSpa(req, res) {
   }
 }
 
+function readIndexInfo() {
+  let content = '';
+  try {
+    content = fs.readFileSync(APP_INDEX, 'utf8');
+  } catch (error) {
+    return { error };
+  }
+  const sha1 = crypto.createHash('sha1').update(content).digest('hex');
+  const containsBootStamp = content.includes('<!-- BOOT_STAMP: crm-app-index -->');
+  let importMapFirstKeys = [];
+  const match = content.match(/<script\s+type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (match && match[1]) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed && typeof parsed === 'object' && parsed.imports && typeof parsed.imports === 'object') {
+        importMapFirstKeys = Object.keys(parsed.imports).slice(0, 5);
+      }
+    } catch {}
+  }
+  return {
+    indexPath: APP_INDEX,
+    indexSha1: sha1,
+    indexContainsBootStamp: containsBootStamp,
+    importMapFirstKeys
+  };
+}
+
 function shouldSpaFallback(method, normalized, hasExtension) {
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (normalized === '/') return true;
@@ -202,6 +230,36 @@ const server = http.createServer((req, res) => {
     } else {
       send(res, 204, '');
     }
+    return;
+  }
+
+  if (parsed.normalized === '/__whoami') {
+    if (method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    const info = readIndexInfo();
+    if (info.error) {
+      send(res, 500, 'Failed to read index.html');
+      return;
+    }
+    const body = JSON.stringify({
+      cwd: process.cwd(),
+      servedRoot: REPO_ROOT,
+      indexPath: info.indexPath,
+      indexSha1: info.indexSha1,
+      indexContainsBootStamp: info.indexContainsBootStamp,
+      importMapFirstKeys: info.importMapFirstKeys,
+      time: new Date().toISOString()
+    });
+    res.writeHead(200, {
+      'Cache-Control': 'no-store, must-revalidate',
+      'Content-Type': 'application/json; charset=utf-8',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
+    });
+    res.end(body);
     return;
   }
 

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
  <head>
+  <!-- BOOT_STAMP: crm-app-index -->
  <meta charset="utf-8"/>
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <link rel="icon" type="image/svg+xml"
@@ -35,6 +36,15 @@
   </div>
  </div>
  <style>@keyframes blip{0%{margin-left:-40%}100%{margin-left:100%}}</style>
+ <script>
+ try {
+   if (location.hostname === '127.0.0.1' && 'serviceWorker' in navigator) {
+     navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+     if (window.caches && caches.keys) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+     console.info('[A_BEACON] dev SW/caches cleared');
+   }
+ } catch {}
+ </script>
   <div id="diagnostics-splash">
    <h3>CRM Diagnostics</h3>
    <p>If this stays visible, boot failed. Logs available via /__log or local logs folder.</p>
