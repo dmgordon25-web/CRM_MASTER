@@ -448,6 +448,7 @@ function recordSuccess(meta) {
     window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
   } catch (_) {}
   overlay.hide();
+  try { globalScope?.requestAnimationFrame?.(() => { try { globalScope.overlay && typeof overlay.hide === 'function' && overlay.hide(); } catch (_) {} }); } catch (_) {}
   if (!perfPingNoted) {
     const stop = overlayHiddenAt == null ? timeSource() : overlayHiddenAt;
     const elapsed = Math.max(0, Math.round(stop - bootStart));
@@ -538,6 +539,17 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await evaluatePrereqs(coreRecords, 'soft');
 
     await readyPromise;
+
+    const raf = globalScope && typeof globalScope.requestAnimationFrame === 'function'
+      ? globalScope.requestAnimationFrame.bind(globalScope)
+      : null;
+    if(raf){
+      raf(()=>{
+        if(overlay && typeof overlay.hide === 'function'){
+          overlay.hide();
+        }
+      });
+    }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     return { reason: 'ok' };

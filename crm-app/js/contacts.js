@@ -1,4 +1,5 @@
 import { createFormFooter } from './ui/form_footer.js';
+import { setReferredBy } from './contacts/form.js';
 import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
@@ -161,8 +162,20 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
     if(!dlg.__wired){
       dlg.__wired = true;
-      dlg.addEventListener('click', (e)=>{ if(e.target.matches('[data-close]')){ e.preventDefault(); try{ dlg.close(); }catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; } }});
-      dlg.addEventListener('close', ()=>{ dlg.removeAttribute('open'); dlg.style.display='none'; });
+      const markClosed = ()=>{
+        try{ dlg.removeAttribute('open'); }catch (_){ }
+        try{ dlg.style.display='none'; }catch (_){ }
+      };
+      dlg.addEventListener('click', (e)=>{
+        if(e.target.matches('[data-close]')){
+          e.preventDefault();
+          try{ dlg.close(); }
+          catch (_){ markClosed(); }
+          markClosed();
+        }
+      });
+      dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); markClosed(); });
+      dlg.addEventListener('close', markClosed);
     }
     return dlg;
   }
@@ -171,10 +184,25 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     const dlg = ensureModal();
     if(dlg.hasAttribute('open')){ try{ dlg.close(); }catch (_) {} }
     dlg.style.display='block';
+    let opened = false;
+    if(typeof dlg.showModal === 'function'){
+      try{ dlg.showModal(); opened = true; }
+      catch (_err){}
+    }
+    if(!opened){
+      try{ dlg.setAttribute('open',''); }
+      catch (_){ }
+    }
+    try{ dlg.setAttribute('open',''); }
+    catch (_){ }
 
     const closeDialog = ()=>{
       try{ dlg.close(); }
-      catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; }
+      catch (_){ }
+      try{ dlg.removeAttribute('open'); }
+      catch (_){ }
+      try{ dlg.style.display='none'; }
+      catch (_){ }
     };
 
     await openDB();
@@ -465,6 +493,39 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     });
     syncStageSlider(c.stage||'application');
     updateSummary();
+
+    const ensureReferredByButton = ()=>{
+      const select = body.querySelector('#c-ref');
+      if(!select) return;
+      const host = select.closest('label') || select.parentElement || body;
+      if(!host) return;
+      const affordance = host.querySelector('[data-qa="referred-by-quick-add"], [data-role="referred-by-quick-add"], .referred-by-quick-add');
+      if(affordance && affordance.tagName !== 'BUTTON'){
+        affordance.remove();
+      }
+      const button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
+      if(!button) return;
+      button.dataset.qa = 'referred-by-quick-add';
+      button.dataset.role = 'referred-by-quick-add';
+      button.classList.add('btn', 'ghost', 'compact', 'btn-add-contact');
+      button.type = 'button';
+      button.setAttribute('aria-label', 'Add Contact');
+      button.title = 'Add Contact • Shortcut: Quick Add (Q)';
+      let icon = button.querySelector('.btn-icon');
+      if(!icon){
+        icon = document.createElement('span');
+        icon.className = 'btn-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        button.insertBefore(icon, button.firstChild || null);
+      }
+      icon.textContent = '+';
+      const spanLabel = button.querySelector('span:last-child');
+      if(spanLabel){
+        spanLabel.textContent = 'Add Contact';
+      }
+    };
+
+    ensureReferredByButton();
 
     const docListEl = $('#c-doc-list', body);
     const docSummaryEl = $('#c-doc-summary', body);

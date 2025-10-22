@@ -1,3 +1,5 @@
+import './ui/quick_add_compat.js';
+
 // header_ui.js — remove deprecated header chrome
 (function(){
   if(typeof document === 'undefined') return;
