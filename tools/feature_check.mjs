@@ -83,11 +83,29 @@ async function ensureAvatarUpload(page) {
   await page.goto(`${ORIGIN}/#/settings/profiles`, { waitUntil: 'domcontentloaded' });
   const selector = 'input[type="file"][accept="image/*"]';
   await page.waitForSelector(selector, { timeout: 8000 });
-  const buffer = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
-    'base64'
-  );
-  await page.setInputFiles(selector, [{ name: 'avatar.png', mimeType: 'image/png', buffer }]);
+  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+  await page.evaluate((sel, fileBase64) => {
+    const input = document.querySelector(sel);
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('avatar input not found');
+    }
+    const binary = atob(fileBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const file = new File([bytes], 'avatar.png', { type: 'image/png' });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    const proto = Object.getPrototypeOf(input);
+    const descriptor = proto && Object.getOwnPropertyDescriptor(proto, 'files');
+    if (!descriptor || typeof descriptor.set !== 'function') {
+      throw new Error('unable to assign files on avatar input');
+    }
+    descriptor.set.call(input, transfer.files);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, selector, base64);
   await page.waitForFunction(() => {
     const header = document.querySelector('.header-bar');
     if (!header) return false;
