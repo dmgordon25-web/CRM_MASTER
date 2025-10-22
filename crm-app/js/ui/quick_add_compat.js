@@ -30,12 +30,6 @@ function ensureDialogShell() {
     footer.appendChild(closeBtn);
     shell.append(heading, chooserHost, footer);
     dialog.appendChild(shell);
-    dialog.style.position = 'fixed';
-    dialog.style.left = '-9999px';
-    dialog.style.top = 'auto';
-    dialog.style.bottom = 'auto';
-    dialog.style.opacity = '0';
-    dialog.style.pointerEvents = 'none';
     const parent = document.body || document.documentElement || document;
     parent.appendChild(dialog);
   }
