@@ -197,6 +197,8 @@ function setupGlobalNewButton() {
     if (actionWrap) mountCandidates.push(actionWrap);
     const rightWrap = header.querySelector('.header-right');
     if (rightWrap) mountCandidates.push(rightWrap);
+    const profileWrap = header.querySelector('#lo-profile-chip');
+    if (profileWrap && profileWrap.parentElement) mountCandidates.push(profileWrap.parentElement);
     const notifParent = (() => {
       const wrap = header.querySelector('#notif-wrap');
       return wrap && wrap.parentElement === header ? wrap.parentElement : null;

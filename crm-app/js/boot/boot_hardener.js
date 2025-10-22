@@ -521,6 +521,13 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     const safe = isSafeMode();
     state.safe = safe;
+    if (safe) {
+      (function(){
+        try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
+        const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
+        requestAnimationFrame(hideSplash);
+      }());
+    }
 
     if (typeof window !== 'undefined') {
       try {
@@ -590,6 +597,11 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+    (function(){
+      try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
+      const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
+      requestAnimationFrame(hideSplash);
+    }());
     return { reason: 'ok' };
   } catch (err) {
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))

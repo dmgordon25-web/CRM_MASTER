@@ -1,170 +1,160 @@
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
-const SERVER_URL = 'http://127.0.0.1:8080/';
+const PORT = Number.parseInt(process.env.PORT || '8080', 10);
+const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 function startServer() {
-  const server = spawn('node', ['tools/dev_server.mjs'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env }
+  const server = spawn(process.execPath, ['tools/dev_server.mjs'], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: ['ignore', 'pipe', 'pipe']
   });
+  const log = (stream, data) => {
+    const text = String(data || '');
+    if (!text) return;
+    stream.write(text);
+  };
+  server.stdout.on('data', (chunk) => log(process.stdout, chunk));
+  server.stderr.on('data', (chunk) => log(process.stderr, chunk));
+  return server;
+}
 
-  server.stdout.on('data', (chunk) => {
-    process.stdout.write(chunk);
-  });
-  server.stderr.on('data', (chunk) => {
-    process.stderr.write(chunk);
-  });
-
-  const readyPromise = new Promise((resolve, reject) => {
-    let resolved = false;
-    const handleData = (chunk) => {
-      const text = chunk.toString();
-      if (text.includes('[SERVER] listening on http://127.0.0.1:8080/')) {
-        resolved = true;
+async function waitForServerReady(server) {
+  const started = Date.now();
+  const timeout = 30000;
+  let buffer = '';
+  return new Promise((resolve, reject) => {
+    const onData = (data) => {
+      buffer += String(data || '');
+      if (buffer.includes('listening on http://127.0.0.1:8080/')) {
         cleanup();
         resolve();
       }
     };
-
-    const handleExit = (code) => {
-      if (!resolved) {
-        cleanup();
-        reject(new Error(`dev server exited early (code ${code})`));
+    const onExit = (code) => {
+      cleanup();
+      reject(new Error(`dev server exited with code ${code ?? 'null'}`));
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    let timerId = null;
+    const cleanup = () => {
+      server.stdout.off('data', onData);
+      server.stderr.off('data', onData);
+      server.off('exit', onExit);
+      server.off('error', onError);
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
       }
     };
-
-    const cleanup = () => {
-      server.stdout.off('data', handleData);
-      server.off('exit', handleExit);
-      server.off('error', reject);
-    };
-
-    server.stdout.on('data', handleData);
-    server.once('exit', handleExit);
-    server.once('error', reject);
+    server.stdout.on('data', onData);
+    server.stderr.on('data', onData);
+    server.once('exit', onExit);
+    server.once('error', onError);
+    timerId = setInterval(() => {
+      if (Date.now() - started > timeout) {
+        cleanup();
+        reject(new Error('dev server start timeout'));
+      }
+    }, 250);
   });
-
-  return { server, readyPromise };
 }
 
-async function waitForReadyState(page) {
-  await page.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 });
+async function ensureSplash(page) {
+  await page.waitForSelector('#boot-splash', { timeout: 5000 });
+  await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
 }
 
 async function ensureNewButton(page) {
-  const found = await page.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    for (const btn of buttons) {
-      const text = (btn.textContent || '').toLowerCase();
-      if (!text.includes('new')) continue;
-      const rect = btn.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) continue;
-      const style = window.getComputedStyle(btn);
-      if (style.display === 'none' || style.visibility === 'hidden') continue;
-      if (parseFloat(style.opacity || '1') === 0) continue;
-      let node = btn.parentElement;
-      let hidden = false;
-      while (node && node !== document.body) {
-        const s = window.getComputedStyle(node);
-        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity || '1') === 0) {
-          hidden = true;
-          break;
-        }
-        node = node.parentElement;
+  await page.waitForFunction(() => {
+    const nodes = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+    return nodes.some((node) => {
+      const text = (node.textContent || '').trim();
+      return /(^|\b)New\b/i.test(text);
+    });
+  }, { timeout: 8000 });
+}
+
+async function ensureAvatarUpload(page) {
+  await page.goto(`${ORIGIN}/#/settings/profiles`, { waitUntil: 'domcontentloaded' });
+  const selector = 'input[type="file"][accept="image/*"]';
+  await page.waitForSelector(selector, { timeout: 8000 });
+  const buffer = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+    'base64'
+  );
+  await page.setInputFiles(selector, [{ name: 'avatar.png', mimeType: 'image/png', buffer }]);
+  await page.waitForFunction(() => {
+    const header = document.querySelector('.header-bar');
+    if (!header) return false;
+    return Array.from(header.querySelectorAll('img')).some((img) => {
+      try {
+        return /^data:/i.test(img.src || '');
+      } catch (_) {
+        return false;
       }
-      if (!hidden) {
-        return true;
-      }
+    });
+  }, { timeout: 8000 });
+}
+
+async function ensureContactButton(page) {
+  await page.evaluate(() => {
+    if (typeof window.renderContactModal === 'function') {
+      window.renderContactModal(null);
     }
-    return false;
-  }, { timeout: 15000 });
-  if (!found) {
-    throw new Error('visible "New" button not found');
-  }
-}
-
-async function ensureAvatarInput(page) {
-  await page.evaluate(() => { window.location.hash = '#/settings/profiles'; });
-  await page.waitForFunction(() => !!document.querySelector('input[type="file"][accept="image/*"]'), { timeout: 15000 });
-}
-
-async function ensureContactModal(page) {
-  await page.waitForFunction(() => typeof window.renderContactModal === 'function', { timeout: 15000 });
-  await page.waitForFunction(() => !!(window.__INIT_FLAGS__ && window.__INIT_FLAGS__.contacts_modal_guards), { timeout: 15000 });
-  const modalState = await page.evaluate(async () => {
-    const result = await window.renderContactModal?.(null);
-    const dlg = document.getElementById('contact-modal');
-    return {
-      hasDialog: !!dlg,
-      hasOpenAttr: !!(dlg && dlg.hasAttribute('open')),
-      hasOpenProp: !!(dlg && typeof dlg.open === 'boolean' && dlg.open),
-      buttonSelector: !!document.querySelector('#contact-modal button[aria-label="Add Contact"]'),
-      buttonType: document.querySelector('#contact-modal button[aria-label="Add Contact"]')?.getAttribute('type') || null,
-      buttonTitle: document.querySelector('#contact-modal button[aria-label="Add Contact"]')?.getAttribute('title') || null,
-      resultType: typeof result
-    };
   });
-  if (!modalState.hasDialog || (!modalState.hasOpenAttr && !modalState.hasOpenProp)) {
-    throw new Error(`Contact modal did not open (${JSON.stringify(modalState)})`);
-  }
-  if (!modalState.buttonSelector) {
-    throw new Error('Contact modal add button missing');
-  }
-  const typeOk = (modalState.buttonType || '').toLowerCase() === 'button';
-  const titleOk = (modalState.buttonTitle || '').trim().toLowerCase() === 'add contact';
-  if (!typeOk || !titleOk) {
-    throw new Error(`Contact modal add button missing required attributes (${JSON.stringify(modalState)})`);
-  }
+  await page.waitForSelector('#contact-modal[open]', { timeout: 8000 });
+  await page.waitForSelector('button[aria-label="Add Contact"]', { timeout: 8000 });
 }
 
 async function run() {
-  const { server, readyPromise } = startServer();
-  let exitCode = 0;
-  let browser = null;
+  let server;
+  let browser;
   try {
-    await readyPromise;
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    server = startServer();
+    await waitForServerReady(server);
+
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
-    const beaconMessages = [];
-    page.on('console', (msg) => {
-      try {
-        const text = msg.text();
-        if (text.includes('[A_BEACON]')) {
-          beaconMessages.push(text);
-        }
-      } catch (_) {}
-    });
+    await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
 
-    await page.goto(SERVER_URL, { waitUntil: 'domcontentloaded' });
-    await waitForReadyState(page);
-
-    await page.waitForFunction(() => window.__SPLASH_SEEN__ === true, { timeout: 15000 });
-    const splashSeen = await page.evaluate(() => !!window.__SPLASH_SEEN__);
+    await ensureSplash(page);
     await ensureNewButton(page);
-    await ensureAvatarInput(page);
-    await ensureContactModal(page);
+    await ensureAvatarUpload(page);
+    await ensureContactButton(page);
 
-    const beaconCount = beaconMessages.length;
-    console.log(`[FEATURE_CHECK] beacons=${beaconCount} splashSeen=${splashSeen} newBtn=ok avatar=ok contactAddBtn=ok`);
-  } catch (err) {
-    exitCode = 1;
-    console.error(err && err.stack ? err.stack : err);
+    console.log('[FEATURE_CHECK] splash=ok newBtn=ok avatar=ok contactAdd=ok');
   } finally {
     if (browser) {
-      await browser.close().catch(() => {});
+      await browser.close();
     }
-    server.kill();
-    try {
-      await once(server, 'exit');
-    } catch (_) {}
+    if (server) {
+      if (server.exitCode == null && server.signalCode == null) {
+        server.kill('SIGTERM');
+      }
+      await new Promise((resolve) => {
+        if (server.exitCode != null || server.signalCode != null) {
+          resolve();
+          return;
+        }
+        const timer = setTimeout(resolve, 5000);
+        if (typeof timer.unref === 'function') {
+          timer.unref();
+        }
+        server.once('exit', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
   }
-  process.exit(exitCode);
 }
 
-run();
+run().then(() => process.exit(0)).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

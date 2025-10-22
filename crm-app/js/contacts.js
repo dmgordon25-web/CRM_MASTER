@@ -196,6 +196,46 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     try{ dlg.setAttribute('open',''); }
     catch (_){ }
 
+    const ensureModalAddButton = ()=>{
+      const bodyHost = dlg.querySelector('.modal-body');
+      if(!bodyHost) return;
+      let btn = bodyHost.querySelector('button[data-role="contact-modal-add-contact"]');
+      if(!btn){
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn brand';
+        btn.dataset.role = 'contact-modal-add-contact';
+        btn.textContent = 'Add Contact';
+        btn.setAttribute('aria-label', 'Add Contact');
+        btn.setAttribute('title', 'Add Contact');
+        btn.style.marginBottom = '12px';
+        bodyHost.insertBefore(btn, bodyHost.firstChild || null);
+      }
+      if(!btn.__wired){
+        btn.__wired = true;
+        btn.addEventListener('click', (event)=>{
+          event.preventDefault();
+          try{ dlg.close(); }
+          catch (_err){}
+          try{ dlg.removeAttribute('open'); }
+          catch (_err){}
+          try{ dlg.style.display = 'none'; }
+          catch (_err){}
+          Promise.resolve().then(()=>{
+            try{
+              window.renderContactModal?.(null);
+            }catch (err){
+              if(console && typeof console.warn === 'function'){
+                console.warn('contact modal add contact reopen failed', err);
+              }
+            }
+          });
+        });
+      }
+    };
+
+    ensureModalAddButton();
+
     const closeDialog = ()=>{
       try{ dlg.close(); }
       catch (_){ }

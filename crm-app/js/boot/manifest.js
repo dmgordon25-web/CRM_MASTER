@@ -106,6 +106,7 @@ export const PATCHES = [
   './ui/GhostButton.js',
   './ui/PrimaryButton.js',
   './ui/form_footer.js',
+  './ui/header_toolbar.js',
   './ui/quick_add_unified.js',
   './ui/settings_form.js',
   './ui/strings.js',
