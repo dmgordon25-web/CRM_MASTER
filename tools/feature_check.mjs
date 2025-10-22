@@ -22,6 +22,7 @@ function startDevServer() {
       } catch {}
     }
   };
+
   process.on('exit', onProcessExit);
 
   return new Promise((resolve, reject) => {
@@ -96,12 +97,14 @@ function shutdownServer(child) {
 
 async function runChecks(baseUrl) {
   const statuses = {
+    beacons: 0,
     splashSeen: false,
     newBtn: 'fail',
-    avatarInput: 'fail',
+    avatar: 'fail',
     contactAddBtn: 'fail'
   };
-  let exitCode = 0;
+  const beaconMessages = [];
+  let navigationOk = true;
 
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -110,87 +113,115 @@ async function runChecks(baseUrl) {
 
   try {
     const page = await browser.newPage();
+    page.on('console', (msg) => {
+      const text = msg.text();
+      if (text.includes('[A_BEACON]')) {
+        beaconMessages.push(text);
+      }
+      console.log(`[BROWSER:${msg.type()}] ${text}`);
+    });
+
     try {
       await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => document.readyState === 'complete', { timeout: 15000 });
-      statuses.splashSeen = await page.evaluate(() => window.__SPLASH_SEEN__ || false);
+      statuses.splashSeen = await page.evaluate(() => !!window.__SPLASH_SEEN__);
     } catch (err) {
-      exitCode = 1;
+      navigationOk = false;
       console.error('[FEATURE_CHECK] navigation error', err);
-      return { statuses, exitCode };
     }
 
-    try {
-      await page.waitForFunction(() => {
-        const nodes = Array.from(document.querySelectorAll('button, a'));
-        return nodes.some((el) => {
-          const text = (el.textContent || '').trim();
-          if (!text) return false;
-          return text === '+ New' || text.includes('New');
+    if (navigationOk) {
+      try {
+        await page.waitForFunction(() => {
+          const el = document.getElementById('btn-header-new');
+          if (!(el instanceof HTMLElement)) return false;
+          const rect = el.getBoundingClientRect();
+          if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+          const style = window.getComputedStyle(el);
+          if (!style) return false;
+          return style.visibility !== 'hidden' && style.display !== 'none';
+        }, { timeout: 10000 });
+        statuses.newBtn = 'ok';
+      } catch (err) {
+        console.error('[FEATURE_CHECK] new button missing', err);
+      }
+
+      try {
+        await page.evaluate(() => { window.location.hash = '#/settings/profiles'; });
+        await page.waitForFunction(() => window.location.hash.includes('#/settings/profiles'), { timeout: 2000 }).catch(() => {});
+        await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 7000 });
+        statuses.avatar = 'ok';
+      } catch (err) {
+        console.error('[FEATURE_CHECK] avatar input missing', err);
+      }
+
+      try {
+        await page.waitForFunction(() => {
+          const fn = window.renderContactModal;
+          if (typeof fn !== 'function') return false;
+          try {
+            return !String(fn).includes('shim invoked');
+          } catch (err) {
+            return true;
+          }
+        }, { timeout: 10000 });
+        await page.evaluate(async () => {
+          const fn = window.renderContactModal;
+          if (typeof fn === 'function') {
+            await Promise.resolve(fn(null));
+          }
         });
-      }, { timeout: 5000 });
-      statuses.newBtn = 'ok';
-    } catch (err) {
-      exitCode = 1;
-      statuses.newBtn = 'fail';
-      console.error('[FEATURE_CHECK] new button missing', err);
+        await page.waitForSelector('#contact-modal[open]', { timeout: 10000 });
+        await page.waitForSelector('button[aria-label="Add Contact"]', { timeout: 10000 });
+        statuses.contactAddBtn = 'ok';
+      } catch (err) {
+        console.error('[FEATURE_CHECK] contact add button missing', err);
+      }
     }
 
-    try {
-      await page.evaluate(() => { window.location.hash = '#/settings/profiles'; });
-      await page.waitForFunction(() => window.location.hash.includes('#/settings/profiles'), { timeout: 2000 }).catch(() => {});
-      await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 5000 });
-      statuses.avatarInput = 'ok';
-    } catch (err) {
-      exitCode = 1;
-      statuses.avatarInput = 'fail';
-      console.error('[FEATURE_CHECK] avatar input missing', err);
-    }
-
-    try {
-      await page.evaluate(() => window.renderContactModal?.(null));
-      await page.waitForSelector('#contact-modal[open]', { timeout: 5000 });
-      await page.waitForSelector('button[aria-label="Add Contact"]', { timeout: 5000 });
-      statuses.contactAddBtn = 'ok';
-    } catch (err) {
-      exitCode = 1;
-      statuses.contactAddBtn = 'fail';
-      console.error('[FEATURE_CHECK] contact add button missing', err);
+    if (beaconMessages.length === 0) {
+      try {
+        await page.waitForTimeout(5000);
+      } catch {}
     }
   } finally {
+    statuses.beacons = beaconMessages.length;
     await browser.close().catch(() => {});
   }
 
-  if (statuses.newBtn !== 'ok' || statuses.avatarInput !== 'ok' || statuses.contactAddBtn !== 'ok') {
-    exitCode = 1;
-  }
-
+  const allOk = navigationOk
+    && statuses.splashSeen
+    && statuses.newBtn === 'ok'
+    && statuses.avatar === 'ok'
+    && statuses.contactAddBtn === 'ok';
+  const exitCode = allOk ? 0 : 1;
   return { statuses, exitCode };
 }
 
 async function main() {
-  const statuses = {
-    splashSeen: false,
-    newBtn: 'fail',
-    avatarInput: 'fail',
-    contactAddBtn: 'fail'
-  };
-  let exitCode = 1;
   let serverHandle = null;
+  let result = {
+    statuses: {
+      beacons: 0,
+      splashSeen: false,
+      newBtn: 'fail',
+      avatar: 'fail',
+      contactAddBtn: 'fail'
+    },
+    exitCode: 1
+  };
 
   try {
     serverHandle = await startDevServer();
-    const result = await runChecks(serverHandle.url);
-    Object.assign(statuses, result.statuses);
-    exitCode = result.exitCode;
+    result = await runChecks(serverHandle.url);
   } catch (err) {
     console.error('[FEATURE_CHECK] fatal', err);
   } finally {
-    console.log(`[FEATURE_CHECK] splashSeen=${Boolean(statuses.splashSeen)} newBtn=${statuses.newBtn} avatarInput=${statuses.avatarInput} contactAddBtn=${statuses.contactAddBtn}`);
+    console.log(`[FEATURE_CHECK] beacons=${result.statuses.beacons} splashSeen=${Boolean(result.statuses.splashSeen)} newBtn=${result.statuses.newBtn} avatar=${result.statuses.avatar} contactAddBtn=${result.statuses.contactAddBtn}`);
     if (serverHandle?.child) {
       await shutdownServer(serverHandle.child);
     }
-    process.exitCode = exitCode;
+    process.exitCode = result.exitCode;
   }
 }
 

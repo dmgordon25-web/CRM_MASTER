@@ -11,6 +11,19 @@ import { openPartnerEditModal } from './modals/partner_edit/index.js';
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const MENU_ID = 'header-new-menu';
 const BUTTON_ID = 'btn-header-new';
+let ensureControlsRef = null;
+
+export function ensureProfileControls() {
+  try {
+    if (typeof ensureControlsRef === 'function') {
+      ensureControlsRef();
+    }
+  } catch (err) {
+    if (console && typeof console.info === 'function') {
+      console.info('[A_BEACON] ensureProfileControls error', err && (err.message || err));
+    }
+  }
+}
 
 function showToast(message) {
   const text = String(message ?? '').trim();
@@ -123,15 +136,15 @@ function setupGlobalNewButton() {
 
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
+      try {
+        window.openQuickAddCompat?.();
+      } catch (err) {
+        if (console && typeof console.warn === 'function') {
+          console.warn('quick add compat failed', err);
+        }
+      }
       if (menu.hidden) {
         openMenu();
-        try {
-          window.openQuickAddCompat?.();
-        } catch (err) {
-          if (console && typeof console.warn === 'function') {
-            console.warn('quick add compat failed', err);
-          }
-        }
       } else {
         closeMenu();
       }
@@ -177,12 +190,49 @@ function setupGlobalNewButton() {
   menu.appendChild(createMenuItem('Partner', actions.partner));
   menu.appendChild(createMenuItem('Task', actions.task));
 
-  const notifWrap = header.querySelector('#notif-wrap');
-  if (notifWrap && notifWrap.parentNode === header) {
-    header.insertBefore(host, notifWrap);
-  } else {
-    header.appendChild(host);
-  }
+    const mountCandidates = [];
+    const explicitMount = header.querySelector('[data-role="header-toolbar"]');
+    if (explicitMount) mountCandidates.push(explicitMount);
+    const actionWrap = header.querySelector('.header-actions');
+    if (actionWrap) mountCandidates.push(actionWrap);
+    const rightWrap = header.querySelector('.header-right');
+    if (rightWrap) mountCandidates.push(rightWrap);
+    const notifParent = (() => {
+      const wrap = header.querySelector('#notif-wrap');
+      return wrap && wrap.parentElement === header ? wrap.parentElement : null;
+    })();
+    if (notifParent) mountCandidates.push(notifParent);
+    const quickAddParent = (() => {
+      const quickAdd = header.querySelector('#quick-add');
+      return quickAdd && quickAdd.parentElement ? quickAdd.parentElement : null;
+    })();
+    if (quickAddParent) mountCandidates.push(quickAddParent);
+
+    let mount = mountCandidates.find((node) => node && node instanceof HTMLElement && header.contains(node));
+    if (!mount) {
+      mount = header;
+    }
+
+    if (mount && mount !== header) {
+      mount.appendChild(host);
+    } else {
+      const notifWrap = header.querySelector('#notif-wrap');
+      if (notifWrap && notifWrap.parentElement === header) {
+        header.insertBefore(host, notifWrap);
+      } else {
+        const quickAdd = header.querySelector('#quick-add');
+        if (quickAdd && quickAdd.parentElement === header) {
+          quickAdd.insertAdjacentElement('afterend', host);
+        } else {
+          const grow = header.querySelector('.grow');
+          if (grow && grow.parentElement === header) {
+            grow.insertAdjacentElement('afterend', host);
+          } else {
+            header.appendChild(host);
+          }
+        }
+      }
+    }
 
     window[STATE_KEY] = true;
   } catch (err) {
@@ -199,8 +249,6 @@ if (typeof document !== 'undefined') {
     setupGlobalNewButton();
   }
 }
-
-export {};
 (function(){
   if(typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -398,6 +446,8 @@ export {};
       });
     }
   }
+
+  ensureControlsRef = ensureControls;
 
   function hydrate(){
     const localProfile = readProfileLocal();
