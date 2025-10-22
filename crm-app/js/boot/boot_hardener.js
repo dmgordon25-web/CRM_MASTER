@@ -300,7 +300,14 @@ const splash = (() => {
 })();
 
 const overlay = {
-  show(message) { splash.show(message); },
+  show(message) {
+    splash.show(message);
+    try {
+      if (typeof window !== 'undefined') {
+        window.__SPLASH_SEEN__ = true;
+      }
+    } catch (_) {}
+  },
   hide() { splash.hide(); }
 };
 
@@ -551,11 +558,19 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       });
     }
 
-    try {
-      const url = new URL('../ui/bootstrap_features_probe.js', import.meta.url).href;
-      requestAnimationFrame(() => import(url).catch((e) => console.info('[A_BEACON] probe import failed', e)));
-    } catch (e) {
-      console.info('[A_BEACON] probe import url error', e);
+    const lateLoad = () => {
+      import('crm/ui/header_toolbar.js')
+        .then(() => console.info('[A_BEACON] header import ok'))
+        .catch((e) => console.info('[A_BEACON] header import fail', e));
+      import('crm/ui/bootstrap_features_probe.js')
+        .then(() => console.info('[A_BEACON] probe import ok'))
+        .catch((e) => console.info('[A_BEACON] probe import fail', e));
+    };
+
+    if (raf) {
+      raf(() => { lateLoad(); });
+    } else {
+      lateLoad();
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
