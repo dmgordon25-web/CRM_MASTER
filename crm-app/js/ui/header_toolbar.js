@@ -1,3 +1,4 @@
+import './quick_add_compat.js';
 import { openPartnerEditModal } from './modals/partner_edit/index.js';
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
