@@ -1,73 +1,107 @@
-/* Runtime bootstrap safety net ensuring core affordances are available */
-document.addEventListener('DOMContentLoaded', () => {
-  const ensureHeader = () => {
-    try {
-      return import('crm/ui/header_toolbar.js').catch((err) => {
-        try {
-          console.info('[A_BEACON] probe header import failed', err);
-        } catch (_) {}
-      });
-    } catch (err) {
+const win = typeof window !== 'undefined' ? window : null;
+const doc = typeof document !== 'undefined' ? document : null;
+
+if (win && doc) {
+  let started = false;
+  let headerModulePromise = null;
+
+  const importWithFallback = async (paths) => {
+    for (const spec of paths) {
       try {
-        console.info('[A_BEACON] probe header import error', err);
-      } catch (_) {}
-      return Promise.resolve();
+        const mod = await import(spec);
+        console.info('[A_BEACON] probe import ok', spec);
+        return mod;
+      } catch (err) {
+        console.info('[A_BEACON] probe import fail', spec, err && (err.message || err));
+      }
+    }
+    return null;
+  };
+
+  const loadHeaderModule = () => {
+    if (!headerModulePromise) {
+      const base = import.meta.url;
+      const H_PATHS = [
+        'crm/ui/header_toolbar.js',
+        './ui/header_toolbar.js',
+        new URL('../ui/header_toolbar.js', base).href
+      ];
+      headerModulePromise = importWithFallback(H_PATHS);
+    }
+    return headerModulePromise;
+  };
+
+  const ensureContactButton = () => {
+    try {
+      const contactModal = doc.getElementById('contact-modal');
+      if (!contactModal) return;
+      if (contactModal.querySelector('button[aria-label="Add Contact"]')) return;
+      const addBtn = doc.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'btn';
+      addBtn.textContent = 'Add Contact';
+      addBtn.setAttribute('aria-label', 'Add Contact');
+      addBtn.addEventListener('click', () => {
+        try {
+          win.renderContactModal?.(null);
+        } catch (err) {
+          console.info('[A_BEACON] contact modal open error', err && (err.message || err));
+        }
+      });
+      const footer = contactModal.querySelector('[data-form-footer="contact"]');
+      const target = footer || contactModal;
+      const saveBtn = target.querySelector('#btn-save-contact');
+      if (saveBtn && saveBtn.parentElement === target) {
+        target.insertBefore(addBtn, saveBtn);
+      } else {
+        target.appendChild(addBtn);
+      }
+    } catch (err) {
+      console.info('[A_BEACON] contact bootstrap error', err && (err.message || err));
     }
   };
 
-  try {
+  const ensureAvatarInput = async () => {
+    try {
+      const panel = doc.getElementById('lo-profile-settings');
+      if (!panel) return;
+      const avatarInput = panel.querySelector('input[type="file"][accept="image/*"]');
+      if (avatarInput) return;
+      const headerModule = await loadHeaderModule();
+      try {
+        headerModule?.ensureProfileControls?.();
+      } catch (err) {
+        console.info('[A_BEACON] ensureProfileControls call failed', err && (err.message || err));
+      }
+    } catch (err) {
+      console.info('[A_BEACON] avatar bootstrap error', err && (err.message || err));
+    }
+  };
+
+  const run = async () => {
     console.info('[A_BEACON] probe loaded');
+    if (!win.__WIRED_HEADER_TOOLBAR__) {
+      await loadHeaderModule().catch(() => null);
+    }
+    ensureContactButton();
+    await ensureAvatarInput();
+  };
+
+  const kickoff = () => {
+    if (started) return;
+    started = true;
+    run().catch((err) => {
+      console.info('[A_BEACON] probe run error', err && (err.message || err));
+    });
+  };
+
+  if (doc.readyState === 'loading') {
+    doc.addEventListener('DOMContentLoaded', kickoff, { once: true });
+  } else {
+    kickoff();
+  }
+} else {
+  try {
+    console.info('[A_BEACON] probe skipped (no document)');
   } catch (_) {}
-
-  try {
-    if (!window.__WIRED_HEADER_TOOLBAR__) {
-      ensureHeader();
-    }
-  } catch (err) {
-    try {
-      console.info('[A_BEACON] probe header check error', err);
-    } catch (_) {}
-  }
-
-  try {
-    const contactModal = document.getElementById('contact-modal');
-    if (contactModal) {
-      const existing = contactModal.querySelector('button[aria-label="Add Contact"], button[title="Add Contact"]');
-      if (!existing) {
-        const affordance = document.createElement('button');
-        affordance.type = 'button';
-        affordance.textContent = '+';
-        affordance.setAttribute('aria-label', 'Add Contact');
-        affordance.title = 'Add Contact';
-        affordance.addEventListener('click', () => {
-          try {
-            window.renderContactModal?.(null);
-          } catch (err) {
-            try {
-              console.info('[A_BEACON] contact modal invoke failed', err);
-            } catch (_) {}
-          }
-        });
-        contactModal.appendChild(affordance);
-      }
-    }
-  } catch (err) {
-    try {
-      console.info('[A_BEACON] contact bootstrap error', err);
-    } catch (_) {}
-  }
-
-  try {
-    const settingsPanel = document.getElementById('lo-profile-settings');
-    if (settingsPanel) {
-      const avatarInput = settingsPanel.querySelector('input[type="file"][accept="image/*"]');
-      if (!avatarInput) {
-        ensureHeader();
-      }
-    }
-  } catch (err) {
-    try {
-      console.info('[A_BEACON] settings bootstrap error', err);
-    } catch (_) {}
-  }
-});
+}

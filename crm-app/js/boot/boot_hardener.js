@@ -57,6 +57,19 @@ async function dynImport(spec) {
   return import(normalized);
 }
 
+async function __dynImport(paths) {
+  for (const p of paths) {
+    try {
+      const m = await import(p);
+      console.info('[A_BEACON] imported', p);
+      return m;
+    } catch (e) {
+      console.info('[A_BEACON] import failed', p, e && (e.message || e));
+    }
+  }
+  throw new Error('A_BEACON: all imports failed');
+}
+
 const globalScope = (typeof window !== 'undefined')
   ? window
   : (typeof globalThis !== 'undefined' ? globalThis : null);
@@ -558,19 +571,48 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       });
     }
 
-    const lateLoad = () => {
-      import('crm/ui/header_toolbar.js')
-        .then(() => console.info('[A_BEACON] header import ok'))
-        .catch((e) => console.info('[A_BEACON] header import fail', e));
-      import('crm/ui/bootstrap_features_probe.js')
-        .then(() => console.info('[A_BEACON] probe import ok'))
-        .catch((e) => console.info('[A_BEACON] probe import fail', e));
+    const scheduleBeaconImports = () => {
+      const runImports = async () => {
+        try {
+          const base = import.meta.url;
+          const H_PATHS = [
+            'crm/ui/header_toolbar.js',
+            './ui/header_toolbar.js',
+            new URL('../ui/header_toolbar.js', base).href
+          ];
+          const P_PATHS = [
+            'crm/ui/bootstrap_features_probe.js',
+            './ui/bootstrap_features_probe.js',
+            new URL('../ui/bootstrap_features_probe.js', base).href
+          ];
+          await __dynImport(H_PATHS).catch(() => {});
+          await __dynImport(P_PATHS).catch(() => {});
+          console.info('[A_BEACON] end-of-boot imports attempted');
+        } catch (e) {
+          console.info('[A_BEACON] end-of-boot import error', e && (e.message || e));
+        }
+      };
+
+      if (raf) {
+        raf(() => {
+          raf(async () => { await runImports(); });
+        });
+      } else {
+        runImports().catch(() => {});
+      }
     };
 
+    scheduleBeaconImports();
+
+    try { window.__SPLASH_SEEN__ = true; } catch (_) {}
     if (raf) {
-      raf(() => { lateLoad(); });
+      raf(() => {
+        try { globalScope?.overlay && overlay.hide && overlay.hide(); }
+        catch (_) {}
+      });
     } else {
-      lateLoad();
+      try { overlay && overlay.hide && overlay.hide(); }
+      catch (_) {}
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
