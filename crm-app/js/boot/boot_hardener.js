@@ -153,6 +153,7 @@ const bootStart = timeSource();
 let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
+let splashFinalized = false;
 let headerImportScheduled = false;
 
 async function __dynImport(paths) {
@@ -168,15 +169,15 @@ async function __dynImport(paths) {
   return null;
 }
 
-function finalizeSplashAndHeader() {
-  if (headerImportScheduled) return;
-  headerImportScheduled = true;
-  (function(){
-    const doc = documentRef;
-    try {
-      if (globalScope) {
-        globalScope.__SPLASH_SEEN__ = !!(doc && doc.getElementById('boot-splash'));
-      }
+function finalizeSplashAndHeader({ skipHeader = false } = {}) {
+  if (!splashFinalized) {
+    splashFinalized = true;
+    (function(){
+      const doc = documentRef;
+      try {
+        if (globalScope) {
+          globalScope.__SPLASH_SEEN__ = !!(doc && doc.getElementById('boot-splash'));
+        }
     } catch {}
     const hideSplash = () => {
       if (!doc) return;
@@ -198,7 +199,10 @@ function finalizeSplashAndHeader() {
     } else {
       hideSplash();
     }
-  }());
+    }());
+  }
+  if (skipHeader || headerImportScheduled) return;
+  headerImportScheduled = true;
   const attemptHeaderImport = async () => {
     const base = import.meta.url;
     const HEAD = [
@@ -578,7 +582,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const safe = isSafeMode();
     state.safe = safe;
     if (safe) {
-      finalizeSplashAndHeader();
+      finalizeSplashAndHeader({ skipHeader: true });
     }
 
     if (typeof window !== 'undefined') {
@@ -616,7 +620,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await readyPromise;
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
-    finalizeSplashAndHeader();
+    finalizeSplashAndHeader({ skipHeader: safe });
     return { reason: 'ok' };
   } catch (err) {
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
