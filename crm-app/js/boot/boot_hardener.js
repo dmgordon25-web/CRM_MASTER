@@ -543,12 +543,19 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const raf = globalScope && typeof globalScope.requestAnimationFrame === 'function'
       ? globalScope.requestAnimationFrame.bind(globalScope)
       : null;
-    if(raf){
-      raf(()=>{
-        if(overlay && typeof overlay.hide === 'function'){
+    if (raf) {
+      raf(() => {
+        if (overlay && typeof overlay.hide === 'function') {
           overlay.hide();
         }
       });
+    }
+
+    try {
+      const url = new URL('../ui/bootstrap_features_probe.js', import.meta.url).href;
+      requestAnimationFrame(() => import(url).catch((e) => console.info('[A_BEACON] probe import failed', e)));
+    } catch (e) {
+      console.info('[A_BEACON] probe import url error', e);
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
