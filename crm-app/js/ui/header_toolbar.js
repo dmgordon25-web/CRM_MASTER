@@ -136,14 +136,14 @@ function setupGlobalNewButton() {
 
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
-      try {
-        window.openQuickAddCompat?.();
-      } catch (err) {
-        if (console && typeof console.warn === 'function') {
-          console.warn('quick add compat failed', err);
-        }
-      }
       if (menu.hidden) {
+        try {
+          window.openQuickAddCompat?.();
+        } catch (err) {
+          if (console && typeof console.warn === 'function') {
+            console.warn('quick add compat failed', err);
+          }
+        }
         openMenu();
       } else {
         closeMenu();
