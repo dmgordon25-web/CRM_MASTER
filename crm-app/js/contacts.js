@@ -476,62 +476,25 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       if(affordance && affordance.tagName !== 'BUTTON'){
         affordance.remove();
       }
-      let button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
-      if(!button){
-        button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn ghost compact';
-        button.dataset.qa = 'referred-by-quick-add';
-        button.dataset.role = 'referred-by-quick-add';
-        button.classList.add('btn-add-contact');
-        button.setAttribute('aria-label', 'Add Contact');
-        button.title = 'Add Contact • Shortcut: Quick Add (Q)';
-        const icon = document.createElement('span');
+      const button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
+      if(!button) return;
+      button.dataset.qa = 'referred-by-quick-add';
+      button.dataset.role = 'referred-by-quick-add';
+      button.classList.add('btn', 'ghost', 'compact', 'btn-add-contact');
+      button.type = 'button';
+      button.setAttribute('aria-label', 'Add Contact');
+      button.title = 'Add Contact • Shortcut: Quick Add (Q)';
+      let icon = button.querySelector('.btn-icon');
+      if(!icon){
+        icon = document.createElement('span');
         icon.className = 'btn-icon';
-        icon.textContent = '+';
         icon.setAttribute('aria-hidden', 'true');
-        const label = document.createElement('span');
-        label.textContent = 'Add Contact';
-        button.append(icon, label);
-        select.insertAdjacentElement('afterend', button);
-      }else{
-        button.setAttribute('aria-label', 'Add Contact');
-        button.title = 'Add Contact • Shortcut: Quick Add (Q)';
-        let icon = button.querySelector('.btn-icon');
-        if(!icon){
-          icon = document.createElement('span');
-          icon.className = 'btn-icon';
-          icon.setAttribute('aria-hidden', 'true');
-          button.insertBefore(icon, button.firstChild || null);
-        }
-        icon.textContent = '+';
-        const spanLabel = button.querySelector('span:last-child');
-        if(spanLabel){ spanLabel.textContent = 'Add Contact'; }
+        button.insertBefore(icon, button.firstChild || null);
       }
-      if(button && !button.__referredByWired){
-        button.__referredByWired = true;
-        button.addEventListener('click', (evt)=>{
-          evt.preventDefault();
-          const opener = (window.CRM && typeof window.CRM.openPartnerQuickCreate === 'function')
-            ? window.CRM.openPartnerQuickCreate
-            : (typeof window.openPartnerQuickCreate === 'function' ? window.openPartnerQuickCreate : null);
-          if(typeof opener !== 'function'){
-            if(window.Toast && typeof window.Toast.show === 'function'){
-              window.Toast.show('Partner quick create unavailable');
-            }else{
-              notify('Partner quick create unavailable');
-            }
-            return;
-          }
-          try{
-            opener((partner)=>{
-              try{ setReferredBy(partner); }
-              catch (err) { console.warn('referred-by quick add failed', err); }
-            });
-          }catch (err){
-            console.warn('partner quick create launch failed', err);
-          }
-        });
+      icon.textContent = '+';
+      const spanLabel = button.querySelector('span:last-child');
+      if(spanLabel){
+        spanLabel.textContent = 'Add Contact';
       }
     };
 
