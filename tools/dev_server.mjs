@@ -249,7 +249,6 @@ const server = http.createServer((req, res) => {
       indexPath: info.indexPath,
       indexSha1: info.indexSha1,
       indexContainsBootStamp: info.indexContainsBootStamp,
-      importMapFirstKeys: info.importMapFirstKeys,
       time: new Date().toISOString()
     });
     res.writeHead(200, {

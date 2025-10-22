@@ -57,18 +57,6 @@ async function dynImport(spec) {
   return import(normalized);
 }
 
-async function __dynImport(paths) {
-  for (const p of paths) {
-    try {
-      const m = await import(p);
-      console.info('[A_BEACON] imported', p);
-      return m;
-    } catch (e) {
-      console.info('[A_BEACON] import failed', p);
-    }
-  }
-}
-
 const globalScope = (typeof window !== 'undefined')
   ? window
   : (typeof globalThis !== 'undefined' ? globalThis : null);
@@ -165,6 +153,74 @@ const bootStart = timeSource();
 let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
+let headerImportScheduled = false;
+
+async function __dynImport(paths) {
+  for (const p of paths) {
+    try {
+      const m = await import(p);
+      console.info('[A_BEACON] imported', p);
+      return m;
+    } catch (e) {
+      console.info('[A_BEACON] import failed', p);
+    }
+  }
+  return null;
+}
+
+function finalizeSplashAndHeader() {
+  if (headerImportScheduled) return;
+  headerImportScheduled = true;
+  (function(){
+    const doc = documentRef;
+    try {
+      if (globalScope) {
+        globalScope.__SPLASH_SEEN__ = !!(doc && doc.getElementById('boot-splash'));
+      }
+    } catch {}
+    const hideSplash = () => {
+      if (!doc) return;
+      const el = doc.getElementById('boot-splash');
+      if (el && !el.__hidden) {
+        el.style.display = 'none';
+        el.__hidden = true;
+        if (globalScope) {
+          globalScope.__SPLASH_HIDDEN__ = true;
+        }
+        console.info('[A_BEACON] splash hidden');
+      }
+    };
+    const rafHide = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
+      ? globalScope.requestAnimationFrame.bind(globalScope)
+      : null;
+    if (rafHide) {
+      rafHide(hideSplash);
+    } else {
+      hideSplash();
+    }
+  }());
+  const attemptHeaderImport = async () => {
+    const base = import.meta.url;
+    const HEAD = [
+      'crm/ui/header_toolbar.js',
+      '/js/ui/header_toolbar.js',
+      './ui/header_toolbar.js',
+      new URL('../ui/header_toolbar.js', base).href
+    ];
+    await __dynImport(HEAD).catch(() => {});
+    console.info('[A_BEACON] attempted header import');
+  };
+  const raf = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
+    ? globalScope.requestAnimationFrame.bind(globalScope)
+    : null;
+  if (raf) {
+    raf(() => {
+      raf(() => { attemptHeaderImport().catch(() => {}); });
+    });
+  } else {
+    attemptHeaderImport().catch(() => {});
+  }
+}
 
 function noteOverlayHidden() {
   if (overlayHiddenAt == null) {
@@ -522,11 +578,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const safe = isSafeMode();
     state.safe = safe;
     if (safe) {
-      (function(){
-        try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
-        const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
-        requestAnimationFrame(hideSplash);
-      }());
+      finalizeSplashAndHeader();
     }
 
     if (typeof window !== 'undefined') {
@@ -564,35 +616,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await readyPromise;
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
-    (function(){
-      try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
-      const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
-      requestAnimationFrame(hideSplash);
-    }());
-    const scheduleHeaderImport = () => {
-      const attempt = async () => {
-        const base = import.meta.url;
-        const HEAD = [
-          'crm/ui/header_toolbar.js',
-          '/js/ui/header_toolbar.js',
-          './ui/header_toolbar.js',
-          new URL('../ui/header_toolbar.js', base).href
-        ];
-        await __dynImport(HEAD).catch(() => {});
-        console.info('[A_BEACON] end-of-boot attempted header import');
-      };
-      const raf = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
-        ? globalScope.requestAnimationFrame.bind(globalScope)
-        : null;
-      if (raf) {
-        raf(() => {
-          raf(() => { attempt().catch(() => {}); });
-        });
-      } else {
-        attempt().catch(() => {});
-      }
-    };
-    scheduleHeaderImport();
+    finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))

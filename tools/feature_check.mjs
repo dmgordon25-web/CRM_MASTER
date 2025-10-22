@@ -136,6 +136,23 @@ async function ensureContactButton(page) {
   await page.waitForSelector('button[aria-label="Add Contact"][title="Add Contact"]', { timeout: 8000 });
 }
 
+async function ensureRouteToast(page) {
+  const waitForToast = async (hash) => {
+    await page.waitForFunction((expected) => {
+      const el = document.getElementById('dev-route-toast');
+      if (!el) return false;
+      const text = (el.textContent || '').trim();
+      return text.includes(expected);
+    }, { timeout: 5000 }, `Switched to: ${hash}`);
+  };
+
+  await page.evaluate(() => { window.location.hash = '#/partners'; });
+  await waitForToast('#/partners');
+
+  await page.evaluate(() => { window.location.hash = '#/dashboard'; });
+  await waitForToast('#/dashboard');
+}
+
 async function closeServer(server) {
   if (!server) return;
   if (server.exitCode == null && server.signalCode == null) {
@@ -167,7 +184,8 @@ async function run() {
     if (!whoami || whoami.indexContainsBootStamp !== true) {
       const path = whoami && whoami.indexPath ? whoami.indexPath : '<unknown>';
       const root = whoami && whoami.servedRoot ? whoami.servedRoot : '<unknown>';
-      throw new Error(`index missing boot stamp at ${path} (served from ${root})`);
+      const sha = whoami && whoami.indexSha1 ? whoami.indexSha1 : '<unknown>';
+      throw new Error(`index missing boot stamp (root=${root}, index=${path}, sha=${sha})`);
     }
     console.log('[WHOAMI]', JSON.stringify(whoami));
 
@@ -179,8 +197,9 @@ async function run() {
     await ensureNewButton(page);
     await ensureAvatarUpload(page, origin);
     await ensureContactButton(page);
+    await ensureRouteToast(page);
 
-    console.log('[FEATURE_CHECK] whoami=ok splash=ok newBtn=ok avatar=ok contactAdd=ok');
+    console.log('[FEATURE_CHECK] whoami=ok splash=ok newBtn=ok avatar=ok contactAdd=ok routeToast=ok');
   } finally {
     if (browser) {
       await browser.close();
