@@ -25,9 +25,29 @@
  <link href="styles.css" rel="stylesheet"/>
 </head>
 <body>
+ <!-- BOOT_STAMP: crm-app-index -->
+ <script id="hello-confirm">
+ try {
+   // Show a blocking confirm as the very first UX signal.
+   if (!window.__HELLO_SEEN__) {
+     window.__HELLO_SEEN__ = true;
+     var auto = false;
+     try { auto = /__auto_hello__=1/.test(location.search); } catch {}
+     if (auto) {
+       window.__HELLO_ACK__ = true;
+       console.info('[A_BEACON] hello confirm auto-ack');
+     } else {
+       var ok = window.confirm('Hello, click OK');
+       window.__HELLO_ACK__ = !!ok;
+       console.info('[A_BEACON] hello confirm shown, ack=' + !!ok);
+     }
+   }
+ } catch (e) { console.info('[A_BEACON] hello confirm failed', e && (e.message||e)); }
+ </script>
+
  <div id="boot-splash" role="status" aria-live="polite"
       style="position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;
-             font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:16px">
+             font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:16px;z-index:99999">
   <div>
    <div style="text-align:center;margin-bottom:8px">Loading CRM…</div>
    <div aria-hidden="true" style="height:3px;width:120px;background:#eee;overflow:hidden;border-radius:2px">
@@ -36,11 +56,13 @@
   </div>
  </div>
  <style>@keyframes blip{0%{margin-left:-40%}100%{margin-left:100%}}</style>
+
+ <!-- Dev-only SW/cache killer to avoid stale assets on 127.0.0.1 -->
  <script>
  try {
    if (location.hostname === '127.0.0.1' && 'serviceWorker' in navigator) {
      navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
-     if (window.caches && caches.keys) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+     if (window.caches && caches.keys) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
      console.info('[A_BEACON] dev SW/caches cleared');
    }
  } catch {}

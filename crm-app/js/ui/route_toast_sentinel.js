@@ -1,92 +1,23 @@
+// Minimal route-change toast; idempotent; dev-visible only; no throws
 (function(){
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  const ROOT = window;
-  const HANDLER_KEY = '__ROUTE_TOAST_SENTINEL_HANDLER__';
-  const TIMER_KEY = '__ROUTE_TOAST_SENTINEL_TIMER__';
-  const TOAST_ID = 'dev-route-toast';
-
-  const safeLog = (...args) => {
-    try {
-      console.info('[A_BEACON] route toast sentinel', ...args);
-    } catch (_) {}
-  };
-
-  const removeListener = () => {
-    try {
-      if (ROOT[HANDLER_KEY] && typeof ROOT.removeEventListener === 'function') {
-        ROOT.removeEventListener('hashchange', ROOT[HANDLER_KEY], false);
-      }
-    } catch (_) {}
-    ROOT[HANDLER_KEY] = undefined;
-  };
-
-  const hideToast = () => {
-    try {
-      if (ROOT[TIMER_KEY]) {
-        clearTimeout(ROOT[TIMER_KEY]);
-        ROOT[TIMER_KEY] = null;
-      }
-      const existing = document.getElementById(TOAST_ID);
-      if (existing) {
-        existing.remove();
-      }
-    } catch (_) {}
-  };
-
-  const showToast = (hash) => {
-    const text = `Switched to: ${hash || '#/'}`;
-    try {
-      const toastApi = ROOT.Toast;
-      if (toastApi && typeof toastApi.show === 'function') {
-        toastApi.show(text);
-      } else if (typeof ROOT.toast === 'function') {
-        ROOT.toast(text);
-      }
-    } catch (err) {
-      safeLog('toast api error', err && (err.message || err));
-    }
-    hideToast();
-    try {
-      const div = document.createElement('div');
-      div.id = TOAST_ID;
-      div.textContent = text;
-      div.setAttribute('role', 'status');
-      div.style.position = 'fixed';
-      div.style.bottom = '16px';
-      div.style.right = '16px';
-      div.style.padding = '8px 12px';
-      div.style.background = 'rgba(17,17,17,0.9)';
-      div.style.color = '#fff';
-      div.style.borderRadius = '4px';
-      div.style.fontFamily = 'system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif';
-      div.style.fontSize = '14px';
-      div.style.zIndex = '2147483647';
-      div.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-      document.body.appendChild(div);
-      ROOT[TIMER_KEY] = setTimeout(() => {
-        hideToast();
-      }, 1500);
-    } catch (err) {
-      safeLog('fallback toast failed', err && (err.message || err));
-    }
-  };
-
-  removeListener();
-
-  const handler = () => {
-    try {
-      hideToast();
-      showToast(ROOT.location ? ROOT.location.hash : '');
-    } catch (err) {
-      safeLog('handler error', err && (err.message || err));
-    }
-  };
-
-  try {
-    ROOT.addEventListener('hashchange', handler, false);
-    ROOT[HANDLER_KEY] = handler;
-    safeLog('active');
-  } catch (err) {
-    safeLog('attach failed', err && (err.message || err));
-  }
-})();
+  try{
+    if (window.__ROUTE_TOAST_WIRED__) return; window.__ROUTE_TOAST_WIRED__=true;
+    const show = (msg)=>{
+      try{
+        let t = document.getElementById('dev-route-toast');
+        if (!t) {
+          t = document.createElement('div'); t.id='dev-route-toast'; t.setAttribute('data-ui','route-toast');
+          t.style.cssText='position:fixed;right:12px;bottom:12px;padding:8px 12px;background:#111;color:#fff;border-radius:6px;box-shadow:0 4px 10px rgba(0,0,0,.2);z-index:100000;font:12px/1.2 system-ui';
+          document.body.appendChild(t);
+        }
+        t.textContent = msg; t.style.opacity='1';
+        clearTimeout(t.__to); t.__to=setTimeout(()=>{t.style.opacity='0.0';},1500);
+      }catch(e){ console.info('[A_BEACON] route toast err', e && (e.message||e)); }
+    };
+    const onHash = ()=> show('Switched to: ' + (location.hash||'#/'));
+    window.addEventListener('hashchange', onHash, false);
+    // fire once on initial load
+    requestAnimationFrame(onHash);
+    console.info('[A_BEACON] route toast wired');
+  }catch(e){ console.info('[A_BEACON] route toast wire fail', e && (e.message||e)); }
+}());

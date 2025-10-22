@@ -69,7 +69,16 @@ function serveStatic(req, res) {
     return;
   }
 
-  const filePath = resolvePath(req.url || '/');
+  const rawUrl = req.url || '/';
+  const [pathPart, queryPart = ''] = rawUrl.split('?');
+  if ((pathPart === '/' || pathPart === './' || pathPart === '') && !/__auto_hello__=1/.test(queryPart || '')) {
+    res.statusCode = 302;
+    res.setHeader('Location', '/?__auto_hello__=1');
+    res.end();
+    return;
+  }
+
+  const filePath = resolvePath(rawUrl);
   if (!filePath) {
     res.statusCode = 403;
     res.end('Forbidden');
