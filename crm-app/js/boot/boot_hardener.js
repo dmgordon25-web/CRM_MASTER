@@ -155,70 +155,24 @@ let perfPingNoted = false;
 let logFallbackNoted = false;
 let headerImportScheduled = false;
 
-async function __dynImport(paths) {
-  for (const p of paths) {
-    try {
-      const m = await import(p);
-      console.info('[A_BEACON] imported', p);
-      return m;
-    } catch (e) {
-      console.info('[A_BEACON] import failed', p);
-    }
-  }
-  return null;
-}
-
 function finalizeSplashAndHeader() {
   if (headerImportScheduled) return;
   headerImportScheduled = true;
   (function(){
-    const doc = documentRef;
-    try {
-      if (globalScope) {
-        globalScope.__SPLASH_SEEN__ = !!(doc && doc.getElementById('boot-splash'));
-      }
-    } catch {}
-    const hideSplash = () => {
-      if (!doc) return;
-      const el = doc.getElementById('boot-splash');
-      if (el && !el.__hidden) {
-        el.style.display = 'none';
-        el.__hidden = true;
-        if (globalScope) {
-          globalScope.__SPLASH_HIDDEN__ = true;
-        }
-        console.info('[A_BEACON] splash hidden');
-      }
-    };
-    const rafHide = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
-      ? globalScope.requestAnimationFrame.bind(globalScope)
-      : null;
-    if (rafHide) {
-      rafHide(hideSplash);
-    } else {
-      hideSplash();
-    }
+    try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
+    const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
+    requestAnimationFrame(hideSplash);
   }());
-  const attemptHeaderImport = async () => {
-    const base = import.meta.url;
-    const HEAD = [
-      'crm/ui/header_toolbar.js',
-      '/js/ui/header_toolbar.js',
-      './ui/header_toolbar.js',
-      new URL('../ui/header_toolbar.js', base).href
-    ];
-    await __dynImport(HEAD).catch(() => {});
-    console.info('[A_BEACON] attempted header import');
-  };
-  const raf = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
-    ? globalScope.requestAnimationFrame.bind(globalScope)
-    : null;
-  if (raf) {
-    raf(() => {
-      raf(() => { attemptHeaderImport().catch(() => {}); });
-    });
-  } else {
-    attemptHeaderImport().catch(() => {});
+  // One-time helper + end-of-boot dynamic import with multiple fallback paths
+  if (typeof window.__DYN_LOADER__ === 'undefined') {
+    window.__DYN_LOADER__ = 1;
+    async function __dynImport(paths){ for(const p of paths){ try{ const m=await import(p); console.info('[A_BEACON] imported',p); return m;}catch(e){ console.info('[A_BEACON] import failed',p); } } }
+    requestAnimationFrame(()=>requestAnimationFrame(async()=>{
+      const base = import.meta.url;
+      const HEAD = ['crm/ui/header_toolbar.js','/js/ui/header_toolbar.js','./ui/header_toolbar.js', new URL('../ui/header_toolbar.js', base).href];
+      await __dynImport(HEAD).catch(()=>{});
+      console.info('[A_BEACON] attempted header import');
+    }));
   }
 }
 
