@@ -107,6 +107,7 @@ export const PATCHES = [
   './ui/PrimaryButton.js',
   './ui/form_footer.js',
   './ui/header_toolbar.js',
+  './ui/route_toast_sentinel.js',
   './ui/quick_add_unified.js',
   './ui/settings_form.js',
   './ui/strings.js',
