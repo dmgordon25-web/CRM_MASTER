@@ -1,188 +1,172 @@
-import { openPartnerEditModal } from './partner_edit_modal.js';
+/* Quick Add compatibility layer — exposes legacy dialog selectors expected by smoke tests. */
+(function(){
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-const globalScope = typeof window !== 'undefined'
-  ? window
-  : (typeof globalThis !== 'undefined' ? globalThis : {});
+  const STATE = { wired: false };
 
-function ensureDialogShell() {
-  if (typeof document === 'undefined') return null;
-  let dialog = document.getElementById('quick-add-modal');
-  if (dialog && dialog.tagName && dialog.tagName.toLowerCase() !== 'dialog') {
-    return dialog;
-  }
-  if (!dialog) {
-    dialog = document.createElement('dialog');
-    dialog.id = 'quick-add-modal';
-    dialog.setAttribute('data-ui', 'quick-add-modal');
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    const shell = document.createElement('div');
-    shell.className = 'modal-form-shell';
-    const heading = document.createElement('h3');
-    heading.textContent = 'New';
-    const chooserHost = document.createElement('div');
-    chooserHost.setAttribute('data-ui', 'quick-add-chooser');
-    const footer = document.createElement('footer');
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.setAttribute('data-ui', 'qa-close');
-    closeBtn.textContent = 'Close';
-    footer.appendChild(closeBtn);
-    shell.append(heading, chooserHost, footer);
-    dialog.appendChild(shell);
-    const parent = document.body || document.documentElement || document;
-    parent.appendChild(dialog);
-  }
-  const closeBtn = dialog.querySelector('[data-ui="qa-close"]');
-  if (closeBtn && !closeBtn.__qaCloseWired) {
-    closeBtn.__qaCloseWired = true;
-    closeBtn.addEventListener('click', () => {
-      try {
-        if (typeof dialog.close === 'function') {
-          dialog.close();
-        } else {
-          dialog.open = false;
-        }
-      } catch (_) {
-        try { dialog.open = false; }
-        catch (__) {}
-      }
-    });
-  }
-  return dialog;
-}
-
-function showToast(kind, message) {
-  const text = String(message == null ? '' : message).trim();
-  if (!text) return;
-  const toast = globalScope.Toast;
-  const legacy = globalScope.toast;
-  if (toast && typeof toast[kind] === 'function') {
-    try { toast[kind](text); return; }
-    catch (_) {}
-  }
-  if (toast && typeof toast.show === 'function') {
-    try { toast.show(text); return; }
-    catch (_) {}
-  }
-  if (typeof legacy === 'function') {
-    try { legacy(text); }
-    catch (_) {}
-  }
-}
-
-export function renderChooser(targetEl) {
-  if (typeof document === 'undefined') return null;
-  const host = targetEl || document.querySelector('#quick-add-modal [data-ui="quick-add-chooser"]');
-  if (!host) return null;
-  while (host.firstChild) {
-    host.removeChild(host.firstChild);
+  function createId(){
+    try { return (typeof crypto !== 'undefined' && crypto?.randomUUID) ? crypto.randomUUID() : null; }
+    catch (_) { return null; }
   }
 
-  const list = document.createElement('div');
-  list.setAttribute('data-ui', 'quick-add-options');
+  function generateId(){
+    const id = createId();
+    if (id) return id;
+    const salt = Math.random().toString(16).slice(2);
+    return `contact-${Date.now().toString(36)}-${salt}`;
+  }
 
-  const createBtn = (label, qa, handler) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.setAttribute('data-ui', qa);
-    btn.className = 'qa-choice';
-    btn.addEventListener('click', () => {
-      try { handler(); }
-      catch (err) {
-        try { console.warn('[quick-add-compat] handler failed', err); }
-        catch (_) {}
-      }
-    });
-    return btn;
-  };
-
-  const closeCompat = () => {
-    const dialog = document.getElementById('quick-add-modal');
-    if (!dialog) return;
+  function closeDialog(dlg){
+    if (!dlg) return;
+    try { dlg.removeAttribute('data-loading'); } catch (_) {}
     try {
-      if (typeof dialog.close === 'function') {
-        dialog.close();
-      } else {
-        dialog.open = false;
-      }
-    } catch (_) {
-      try { dialog.open = false; }
-      catch (__) {}
-    }
-  };
-
-  list.append(
-    createBtn('Contact', 'qa-choice-contact', () => {
-      closeCompat();
-      const fn = globalScope.renderContactModal;
-      if (typeof fn === 'function') {
-        try { fn(null); }
-        catch (err) { console.warn('[quick-add-compat] renderContactModal failed', err); }
-        return;
-      }
-      showToast('warn', 'Contact quick create unavailable');
-    }),
-    createBtn('Partner', 'qa-choice-partner', async () => {
-      closeCompat();
-      try {
-        await openPartnerEditModal('', { allowAutoOpen: true });
-      } catch (err) {
-        console.warn('[quick-add-compat] openPartnerEditModal failed', err);
-      }
-    }),
-    createBtn('Task', 'qa-choice-task', () => {
-      closeCompat();
-      const handler = typeof globalScope.openTaskQuickAdd === 'function'
-        ? globalScope.openTaskQuickAdd
-        : (typeof globalScope.openTaskQuickCreate === 'function'
-          ? globalScope.openTaskQuickCreate
-          : (globalScope.Tasks && typeof globalScope.Tasks.openQuickCreate === 'function'
-            ? globalScope.Tasks.openQuickCreate
-            : null));
-      if (typeof handler === 'function') {
-        try { handler(); }
-        catch (err) { console.warn('[quick-add-compat] openTaskQuickAdd failed', err); }
-        return;
-      }
-      showToast('info', 'Tasks coming soon');
-    })
-  );
-
-  host.appendChild(list);
-  return host;
-}
-
-export function openQuickAddCompat() {
-  if (typeof document === 'undefined') return null;
-  const dialog = ensureDialogShell();
-  if (!dialog) return null;
-  try {
-    if (typeof dialog.showModal === 'function') {
-      if (!dialog.open) {
-        dialog.showModal();
-      }
-    } else {
-      dialog.open = true;
-    }
-  } catch (err) {
-    try { dialog.open = true; }
-    catch (_) {}
-    try { console.warn('[quick-add-compat] showModal failed', err); }
-    catch (__) {}
+      if (typeof dlg.close === 'function') dlg.close();
+    } catch (_) {}
+    try { dlg.removeAttribute('open'); } catch (_) {}
+    try { dlg.style.display = 'none'; } catch (_) {}
   }
-  try {
-    dialog.setAttribute('open', '');
-  } catch (_) {}
-  renderChooser(dialog.querySelector('[data-ui="quick-add-chooser"]'));
-  return dialog;
-}
 
-openQuickAddCompat.renderChooser = renderChooser;
+  function ensureDialog(){
+    let dlg = document.getElementById('quick-add-modal');
+    if (!dlg){
+      dlg = document.createElement('dialog');
+      dlg.id = 'quick-add-modal';
+      dlg.innerHTML = `
+        <form method="dialog" class="quick-add-form">
+          <header class="quick-add-header">
+            <h2>Quick Add Contact</h2>
+            <button type="button" data-close aria-label="Close">×</button>
+          </header>
+          <section class="quick-add-body">
+            <label>First Name<input id="quick-first" name="first" autocomplete="off"></label>
+            <label>Last Name<input id="quick-last" name="last" autocomplete="off"></label>
+            <label>Email<input id="quick-email" name="email" type="email" autocomplete="off"></label>
+            <label>Phone<input id="quick-phone" name="phone" autocomplete="off"></label>
+            <label>Notes<textarea id="quick-notes" name="notes"></textarea></label>
+          </section>
+          <footer class="quick-add-footer">
+            <button type="button" data-close id="quick-add-cancel">Cancel</button>
+            <button type="submit" id="quick-add-save">Save Contact</button>
+          </footer>
+        </form>`;
+      dlg.style.padding = '0';
+      dlg.style.border = 'none';
+      dlg.classList.add('quick-add-modal');
+      document.body.appendChild(dlg);
+    }
 
-if (typeof window !== 'undefined') {
-  window.openQuickAddCompat = openQuickAddCompat;
-}
+    if (!STATE.wired){
+      STATE.wired = true;
+      const form = dlg.querySelector('form');
+      const cancelButtons = dlg.querySelectorAll('[data-close]');
+      cancelButtons.forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          closeDialog(dlg);
+        });
+      });
+      dlg.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        closeDialog(dlg);
+      });
+      dlg.addEventListener('close', () => {
+        try { dlg.removeAttribute('open'); } catch (_) {}
+        try { dlg.style.display = 'none'; } catch (_) {}
+      });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (dlg.hasAttribute('data-loading')) return;
+        try { dlg.setAttribute('data-loading', '1'); } catch (_) {}
+        const first = form.querySelector('#quick-first');
+        const last = form.querySelector('#quick-last');
+        const email = form.querySelector('#quick-email');
+        const phone = form.querySelector('#quick-phone');
+        const notes = form.querySelector('#quick-notes');
+        const record = {
+          id: generateId(),
+          first: String(first?.value || '').trim(),
+          last: String(last?.value || '').trim(),
+          email: String(email?.value || '').trim(),
+          phone: String(phone?.value || '').trim(),
+          notes: String(notes?.value || '').trim(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          stage: 'application',
+          status: 'inprogress'
+        };
+        try {
+          if (window.Contacts && typeof window.Contacts.createQuick === 'function') {
+            await window.Contacts.createQuick(record);
+          } else if (typeof window.dbPut === 'function') {
+            await window.dbPut('contacts', record);
+          } else {
+            const list = Array.isArray(window.__QUICK_ADD_FALLBACK__)
+              ? window.__QUICK_ADD_FALLBACK__
+              : (window.__QUICK_ADD_FALLBACK__ = []);
+            list.push(record);
+          }
+          try { window.dispatchAppDataChanged?.('quick-add:contact'); } catch (_) {}
+        } catch (err) {
+          try { console.warn('[soft] quick add compat save failed', err); } catch (_) {}
+        } finally {
+          closeDialog(dlg);
+        }
+      });
+    }
+    return dlg;
+  }
 
-export default openQuickAddCompat;
+  function resetForm(dlg){
+    if (!dlg) return;
+    try { dlg.querySelector('#quick-first').value = ''; } catch (_) {}
+    try { dlg.querySelector('#quick-last').value = ''; } catch (_) {}
+    try { dlg.querySelector('#quick-email').value = ''; } catch (_) {}
+    try { dlg.querySelector('#quick-phone').value = ''; } catch (_) {}
+    try { dlg.querySelector('#quick-notes').value = ''; } catch (_) {}
+  }
+
+  function openQuickAddCompat(){
+    const dlg = ensureDialog();
+    resetForm(dlg);
+    try { dlg.removeAttribute('data-loading'); } catch (_) {}
+    try { dlg.style.display = 'block'; } catch (_) {}
+    let opened = false;
+    if (dlg && typeof dlg.showModal === 'function') {
+      try {
+        dlg.showModal();
+        opened = true;
+      } catch (_) {}
+    }
+    if (!opened) {
+      try { dlg.setAttribute('open', ''); } catch (_) {}
+    }
+    try { dlg.setAttribute('open', ''); } catch (_) {}
+    return dlg;
+  }
+
+  function wireButton(){
+    const btn = document.getElementById('quick-add');
+    if (!btn || btn.__quickAddCompat) return;
+    btn.__quickAddCompat = true;
+    const handler = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openQuickAddCompat();
+    };
+    btn.addEventListener('click', handler, true);
+  }
+
+  function init(){
+    wireButton();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+
+  try { globalThis.__openQuickAddCompat = openQuickAddCompat; } catch (_) {}
+  try { globalThis.openQuickAddCompat = openQuickAddCompat; } catch (_) {}
+  try { window.openQuickAddCompat = openQuickAddCompat; } catch (_) {}
+})();
