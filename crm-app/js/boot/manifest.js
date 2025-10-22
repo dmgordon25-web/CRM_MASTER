@@ -62,7 +62,6 @@ export const PATCHES = [
   './pipeline/kanban_dnd.js',
   './ui/Toast.js',
   './ui/Confirm.js',
-  './ui/header_toolbar.js',
   './data/settings.js',
   './data/seed.js',
   './migrations.js',

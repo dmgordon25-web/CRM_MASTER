@@ -16,7 +16,8 @@
     "audit:watch": "node --watch devtools/audit.mjs",
     "audit:manifest": "node tools/manifest_audit.js",
     "test:boot": "node tools/boot_smoke_test.mjs",
-    "verify:build": "npm run audit:manifest && npm run test:boot"
+    "verify:build": "npm run audit:manifest && npm run test:boot",
+    "check:features": "node tools/feature_check.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",
