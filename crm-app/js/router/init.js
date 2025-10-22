@@ -1,23 +1,5 @@
 import { mergeMatchers, normalizeBasePath, normalizePathname, resolveRoute } from './patterns.js';
 
-function ensureDefaultHash(){
-  if(typeof window === 'undefined' || !window?.location) return;
-  const hash = typeof window.location.hash === 'string' ? window.location.hash.trim() : '';
-  if(hash && hash !== '#/' && hash !== '#') return;
-  try{
-    window.location.hash = '#/dashboard';
-    return;
-  }catch (_err){}
-  try{
-    const { pathname = '', search = '' } = window.location;
-    if(window.history && typeof window.history.replaceState === 'function'){
-      window.history.replaceState(null, '', `${pathname}${search}#/dashboard`);
-    }
-  }catch (__err){}
-}
-
-ensureDefaultHash();
-
 function deriveBasePaths(){
   const bases = [];
 
