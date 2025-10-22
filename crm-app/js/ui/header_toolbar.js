@@ -123,6 +123,13 @@ function setupGlobalNewButton() {
   const actions = {
     contact() {
       closeMenu();
+      if (typeof window.openQuickAddCompat === 'function') {
+        try {
+          window.openQuickAddCompat();
+        } catch (err) {
+          console && console.warn && console.warn('quick add compat failed', err);
+        }
+      }
       if (typeof window.renderContactModal === 'function') {
         callSafely(window.renderContactModal, null);
         return;
