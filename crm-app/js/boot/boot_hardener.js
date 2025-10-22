@@ -563,45 +563,36 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    const raf = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
-      ? globalScope.requestAnimationFrame.bind(globalScope)
-      : null;
-
-    const runHeaderImport = async () => {
-      const base = import.meta.url;
-      const H = [
-        'crm/ui/header_toolbar.js',
-        './ui/header_toolbar.js',
-        new URL('../ui/header_toolbar.js', base).href
-      ];
-      await __dynImport(H).catch(() => {});
-      console.info('[A_BEACON] end-of-boot attempted header import');
-    };
-
-    if (raf) {
-      raf(() => {
-        raf(() => { runHeaderImport().catch(() => {}); });
-      });
-      raf(() => {
-        try {
-          window.__SPLASH_SEEN__ = true;
-          overlay && overlay.hide && overlay.hide();
-        } catch (_) {}
-      });
-    } else {
-      runHeaderImport().catch(() => {});
-      try {
-        window.__SPLASH_SEEN__ = true;
-        overlay && overlay.hide && overlay.hide();
-      } catch (_) {}
-    }
-
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     (function(){
       try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
       const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
       requestAnimationFrame(hideSplash);
     }());
+    const scheduleHeaderImport = () => {
+      const attempt = async () => {
+        const base = import.meta.url;
+        const HEAD = [
+          'crm/ui/header_toolbar.js',
+          '/js/ui/header_toolbar.js',
+          './ui/header_toolbar.js',
+          new URL('../ui/header_toolbar.js', base).href
+        ];
+        await __dynImport(HEAD).catch(() => {});
+        console.info('[A_BEACON] end-of-boot attempted header import');
+      };
+      const raf = (globalScope && typeof globalScope.requestAnimationFrame === 'function')
+        ? globalScope.requestAnimationFrame.bind(globalScope)
+        : null;
+      if (raf) {
+        raf(() => {
+          raf(() => { attempt().catch(() => {}); });
+        });
+      } else {
+        attempt().catch(() => {});
+      }
+    };
+    scheduleHeaderImport();
     return { reason: 'ok' };
   } catch (err) {
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
