@@ -1,5 +1,5 @@
 /* Runtime bootstrap safety net ensuring core affordances are available */
-document.addEventListener('DOMContentLoaded', () => {
+const runBootstrapProbe = () => {
   try {
     try {
       console.info('[A_BEACON] probe loaded');
@@ -67,4 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (err) {
     console.info('[A_BEACON] probe bootstrap error', err);
   }
-});
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', runBootstrapProbe, { once: true });
+} else {
+  runBootstrapProbe();
+}
