@@ -161,8 +161,20 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
     if(!dlg.__wired){
       dlg.__wired = true;
-      dlg.addEventListener('click', (e)=>{ if(e.target.matches('[data-close]')){ e.preventDefault(); try{ dlg.close(); }catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; } }});
-      dlg.addEventListener('close', ()=>{ dlg.removeAttribute('open'); dlg.style.display='none'; });
+      const markClosed = ()=>{
+        try{ dlg.removeAttribute('open'); }catch (_){ }
+        try{ dlg.style.display='none'; }catch (_){ }
+      };
+      dlg.addEventListener('click', (e)=>{
+        if(e.target.matches('[data-close]')){
+          e.preventDefault();
+          try{ dlg.close(); }
+          catch (_){ markClosed(); }
+          markClosed();
+        }
+      });
+      dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); markClosed(); });
+      dlg.addEventListener('close', markClosed);
     }
     return dlg;
   }
@@ -171,10 +183,25 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     const dlg = ensureModal();
     if(dlg.hasAttribute('open')){ try{ dlg.close(); }catch (_) {} }
     dlg.style.display='block';
+    let opened = false;
+    if(typeof dlg.showModal === 'function'){
+      try{ dlg.showModal(); opened = true; }
+      catch (_err){}
+    }
+    if(!opened){
+      try{ dlg.setAttribute('open',''); }
+      catch (_){ }
+    }
+    try{ dlg.setAttribute('open',''); }
+    catch (_){ }
 
     const closeDialog = ()=>{
       try{ dlg.close(); }
-      catch (_) { dlg.removeAttribute('open'); dlg.style.display='none'; }
+      catch (_){ }
+      try{ dlg.removeAttribute('open'); }
+      catch (_){ }
+      try{ dlg.style.display='none'; }
+      catch (_){ }
     };
 
     await openDB();
