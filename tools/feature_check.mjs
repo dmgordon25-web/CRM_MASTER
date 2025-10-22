@@ -3,8 +3,6 @@ import { once } from 'node:events';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
-const SERVER_URL = 'http://127.0.0.1:8080/';
-
 function startServer() {
   const server = spawn('node', ['tools/dev_server.mjs'], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -20,12 +18,21 @@ function startServer() {
 
   const readyPromise = new Promise((resolve, reject) => {
     let resolved = false;
+    let buffer = '';
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        reject(new Error('dev server did not become ready within 15s'));
+      }
+    }, 15000);
     const handleData = (chunk) => {
       const text = chunk.toString();
-      if (text.includes('[SERVER] listening on http://127.0.0.1:8080/')) {
+      buffer += text;
+      const match = buffer.match(/\[SERVER\] listening on (http:\/\/127\.0\.0\.1:\d+\/)/);
+      if (match) {
         resolved = true;
         cleanup();
-        resolve();
+        resolve(match[1]);
       }
     };
 
@@ -36,15 +43,23 @@ function startServer() {
       }
     };
 
+    const handleError = (err) => {
+      if (!resolved) {
+        cleanup();
+        reject(err);
+      }
+    };
+
     const cleanup = () => {
       server.stdout.off('data', handleData);
       server.off('exit', handleExit);
-      server.off('error', reject);
+      server.off('error', handleError);
+      clearTimeout(timeout);
     };
 
     server.stdout.on('data', handleData);
     server.once('exit', handleExit);
-    server.once('error', reject);
+    server.once('error', handleError);
   });
 
   return { server, readyPromise };
@@ -125,7 +140,7 @@ async function run() {
   let exitCode = 0;
   let browser = null;
   try {
-    await readyPromise;
+    const serverUrl = await readyPromise;
     browser = await puppeteer.launch({
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -141,7 +156,7 @@ async function run() {
       } catch (_) {}
     });
 
-    await page.goto(SERVER_URL, { waitUntil: 'domcontentloaded' });
+    await page.goto(serverUrl, { waitUntil: 'domcontentloaded' });
     await waitForReadyState(page);
 
     await page.waitForFunction(() => window.__SPLASH_SEEN__ === true, { timeout: 15000 });
