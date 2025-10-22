@@ -448,6 +448,21 @@ function recordSuccess(meta) {
     window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
   } catch (_) {}
   overlay.hide();
+  try {
+    const scope = typeof window !== 'undefined' ? window : null;
+    const raf = scope && typeof scope.requestAnimationFrame === 'function'
+      ? scope.requestAnimationFrame.bind(scope)
+      : null;
+    if (raf) {
+      raf(() => {
+        try {
+          if (scope && scope.overlay && typeof overlay.hide === 'function') {
+            overlay.hide();
+          }
+        } catch (_) {}
+      });
+    }
+  } catch (_) {}
   if (!perfPingNoted) {
     const stop = overlayHiddenAt == null ? timeSource() : overlayHiddenAt;
     const elapsed = Math.max(0, Math.round(stop - bootStart));

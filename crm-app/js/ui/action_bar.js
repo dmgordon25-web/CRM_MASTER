@@ -1,4 +1,5 @@
 import { openMergeModal } from './merge_modal.js';
+import openQuickAddCompat, { renderChooser as renderQuickAddCompatChooser } from './quick_add_compat.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
@@ -408,10 +409,18 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (typeof window.__ACTION_BAR_LAST_DATA_ACTION__ === 'undefined') {
     window.__ACTION_BAR_LAST_DATA_ACTION__ = null;
   }
+  const runSafeInit = () => {
+    try {
+      initializeActionBar();
+    } catch (err) {
+      try { console.warn('[action-bar] init failed', err); }
+      catch (_) {}
+    }
+  };
   if (document.readyState === 'loading') {
-    registerDocumentListener('DOMContentLoaded', initializeActionBar, { once: true });
+    registerDocumentListener('DOMContentLoaded', runSafeInit, { once: true });
   } else {
-    initializeActionBar();
+    runSafeInit();
   }
   syncActionBarVisibility(0);
   registerDocumentListener('click', trackLastActionBarClick, true);
@@ -585,6 +594,24 @@ function ensureFabElements() {
     fab.addEventListener('click', (event) => {
       event.preventDefault();
       toggleFabMenu();
+      try {
+        const compatFn = (typeof window !== 'undefined' && typeof window.openQuickAddCompat === 'function')
+          ? window.openQuickAddCompat
+          : openQuickAddCompat;
+        if (typeof compatFn === 'function') {
+          const dialog = compatFn();
+          const renderCompat = (compatFn && typeof compatFn.renderChooser === 'function')
+            ? compatFn.renderChooser.bind(compatFn)
+            : renderQuickAddCompatChooser;
+          if (dialog && typeof renderCompat === 'function') {
+            const host = dialog.querySelector('[data-ui="quick-add-chooser"]');
+            renderCompat(host);
+          }
+        }
+      } catch (err) {
+        try { console.warn('[action-bar] quick add compat failed', err); }
+        catch (_) {}
+      }
     });
   }
 
