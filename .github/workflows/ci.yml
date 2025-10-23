@@ -32,7 +32,7 @@ jobs:
         run: npm run verify:build
 
       - name: Feature gate (solve-and-clean)
-        run: npm run gate:run
+        run: npm run check:features
 
       - name: Feature check (splash + avatar persistence)
         run: npm run check:features
