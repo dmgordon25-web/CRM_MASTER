@@ -44,7 +44,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   })();
 
   const profileState = { name:'', email:'', phone:'', signature:'', photoDataUrl:'' };
-  const PHOTO_MAX_BYTES = 256 * 1024;
+  const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
   const signatureState = { rows: [], defaultId: null };
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
@@ -516,7 +516,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
           return;
         }
         if(file.size > PHOTO_MAX_BYTES){
-          toastSafe('Please choose an image under 256 KB.');
+          toastSafe('Please choose an image under 6 MB.');
           input.value = '';
           return;
         }
