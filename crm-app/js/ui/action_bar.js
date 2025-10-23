@@ -1,9 +1,9 @@
 import { openMergeModal } from './merge_modal.js';
+import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_menu.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
-const FAB_MENU_ID = 'global-new-menu';
 
 const globalWiringState = typeof window !== 'undefined'
   ? (window.__ACTION_BAR_WIRING__ = window.__ACTION_BAR_WIRING__ || {
@@ -824,30 +824,6 @@ function getActionsHost() {
   return bar ? bar.querySelector('.actionbar-actions') : null;
 }
 
-const fabState = {
-  outsideHandler: null,
-  keyHandler: null
-};
-
-function showToast(kind, message) {
-  const text = String(message == null ? '' : message).trim();
-  if (!text) return;
-  const toast = typeof window !== 'undefined' ? window.Toast : undefined;
-  const legacy = typeof window !== 'undefined' ? window.toast : undefined;
-  if (toast && typeof toast[kind] === 'function') {
-    try { toast[kind](text); return; }
-    catch (_) {}
-  }
-  if (toast && typeof toast.show === 'function') {
-    try { toast.show(text); return; }
-    catch (_) {}
-  }
-  if (typeof legacy === 'function') {
-    try { legacy(text); }
-    catch (_) {}
-  }
-}
-
 function ensureFabElements() {
   const host = getActionsHost();
   if (!host) return null;
@@ -888,110 +864,31 @@ function ensureFabElements() {
     }
   }
 
-  let menu = document.getElementById(FAB_MENU_ID);
-  if (!menu) {
-    menu = document.createElement('div');
-    menu.id = FAB_MENU_ID;
-    menu.setAttribute('role', 'menu');
-    menu.setAttribute('data-qa', 'fab-menu');
-    menu.hidden = true;
-
-    const makeButton = (label, qa) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = label;
-      btn.setAttribute('data-qa', qa);
-      if (!btn.hasAttribute('data-action')) {
-        btn.setAttribute('data-action', qa);
-      }
-      btn.setAttribute('role', 'menuitem');
-      return btn;
-    };
-
-    const btnContact = makeButton('New Contact', 'new-contact');
-    const btnPartner = makeButton('New Partner', 'new-partner');
-    const btnTask = makeButton('New Task', 'new-task');
-
-    menu.append(btnContact, btnPartner, btnTask);
-    wrap.appendChild(menu);
-
-    btnContact.addEventListener('click', () => handleFabAction('contact'));
-    btnPartner.addEventListener('click', () => handleFabAction('partner'));
-    btnTask.addEventListener('click', () => handleFabAction('task'));
-  } else if (!wrap.contains(menu)) {
-    wrap.appendChild(menu);
-  }
-
   if (!fab.__fabWired) {
     fab.__fabWired = true;
     fab.addEventListener('click', (event) => {
       event.preventDefault();
-      toggleFabMenu();
+      toggleQuickCreateMenu({ anchor: fab, source: 'actionbar' });
     });
   }
 
-  return { fab, menu };
-}
-
-function closeFabMenu() {
-  const menu = document.getElementById(FAB_MENU_ID);
-  const fab = document.getElementById(FAB_ID);
-  if (!menu || menu.hidden) return;
-  menu.hidden = true;
-  if (fab) fab.setAttribute('aria-expanded', 'false');
-  if (fabState.outsideHandler) {
-    document.removeEventListener('click', fabState.outsideHandler, true);
-    fabState.outsideHandler = null;
-  }
-  if (fabState.keyHandler) {
-    document.removeEventListener('keydown', fabState.keyHandler, true);
-    fabState.keyHandler = null;
-  }
-}
-
-function openFabMenu() {
-  const elements = ensureFabElements();
-  if (!elements) return;
-  const { fab, menu } = elements;
-  menu.hidden = false;
-  fab.setAttribute('aria-expanded', 'true');
-  if (!fabState.outsideHandler) {
-    fabState.outsideHandler = (event) => {
-      const target = event.target;
-      if (!target) return;
-      const menuEl = document.getElementById(FAB_MENU_ID);
-      const fabEl = document.getElementById(FAB_ID);
-      if (!menuEl || menuEl.hidden) return;
-      if (menuEl.contains(target) || (fabEl && fabEl.contains(target))) return;
-      closeFabMenu();
-    };
-    document.addEventListener('click', fabState.outsideHandler, true);
-  }
-  if (!fabState.keyHandler) {
-    fabState.keyHandler = (event) => {
-      if (event.key === 'Escape') {
-        closeFabMenu();
+  if (!fab.__quickCreateStateWired) {
+    fab.__quickCreateStateWired = true;
+    const handleState = (event) => {
+      const detail = event && event.detail ? event.detail : {};
+      const expanded = !!(detail.open && detail.source === 'actionbar');
+      fab.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (!fab.isConnected) {
+        document.removeEventListener('quick-create-menu:state', handleState);
       }
     };
-    document.addEventListener('keydown', fabState.keyHandler, true);
+    document.addEventListener('quick-create-menu:state', handleState);
+    if (isQuickCreateMenuOpen('actionbar')) {
+      fab.setAttribute('aria-expanded', 'true');
+    }
   }
-}
 
-function toggleFabMenu(forceOpen) {
-  const menu = document.getElementById(FAB_MENU_ID);
-  if (forceOpen === true) {
-    openFabMenu();
-    return;
-  }
-  if (forceOpen === false) {
-    closeFabMenu();
-    return;
-  }
-  if (!menu || menu.hidden) {
-    openFabMenu();
-  } else {
-    closeFabMenu();
-  }
+  return { fab };
 }
 
 function ensureGlobalNewFab() {
@@ -1177,49 +1074,6 @@ if (typeof document !== 'undefined') {
 
 if (typeof window !== 'undefined') {
   ensureSelectionSubscription();
-}
-
-function handleFabAction(kind) {
-  closeFabMenu();
-  if (kind === 'contact') {
-    if (window.QuickAddUnified && typeof window.QuickAddUnified.open === 'function') {
-      window.QuickAddUnified.open('contact');
-      return;
-    }
-    showToast('warn', 'Contact quick create unavailable');
-    return;
-  }
-  if (kind === 'partner') {
-    if (window.QuickAddUnified && typeof window.QuickAddUnified.open === 'function') {
-      window.QuickAddUnified.open('partner');
-      return;
-    }
-    if (window.CRM && typeof window.CRM.openPartnerQuickCreate === 'function') {
-      window.CRM.openPartnerQuickCreate();
-      return;
-    }
-    if (typeof window.openPartnerQuickCreate === 'function') {
-      window.openPartnerQuickCreate();
-      return;
-    }
-    showToast('warn', 'Partner quick create unavailable');
-    return;
-  }
-  if (kind === 'task') {
-    const taskHandlers = [
-      window.CRM && window.CRM.openTaskQuickCreate,
-      window.Tasks && window.Tasks.openQuickCreate,
-      window.openTaskQuickCreate,
-      window.renderTaskModal
-    ].filter((fn) => typeof fn === 'function');
-    if (taskHandlers.length) {
-      try { taskHandlers[0](); }
-      catch (_) {}
-      return;
-    }
-    showToast('info', 'Tasks coming soon');
-    return;
-  }
 }
 
 export function ensurePartnersMergeButton() {
