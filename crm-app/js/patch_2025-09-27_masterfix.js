@@ -322,7 +322,6 @@ function runPatch(){
       `;
       document.head.appendChild(style);
     }
-
     // --- Long Shots search ------------------------------------------------------
     let longshotsSearchState = '';
     function noteLongshotsSearchBeacon(state){
