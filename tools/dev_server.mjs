@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const APP_INDEX = path.join(REPO_ROOT, 'crm-app', 'index.html');
+const APP_ROOT = path.dirname(APP_INDEX);
 const SERVER_HEADER_NAME = 'X-CRM-Server';
 const SERVER_HEADER_VALUE = 'dev';
 const LOG_ENDPOINT_PATH = '/__log';
@@ -186,35 +187,56 @@ function readIndexInfo() {
   } catch (error) {
     return { error };
   }
-  const content = buffer.toString('utf8');
+  const html = buffer.toString('utf8');
   const sha1 = crypto.createHash('sha1').update(buffer).digest('hex');
-  const containsBootStamp = content.includes('<!-- BOOT_STAMP: crm-app-index -->');
-  let importMapFirstKeys = [];
-  const match = content.match(/<script\s+type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (match && match[1]) {
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (parsed && typeof parsed === 'object' && parsed.imports && typeof parsed.imports === 'object') {
-        importMapFirstKeys = Object.keys(parsed.imports).slice(0, 5);
-      }
-    } catch {}
-  }
+  const containsBootStamp = html.includes('<!-- BOOT_STAMP: crm-app-index -->');
   return {
     indexPath,
     indexSha1: sha1,
     indexContainsBootStamp: containsBootStamp,
-    importMapFirstKeys,
     buffer,
-    html: content
+    html,
+    servedRoot: path.dirname(indexPath)
   };
+}
+
+function sendIndexMismatch(res, info) {
+  const mismatchBody = [
+    '<!doctype html><meta charset="utf-8"><title>INDEX_MISMATCH</title>',
+    '<pre>Dev server misconfigured. Expected BOOT_STAMP not found.',
+    `servedRoot=${info.servedRoot} indexPath=${info.indexPath}</pre>`
+  ].join('\n');
+  res.writeHead(503, {
+    ...SECURITY_HEADERS,
+    'Content-Type': 'text/html; charset=utf-8',
+    [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
+  });
+  res.end(mismatchBody);
 }
 
 function serveSpa(req, res) {
   try {
-    const indexPath = getRootIndexPath();
-    const stats = fs.statSync(indexPath);
-    if (!stats.isFile()) throw new Error('index missing');
-    serveStream(req, res, indexPath, stats);
+    const info = readIndexInfo();
+    if (info.error) {
+      send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
+      return;
+    }
+    if (!info.indexContainsBootStamp) {
+      sendIndexMismatch(res, info);
+      return;
+    }
+    const headers = {
+      ...SECURITY_HEADERS,
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Length': info.buffer.length,
+      [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
+    };
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(info.buffer);
   } catch {
     send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
   }
@@ -261,10 +283,9 @@ const server = http.createServer((req, res) => {
     }
     const body = JSON.stringify({
       cwd: process.cwd(),
-      servedRoot: REPO_ROOT,
+      servedRoot: info.servedRoot || APP_ROOT,
       indexPath: info.indexPath,
       indexSha1: info.indexSha1,
-      indexContainsBootStamp: info.indexContainsBootStamp,
       time: new Date().toISOString()
     });
     res.writeHead(200, {

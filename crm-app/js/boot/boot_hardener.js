@@ -155,11 +155,20 @@ let perfPingNoted = false;
 let logFallbackNoted = false;
 let headerImportScheduled = false;
 
+const hideSplashOnce = (() => {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    (function(){const el=document.getElementById('boot-splash');if(el){requestAnimationFrame(()=>{el.style.display='none';window.__SPLASH_HIDDEN__=true;console.info('[A_BEACON] splash hidden');});}}());
+  };
+})();
+
 function finalizeSplashAndHeader() {
   if (headerImportScheduled) return;
   headerImportScheduled = true;
   (function(){ try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {} }());
-  (function(){ const el=document.getElementById('boot-splash'); if(el){ requestAnimationFrame(()=>{ el.style.display='none'; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }); } })();
+  hideSplashOnce();
   // One-time helper + end-of-boot dynamic import with multiple fallback paths
   if (typeof window.__DYN_LOADER__ === 'undefined') {
     window.__DYN_LOADER__ = 1;
@@ -529,6 +538,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const safe = isSafeMode();
     state.safe = safe;
     if (safe) {
+      hideSplashOnce();
       finalizeSplashAndHeader();
     }
 
@@ -567,6 +577,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await readyPromise;
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+    hideSplashOnce();
     finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {

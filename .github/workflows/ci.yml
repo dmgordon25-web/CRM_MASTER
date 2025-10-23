@@ -31,5 +31,5 @@ jobs:
       - name: verify:build
         run: npm run verify:build
 
-      - name: check:features
+      - name: Feature gate
         run: npm run check:features
