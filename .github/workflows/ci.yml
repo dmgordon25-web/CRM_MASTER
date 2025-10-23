@@ -30,3 +30,6 @@ jobs:
 
       - name: verify:build
         run: npm run verify:build
+
+      - name: check:features
+        run: npm run check:features

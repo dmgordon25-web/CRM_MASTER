@@ -68,12 +68,17 @@ function toPosix(urlPath = '/') {
   };
 }
 
+const SECURITY_HEADERS = {
+  'Cache-Control': 'no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Content-Security-Policy': "script-src 'self' 'unsafe-inline'; object-src 'none'"
+};
+
 function send(res, statusCode, body, extraHeaders = {}) {
   const headers = {
-    'Cache-Control': 'no-store, must-revalidate',
+    ...SECURITY_HEADERS,
     'Content-Type': 'text/plain; charset=utf-8',
-    'Pragma': 'no-cache',
-    'Expires': '0',
     [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE,
     ...extraHeaders
   };
@@ -142,10 +147,8 @@ function handleLogPost(req, res) {
 function serveStream(req, res, filePath, stats) {
   const ext = path.extname(filePath).toLowerCase();
   const headers = {
-    'Cache-Control': 'no-store, must-revalidate',
+    ...SECURITY_HEADERS,
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-    'Pragma': 'no-cache',
-    'Expires': '0',
     [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
   };
   if (stats && stats.isFile()) {
@@ -167,24 +170,24 @@ function serveStream(req, res, filePath, stats) {
   stream.pipe(res);
 }
 
-function serveSpa(req, res) {
-  try {
-    const stats = fs.statSync(APP_INDEX);
-    if (!stats.isFile()) throw new Error('index missing');
-    serveStream(req, res, APP_INDEX, stats);
-  } catch {
-    send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
+function getRootIndexPath() {
+  const parsed = toPosix('/') || {};
+  if (parsed.error) {
+    throw new Error('unable to resolve root index');
   }
+  return parsed.filePath || APP_INDEX;
 }
 
 function readIndexInfo() {
-  let content = '';
+  const indexPath = getRootIndexPath();
+  let buffer;
   try {
-    content = fs.readFileSync(APP_INDEX, 'utf8');
+    buffer = fs.readFileSync(indexPath);
   } catch (error) {
     return { error };
   }
-  const sha1 = crypto.createHash('sha1').update(content).digest('hex');
+  const content = buffer.toString('utf8');
+  const sha1 = crypto.createHash('sha1').update(buffer).digest('hex');
   const containsBootStamp = content.includes('<!-- BOOT_STAMP: crm-app-index -->');
   let importMapFirstKeys = [];
   const match = content.match(/<script\s+type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i);
@@ -197,11 +200,24 @@ function readIndexInfo() {
     } catch {}
   }
   return {
-    indexPath: APP_INDEX,
+    indexPath,
     indexSha1: sha1,
     indexContainsBootStamp: containsBootStamp,
-    importMapFirstKeys
+    importMapFirstKeys,
+    buffer,
+    html: content
   };
+}
+
+function serveSpa(req, res) {
+  try {
+    const indexPath = getRootIndexPath();
+    const stats = fs.statSync(indexPath);
+    if (!stats.isFile()) throw new Error('index missing');
+    serveStream(req, res, indexPath, stats);
+  } catch {
+    send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
+  }
 }
 
 function shouldSpaFallback(method, normalized, hasExtension) {
@@ -252,13 +268,31 @@ const server = http.createServer((req, res) => {
       time: new Date().toISOString()
     });
     res.writeHead(200, {
-      'Cache-Control': 'no-store, must-revalidate',
+      ...SECURITY_HEADERS,
       'Content-Type': 'application/json; charset=utf-8',
-      'Pragma': 'no-cache',
-      'Expires': '0',
       [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
     });
     res.end(body);
+    return;
+  }
+
+  if (parsed.normalized === '/__raw_root') {
+    if (method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    const info = readIndexInfo();
+    if (info.error || !info.buffer) {
+      send(res, 500, 'Failed to read index.html');
+      return;
+    }
+    res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Length': info.buffer.length,
+      [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
+    });
+    res.end(info.buffer);
     return;
   }
 
