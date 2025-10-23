@@ -158,11 +158,8 @@ let headerImportScheduled = false;
 function finalizeSplashAndHeader() {
   if (headerImportScheduled) return;
   headerImportScheduled = true;
-  (function(){
-    try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {}
-    const hideSplash = () => { const el = document.getElementById('boot-splash'); if (el && !el.__hidden) { el.style.display='none'; el.__hidden=true; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }};
-    requestAnimationFrame(hideSplash);
-  }());
+  (function(){ try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {} }());
+  (function(){ const el=document.getElementById('boot-splash'); if(el){ requestAnimationFrame(()=>{ el.style.display='none'; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }); } })();
   // One-time helper + end-of-boot dynamic import with multiple fallback paths
   if (typeof window.__DYN_LOADER__ === 'undefined') {
     window.__DYN_LOADER__ = 1;

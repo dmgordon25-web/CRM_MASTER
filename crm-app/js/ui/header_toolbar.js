@@ -1,12 +1,7 @@
 import './quick_add_compat.js';
 import { openPartnerEditModal } from './modals/partner_edit/index.js';
 
-(function () {
-  try {
-    window.__WIRED_HEADER_TOOLBAR__ = true;
-    console.info('[A_BEACON] header_toolbar loaded');
-  } catch (_) {}
-}());
+(function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const MENU_ID = 'header-new-menu';

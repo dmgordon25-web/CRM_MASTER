@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
@@ -43,18 +46,33 @@ function waitForServer(child) {
   });
 }
 
-async function ensureFeatureGate(origin) {
+function sanitizeExcerpt(html) {
+  return html.replace(/\s+/g, ' ').slice(0, 200).trim();
+}
+
+async function runFeatureCheck(origin) {
   const whoamiRes = await fetch(new URL('__whoami', origin));
   if (!whoamiRes.ok) {
     throw new Error(`__whoami request failed with status ${whoamiRes.status}`);
   }
   const whoami = await whoamiRes.json();
-  if (!whoami.indexContainsBootStamp) {
-    throw new Error(`index missing boot stamp (servedRoot=${whoami.servedRoot}, index=${whoami.indexPath})`);
+  console.log(JSON.stringify(whoami));
+
+  const rawRes = await fetch(new URL('__raw_root', origin));
+  if (!rawRes.ok) {
+    throw new Error(`__raw_root request failed with status ${rawRes.status}`);
+  }
+  const rawHtml = await rawRes.text();
+  if (!rawHtml.includes('BOOT_STAMP: crm-app-index') || !rawHtml.includes('Hello, click OK')) {
+    const excerpt = sanitizeExcerpt(rawHtml);
+    const servedRoot = whoami?.servedRoot ?? '<unknown>';
+    const indexPath = whoami?.indexPath ?? '<unknown>';
+    throw new Error(`Root HTML missing markers (servedRoot=${servedRoot}, indexPath=${indexPath}). Excerpt: ${excerpt}`);
   }
 
   globalThis.__HELLO_DIALOG__ = false;
   const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  let cleanupTemp = null;
   try {
     const page = await browser.newPage();
     page.on('dialog', (dialog) => {
@@ -78,22 +96,48 @@ async function ensureFeatureGate(origin) {
       throw new Error('Hello confirm acknowledgement missing');
     }
 
-    await page.waitForSelector('#boot-splash');
-    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__);
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
 
-    await page.evaluate(() => { location.hash = '#/partners'; });
-    await page.waitForFunction(() => {
-      const el = document.getElementById('dev-route-toast');
-      return !!(el && el.getAttribute('data-ui') === 'route-toast' && (el.textContent || '').includes('partners'));
-    });
+    await page.evaluate(() => { location.hash = '#/settings/profiles'; });
 
-    await page.evaluate(() => { location.hash = '#/dashboard'; });
+    await page.waitForSelector('input[type="file"][accept*="image/"]', { timeout: 10000 });
+    const input = await page.$('input[type="file"][accept*="image/"]');
+    if (!input) {
+      throw new Error('Avatar input not found');
+    }
+
+    const pngBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAusB9Yw7lXkAAAAASUVORK5CYII=',
+      'base64'
+    );
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'crm-avatar-'));
+    const filePath = path.join(tmpDir, 'avatar.png');
+    await fs.writeFile(filePath, pngBuffer);
+    cleanupTemp = async () => {
+      try {
+        await fs.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    };
+    await input.uploadFile(filePath);
+
     await page.waitForFunction(() => {
-      const el = document.getElementById('dev-route-toast');
-      return !!(el && (el.textContent || '').includes('dashboard'));
-    });
+      const img = document.querySelector('#lo-profile-chip [data-role="lo-photo"]');
+      return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
+    }, { timeout: 10000 });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await page.waitForFunction(() => {
+      const img = document.querySelector('#lo-profile-chip [data-role="lo-photo"]');
+      return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
+    }, { timeout: 10000 });
+
+    return { whoami, rawHtml };
   } finally {
     await browser.close().catch(() => {});
+    if (cleanupTemp) {
+      await cleanupTemp();
+    }
   }
 }
 
@@ -102,8 +146,8 @@ async function main() {
   try {
     child = startDevServer();
     const { origin } = await waitForServer(child);
-    await ensureFeatureGate(origin);
-    console.log('[FEATURE_CHECK] hello=ok splash=ok toast=ok');
+    await runFeatureCheck(origin);
+    console.log('[FEATURE_CHECK] whoami=ok html=ok hello=ok splash=ok avatarPersist=ok');
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;
