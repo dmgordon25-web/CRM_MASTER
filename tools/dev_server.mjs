@@ -21,6 +21,72 @@ const CRM_LOG_ROOT = process.env.LOCALAPPDATA
   : path.join(REPO_ROOT, 'logs');
 const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
+const DEV_KEY = crypto.randomBytes(16).toString('hex');
+const IDLE_TIMEOUT_MS = 60_000;
+
+const activeSessions = new Map();
+let idleTimer = null;
+
+const noop = () => {};
+let requestShutdown = noop;
+
+function clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+function scheduleIdleExit() {
+  if (activeSessions.size > 0) {
+    clearIdleTimer();
+    return;
+  }
+  if (idleTimer) {
+    return;
+  }
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (activeSessions.size === 0) {
+      console.info('[SERVER_EXIT] idle drain');
+      requestShutdown();
+    }
+  }, IDLE_TIMEOUT_MS);
+  if (typeof idleTimer.unref === 'function') {
+    idleTimer.unref();
+  }
+}
+
+function markSessionActive(sid) {
+  if (!sid) return;
+  activeSessions.set(sid, Date.now());
+  clearIdleTimer();
+}
+
+function markSessionClosed(sid) {
+  if (sid) {
+    activeSessions.delete(sid);
+  } else {
+    activeSessions.clear();
+  }
+  scheduleIdleExit();
+}
+
+function drainRequest(req) {
+  if (!req || typeof req.resume !== 'function') return;
+  req.on('error', noop);
+  req.resume();
+}
+
+function getSearchParam(urlString, key) {
+  if (!urlString) return '';
+  try {
+    const parsed = new URL(urlString, 'http://127.0.0.1');
+    return parsed.searchParams.get(key) || '';
+  } catch {
+    return '';
+  }
+}
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -304,6 +370,52 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (parsed.normalized === '/__hello') {
+    if (method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    const sid = crypto.randomBytes(16).toString('hex');
+    markSessionActive(sid);
+    const payload = JSON.stringify({ sid, t: new Date().toISOString() });
+    res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': 'application/json; charset=utf-8',
+      [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
+    });
+    res.end(payload);
+    return;
+  }
+
+  if (parsed.normalized === '/__bye') {
+    if (method !== 'GET' && method !== 'POST') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET, POST' });
+      return;
+    }
+    if (method === 'POST') {
+      drainRequest(req);
+    }
+    const sid = getSearchParam(req.url, 'sid');
+    markSessionClosed(sid);
+    send(res, 204, '');
+    return;
+  }
+
+  if (parsed.normalized === '/__shutdown') {
+    if (method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    const key = getSearchParam(req.url, 'key');
+    if (!key || key !== DEV_KEY) {
+      send(res, 403, 'Forbidden');
+      return;
+    }
+    send(res, 200, 'OK');
+    setImmediate(() => requestShutdown());
+    return;
+  }
+
   if (parsed.normalized === '/__whoami') {
     if (method !== 'GET') {
       send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
@@ -319,7 +431,8 @@ const server = http.createServer((req, res) => {
       servedRoot: info.servedRoot || APP_ROOT,
       indexPath: info.indexPath,
       indexSha1: info.indexSha1,
-      time: new Date().toISOString()
+      time: new Date().toISOString(),
+      devKey: DEV_KEY
     });
     res.writeHead(200, {
       ...SECURITY_HEADERS,
@@ -420,6 +533,13 @@ const server = http.createServer((req, res) => {
   send(res, 404, 'Not Found');
 });
 
+requestShutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000).unref();
+};
+
+console.info('[VIS] shutdown endpoints ready');
+
 function listenOnPort(port) {
   return new Promise((resolve, reject) => {
     const onError = (err) => {
@@ -503,9 +623,13 @@ async function start() {
   const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
+    clearIdleTimer();
+    activeSessions.clear();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();
   };
+
+  requestShutdown = shutdown;
 
   ['SIGINT', 'SIGTERM'].forEach((sig) => {
     process.on(sig, shutdown);

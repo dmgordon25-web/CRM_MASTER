@@ -1,2 +1,2 @@
 Set-Location -LiteralPath $PSScriptRoot
-node tools/dev_server.mjs
+Start-Process -WindowStyle Hidden node -ArgumentList 'tools/dev_server.mjs'
