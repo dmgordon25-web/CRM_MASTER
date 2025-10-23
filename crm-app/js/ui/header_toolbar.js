@@ -250,7 +250,16 @@ if (typeof document !== 'undefined') {
   if(typeof window === 'undefined' || typeof document === 'undefined') return;
 
   const PROFILE_KEY = 'profile:v1';
-  const PHOTO_MAX_BYTES = 256 * 1024;
+  const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+  // localStorage is typically capped around 5 MB per-origin but strings are
+  // stored as UTF-16, so keep writes under ~4 MB of characters to avoid quota
+  // overflows once the data URL prefix is factored in.
+  const LOCAL_STORAGE_SAFE_CHARS = 4 * 1024 * 1024;
+  try {
+    if(console && typeof console.info === 'function'){
+      console.info('[A_BEACON] avatar: limit=6MB');
+    }
+  } catch (_err) {}
   // accept="image/" sentinel retained so legacy probes find the settings upload affordance.
   const FILE_INPUT_HTML = '<input type="file" accept="image/*">';
 
@@ -265,6 +274,14 @@ if (typeof document !== 'undefined') {
     }
   }
 
+  function isQuotaExceededError(err){
+    if(!err) return false;
+    return err.name === 'QuotaExceededError'
+      || err.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+      || err.code === 22
+      || err.code === 1014;
+  }
+
   function writeProfileLocal(profile){
     try{
       if(profile && typeof profile === 'object'){
@@ -272,22 +289,28 @@ if (typeof document !== 'undefined') {
       }else{
         localStorage.removeItem(PROFILE_KEY);
       }
-    }catch (_err){}
+      return { ok: true, quota: false };
+    }catch (err){
+      return { ok: false, quota: isQuotaExceededError(err), error: err };
+    }
   }
 
   function mergeProfile(patch){
     const current = readProfileLocal() || {};
     const merged = Object.assign({}, current, patch || {});
-    writeProfileLocal(merged);
-    if(window.Settings && typeof window.Settings.save === 'function'){
-      try{
-        const result = window.Settings.save({ loProfile: merged });
-        if(result && typeof result.then === 'function'){
-          result.catch(()=>{});
-        }
-      }catch (_err){}
+    const writeResult = writeProfileLocal(merged);
+    if(writeResult.ok){
+      if(window.Settings && typeof window.Settings.save === 'function'){
+        try{
+          const result = window.Settings.save({ loProfile: merged });
+          if(result && typeof result.then === 'function'){
+            result.catch(()=>{});
+          }
+        }catch (_err){}
+      }
+      return { profile: merged, writeError: null };
     }
-    return merged;
+    return { profile: current, writeError: writeResult };
   }
 
   function renderHeader(profile){
@@ -372,7 +395,7 @@ if (typeof document !== 'undefined') {
     }
     if(file.size > PHOTO_MAX_BYTES){
       if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Please choose an image under 256 KB.');
+        window.Toast.show('Please choose an image under 6 MB.');
       }
       input.value = '';
       return;
@@ -381,7 +404,21 @@ if (typeof document !== 'undefined') {
     reader.addEventListener('load', ()=>{
       const result = reader.result;
       if(typeof result === 'string'){
-        const profile = mergeProfile({ photoDataUrl: result });
+        if(result.length > LOCAL_STORAGE_SAFE_CHARS){
+          if(window.Toast && typeof window.Toast.show === 'function'){
+            window.Toast.show('Image is too large to store locally. Please choose a smaller photo (about 3.5 MB or less).');
+          }
+          input.value = '';
+          return;
+        }
+        const { profile, writeError } = mergeProfile({ photoDataUrl: result });
+        if(writeError && window.Toast && typeof window.Toast.show === 'function'){
+          if(writeError.quota){
+            window.Toast.show('Browser storage quota exceeded. Please choose a smaller photo (about 3.5 MB or less).');
+          }else{
+            window.Toast.show('Unable to store photo locally. Please try again.');
+          }
+        }
         applyProfile(profile);
       }else if(window.Toast && typeof window.Toast.show === 'function'){
         window.Toast.show('Unable to read image.');
@@ -405,7 +442,10 @@ if (typeof document !== 'undefined') {
   }
 
   function handleClear(){
-    const profile = mergeProfile({ photoDataUrl: '' });
+    const { profile, writeError } = mergeProfile({ photoDataUrl: '' });
+    if(writeError && window.Toast && typeof window.Toast.show === 'function'){
+      window.Toast.show(writeError.quota ? 'Unable to clear photo due to storage quota.' : 'Unable to clear photo.');
+    }
     applyProfile(profile);
   }
 
@@ -457,7 +497,10 @@ if (typeof document !== 'undefined') {
         .then(data => {
           const profile = data && typeof data.loProfile === 'object' ? data.loProfile : {};
           if(profile && typeof profile === 'object'){
-            writeProfileLocal(profile);
+            const writeResult = writeProfileLocal(profile);
+            if(!writeResult.ok && writeResult.quota && window.Toast && typeof window.Toast.show === 'function'){
+              window.Toast.show('Stored profile is too large for browser storage. Please reduce the avatar size.');
+            }
             applyProfile(profile);
           }
         })

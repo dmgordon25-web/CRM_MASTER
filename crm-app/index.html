@@ -833,7 +833,24 @@
       </strong>
       <span class="grow">
       </span>
+      <button class="btn" id="btn-filters-longshots">
+       Filters
+      </button>
      </div>
+     <div class="row query-save-row">
+      <select id="views-longshots">
+      </select>
+      <button class="btn" id="btn-saveview-longshots">
+       Save Query
+      </button>
+     <button class="btn danger" id="btn-delview-longshots">
+      Delete
+     </button>
+    </div>
+    <div class="query-shell" data-query-scope="longshots"></div>
+    <div class="table-search">
+     <input aria-label="Search long shots" data-table-search="#tbl-longshots" placeholder="Search Long Shots" type="search"/>
+    </div>
     <table data-selection-scope="pipeline" id="tbl-longshots">
      <thead>
       <tr>
@@ -1572,7 +1589,7 @@
          <label>
           Photo
           <input accept="image/*" id="lo-photo" type="file"/>
-          <span class="fine-print muted">Square images look best under 256 KB.</span>
+          <span class="fine-print muted">Up to 6 MB, stored locally for this demo.</span>
           <div class="row" style="align-items:center;gap:10px;margin-top:8px">
            <img alt="" id="lo-photo-preview" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:none"/>
            <span class="muted fine-print" id="lo-photo-empty">No photo selected</span>

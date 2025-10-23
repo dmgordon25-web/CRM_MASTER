@@ -19,6 +19,32 @@ if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = fal
 if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
 if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
+if (!('routeState' in globalWiringState)) {
+  globalWiringState.routeState = {
+    key: null,
+    hasCentered: false,
+    centerActive: false
+  };
+}
+if (!('dragState' in globalWiringState)) {
+  globalWiringState.dragState = {
+    wired: false,
+    active: false,
+    pointerId: null,
+    offsetX: 0,
+    offsetY: 0,
+    width: 0,
+    height: 0,
+    shell: null,
+    moveHandler: null,
+    upHandler: null,
+    cancelHandler: null,
+    downHandler: null,
+    wiredTarget: null,
+    hasManualPosition: false,
+    lastPosition: null
+  };
+}
 
 const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -87,15 +113,163 @@ function shouldSchedulePostPaintForRoute(value) {
   return segment === 'partners' || segment === 'contacts';
 }
 
+function extractRouteKey(value) {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!raw) return null;
+  if (raw === 'partners' || raw === 'contacts') return raw;
+  const hashIndex = raw.indexOf('#');
+  let normalized = hashIndex >= 0 ? raw.slice(hashIndex + 1) : raw;
+  normalized = normalized.replace(/^https?:\/\//, '');
+  const slashDomainIndex = normalized.indexOf('/');
+  if (slashDomainIndex > 0 && normalized.slice(0, slashDomainIndex).includes('.')) {
+    normalized = normalized.slice(slashDomainIndex);
+  }
+  normalized = normalized.replace(/^\/+/, '');
+  const segment = normalized.split(/[?&#/]/)[0];
+  if (segment === 'partners' || segment === 'contacts') return segment;
+  return null;
+}
+
+function updateActiveRouteKey(nextKey, options = {}) {
+  const state = globalWiringState.routeState;
+  if (!state) return;
+  const normalized = typeof nextKey === 'string' && nextKey ? nextKey : null;
+  const forceReset = options.forceReset === true;
+  const changed = state.key !== normalized;
+  if (!changed && !forceReset) return;
+  state.key = normalized;
+  state.hasCentered = false;
+  state.centerActive = false;
+  restoreActionBarDock('silent');
+}
+
+function applyRouteCandidate(value, options = {}) {
+  const key = extractRouteKey(value);
+  if (key) {
+    updateActiveRouteKey(key, { forceReset: !!options.forceReset });
+    return;
+  }
+  if (options.allowNullReset) {
+    updateActiveRouteKey(null, { forceReset: !!options.forceReset });
+  }
+}
+
+function refreshActiveRouteFromLocation(options = {}) {
+  if (typeof window === 'undefined' || !window.location) return;
+  const opts = { forceReset: !!options.forceReset, allowNullReset: true };
+  const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
+  applyRouteCandidate(hash, opts);
+  if (globalWiringState.routeState && globalWiringState.routeState.key) return;
+  const path = typeof window.location.pathname === 'string' ? window.location.pathname : '';
+  applyRouteCandidate(path, opts);
+}
+
+function isActionBarRouteActive() {
+  const state = globalWiringState.routeState;
+  if (!state || !state.key) return false;
+  return state.key === 'partners' || state.key === 'contacts';
+}
+
+function clearActionBarInlinePosition(bar) {
+  if (!bar) return;
+  bar.style.transform = '';
+  bar.style.top = '';
+  bar.style.left = '';
+  bar.style.right = '';
+  bar.style.bottom = '';
+}
+
+function triggerActionBarPulse(bar) {
+  if (!bar || typeof bar.animate !== 'function') return;
+  try {
+    bar.animate([
+      { boxShadow: '0 0 0 0 rgba(59,130,246,0.35)' },
+      { boxShadow: '0 0 0 18px rgba(59,130,246,0)' }
+    ], {
+      duration: 600,
+      easing: 'ease-out',
+      iterations: 1
+    });
+  } catch (_) {}
+}
+
+function centerActionBarForRoute(options = {}) {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  if (!globalWiringState.actionsReady) return;
+  const bar = document.getElementById('actionbar');
+  if (!bar || !bar.isConnected) return;
+  clearActionBarInlinePosition(bar);
+  const rect = bar.getBoundingClientRect();
+  if (!rect || !Number.isFinite(rect.top)) return;
+  const viewportHeight = typeof window.innerHeight === 'number' ? window.innerHeight : 0;
+  if (!viewportHeight) return;
+  const targetTop = Math.max(0, (viewportHeight - rect.height) / 2);
+  const translateY = Math.round(targetTop - rect.top);
+  bar.style.transform = `translate(-50%, ${Number.isFinite(translateY) ? `${translateY}px` : '0px'})`;
+  if (options.pulse !== false) {
+    triggerActionBarPulse(bar);
+  }
+  const state = globalWiringState.routeState;
+  if (state) {
+    state.centerActive = true;
+  }
+  const dragState = globalWiringState.dragState;
+  if (dragState) {
+    dragState.hasManualPosition = false;
+    dragState.lastPosition = null;
+  }
+  if (!options.silent) {
+    try { console.info('[A_BEACON] actionbar:centered'); }
+    catch (_) {}
+  }
+}
+
+function restoreActionBarDock(reason = 'silent') {
+  if (typeof document === 'undefined') return;
+  const bar = document.getElementById('actionbar');
+  stopActionBarDrag('silent');
+  if (!bar) return;
+  clearActionBarInlinePosition(bar);
+  const state = globalWiringState.routeState;
+  if (state) {
+    state.centerActive = false;
+  }
+  const dragState = globalWiringState.dragState;
+  if (dragState) {
+    dragState.hasManualPosition = false;
+    dragState.lastPosition = null;
+  }
+  if (reason !== 'silent') {
+    requestVisibilityRefresh();
+  }
+}
+
+function handleSelectionTransition(previous, next) {
+  const state = globalWiringState.routeState;
+  if (!state) return;
+  if (next <= 0) {
+    if (previous > 0 && (state.centerActive || (globalWiringState.dragState && globalWiringState.dragState.hasManualPosition))) {
+      restoreActionBarDock('silent');
+    }
+    return;
+  }
+  if (previous === 0 && next > 0 && isActionBarRouteActive() && !state.hasCentered) {
+    centerActionBarForRoute();
+    state.hasCentered = true;
+  }
+}
+
 function handleAppViewChanged(event) {
   const detail = event && event.detail ? event.detail : {};
   const view = typeof detail.view === 'string' ? detail.view : '';
+  applyRouteCandidate(view, { forceReset: true, allowNullReset: true });
   if (!shouldSchedulePostPaintForRoute(view)) return;
   ensureActionBarPostPaintRefresh();
 }
 
 function handleRouteHashChange() {
   if (typeof window === 'undefined' || !window.location) return;
+  refreshActiveRouteFromLocation({ forceReset: true });
   const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
   if (!shouldSchedulePostPaintForRoute(hash)) return;
   ensureActionBarPostPaintRefresh();
@@ -111,14 +285,21 @@ function setActionsReady(flag) {
 function setSelectedCount(count) {
   const numeric = typeof count === 'number' && Number.isFinite(count) ? count : 0;
   const next = numeric > 0 ? Math.max(0, Math.floor(numeric)) : 0;
-  if (globalWiringState.selectedCount === next) return;
+  const previous = globalWiringState.selectedCount || 0;
+  if (previous === next) return;
   globalWiringState.selectedCount = next;
+  handleSelectionTransition(previous, next);
   requestVisibilityRefresh();
 }
 
 function resetActionBarState() {
   globalWiringState.actionsReady = false;
   globalWiringState.selectedCount = 0;
+  restoreActionBarDock('silent');
+  if (globalWiringState.routeState) {
+    globalWiringState.routeState.hasCentered = false;
+    globalWiringState.routeState.centerActive = false;
+  }
   requestVisibilityRefresh();
 }
 
@@ -321,8 +502,14 @@ function handleActionBarResize() {
   clearTimeout(__actionBarResizeTimer);
   __actionBarResizeTimer = setTimeout(() => {
     const root = document.getElementById('actionbar');
-    if (root) _updateDataVisible(root);
-    else syncActionBarVisibility(globalWiringState.selectedCount || 0);
+    if (root) {
+      _updateDataVisible(root);
+      if (globalWiringState.dragState && globalWiringState.dragState.hasManualPosition) {
+        constrainManualPositionWithinViewport(root);
+      }
+    } else {
+      syncActionBarVisibility(globalWiringState.selectedCount || 0);
+    }
   }, 100);
 }
 
@@ -383,6 +570,14 @@ function markActionbarHost() {
       mergeBtn.setAttribute('data-qa', 'action-merge');
     }
   }
+  const dragState = globalWiringState.dragState;
+  if (dragState && dragState.hasManualPosition && dragState.lastPosition) {
+    const { left = 0, top = 0 } = dragState.lastPosition;
+    applyManualPosition(bar, left, top);
+  } else if (globalWiringState.routeState && globalWiringState.routeState.centerActive) {
+    centerActionBarForRoute({ pulse: false, silent: true });
+  }
+  ensureActionBarDragHandles(bar);
   return bar;
 }
 
@@ -475,6 +670,153 @@ function injectActionBarStyle(){
       }
     `;
   document.head.appendChild(s);
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function stopActionBarDrag(reason = 'event') {
+  const state = globalWiringState.dragState;
+  if (!state) return;
+  const shell = state.shell;
+  if (shell) {
+    if (state.moveHandler) shell.removeEventListener('pointermove', state.moveHandler);
+    if (state.upHandler) shell.removeEventListener('pointerup', state.upHandler);
+    if (state.cancelHandler) shell.removeEventListener('pointercancel', state.cancelHandler);
+    if (state.pointerId != null && typeof shell.releasePointerCapture === 'function') {
+      try { shell.releasePointerCapture(state.pointerId); }
+      catch (_) {}
+    }
+  }
+  const wasActive = state.active === true;
+  state.active = false;
+  state.pointerId = null;
+  state.offsetX = 0;
+  state.offsetY = 0;
+  state.width = 0;
+  state.height = 0;
+  state.shell = null;
+  state.moveHandler = null;
+  state.upHandler = null;
+  state.cancelHandler = null;
+  if (wasActive && reason !== 'silent') {
+    try { console.info('[A_BEACON] actionbar:drag-end'); }
+    catch (_) {}
+  }
+}
+
+function applyManualPosition(bar, left, top) {
+  if (!bar) return;
+  bar.style.transform = 'translate(0px, 0px)';
+  bar.style.left = `${left}px`;
+  bar.style.top = `${top}px`;
+  bar.style.right = 'auto';
+  bar.style.bottom = 'auto';
+}
+
+function constrainManualPositionWithinViewport(bar) {
+  if (typeof window === 'undefined' || !bar) return;
+  const state = globalWiringState.dragState;
+  if (!state || !state.hasManualPosition || !state.lastPosition) return;
+  const rect = bar.getBoundingClientRect();
+  const width = rect && Number.isFinite(rect.width) && rect.width > 0 ? rect.width : state.width || 0;
+  const height = rect && Number.isFinite(rect.height) && rect.height > 0 ? rect.height : state.height || 0;
+  const viewportWidth = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
+  const viewportHeight = typeof window.innerHeight === 'number' ? window.innerHeight : 0;
+  if (!viewportWidth || !viewportHeight) return;
+  const maxLeft = Math.max(0, viewportWidth - width);
+  const maxTop = Math.max(0, viewportHeight - height);
+  const left = clamp(state.lastPosition.left || 0, 0, maxLeft);
+  const top = clamp(state.lastPosition.top || 0, 0, maxTop);
+  applyManualPosition(bar, left, top);
+  state.lastPosition = { left, top };
+}
+
+function ensureActionBarDragHandles(bar) {
+  if (!bar) return;
+  const state = globalWiringState.dragState;
+  if (!state) return;
+  const shell = bar.querySelector('.actionbar-shell');
+  if (!shell) return;
+  if (state.wiredTarget && state.wiredTarget !== shell && state.downHandler) {
+    state.wiredTarget.removeEventListener('pointerdown', state.downHandler);
+    state.wiredTarget = null;
+    state.downHandler = null;
+  }
+  if (state.wiredTarget === shell && state.downHandler) return;
+  const handlePointerDown = (event) => {
+    const btn = typeof event.button === 'number' ? event.button : 0;
+    if (btn !== 0) return;
+    if (!isActionBarRouteActive()) return;
+    if ((globalWiringState.selectedCount || 0) <= 0) return;
+    const target = event.target;
+    if (target && typeof target.closest === 'function') {
+      if (target.closest('button, [data-action], [data-act], a, input, select, textarea')) return;
+    }
+    const barEl = document.getElementById('actionbar');
+    if (!barEl) return;
+    const rect = barEl.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    stopActionBarDrag('silent');
+    applyManualPosition(barEl, rect.left, rect.top);
+    const dragState = globalWiringState.dragState;
+    dragState.active = true;
+    dragState.pointerId = event.pointerId;
+    dragState.offsetX = event.clientX - rect.left;
+    dragState.offsetY = event.clientY - rect.top;
+    dragState.width = rect.width;
+    dragState.height = rect.height;
+    dragState.shell = shell;
+    dragState.hasManualPosition = true;
+    dragState.lastPosition = { left: rect.left, top: rect.top };
+    const routeState = globalWiringState.routeState;
+    if (routeState) {
+      routeState.centerActive = false;
+    }
+    const moveHandler = (evt) => {
+      if (!dragState.active || evt.pointerId !== dragState.pointerId) return;
+      const viewWidth = typeof window !== 'undefined' && typeof window.innerWidth === 'number' ? window.innerWidth : rect.right;
+      const viewHeight = typeof window !== 'undefined' && typeof window.innerHeight === 'number' ? window.innerHeight : rect.bottom;
+      const maxLeft = Math.max(0, viewWidth - dragState.width);
+      const maxTop = Math.max(0, viewHeight - dragState.height);
+      const rawLeft = evt.clientX - dragState.offsetX;
+      const rawTop = evt.clientY - dragState.offsetY;
+      const left = clamp(rawLeft, 0, maxLeft);
+      const top = clamp(rawTop, 0, maxTop);
+      applyManualPosition(barEl, left, top);
+      dragState.lastPosition = { left, top };
+      evt.preventDefault();
+    };
+    const upHandler = (evt) => {
+      if (evt.pointerId !== dragState.pointerId) return;
+      stopActionBarDrag();
+    };
+    const cancelHandler = (evt) => {
+      if (evt.pointerId !== dragState.pointerId) return;
+      stopActionBarDrag();
+    };
+    dragState.moveHandler = moveHandler;
+    dragState.upHandler = upHandler;
+    dragState.cancelHandler = cancelHandler;
+    shell.addEventListener('pointermove', moveHandler);
+    shell.addEventListener('pointerup', upHandler);
+    shell.addEventListener('pointercancel', cancelHandler);
+    if (typeof shell.setPointerCapture === 'function') {
+      try { shell.setPointerCapture(event.pointerId); }
+      catch (_) {}
+    }
+    try { console.info('[A_BEACON] actionbar:drag-start'); }
+    catch (_) {}
+    event.preventDefault();
+  };
+  shell.addEventListener('pointerdown', handlePointerDown);
+  state.wired = true;
+  state.wiredTarget = shell;
+  state.downHandler = handlePointerDown;
 }
 
 function getActionsHost() {
