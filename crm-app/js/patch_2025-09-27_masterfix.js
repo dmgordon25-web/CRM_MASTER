@@ -323,31 +323,6 @@ function runPatch(){
       document.head.appendChild(style);
     }
 
-    // --- Long Shots search ------------------------------------------------------
-    function ensureLongShotsSearch(){
-      const host = document.querySelector('#view-longshots > .card');
-      if(!host) return;
-      const existing = host.querySelector('[data-table-search="#tbl-longshots"]');
-      if(existing) return;
-      const toolbar = host.querySelector('.row.query-save-row');
-      const searchWrap = document.createElement('div');
-      searchWrap.className = 'status-search';
-      const input = document.createElement('input');
-      input.type = 'search';
-      input.placeholder = 'Search Long Shots';
-      input.setAttribute('aria-label', 'Search Long Shots');
-      input.dataset.tableSearch = '#tbl-longshots';
-      searchWrap.appendChild(input);
-      if(toolbar && toolbar.parentNode){
-        toolbar.parentNode.insertBefore(searchWrap, toolbar.nextSibling);
-      }else{
-        host.insertBefore(searchWrap, host.querySelector('table'));
-      }
-      queueMicro(()=>{
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-    }
-
     function canonicalStageKey(value){
       if(typeof window.canonicalizeStage === 'function') return window.canonicalizeStage(value);
       const raw = String(value==null?'':value).trim().toLowerCase();
@@ -770,7 +745,6 @@ function runPatch(){
       installSelectAllInterceptors();
       wireMergeGating();
       injectTodayDensity();
-      ensureLongShotsSearch();
       ensureCalendarExports();
       revealDashboardSections();
     }
