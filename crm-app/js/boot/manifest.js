@@ -63,6 +63,8 @@ export const PATCHES = [
   './contacts_merge.js',
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js',
+  './patches/patch_2025-10-23_session_beacon.js',
+  './patches/patch_2025-10-23_unify_quick_create.js',
   './ui/Toast.js',
   './ui/Confirm.js',
   './data/settings.js',

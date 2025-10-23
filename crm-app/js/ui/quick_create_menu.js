@@ -7,20 +7,56 @@ const BUTTON_PREFIX = 'header-new-';
 const state = {
   open: false,
   source: null,
+  origin: null,
   anchor: null,
+  restoreFocus: null,
   wrapper: null,
   menu: null,
   outsideHandler: null,
   keyHandler: null
 };
 
+let bootBeaconEmitted = false;
+
 function emitState() {
   if (typeof document === 'undefined') return;
-  const detail = { open: state.open, source: state.source };
+  const detail = { open: state.open, source: state.source, origin: state.origin };
   try {
     const event = new CustomEvent('quick-create-menu:state', { detail });
     document.dispatchEvent(event);
   } catch (_) {}
+}
+
+function postLog(eventName) {
+  const payload = JSON.stringify({ event: eventName });
+  let sent = false;
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    try {
+      sent = !!navigator.sendBeacon('/__log', payload) || sent;
+    } catch (_) {}
+  }
+  if (sent) {
+    return;
+  }
+  if (typeof fetch !== 'function') {
+    return;
+  }
+  try {
+    fetch('/__log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: true
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+if (!bootBeaconEmitted) {
+  bootBeaconEmitted = true;
+  try {
+    console && typeof console.info === 'function' && console.info('[VIS] quick-create unified');
+  } catch (_) {}
+  postLog('quick-create-unified');
 }
 
 function showToast(kind, message) {
@@ -126,6 +162,38 @@ function ensureMenuElements() {
   ensureButton('Task', 'task');
 
   return { wrapper, menu };
+}
+
+function normalizeSource(source, anchor) {
+  const value = typeof source === 'string' ? source : 'header';
+  if (value !== 'kbd') {
+    return value;
+  }
+  if (anchor && typeof anchor.id === 'string') {
+    const id = anchor.id.trim();
+    if (id === 'global-new') {
+      return 'actionbar';
+    }
+    if (id === 'btn-header-new') {
+      return 'header';
+    }
+  }
+  return 'header';
+}
+
+function focusFirstMenuItem() {
+  const { menu } = state;
+  if (!menu) return;
+  const first = menu.querySelector('button[role="menuitem"]');
+  if (!first) return;
+  if (typeof first.focus === 'function') {
+    try {
+      first.focus({ preventScroll: true });
+      return;
+    } catch (_) {}
+    try { first.focus(); }
+    catch (_) {}
+  }
 }
 
 function handleSelection(kind) {
@@ -276,7 +344,7 @@ function positionMenu(anchor, source) {
 }
 
 export function closeQuickCreateMenu() {
-  const { wrapper, menu } = state;
+  const { wrapper, menu, restoreFocus } = state;
   if (!wrapper || !menu || wrapper.hidden) return;
   wrapper.hidden = true;
   menu.hidden = true;
@@ -289,7 +357,8 @@ export function closeQuickCreateMenu() {
   wrapper.style.bottom = '';
   state.open = false;
   state.source = null;
-  state.anchor = null;
+  state.origin = null;
+  const anchor = state.anchor;
   if (state.outsideHandler) {
     document.removeEventListener('click', state.outsideHandler, true);
     state.outsideHandler = null;
@@ -298,17 +367,36 @@ export function closeQuickCreateMenu() {
     document.removeEventListener('keydown', state.keyHandler, true);
     state.keyHandler = null;
   }
+  state.anchor = null;
+  state.restoreFocus = null;
+  if (restoreFocus && typeof restoreFocus.focus === 'function') {
+    try {
+      restoreFocus.focus({ preventScroll: true });
+    } catch (_) {
+      try { restoreFocus.focus(); }
+      catch (_) {}
+    }
+  } else if (anchor && typeof anchor.focus === 'function') {
+    try {
+      anchor.focus({ preventScroll: true });
+    } catch (_) {
+      try { anchor.focus(); }
+      catch (_) {}
+    }
+  }
   emitState();
 }
 
 export function openQuickCreateMenu(options = {}) {
-  const { anchor = null, source = 'header' } = options;
+  const { anchor = null, source = 'header', origin = source } = options;
   const elements = ensureMenuElements();
   if (!elements) return;
   state.anchor = anchor;
-  state.source = source;
+  state.source = normalizeSource(source, anchor);
+  state.origin = origin;
   state.open = true;
-  positionMenu(anchor, source);
+  state.restoreFocus = anchor && typeof anchor.focus === 'function' ? anchor : null;
+  positionMenu(anchor, state.source);
   if (!state.outsideHandler) {
     state.outsideHandler = (event) => handleOutsideClick(event);
     document.addEventListener('click', state.outsideHandler, true);
@@ -318,18 +406,25 @@ export function openQuickCreateMenu(options = {}) {
     document.addEventListener('keydown', state.keyHandler, true);
   }
   try {
-    console && typeof console.info === 'function' && console.info('[A_BEACON] quick-create:open', { source });
+    console && typeof console.info === 'function' && console.info('[A_BEACON] quick-create:open', { source: state.origin, context: state.source });
   } catch (_) {}
+  focusFirstMenuItem();
   emitState();
 }
 
 export function toggleQuickCreateMenu(options = {}) {
-  const { source = 'header' } = options;
-  if (state.open && state.source === source) {
-    closeQuickCreateMenu();
-    return;
+  const { anchor = null, source = 'header' } = options;
+  if (state.open) {
+    const normalizedSource = normalizeSource(source, anchor);
+    const sameAnchor = anchor && state.anchor === anchor;
+    const sameSource = state.source === normalizedSource;
+    if ((sameAnchor && sameSource) || (!anchor && sameSource)) {
+      closeQuickCreateMenu();
+      return state.open;
+    }
   }
-  openQuickCreateMenu(options);
+  openQuickCreateMenu({ anchor, source: normalizeSource(source, anchor), origin: source });
+  return state.open;
 }
 
 export function isQuickCreateMenuOpen(source) {
