@@ -33,6 +33,10 @@ function waitForServer(child) {
     };
     const handleExit = (code) => {
       cleanup();
+      if (code === 3) {
+        reject(new Error('Dev server guard blocked startup (index missing BOOT_STAMP).'));
+        return;
+      }
       reject(new Error(`Dev server exited early (code=${code ?? 'null'}). Output:\n${buffer}`));
     };
     const cleanup = () => {
@@ -91,17 +95,14 @@ async function runFeatureCheck(origin) {
       throw new Error('Hello confirm dialog did not appear');
     }
 
-    const ack = await page.evaluate(() => window.__HELLO_ACK__ === true);
-    if (!ack) {
-      throw new Error('Hello confirm acknowledgement missing');
-    }
+    await page.waitForFunction(() => window.__HELLO_ACK__ === true, { timeout: 5000 });
 
     await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
 
     await page.evaluate(() => { location.hash = '#/settings/profiles'; });
 
-    await page.waitForSelector('input[type="file"][accept*="image/"]', { timeout: 10000 });
-    const input = await page.$('input[type="file"][accept*="image/"]');
+    await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 10000 });
+    const input = await page.$('input[type="file"][accept="image/*"]');
     if (!input) {
       throw new Error('Avatar input not found');
     }
@@ -132,7 +133,12 @@ async function runFeatureCheck(origin) {
       return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
     }, { timeout: 10000 });
 
-    return { whoami, rawHtml };
+    const screenshotRelative = path.join('proofs', 'feature-proof.png');
+    const screenshotAbsolute = path.join(process.cwd(), screenshotRelative);
+    await fs.mkdir(path.dirname(screenshotAbsolute), { recursive: true });
+    await page.screenshot({ path: screenshotAbsolute, fullPage: true });
+
+    return { whoami, rawHtml, screenshotPath: screenshotRelative };
   } finally {
     await browser.close().catch(() => {});
     if (cleanupTemp) {
@@ -146,8 +152,8 @@ async function main() {
   try {
     child = startDevServer();
     const { origin } = await waitForServer(child);
-    await runFeatureCheck(origin);
-    console.log('[FEATURE_CHECK] whoami=ok html=ok hello=ok splash=ok avatarPersist=ok');
+    const { whoami, rawHtml, screenshotPath } = await runFeatureCheck(origin);
+    console.log('[FEATURE_CHECK] whoami=ok html=ok hello=ok splash=ok avatarPersist=ok screenshot=' + screenshotPath);
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;
