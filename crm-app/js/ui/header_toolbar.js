@@ -6,6 +6,69 @@ import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_men
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const BUTTON_ID = 'btn-header-new';
 let ensureControlsRef = null;
+const shortcutState = {
+  handler: null,
+  anchor: null
+};
+
+function isEditableTarget(node) {
+  if (!node || typeof node !== 'object') {
+    return false;
+  }
+  const el = node instanceof HTMLElement ? node : (node.closest ? node.closest('*') : null);
+  const candidate = el || (node.nodeType === 3 && node.parentElement ? node.parentElement : null);
+  const target = candidate || null;
+  if (!target) return false;
+  if (typeof target.closest === 'function') {
+    const match = target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]');
+    if (match) {
+      return true;
+    }
+  }
+  const tag = target.tagName ? target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    return true;
+  }
+  if (typeof target.isContentEditable === 'boolean' && target.isContentEditable) {
+    return true;
+  }
+  return false;
+}
+
+function ensureGlobalShortcut(anchor) {
+  if (!anchor) {
+    return;
+  }
+  shortcutState.anchor = anchor;
+  if (shortcutState.handler) {
+    return;
+  }
+  shortcutState.handler = (event) => {
+    const { anchor: currentAnchor } = shortcutState;
+    if (!currentAnchor || !currentAnchor.isConnected) {
+      return;
+    }
+    if (event.defaultPrevented) {
+      return;
+    }
+    const key = typeof event.key === 'string' ? event.key : '';
+    if (key !== 'n' && key !== 'N') {
+      return;
+    }
+    if (event.repeat) {
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+    if (isEditableTarget(event.target) || isEditableTarget(document.activeElement)) {
+      return;
+    }
+    event.preventDefault();
+    toggleQuickCreateMenu({ anchor: currentAnchor, source: 'kbd' });
+  };
+  document.addEventListener('keydown', shortcutState.handler);
+}
 
 export function ensureProfileControls() {
   try {
@@ -57,6 +120,8 @@ function setupGlobalNewButton() {
       }
       toggleQuickCreateMenu({ anchor: toggle, source: 'header' });
     });
+
+    ensureGlobalShortcut(toggle);
 
     if (!toggle.__quickCreateStateWired) {
       toggle.__quickCreateStateWired = true;
