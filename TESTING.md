@@ -10,6 +10,13 @@
 - Chromium smoke flow (not part of CI):
   - `npm run e2e:smoke`
 
+## Feature gate & proof artifact
+- Local parity with CI (stamped HTML, Hello dialog, splash hide, avatar persistence, screenshot capture):
+  - `npm run check:features`
+- The command launches the guarded dev server, verifies `/__whoami` and `/__raw_root`, walks through the profile avatar flow,
+  reloads to confirm persistence, and captures `proofs/feature-proof.png` for the CI artifact upload. The image is generated on
+  demand and excluded from version control so local and remote environments consume the same bytes served during verification.
+
 ## Static sweep
 - Generate orphan/dup listener report and refresh `reports/orphan_report.*`:
   - `npm run sweep`
