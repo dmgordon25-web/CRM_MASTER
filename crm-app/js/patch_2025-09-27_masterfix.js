@@ -322,180 +322,75 @@ function runPatch(){
       `;
       document.head.appendChild(style);
     }
-    // --- Long Shots search ------------------------------------------------------
-    let longshotsSearchState = '';
-    function noteLongshotsSearchBeacon(state){
-      if(longshotsSearchState === state) return;
-      longshotsSearchState = state;
-      try{ console.info(`[A_BEACON] longshots-search: ${state}`); }
-      catch (_err) {}
-    }
+    // --- Long Shots search removal ---------------------------------------------
+    let longshotsSearchLogged = false;
 
-    function removeNode(node){
+    function removeLongshotsNode(node){
       if(!node) return;
       if(typeof node.remove === 'function'){ node.remove(); return; }
       if(node.parentNode){ node.parentNode.removeChild(node); }
     }
 
-    function normalizeScopes(value, seen = new Set()){
-      if(!value) return [];
-      if(typeof value === 'object' || typeof value === 'function'){
-        if(seen.has(value)) return [];
-        seen.add(value);
-      }
-      if(Array.isArray(value)){
-        return value.flatMap(entry => normalizeScopes(entry, seen));
-      }
-      if(typeof value === 'string'){
-        return value.split(/[,\s]+/).map(token => token.trim()).filter(Boolean);
-      }
-      if(typeof value === 'object' || typeof value === 'function'){
-        const scopes = [];
-        for(const key of ['scope','scopes','activeScope','activeScopes']){
-          if(value[key]) scopes.push(...normalizeScopes(value[key], seen));
-        }
-        return scopes;
-      }
-      return [];
-    }
-
-    function hasLongshotsScope(scopes){
-      return scopes.some(scope => {
-        if(!scope) return false;
-        const normalized = scope.toLowerCase().replace(/[^a-z]+/g, '');
-        return normalized === 'longshots'
-          || normalized === 'longshot'
-          || normalized === 'statuslongshots';
-      });
-    }
-
-    function detectHeaderSearchForLongshots(){
-      const win = typeof window !== 'undefined' ? window : null;
-      if(!win || typeof document === 'undefined') return false;
+    function sendLongshotsLog(eventName){
+      if(!eventName) return false;
+      const payload = JSON.stringify({ event: eventName });
+      let delivered = false;
       try{
-        const crm = win.CRM || {};
-        const ctx = crm.ctx || {};
-        const services = crm.services || {};
-        const candidates = [
-          ctx.globalSearch,
-          services.globalSearch,
-          crm.globalSearch,
-          win.globalSearch,
-          (crm.state && crm.state.globalSearch)
-        ].filter(Boolean);
-        for(const candidate of candidates){
-          try{
-            if(typeof candidate.isActive === 'function' && candidate.isActive('longshots')) return true;
-            if(typeof candidate.isActive === 'function' && candidate.isActive('statusLongshots')) return true;
-          }catch(_err){}
-          try{
-            if(typeof candidate.getActiveScope === 'function'){
-              const scopes = normalizeScopes(candidate.getActiveScope());
-              if(hasLongshotsScope(scopes)) return true;
-            }
-          }catch(_err){}
-          const scopes = normalizeScopes(candidate);
-          if(hasLongshotsScope(scopes)) return true;
+        if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'){
+          delivered = navigator.sendBeacon('/__log', payload) === true;
         }
-      }catch(_err){}
-
-      const markers = [
-        '[data-role="global-search"]',
-        '[data-role="header-search"]',
-        '[data-global-search]',
-        '[data-search-scope]',
-        '#global-search',
-        '#header-search',
-        '.header-search input[type="search"]'
-      ];
-      for(const sel of markers){
-        let node = null;
-        try{ node = document.querySelector(sel); }
-        catch(_err){ node = null; }
-        if(!node || !node.isConnected) continue;
-        const input = node.matches('input') ? node : node.querySelector('input');
-        const target = input || node;
-        if(!target) continue;
-        const scopeTokens = [];
-        const collect = (value)=>{
-          normalizeScopes(value).forEach(token => scopeTokens.push(token));
-        };
-        if(target.dataset){
-          collect(target.dataset.scope);
-          collect(target.dataset.scopes);
-          collect(target.dataset.searchScope);
-          collect(target.dataset.searchScopes);
-          collect(target.dataset.target);
-          collect(target.dataset.searchTarget);
+      }catch(_err){ delivered = false; }
+      if(delivered) return true;
+      try{
+        if(typeof fetch === 'function'){
+          fetch('/__log', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: payload,
+            keepalive: true
+          }).catch(()=>{});
+          return true;
         }
-        if(node.dataset){
-          collect(node.dataset.scope);
-          collect(node.dataset.scopes);
-          collect(node.dataset.searchScope);
-          collect(node.dataset.searchScopes);
-          collect(node.dataset.target);
-          collect(node.dataset.searchTarget);
-        }
-        const ariaControls = target.getAttribute && target.getAttribute('aria-controls');
-        collect(ariaControls);
-        const placeholder = target.getAttribute && target.getAttribute('placeholder');
-        if(placeholder && /long\s*shots?/i.test(placeholder)) return true;
-        if(scopeTokens.length && hasLongshotsScope(scopeTokens)) return true;
-        const tokens = (target.getAttribute && target.getAttribute('data-table-search'))
-          || (node.getAttribute && node.getAttribute('data-table-search'))
-          || '';
-        if(tokens && /longshot/i.test(tokens)) return true;
-      }
+      }catch(_err){ }
       return false;
     }
 
-    function ensureLongShotsSearch(){
-      const host = document.querySelector('#view-longshots > .card');
-      if(!host) return;
-      const delegated = detectHeaderSearchForLongshots();
-      const queryShell = host.querySelector('.query-shell[data-query-scope="longshots"]');
-      const queryToolbar = host.querySelector('.row.query-save-row');
-      const searchWrap = host.querySelector('.table-search');
-      if(delegated){
-        removeNode(searchWrap);
-        removeNode(queryShell);
-        removeNode(queryToolbar);
-        noteLongshotsSearchBeacon('delegated');
-        return;
-      }
-      let input = host.querySelector('input[data-table-search="#tbl-longshots"]');
-      if(!input){
-        let wrap = searchWrap;
-        if(!wrap){
-          wrap = document.createElement('div');
-          wrap.className = 'table-search';
-          const anchor = queryShell && queryShell.parentNode === host ? queryShell.nextSibling : null;
-          if(anchor){
-            host.insertBefore(wrap, anchor);
-          }else if(queryShell && queryShell.parentNode){
-            queryShell.parentNode.insertBefore(wrap, queryShell.nextSibling);
-          }else{
-            const table = host.querySelector('table');
-            if(table && table.parentNode){
-              table.parentNode.insertBefore(wrap, table);
-            }else{
-              host.appendChild(wrap);
-            }
-          }
-        }
-        input = document.createElement('input');
-        input.type = 'search';
-        input.placeholder = 'Search Long Shots';
-        input.setAttribute('aria-label', 'Search Long Shots');
-        input.dataset.tableSearch = '#tbl-longshots';
-        wrap.appendChild(input);
-      }
-      queueMicro(()=>{
-        try{ input.dispatchEvent(new Event('input', { bubbles: true })); }
-        catch(_err){}
-      });
-      noteLongshotsSearchBeacon('mounted');
+    function logLongshotsSearchRemoved(){
+      if(longshotsSearchLogged) return;
+      longshotsSearchLogged = true;
+      try{ console.info('[VIS] long-shots search removed'); }
+      catch(_err){}
+      sendLongshotsLog('longshots-search-removed');
     }
+
+    function removeLongShotsSearchUI(){
+      const host = document.getElementById('view-longshots');
+      if(!host) return;
+      const queryRow = host.querySelector('.row.query-save-row');
+      if(queryRow && queryRow.parentElement === host){
+        removeLongshotsNode(queryRow);
+      }
+      const queryShell = host.querySelector('.query-shell[data-query-scope="longshots"]');
+      removeLongshotsNode(queryShell);
+      const input = host.querySelector('input[data-table-search="#tbl-longshots"]');
+      if(input){
+        const wrap = input.closest('.table-search');
+        if(wrap && host.contains(wrap)) removeLongshotsNode(wrap);
+        else removeLongshotsNode(input);
+      }
+      logLongshotsSearchRemoved();
+    }
+
+    function handleLongshotsNavigation(event){
+      const detail = event && event.detail ? event.detail : {};
+      const view = typeof detail.view === 'string' ? detail.view : typeof detail.target === 'string' ? detail.target : '';
+      if(view === 'longshots'){
+        queueMicro(()=> removeLongShotsSearchUI());
+      }
+    }
+
+    document.addEventListener('app:view:changed', handleLongshotsNavigation);
+    document.addEventListener('app:navigate', handleLongshotsNavigation);
 
     function canonicalStageKey(value){
       if(typeof window.canonicalizeStage === 'function') return window.canonicalizeStage(value);
@@ -916,6 +811,7 @@ function runPatch(){
 
     // --- DOMContentLoaded setup -------------------------------------------------
     function onReady(){
+      removeLongShotsSearchUI();
       installSelectAllInterceptors();
       wireMergeGating();
       injectTodayDensity();

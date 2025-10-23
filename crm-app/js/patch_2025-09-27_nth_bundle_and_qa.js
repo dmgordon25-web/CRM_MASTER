@@ -944,15 +944,14 @@ function runPatch(){
         const host = document.querySelector('#view-longshots');
         if(!host) throw new Error('Long Shots view not mounted');
         const input = host.querySelector('input[data-table-search="#tbl-longshots"]');
-        if(!input) throw new Error('Search input unavailable');
-        input.value = 'Unique';
-        input.dispatchEvent(new Event('input', { bubbles:true }));
-        const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr')); 
-        const visible = rows.filter(row => row.offsetParent !== null);
-        if(visible.length !== 1) throw new Error(`Expected 1 visible row, saw ${visible.length}`);
-        const text = visible[0].textContent || '';
-        if(!text.includes('Unique')) throw new Error('Unique row not present');
-        logResult(results, section, name, true, 'Search isolates the unique Long Shot row');
+        if(input) throw new Error('Tab-specific search input should be removed');
+        const queryRow = host.querySelector('.row.query-save-row');
+        if(queryRow) throw new Error('Query toolbar should not render for Long Shots');
+        const queryShell = host.querySelector('.query-shell[data-query-scope="longshots"]');
+        if(queryShell) throw new Error('Query shell should not render for Long Shots');
+        const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr'));
+        if(rows.length < 3) throw new Error('Expected seeded Long Shots rows');
+        logResult(results, section, name, true, 'Long Shots relies on global header search (no local query UI).');
       }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
