@@ -10,13 +10,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const PROOFS_DIR = path.join(REPO_ROOT, 'proofs');
-const SCREENSHOT_MAP = {
-  1: path.join(PROOFS_DIR, 'phase1.png'),
-  2: path.join(PROOFS_DIR, 'phase2.png')
-};
+const SCREENSHOT_PATH = path.join(PROOFS_DIR, 'cleanup.png');
 const BACKOFF_MS = [0, 2000, 5000, 10000, 15000];
-const INDEX_PATH = path.join(REPO_ROOT, 'crm-app', 'index.html');
-const HELLO_SCRIPT_RE = /<script[^>]*>[\s\S]*?Hello,\s*click\s*OK[\s\S]*?<\/script>/gi;
+const SPLASH_MARKER_RE = /id\s*=\s*['"]boot-splash['"]/i;
 
 function log(message) {
   process.stdout.write(`${message}\n`);
@@ -94,12 +90,9 @@ function assertBootStamp(rawHtml) {
   }
 }
 
-function assertHello(rawHtml, phase) {
-  if (phase === 1 && !rawHtml.includes('Hello, click OK')) {
-    throw new Error('Hello dialog missing in phase 1');
-  }
-  if (phase === 2 && rawHtml.includes('Hello, click OK')) {
-    throw new Error('Hello dialog still present in phase 2');
+function assertSplash(rawHtml) {
+  if (!SPLASH_MARKER_RE.test(rawHtml)) {
+    throw new Error('Splash block missing from served index');
   }
 }
 
@@ -129,55 +122,35 @@ async function ensureAvatarPersists(page) {
   }, { timeout: 15000 });
 }
 
-async function runBrowserFlow(baseUrl, phase, screenshotPath) {
+async function runBrowserFlow(baseUrl, label, screenshotPath) {
   const browser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
     const page = await browser.newPage();
-    globalThis.__HELLO_DIALOG__ = false;
-    page.on('dialog', async (dialog) => {
-      if (/^Hello/.test(dialog.message())) {
-        globalThis.__HELLO_DIALOG__ = true;
-        await dialog.accept();
-      } else {
-        await dialog.dismiss();
-      }
-    });
 
     await page.goto(baseUrl, { waitUntil: 'networkidle2' });
-    log(`[FEATURE_GATE] phase${phase} root loaded`);
-
-    if (phase === 1) {
-      const ack = await page.evaluate(() => ({
-        seen: !!window.__HELLO_SEEN__,
-        ack: !!window.__HELLO_ACK__
-      }));
-      if (!globalThis.__HELLO_DIALOG__ || !ack.ack || !ack.seen) {
-        throw new Error('Hello dialog acknowledgement failed');
-      }
-      log('[FEATURE_GATE] phase1 hello acknowledged');
-    }
+    log(`[FEATURE_GATE] ${label} root loaded`);
 
     await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
-    log(`[FEATURE_GATE] phase${phase} splash hidden`);
+    log(`[FEATURE_GATE] ${label} splash hidden`);
 
     const settingsUrl = new URL('#/settings/profiles', baseUrl).toString();
     await page.goto(settingsUrl, { waitUntil: 'networkidle2' });
-    log(`[FEATURE_GATE] phase${phase} navigated to settings`);
+    log(`[FEATURE_GATE] ${label} navigated to settings`);
 
     await uploadAvatar(page);
     await ensureAvatarPersists(page);
-    log(`[FEATURE_GATE] phase${phase} avatar uploaded`);
+    log(`[FEATURE_GATE] ${label} avatar uploaded`);
 
     await page.reload({ waitUntil: 'networkidle2' });
     await ensureAvatarPersists(page);
-    log(`[FEATURE_GATE] phase${phase} avatar persisted after reload`);
+    log(`[FEATURE_GATE] ${label} avatar persisted after reload`);
 
     await ensureProofDir();
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    log(`[FEATURE_GATE] phase${phase} screenshot saved ${screenshotPath}`);
+    log(`[FEATURE_GATE] ${label} screenshot saved ${screenshotPath}`);
   } finally {
     await browser.close();
   }
@@ -199,13 +172,7 @@ async function fetchText(url) {
   return response.text();
 }
 
-function snippet(html, phase) {
-  if (phase === 1) {
-    const helloIdx = html.indexOf("Hello, click OK");
-    if (helloIdx !== -1) {
-      return html.slice(Math.max(0, helloIdx - 60), helloIdx + 60).replace(/\s+/g, ' ').slice(0, 120);
-    }
-  }
+function snippet(html) {
   const target = '<!-- BOOT_STAMP: crm-app-index -->';
   const idx = html.indexOf(target);
   if (idx === -1) {
@@ -214,7 +181,7 @@ function snippet(html, phase) {
   return html.slice(Math.max(0, idx - 20), idx + target.length + 80).replace(/\s+/g, ' ').slice(0, 120);
 }
 
-async function runOnce(phase, baseUrl) {
+async function runOnce(baseUrl) {
   const whoamiUrl = new URL('__whoami', baseUrl).toString();
   const rawUrl = new URL('__raw_root', baseUrl).toString();
 
@@ -222,36 +189,15 @@ async function runOnce(phase, baseUrl) {
   const rawHtml = await fetchText(rawUrl);
 
   assertBootStamp(rawHtml);
-  assertHello(rawHtml, phase);
+  assertSplash(rawHtml);
 
-  const screenshotPath = SCREENSHOT_MAP[phase];
-  await runBrowserFlow(baseUrl, phase, screenshotPath);
+  const screenshotPath = SCREENSHOT_PATH;
+  await runBrowserFlow(baseUrl, 'cleanup', screenshotPath);
 
-  return { whoami, rawHtmlSnippet: snippet(rawHtml, phase) };
+  return { whoami, rawHtmlSnippet: snippet(rawHtml) };
 }
 
-async function removeHelloBlock() {
-  let html;
-  try {
-    html = await fsp.readFile(INDEX_PATH, 'utf8');
-  } catch (err) {
-    throw new Error(`Failed to read index.html: ${err.message}`);
-  }
-  const regex = new RegExp(HELLO_SCRIPT_RE.source, HELLO_SCRIPT_RE.flags);
-  if (!regex.test(html)) {
-    return false;
-  }
-  regex.lastIndex = 0;
-  const updated = html.replace(regex, '');
-  if (updated === html) {
-    throw new Error('Failed to remove Hello block');
-  }
-  await fsp.writeFile(INDEX_PATH, updated, 'utf8');
-  log('[FEATURE_GATE] removed hello block from index.html');
-  return true;
-}
-
-async function attemptPhase(phase, envOverrides = {}) {
+async function attemptRun() {
   let lastError = null;
   for (let i = 0; i < BACKOFF_MS.length; i += 1) {
     const waitMs = BACKOFF_MS[i];
@@ -260,7 +206,7 @@ async function attemptPhase(phase, envOverrides = {}) {
     }
     let server;
     try {
-      server = await startServer(envOverrides);
+      server = await startServer();
     } catch (err) {
       if (err && err.code === 3) {
         throw err;
@@ -269,28 +215,24 @@ async function attemptPhase(phase, envOverrides = {}) {
       continue;
     }
     try {
-      const result = await runOnce(phase, server.url);
+      const result = await runOnce(server.url);
       await stopServer(server.child);
       return result;
     } catch (err) {
       lastError = err;
-      log(`[FEATURE_GATE] phase${phase} attempt ${i + 1} failed: ${(err && err.message) || err}`);
+      log(`[FEATURE_GATE] attempt ${i + 1} failed: ${(err && err.message) || err}`);
       await stopServer(server.child);
     }
   }
-  throw lastError || new Error(`Phase ${phase} failed`);
+  throw lastError || new Error('Feature gate flow failed');
 }
 
 async function main() {
   try {
-    const phase1 = await attemptPhase(1, { HELLO_PROOF: '1' });
-    await removeHelloBlock();
-    const phase2 = await attemptPhase(2, { HELLO_PROOF: '0' });
-    log('[FEATURE_GATE] phase1=ok phase2=ok screenshots=proofs/phase1.png,proofs/phase2.png');
-    log(`[FEATURE_GATE] phase1Whoami=${JSON.stringify(phase1.whoami)}`);
-    log(`[FEATURE_GATE] phase1Raw=${phase1.rawHtmlSnippet}`);
-    log(`[FEATURE_GATE] phase2Whoami=${JSON.stringify(phase2.whoami)}`);
-    log(`[FEATURE_GATE] phase2Raw=${phase2.rawHtmlSnippet}`);
+    const result = await attemptRun();
+    log('[FEATURE_GATE] cleanup=ok splash=ok avatarPersist=ok screenshot=proofs/cleanup.png');
+    log(`[FEATURE_GATE] whoami=${JSON.stringify(result.whoami)}`);
+    log(`[FEATURE_GATE] raw=${result.rawHtmlSnippet}`);
     process.exit(0);
   } catch (err) {
     log(`[FEATURE_GATE] failure ${(err && err.message) || err}`);
