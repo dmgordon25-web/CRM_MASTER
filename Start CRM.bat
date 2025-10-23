@@ -1,6 +1,6 @@
 @echo off
 setlocal
-pushd %~dp0
-powershell -NoProfile -ExecutionPolicy Bypass -File "tools\Start-CRM.ps1"
+pushd "%~dp0"
+node tools\dev_server.mjs
 popd
 exit /b 0

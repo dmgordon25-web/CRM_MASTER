@@ -19,7 +19,7 @@ function startDevServer() {
 function waitForServer(child) {
   return new Promise((resolve, reject) => {
     let buffer = '';
-    const handleData = (chunk) => {
+    const onStdout = (chunk) => {
       const text = String(chunk);
       buffer += text;
       const match = text.match(/\[SERVER\] listening on (http:\/\/127\.0\.0\.1:(\d+)\/) \(root: ([^)]+)\)/);
@@ -28,25 +28,21 @@ function waitForServer(child) {
         resolve({ origin: match[1], port: Number(match[2]), root: match[3], logs: buffer });
       }
     };
-    const handleErr = (chunk) => {
+    const onStderr = (chunk) => {
       buffer += String(chunk);
     };
-    const handleExit = (code) => {
+    const onExit = (code) => {
       cleanup();
-      if (code === 3) {
-        reject(new Error('Dev server guard blocked startup (index missing required markers).'));
-        return;
-      }
       reject(new Error(`Dev server exited early (code=${code ?? 'null'}). Output:\n${buffer}`));
     };
     const cleanup = () => {
-      child.stdout.off('data', handleData);
-      child.stderr.off('data', handleErr);
-      child.off('exit', handleExit);
+      child.stdout.off('data', onStdout);
+      child.stderr.off('data', onStderr);
+      child.off('exit', onExit);
     };
-    child.stdout.on('data', handleData);
-    child.stderr.on('data', handleErr);
-    child.once('exit', handleExit);
+    child.stdout.on('data', onStdout);
+    child.stderr.on('data', onStderr);
+    child.once('exit', onExit);
   });
 }
 
@@ -54,29 +50,37 @@ function sanitizeExcerpt(html) {
   return html.replace(/\s+/g, ' ').slice(0, 200).trim();
 }
 
-async function runFeatureCheck(origin) {
-  const whoamiRes = await fetch(new URL('__whoami', origin));
-  if (!whoamiRes.ok) {
-    throw new Error(`__whoami request failed with status ${whoamiRes.status}`);
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`${url} responded with ${res.status}`);
   }
-  const whoami = await whoamiRes.json();
+  return res.json();
+}
+
+async function fetchText(url) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`${url} responded with ${res.status}`);
+  }
+  return res.text();
+}
+
+async function runFeatureCheck(origin) {
+  const whoamiUrl = new URL('__whoami', origin);
+  const whoami = await fetchJson(whoamiUrl);
   console.log(JSON.stringify(whoami));
 
-  const rawRes = await fetch(new URL('__raw_root', origin));
-  if (!rawRes.ok) {
-    throw new Error(`__raw_root request failed with status ${rawRes.status}`);
-  }
-  const rawHtml = await rawRes.text();
-  if (!rawHtml.includes('BOOT_STAMP: crm-app-index') || !rawHtml.includes('Hello, click OK')) {
+  const rawUrl = new URL('__raw_root', origin);
+  const rawHtml = await fetchText(rawUrl);
+  if (!rawHtml.includes('<!-- BOOT_STAMP: crm-app-index -->') || !rawHtml.includes('Hello, click OK')) {
     const excerpt = sanitizeExcerpt(rawHtml);
-    const servedRoot = whoami?.servedRoot ?? '<unknown>';
-    const indexPath = whoami?.indexPath ?? '<unknown>';
-    throw new Error(`Root HTML missing markers (servedRoot=${servedRoot}, indexPath=${indexPath}). Excerpt: ${excerpt}`);
+    throw new Error(`Root HTML missing required markers. Excerpt: ${excerpt}`);
   }
 
   globalThis.__HELLO_DIALOG__ = false;
   const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  let cleanupTemp = null;
+  let cleanupTemp;
   try {
     const page = await browser.newPage();
     page.on('dialog', (dialog) => {
@@ -95,22 +99,17 @@ async function runFeatureCheck(origin) {
       throw new Error('Hello confirm dialog did not appear');
     }
 
-    await page.waitForFunction(() => window.__HELLO_ACK__ === true, { timeout: 5000 });
-
-    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+    await page.waitForFunction(() => window.__HELLO_ACK__ === true, { timeout: 10000 });
+    await page.waitForFunction(() => window.__SPLASH_HIDDEN__ === true, { timeout: 15000 });
 
     await page.evaluate(() => { location.hash = '#/settings/profiles'; });
-
     await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 10000 });
     const input = await page.$('input[type="file"][accept="image/*"]');
     if (!input) {
       throw new Error('Avatar input not found');
     }
 
-    const pngBuffer = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAusB9Yw7lXkAAAAASUVORK5CYII=',
-      'base64'
-    );
+    const pngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAusB9Yw7lXkAAAAASUVORK5CYII=', 'base64');
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'crm-avatar-'));
     const filePath = path.join(tmpDir, 'avatar.png');
     await fs.writeFile(filePath, pngBuffer);
@@ -119,6 +118,7 @@ async function runFeatureCheck(origin) {
         await fs.rm(tmpDir, { recursive: true, force: true });
       } catch {}
     };
+
     await input.uploadFile(filePath);
 
     await page.waitForFunction(() => {
@@ -127,18 +127,18 @@ async function runFeatureCheck(origin) {
     }, { timeout: 10000 });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-
+    await page.waitForFunction(() => window.__SPLASH_HIDDEN__ === true, { timeout: 15000 });
     await page.waitForFunction(() => {
       const img = document.querySelector('#lo-profile-chip img[data-role="lo-photo"]');
       return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
     }, { timeout: 10000 });
 
-    const screenshotRelative = path.join('proofs', 'phase1.png');
+    const screenshotRelative = path.join('proofs', 'feature.png');
     const screenshotAbsolute = path.join(process.cwd(), screenshotRelative);
     await fs.mkdir(path.dirname(screenshotAbsolute), { recursive: true });
     await page.screenshot({ path: screenshotAbsolute, fullPage: true });
 
-    return { whoami, rawHtml, screenshotPath: screenshotRelative };
+    return { screenshotPath: screenshotRelative };
   } finally {
     await browser.close().catch(() => {});
     if (cleanupTemp) {
@@ -152,8 +152,8 @@ async function main() {
   try {
     child = startDevServer();
     const { origin } = await waitForServer(child);
-    const { whoami, rawHtml, screenshotPath } = await runFeatureCheck(origin);
-    console.log('[FEATURE_CHECK] whoami=ok html=ok hello=ok splash=ok avatarPersist=ok screenshot=' + screenshotPath);
+    const { screenshotPath } = await runFeatureCheck(origin);
+    console.log(`[FEATURE_CHECK] hello=ok splash=ok avatarPersist=ok screenshot=${screenshotPath}`);
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;
