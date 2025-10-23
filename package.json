@@ -17,7 +17,8 @@
     "audit:manifest": "node tools/manifest_audit.js",
     "test:boot": "node tools/boot_smoke_test.mjs",
     "verify:build": "npm run audit:manifest && npm run test:boot && npm run check:features",
-    "check:features": "node tools/feature_check.mjs"
+    "check:features": "node tools/feature_check.mjs",
+    "gate:run": "node tools/feature_gate.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",

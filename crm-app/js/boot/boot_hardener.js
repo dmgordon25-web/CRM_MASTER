@@ -160,7 +160,6 @@ const hideSplashOnce = (() => {
   return () => {
     if (done) return;
     done = true;
-    (function(){const el=document.getElementById('boot-splash');if(el){requestAnimationFrame(()=>{el.style.display='none';window.__SPLASH_HIDDEN__=true;console.info('[A_BEACON] splash hidden');});}}());
   };
 })();
 

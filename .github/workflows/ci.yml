@@ -31,11 +31,11 @@ jobs:
       - name: verify:build
         run: npm run verify:build
 
-      - name: Feature gate
-        run: npm run check:features
+      - name: Feature gate (solve-and-clean)
+        run: npm run gate:run
 
-      - name: Upload feature proof
+      - name: Upload feature proof (phase 1 & 2)
         uses: actions/upload-artifact@v4
         with:
           name: feature-proof
-          path: proofs/feature-proof.png
+          path: proofs/*.png
