@@ -33,3 +33,9 @@ jobs:
 
       - name: Feature gate
         run: npm run check:features
+
+      - name: Upload feature proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-proof
+          path: proofs/feature-proof.png
