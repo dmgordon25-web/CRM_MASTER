@@ -191,10 +191,12 @@ function readIndexInfo() {
   const html = buffer.toString('utf8');
   const sha1 = crypto.createHash('sha1').update(buffer).digest('hex');
   const containsBootStamp = html.includes('<!-- BOOT_STAMP: crm-app-index -->');
+  const containsHelloMarker = html.includes('Hello, click OK');
   return {
     indexPath,
     indexSha1: sha1,
     indexContainsBootStamp: containsBootStamp,
+    indexContainsHello: containsHelloMarker,
     buffer,
     html,
     servedRoot
@@ -210,7 +212,7 @@ function guardBootStampOnStartup() {
     console.error(`[DEV SERVER] Failed to read index (${message}) at ${indexPath}`);
     throw info.error;
   }
-  if (!info.indexContainsBootStamp) {
+  if (!info.indexContainsBootStamp || !info.indexContainsHello) {
     const indexPath = path.resolve(info.indexPath || APP_INDEX);
     const root = path.resolve(info.servedRoot || APP_ROOT);
     console.log(`[BOOT_GUARD] INDEX_MISMATCH root=${root} index=${indexPath}`);
@@ -223,8 +225,9 @@ function guardBootStampOnStartup() {
 function sendIndexMismatch(res, info) {
   const mismatchBody = [
     '<!doctype html><meta charset="utf-8"><title>INDEX_MISMATCH</title>',
-    '<pre>Dev server misconfigured. Expected BOOT_STAMP not found.',
-    `servedRoot=${info.servedRoot} indexPath=${info.indexPath}</pre>`
+    '<pre>Dev server misconfigured. Expected BOOT_STAMP and Hello confirm markers not found.',
+    `servedRoot=${info.servedRoot} indexPath=${info.indexPath}`,
+    `markers.boot=${info.indexContainsBootStamp} markers.hello=${info.indexContainsHello}</pre>`
   ].join('\n');
   res.writeHead(503, {
     ...SECURITY_HEADERS,
@@ -241,7 +244,7 @@ function serveSpa(req, res) {
       send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
       return;
     }
-    if (!info.indexContainsBootStamp) {
+    if (!info.indexContainsBootStamp || !info.indexContainsHello) {
       sendIndexMismatch(res, info);
       return;
     }
@@ -306,6 +309,10 @@ const server = http.createServer((req, res) => {
       servedRoot: info.servedRoot || APP_ROOT,
       indexPath: info.indexPath,
       indexSha1: info.indexSha1,
+      markers: {
+        bootStamp: info.indexContainsBootStamp === true,
+        hello: info.indexContainsHello === true
+      },
       time: new Date().toISOString()
     });
     res.writeHead(200, {

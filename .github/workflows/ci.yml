@@ -38,4 +38,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: feature-proof
-          path: proofs/feature-proof.png
+          path: proofs/phase1.png
