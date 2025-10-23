@@ -96,11 +96,11 @@ function ensureButton(state){
     icon.setAttribute('aria-hidden', 'true');
 
     const labelText = document.createElement('span');
-    labelText.textContent = 'Add Contact';
+    labelText.textContent = 'Add New Partner';
 
     button.append(icon, labelText);
-    button.setAttribute('title', 'Add Contact');
-    button.setAttribute('aria-label', 'Add Contact');
+    button.setAttribute('title', 'Add New Partner');
+    button.setAttribute('aria-label', 'Add New Partner');
 
     select.insertAdjacentElement('afterend', button);
   }
@@ -108,14 +108,104 @@ function ensureButton(state){
     button.__wired = true;
     button.addEventListener('click', (evt)=>{
       evt.preventDefault();
-      const openQuick = (window.CRM && typeof window.CRM.openPartnerQuickCreate === 'function')
-        ? window.CRM.openPartnerQuickCreate
-        : (typeof window.openPartnerQuickCreate === 'function' ? window.openPartnerQuickCreate : null);
-      if(typeof openQuick !== 'function'){
-        if(window.Toast?.show) window.Toast.show('Partner quick create unavailable');
+      const trigger = evt?.currentTarget instanceof HTMLElement ? evt.currentTarget : button;
+      const openPartnerEdit = (window.CRM && typeof window.CRM.openPartnerEditModal === 'function')
+        ? window.CRM.openPartnerEditModal
+        : (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
+      if(typeof openPartnerEdit !== 'function'){
+        if(window.Toast?.show){
+          window.Toast.show('Partner editor unavailable');
+        }else if(typeof window.toast === 'function'){
+          try{ window.toast('Partner editor unavailable'); }
+          catch(_err){}
+        }
         return;
       }
-      openQuick((p)=> setReferredBy(p));
+
+      if(typeof button.__partnerCleanup === 'function'){
+        try{ button.__partnerCleanup(); }
+        catch(_cleanupErr){}
+      }
+
+      const sourceHint = 'contact:add-new-partner';
+      const watcher = { cleaned: false, root: null };
+
+      const cleanup = ()=>{
+        if(watcher.cleaned) return;
+        watcher.cleaned = true;
+        document.removeEventListener('app:data:changed', handleAppDataChanged, true);
+        if(watcher.root){
+          try{ watcher.root.removeEventListener('close', handleClose); }
+          catch(_err){}
+        }
+        if(button.__partnerCleanup === cleanup){
+          button.__partnerCleanup = null;
+        }
+      };
+
+      const handleClose = ()=>{
+        cleanup();
+      };
+
+      const handleAppDataChanged = async (event)=>{
+        const detail = event?.detail;
+        if(!detail || detail.scope !== 'partners' || detail.action !== 'create') return;
+        if(detail.source !== 'partner:modal') return;
+        const hint = typeof detail.sourceHint === 'string' ? detail.sourceHint.trim() : '';
+        if(hint !== sourceHint) return;
+        const partnerId = detail.partnerId ? String(detail.partnerId) : '';
+        if(!partnerId) return;
+        cleanup();
+        let record = null;
+        try{
+          if(typeof window.openDB === 'function' && typeof window.dbGet === 'function'){
+            await window.openDB();
+            record = await window.dbGet('partners', partnerId);
+          }
+        }catch(err){
+          try{ console && console.warn && console.warn('contact modal partner fetch failed', err); }
+          catch(_warnErr){}
+        }
+        const partner = record
+          ? { id: record.id, name: record.name, email: record.email }
+          : { id: partnerId };
+        try{ setReferredBy(partner); }
+        catch(_setErr){}
+      };
+
+      document.addEventListener('app:data:changed', handleAppDataChanged, true);
+      button.__partnerCleanup = cleanup;
+
+      try{ console && console.info && console.info('[A_BEACON] contact->add-new-partner: open'); }
+      catch(_logErr){}
+
+      const result = openPartnerEdit('', { allowAutoOpen: true, sourceHint, trigger });
+      Promise.resolve(result).then(root => {
+        watcher.root = root || null;
+        if(!root){
+          cleanup();
+          if(window.Toast?.show){
+            window.Toast.show('Partner editor unavailable');
+          }else if(typeof window.toast === 'function'){
+            try{ window.toast('Partner editor unavailable'); }
+            catch(_err){}
+          }
+          return null;
+        }
+        try{ root.addEventListener('close', handleClose, { once: true }); }
+        catch(_err){ root.addEventListener('close', handleClose); }
+        return root;
+      }).catch(err => {
+        cleanup();
+        try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+        catch(_warnErr){}
+        if(window.Toast?.show){
+          window.Toast.show('Partner editor unavailable');
+        }else if(typeof window.toast === 'function'){
+          try{ window.toast('Partner editor unavailable'); }
+          catch(_err){}
+        }
+      });
     });
   }
   state.button = button;
