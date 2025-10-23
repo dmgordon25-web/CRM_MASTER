@@ -2,6 +2,8 @@
 const fs = require('fs'), path = require('path');
 const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
+/* dev-parse beacon */
+;void 0;
 
 const canonicalPatchOrder = [
   './patch_20250923_baseline.js',
@@ -31,7 +33,10 @@ const canonicalPatchOrder = [
   './contacts_merge.js',
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js',
-  './patches/patch_2025-10-23_session_beacon.js'
+  './patches/patch_2025-10-23_session_beacon.js',
+  './patches/patch_2025-10-23_unify_quick_create.js',
+  './patches/patch_2025-10-23_actionbar_drag.js',
+  './patches/patch_2025-10-23_longshots_search_removed.js'
 ];
 
 function loadManifest() {
