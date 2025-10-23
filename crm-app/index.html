@@ -843,16 +843,19 @@
       <button class="btn" id="btn-saveview-longshots">
        Save Query
       </button>
-      <button class="btn danger" id="btn-delview-longshots">
-       Delete
-      </button>
-     </div>
-     <div class="query-shell" data-query-scope="longshots"></div>
-     <table data-selection-scope="pipeline" id="tbl-longshots">
-      <thead>
-       <tr>
-        <th style="width:28px">
-         <input data-role="select-all" id="ls-all" type="checkbox"/>
+     <button class="btn danger" id="btn-delview-longshots">
+      Delete
+     </button>
+    </div>
+    <div class="query-shell" data-query-scope="longshots"></div>
+    <div class="table-search">
+     <input aria-label="Search long shots" data-table-search="#tbl-longshots" placeholder="Search Long Shots" type="search"/>
+    </div>
+    <table data-selection-scope="pipeline" id="tbl-longshots">
+     <thead>
+      <tr>
+       <th style="width:28px">
+        <input data-role="select-all" id="ls-all" type="checkbox"/>
         </th>
         <th>
          Name
