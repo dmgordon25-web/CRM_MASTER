@@ -1,7 +1,9 @@
 (function sessionBeaconPatch() {
-  const state = { armed: false };
+  const HIDDEN_BYE_TIMEOUT = 30000; // 30s grace period before hidden tabs are marked bye
+  const state = { armed: false, hiddenTimer: null };
 
   function markBye() {
+    cancelHiddenTimer();
     const sid = window.__SID;
     if (!sid) {
       return;
@@ -23,6 +25,29 @@
     }
   }
 
+  function cancelHiddenTimer() {
+    if (state.hiddenTimer !== null) {
+      clearTimeout(state.hiddenTimer);
+      state.hiddenTimer = null;
+    }
+  }
+
+  function scheduleHiddenBye() {
+    cancelHiddenTimer();
+    state.hiddenTimer = window.setTimeout(() => {
+      state.hiddenTimer = null;
+      markBye();
+    }, HIDDEN_BYE_TIMEOUT);
+  }
+
+  function onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+      scheduleHiddenBye();
+    } else if (document.visibilityState === 'visible') {
+      cancelHiddenTimer();
+    }
+  }
+
   function armBeacons() {
     if (state.armed) {
       return;
@@ -30,6 +55,7 @@
     state.armed = true;
     window.addEventListener('pagehide', markBye, { capture: true });
     window.addEventListener('beforeunload', markBye, { capture: true });
+    document.addEventListener('visibilitychange', onVisibilityChange, { capture: true });
     console.info('[VIS] session beacons armed');
   }
 
