@@ -16,6 +16,6 @@
   "js/patch_2025-09-27_masterfix.js",
   "js/patch_2025-09-27_release_prep.js",
   "js/partners_merge.js",
-  "js/patch_2025-10-03_calendar_ics_button.js"
+  "js/patch_2025-10-03_calendar_ics_button.js",
+  "js/patches/patch_2025-10-23_dashboard_drag.js"
 ]
-
