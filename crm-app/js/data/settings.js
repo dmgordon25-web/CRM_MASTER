@@ -1,6 +1,30 @@
 const EMAIL_FROM_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 const TZ_FALLBACK_PATTERN = /^[A-Za-z0-9_.+-]+(?:\/[A-Za-z0-9_.+-]+)*$/;
 
+const DASHBOARD_WIDGET_DOM_IDS = {
+  focus: 'dashboard-focus',
+  filters: 'dashboard-filters',
+  kpis: 'dashboard-kpis',
+  pipeline: 'dashboard-pipeline-overview',
+  today: 'dashboard-today',
+  leaderboard: 'referral-leaderboard',
+  stale: 'dashboard-stale',
+  insights: 'dashboard-insights',
+  opportunities: 'dashboard-opportunities'
+};
+
+const DASHBOARD_WIDGET_ORDER = Object.keys(DASHBOARD_WIDGET_DOM_IDS);
+const DASHBOARD_WIDGET_KEY_SET = new Set(DASHBOARD_WIDGET_ORDER);
+const DASHBOARD_WIDGET_ID_MAP = (() => {
+  const map = new Map();
+  Object.entries(DASHBOARD_WIDGET_DOM_IDS).forEach(([key, id]) => {
+    if(typeof id === 'string'){
+      map.set(id.toLowerCase(), key);
+    }
+  });
+  return map;
+})();
+
 function cloneGeneralDefaults(){
   return {
     timezone: '',
@@ -260,6 +284,35 @@ function shouldValidateGeneral(partial){
     return { mode, widgets };
   }
 
+  function normalizeDashboardOrder(input){
+    const source = Array.isArray(input) ? input : [];
+    const next = [];
+    const seen = new Set();
+    source.forEach(entry => {
+      if(entry == null) return;
+      const str = String(entry).trim();
+      if(!str) return;
+      const lower = str.toLowerCase();
+      let key = null;
+      if(DASHBOARD_WIDGET_KEY_SET.has(lower)){
+        key = lower;
+      }else if(DASHBOARD_WIDGET_ID_MAP.has(lower)){
+        key = DASHBOARD_WIDGET_ID_MAP.get(lower);
+      }
+      if(key && !seen.has(key)){
+        seen.add(key);
+        next.push(key);
+      }
+    });
+    DASHBOARD_WIDGET_ORDER.forEach(key => {
+      if(!seen.has(key)){
+        seen.add(key);
+        next.push(key);
+      }
+    });
+    return next;
+  }
+
   function normalize(raw){
     const base = raw && typeof raw === 'object' ? raw : {};
     const profileSource = base && base.loProfile !== undefined ? base.loProfile : base.profile;
@@ -268,6 +321,7 @@ function shouldValidateGeneral(partial){
       signature: normalizeSignature(base.signature),
       loProfile: normalizeProfile(profileSource),
       dashboard: normalizeDashboard(base.dashboard),
+      dashboardOrder: normalizeDashboardOrder(base.dashboardOrder),
       updatedAt: base.updatedAt || null
     };
     const general = extractGeneralSettings(base);
@@ -391,9 +445,13 @@ function shouldValidateGeneral(partial){
       merged.widgets = Object.assign({}, current.dashboard.widgets, source.dashboard.widgets);
       next.dashboard = normalizeDashboard(merged);
     }
+    if(source.dashboardOrder){
+      next.dashboardOrder = normalizeDashboardOrder(source.dashboardOrder);
+    }
     for(const key of Object.keys(source)){
       if(key === 'goals' || key === 'signature' || key === 'loProfile') continue;
       if(key === 'dashboard') continue;
+      if(key === 'dashboardOrder') continue;
       next[key] = source[key];
     }
     if('profile' in next) delete next.profile;

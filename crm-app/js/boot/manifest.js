@@ -82,7 +82,6 @@ export const PATCHES = [
   './partners_merge.js',
   './partners_merge_orchestrator.js',
   './dash_range.js',
-  './dashboard/widgets_dnd.js',
   './importer.js',
   './reports.js',
   './notifications.js',

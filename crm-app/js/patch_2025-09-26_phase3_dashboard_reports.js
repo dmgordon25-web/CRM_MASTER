@@ -45,6 +45,8 @@ function runPatch(){
       'uncategorized':'Unspecified'
     };
 
+    const DASHBOARD_WIDGET_KEYS = ['focus','filters','kpis','pipeline','today','leaderboard','stale','insights','opportunities'];
+
     const DASHBOARD_WIDGET_DEFAULTS = {
       mode: 'today',
       widgets: {
@@ -56,10 +58,12 @@ function runPatch(){
         stale: false,
         insights: false,
         opportunities: false
-      }
+      },
+      order: DASHBOARD_WIDGET_KEYS.slice()
     };
 
     const WIDGET_SECTION_IDS = {
+      focus: 'dashboard-focus',
       filters: 'dashboard-filters',
       kpis: 'dashboard-kpis',
       pipeline: 'dashboard-pipeline-overview',
@@ -69,6 +73,10 @@ function runPatch(){
       insights: 'dashboard-insights',
       opportunities: 'dashboard-opportunities'
     };
+
+    const DASHBOARD_WIDGET_KEY_SET = new Set(DASHBOARD_WIDGET_KEYS);
+    const DASHBOARD_ORDER_STORAGE_KEY = 'dashboard.widgets.order';
+    const WIDGET_ID_TO_KEY = new Map(Object.entries(WIDGET_SECTION_IDS).map(([key, id]) => [String(id||'').toLowerCase(), key]));
 
     function readStoredDashboardMode(){
       if(typeof localStorage === 'undefined') return null;
@@ -84,6 +92,59 @@ function runPatch(){
       if(typeof localStorage === 'undefined') return;
       try{
         if(mode) localStorage.setItem('dashboard:mode', mode);
+      }catch (_err) {}
+    }
+
+    function canonicalWidgetKey(input){
+      if(input == null) return null;
+      const str = String(input).trim();
+      if(!str) return null;
+      const lower = str.toLowerCase();
+      if(DASHBOARD_WIDGET_KEY_SET.has(lower)) return lower;
+      if(WIDGET_ID_TO_KEY.has(lower)) return WIDGET_ID_TO_KEY.get(lower);
+      return null;
+    }
+
+    function normalizeWidgetOrder(orderLike){
+      const source = Array.isArray(orderLike) ? orderLike : [];
+      const next = [];
+      const seen = new Set();
+      source.forEach(item => {
+        const key = canonicalWidgetKey(item);
+        if(key && !seen.has(key)){
+          seen.add(key);
+          next.push(key);
+        }
+      });
+      DASHBOARD_WIDGET_KEYS.forEach(key => {
+        if(!seen.has(key)){
+          seen.add(key);
+          next.push(key);
+        }
+      });
+      return next;
+    }
+
+    function readStoredWidgetOrder(){
+      if(typeof localStorage === 'undefined') return null;
+      try{
+        const raw = localStorage.getItem(DASHBOARD_ORDER_STORAGE_KEY);
+        if(!raw) return null;
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+      }catch (_err) {
+        return null;
+      }
+    }
+
+    function writeStoredWidgetOrder(order){
+      if(typeof localStorage === 'undefined') return;
+      try{
+        if(order && order.length){
+          localStorage.setItem(DASHBOARD_ORDER_STORAGE_KEY, JSON.stringify(order));
+        }else{
+          localStorage.removeItem(DASHBOARD_ORDER_STORAGE_KEY);
+        }
       }catch (_err) {}
     }
 
@@ -104,6 +165,230 @@ function runPatch(){
       dashboardLoaded: false,
       dashboardPromise: null
     };
+    state.dashboard.order = normalizeWidgetOrder(state.dashboard.order);
+
+    const widgetDnD = {
+      container: null,
+      handlers: 0,
+      pointerId: null,
+      dragEl: null,
+      dragKey: null,
+      startIndex: -1,
+      originX: 0,
+      originY: 0,
+      dragging: false,
+      userSelectBackup: '',
+      onPointerDown: null,
+      onPointerMove: null,
+      onPointerUp: null
+    };
+
+    function getDashboardContainer(){
+      if(typeof document === 'undefined') return null;
+      return document.querySelector('main[data-ui="dashboard-root"]')
+        || document.getElementById('view-dashboard')
+        || null;
+    }
+
+    function ensureWidgetAttributes(){
+      const container = getDashboardContainer();
+      if(!container) return;
+      DASHBOARD_WIDGET_KEYS.forEach(key => {
+        const id = WIDGET_SECTION_IDS[key];
+        if(!id) return;
+        const el = typeof id === 'string' ? document.getElementById(id) : null;
+        if(el && container.contains(el)){
+          el.setAttribute('data-dash-widget', key);
+        }
+      });
+    }
+
+    function applyWidgetOrderToDom(orderLike){
+      const container = getDashboardContainer();
+      if(!container) return DASHBOARD_WIDGET_KEYS.slice();
+      ensureWidgetAttributes();
+      const order = normalizeWidgetOrder(orderLike);
+      order.forEach(key => {
+        const id = WIDGET_SECTION_IDS[key];
+        if(!id) return;
+        const el = typeof id === 'string' ? document.getElementById(id) : null;
+        if(el && container.contains(el)){
+          container.appendChild(el);
+        }
+      });
+      state.dashboard.order = order;
+      return order;
+    }
+
+    function currentDomWidgetOrder(){
+      const container = getDashboardContainer();
+      if(!container) return normalizeWidgetOrder([]);
+      const nodes = Array.from(container.children || []).filter(node => node && node.nodeType === 1 && node.hasAttribute('data-dash-widget'));
+      const order = nodes.map(node => node.getAttribute('data-dash-widget'));
+      return normalizeWidgetOrder(order);
+    }
+
+    function widgetFromPoint(x, y){
+      if(typeof document === 'undefined') return null;
+      const el = document.elementFromPoint(x, y);
+      if(!el) return null;
+      const tile = el.closest('[data-dash-widget]');
+      if(!tile) return null;
+      if(!widgetDnD.container || !widgetDnD.container.contains(tile)) return null;
+      return tile;
+    }
+
+    function persistWidgetOrder(order){
+      const normalized = normalizeWidgetOrder(order);
+      state.dashboard.order = normalized;
+      writeStoredWidgetOrder(normalized);
+      if(window.Settings && typeof window.Settings.save === 'function'){
+        Promise.resolve(window.Settings.save({ dashboardOrder: normalized })).catch(err => {
+          if(console && console.warn) console.warn('dashboard order save failed', err);
+        });
+      }else{
+        (async ()=>{
+          try{
+            await openDB();
+            const record = await dbGet('settings', 'app:settings').catch(()=>null) || { id: 'app:settings' };
+            const payload = Object.assign({}, record, { dashboardOrder: normalized });
+            await dbPut('settings', payload);
+          }catch (err) {
+            if(console && console.warn) console.warn('dashboard order persist failed', err);
+          }
+        })();
+      }
+      return normalized;
+    }
+
+    function teardownWidgetDnD(){
+      if(!widgetDnD.container) return;
+      widgetDnD.container.removeEventListener('pointerdown', widgetDnD.onPointerDown);
+      widgetDnD.container.removeEventListener('pointermove', widgetDnD.onPointerMove);
+      widgetDnD.container.removeEventListener('pointerup', widgetDnD.onPointerUp);
+      widgetDnD.container.removeEventListener('pointercancel', widgetDnD.onPointerUp);
+      widgetDnD.container = null;
+      widgetDnD.handlers = 0;
+      widgetDnD.pointerId = null;
+      widgetDnD.dragEl = null;
+      widgetDnD.dragKey = null;
+      widgetDnD.startIndex = -1;
+      widgetDnD.dragging = false;
+      widgetDnD.userSelectBackup = '';
+    }
+
+    function ensureWidgetDnDWired(){
+      const container = getDashboardContainer();
+      if(!container) return;
+      if(widgetDnD.container === container) return;
+      teardownWidgetDnD();
+
+      widgetDnD.container = container;
+
+      const handlePointerDown = (evt) => {
+        if(widgetDnD.dragEl) return;
+        if(evt.button !== 0 && evt.pointerType !== 'touch' && evt.pointerType !== 'pen') return;
+        const tile = evt.target && evt.target.closest('[data-dash-widget]');
+        if(!tile || !widgetDnD.container.contains(tile)) return;
+        if(evt.target && evt.target.closest('button, a, input, textarea, select, [data-no-drag]')) return;
+        const key = canonicalWidgetKey(tile.getAttribute('data-dash-widget') || tile.id);
+        if(!key) return;
+        widgetDnD.pointerId = evt.pointerId;
+        widgetDnD.dragEl = tile;
+        widgetDnD.dragKey = key;
+        const order = currentDomWidgetOrder();
+        widgetDnD.startIndex = order.indexOf(key);
+        widgetDnD.originX = evt.clientX;
+        widgetDnD.originY = evt.clientY;
+        widgetDnD.dragging = false;
+        widgetDnD.userSelectBackup = document.body ? document.body.style.userSelect : '';
+        try{ tile.setPointerCapture(evt.pointerId); }
+        catch (_err) {}
+      };
+
+      const handlePointerMove = (evt) => {
+        if(!widgetDnD.dragEl || (widgetDnD.pointerId != null && evt.pointerId !== widgetDnD.pointerId)) return;
+        if(!widgetDnD.dragging){
+          const dx = evt.clientX - widgetDnD.originX;
+          const dy = evt.clientY - widgetDnD.originY;
+          if(Math.abs(dx) + Math.abs(dy) < 6) return;
+          widgetDnD.dragging = true;
+          if(document.body) document.body.style.userSelect = 'none';
+          widgetDnD.dragEl.style.pointerEvents = 'none';
+          widgetDnD.dragEl.style.opacity = '0.65';
+          widgetDnD.dragEl.style.transition = 'none';
+          console.info('[A_BEACON] dnd:widgets:drag-start', { id: widgetDnD.dragKey });
+        }
+        evt.preventDefault();
+        const target = widgetFromPoint(evt.clientX, evt.clientY);
+        if(!target || target === widgetDnD.dragEl) return;
+        const rect = target.getBoundingClientRect();
+        const before = evt.clientY < rect.top + rect.height / 2;
+        if(before){
+          if(target.previousElementSibling === widgetDnD.dragEl) return;
+          widgetDnD.container.insertBefore(widgetDnD.dragEl, target);
+        }else{
+          if(target.nextElementSibling === widgetDnD.dragEl) return;
+          widgetDnD.container.insertBefore(widgetDnD.dragEl, target.nextElementSibling);
+        }
+      };
+
+      const handlePointerUp = (evt) => {
+        if(!widgetDnD.dragEl) return;
+        if(widgetDnD.pointerId != null && evt.pointerId != null && evt.pointerId !== widgetDnD.pointerId && evt.type !== 'pointercancel') return;
+        const dragEl = widgetDnD.dragEl;
+        const started = widgetDnD.dragging;
+        const fromIndex = widgetDnD.startIndex;
+        const key = widgetDnD.dragKey;
+        if(widgetDnD.pointerId != null){
+          try{ dragEl.releasePointerCapture(widgetDnD.pointerId); }
+          catch (_err) {}
+        }
+        if(document.body) document.body.style.userSelect = widgetDnD.userSelectBackup || '';
+        dragEl.style.pointerEvents = '';
+        dragEl.style.opacity = '';
+        dragEl.style.transition = '';
+        widgetDnD.pointerId = null;
+        widgetDnD.dragEl = null;
+        widgetDnD.dragKey = null;
+        widgetDnD.startIndex = -1;
+        widgetDnD.dragging = false;
+        widgetDnD.userSelectBackup = '';
+        if(!started) return;
+        evt.preventDefault();
+        const order = currentDomWidgetOrder();
+        const toIndex = order.indexOf(key);
+        console.info('[A_BEACON] dnd:widgets:drop', { from: fromIndex, to: toIndex });
+        if(fromIndex !== toIndex){
+          persistWidgetOrder(order);
+          queueDashboardRender({});
+        }
+      };
+
+      widgetDnD.onPointerDown = handlePointerDown;
+      widgetDnD.onPointerMove = handlePointerMove;
+      widgetDnD.onPointerUp = handlePointerUp;
+
+      console.info('[A_BEACON] dnd:widgets:handlers', { count: widgetDnD.handlers });
+      container.addEventListener('pointerdown', handlePointerDown);
+      container.addEventListener('pointermove', handlePointerMove);
+      container.addEventListener('pointerup', handlePointerUp);
+      container.addEventListener('pointercancel', handlePointerUp);
+      widgetDnD.handlers = 4;
+      console.info('[A_BEACON] dnd:widgets:handlers', { count: widgetDnD.handlers });
+    }
+
+    if(typeof document !== 'undefined'){
+      document.addEventListener('app:view:changed', (evt) => {
+        const detail = evt && evt.detail ? evt.detail : {};
+        if(detail.view === 'dashboard'){
+          applyWidgetOrderToDom(state.dashboard.order);
+          ensureWidgetDnDWired();
+        }else{
+          teardownWidgetDnD();
+        }
+      });
+    }
 
     const storedInitialMode = readStoredDashboardMode();
     if(storedInitialMode) state.dashboard.mode = storedInitialMode;
@@ -194,21 +479,27 @@ function runPatch(){
 
     function normalizeDashboardSettings(raw){
       const base = raw && typeof raw === 'object' ? raw : {};
+      const source = base.dashboard && typeof base.dashboard === 'object' ? base.dashboard : base;
       const widgets = Object.assign({}, DASHBOARD_WIDGET_DEFAULTS.widgets);
-      if(base.widgets && typeof base.widgets === 'object'){
+      if(source.widgets && typeof source.widgets === 'object'){
         Object.keys(widgets).forEach(key => {
-          if(typeof base.widgets[key] === 'boolean') widgets[key] = base.widgets[key];
+          if(typeof source.widgets[key] === 'boolean') widgets[key] = source.widgets[key];
         });
       }
       const storedMode = readStoredDashboardMode();
-      const hasExplicitMode = Object.prototype.hasOwnProperty.call(base, 'mode');
+      const hasExplicitMode = Object.prototype.hasOwnProperty.call(source, 'mode');
       let mode;
-      if(hasExplicitMode && base.mode === 'all') mode = 'all';
-      else if(hasExplicitMode && base.mode === 'today') mode = 'today';
+      if(hasExplicitMode && source.mode === 'all') mode = 'all';
+      else if(hasExplicitMode && source.mode === 'today') mode = 'today';
       else if(storedMode) mode = storedMode;
       else mode = 'today';
+      const rawOrder = Array.isArray(base.order) ? base.order
+        : Array.isArray(base.dashboardOrder) ? base.dashboardOrder
+        : readStoredWidgetOrder();
+      const order = normalizeWidgetOrder(rawOrder);
       writeStoredDashboardMode(mode);
-      return { mode, widgets };
+      writeStoredWidgetOrder(order);
+      return { mode, widgets, order };
     }
 
     async function loadDashboardSettings(force){
@@ -222,11 +513,17 @@ function runPatch(){
         try{
           if(window.Settings && typeof window.Settings.get === 'function'){
             const data = await window.Settings.get();
-            state.dashboard = normalizeDashboardSettings(data.dashboard);
+            const payload = data && typeof data === 'object'
+              ? { dashboard: data.dashboard, dashboardOrder: data.dashboardOrder }
+              : null;
+            state.dashboard = normalizeDashboardSettings(payload);
           }else{
             await openDB();
             const record = await dbGet('settings', 'app:settings');
-            state.dashboard = normalizeDashboardSettings(record && record.dashboard);
+            const payload = record && typeof record === 'object'
+              ? { dashboard: record.dashboard, dashboardOrder: record.dashboardOrder }
+              : null;
+            state.dashboard = normalizeDashboardSettings(payload);
           }
         }catch (err) {
           console && console.warn && console.warn('dashboard settings load failed', err);
@@ -942,6 +1239,9 @@ function runPatch(){
       const showOpportunities = state.dashboard.mode === 'all' && state.dashboard.widgets.opportunities !== false;
       toggleSectionVisibility(WIDGET_SECTION_IDS.insights, showInsights);
       toggleSectionVisibility(WIDGET_SECTION_IDS.opportunities, showOpportunities);
+
+      applyWidgetOrderToDom(state.dashboard.order);
+      ensureWidgetDnDWired();
     }
 
     function canonicalLossReason(reason){
@@ -1229,7 +1529,7 @@ function runPatch(){
         return;
       }
       const widgets = Object.assign({}, state.dashboard.widgets);
-      state.dashboard = normalizeDashboardSettings({ mode: normalized, widgets });
+      state.dashboard = normalizeDashboardSettings({ mode: normalized, widgets, order: state.dashboard.order });
       state.dashboardLoaded = true;
       updateDashboardModeControls();
       queueDashboardRender({forceReload:false, sections:['filters','kpis','pipeline','today','leaderboard','stale','focus']});

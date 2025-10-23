@@ -185,26 +185,6 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   })();
 
-  (function wireDashboardDnD(){
-    if (window.__DASH_DND__) return; window.__DASH_DND__ = true;
-
-    function maybe(){
-      const host = document.querySelector('[data-dashboard-widgets], #dashboard-widgets, .dashboard-widgets, #kpi-tiles, [data-kpis]');
-      if (!host) return;
-      import(fromHere('./dashboard/widgets_dnd.js')).catch(()=>{});
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', maybe, { once:true });
-    } else {
-      maybe();
-    }
-
-    if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => maybe()); } catch (e) {}
-    }
-  })();
-
   (function wireNotifications(){
     if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
 
