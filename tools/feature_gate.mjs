@@ -15,18 +15,18 @@ const SCREENSHOT_MAP = {
   2: path.join(PROOFS_DIR, 'phase2.png')
 };
 const BACKOFF_MS = [0, 2000, 5000, 10000, 15000];
-const HELLO_SNIPPET = " <script>try{if(!window.__HELLO_SEEN__){window.__HELLO_SEEN__=true;window.__HELLO_ACK__=!!confirm('Hello, click OK');console.info('[A_BEACON] hello',window.__HELLO_ACK__);}}catch(e){console.info('[A_BEACON] hello failed',e&&e.message);}</script>\n";
 const INDEX_PATH = path.join(REPO_ROOT, 'crm-app', 'index.html');
+const HELLO_SCRIPT_RE = /<script[^>]*>[\s\S]*?Hello,\s*click\s*OK[\s\S]*?<\/script>/gi;
 
 function log(message) {
   process.stdout.write(`${message}\n`);
 }
 
-async function startServer() {
+async function startServer(envOverrides = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['tools/dev_server.mjs'], {
       cwd: REPO_ROOT,
-      env: { ...process.env, CRM_SKIP_AUTO_OPEN: '1' },
+      env: { ...process.env, CRM_SKIP_AUTO_OPEN: '1', ...envOverrides },
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -95,8 +95,11 @@ function assertBootStamp(rawHtml) {
 }
 
 function assertHello(rawHtml, phase) {
-  if (phase === 1 && !rawHtml.includes("Hello, click OK")) {
+  if (phase === 1 && !rawHtml.includes('Hello, click OK')) {
     throw new Error('Hello dialog missing in phase 1');
+  }
+  if (phase === 2 && rawHtml.includes('Hello, click OK')) {
+    throw new Error('Hello dialog still present in phase 2');
   }
 }
 
@@ -234,10 +237,12 @@ async function removeHelloBlock() {
   } catch (err) {
     throw new Error(`Failed to read index.html: ${err.message}`);
   }
-  if (!html.includes("Hello, click OK")) {
+  const regex = new RegExp(HELLO_SCRIPT_RE.source, HELLO_SCRIPT_RE.flags);
+  if (!regex.test(html)) {
     return false;
   }
-  const updated = html.replace(HELLO_SNIPPET, '');
+  regex.lastIndex = 0;
+  const updated = html.replace(regex, '');
   if (updated === html) {
     throw new Error('Failed to remove Hello block');
   }
@@ -246,7 +251,7 @@ async function removeHelloBlock() {
   return true;
 }
 
-async function attemptPhase(phase) {
+async function attemptPhase(phase, envOverrides = {}) {
   let lastError = null;
   for (let i = 0; i < BACKOFF_MS.length; i += 1) {
     const waitMs = BACKOFF_MS[i];
@@ -255,7 +260,7 @@ async function attemptPhase(phase) {
     }
     let server;
     try {
-      server = await startServer();
+      server = await startServer(envOverrides);
     } catch (err) {
       if (err && err.code === 3) {
         throw err;
@@ -278,9 +283,9 @@ async function attemptPhase(phase) {
 
 async function main() {
   try {
-    const phase1 = await attemptPhase(1);
+    const phase1 = await attemptPhase(1, { HELLO_PROOF: '1' });
     await removeHelloBlock();
-    const phase2 = await attemptPhase(2);
+    const phase2 = await attemptPhase(2, { HELLO_PROOF: '0' });
     log('[FEATURE_GATE] phase1=ok phase2=ok screenshots=proofs/phase1.png,proofs/phase2.png');
     log(`[FEATURE_GATE] phase1Whoami=${JSON.stringify(phase1.whoami)}`);
     log(`[FEATURE_GATE] phase1Raw=${phase1.rawHtmlSnippet}`);

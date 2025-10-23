@@ -24,6 +24,8 @@ const CRM_LOG_ROOT = process.env.LOCALAPPDATA
 const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
 
+const WANT_HELLO = process.env.HELLO_PROOF === '1';
+
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -212,12 +214,28 @@ function readIndexInfo() {
     mutated = true;
   };
 
+  const findBodyStampIndex = () => {
+    const bodyMatch = servedHtml.match(/<body[^>]*>/i);
+    if (bodyMatch) {
+      const bodyStart = bodyMatch.index + bodyMatch[0].length;
+      const bodyStampIndex = servedHtml.indexOf(BOOT_STAMP, bodyStart);
+      if (bodyStampIndex !== -1) {
+        return bodyStampIndex;
+      }
+      return bodyStart;
+    }
+    return servedHtml.indexOf(BOOT_STAMP);
+  };
+
   const ensureHello = () => {
+    if (!WANT_HELLO) {
+      return;
+    }
     if (servedHtml.includes(HELLO_MARKER)) {
       return;
     }
     ensureStamp();
-    const stampIndex = servedHtml.indexOf(BOOT_STAMP);
+    const stampIndex = findBodyStampIndex();
     const insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
     servedHtml = `${servedHtml.slice(0, insertPos)}\n${HELLO_BLOCK}${servedHtml.slice(insertPos)}`;
     mutated = true;
@@ -227,12 +245,17 @@ function readIndexInfo() {
     if (SPLASH_MARKER_RE.test(servedHtml)) {
       return;
     }
-    ensureHello();
-    let insertPos = servedHtml.indexOf(HELLO_BLOCK);
-    if (insertPos !== -1) {
-      insertPos += HELLO_BLOCK.length;
-    } else {
-      const stampIndex = servedHtml.indexOf(BOOT_STAMP);
+    ensureStamp();
+    let insertPos = -1;
+    const helloIndex = servedHtml.indexOf(HELLO_MARKER);
+    if (helloIndex !== -1) {
+      const scriptClose = servedHtml.indexOf('</script>', helloIndex);
+      if (scriptClose !== -1) {
+        insertPos = scriptClose + '</script>'.length;
+      }
+    }
+    if (insertPos === -1) {
+      const stampIndex = findBodyStampIndex();
       insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
     }
     servedHtml = `${servedHtml.slice(0, insertPos)}\n${SPLASH_BLOCK}${servedHtml.slice(insertPos)}`;
@@ -240,7 +263,9 @@ function readIndexInfo() {
   };
 
   ensureStamp();
-  ensureHello();
+  if (WANT_HELLO) {
+    ensureHello();
+  }
   ensureSplash();
 
   const servedBuffer = Buffer.from(servedHtml, 'utf8');
@@ -410,6 +435,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (filePath && stats && stats.isFile()) {
+    if (path.resolve(filePath) === APP_INDEX && (parsed.normalized === '/' || parsed.normalized === '')) {
+      serveSpa(req, res);
+      return;
+    }
     serveStream(req, res, filePath, stats);
     return;
   }
