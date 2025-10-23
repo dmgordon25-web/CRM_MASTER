@@ -10,6 +10,12 @@ import { normalizeStatus } from './pipeline/constants.js';
     longshots:{loanTypes:[],referredBy:'',lastFrom:'',lastTo:'',q:'',query:[]},
     statusLongshots:{loanTypes:[],referredBy:'',lastFrom:'',lastTo:'',q:'',query:[]}
   };
+  function cloneDefaults(scope){
+    return JSON.parse(JSON.stringify(DEFAULTS[scope]));
+  }
+  function statesEqual(a,b){
+    return JSON.stringify(a)===JSON.stringify(b);
+  }
   const LOAN_OPTIONS=['Conventional','FHA','VA','Jumbo','USDA','Other'];
   const STAGE_OPTIONS=['Application','Processing','Underwriting','Approved','Cleared to Close','Funded'];
   const CLIENT_STAGE_OPTIONS=['Approved','Cleared to Close','Funded'];
@@ -97,6 +103,8 @@ import { normalizeStatus } from './pipeline/constants.js';
     ]
   };
   const SCOPES=Object.keys(DEFAULTS);
+  const DEFAULT_STATE={};
+  SCOPES.forEach(scope=>{ DEFAULT_STATE[scope]=cloneDefaults(scope); });
   const rawState=JSON.parse(sessionStorage.getItem('filterState')||'{}');
   const state={};
   SCOPES.forEach(scope=>{ state[scope]=sanitize(scope, rawState[scope]); });
@@ -197,6 +205,13 @@ import { normalizeStatus } from './pipeline/constants.js';
     state[scope]=sanitize(scope,next);
     saveSession();
     renderQueryUI(scope, state[scope]);
+  }
+
+  function resetScopeIfMissingUI(scope, selector){
+    if(document.querySelector(selector)) return;
+    if(statesEqual(state[scope], DEFAULT_STATE[scope])) return;
+    state[scope]=cloneDefaults(scope);
+    saveSession();
   }
 
   function setState(scope, patch){
@@ -650,6 +665,7 @@ import { normalizeStatus } from './pipeline/constants.js';
   function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
 
   ready(()=>{
+    resetScopeIfMissingUI('longshots', '#btn-filters-longshots, #views-longshots, [data-query-scope="longshots"]');
     wireControls();
     wireModal();
     SCOPES.forEach(scope=> renderQueryUI(scope, state[scope]));
