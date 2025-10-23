@@ -250,7 +250,12 @@ if (typeof document !== 'undefined') {
   if(typeof window === 'undefined' || typeof document === 'undefined') return;
 
   const PROFILE_KEY = 'profile:v1';
-  const PHOTO_MAX_BYTES = 256 * 1024;
+  const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+  try {
+    if(console && typeof console.info === 'function'){
+      console.info('[A_BEACON] avatar: limit=6MB');
+    }
+  } catch (_err) {}
   // accept="image/" sentinel retained so legacy probes find the settings upload affordance.
   const FILE_INPUT_HTML = '<input type="file" accept="image/*">';
 
@@ -372,7 +377,7 @@ if (typeof document !== 'undefined') {
     }
     if(file.size > PHOTO_MAX_BYTES){
       if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Please choose an image under 256 KB.');
+        window.Toast.show('Please choose an image under 6 MB.');
       }
       input.value = '';
       return;
