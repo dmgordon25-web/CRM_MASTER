@@ -8,7 +8,7 @@ import puppeteer from 'puppeteer';
 
 function startDevServer() {
   const child = spawn(process.execPath, ['tools/dev_server.mjs'], {
-    env: { ...process.env },
+    env: { ...process.env, HELLO_PROOF: '1' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   child.stdout.setEncoding('utf8');
