@@ -920,7 +920,6 @@ function runPatch(){
       installSelectAllInterceptors();
       wireMergeGating();
       injectTodayDensity();
-      ensureLongShotsSearch();
       ensureCalendarExports();
       revealDashboardSections();
     }
