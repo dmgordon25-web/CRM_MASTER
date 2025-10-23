@@ -28,10 +28,11 @@ const canonicalPatchOrder = [
   './patch_2025-10-03_quick_add_partner.js',
   './patch_2025-10-03_automation_seed.js',
   './patches/patch_2025-10-23_dashboard_drag.js',
+  './patches/patch_2025-10-23_session_beacon.js',
+  './patches/patch_2025-10-23_actionbar_drag.js',
   './contacts_merge.js',
   './contacts_merge_orchestrator.js',
-  './pipeline/kanban_dnd.js',
-  './patches/patch_2025-10-23_session_beacon.js'
+  './pipeline/kanban_dnd.js'
 ];
 
 function loadManifest() {

@@ -17,6 +17,7 @@
   "js/patch_2025-09-27_release_prep.js",
   "js/partners_merge.js",
   "js/patch_2025-10-03_calendar_ics_button.js",
-  "js/patches/patch_2025-10-23_dashboard_drag.js"
-  "js/patches/patch_2025-10-23_session_beacon.js"
+  "js/patches/patch_2025-10-23_dashboard_drag.js",
+  "js/patches/patch_2025-10-23_session_beacon.js",
+  "js/patches/patch_2025-10-23_actionbar_drag.js"
 ]
