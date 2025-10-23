@@ -367,7 +367,7 @@ function runPatch(){
       const host = document.getElementById('view-longshots');
       if(!host) return;
       const queryRow = host.querySelector('.row.query-save-row');
-      if(queryRow && queryRow.parentElement === host){
+      if(queryRow){
         removeLongshotsNode(queryRow);
       }
       const queryShell = host.querySelector('.query-shell[data-query-scope="longshots"]');
