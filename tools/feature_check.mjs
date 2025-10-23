@@ -67,33 +67,50 @@ async function runFeatureCheck(origin) {
     throw new Error(`__raw_root request failed with status ${rawRes.status}`);
   }
   const rawHtml = await rawRes.text();
-  if (!rawHtml.includes('BOOT_STAMP: crm-app-index') || !rawHtml.includes('Hello, click OK')) {
+  const missingMarkers = [];
+  if (!rawHtml.includes('BOOT_STAMP: crm-app-index')) {
+    missingMarkers.push('BOOT_STAMP');
+  }
+  if (!rawHtml.includes("__auto_hello__=1")) {
+    missingMarkers.push('__auto_hello__ redirect marker');
+  }
+  if (!rawHtml.includes('window.__HELLO_ACK__=true')) {
+    missingMarkers.push('__HELLO_ACK__ auto-ack script');
+  }
+  if (missingMarkers.length > 0) {
     const excerpt = sanitizeExcerpt(rawHtml);
     const servedRoot = whoami?.servedRoot ?? '<unknown>';
     const indexPath = whoami?.indexPath ?? '<unknown>';
-    throw new Error(`Root HTML missing markers (servedRoot=${servedRoot}, indexPath=${indexPath}). Excerpt: ${excerpt}`);
+    throw new Error(
+      `Root HTML missing markers (servedRoot=${servedRoot}, indexPath=${indexPath}, missing=${missingMarkers.join(', ')}). Excerpt: ${excerpt}`
+    );
   }
 
-  globalThis.__HELLO_DIALOG__ = false;
   const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   let cleanupTemp = null;
   try {
     const page = await browser.newPage();
-    page.on('dialog', (dialog) => {
+    let unexpectedDialog = null;
+    page.on('dialog', async (dialog) => {
       try {
-        if (/^Hello/.test(dialog.message())) {
-          globalThis.__HELLO_DIALOG__ = true;
-          return dialog.accept();
-        }
+        unexpectedDialog = dialog.message();
+        await dialog.dismiss();
       } catch {}
-      return dialog.dismiss();
     });
 
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
 
-    if (!globalThis.__HELLO_DIALOG__) {
-      throw new Error('Hello confirm dialog did not appear');
+    if (unexpectedDialog) {
+      throw new Error(`Unexpected dialog encountered: ${unexpectedDialog}`);
     }
+
+    await page.waitForFunction(() => {
+      try {
+        return new URL(window.location.href).searchParams.get('__auto_hello__') === '1';
+      } catch (err) {
+        return false;
+      }
+    }, { timeout: 5000 });
 
     await page.waitForFunction(() => window.__HELLO_ACK__ === true, { timeout: 5000 });
 
@@ -153,7 +170,7 @@ async function main() {
     child = startDevServer();
     const { origin } = await waitForServer(child);
     const { whoami, rawHtml, screenshotPath } = await runFeatureCheck(origin);
-    console.log('[FEATURE_CHECK] whoami=ok html=ok hello=ok splash=ok avatarPersist=ok screenshot=' + screenshotPath);
+    console.log('[FEATURE_CHECK] whoami=ok html=ok helloAuto=ok splash=ok avatarPersist=ok screenshot=' + screenshotPath);
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;
