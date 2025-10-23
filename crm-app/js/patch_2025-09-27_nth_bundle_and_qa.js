@@ -924,6 +924,92 @@ function runPatch(){
       }
     }
 
+    function collectSearchTokens(node){
+      const tokens = [];
+      if(!node) return tokens;
+      const pushTokens = (value)=>{
+        if(!value) return;
+        const raw = Array.isArray(value) ? value : String(value).split(/[\s,]+/);
+        raw.forEach(token => {
+          const normalized = String(token || '').trim();
+          if(normalized) tokens.push(normalized.toLowerCase());
+        });
+      };
+      const dataset = node.dataset || {};
+      pushTokens(dataset.scope);
+      pushTokens(dataset.scopes);
+      pushTokens(dataset.searchScope);
+      pushTokens(dataset.searchScopes);
+      pushTokens(dataset.target);
+      pushTokens(dataset.searchTarget);
+      pushTokens(dataset.tableSearch);
+      const ariaControls = typeof node.getAttribute === 'function' ? node.getAttribute('aria-controls') : null;
+      pushTokens(ariaControls);
+      const placeholder = typeof node.getAttribute === 'function' ? node.getAttribute('placeholder') : null;
+      if(placeholder && /long\s*shots?/i.test(placeholder)) tokens.push('longshots-placeholder');
+      return tokens;
+    }
+
+    function matchesLongshots(tokens){
+      return tokens.some(token => token.includes('longshot') || token === '#tbl-longshots' || token === 'tbl-longshots');
+    }
+
+    function findLongshotsSearchInput(){
+      const host = document.querySelector('#view-longshots');
+      if(!host) throw new Error('Long Shots view not mounted');
+      const local = host.querySelector('input[data-table-search="#tbl-longshots"]');
+      if(local && local.isConnected){
+        return { input: local, scope: 'local' };
+      }
+      const markers = [
+        '[data-role="global-search"]',
+        '[data-role="header-search"]',
+        '[data-global-search]',
+        '[data-search-scope]',
+        '#global-search',
+        '#header-search',
+        '.header-search input[type="search"]'
+      ];
+      for(const sel of markers){
+        let node = null;
+        try{ node = document.querySelector(sel); }
+        catch(_err){ node = null; }
+        if(!node || !node.isConnected) continue;
+        const input = node.matches && node.matches('input') ? node : node.querySelector && node.querySelector('input');
+        const target = input || node;
+        if(!target || !target.isConnected) continue;
+        const tokens = collectSearchTokens(target).concat(collectSearchTokens(node));
+        if(matchesLongshots(tokens)){
+          return { input: target, scope: 'global' };
+        }
+      }
+      throw new Error('No search control available for Long Shots');
+    }
+
+    function triggerSearchInput(input){
+      if(!input) return;
+      try{ input.dispatchEvent(new Event('input', { bubbles:true })); }
+      catch(_err){}
+      try{ input.dispatchEvent(new Event('change', { bubbles:true })); }
+      catch(_err){}
+    }
+
+    function getVisibleLongshotRows(host){
+      const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr'));
+      return rows.filter(row => row && row.offsetParent !== null);
+    }
+
+    async function waitForVisibleLongshots(host, expected, attempts = 20){
+      const delay = 100;
+      for(let i = 0; i < attempts; i += 1){
+        const visible = getVisibleLongshotRows(host);
+        if(visible.length === expected) return visible;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      const visible = getVisibleLongshotRows(host);
+      throw new Error(`Expected ${expected} visible row(s), saw ${visible.length}`);
+    }
+
     async function testP12(results){
       const section = 'Phase 1';
       const name = 'P1.2 Long Shots search';
@@ -943,16 +1029,20 @@ function runPatch(){
         });
         const host = document.querySelector('#view-longshots');
         if(!host) throw new Error('Long Shots view not mounted');
-        const input = host.querySelector('input[data-table-search="#tbl-longshots"]');
+        const control = findLongshotsSearchInput();
+        const input = control.input;
         if(!input) throw new Error('Search input unavailable');
+        const originalValue = input.value;
         input.value = 'Unique';
-        input.dispatchEvent(new Event('input', { bubbles:true }));
-        const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr')); 
-        const visible = rows.filter(row => row.offsetParent !== null);
-        if(visible.length !== 1) throw new Error(`Expected 1 visible row, saw ${visible.length}`);
+        triggerSearchInput(input);
+        const visible = await waitForVisibleLongshots(host, 1);
         const text = visible[0].textContent || '';
-        if(!text.includes('Unique')) throw new Error('Unique row not present');
-        logResult(results, section, name, true, 'Search isolates the unique Long Shot row');
+        if(!/unique/i.test(text)) throw new Error('Unique row not present');
+        input.value = originalValue || '';
+        triggerSearchInput(input);
+        logResult(results, section, name, true, control.scope === 'global'
+          ? 'Global search isolates the unique Long Shot row'
+          : 'Search isolates the unique Long Shot row');
       }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }
