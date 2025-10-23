@@ -539,6 +539,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     state.safe = safe;
     if (safe) {
       hideSplashOnce();
+      (function(){const el=document.getElementById('boot-splash');if(el){requestAnimationFrame(()=>{el.style.display='none';window.__SPLASH_HIDDEN__=true;console.info('[A_BEACON] splash hidden');});}}());
       finalizeSplashAndHeader();
     }
 
@@ -578,6 +579,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     hideSplashOnce();
+    (function(){const el=document.getElementById('boot-splash');if(el){requestAnimationFrame(()=>{el.style.display='none';window.__SPLASH_HIDDEN__=true;console.info('[A_BEACON] splash hidden');});}}());
     finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {
