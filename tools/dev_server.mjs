@@ -11,8 +11,6 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const APP_INDEX = path.join(REPO_ROOT, 'crm-app', 'index.html');
 const APP_ROOT = path.dirname(APP_INDEX);
 const BOOT_STAMP = '<!-- BOOT_STAMP: crm-app-index -->';
-const HELLO_MARKER = 'Hello, click OK';
-const HELLO_BLOCK = "<script>try{if(!window.__HELLO_SEEN__){window.__HELLO_SEEN__=true;window.__HELLO_ACK__=!!confirm('Hello, click OK');console.info('[A_BEACON] hello',window.__HELLO_ACK__);}}catch(e){console.info('[A_BEACON] hello failed',e&&e.message);}</script>";
 const SPLASH_BLOCK = '<div id="boot-splash" role="status" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;z-index:99999"><div>Loading CRM…</div></div>';
 const SPLASH_MARKER_RE = /id\s*=\s*['"]boot-splash['"]/i;
 const SERVER_HEADER_NAME = 'X-CRM-Server';
@@ -23,8 +21,6 @@ const CRM_LOG_ROOT = process.env.LOCALAPPDATA
   : path.join(REPO_ROOT, 'logs');
 const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
-
-const WANT_HELLO = process.env.HELLO_PROOF === '1';
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -227,45 +223,18 @@ function readIndexInfo() {
     return servedHtml.indexOf(BOOT_STAMP);
   };
 
-  const ensureHello = () => {
-    if (!WANT_HELLO) {
-      return;
-    }
-    if (servedHtml.includes(HELLO_MARKER)) {
-      return;
-    }
-    ensureStamp();
-    const stampIndex = findBodyStampIndex();
-    const insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
-    servedHtml = `${servedHtml.slice(0, insertPos)}\n${HELLO_BLOCK}${servedHtml.slice(insertPos)}`;
-    mutated = true;
-  };
-
   const ensureSplash = () => {
     if (SPLASH_MARKER_RE.test(servedHtml)) {
       return;
     }
     ensureStamp();
-    let insertPos = -1;
-    const helloIndex = servedHtml.indexOf(HELLO_MARKER);
-    if (helloIndex !== -1) {
-      const scriptClose = servedHtml.indexOf('</script>', helloIndex);
-      if (scriptClose !== -1) {
-        insertPos = scriptClose + '</script>'.length;
-      }
-    }
-    if (insertPos === -1) {
-      const stampIndex = findBodyStampIndex();
-      insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
-    }
+    const stampIndex = findBodyStampIndex();
+    const insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
     servedHtml = `${servedHtml.slice(0, insertPos)}\n${SPLASH_BLOCK}${servedHtml.slice(insertPos)}`;
     mutated = true;
   };
 
   ensureStamp();
-  if (WANT_HELLO) {
-    ensureHello();
-  }
   ensureSplash();
 
   const servedBuffer = Buffer.from(servedHtml, 'utf8');
@@ -513,6 +482,11 @@ async function start() {
     const message = preflight.error && preflight.error.message ? preflight.error.message : String(preflight.error);
     console.error(`[DEV SERVER] Failed to read index (${message}) at ${indexPath}`);
     throw preflight.error;
+  }
+  if (!preflight || !preflight.servedHtml || !preflight.servedHtml.includes(BOOT_STAMP)) {
+    console.error('[DEV SERVER] BOOT_STAMP missing from served index');
+    process.exit(3);
+    return;
   }
   const port = await bindServer();
   const url = `http://127.0.0.1:${port}/`;

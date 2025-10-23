@@ -6,9 +6,11 @@ import path from 'node:path';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
 
+const BOOT_STAMP = '<!-- BOOT_STAMP: crm-app-index -->';
+
 function startDevServer() {
   const child = spawn(process.execPath, ['tools/dev_server.mjs'], {
-    env: { ...process.env, HELLO_PROOF: '1' },
+    env: { ...process.env, CRM_SKIP_AUTO_OPEN: '1' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   child.stdout.setEncoding('utf8');
@@ -73,38 +75,25 @@ async function runFeatureCheck(origin) {
 
   const rawUrl = new URL('__raw_root', origin);
   const rawHtml = await fetchText(rawUrl);
-  if (!rawHtml.includes('<!-- BOOT_STAMP: crm-app-index -->') || !rawHtml.includes('Hello, click OK')) {
+  if (!rawHtml.includes(BOOT_STAMP)) {
     const excerpt = sanitizeExcerpt(rawHtml);
-    throw new Error(`Root HTML missing required markers. Excerpt: ${excerpt}`);
+    throw new Error(`Root HTML missing BOOT_STAMP. Excerpt: ${excerpt}`);
   }
 
-  globalThis.__HELLO_DIALOG__ = false;
   const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   let cleanupTemp;
   try {
     const page = await browser.newPage();
-    page.on('dialog', (dialog) => {
-      try {
-        if (/^Hello/.test(dialog.message())) {
-          globalThis.__HELLO_DIALOG__ = true;
-          return dialog.accept();
-        }
-      } catch {}
-      return dialog.dismiss();
-    });
-
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
 
-    if (!globalThis.__HELLO_DIALOG__) {
-      throw new Error('Hello confirm dialog did not appear');
-    }
+    const settingsUrl = new URL('#/settings/profiles', origin).toString();
+    await page.goto(settingsUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
 
-    await page.waitForFunction(() => window.__HELLO_ACK__ === true, { timeout: 10000 });
-    await page.waitForFunction(() => window.__SPLASH_HIDDEN__ === true, { timeout: 15000 });
-
-    await page.evaluate(() => { location.hash = '#/settings/profiles'; });
-    await page.waitForSelector('input[type="file"][accept="image/*"]', { timeout: 10000 });
-    const input = await page.$('input[type="file"][accept="image/*"]');
+    const inputSelector = 'input[type="file"][accept="image/*"]';
+    await page.waitForSelector(inputSelector, { timeout: 15000 });
+    const input = await page.$(inputSelector);
     if (!input) {
       throw new Error('Avatar input not found');
     }
@@ -121,19 +110,18 @@ async function runFeatureCheck(origin) {
 
     await input.uploadFile(filePath);
 
-    await page.waitForFunction(() => {
+    const avatarVisible = () => {
       const img = document.querySelector('#lo-profile-chip img[data-role="lo-photo"]');
       return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
-    }, { timeout: 10000 });
+    };
+
+    await page.waitForFunction(avatarVisible, { timeout: 15000 });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.__SPLASH_HIDDEN__ === true, { timeout: 15000 });
-    await page.waitForFunction(() => {
-      const img = document.querySelector('#lo-profile-chip img[data-role="lo-photo"]');
-      return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
-    }, { timeout: 10000 });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+    await page.waitForFunction(avatarVisible, { timeout: 15000 });
 
-    const screenshotRelative = path.join('proofs', 'feature.png');
+    const screenshotRelative = path.join('proofs', 'cleanup.png');
     const screenshotAbsolute = path.join(process.cwd(), screenshotRelative);
     await fs.mkdir(path.dirname(screenshotAbsolute), { recursive: true });
     await page.screenshot({ path: screenshotAbsolute, fullPage: true });
@@ -153,7 +141,7 @@ async function main() {
     child = startDevServer();
     const { origin } = await waitForServer(child);
     const { screenshotPath } = await runFeatureCheck(origin);
-    console.log(`[FEATURE_CHECK] hello=ok splash=ok avatarPersist=ok screenshot=${screenshotPath}`);
+    console.log(`[FEATURE_CHECK] cleanup=ok splash=ok avatarPersist=ok screenshot=${screenshotPath}`);
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;

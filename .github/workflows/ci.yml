@@ -34,11 +34,11 @@ jobs:
       - name: Feature gate (solve-and-clean)
         run: npm run gate:run
 
-      - name: Feature check (hello + splash + avatar)
+      - name: Feature check (splash + avatar persistence)
         run: npm run check:features
 
       - name: Upload feature proof
         uses: actions/upload-artifact@v4
         with:
           name: feature-proof
-          path: proofs/feature.png
+          path: proofs/cleanup.png
