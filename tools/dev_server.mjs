@@ -181,11 +181,12 @@ function getRootIndexPath() {
 
 function readIndexInfo() {
   const indexPath = getRootIndexPath();
+  const servedRoot = path.dirname(indexPath);
   let buffer;
   try {
     buffer = fs.readFileSync(indexPath);
   } catch (error) {
-    return { error };
+    return { error, indexPath, servedRoot };
   }
   const html = buffer.toString('utf8');
   const sha1 = crypto.createHash('sha1').update(buffer).digest('hex');
@@ -196,8 +197,27 @@ function readIndexInfo() {
     indexContainsBootStamp: containsBootStamp,
     buffer,
     html,
-    servedRoot: path.dirname(indexPath)
+    servedRoot
   };
+}
+
+function guardBootStampOnStartup() {
+  const info = readIndexInfo();
+  if (info.error) {
+    const indexPath = path.resolve(info.indexPath || APP_INDEX);
+    const root = path.resolve(info.servedRoot || APP_ROOT);
+    const message = info.error && info.error.message ? info.error.message : String(info.error);
+    console.error(`[DEV SERVER] Failed to read index (${message}) at ${indexPath}`);
+    throw info.error;
+  }
+  if (!info.indexContainsBootStamp) {
+    const indexPath = path.resolve(info.indexPath || APP_INDEX);
+    const root = path.resolve(info.servedRoot || APP_ROOT);
+    console.log(`[BOOT_GUARD] INDEX_MISMATCH root=${root} index=${indexPath}`);
+    process.exit(3);
+    return null;
+  }
+  return info;
 }
 
 function sendIndexMismatch(res, info) {
@@ -439,6 +459,7 @@ function openBrowser(url) {
 }
 
 async function start() {
+  guardBootStampOnStartup();
   const port = await bindServer();
   const url = `http://127.0.0.1:${port}/`;
   console.log(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
