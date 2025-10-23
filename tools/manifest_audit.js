@@ -32,7 +32,8 @@ const canonicalPatchOrder = [
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js',
   './patches/patch_2025-10-23_session_beacon.js',
-  './patches/patch_2025-10-23_unify_quick_create.js'
+  './patches/patch_2025-10-23_unify_quick_create.js',
+  './patches/patch_2025-10-23_dashboard_drag_fix.js'
 ];
 
 function loadManifest() {
