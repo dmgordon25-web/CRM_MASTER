@@ -1,10 +1,9 @@
 import './quick_add_compat.js';
-import { openPartnerEditModal } from './modals/partner_edit/index.js';
+import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_menu.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
-const MENU_ID = 'header-new-menu';
 const BUTTON_ID = 'btn-header-new';
 let ensureControlsRef = null;
 
@@ -18,43 +17,6 @@ export function ensureProfileControls() {
       console.info('[A_BEACON] ensureProfileControls error', err && (err.message || err));
     }
   }
-}
-
-function showToast(message) {
-  const text = String(message ?? '').trim();
-  if (!text) return;
-  const toastApi = window.Toast;
-  if (toastApi && typeof toastApi.show === 'function') {
-    toastApi.show(text);
-    return;
-  }
-  if (typeof window.toast === 'function') {
-    window.toast(text);
-  }
-}
-
-function callSafely(fn, ...args) {
-  if (typeof fn !== 'function') return null;
-  try {
-    return fn(...args);
-  } catch (err) {
-    console && console.warn && console.warn('header new button action failed', err);
-    showToast('Something went wrong');
-    return null;
-  }
-}
-
-function createMenuItem(label, onSelect) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn ghost';
-  btn.textContent = label;
-  btn.dataset.role = `header-new-${label.toLowerCase()}`;
-  btn.addEventListener('click', (event) => {
-    event.preventDefault();
-    onSelect();
-  });
-  return btn;
 }
 
 function setupGlobalNewButton() {
@@ -84,51 +46,6 @@ function setupGlobalNewButton() {
     toggle.setAttribute('aria-expanded', 'false');
     host.appendChild(toggle);
 
-    const menu = document.createElement('div');
-    menu.className = 'card hidden';
-    menu.id = MENU_ID;
-    menu.style.position = 'absolute';
-    menu.style.top = '42px';
-    menu.style.right = '0';
-    menu.style.minWidth = '160px';
-    menu.style.padding = '8px';
-    menu.style.display = 'flex';
-    menu.style.flexDirection = 'column';
-    menu.style.gap = '4px';
-    menu.hidden = true;
-    host.appendChild(menu);
-
-    function closeMenu() {
-      if (menu.hidden) return;
-      menu.hidden = true;
-      menu.classList.add('hidden');
-      toggle.setAttribute('aria-expanded', 'false');
-      document.removeEventListener('click', onDocumentClick, true);
-      document.removeEventListener('keydown', onKeyDown, true);
-    }
-
-    function openMenu() {
-      if (!menu.hidden) return;
-      menu.hidden = false;
-      menu.classList.remove('hidden');
-      toggle.setAttribute('aria-expanded', 'true');
-      document.addEventListener('click', onDocumentClick, true);
-      document.addEventListener('keydown', onKeyDown, true);
-    }
-
-    function onDocumentClick(event) {
-      if (!host.contains(event.target)) {
-        closeMenu();
-      }
-    }
-
-    function onKeyDown(event) {
-      if (event.key === 'Escape') {
-        closeMenu();
-        toggle.focus();
-      }
-    }
-
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       try {
@@ -138,52 +55,24 @@ function setupGlobalNewButton() {
           console.warn('quick add compat failed', err);
         }
       }
-      if (menu.hidden) {
-        openMenu();
-      } else {
-        closeMenu();
-      }
+      toggleQuickCreateMenu({ anchor: toggle, source: 'header' });
     });
 
-    const actions = {
-    contact() {
-      closeMenu();
-      if (typeof window.renderContactModal === 'function') {
-        callSafely(window.renderContactModal, null);
-        return;
+    if (!toggle.__quickCreateStateWired) {
+      toggle.__quickCreateStateWired = true;
+      const handleState = (event) => {
+        const detail = event && event.detail ? event.detail : {};
+        const expanded = !!(detail.open && detail.source === 'header');
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (!toggle.isConnected) {
+          document.removeEventListener('quick-create-menu:state', handleState);
+        }
+      };
+      document.addEventListener('quick-create-menu:state', handleState);
+      if (isQuickCreateMenuOpen('header')) {
+        toggle.setAttribute('aria-expanded', 'true');
       }
-      if (typeof window.openNewContact === 'function') {
-        callSafely(window.openNewContact);
-        return;
-      }
-      showToast('Contact modal unavailable');
-    },
-    partner() {
-      closeMenu();
-      if (typeof openPartnerEditModal === 'function') {
-        Promise.resolve(callSafely(openPartnerEditModal, '', { allowAutoOpen: true }));
-        return;
-      }
-      if (typeof window.openPartnerEditModal === 'function') {
-        Promise.resolve(callSafely(window.openPartnerEditModal, '', { allowAutoOpen: true }));
-        return;
-      }
-      showToast('Partner modal unavailable');
-    },
-    task() {
-      closeMenu();
-      const fn = window.openTaskQuickAdd;
-      if (typeof fn === 'function') {
-        callSafely(fn);
-        return;
-      }
-      showToast('Tasks coming soon');
     }
-  };
-
-  menu.appendChild(createMenuItem('Contact', actions.contact));
-  menu.appendChild(createMenuItem('Partner', actions.partner));
-  menu.appendChild(createMenuItem('Task', actions.task));
 
     const mountCandidates = [];
     const explicitMount = header.querySelector('[data-role="header-toolbar"]');
