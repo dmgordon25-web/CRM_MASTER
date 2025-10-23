@@ -34,8 +34,11 @@ jobs:
       - name: Feature gate (solve-and-clean)
         run: npm run gate:run
 
-      - name: Upload feature proof (phase 1 & 2)
+      - name: Feature check (hello + splash + avatar)
+        run: npm run check:features
+
+      - name: Upload feature proof
         uses: actions/upload-artifact@v4
         with:
           name: feature-proof
-          path: proofs/*.png
+          path: proofs/feature.png

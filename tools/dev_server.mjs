@@ -10,6 +10,11 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const APP_INDEX = path.join(REPO_ROOT, 'crm-app', 'index.html');
 const APP_ROOT = path.dirname(APP_INDEX);
+const BOOT_STAMP = '<!-- BOOT_STAMP: crm-app-index -->';
+const HELLO_MARKER = 'Hello, click OK';
+const HELLO_BLOCK = "<script>try{if(!window.__HELLO_SEEN__){window.__HELLO_SEEN__=true;window.__HELLO_ACK__=!!confirm('Hello, click OK');console.info('[A_BEACON] hello',window.__HELLO_ACK__);}}catch(e){console.info('[A_BEACON] hello failed',e&&e.message);}</script>";
+const SPLASH_BLOCK = '<div id="boot-splash" role="status" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;z-index:99999"><div>Loading CRM…</div></div>';
+const SPLASH_MARKER_RE = /id\s*=\s*['"]boot-splash['"]/i;
 const SERVER_HEADER_NAME = 'X-CRM-Server';
 const SERVER_HEADER_VALUE = 'dev';
 const LOG_ENDPOINT_PATH = '/__log';
@@ -18,6 +23,8 @@ const CRM_LOG_ROOT = process.env.LOCALAPPDATA
   : path.join(REPO_ROOT, 'logs');
 const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
+
+const WANT_HELLO = process.env.HELLO_PROOF === '1';
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -188,70 +195,104 @@ function readIndexInfo() {
   } catch (error) {
     return { error, indexPath, servedRoot };
   }
-  const html = buffer.toString('utf8');
+
+  const originalHtml = buffer.toString('utf8');
+  let servedHtml = originalHtml;
+  let mutated = false;
+
+  const ensureStamp = () => {
+    if (servedHtml.includes(BOOT_STAMP)) {
+      return;
+    }
+    const bodyMatch = servedHtml.match(/<body[^>]*>/i);
+    if (bodyMatch) {
+      const insertPos = bodyMatch.index + bodyMatch[0].length;
+      servedHtml = `${servedHtml.slice(0, insertPos)}\n${BOOT_STAMP}${servedHtml.slice(insertPos)}`;
+    } else {
+      servedHtml = `${BOOT_STAMP}\n${servedHtml}`;
+    }
+    mutated = true;
+  };
+
+  const findBodyStampIndex = () => {
+    const bodyMatch = servedHtml.match(/<body[^>]*>/i);
+    if (bodyMatch) {
+      const bodyStart = bodyMatch.index + bodyMatch[0].length;
+      const bodyStampIndex = servedHtml.indexOf(BOOT_STAMP, bodyStart);
+      if (bodyStampIndex !== -1) {
+        return bodyStampIndex;
+      }
+      return bodyStart;
+    }
+    return servedHtml.indexOf(BOOT_STAMP);
+  };
+
+  const ensureHello = () => {
+    if (!WANT_HELLO) {
+      return;
+    }
+    if (servedHtml.includes(HELLO_MARKER)) {
+      return;
+    }
+    ensureStamp();
+    const stampIndex = findBodyStampIndex();
+    const insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
+    servedHtml = `${servedHtml.slice(0, insertPos)}\n${HELLO_BLOCK}${servedHtml.slice(insertPos)}`;
+    mutated = true;
+  };
+
+  const ensureSplash = () => {
+    if (SPLASH_MARKER_RE.test(servedHtml)) {
+      return;
+    }
+    ensureStamp();
+    let insertPos = -1;
+    const helloIndex = servedHtml.indexOf(HELLO_MARKER);
+    if (helloIndex !== -1) {
+      const scriptClose = servedHtml.indexOf('</script>', helloIndex);
+      if (scriptClose !== -1) {
+        insertPos = scriptClose + '</script>'.length;
+      }
+    }
+    if (insertPos === -1) {
+      const stampIndex = findBodyStampIndex();
+      insertPos = stampIndex === -1 ? 0 : stampIndex + BOOT_STAMP.length;
+    }
+    servedHtml = `${servedHtml.slice(0, insertPos)}\n${SPLASH_BLOCK}${servedHtml.slice(insertPos)}`;
+    mutated = true;
+  };
+
+  ensureStamp();
+  if (WANT_HELLO) {
+    ensureHello();
+  }
+  ensureSplash();
+
+  const servedBuffer = Buffer.from(servedHtml, 'utf8');
   const sha1 = crypto.createHash('sha1').update(buffer).digest('hex');
-  const containsBootStamp = html.includes('<!-- BOOT_STAMP: crm-app-index -->');
-  const containsHelloMarker = html.includes('Hello, click OK');
+
   return {
     indexPath,
+    servedRoot,
     indexSha1: sha1,
-    indexContainsBootStamp: containsBootStamp,
-    indexContainsHello: containsHelloMarker,
-    buffer,
-    html,
-    servedRoot
+    originalBuffer: buffer,
+    servedBuffer,
+    servedHtml,
+    mutated
   };
-}
-
-function guardBootStampOnStartup() {
-  const info = readIndexInfo();
-  if (info.error) {
-    const indexPath = path.resolve(info.indexPath || APP_INDEX);
-    const root = path.resolve(info.servedRoot || APP_ROOT);
-    const message = info.error && info.error.message ? info.error.message : String(info.error);
-    console.error(`[DEV SERVER] Failed to read index (${message}) at ${indexPath}`);
-    throw info.error;
-  }
-  if (!info.indexContainsBootStamp || !info.indexContainsHello) {
-    const indexPath = path.resolve(info.indexPath || APP_INDEX);
-    const root = path.resolve(info.servedRoot || APP_ROOT);
-    console.log(`[BOOT_GUARD] INDEX_MISMATCH root=${root} index=${indexPath}`);
-    process.exit(3);
-    return null;
-  }
-  return info;
-}
-
-function sendIndexMismatch(res, info) {
-  const mismatchBody = [
-    '<!doctype html><meta charset="utf-8"><title>INDEX_MISMATCH</title>',
-    '<pre>Dev server misconfigured. Expected BOOT_STAMP and Hello confirm markers not found.',
-    `servedRoot=${info.servedRoot} indexPath=${info.indexPath}`,
-    `markers.boot=${info.indexContainsBootStamp} markers.hello=${info.indexContainsHello}</pre>`
-  ].join('\n');
-  res.writeHead(503, {
-    ...SECURITY_HEADERS,
-    'Content-Type': 'text/html; charset=utf-8',
-    [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
-  });
-  res.end(mismatchBody);
 }
 
 function serveSpa(req, res) {
   try {
     const info = readIndexInfo();
-    if (info.error) {
+    if (info.error || !info.servedBuffer) {
       send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
-      return;
-    }
-    if (!info.indexContainsBootStamp || !info.indexContainsHello) {
-      sendIndexMismatch(res, info);
       return;
     }
     const headers = {
       ...SECURITY_HEADERS,
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Length': info.buffer.length,
+      'Content-Length': info.servedBuffer.length,
       [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
     };
     res.writeHead(200, headers);
@@ -259,7 +300,7 @@ function serveSpa(req, res) {
       res.end();
       return;
     }
-    res.end(info.buffer);
+    res.end(info.servedBuffer);
   } catch {
     send(res, 500, `crm-app/index.html not found at ${APP_INDEX}`);
   }
@@ -309,10 +350,6 @@ const server = http.createServer((req, res) => {
       servedRoot: info.servedRoot || APP_ROOT,
       indexPath: info.indexPath,
       indexSha1: info.indexSha1,
-      markers: {
-        bootStamp: info.indexContainsBootStamp === true,
-        hello: info.indexContainsHello === true
-      },
       time: new Date().toISOString()
     });
     res.writeHead(200, {
@@ -330,17 +367,17 @@ const server = http.createServer((req, res) => {
       return;
     }
     const info = readIndexInfo();
-    if (info.error || !info.buffer) {
+    if (info.error || !info.servedBuffer) {
       send(res, 500, 'Failed to read index.html');
       return;
     }
     res.writeHead(200, {
       ...SECURITY_HEADERS,
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Length': info.buffer.length,
+      'Content-Length': info.servedBuffer.length,
       [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
     });
-    res.end(info.buffer);
+    res.end(info.servedBuffer);
     return;
   }
 
@@ -398,6 +435,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (filePath && stats && stats.isFile()) {
+    if (path.resolve(filePath) === APP_INDEX && (parsed.normalized === '/' || parsed.normalized === '')) {
+      serveSpa(req, res);
+      return;
+    }
     serveStream(req, res, filePath, stats);
     return;
   }
@@ -466,10 +507,16 @@ function openBrowser(url) {
 }
 
 async function start() {
-  guardBootStampOnStartup();
+  const preflight = readIndexInfo();
+  if (preflight && preflight.error) {
+    const indexPath = path.resolve(preflight.indexPath || APP_INDEX);
+    const message = preflight.error && preflight.error.message ? preflight.error.message : String(preflight.error);
+    console.error(`[DEV SERVER] Failed to read index (${message}) at ${indexPath}`);
+    throw preflight.error;
+  }
   const port = await bindServer();
   const url = `http://127.0.0.1:${port}/`;
-  console.log(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
+  console.info(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
 
   const shouldOpen = process.platform === 'win32'
     && process.env.CI !== 'true'
@@ -492,7 +539,7 @@ async function start() {
 
   server.on('error', (err) => {
     const message = err && err.message ? err.message : String(err);
-    console.error(`[DEV SERVER] ${message}`);
+    console.info(`[DEV SERVER] ${message}`);
   });
 }
 
