@@ -888,6 +888,11 @@ function ensureActionBarDragHandles(bar) {
     const barEl = document.getElementById('actionbar') || bar;
     if (!barEl || !barEl.isConnected) return;
     if (barEl.getAttribute('data-visible') !== '1') return;
+    const target = event.target;
+    if (target && typeof target.closest === 'function') {
+      const interactive = target.closest('button, [role="button"], a[href], input, select, textarea');
+      if (interactive && shell.contains(interactive)) return;
+    }
     const rect = barEl.getBoundingClientRect();
     if (!rect || !Number.isFinite(rect.width) || rect.width <= 0 || !Number.isFinite(rect.height) || rect.height <= 0) return;
     hydrateActionBarPosition(barEl);
@@ -921,6 +926,10 @@ function ensureActionBarDragHandles(bar) {
         const base = clampPositionToViewport(dragState.startLeft, dragState.startTop, dragState.width, dragState.height);
         applyManualPosition(barEl, base.left, base.top);
         dragState.lastPosition = { left: base.left, top: base.top };
+        if (typeof shell.setPointerCapture === 'function') {
+          try { shell.setPointerCapture(dragState.pointerId); }
+          catch (_) {}
+        }
         try { console.info('[A_BEACON] actionbar:drag-start'); }
         catch (_) {}
       }
@@ -955,10 +964,6 @@ function ensureActionBarDragHandles(bar) {
     shell.addEventListener('pointermove', moveHandler);
     shell.addEventListener('pointerup', finalizeDrag);
     shell.addEventListener('pointercancel', finalizeDrag);
-    if (typeof shell.setPointerCapture === 'function') {
-      try { shell.setPointerCapture(event.pointerId); }
-      catch (_) {}
-    }
   };
   shell.addEventListener('pointerdown', handlePointerDown);
   state.wired = true;
