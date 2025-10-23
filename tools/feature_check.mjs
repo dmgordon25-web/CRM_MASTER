@@ -34,7 +34,7 @@ function waitForServer(child) {
     const handleExit = (code) => {
       cleanup();
       if (code === 3) {
-        reject(new Error('Dev server guard blocked startup (index missing BOOT_STAMP).'));
+        reject(new Error('Dev server guard blocked startup (index missing required markers).'));
         return;
       }
       reject(new Error(`Dev server exited early (code=${code ?? 'null'}). Output:\n${buffer}`));
@@ -122,18 +122,18 @@ async function runFeatureCheck(origin) {
     await input.uploadFile(filePath);
 
     await page.waitForFunction(() => {
-      const img = document.querySelector('#lo-profile-chip [data-role="lo-photo"]');
+      const img = document.querySelector('#lo-profile-chip img[data-role="lo-photo"]');
       return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
     }, { timeout: 10000 });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
 
     await page.waitForFunction(() => {
-      const img = document.querySelector('#lo-profile-chip [data-role="lo-photo"]');
+      const img = document.querySelector('#lo-profile-chip img[data-role="lo-photo"]');
       return !!(img && typeof img.src === 'string' && img.src.startsWith('data:'));
     }, { timeout: 10000 });
 
-    const screenshotRelative = path.join('proofs', 'feature-proof.png');
+    const screenshotRelative = path.join('proofs', 'phase1.png');
     const screenshotAbsolute = path.join(process.cwd(), screenshotRelative);
     await fs.mkdir(path.dirname(screenshotAbsolute), { recursive: true });
     await page.screenshot({ path: screenshotAbsolute, fullPage: true });
