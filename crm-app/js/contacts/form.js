@@ -96,11 +96,11 @@ function ensureButton(state){
     icon.setAttribute('aria-hidden', 'true');
 
     const labelText = document.createElement('span');
-    labelText.textContent = 'Add New Partner';
+    labelText.textContent = 'Add Contact';
 
     button.append(icon, labelText);
-    button.setAttribute('title', 'Add New Partner');
-    button.setAttribute('aria-label', 'Add New Partner');
+    button.setAttribute('title', 'Add Contact');
+    button.setAttribute('aria-label', 'Add Contact');
 
     select.insertAdjacentElement('afterend', button);
   }
