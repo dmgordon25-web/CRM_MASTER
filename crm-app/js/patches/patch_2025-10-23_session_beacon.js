@@ -29,11 +29,7 @@
     }
     state.armed = true;
     window.addEventListener('pagehide', markBye, { capture: true });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
-        markBye();
-      }
-    }, { capture: true });
+    window.addEventListener('beforeunload', markBye, { capture: true });
     console.info('[VIS] session beacons armed');
   }
 
