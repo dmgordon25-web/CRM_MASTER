@@ -879,3 +879,35 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
   }
 })();
+
+export function openContactModal(contactId, options){
+  const fn = (typeof window !== 'undefined' && typeof window.renderContactModal === 'function')
+    ? window.renderContactModal
+    : null;
+  if(!fn){
+    try{
+      console && console.warn && console.warn('renderContactModal unavailable', { contactId });
+    }catch(_err){}
+    return null;
+  }
+  try{
+    const result = fn(contactId, options);
+    if(result && typeof result.catch === 'function'){
+      result.catch(err => {
+        try{ console && console.warn && console.warn('openContactModal failed', err); }
+        catch(__err){}
+      });
+    }
+    return result;
+  }catch (err){
+    try{ console && console.warn && console.warn('openContactModal failed', err); }
+    catch(_err){}
+  }
+  return null;
+}
+
+if(typeof window !== 'undefined' && typeof window.openContactModal !== 'function'){
+  window.openContactModal = function(contactId, options){
+    return openContactModal(contactId, options);
+  };
+}

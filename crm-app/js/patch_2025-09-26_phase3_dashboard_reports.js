@@ -1,6 +1,6 @@
 // patch_2025-09-26_phase3_dashboard_reports.js — Phase 3 dashboard + reports
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
-import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
