@@ -62,7 +62,12 @@ function setupGlobalNewButton() {
     const header = document.querySelector('.header-bar');
     if (!header) return;
 
-    const legacyButtons = header.querySelectorAll('#btn-add-contact');
+    const legacyButtons = header.querySelectorAll([
+      '#btn-add-contact',
+      '#btn-add-partner',
+      '.btn-add-contact',
+      '.btn-add-partner'
+    ].join(','));
     legacyButtons.forEach((btn) => {
       if (btn && btn.parentNode) {
         btn.parentNode.removeChild(btn);
@@ -84,13 +89,6 @@ function setupGlobalNewButton() {
 
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
-      try {
-        window.openQuickAddCompat?.();
-      } catch (err) {
-        if (console && typeof console.warn === 'function') {
-          console.warn('quick add compat failed', err);
-        }
-      }
       toggleQuickCreateMenu({ anchor: toggle, source: 'header' });
     });
 

@@ -3,6 +3,8 @@ import { openPartnerEditModal } from './modals/partner_edit/index.js';
 const WRAPPER_ID = 'global-new-menu';
 const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';
+const ACTION_BAR_ID = 'global-new';
+const ACTION_BAR_SOURCE = 'actionbar';
 
 const state = {
   open: false,
@@ -17,6 +19,7 @@ const state = {
 };
 
 let bootBeaconEmitted = false;
+let actionBarListenerWired = false;
 
 function emitState() {
   if (typeof document === 'undefined') return;
@@ -157,14 +160,24 @@ function ensureMenuElements() {
   state.wrapper = wrapper;
   state.menu = menu;
 
-  ensureButton('Partner', 'partner');
-  ensureButton('Contact', 'contact');
-  ensureButton('Task', 'task');
+  const contactBtn = ensureButton('Contact', 'contact');
+  const partnerBtn = ensureButton('Partner', 'partner');
+  const taskBtn = ensureButton('Task', 'task');
+  const ordered = [contactBtn, partnerBtn, taskBtn];
+  ordered.forEach((btn) => {
+    if (btn && btn.parentElement === menu) {
+      menu.appendChild(btn);
+    }
+  });
 
   return { wrapper, menu };
 }
 
-function normalizeSource() {
+function normalizeSource(value) {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (raw === ACTION_BAR_SOURCE) {
+    return ACTION_BAR_SOURCE;
+  }
   return 'header';
 }
 
@@ -199,6 +212,51 @@ function handleSelection(kind) {
   }
   if (kind === 'task') {
     openTaskEditor();
+  }
+}
+
+function wireAnchorState(anchor, source) {
+  if (!anchor) return;
+  if (!anchor.__quickCreateStateWired) {
+    anchor.__quickCreateStateWired = true;
+    anchor.setAttribute('aria-haspopup', 'true');
+    anchor.setAttribute('aria-expanded', 'false');
+    const handleState = (event) => {
+      const detail = event && event.detail ? event.detail : {};
+      const expanded = !!(detail.open && detail.source === source);
+      anchor.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (!anchor.isConnected) {
+        document.removeEventListener('quick-create-menu:state', handleState);
+      }
+    };
+    document.addEventListener('quick-create-menu:state', handleState);
+    if (isQuickCreateMenuOpen(source)) {
+      anchor.setAttribute('aria-expanded', 'true');
+    }
+  }
+}
+
+function ensureActionBarTrigger() {
+  if (actionBarListenerWired || typeof document === 'undefined') {
+    return;
+  }
+  actionBarListenerWired = true;
+  const handleClick = (event) => {
+    if (!event || !event.target || typeof event.target.closest !== 'function') {
+      return;
+    }
+    const anchor = event.target.closest(`#${ACTION_BAR_ID}`);
+    if (!anchor) {
+      return;
+    }
+    wireAnchorState(anchor, ACTION_BAR_SOURCE);
+    event.preventDefault();
+    toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
+  };
+  document.addEventListener('click', handleClick, false);
+  const existing = document.getElementById(ACTION_BAR_ID);
+  if (existing) {
+    wireAnchorState(existing, ACTION_BAR_SOURCE);
   }
 }
 
@@ -358,11 +416,12 @@ export function closeQuickCreateMenu() {
 
 export function openQuickCreateMenu(options = {}) {
   const { anchor = null, source = 'header', origin = source } = options;
+  const normalizedSource = normalizeSource(source);
   const elements = ensureMenuElements();
   if (!elements) return;
   state.anchor = anchor;
-  state.source = normalizeSource();
-  state.origin = origin;
+  state.source = normalizedSource;
+  state.origin = typeof origin === 'string' && origin ? origin : normalizedSource;
   state.open = true;
   state.restoreFocus = anchor && typeof anchor.focus === 'function' ? anchor : null;
   positionMenu(anchor);
@@ -383,8 +442,8 @@ export function openQuickCreateMenu(options = {}) {
 
 export function toggleQuickCreateMenu(options = {}) {
   const { anchor = null, source = 'header' } = options;
+  const normalizedSource = normalizeSource(source);
   if (state.open) {
-    const normalizedSource = normalizeSource();
     const sameAnchor = anchor && state.anchor === anchor;
     const sameSource = state.source === normalizedSource;
     if ((sameAnchor && sameSource) || (!anchor && sameSource)) {
@@ -392,7 +451,7 @@ export function toggleQuickCreateMenu(options = {}) {
       return state.open;
     }
   }
-  openQuickCreateMenu({ anchor, source: normalizeSource(), origin: source });
+  openQuickCreateMenu({ anchor, source: normalizedSource, origin: source });
   return state.open;
 }
 
@@ -400,4 +459,14 @@ export function isQuickCreateMenuOpen(source) {
   if (!state.open) return false;
   if (!source) return true;
   return state.source === source;
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureActionBarTrigger();
+    }, { once: true });
+  } else {
+    ensureActionBarTrigger();
+  }
 }
