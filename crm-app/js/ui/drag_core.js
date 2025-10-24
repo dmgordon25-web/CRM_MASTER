@@ -2,6 +2,8 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
+const DRAG_DISTANCE_THRESHOLD = 6;
+
 function parseSelectors(sel){
   if(!sel) return [];
   if(Array.isArray(sel)) return sel.map(String).map(s => s.trim()).filter(Boolean);
@@ -137,6 +139,21 @@ function clamp(value, min, max){
   if(value < min) return min;
   if(value > max) return max;
   return value;
+}
+
+function clearPendingDrag(state){
+  const pending = state && state.pendingDrag;
+  if(!pending) return;
+  const target = pending.listenerTarget;
+  if(target){
+    try{ target.removeEventListener('pointermove', pending.moveListener); }
+    catch(_err){}
+    try{ target.removeEventListener('pointerup', pending.upListener); }
+    catch(_err){}
+    try{ target.removeEventListener('pointercancel', pending.upListener); }
+    catch(_err){}
+  }
+  state.pendingDrag = null;
 }
 
 function toPositiveNumber(value, fallback){
@@ -412,6 +429,7 @@ function finishDrag(state, commit){
 }
 
 function cancelDrag(state, commit){
+  clearPendingDrag(state);
   finishDrag(state, commit);
 }
 
@@ -516,8 +534,52 @@ function handlePointerDown(evt, state){
   if(!itemId) return;
   const handle = firstHandleFor(item, state.handleSelectors);
   if(!handle || !handle.contains(evt.target)) return;
-  evt.preventDefault();
-  beginGridDrag(state, item, evt);
+  clearPendingDrag(state);
+  const pointerId = evt.pointerId;
+  const startX = evt.clientX;
+  const startY = evt.clientY;
+  const downEvent = evt;
+  const doc = item.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const target = doc || item;
+  const pending = {
+    pointerId,
+    item,
+    handle,
+    startX,
+    startY,
+    downEvent,
+    listenerTarget: target,
+    moveListener: null,
+    upListener: null
+  };
+  pending.moveListener = moveEvt => {
+    if(state.dragging || state.pendingDrag !== pending) return;
+    if(moveEvt.pointerId != null && pointerId != null && moveEvt.pointerId !== pointerId) return;
+    const dx = moveEvt.clientX - startX;
+    const dy = moveEvt.clientY - startY;
+    if(Math.abs(dx) >= DRAG_DISTANCE_THRESHOLD || Math.abs(dy) >= DRAG_DISTANCE_THRESHOLD){
+      if(downEvent.cancelable && !downEvent.defaultPrevented){
+        try{ downEvent.preventDefault(); }
+        catch(_err){}
+      }
+      clearPendingDrag(state);
+      beginGridDrag(state, item, downEvent);
+      if(state.dragging){
+        handleGridPointerMove(moveEvt, state);
+      }
+    }
+  };
+  pending.upListener = upEvt => {
+    if(state.pendingDrag !== pending) return;
+    if(upEvt.pointerId != null && pointerId != null && upEvt.pointerId !== pointerId) return;
+    clearPendingDrag(state);
+  };
+  if(target && typeof target.addEventListener === 'function'){
+    target.addEventListener('pointermove', pending.moveListener);
+    target.addEventListener('pointerup', pending.upListener);
+    target.addEventListener('pointercancel', pending.upListener);
+  }
+  state.pendingDrag = pending;
 }
 
 function ensureState(container){
@@ -556,7 +618,8 @@ function ensureState(container){
       upListener: null,
       restoreSelection: null,
       appliedInitialOrder: false,
-      lastOrderSignature: null
+      lastOrderSignature: null,
+      pendingDrag: null
     };
     state.onPointerDown = evt => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
@@ -604,6 +667,7 @@ export function makeDraggableGrid(options = {}){
     },
     disable(){
       if(state.dragging) cancelDrag(state, false);
+      else clearPendingDrag(state);
       state.enabled = false;
       return controller;
     },
