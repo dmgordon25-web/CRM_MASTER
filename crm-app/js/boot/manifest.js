@@ -24,6 +24,7 @@ export const CORE = [
   './print.js',
   './app.js',
   './settings_forms.js',
+  './compose.js',
   './services/pipelineStages.js',
   './services/softDelete.js',
   './pipeline/stages.js',
