@@ -35,7 +35,8 @@ const canonicalPatchOrder = [
   './patches/patch_2025-10-23_unify_quick_create.js',
   './patches/patch_2025-10-23_dashboard_drag_fix.js',
   './patches/patch_2025-10-23_actionbar_drag.js',
-  './patches/patch_2025-10-23_calendar_contact_and_task.js'
+  './patches/patch_2025-10-23_calendar_contact_and_task.js',
+  './patches/patch_2025-10-24_dashboard_drag_v2.js'
 ];
 
 function loadManifest() {

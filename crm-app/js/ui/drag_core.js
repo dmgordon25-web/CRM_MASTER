@@ -2,73 +2,87 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
-function parseSelectors(sel){
-  if(!sel) return [];
-  if(Array.isArray(sel)) return sel.map(String).map(s => s.trim()).filter(Boolean);
+function parseSelectors(sel) {
+  if (!sel) return [];
+  if (Array.isArray(sel)) return sel.map(String).map((s) => s.trim()).filter(Boolean);
   return String(sel)
     .split(',')
-    .map(part => part.trim())
+    .map((part) => part.trim())
     .filter(Boolean);
 }
 
-function readStoredOrder(key){
-  if(!key || typeof localStorage === 'undefined') return [];
-  try{
+function defaultIdGetter(el) {
+  if (!el || el.nodeType !== 1) return '';
+  const datasetId = el.dataset && el.dataset.widgetId ? String(el.dataset.widgetId).trim() : '';
+  if (datasetId) return datasetId;
+  const attrId = el.getAttribute ? String(el.getAttribute('data-id') || '').trim() : '';
+  if (attrId) return attrId;
+  if (el.id) return String(el.id).trim();
+  return '';
+}
+
+function readStoredOrder(key) {
+  if (!key || typeof localStorage === 'undefined') return [];
+  try {
     const raw = localStorage.getItem(key);
-    if(!raw) return [];
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.map(String) : [];
-  }catch (_err){
+  } catch (_err) {
     return [];
   }
 }
 
-function writeStoredOrder(key, order){
-  if(!key || typeof localStorage === 'undefined') return;
-  try{
-    if(Array.isArray(order) && order.length){
+function writeStoredOrder(key, order) {
+  if (!key || typeof localStorage === 'undefined') return;
+  try {
+    if (Array.isArray(order) && order.length) {
       localStorage.setItem(key, JSON.stringify(order));
-    }else{
+    } else {
       localStorage.removeItem(key);
     }
-  }catch (_err){}
+  } catch (_err) {}
 }
 
-function collectItems(container, itemSelector){
-  if(!container || !itemSelector) return [];
-  try{
-    return Array.from(container.querySelectorAll(itemSelector))
-      .filter(el => el && el.nodeType === 1 && el.id);
-  }catch (_err){
-    return [];
+function collectEntries(container, itemSelector, idGetter) {
+  if (!container || !itemSelector) return [];
+  let nodes = [];
+  try {
+    nodes = Array.from(container.querySelectorAll(itemSelector));
+  } catch (_err) {
+    nodes = [];
   }
+  const getter = typeof idGetter === 'function' ? idGetter : defaultIdGetter;
+  return nodes
+    .filter((el) => el && el.nodeType === 1)
+    .map((el) => ({ el, id: getter(el) || '' }));
 }
 
-function firstHandleFor(item, selectors){
-  if(!item) return null;
-  if(Array.isArray(selectors) && selectors.length){
-    for(const sel of selectors){
-      try{
+function firstHandleFor(item, selectors) {
+  if (!item) return null;
+  if (Array.isArray(selectors) && selectors.length) {
+    for (const sel of selectors) {
+      try {
         const candidate = item.querySelector(sel);
-        if(candidate){
+        if (candidate) {
           const rect = candidate.getBoundingClientRect ? candidate.getBoundingClientRect() : null;
-          if(rect && rect.width > 0 && rect.height > 0) return candidate;
+          if (rect && rect.width > 0 && rect.height > 0) return candidate;
         }
-      }catch (_err){}
+      } catch (_err) {}
     }
   }
   const children = item.children ? Array.from(item.children) : [];
-  const fallback = children.find(el => {
+  const fallback = children.find((el) => {
     const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
     return rect && rect.width > 0 && rect.height > 0;
   });
   return fallback || item;
 }
 
-function preventTextSelection(doc){
-  if(!doc) return () => {};
+function preventTextSelection(doc) {
+  if (!doc) return () => {};
   const body = doc.body;
-  if(!body) return () => {};
+  if (!body) return () => {};
   const prev = body.style.userSelect;
   body.style.userSelect = 'none';
   return () => {
@@ -76,66 +90,66 @@ function preventTextSelection(doc){
   };
 }
 
-function shouldIgnoreTarget(target){
-  if(!target) return false;
+function shouldIgnoreTarget(target) {
+  if (!target) return false;
   const interactiveSel = 'button, a, input, select, textarea, label, [role="button"], [contenteditable="true"], [data-action]';
   const interactive = target.closest ? target.closest(interactiveSel) : null;
   return !!interactive;
 }
 
-function clamp(value, min, max){
-  if(value < min) return min;
-  if(value > max) return max;
+function clamp(value, min, max) {
+  if (value < min) return min;
+  if (value > max) return max;
   return value;
 }
 
-function toPositiveNumber(value, fallback){
+function toPositiveNumber(value, fallback) {
   const num = Number(value);
-  if(Number.isFinite(num) && num > 0) return num;
-  if(Number.isFinite(fallback) && fallback > 0) return fallback;
+  if (Number.isFinite(num) && num > 0) return num;
+  if (Number.isFinite(fallback) && fallback > 0) return fallback;
   return 1;
 }
 
-function toGap(value, fallback){
+function toGap(value, fallback) {
   const num = Number(value);
-  if(Number.isFinite(num) && num >= 0) return num;
-  if(Number.isFinite(fallback) && fallback >= 0) return fallback;
+  if (Number.isFinite(num) && num >= 0) return num;
+  if (Number.isFinite(fallback) && fallback >= 0) return fallback;
   return 16;
 }
 
-function guessGap(el){
-  if(!el || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return 16;
-  try{
+function guessGap(el) {
+  if (!el || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return 16;
+  try {
     const style = window.getComputedStyle(el);
     const values = [style.marginRight, style.marginBottom, style.columnGap, style.rowGap]
-      .map(val => parseFloat(val || '0'))
-      .filter(num => Number.isFinite(num) && num >= 0);
-    if(values.length){
+      .map((val) => parseFloat(val || '0'))
+      .filter((num) => Number.isFinite(num) && num >= 0);
+    if (values.length) {
       const max = Math.max(...values);
-      if(Number.isFinite(max) && max >= 0) return max;
+      if (Number.isFinite(max) && max >= 0) return max;
     }
-  }catch (_err){}
+  } catch (_err) {}
   return 16;
 }
 
-function rememberStyles(el, props){
+function rememberStyles(el, props) {
   const record = {};
-  props.forEach(prop => {
+  props.forEach((prop) => {
     record[prop] = el.style[prop] || '';
   });
   return record;
 }
 
-function restoreStyles(el, record){
-  if(!el || !record) return;
-  Object.keys(record).forEach(prop => {
+function restoreStyles(el, record) {
+  if (!el || !record) return;
+  Object.keys(record).forEach((prop) => {
     el.style[prop] = record[prop];
   });
 }
 
-function ensurePlaceholder(state, item, rect){
+function ensurePlaceholder(state, item, rect) {
   let placeholder = state.placeholder;
-  if(!placeholder){
+  if (!placeholder) {
     const tag = item && item.tagName === 'SECTION' ? 'section' : 'div';
     placeholder = document.createElement(tag);
     placeholder.className = 'dash-drag-placeholder';
@@ -145,32 +159,32 @@ function ensurePlaceholder(state, item, rect){
     placeholder.style.boxSizing = 'border-box';
     state.placeholder = placeholder;
   }
-  if(rect){
+  if (rect) {
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
     placeholder.style.width = `${width}px`;
     placeholder.style.height = `${height}px`;
-    if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
-      try{
+    if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+      try {
         const style = window.getComputedStyle(item);
         placeholder.style.margin = style.margin;
         placeholder.style.borderRadius = style.borderRadius;
-      }catch (_err){}
+      } catch (_err) {}
     }
   }
   return placeholder;
 }
 
-function deriveMetrics(state, rect){
+function deriveMetrics(state, rect) {
   const container = state.container;
-  const firstItem = rect ? null : collectItems(container, state.itemSelector)[0];
-  const baseRect = rect || (firstItem && typeof firstItem.getBoundingClientRect === 'function'
-    ? firstItem.getBoundingClientRect()
+  const firstEntry = rect ? null : collectEntries(container, state.itemSelector, state.idGetter)[0];
+  const baseRect = rect || (firstEntry && firstEntry.el && typeof firstEntry.el.getBoundingClientRect === 'function'
+    ? firstEntry.el.getBoundingClientRect()
     : null);
   const grid = state.gridOptions || {};
   const colWidth = toPositiveNumber(grid.colWidth, baseRect ? baseRect.width : 1);
   const rowHeight = toPositiveNumber(grid.rowHeight, baseRect ? baseRect.height : 1);
-  const gap = toGap(grid.gap, firstItem ? guessGap(firstItem) : 16);
+  const gap = toGap(grid.gap, firstEntry ? guessGap(firstEntry.el) : 16);
   const containerRect = container && typeof container.getBoundingClientRect === 'function'
     ? container.getBoundingClientRect()
     : { left: 0, top: 0, width: colWidth, height: rowHeight };
@@ -184,72 +198,91 @@ function deriveMetrics(state, rect){
     stepX,
     stepY,
     columns,
-    containerRect
+    containerRect,
   };
 }
 
-function reorderFromOrder(state, order, signature){
-  const container = state.container;
-  if(!container || !order || !order.length) return [];
-  const items = collectItems(container, state.itemSelector);
-  if(!items.length) return [];
+export function applyOrder(container, orderIds, itemSelector, idGetter) {
+  if (!container || !itemSelector || !Array.isArray(orderIds) || !orderIds.length) return [];
+  const getter = typeof idGetter === 'function' ? idGetter : defaultIdGetter;
+  const entries = collectEntries(container, itemSelector, getter);
+  if (!entries.length) return [];
   const map = new Map();
-  items.forEach(item => map.set(item.id, item));
+  entries.forEach(({ el, id }) => {
+    if (id) map.set(id, el);
+  });
   const handled = new Set();
   const frag = document.createDocumentFragment();
-  order.forEach(id => {
+  orderIds.forEach((rawId) => {
+    const id = String(rawId || '');
+    if (!id) return;
     const node = map.get(id);
-    if(!node || handled.has(node)) return;
+    if (!node || handled.has(node)) return;
     handled.add(node);
     frag.appendChild(node);
   });
-  items.forEach(item => {
-    if(handled.has(item)) return;
-    frag.appendChild(item);
+  entries.forEach(({ el }) => {
+    if (handled.has(el)) return;
+    frag.appendChild(el);
   });
   container.appendChild(frag);
-  const applied = collectItems(container, state.itemSelector).map(item => item.id);
+  const applied = collectEntries(container, itemSelector, getter)
+    .map(({ id }) => id)
+    .filter((id) => !!id);
+  return applied;
+}
+
+function reorderFromOrder(state, order, signature) {
+  const container = state.container;
+  if (!container || !order || !order.length) return [];
+  const applied = applyOrder(container, order, state.itemSelector, state.idGetter);
+  if (!applied.length) return [];
   state.lastOrderSignature = signature || applied.join('|');
   return applied;
 }
 
-function applyStoredOrder(state, options = {}){
-  if(state.dragging) return;
+function applyStoredOrder(state, options = {}) {
+  if (state.dragging) return;
   const order = readStoredOrder(state.storageKey);
-  if(!order.length){
-    if(options.force){
-      const current = collectItems(state.container, state.itemSelector).map(item => item.id);
+  if (!order.length) {
+    if (options.force) {
+      const current = collectEntries(state.container, state.itemSelector, state.idGetter)
+        .map(({ id }) => id)
+        .filter((id) => !!id);
       state.lastOrderSignature = current.join('|');
     }
     state.appliedInitialOrder = true;
     return;
   }
   const signature = order.join('|');
-  if(!options.force && signature === state.lastOrderSignature) return;
+  if (!options.force && signature === state.lastOrderSignature) return;
   reorderFromOrder(state, order, signature);
   state.appliedInitialOrder = true;
 }
-function movePlaceholder(state, index){
+
+function movePlaceholder(state, index) {
   const placeholder = state.placeholder;
   const container = state.container;
-  if(!placeholder || !container) return;
-  const items = collectItems(container, state.itemSelector).filter(el => el !== state.dragEl);
+  if (!placeholder || !container) return;
+  const items = collectEntries(container, state.itemSelector, state.idGetter)
+    .map(({ el }) => el)
+    .filter((el) => el !== state.dragEl);
   const total = items.length;
   const clamped = clamp(index, 0, total);
-  if(state.placeholderIndex === clamped) return;
+  if (state.placeholderIndex === clamped) return;
   const beforeNode = clamped >= total ? null : items[clamped];
-  if(beforeNode){
+  if (beforeNode) {
     container.insertBefore(placeholder, beforeNode);
-  }else{
+  } else {
     container.appendChild(placeholder);
   }
   state.placeholderIndex = clamped;
   state.targetIndex = clamped;
 }
 
-function updatePlaceholderForPosition(state, x, y){
+function updatePlaceholderForPosition(state, x, y) {
   const metrics = state.metrics;
-  if(!metrics) return;
+  if (!metrics) return;
   const stepX = metrics.stepX || 1;
   const stepY = metrics.stepY || 1;
   const width = state.itemRect ? state.itemRect.width : metrics.colWidth;
@@ -260,56 +293,59 @@ function updatePlaceholderForPosition(state, x, y){
   movePlaceholder(state, index);
 }
 
-function persistCurrentOrder(state){
-  const { container, itemSelector, storageKey } = state;
-  if(!container || !itemSelector || !storageKey) return;
-  const items = collectItems(container, itemSelector);
-  if(!items.length) return;
-  const order = items.map(item => item.id);
-  const signature = order.join('|');
-  if(signature === state.lastOrderSignature) return;
-  writeStoredOrder(storageKey, order);
+function persistCurrentOrder(state) {
+  const { container, itemSelector, storageKey, idGetter } = state;
+  if (!container || !itemSelector || !storageKey) return;
+  const ids = collectEntries(container, itemSelector, idGetter)
+    .map(({ id }) => id)
+    .filter((id) => !!id);
+  if (!ids.length) return;
+  const signature = ids.join('|');
+  if (signature === state.lastOrderSignature) return;
+  writeStoredOrder(storageKey, ids);
   state.lastOrderSignature = signature;
-  if(typeof state.onOrderChange === 'function'){
-    try{
-      state.onOrderChange(order.slice());
-    }catch (_err){}
+  if (typeof state.onOrderChange === 'function') {
+    try {
+      state.onOrderChange(ids.slice());
+    } catch (_err) {}
   }
 }
 
-function finishDrag(state, commit){
+function finishDrag(state, commit) {
   const dragEl = state.dragEl;
-  if(!dragEl) return;
-  if(state.pointerId != null){
-    try{ dragEl.releasePointerCapture(state.pointerId); }
-    catch (_err){}
+  if (!dragEl) return;
+  if (state.pointerId != null) {
+    try {
+      dragEl.releasePointerCapture(state.pointerId);
+    } catch (_err) {}
   }
-  if(state.moveListener){
+  if (state.moveListener) {
     dragEl.removeEventListener('pointermove', state.moveListener);
   }
-  if(state.upListener){
+  if (state.upListener) {
     dragEl.removeEventListener('pointerup', state.upListener);
     dragEl.removeEventListener('pointercancel', state.upListener);
   }
-  if(typeof state.restoreSelection === 'function'){
-    try{ state.restoreSelection(); }
-    catch (_err){}
+  if (typeof state.restoreSelection === 'function') {
+    try {
+      state.restoreSelection();
+    } catch (_err) {}
   }
   dragEl.style.transform = '';
   restoreStyles(dragEl, state.prevStyles);
-  if(state.container && state.containerPositionSet){
+  if (state.container && state.containerPositionSet) {
     state.container.style.position = state.prevContainerPosition || '';
   }
-  if(state.placeholder && state.placeholder.parentElement === state.container){
+  if (state.placeholder && state.placeholder.parentElement === state.container) {
     state.container.insertBefore(dragEl, state.placeholder);
     state.placeholder.remove();
   }
   state.placeholder = null;
   state.placeholderIndex = -1;
-  if(!commit && Array.isArray(state.startOrder) && state.startOrder.length){
+  if (!commit && Array.isArray(state.startOrder) && state.startOrder.length) {
     reorderFromOrder(state, state.startOrder, state.startOrder.join('|'));
   }
-  if(commit){
+  if (commit) {
     persistCurrentOrder(state);
   }
   state.dragging = false;
@@ -328,14 +364,14 @@ function finishDrag(state, commit){
   state.startIndex = null;
 }
 
-function cancelDrag(state, commit){
+function cancelDrag(state, commit) {
   finishDrag(state, commit);
 }
 
-function handleGridPointerMove(evt, state){
-  if(!state.dragging || evt.pointerId !== state.pointerId) return;
+function handleGridPointerMove(evt, state) {
+  if (!state.dragging || evt.pointerId !== state.pointerId) return;
   const metrics = state.metrics;
-  if(!metrics) return;
+  if (!metrics) return;
   evt.preventDefault();
   const dx = evt.clientX - state.originX;
   const dy = evt.clientY - state.originY;
@@ -351,23 +387,24 @@ function handleGridPointerMove(evt, state){
   updatePlaceholderForPosition(state, snappedX, snappedY);
 }
 
-function handleGridPointerUp(evt, state){
-  if(state.pointerId != null && evt.pointerId != null && evt.pointerId !== state.pointerId && evt.type !== 'pointercancel') return;
+function handleGridPointerUp(evt, state) {
+  if (state.pointerId != null && evt.pointerId != null && evt.pointerId !== state.pointerId && evt.type !== 'pointercancel') return;
   evt.preventDefault();
   finishDrag(state, true);
 }
-function beginGridDrag(state, item, evt){
+
+function beginGridDrag(state, item, evt) {
   const container = state.container;
-  if(!container || !item) return;
-  const items = collectItems(container, state.itemSelector);
-  if(items.length <= 1) return;
+  if (!container || !item) return;
+  const entries = collectEntries(container, state.itemSelector, state.idGetter);
+  if (entries.length <= 1) return;
   const itemRect = item.getBoundingClientRect ? item.getBoundingClientRect() : null;
-  if(!itemRect) return;
+  if (!itemRect) return;
   state.dragging = true;
   state.dragEl = item;
   state.pointerId = evt.pointerId;
-  state.startOrder = items.map(el => el.id);
-  state.startIndex = items.indexOf(item);
+  state.startOrder = entries.map(({ id }) => id).filter((id) => !!id);
+  state.startIndex = entries.findIndex(({ el }) => el === item);
   state.targetIndex = state.startIndex;
   state.itemRect = itemRect;
   state.metrics = deriveMetrics(state, itemRect);
@@ -376,17 +413,17 @@ function beginGridDrag(state, item, evt){
   state.elemStartY = itemRect.top - state.containerRect.top;
   state.originX = evt.clientX;
   state.originY = evt.clientY;
-  state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow']);
+  state.prevStyles = rememberStyles(item, ['position', 'left', 'top', 'width', 'height', 'margin', 'transition', 'pointerEvents', 'zIndex', 'willChange', 'boxShadow']);
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
-  if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
-    try{
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    try {
       const style = window.getComputedStyle(container);
-      if(style.position === 'static'){
+      if (style.position === 'static') {
         container.style.position = 'relative';
         state.containerPositionSet = true;
       }
-    }catch (_err){}
+    } catch (_err) {}
   }
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
@@ -405,42 +442,43 @@ function beginGridDrag(state, item, evt){
   item.style.boxShadow = '0 18px 36px rgba(15,23,42,0.16)';
   state.grabOffsetX = evt.clientX - itemRect.left;
   state.grabOffsetY = evt.clientY - itemRect.top;
-  state.moveListener = moveEvt => handleGridPointerMove(moveEvt, state);
-  state.upListener = upEvt => handleGridPointerUp(upEvt, state);
+  state.moveListener = (moveEvt) => handleGridPointerMove(moveEvt, state);
+  state.upListener = (upEvt) => handleGridPointerUp(upEvt, state);
   item.addEventListener('pointermove', state.moveListener);
   item.addEventListener('pointerup', state.upListener);
   item.addEventListener('pointercancel', state.upListener);
-  try{
-    if(typeof item.setPointerCapture === 'function'){
+  try {
+    if (typeof item.setPointerCapture === 'function') {
       item.setPointerCapture(evt.pointerId);
     }
-  }catch (_err){}
+  } catch (_err) {}
 }
 
-function handlePointerDown(evt, state){
-  if(!state.container || state.dragging || !state.enabled) return;
-  if(evt.pointerType !== 'touch' && evt.pointerType !== 'pen'){
-    if(evt.button != null && evt.button !== 0) return;
+function handlePointerDown(evt, state) {
+  if (!state.container || state.dragging || !state.enabled) return;
+  if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
+    if (evt.button != null && evt.button !== 0) return;
   }
-  if(shouldIgnoreTarget(evt.target)) return;
+  if (shouldIgnoreTarget(evt.target)) return;
   const item = evt.target && state.itemSelector
     ? evt.target.closest(state.itemSelector)
     : null;
-  if(!item || !item.id || !state.container.contains(item)) return;
+  if (!item || !state.container.contains(item)) return;
   const handle = firstHandleFor(item, state.handleSelectors);
-  if(!handle || !handle.contains(evt.target)) return;
+  if (!handle || !handle.contains(evt.target)) return;
   evt.preventDefault();
   beginGridDrag(state, item, evt);
 }
 
-function ensureState(container){
+function ensureState(container) {
   let state = STATE_MAP.get(container);
-  if(!state){
+  if (!state) {
     state = {
       container,
       itemSelector: '',
       handleSelectors: [],
       storageKey: '',
+      idGetter: defaultIdGetter,
       gridOptions: {},
       onOrderChange: null,
       enabled: true,
@@ -468,78 +506,86 @@ function ensureState(container){
       upListener: null,
       restoreSelection: null,
       appliedInitialOrder: false,
-      lastOrderSignature: null
+      lastOrderSignature: null,
     };
-    state.onPointerDown = evt => handlePointerDown(evt, state);
+    state.onPointerDown = (evt) => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
     STATE_MAP.set(container, state);
   }
   return state;
 }
 
-export function attachOnce(el, type, fn, flagKey){
-  if(!el || typeof el.addEventListener !== 'function') return false;
-  if(!type || typeof fn !== 'function') return false;
+export function attachOnce(el, type, fn, flagKey) {
+  if (!el || typeof el.addEventListener !== 'function') return false;
+  if (!type || typeof fn !== 'function') return false;
   const key = flagKey ? String(flagKey) : `${type}:${fn.name || 'fn'}`;
   let flags = FLAG_MAP.get(el);
-  if(!flags){
+  if (!flags) {
     flags = new Set();
     FLAG_MAP.set(el, flags);
   }
-  if(flags.has(key)) return false;
+  if (flags.has(key)) return false;
   el.addEventListener(type, fn);
   flags.add(key);
   GLOBAL_LISTENER_COUNT += 1;
   return true;
 }
 
-export function makeDraggableGrid(options = {}){
+export function makeDraggableGrid(options = {}) {
   const container = options.container;
-  if(!container) return null;
+  if (!container) return null;
   const itemSelector = options.itemSel || options.itemSelector;
   const handleSel = options.handleSel;
   const storageKey = options.storageKey || '';
-  if(!itemSelector || !handleSel || !storageKey) return null;
+  if (!itemSelector || !handleSel || !storageKey) return null;
   const state = ensureState(container);
   state.itemSelector = itemSelector;
   state.handleSelectors = parseSelectors(handleSel);
   state.storageKey = storageKey;
+  state.idGetter = typeof options.idGetter === 'function' ? options.idGetter : defaultIdGetter;
   state.gridOptions = options.grid || {};
   state.onOrderChange = typeof options.onOrderChange === 'function' ? options.onOrderChange : null;
   state.enabled = options.enabled === undefined ? true : !!options.enabled;
   applyStoredOrder(state, { force: true });
   const controller = {
-    enable(){
+    enable() {
       state.enabled = true;
       return controller;
     },
-    disable(){
-      if(state.dragging) cancelDrag(state, false);
+    disable() {
+      if (state.dragging) cancelDrag(state, false);
       state.enabled = false;
       return controller;
     },
-    isEnabled(){
+    isEnabled() {
       return !!state.enabled;
     },
-    refresh(){
+    refresh() {
       applyStoredOrder(state, { force: true });
       return controller;
     },
-    reapply(){
+    reapply() {
       applyStoredOrder(state, { force: true });
       return controller;
-    }
+    },
+    destroy() {
+      controller.disable();
+      state.destroyed = true;
+      return controller;
+    },
   };
   return controller;
 }
 
-export function makeDraggableList(options = {}){
+export function makeDraggableList(options = {}) {
   return makeDraggableGrid(options);
 }
 
-export function listenerCount(){
+export function getListenerCount() {
   return GLOBAL_LISTENER_COUNT;
 }
+
+export const listenerCount = getListenerCount;
 
 makeDraggableGrid.listenerCount = listenerCount;
 makeDraggableList.listenerCount = listenerCount;
