@@ -8,6 +8,19 @@ const BUTTON_ID = 'btn-header-new';
 let ensureControlsRef = null;
 let headerOnlyBeaconed = false;
 
+const headerState = (() => {
+  if (typeof window === 'undefined') {
+    return { host: null, header: null, observer: null, pending: false, toggle: null, wired: false };
+  }
+  const existing = window[STATE_KEY];
+  if (existing && typeof existing === 'object') {
+    return existing;
+  }
+  const state = { host: null, header: null, observer: null, pending: false, toggle: null, wired: false };
+  window[STATE_KEY] = state;
+  return state;
+})();
+
 function postQuickAddLog(eventName) {
   if (!eventName) {
     return;
@@ -55,119 +68,246 @@ export function ensureProfileControls() {
   }
 }
 
-function setupGlobalNewButton() {
-  if (window[STATE_KEY]) return;
+function findHeaderNode() {
+  if (typeof document === 'undefined') return null;
+  const selectors = [
+    '.header-bar',
+    '[data-role="header-bar"]',
+    '[data-ui="header-bar"]',
+    '[data-role="shell-header"]',
+    '[data-ui="shell-header"]',
+    '[data-ui="app-header"]',
+    '.app-header',
+    '#app-header'
+  ];
+  for (const selector of selectors) {
+    const node = document.querySelector(selector);
+    if (node) return node;
+  }
+  const title = document.getElementById('app-title-link') || document.querySelector('.app-title');
+  if (title && typeof title.closest === 'function') {
+    const host = title.closest('.header-bar, [data-role], [data-ui], header');
+    if (host) return host;
+  }
+  return null;
+}
 
-  try {
-    const header = document.querySelector('.header-bar');
-    if (!header) return;
+function removeLegacyHeaderButtons(header) {
+  if (!header) return;
+  const legacyButtons = header.querySelectorAll([
+    '#btn-add-contact',
+    '#btn-add-partner',
+    '.btn-add-contact',
+    '.btn-add-partner'
+  ].join(','));
+  legacyButtons.forEach((btn) => {
+    if (btn && btn.parentNode) {
+      btn.parentNode.removeChild(btn);
+    }
+  });
+}
 
-    const legacyButtons = header.querySelectorAll([
-      '#btn-add-contact',
-      '#btn-add-partner',
-      '.btn-add-contact',
-      '.btn-add-partner'
-    ].join(','));
-    legacyButtons.forEach((btn) => {
-      if (btn && btn.parentNode) {
-        btn.parentNode.removeChild(btn);
-      }
-    });
-
-    const host = document.createElement('div');
-    host.className = 'dropdown header-new-wrap';
-    host.style.position = 'relative';
-
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'btn brand';
-    toggle.id = BUTTON_ID;
-    toggle.textContent = '+ New';
-    toggle.setAttribute('aria-haspopup', 'true');
+function ensureToggleWiring(toggle) {
+  if (!toggle) return;
+  toggle.setAttribute('aria-haspopup', 'true');
+  if (toggle.getAttribute('aria-expanded') !== 'true') {
     toggle.setAttribute('aria-expanded', 'false');
-    host.appendChild(toggle);
-
+  }
+  if (!toggle.__headerToolbarClick) {
+    toggle.__headerToolbarClick = true;
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       toggleQuickCreateMenu({ anchor: toggle, source: 'header' });
     });
-
-    if (!toggle.__quickCreateStateWired) {
-      toggle.__quickCreateStateWired = true;
-      const handleState = (event) => {
-        const detail = event && event.detail ? event.detail : {};
-        const expanded = !!(detail.open && detail.source === 'header');
-        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        if (!toggle.isConnected) {
-          document.removeEventListener('quick-create-menu:state', handleState);
-        }
-      };
-      document.addEventListener('quick-create-menu:state', handleState);
-      if (isQuickCreateMenuOpen('header')) {
-        toggle.setAttribute('aria-expanded', 'true');
+  }
+  if (!toggle.__quickCreateStateWired) {
+    toggle.__quickCreateStateWired = true;
+    const handleState = (event) => {
+      const detail = event && event.detail ? event.detail : {};
+      const expanded = !!(detail.open && detail.source === 'header');
+      toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (!toggle.isConnected) {
+        document.removeEventListener('quick-create-menu:state', handleState);
       }
-    }
-
-    const mountCandidates = [];
-    const explicitMount = header.querySelector('[data-role="header-toolbar"]');
-    if (explicitMount) mountCandidates.push(explicitMount);
-    const actionWrap = header.querySelector('.header-actions');
-    if (actionWrap) mountCandidates.push(actionWrap);
-    const rightWrap = header.querySelector('.header-right');
-    if (rightWrap) mountCandidates.push(rightWrap);
-    const profileWrap = header.querySelector('#lo-profile-chip');
-    if (profileWrap && profileWrap.parentElement) mountCandidates.push(profileWrap.parentElement);
-    const notifParent = (() => {
-      const wrap = header.querySelector('#notif-wrap');
-      return wrap && wrap.parentElement === header ? wrap.parentElement : null;
-    })();
-    if (notifParent) mountCandidates.push(notifParent);
-    const quickAddParent = (() => {
-      const quickAdd = header.querySelector('#quick-add');
-      return quickAdd && quickAdd.parentElement ? quickAdd.parentElement : null;
-    })();
-    if (quickAddParent) mountCandidates.push(quickAddParent);
-
-    let mount = mountCandidates.find((node) => node && node instanceof HTMLElement && header.contains(node));
-    if (!mount) {
-      mount = header;
-    }
-
-    if (mount && mount !== header) {
-      mount.appendChild(host);
-    } else {
-      const notifWrap = header.querySelector('#notif-wrap');
-      if (notifWrap && notifWrap.parentElement === header) {
-        header.insertBefore(host, notifWrap);
-      } else {
-        const quickAdd = header.querySelector('#quick-add');
-        if (quickAdd && quickAdd.parentElement === header) {
-          quickAdd.insertAdjacentElement('afterend', host);
-        } else {
-          const grow = header.querySelector('.grow');
-          if (grow && grow.parentElement === header) {
-            grow.insertAdjacentElement('afterend', host);
-          } else {
-            header.appendChild(host);
-          }
-        }
-      }
-    }
-
-    window[STATE_KEY] = true;
-    emitHeaderOnlyBeacon();
-  } catch (err) {
-    if (console && typeof console.warn === 'function') {
-      console.warn('header toolbar injection failed', err);
+    };
+    document.addEventListener('quick-create-menu:state', handleState);
+    if (isQuickCreateMenuOpen('header')) {
+      toggle.setAttribute('aria-expanded', 'true');
     }
   }
 }
 
+function ensureHostNode() {
+  if (typeof document === 'undefined') return null;
+  let host = headerState.host && headerState.host.isConnected ? headerState.host : null;
+  let toggle = host ? host.querySelector(`#${BUTTON_ID}`) : null;
+  if (!host || !toggle) {
+    toggle = document.getElementById(BUTTON_ID);
+    host = toggle ? toggle.closest('.header-new-wrap') : null;
+  }
+  if (!host || !toggle) {
+    host = document.createElement('div');
+    host.className = 'dropdown header-new-wrap';
+    host.dataset.role = 'header-new-host';
+    host.style.position = 'relative';
+    toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn brand';
+    toggle.id = BUTTON_ID;
+    toggle.textContent = '+ New';
+    host.appendChild(toggle);
+  } else if (!toggle.textContent || toggle.textContent.trim() !== '+ New') {
+    toggle.textContent = '+ New';
+  }
+  ensureToggleWiring(toggle);
+  headerState.host = host;
+  headerState.toggle = toggle;
+  return host;
+}
+
+function pickHeaderMount(header) {
+  if (!header) return null;
+  const mounts = [];
+  const explicitMount = header.querySelector('[data-role="header-toolbar"], [data-ui="header-toolbar"]');
+  if (explicitMount) mounts.push(explicitMount);
+  const actionWrap = header.querySelector('.header-actions, [data-role="header-actions"], [data-ui="header-actions"], [data-zone="header-actions"]');
+  if (actionWrap) mounts.push(actionWrap);
+  const rightWrap = header.querySelector('.header-right, [data-role="header-right"], [data-ui="header-right"], [data-zone="header-right"]');
+  if (rightWrap) mounts.push(rightWrap);
+  const utilityWrap = header.querySelector('[data-role="header-utilities"], [data-ui="header-utilities"], [data-zone="header-utilities"]');
+  if (utilityWrap) mounts.push(utilityWrap);
+  const slotMount = header.querySelector('[data-slot="header-actions"], [data-slot="actions"], [data-area="header-actions"], [data-area="actions"]');
+  if (slotMount) mounts.push(slotMount);
+  const profileWrap = header.querySelector('#lo-profile-chip');
+  if (profileWrap && profileWrap.parentElement) mounts.push(profileWrap.parentElement);
+  const notifParent = (() => {
+    const wrap = header.querySelector('#notif-wrap');
+    return wrap && wrap.parentElement ? wrap.parentElement : null;
+  })();
+  if (notifParent) mounts.push(notifParent);
+  const quickAddParent = (() => {
+    const quickAdd = header.querySelector('#quick-add');
+    return quickAdd && quickAdd.parentElement ? quickAdd.parentElement : null;
+  })();
+  if (quickAddParent) mounts.push(quickAddParent);
+  for (const node of mounts) {
+    if (node instanceof HTMLElement && header.contains(node)) {
+      return node;
+    }
+  }
+  return header;
+}
+
+function placeHost(header, host) {
+  if (!header || !host) return;
+  const mount = pickHeaderMount(header);
+  if (mount && mount !== header) {
+    if (host.parentElement !== mount) {
+      mount.appendChild(host);
+    }
+    return;
+  }
+  const notifWrap = header.querySelector('#notif-wrap');
+  if (notifWrap && notifWrap.parentElement === header) {
+    if (notifWrap.previousSibling !== host) {
+      header.insertBefore(host, notifWrap);
+    }
+    return;
+  }
+  const quickAdd = header.querySelector('#quick-add');
+  if (quickAdd && quickAdd.parentElement === header) {
+    if (quickAdd.nextSibling !== host) {
+      quickAdd.insertAdjacentElement('afterend', host);
+    }
+    return;
+  }
+  const grow = header.querySelector('.grow');
+  if (grow && grow.parentElement === header) {
+    if (grow.nextSibling !== host) {
+      grow.insertAdjacentElement('afterend', host);
+    }
+    return;
+  }
+  if (host.parentElement !== header) {
+    header.appendChild(host);
+  }
+}
+
+function ensureHeaderToolbar() {
+  if (typeof document === 'undefined') return false;
+  try {
+    const header = findHeaderNode();
+    if (!header) {
+      headerState.header = null;
+      headerState.wired = false;
+      return false;
+    }
+    removeLegacyHeaderButtons(header);
+    const host = ensureHostNode();
+    if (!host) {
+      headerState.wired = false;
+      return false;
+    }
+    placeHost(header, host);
+    headerState.header = header;
+    headerState.wired = !!host.isConnected;
+    if (host.isConnected) {
+      emitHeaderOnlyBeacon();
+    }
+    return headerState.wired;
+  } catch (err) {
+    headerState.wired = false;
+    if (console && typeof console.warn === 'function') {
+      console.warn('header toolbar injection failed', err);
+    }
+    return false;
+  }
+}
+
+function scheduleHeaderEnsure() {
+  if (headerState.pending) return;
+  headerState.pending = true;
+  const run = () => {
+    headerState.pending = false;
+    ensureHeaderToolbar();
+  };
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(run);
+    return;
+  }
+  if (typeof Promise === 'function') {
+    Promise.resolve().then(run);
+    return;
+  }
+  run();
+}
+
+function ensureHeaderObserver() {
+  if (headerState.observer || typeof MutationObserver !== 'function') return;
+  if (typeof document === 'undefined') return;
+  const target = document.body || document.documentElement;
+  if (!target) return;
+  const observer = new MutationObserver(() => {
+    scheduleHeaderEnsure();
+  });
+  try {
+    observer.observe(target, { childList: true, subtree: true });
+  } catch (_) {
+    return;
+  }
+  headerState.observer = observer;
+}
+
+function initHeaderToolbar() {
+  ensureHeaderObserver();
+  scheduleHeaderEnsure();
+}
+
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupGlobalNewButton, { once: true });
+    document.addEventListener('DOMContentLoaded', initHeaderToolbar, { once: true });
   } else {
-    setupGlobalNewButton();
+    initHeaderToolbar();
   }
 }
 (function(){
