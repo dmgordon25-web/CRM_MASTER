@@ -97,7 +97,8 @@ const canonicalTailOrder = [
   './patches/patch_2025-10-24_quickadd_header_only.js',
   './patches/patch_2025-10-24_dashboard_drag_v2.js',
   './patches/patch_2025-10-23_calendar_contact_and_task.js',
-  './patches/patch_2025-10-23_workbench_route.js'
+  './patches/patch_2025-10-23_workbench_route.js',
+  './patches/patch_2025-10-24_polish.js'
 ].filter(fileExists);
 
 const polishTailEntry = resolvePolishTailEntry();
@@ -111,7 +112,7 @@ for (const candidate of canonicalTailOrder) {
   }
 }
 
-/* parse-ok: tail repaired */ ;void 0;
+/* parse-ok: tail unified */ ;void 0;
 
 function resolvePolishTailEntry() {
   const preferred = './patches/patch_2025-10-24_polish.js';
