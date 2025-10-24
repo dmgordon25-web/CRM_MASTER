@@ -1422,7 +1422,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         catch (__) { /* noop */ }
       }
     }
-    if(bypass) return;
+    if(bypass){
+      handleHashChange();
+      return;
+    }
     activate(DEFAULT_ROUTE);
   }
 
