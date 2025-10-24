@@ -93,12 +93,36 @@ function fileExists(spec) {
   ].map(normalizeSpec).filter((spec) => fileExists(spec));
 
   const tailLen = TAIL_RULES.length;
-  if (tailLen) {
-    const tailSlice = PATCHES.slice(-tailLen);
-    const matches = tailSlice.every((entry, idx) => entry === TAIL_RULES[idx]);
-    if (!matches) {
-      console.error('[AUDIT] Tail rule violation. Expected tail:', TAIL_RULES);
-      console.error('[AUDIT] Actual tail:', tailSlice);
+  if (tailLen > 0 && PATCHES.length < tailLen) {
+    console.error('[AUDIT] Manifest too short to contain required tail files.');
+    console.error('[AUDIT] Required tail length:', tailLen, 'Actual length:', PATCHES.length);
+    process.exit(4);
+  }
+
+  if (tailLen > 0) {
+    const actualTail = PATCHES.slice(-tailLen);
+    const sameLen = actualTail.length === tailLen;
+    const sameItems = sameLen && actualTail.every((x, i) => x === TAIL_RULES[i]);
+    if (!sameItems) {
+      const firstIdx = PATCHES.findIndex((x) => x === (TAIL_RULES[0] || ''));
+      const contiguousAtEnd =
+        firstIdx >= 0 &&
+        firstIdx === PATCHES.length - tailLen &&
+        PATCHES.slice(firstIdx).every((x, i) => x === TAIL_RULES[i]);
+
+      console.error('[AUDIT] Tail rule violation.');
+      console.error('[AUDIT] Expected tail:', TAIL_RULES);
+      console.error('[AUDIT] Actual tail:', actualTail);
+      if (firstIdx >= 0 && !contiguousAtEnd) {
+        console.error('[AUDIT] Tail block found at index', firstIdx, 'but it is not the final contiguous block.');
+      }
+      const max = Math.max(actualTail.length, TAIL_RULES.length);
+      for (let i = 0; i < max; i += 1) {
+        if (actualTail[i] !== TAIL_RULES[i]) {
+          console.error('[AUDIT] First tail diff at offset', i, 'expected:', TAIL_RULES[i], 'got:', actualTail[i]);
+          break;
+        }
+      }
       process.exit(4);
     }
   }
