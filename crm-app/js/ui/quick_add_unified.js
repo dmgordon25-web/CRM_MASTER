@@ -1,27 +1,10 @@
 /* eslint-disable no-console */
+import { toastSoftError, toastSuccess, toastWarn } from './toast_helpers.js';
+
 // Unified Quick Add modal with Contact/Partner tabs; idempotent wiring.
 export function wireQuickAddUnified() {
   if (window.__WIRED_QUICK_ADD_UNIFIED__) return;
   window.__WIRED_QUICK_ADD_UNIFIED__ = true;
-
-  function showToast(kind, message) {
-    const text = String(message == null ? '' : message).trim();
-    if (!text) return;
-    const toast = window.Toast;
-    const legacy = window.toast;
-    if (toast && typeof toast[kind] === 'function') {
-      try { toast[kind](text); return; }
-      catch (_) {}
-    }
-    if (toast && typeof toast.show === 'function') {
-      try { toast.show(text); return; }
-      catch (_) {}
-    }
-    if (typeof legacy === 'function') {
-      try { legacy(text); }
-      catch (_) {}
-    }
-  }
 
   function html() {
     return `
@@ -112,6 +95,8 @@ export function wireQuickAddUnified() {
         status: "Active",
       };
       let saved = false;
+      let failureMessage = '';
+      let failureToastShown = false;
       try {
         if (window.Contacts?.createQuick) {
           await window.Contacts.createQuick(rec);
@@ -120,14 +105,19 @@ export function wireQuickAddUnified() {
           await window.dbPut("contacts", rec);
           saved = true;
         } else {
-          console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec);
+          failureMessage = 'Contacts service unavailable. Contact not saved.';
+          try { console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec); }
+          catch (_) {}
         }
       } catch (err) {
-        console.warn("[soft] [quickAdd] contact save failed", err);
+        failureMessage = 'Unable to save contact. Please try again.';
+        failureToastShown = toastSoftError('[soft] [quickAdd] contact save failed', err, failureMessage);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
         if (saved) {
-          showToast("success", "Contact created");
+          toastSuccess("Contact created");
+        } else if (failureMessage && !failureToastShown) {
+          failureToastShown = toastWarn(failureMessage);
         }
         close();
       }
@@ -145,6 +135,8 @@ export function wireQuickAddUnified() {
         tier: "Unassigned",
       };
       let saved = false;
+      let failureMessage = '';
+      let failureToastShown = false;
       try {
         if (window.Partners?.createQuick) {
           await window.Partners.createQuick(rec);
@@ -153,14 +145,19 @@ export function wireQuickAddUnified() {
           await window.dbPut("partners", rec);
           saved = true;
         } else {
-          console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec);
+          failureMessage = 'Partners service unavailable. Partner not saved.';
+          try { console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec); }
+          catch (_) {}
         }
       } catch (err) {
-        console.warn("[soft] [quickAdd] partner save failed", err);
+        failureMessage = 'Unable to save partner. Please try again.';
+        failureToastShown = toastSoftError('[soft] [quickAdd] partner save failed', err, failureMessage);
       } finally {
         try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
         if (saved) {
-          showToast("success", "Partner created");
+          toastSuccess("Partner created");
+        } else if (failureMessage && !failureToastShown) {
+          failureToastShown = toastWarn(failureMessage);
         }
         close();
       }
