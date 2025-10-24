@@ -20,5 +20,6 @@
   "js/patches/patch_2025-10-23_dashboard_drag.js",
   "js/patches/patch_2025-10-23_session_beacon.js",
   "js/patches/patch_2025-10-23_unify_quick_create.js",
-  "js/patches/patch_2025-10-23_dashboard_drag_fix.js"
+  "js/patches/patch_2025-10-23_dashboard_drag_fix.js",
+  "js/patches/patch_2025-10-23_actionbar_drag.js"
 ]
