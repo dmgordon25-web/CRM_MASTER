@@ -44,6 +44,88 @@ const WIDGET_CARD_RESOLVERS = {
 };
 
 const prefCache = { value: null, loading: null };
+const settingsReadyState = { listeners: [], polling: false, timer: null, notified: false };
+const SETTINGS_POLL_DELAY = 50;
+const SETTINGS_WAIT_TIMEOUT = 4000;
+
+function getSettingsApi() {
+  if (!win || !win.Settings || typeof win.Settings.get !== 'function') return null;
+  return win.Settings;
+}
+
+function scheduleSettingsPoll() {
+  if (!win) return;
+  if (settingsReadyState.polling) return;
+  settingsReadyState.polling = true;
+  const timeoutFn = typeof win.setTimeout === 'function' ? win.setTimeout.bind(win) : setTimeout;
+
+  const poll = () => {
+    const api = getSettingsApi();
+    if (api) {
+      settingsReadyState.polling = false;
+      settingsReadyState.timer = null;
+      notifySettingsReady(api);
+      return;
+    }
+    settingsReadyState.timer = timeoutFn(poll, SETTINGS_POLL_DELAY);
+  };
+
+  poll();
+}
+
+function notifySettingsReady(api) {
+  if (!api) return;
+  const listeners = settingsReadyState.listeners.splice(0, settingsReadyState.listeners.length);
+  listeners.forEach(listener => {
+    try {
+      listener(api);
+    } catch (_err) {}
+  });
+  if (!settingsReadyState.notified) {
+    settingsReadyState.notified = true;
+    onSettingsReady(api);
+  }
+}
+
+function waitForSettings(timeout = SETTINGS_WAIT_TIMEOUT) {
+  const api = getSettingsApi();
+  if (api) return Promise.resolve(api);
+  if (!win) return Promise.resolve(null);
+  return new Promise(resolve => {
+    let settled = false;
+    const clearFn = typeof win.clearTimeout === 'function' ? win.clearTimeout.bind(win) : clearTimeout;
+    const timeoutFn = typeof win.setTimeout === 'function' ? win.setTimeout.bind(win) : setTimeout;
+    let timer = null;
+
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      const index = settingsReadyState.listeners.indexOf(listener);
+      if (index >= 0) settingsReadyState.listeners.splice(index, 1);
+      if (timer) clearFn(timer);
+    };
+
+    const listener = value => {
+      cleanup();
+      resolve(value);
+    };
+
+    settingsReadyState.listeners.push(listener);
+    scheduleSettingsPoll();
+
+    if (timeout > 0) {
+      timer = timeoutFn(() => {
+        cleanup();
+        resolve(null);
+      }, timeout);
+    }
+  });
+}
+
+function onSettingsReady() {
+  invalidatePrefs();
+  scheduleApply();
+}
 
 function buildDefaultMap(keys) {
   const map = {};
@@ -97,21 +179,27 @@ function sanitizePrefs(settings) {
 function getSettingsPrefs() {
   if (prefCache.value) return Promise.resolve(clonePrefs(prefCache.value));
   if (prefCache.loading) return prefCache.loading.then(clonePrefs);
-  prefCache.loading = (async () => {
+  const loading = (async () => {
+    const api = await waitForSettings();
     let settings = null;
-    if (win && win.Settings && typeof win.Settings.get === 'function') {
+    if (api && typeof api.get === 'function') {
       try {
-        settings = await win.Settings.get();
+        settings = await api.get();
       } catch (err) {
         if (console && console.warn) console.warn('[dashboard] settings fetch failed', err);
       }
     }
     const prefs = sanitizePrefs(settings);
-    prefCache.value = prefs;
-    prefCache.loading = null;
+    if (api && typeof api.get === 'function') {
+      prefCache.value = prefs;
+    }
     return prefs;
   })();
-  return prefCache.loading.then(clonePrefs);
+  prefCache.loading = loading;
+  loading.finally(() => {
+    if (prefCache.loading === loading) prefCache.loading = null;
+  });
+  return loading.then(clonePrefs);
 }
 
 function invalidatePrefs() {
