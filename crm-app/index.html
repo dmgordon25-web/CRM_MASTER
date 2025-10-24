@@ -1724,13 +1724,17 @@
      <button class="btn" data-act="clear">
       Clear
      </button>
-     <button class="btn danger" data-act="delete">
-      Delete
-     </button>
-    </div>
+    <button class="btn danger" data-act="delete">
+     Delete
+    </button>
    </div>
+    <div aria-live="polite" class="actionbar-busy" data-role="busy" hidden>
+     <span aria-hidden="true" class="ui-spinner"></span>
+     <span class="busy-text" data-role="busy-label">Working…</span>
+    </div>
   </div>
-  <!-- Partner Modal -->
+ </div>
+ <!-- Partner Modal -->
   <div class="record-modal modal partner-edit-modal hidden" data-ui="partner-edit-modal" id="partner-modal" aria-hidden="true" role="dialog" style="display:none">
    <div class="dlg" tabindex="-1">
     <form class="modal-form-shell" id="partner-form">
