@@ -91,6 +91,22 @@ import { normalizeStatus } from './pipeline/constants.js';
   }
   function html(el, value){ if(el) el.innerHTML = value; }
 
+  function polishBeacon(area){
+    try{
+      if(!window.__VIS_POLISH__) window.__VIS_POLISH__ = {};
+      if(window.__VIS_POLISH__[area]) return;
+      window.__VIS_POLISH__[area] = true;
+      console.info(`[VIS] polish applied:${area}`);
+      if(typeof fetch === 'function'){
+        fetch('/__log', {
+          method: 'POST',
+          headers: {'content-type':'application/json'},
+          body: JSON.stringify({event:`polish:${area}`})
+        }).catch(()=>{});
+      }
+    }catch (_err) {}
+  }
+
   async function compute(){
     await openDB();
     const [contacts, partners, tasks, documents] = await Promise.all([
@@ -453,7 +469,11 @@ import { normalizeStatus } from './pipeline/constants.js';
     const tbody = document.querySelector('#tbl-funded tbody');
     if(tbody){
       if(!enrichedDeals.length){
-        tbody.innerHTML = '<tr><td class="muted" colspan="5">No funded deals within this range.</td></tr>';
+        tbody.innerHTML = '<tr><td class="muted" colspan="5" style="text-align:center;padding:24px 12px">'
+          + '<div><strong>No items yet</strong></div>'
+          + '<div class="fine-print" style="margin-top:4px">Adjust the range or add funded deals to see results.</div>'
+          + '</td></tr>';
+        polishBeacon('reports-empty');
       }else{
         const rows = enrichedDeals
           .slice()
