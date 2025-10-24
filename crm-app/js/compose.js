@@ -1,3 +1,6 @@
+import { Templates } from './email/templates_store.js';
+import { compile } from './email/merge_vars.js';
+
 const PROFILE_STORAGE_KEY = 'profile:v1';
 const SIGNATURE_STORAGE_KEY = 'signature:v1';
 
@@ -91,6 +94,14 @@ function buildEmailSubject(context){
   return 'Follow up from THE CRM Tool';
 }
 
+function extractProfileDetails(profile){
+  return {
+    name: typeof profile?.name === 'string' ? profile.name.trim() : '',
+    email: typeof profile?.email === 'string' ? profile.email.trim() : '',
+    phone: typeof profile?.phone === 'string' ? profile.phone.trim() : ''
+  };
+}
+
 function applySignatureTokens(signature, profile){
   const text = typeof signature === 'string' ? signature : '';
   if(!text.trim()) return '';
@@ -104,25 +115,38 @@ function applySignatureTokens(signature, profile){
     .trim();
 }
 
-function buildEmailBody(context, profile){
-  const firstName = pickFirstName(context?.name) || 'there';
-  const bodyLines = [`Hi ${firstName},`, '', 'Just checking in to see how things are going.'];
-  const profileName = typeof profile?.name === 'string' ? profile.name.trim() : '';
-  const profilePhone = typeof profile?.phone === 'string' ? profile.phone.trim() : '';
-  const profileEmail = typeof profile?.email === 'string' ? profile.email.trim() : '';
-  const signature = applySignatureTokens(readSignature(), { name: profileName, email: profileEmail, phone: profilePhone });
+function appendSignatureBlock(lines, profileDetails, signature){
+  const profileName = typeof profileDetails?.name === 'string' ? profileDetails.name.trim() : '';
+  const profilePhone = typeof profileDetails?.phone === 'string' ? profileDetails.phone.trim() : '';
+  const profileEmail = typeof profileDetails?.email === 'string' ? profileDetails.email.trim() : '';
   if(signature){
-    bodyLines.push('', signature);
+    if(lines.length) lines.push('');
+    lines.push(signature);
   }else{
     const profileLines = [];
     if(profileName) profileLines.push(profileName);
     if(profilePhone) profileLines.push(profilePhone);
     if(profileEmail) profileLines.push(profileEmail);
     if(profileLines.length){
-      bodyLines.push('', profileLines.join('\n'));
+      if(lines.length) lines.push('');
+      profileLines.length === 1
+        ? lines.push(profileLines[0])
+        : lines.push(profileLines.join('\n'));
     }
   }
-  bodyLines.push('', 'Sent from THE CRM Tool');
+  if(lines.length) lines.push('');
+  lines.push('Sent from THE CRM Tool');
+  return lines;
+}
+
+function buildEmailBody(context, profile, signatureOverride){
+  const firstName = pickFirstName(context?.name) || 'there';
+  const bodyLines = [`Hi ${firstName},`, '', 'Just checking in to see how things are going.'];
+  const details = extractProfileDetails(profile);
+  const signature = typeof signatureOverride === 'string'
+    ? signatureOverride
+    : applySignatureTokens(readSignature(), details);
+  appendSignatureBlock(bodyLines, details, signature);
   return bodyLines.join('\n');
 }
 
@@ -202,15 +226,133 @@ function notify(kind, message){
   }catch(_err){ }
 }
 
-function composeEmail(context){
+function buildTemplateData(context, profileDetails, signature){
+  const source = context && typeof context.contact === 'object' ? context.contact : {};
+  const contact = Object.assign({}, source);
+  const contextName = typeof context?.name === 'string' ? context.name.trim() : '';
+  if(contextName) contact.name = contextName;
+  if(typeof context?.first === 'string' && context.first.trim()){
+    contact.first = context.first.trim();
+  }
+  if(typeof context?.last === 'string' && context.last.trim()){
+    contact.last = context.last.trim();
+  }
+  if(typeof context?.email === 'string' && context.email.trim()){
+    contact.email = context.email.trim();
+  }
+  if(typeof context?.phone === 'string' && context.phone.trim()){
+    contact.phone = context.phone.trim();
+  }
+  if(!contact.first){
+    const first = pickFirstName(contact.name);
+    if(first) contact.first = first;
+  }
+  const partner = context && typeof context.partner === 'object' ? context.partner : {};
+  const profile = extractProfileDetails(profileDetails);
+  const data = {
+    contact,
+    partner,
+    profile,
+    lo: profile,
+    loanOfficer: profile,
+    date: { today: new Date().toLocaleDateString() },
+    first: contact.first || '',
+    name: contact.name || '',
+    email: contact.email || '',
+    phone: contact.phone || '',
+    loName: profile.name || '',
+    loEmail: profile.email || '',
+    loPhone: profile.phone || ''
+  };
+  if(signature) data.signature = signature;
+  return data;
+}
+
+function selectTemplate(templates){
+  const list = Array.isArray(templates) ? templates : [];
+  if(!list.length) return null;
+  const favorites = list.filter(item => item && item.fav);
+  const useFavorites = favorites.length > 0;
+  const choices = useFavorites ? favorites : list;
+  if(choices.length === 1){
+    const [single] = choices;
+    if(!single) return null;
+    if(useFavorites) return single;
+    if(typeof window === 'undefined' || typeof window.prompt !== 'function'){
+      return single;
+    }
+    let input = null;
+    try{
+      input = window.prompt(`Use the template "${single.name || 'Untitled template'}"? Enter 1 to use it or leave blank to skip.`, '1');
+    }catch(_err){ input = null; }
+    if(input == null) return null;
+    const trimmedSingle = input.trim();
+    if(!trimmedSingle || trimmedSingle === '0') return null;
+    return Number.parseInt(trimmedSingle, 10) === 1 ? single : null;
+  }
+  if(typeof window === 'undefined' || typeof window.prompt !== 'function'){
+    return choices[0];
+  }
+  const options = choices.map((item, index) => `${index + 1}. ${item.name || 'Untitled template'}`);
+  let input = null;
+  try{
+    input = window.prompt(`Choose a template number or leave blank for the default message:\n${options.join('\n')}`, '1');
+  }catch(_err){ input = null; }
+  if(input == null) return null;
+  const trimmed = input.trim();
+  if(!trimmed || trimmed === '0') return null;
+  const index = Number.parseInt(trimmed, 10);
+  if(Number.isFinite(index) && index >= 1 && index <= choices.length){
+    return choices[index - 1];
+  }
+  return choices[0];
+}
+
+function buildEmailFromTemplate(template, context, profileDetails, signature){
+  if(!template) return null;
+  const data = buildTemplateData(context, profileDetails, signature);
+  const subject = compile(template.subject || '', data).trim();
+  const bodyRaw = compile(template.body || '', data).trim();
+  if(!bodyRaw){
+    return { subject, body: '' };
+  }
+  const lines = bodyRaw.split('\n');
+  appendSignatureBlock(lines, extractProfileDetails(profileDetails), signature);
+  return {
+    subject,
+    body: lines.join('\n')
+  };
+}
+
+async function composeEmail(context){
   const email = sanitizeEmail(context?.email);
   if(!email){
     notify('info', 'No email address on file for this record');
     return false;
   }
   const profile = readProfile();
-  const subject = buildEmailSubject(context);
-  const body = buildEmailBody(context, profile);
+  const profileDetails = extractProfileDetails(profile);
+  const signature = applySignatureTokens(readSignature(), profileDetails);
+  let templateResult = null;
+  try{
+    if(Templates && typeof Templates.ready === 'function'){
+      await Templates.ready();
+    }
+    const available = Templates && typeof Templates.list === 'function' ? Templates.list() : [];
+    const chosen = selectTemplate(available);
+    if(chosen){
+      templateResult = buildEmailFromTemplate(chosen, context, profileDetails, signature);
+    }
+  }catch(err){
+    try{ console && console.warn && console.warn('email template selection failed', err); }
+    catch(_err){}
+  }
+  const subject = templateResult && typeof templateResult.subject === 'string' && templateResult.subject.trim()
+    ? templateResult.subject.trim()
+    : buildEmailSubject(context);
+  const body = templateResult && typeof templateResult.body === 'string' && templateResult.body.trim()
+    ? templateResult.body
+    : buildEmailBody(context, profileDetails, signature);
   const link = buildMailto(email, subject, body);
   const success = openUrl(link);
   if(!success){

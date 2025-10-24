@@ -247,6 +247,16 @@
       const r=os.clear(); r.onsuccess=()=>res(); r.onerror=e=>rej(e.target&&e.target.error||e);
     }));
   }
+  function dbSettingsGet(id){
+    if(id == null) return Promise.resolve(null);
+    const key = String(id);
+    return dbGet('settings', key);
+  }
+  function dbSettingsPut(record){
+    if(!record || record.id == null) return Promise.resolve();
+    const payload = Object.assign({}, record, { id: String(record.id) });
+    return dbPut('settings', payload);
+  }
   async function dbExportAll(){
     const out = {};
     for(const s of STORES){
@@ -457,6 +467,8 @@ async function mergePartners(aId, bId, strategy){
   window.dbBulkPut = dbBulkPut;
   window.dbDelete = dbDelete;
   window.dbClear = dbClear;
+  window.dbSettingsGet = dbSettingsGet;
+  window.dbSettingsPut = dbSettingsPut;
   window.dbExportAll = dbExportAll;
   window.dbRestoreAll = dbRestoreAll;
   window.mergePartners = mergePartners;
