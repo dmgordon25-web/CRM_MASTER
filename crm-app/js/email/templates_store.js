@@ -51,10 +51,6 @@ function snapshotItems() {
   }));
 }
 
-function enqueueMutation(fn) {
-  pendingMutations.push(fn);
-}
-
 function requestPersist() {
   if (hydrated) {
     schedulePersist();
@@ -157,16 +153,19 @@ function performRemove(id) {
   STATE.items = STATE.items.filter((item) => item.id !== id);
   if (STATE.items.length !== before) {
     notify({ persist: true });
+    return true;
   }
+  return false;
 }
 
 function performMarkFav(id, fav = true) {
   const record = STATE.items.find((item) => item.id === id);
-  if (!record) return;
+  if (!record) return false;
   record.fav = !!fav;
   record.updatedAt = Date.now();
   sortItems();
   notify({ persist: true });
+  return true;
 }
 
 function loadLegacy() {
@@ -211,15 +210,13 @@ async function hydrate() {
         migrated = true;
       }
     }
-    const queued = pendingMutations.slice();
-    pendingMutations.length = 0;
-    const shouldPersist = pendingPersist;
+    const pendingPersistRequest = pendingPersist;
     pendingPersist = false;
     applyState(items, { notifySubscribers: false });
     const queuedMutations = PENDING_MUTATIONS.splice(0, PENDING_MUTATIONS.length);
     hydrated = true;
     hydrationPromise = null;
-    const shouldPersist = migrated || persistPendingUntilHydrated;
+    const shouldPersist = migrated || persistPendingUntilHydrated || pendingPersistRequest;
     persistPendingUntilHydrated = false;
     if (queuedMutations.length) {
       queuedMutations.forEach((fn) => {
@@ -273,18 +270,18 @@ export const Templates = {
   remove(id) {
     ensureHydrated().catch(() => {});
     const shouldQueue = !hydrated;
-    performRemove(id);
     if (shouldQueue) {
       queueMutation(() => performRemove(id));
     }
+    performRemove(id);
   },
   markFav(id, fav = true) {
     ensureHydrated().catch(() => {});
     const shouldQueue = !hydrated;
-    performMarkFav(id, fav);
     if (shouldQueue) {
       queueMutation(() => performMarkFav(id, fav));
     }
+    performMarkFav(id, fav);
   },
   subscribe(fn) {
     ensureHydrated().catch(() => {});
