@@ -7,7 +7,7 @@ import initDashboardLayout, {
   requestDashboardLayoutPass
 } from '../ui/dashboard_layout.js';
 
-const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card, :scope > section.grid, :scope > div.card';
+const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card, :scope > div.card, :scope > section.grid > .card, :scope > section.grid > section.card';
 const defaultWidgets = getDashboardWidgets();
 const defaultOrderIndex = new Map(defaultWidgets.map((widget, index) => [widget.id, index]));
 

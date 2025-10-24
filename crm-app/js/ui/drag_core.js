@@ -2,6 +2,8 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
+const DRAG_DISTANCE_THRESHOLD = 6;
+
 function parseSelectors(sel){
   if(!sel) return [];
   if(Array.isArray(sel)) return sel.map(String).map(s => s.trim()).filter(Boolean);
@@ -139,6 +141,21 @@ function clamp(value, min, max){
   return value;
 }
 
+function clearPendingDrag(state){
+  const pending = state && state.pendingDrag;
+  if(!pending) return;
+  const target = pending.listenerTarget;
+  if(target){
+    try{ target.removeEventListener('pointermove', pending.moveListener); }
+    catch(_err){}
+    try{ target.removeEventListener('pointerup', pending.upListener); }
+    catch(_err){}
+    try{ target.removeEventListener('pointercancel', pending.upListener); }
+    catch(_err){}
+  }
+  state.pendingDrag = null;
+}
+
 function toPositiveNumber(value, fallback){
   const num = Number(value);
   if(Number.isFinite(num) && num > 0) return num;
@@ -209,6 +226,34 @@ function ensurePlaceholder(state, item, rect){
     }
   }
   return placeholder;
+}
+
+function ensureGridOverlay(state){
+  if(state.gridOverlay || typeof document === 'undefined') return state.gridOverlay || null;
+  const container = state.container;
+  if(!container) return null;
+  const overlay = document.createElement('div');
+  overlay.className = 'dash-gridlines';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.zIndex = '0';
+  try{
+    container.insertBefore(overlay, container.firstChild || null);
+  }catch (_err){
+    container.appendChild(overlay);
+  }
+  state.gridOverlay = overlay;
+  return overlay;
+}
+
+function removeGridOverlay(state){
+  if(state.gridOverlay && state.gridOverlay.parentNode){
+    try{ state.gridOverlay.parentNode.removeChild(state.gridOverlay); }
+    catch (_err){}
+  }
+  state.gridOverlay = null;
 }
 
 export function applyOrder(container, orderIds, itemSelector, idGetter){
@@ -329,6 +374,35 @@ function movePlaceholder(state, index){
 }
 
 function updatePlaceholderForPosition(state, x, y){
+  if(Array.isArray(state.itemsMeta) && state.itemsMeta.length){
+    const width = state.itemRect ? state.itemRect.width : 0;
+    const height = state.itemRect ? state.itemRect.height : 0;
+    const pointerX = x + width / 2;
+    const pointerY = y + height / 2;
+    let target = null;
+    let minDist = Infinity;
+    state.itemsMeta.forEach(meta => {
+      if(!meta) return;
+      const dx = pointerX - meta.centerX;
+      const dy = pointerY - meta.centerY;
+      const dist = dx * dx + dy * dy;
+      if(dist < minDist){
+        minDist = dist;
+        target = meta;
+      }
+    });
+    let index = state.itemsMeta.length;
+    if(target){
+      const horizontalBias = Math.abs(pointerX - target.centerX) > Math.abs(pointerY - target.centerY);
+      if(horizontalBias){
+        index = pointerX < target.centerX ? target.order : target.order + 1;
+      }else{
+        index = pointerY < target.centerY ? target.order : target.order + 1;
+      }
+    }
+    movePlaceholder(state, index);
+    return;
+  }
   const metrics = state.metrics;
   if(!metrics) return;
   const stepX = metrics.stepX || 1;
@@ -409,9 +483,12 @@ function finishDrag(state, commit){
   state.prevContainerPosition = '';
   state.startOrder = null;
   state.startIndex = null;
+  removeGridOverlay(state);
+  state.itemsMeta = null;
 }
 
 function cancelDrag(state, commit){
+  clearPendingDrag(state);
   finishDrag(state, commit);
 }
 
@@ -431,7 +508,7 @@ function handleGridPointerMove(evt, state){
   const translateX = snappedX - state.elemStartX;
   const translateY = snappedY - state.elemStartY;
   state.dragEl.style.transform = `translate(${translateX}px, ${translateY}px)`;
-  updatePlaceholderForPosition(state, snappedX, snappedY);
+  updatePlaceholderForPosition(state, rawX, rawY);
 }
 
 function handleGridPointerUp(evt, state){
@@ -461,6 +538,20 @@ function beginGridDrag(state, item, evt){
   state.elemStartY = itemRect.top - state.containerRect.top;
   state.originX = evt.clientX;
   state.originY = evt.clientY;
+  state.itemsMeta = items
+    .filter(el => el !== item)
+    .map((el, index) => {
+      const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      if(!rect) return null;
+      return {
+        node: el,
+        order: index,
+        rect,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      };
+    })
+    .filter(Boolean);
   state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow']);
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
@@ -473,6 +564,7 @@ function beginGridDrag(state, item, evt){
       }
     }catch (_err){}
   }
+  ensureGridOverlay(state);
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
@@ -516,8 +608,52 @@ function handlePointerDown(evt, state){
   if(!itemId) return;
   const handle = firstHandleFor(item, state.handleSelectors);
   if(!handle || !handle.contains(evt.target)) return;
-  evt.preventDefault();
-  beginGridDrag(state, item, evt);
+  clearPendingDrag(state);
+  const pointerId = evt.pointerId;
+  const startX = evt.clientX;
+  const startY = evt.clientY;
+  const downEvent = evt;
+  const doc = item.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const target = doc || item;
+  const pending = {
+    pointerId,
+    item,
+    handle,
+    startX,
+    startY,
+    downEvent,
+    listenerTarget: target,
+    moveListener: null,
+    upListener: null
+  };
+  pending.moveListener = moveEvt => {
+    if(state.dragging || state.pendingDrag !== pending) return;
+    if(moveEvt.pointerId != null && pointerId != null && moveEvt.pointerId !== pointerId) return;
+    const dx = moveEvt.clientX - startX;
+    const dy = moveEvt.clientY - startY;
+    if(Math.abs(dx) >= DRAG_DISTANCE_THRESHOLD || Math.abs(dy) >= DRAG_DISTANCE_THRESHOLD){
+      if(downEvent.cancelable && !downEvent.defaultPrevented){
+        try{ downEvent.preventDefault(); }
+        catch(_err){}
+      }
+      clearPendingDrag(state);
+      beginGridDrag(state, item, downEvent);
+      if(state.dragging){
+        handleGridPointerMove(moveEvt, state);
+      }
+    }
+  };
+  pending.upListener = upEvt => {
+    if(state.pendingDrag !== pending) return;
+    if(upEvt.pointerId != null && pointerId != null && upEvt.pointerId !== pointerId) return;
+    clearPendingDrag(state);
+  };
+  if(target && typeof target.addEventListener === 'function'){
+    target.addEventListener('pointermove', pending.moveListener);
+    target.addEventListener('pointerup', pending.upListener);
+    target.addEventListener('pointercancel', pending.upListener);
+  }
+  state.pendingDrag = pending;
 }
 
 function ensureState(container){
@@ -555,8 +691,11 @@ function ensureState(container){
       moveListener: null,
       upListener: null,
       restoreSelection: null,
+      gridOverlay: null,
+      itemsMeta: null,
       appliedInitialOrder: false,
-      lastOrderSignature: null
+      lastOrderSignature: null,
+      pendingDrag: null
     };
     state.onPointerDown = evt => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
@@ -604,6 +743,7 @@ export function makeDraggableGrid(options = {}){
     },
     disable(){
       if(state.dragging) cancelDrag(state, false);
+      else clearPendingDrag(state);
       state.enabled = false;
       return controller;
     },

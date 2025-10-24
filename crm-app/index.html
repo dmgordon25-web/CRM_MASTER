@@ -156,7 +156,7 @@
       <div class="goal-footnote muted" id="goal-progress-footnote">Targets reset each calendar month.</div>
      </div>
     </div>
-    <div class="card insight-card partner-hub numbers-glance span-full">
+    <div class="card insight-card partner-hub numbers-glance span-full" id="numbers-glance-card">
      <div class="insight-head numbers-glance-head">
       <div class="insight-icon numbers-glance-icon">📊</div>
       <div>
@@ -187,7 +187,7 @@
       </section>
      </div>
     </div>
-     <div class="card insight-card span-2">
+     <div class="card insight-card span-2" id="pipeline-calendar-card">
      <div class="insight-head">
       <div class="insight-icon calendar">🗓️</div>
       <div>
@@ -202,7 +202,7 @@
       <div class="empty muted">Upcoming milestones will appear here once scheduled.</div>
      </div>
     </div>
-     <div class="card insight-card">
+     <div class="card insight-card" id="priority-actions-card">
       <div class="insight-head">
        <div class="insight-icon tasks">⚡</div>
       <div>
@@ -216,7 +216,7 @@
      <ul class="insight-list actionable" id="needs-attn">
      </ul>
     </div>
-     <div class="card insight-card">
+     <div class="card insight-card" id="milestones-card">
       <div class="insight-head">
        <div class="insight-icon timeline">📌</div>
       <div>
@@ -230,7 +230,7 @@
      <ul class="insight-list timeline" id="upcoming">
      </ul>
     </div>
-     <div class="card insight-card">
+     <div class="card insight-card" id="doc-pulse-card">
       <div class="insight-head">
        <div class="insight-icon docs">📂</div>
        <div>
@@ -289,12 +289,12 @@
       </ul>
      </div>
     </section>
-    <section class="card">
+    <section class="card" id="doc-center-card">
      <p class="widget-summary muted">Manage document checklists and outstanding requests.</p>
      <div class="doc-center" id="doc-center">
      </div>
     </section>
-    <section class="card status-stack">
+    <section class="card status-stack" id="dashboard-status-stack">
      <details class="status-panel" data-panel="inprogress" open="">
       <summary>
        <div class="status-summary">
@@ -1724,13 +1724,17 @@
      <button class="btn" data-act="clear">
       Clear
      </button>
-     <button class="btn danger" data-act="delete">
-      Delete
-     </button>
-    </div>
+    <button class="btn danger" data-act="delete">
+     Delete
+    </button>
    </div>
+    <div aria-live="polite" class="actionbar-busy" data-role="busy" hidden>
+     <span aria-hidden="true" class="ui-spinner"></span>
+     <span class="busy-text" data-role="busy-label">Working…</span>
+    </div>
   </div>
-  <!-- Partner Modal -->
+ </div>
+ <!-- Partner Modal -->
   <div class="record-modal modal partner-edit-modal hidden" data-ui="partner-edit-modal" id="partner-modal" aria-hidden="true" role="dialog" style="display:none">
    <div class="dlg" tabindex="-1">
     <form class="modal-form-shell" id="partner-form">
