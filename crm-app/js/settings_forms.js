@@ -48,21 +48,58 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   const signatureState = { rows: [], defaultId: null };
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
+  const DASHBOARD_WIDGET_ENTRIES = [
+    {key:'filters', label:'Filters'},
+    {key:'kpis', label:'KPIs'},
+    {key:'pipeline', label:'Pipeline Overview'},
+    {key:'today', label:"Today's Work"},
+    {key:'leaderboard', label:'Referral Leaderboard'},
+    {key:'stale', label:'Stale Deals'},
+    {key:'insights', label:'Numbers & Milestones'},
+    {key:'opportunities', label:'Relationship Opportunities'}
+  ];
+  const DASHBOARD_GRAPH_ENTRIES = [
+    {key:'goalProgress', label:'Production Goals'},
+    {key:'numbersGlance', label:'Numbers at a Glance'},
+    {key:'pipelineCalendar', label:'Pipeline Calendar'}
+  ];
+  const DASHBOARD_WIDGET_CARD_ENTRIES = [
+    {key:'priorityActions', label:'Priority Actions'},
+    {key:'milestones', label:'Milestones Ahead'},
+    {key:'docPulse', label:'Document Pulse'},
+    {key:'relationshipOpportunities', label:'Relationship Opportunities'},
+    {key:'clientCareRadar', label:'Client Care Radar'},
+    {key:'closingWatch', label:'Closing Watchlist'}
+  ];
+  const DASHBOARD_KPI_ENTRIES = [
+    {key:'kpiNewLeads7d', label:'New Leads (7d)'},
+    {key:'kpiActivePipeline', label:'Active Pipeline'},
+    {key:'kpiFundedYTD', label:'Funded YTD'},
+    {key:'kpiFundedVolumeYTD', label:'Funded Volume YTD'},
+    {key:'kpiAvgCycleLeadToFunded', label:'Avg Days Lead → Funded'},
+    {key:'kpiTasksToday', label:'Tasks Due Today'},
+    {key:'kpiTasksOverdue', label:'Tasks Overdue'},
+    {key:'kpiReferralsYTD', label:'Referrals YTD'}
+  ];
+
+  function buildDashboardDefaults(entries){
+    const defaults = {};
+    entries.forEach(entry => { defaults[entry.key] = true; });
+    return defaults;
+  }
+
   const dashboardDefaults = {
-    widgets: {
-      filters: true,
-      kpis: true,
-      pipeline: false,
-      today: true,
-      leaderboard: false,
-      stale: false,
-      insights: false,
-      opportunities: false
-    }
+    widgets: buildDashboardDefaults(DASHBOARD_WIDGET_ENTRIES),
+    graphs: buildDashboardDefaults(DASHBOARD_GRAPH_ENTRIES),
+    widgetCards: buildDashboardDefaults(DASHBOARD_WIDGET_CARD_ENTRIES),
+    kpis: buildDashboardDefaults(DASHBOARD_KPI_ENTRIES)
   };
   const dashboardState = {
     mode: 'today',
-    widgets: Object.assign({}, dashboardDefaults.widgets)
+    widgets: Object.assign({}, dashboardDefaults.widgets),
+    graphs: Object.assign({}, dashboardDefaults.graphs),
+    widgetCards: Object.assign({}, dashboardDefaults.widgetCards),
+    kpis: Object.assign({}, dashboardDefaults.kpis)
   };
   let hydrating = false;
 
@@ -136,36 +173,78 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       });
     }
     dashboardState.widgets = widgets;
+    const graphs = Object.assign({}, dashboardDefaults.graphs);
+    if(source.graphs && typeof source.graphs === 'object'){
+      Object.keys(graphs).forEach(key => {
+        if(typeof source.graphs[key] === 'boolean') graphs[key] = source.graphs[key];
+      });
+    }
+    dashboardState.graphs = graphs;
+    const widgetCards = Object.assign({}, dashboardDefaults.widgetCards);
+    if(source.widgetCards && typeof source.widgetCards === 'object'){
+      Object.keys(widgetCards).forEach(key => {
+        if(typeof source.widgetCards[key] === 'boolean') widgetCards[key] = source.widgetCards[key];
+      });
+    }
+    dashboardState.widgetCards = widgetCards;
+    const kpis = Object.assign({}, dashboardDefaults.kpis);
+    if(source.kpis && typeof source.kpis === 'object'){
+      Object.keys(kpis).forEach(key => {
+        if(typeof source.kpis[key] === 'boolean') kpis[key] = source.kpis[key];
+      });
+    }
+    dashboardState.kpis = kpis;
   }
 
   function renderDashboardSettings(){
     const list = document.getElementById('dashboard-widget-list');
     if(!list) return;
-    const entries = [
-      {key:'filters', label:'Filters'},
-      {key:'kpis', label:'KPIs'},
-      {key:'pipeline', label:'Pipeline Overview'},
-      {key:'today', label:"Today's Work"},
-      {key:'leaderboard', label:'Referral Leaderboard'},
-      {key:'stale', label:'Stale Deals'},
-      {key:'insights', label:'Numbers & Milestones'},
-      {key:'opportunities', label:'Relationship Opportunities'}
+    const sections = [
+      { title: 'Widgets', entries: DASHBOARD_WIDGET_ENTRIES, attr: 'dashboard-widget', state: dashboardState.widgets },
+      { title: 'Graphs', entries: DASHBOARD_GRAPH_ENTRIES, attr: 'dashboard-graph', state: dashboardState.graphs },
+      { title: 'Widget Cards', entries: DASHBOARD_WIDGET_CARD_ENTRIES, attr: 'dashboard-card', state: dashboardState.widgetCards },
+      { title: 'KPIs', entries: DASHBOARD_KPI_ENTRIES, attr: 'dashboard-kpi', state: dashboardState.kpis }
     ];
-    list.innerHTML = entries.map(entry => {
-      const checked = dashboardState.widgets[entry.key] ? ' checked' : '';
-      return `<label class="switch"><input type="checkbox" data-dashboard-widget="${entry.key}"${checked}><span>${entry.label}</span></label>`;
+    list.innerHTML = sections.map((section, index) => {
+      const toggles = section.entries.map(entry => {
+        const checked = section.state[entry.key] !== false ? ' checked' : '';
+        return `<label class="switch"><input type="checkbox" data-${section.attr}="${entry.key}"${checked}><span>${entry.label}</span></label>`;
+      }).join('');
+      const margin = index === 0 ? 'margin:0 0 6px;font-size:0.95rem;' : 'margin:16px 0 6px;font-size:0.95rem;';
+      return `<div class="dashboard-toggle-group"><h4 style="${margin}">${section.title}</h4>${toggles}</div>`;
     }).join('');
     if(!list.__wired){
       list.__wired = true;
       list.addEventListener('change', evt => {
         if(hydrating) return;
-        const target = evt.target instanceof HTMLInputElement ? evt.target : evt.target?.closest('input[data-dashboard-widget]');
+        const target = evt.target instanceof HTMLInputElement ? evt.target : evt.target?.closest('input[type="checkbox"]');
         if(!target || !(target instanceof HTMLInputElement)) return;
-        const key = target.getAttribute('data-dashboard-widget');
-        if(!key) return;
-        dashboardState.widgets[key] = target.checked;
+        const dataset = target.dataset || {};
+        let scope = '';
+        let key = '';
+        if(dataset.dashboardWidget){
+          scope = 'widgets';
+          key = dataset.dashboardWidget;
+        }else if(dataset.dashboardGraph){
+          scope = 'graphs';
+          key = dataset.dashboardGraph;
+        }else if(dataset.dashboardCard){
+          scope = 'widgetCards';
+          key = dataset.dashboardCard;
+        }else if(dataset.dashboardKpi){
+          scope = 'kpis';
+          key = dataset.dashboardKpi;
+        }
+        if(!scope || !key) return;
+        if(!dashboardState[scope]) dashboardState[scope] = {};
+        dashboardState[scope][key] = target.checked;
         if(!ensureSettings()) return;
-        window.Settings.save({ dashboard: { widgets: Object.assign({}, dashboardState.widgets) } }).catch(err => console && console.warn && console.warn('dashboard settings save failed', err));
+        const payload = { dashboard: {} };
+        if(scope === 'widgets') payload.dashboard.widgets = Object.assign({}, dashboardState.widgets);
+        else if(scope === 'graphs') payload.dashboard.graphs = Object.assign({}, dashboardState.graphs);
+        else if(scope === 'widgetCards') payload.dashboard.widgetCards = Object.assign({}, dashboardState.widgetCards);
+        else if(scope === 'kpis') payload.dashboard.kpis = Object.assign({}, dashboardState.kpis);
+        window.Settings.save(payload).catch(err => console && console.warn && console.warn('dashboard settings save failed', err));
       });
     }
   }

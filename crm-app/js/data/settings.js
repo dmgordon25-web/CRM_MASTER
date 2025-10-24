@@ -25,6 +25,26 @@ const DASHBOARD_WIDGET_ID_MAP = (() => {
   return map;
 })();
 
+const DASHBOARD_GRAPH_KEYS = ['goalProgress', 'numbersGlance', 'pipelineCalendar'];
+const DASHBOARD_WIDGET_CARD_KEYS = [
+  'priorityActions',
+  'milestones',
+  'docPulse',
+  'relationshipOpportunities',
+  'clientCareRadar',
+  'closingWatch'
+];
+const DASHBOARD_KPI_KEYS = [
+  'kpiNewLeads7d',
+  'kpiActivePipeline',
+  'kpiFundedYTD',
+  'kpiFundedVolumeYTD',
+  'kpiAvgCycleLeadToFunded',
+  'kpiTasksToday',
+  'kpiTasksOverdue',
+  'kpiReferralsYTD'
+];
+
 function cloneGeneralDefaults(){
   return {
     timezone: '',
@@ -260,6 +280,14 @@ function shouldValidateGeneral(partial){
     };
   }
 
+  function buildDefaultToggleMap(keys){
+    const map = {};
+    keys.forEach(key => {
+      map[key] = true;
+    });
+    return map;
+  }
+
   function normalizeDashboard(input){
     const defaults = {
       mode: 'today',
@@ -272,16 +300,34 @@ function shouldValidateGeneral(partial){
         stale: false,
         insights: false,
         opportunities: false
-      }
+      },
+      graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
+      widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
+      kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS)
     };
     const source = input && typeof input === 'object' ? input : {};
     const widgetsSource = source.widgets && typeof source.widgets === 'object' ? source.widgets : {};
+    const graphSource = source.graphs && typeof source.graphs === 'object' ? source.graphs : {};
+    const widgetCardSource = source.widgetCards && typeof source.widgetCards === 'object' ? source.widgetCards : {};
+    const kpiSource = source.kpis && typeof source.kpis === 'object' ? source.kpis : {};
     const widgets = Object.assign({}, defaults.widgets);
     Object.keys(widgets).forEach(key => {
       if(typeof widgetsSource[key] === 'boolean') widgets[key] = widgetsSource[key];
     });
+    const graphs = Object.assign({}, defaults.graphs);
+    Object.keys(graphs).forEach(key => {
+      if(typeof graphSource[key] === 'boolean') graphs[key] = graphSource[key];
+    });
+    const widgetCards = Object.assign({}, defaults.widgetCards);
+    Object.keys(widgetCards).forEach(key => {
+      if(typeof widgetCardSource[key] === 'boolean') widgetCards[key] = widgetCardSource[key];
+    });
+    const kpis = Object.assign({}, defaults.kpis);
+    Object.keys(kpis).forEach(key => {
+      if(typeof kpiSource[key] === 'boolean') kpis[key] = kpiSource[key];
+    });
     const mode = source.mode === 'all' ? 'all' : 'today';
-    return { mode, widgets };
+    return { mode, widgets, graphs, widgetCards, kpis };
   }
 
   function normalizeDashboardOrder(input){
@@ -442,7 +488,10 @@ function shouldValidateGeneral(partial){
     }
     if(source.dashboard){
       const merged = Object.assign({}, current.dashboard, source.dashboard);
-      merged.widgets = Object.assign({}, current.dashboard.widgets, source.dashboard.widgets);
+      merged.widgets = Object.assign({}, current.dashboard.widgets || {}, source.dashboard.widgets || {});
+      merged.graphs = Object.assign({}, current.dashboard.graphs || {}, source.dashboard.graphs || {});
+      merged.widgetCards = Object.assign({}, current.dashboard.widgetCards || {}, source.dashboard.widgetCards || {});
+      merged.kpis = Object.assign({}, current.dashboard.kpis || {}, source.dashboard.kpis || {});
       next.dashboard = normalizeDashboard(merged);
     }
     if(source.dashboardOrder){
