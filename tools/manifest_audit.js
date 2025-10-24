@@ -87,33 +87,35 @@ const canonicalPatchOrder = [
   './ux/svg_sanitizer.js',
   './services/selection_adapter.js',
   './services/selection_fallback.js',
-  './core/capabilities_probe.js'
+  './core/capabilities_probe.js',
+  './patches/patch_2025-10-23_unify_quick_create.js',
+  './patches/patch_2025-10-23_actionbar_drag.js'
 ];
 
-const tailCandidates = [
-  ['./patches/patch_2025-10-23_unify_quick_create.js'],
-  ['./patches/patch_2025-10-23_actionbar_drag.js'],
+const canonicalTailOrder = [
+  './patches/patch_2025-10-24_quickadd_header_only.js',
+  './patches/patch_2025-10-24_dashboard_drag_v2.js',
+  './patches/patch_2025-10-23_calendar_contact_and_task.js',
+  './patches/patch_2025-10-23_workbench_route.js',
   [
     './patches/patch_2025-10-24_longshots_cleanup.js',
     './patches/patch_2025-10-23_longshots_search_removed.js'
   ],
-  ['./patches/patch_2025-10-24_quickadd_header_only.js'],
-  ['./patches/patch_2025-10-24_dashboard_drag_v2.js'],
-  ['./patches/patch_2025-10-23_calendar_contact_and_task.js'],
-  ['./patches/patch_2025-10-23_workbench_route.js'],
-  ['./patches/patch_2025-10-24_polish.js']
+  './patches/patch_2025-10-24_polish.js'
 ];
 
-for (const group of tailCandidates) {
-  const entry = group.find(candidate => {
-    if (canonicalPatchOrder.includes(candidate)) return false;
-    const clean = candidate.startsWith('./') ? candidate.slice(2) : candidate;
-    return fs.existsSync(path.resolve(jsRoot, clean));
-  });
-  if (entry) canonicalPatchOrder.push(entry);
+for (const group of canonicalTailOrder) {
+  if (Array.isArray(group)) {
+    const entry = group.find(candidate => !canonicalPatchOrder.includes(candidate) && fileExists(candidate));
+    if (entry) canonicalPatchOrder.push(entry);
+    continue;
+  }
+  if (!canonicalPatchOrder.includes(group) && fileExists(group)) {
+    canonicalPatchOrder.push(group);
+  }
 }
 
-/* parse-ok */ ;void 0;
+/* parse-ok: canonical tail repaired */ ;void 0;
 
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
