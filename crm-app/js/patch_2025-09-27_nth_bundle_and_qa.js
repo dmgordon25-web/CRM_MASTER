@@ -943,15 +943,36 @@ function runPatch(){
         });
         const host = document.querySelector('#view-longshots');
         if(!host) throw new Error('Long Shots view not mounted');
-        const input = host.querySelector('input[data-table-search="#tbl-longshots"]');
-        if(!input) throw new Error('Search input unavailable');
+        const selectors = [
+          '[data-role="global-search"]',
+          '[data-role="header-search"]',
+          '[data-global-search]',
+          '[data-search-scope]',
+          '#global-search',
+          '#header-search',
+          '.header-search input[type="search"]'
+        ];
+        let input = null;
+        for(const sel of selectors){
+          let node = null;
+          try{ node = document.querySelector(sel); }
+          catch(_err){ node = null; }
+          if(!node || !node.isConnected) continue;
+          const candidate = node.matches && node.matches('input') ? node : node.querySelector && node.querySelector('input');
+          if(candidate instanceof HTMLInputElement){ input = candidate; break; }
+        }
+        if(!input) throw new Error('Global search input unavailable');
+        const targetSel = input.dataset.tableSearch || input.getAttribute('data-table-search') || '';
+        if(!targetSel.includes('tbl-longshots')) throw new Error('Global search not targeting Long Shots');
         input.value = 'Unique';
         input.dispatchEvent(new Event('input', { bubbles:true }));
-        const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr')); 
+        const rows = Array.from(host.querySelectorAll('#tbl-longshots tbody tr'));
         const visible = rows.filter(row => row.offsetParent !== null);
         if(visible.length !== 1) throw new Error(`Expected 1 visible row, saw ${visible.length}`);
         const text = visible[0].textContent || '';
         if(!text.includes('Unique')) throw new Error('Unique row not present');
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles:true }));
         logResult(results, section, name, true, 'Search isolates the unique Long Shot row');
       }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
