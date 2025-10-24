@@ -544,6 +544,14 @@ function runPatch(){
         });
         return result;
       };
+      if(originalRender.__crmReady === true){
+        try{
+          Object.defineProperty(window.renderContactModal, '__crmReady', { value:true, configurable:true });
+        }catch (_err){
+          try{ window.renderContactModal.__crmReady = true; }
+          catch (__err){}
+        }
+      }
     }
 }
 

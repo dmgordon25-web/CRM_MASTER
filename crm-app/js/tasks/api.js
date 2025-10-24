@@ -71,6 +71,59 @@ function normalizeTitle(event){
   return 'Follow up';
 }
 
+function safeString(value){
+  return value == null ? '' : String(value).trim();
+}
+
+function cloneSource(source){
+  if(!source || typeof source !== 'object') return null;
+  const entity = safeString(source.entity);
+  const id = safeString(source.id);
+  const field = safeString(source.field);
+  if(!entity && !id && !field) return null;
+  return { entity, id, field };
+}
+
+function parseEventDate(raw){
+  if(raw instanceof Date) return raw;
+  if(typeof raw === 'number' && Number.isFinite(raw)){
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if(typeof raw === 'string' && raw.trim()){
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+function buildOrigin(event, fallbackDate){
+  if(!event || typeof event !== 'object') return null;
+  const origin = {
+    type: safeString(event.type),
+    title: '',
+    subtitle: safeString(event.subtitle),
+    stage: safeString(event.contactStage),
+    contactName: safeString(event.contactName),
+    status: safeString(event.status),
+    date: fallbackDate,
+    source: cloneSource(event.source)
+  };
+  const title = safeString(event.title || '');
+  if(title) origin.title = title;
+  if(!origin.title && origin.subtitle){
+    origin.title = origin.subtitle;
+  }
+  const eventDate = parseEventDate(event.date);
+  if(eventDate){
+    origin.date = toISODate(eventDate);
+  }
+  if(!origin.type && !origin.title && !origin.subtitle && !origin.stage && !origin.contactName && !origin.status && !origin.source){
+    return null;
+  }
+  return origin;
+}
+
 export async function createTaskFromEvent(event){
   ensureReadyLog();
   const contactId = event && event.contactId ? String(event.contactId).trim() : '';
@@ -79,6 +132,7 @@ export async function createTaskFromEvent(event){
     return { status:'error', reason:'missing-contact' };
   }
   const dueDate = toISODate(event && event.date ? event.date : new Date());
+  const origin = buildOrigin(event, dueDate);
   const record = {
     id: uuid(),
     contactId,
@@ -90,6 +144,12 @@ export async function createTaskFromEvent(event){
     updatedAt: Date.now(),
     source: 'calendar'
   };
+  if(origin){
+    record.origin = origin;
+    if(origin.stage) record.stage = origin.stage;
+    if(origin.contactName) record.contactName = origin.contactName;
+    if(origin.status) record.statusLabel = origin.status;
+  }
   try{
     await openDB();
     await dbPut('tasks', record);

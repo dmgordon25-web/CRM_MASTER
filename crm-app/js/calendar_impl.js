@@ -182,6 +182,52 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
 
   const popoverState = { node: null, detach: null, anchor: null };
 
+  const ensureContactModal = (() => {
+    let inflight = null;
+    let warned = false;
+    const noteWarn = (label, err) => {
+      if(warned) return;
+      warned = true;
+      if(console && typeof console.warn === 'function'){
+        console.warn(label, err);
+      }
+    };
+    return async function ensureContactModal(){
+      if(typeof window === 'undefined') return false;
+      if(typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true){
+        return true;
+      }
+      const ready = window.__CONTACT_MODAL_READY__;
+      if(ready && typeof ready.then === 'function'){
+        try{ await ready; }
+        catch (err){ noteWarn('contact modal ready wait failed', err); }
+        if(typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true){
+          return true;
+        }
+      }
+      if(inflight){
+        try{ await inflight; }
+        catch (_err){}
+        return typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true;
+      }
+      try{
+        inflight = import(fromHere('./contacts.js'));
+        await inflight;
+      }catch (err){
+        noteWarn('contact modal import failed', err);
+        inflight = null;
+        return false;
+      }
+      inflight = null;
+      const postReady = window.__CONTACT_MODAL_READY__;
+      if(postReady && typeof postReady.then === 'function'){
+        try{ await postReady; }
+        catch (err){ noteWarn('contact modal ready wait failed', err); }
+      }
+      return typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true;
+    };
+  })();
+
   function closeEventPopover(){
     if(popoverState.detach){
       try{ popoverState.detach(); }
@@ -470,18 +516,37 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     root.setAttribute('data-view', view);
     const todayStr = new Date().toDateString();
 
-    const openContactRecord = (contactId)=>{
+    const openContactRecord = async (contactId)=>{
       const targetId = contactId ? String(contactId).trim() : '';
-      if(targetId && typeof window.renderContactModal === 'function'){
-        logCalendarContact();
-        try{ window.renderContactModal(targetId); }
-        catch (err) { console && console.warn && console.warn('renderContactModal failed', err); }
-        return true;
+      if(!targetId){
+        if(typeof window.toast === 'function'){
+          window.toast('Contact unavailable for this event');
+        }
+        return false;
       }
-      if(typeof window.toast === 'function'){
-        window.toast('Contact unavailable for this event');
+      let ready = false;
+      try{ ready = await ensureContactModal(); }
+      catch (err){
+        if(console && typeof console.warn === 'function'){
+          console.warn('contact modal ensure failed', err);
+        }
+        ready = false;
       }
-      return false;
+      if(!ready || typeof window.renderContactModal !== 'function' || window.renderContactModal.__crmReady !== true){
+        if(typeof window.toast === 'function'){
+          window.toast('Contact unavailable for this event');
+        }
+        return false;
+      }
+      logCalendarContact();
+      try{ window.renderContactModal(targetId); }
+      catch (err) {
+        if(console && typeof console.warn === 'function'){
+          console.warn('renderContactModal failed', err);
+        }
+        return false;
+      }
+      return true;
     };
 
     let __calPending = new Set();
@@ -622,13 +687,18 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
             });
           }
 
-          const openContact = (evt) => {
-            if(evt){ evt.preventDefault(); }
+          const openContact = async (evt) => {
+            if(evt){
+              evt.preventDefault();
+              if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
+            }
             closeEventPopover();
-            openContactRecord(contactId);
+            await openContactRecord(contactId);
           };
 
-          item.addEventListener('click', openContact);
+          item.addEventListener('click', (evt)=>{
+            Promise.resolve(openContact(evt)).catch(()=>{});
+          });
 
           const icon = document.createElement('span');
           icon.className = 'ev-icon';
@@ -722,8 +792,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
             openBtn.addEventListener('click', (event)=>{
               event.preventDefault();
               event.stopPropagation();
-              openContact(event);
-              closeEventPopover();
+              Promise.resolve(openContact(event)).catch(()=>{});
             });
             actions.appendChild(openBtn);
 
