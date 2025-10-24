@@ -6,8 +6,9 @@ let hydrated = false;
 let hydrationPromise = null;
 let persistScheduled = false;
 let pendingPersist = false;
+let persistPendingUntilHydrated = false;
 let writeChain = Promise.resolve();
-const pendingMutations = [];
+const queuedMutations = [];
 
 const DEFAULT_TEMPLATE_SEED = [
   {
@@ -145,6 +146,27 @@ function requestPersist() {
   }
 }
 
+function enqueueMutation(fn, { persist = false } = {}) {
+  if (typeof fn !== 'function') return;
+  queuedMutations.push(fn);
+  if (persist) {
+    persistPendingUntilHydrated = true;
+  }
+}
+
+function flushQueuedMutations() {
+  if (!queuedMutations.length) return;
+  const queue = queuedMutations.splice(0, queuedMutations.length);
+  queue.forEach((fn) => {
+    try {
+      fn();
+    } catch (err) {
+      try { console && console.warn && console.warn('email templates mutation replay failed', err); }
+      catch (_) {}
+    }
+  });
+}
+
 function notify({ persist = true } = {}) {
   SUBSCRIBERS.forEach((fn) => {
     try {
@@ -237,7 +259,6 @@ function internalRemove(id, { persist = true, silent = false } = {}) {
     } else if (persist) {
       requestPersist();
     }
-    notify({ persist: true });
     return true;
   }
   return false;
@@ -249,7 +270,11 @@ function internalMarkFav(id, fav = true, { persist = true, silent = false } = {}
   record.fav = !!fav;
   record.updatedAt = Date.now();
   sortItems();
-  notify({ persist: true });
+  if (!silent) {
+    notify({ persist });
+  } else if (persist) {
+    requestPersist();
+  }
   return true;
 }
 
@@ -302,8 +327,13 @@ async function hydrate() {
     }
     applyState(items, { notifySubscribers: false });
     hydrated = true;
+    const hadQueuedMutations = queuedMutations.length > 0;
+    flushQueuedMutations();
     hydrationPromise = null;
-    notify({ persist: migrated || seeded });
+    const shouldPersist = migrated || seeded || persistPendingUntilHydrated || pendingPersist || hadQueuedMutations;
+    pendingPersist = false;
+    persistPendingUntilHydrated = false;
+    notify({ persist: shouldPersist });
     return STATE;
   })();
   return hydrationPromise;
@@ -333,25 +363,29 @@ export const Templates = {
     if (!persistNow) {
       pendingPersist = true;
       const replayPayload = Object.assign({}, stored);
-      enqueueMutation(() => internalUpsert(replayPayload, { silent: true, skipSort, persist: false }));
+      enqueueMutation(() => internalUpsert(replayPayload, { silent: true, skipSort, persist: false }), { persist: true });
     }
     return stored;
   },
   remove(id) {
     ensureHydrated().catch(() => {});
-    const shouldQueue = !hydrated;
-    if (shouldQueue) {
-      queueMutation(() => performRemove(id));
+    const persistNow = hydrated;
+    const removed = internalRemove(id, { persist: persistNow });
+    if (!persistNow) {
+      pendingPersist = true;
+      enqueueMutation(() => internalRemove(id, { persist: false, silent: true }), { persist: true });
     }
-    performRemove(id);
+    return removed;
   },
   markFav(id, fav = true) {
     ensureHydrated().catch(() => {});
-    const shouldQueue = !hydrated;
-    if (shouldQueue) {
-      queueMutation(() => performMarkFav(id, fav));
+    const persistNow = hydrated;
+    const result = internalMarkFav(id, fav, { persist: persistNow });
+    if (!persistNow) {
+      pendingPersist = true;
+      enqueueMutation(() => internalMarkFav(id, fav, { persist: false, silent: true }), { persist: true });
     }
-    performMarkFav(id, fav);
+    return result;
   },
   subscribe(fn) {
     ensureHydrated().catch(() => {});
