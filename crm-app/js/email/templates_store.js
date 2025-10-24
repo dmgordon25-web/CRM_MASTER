@@ -6,6 +6,8 @@ let hydrated = false;
 let hydrationPromise = null;
 let persistScheduled = false;
 let writeChain = Promise.resolve();
+const PENDING_MUTATIONS = [];
+let persistPendingUntilHydrated = false;
 
 const schedule = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -58,6 +60,10 @@ function notify({ persist = true } = {}) {
 }
 
 function schedulePersist() {
+  if (!hydrated) {
+    persistPendingUntilHydrated = true;
+    return;
+  }
   if (persistScheduled) return;
   persistScheduled = true;
   schedule(() => {
@@ -92,6 +98,62 @@ function applyState(list, { notifySubscribers = true, persist = false } = {}) {
   STATE.items = normalized;
   sortItems();
   if (notifySubscribers) notify({ persist });
+}
+
+function queueMutation(fn) {
+  if (!hydrated) {
+    PENDING_MUTATIONS.push(fn);
+  }
+}
+
+function performUpsert(payload, { silent = false, skipSort = false } = {}) {
+  const { id: incomingId, name, subject, body, fav } = payload || {};
+  let id = incomingId;
+  const now = Date.now();
+  if (!id) id = uid();
+  const index = STATE.items.findIndex((item) => item.id === id);
+  const stamp = (payload && typeof payload.updatedAt === 'number') ? payload.updatedAt : now;
+  const previous = index >= 0 ? STATE.items[index] : null;
+  const record = {
+    id,
+    name: (typeof name === 'string' && name.length) ? name : (previous ? previous.name : 'Untitled'),
+    subject: (typeof subject === 'string') ? subject : (previous ? previous.subject : ''),
+    body: (typeof body === 'string') ? body : (previous ? previous.body : ''),
+    fav: (typeof fav === 'boolean') ? fav : (previous ? !!previous.fav : false),
+    updatedAt: stamp,
+  };
+  let stored;
+  if (index >= 0) {
+    stored = Object.assign(STATE.items[index], record);
+    STATE.items[index] = stored;
+  } else {
+    stored = record;
+    STATE.items.push(stored);
+  }
+  if (!skipSort) sortItems();
+  if (!silent) {
+    notify({ persist: true });
+  } else {
+    schedulePersist();
+  }
+  return stored;
+}
+
+function performRemove(id) {
+  const before = STATE.items.length;
+  STATE.items = STATE.items.filter((item) => item.id !== id);
+  if (STATE.items.length !== before) {
+    notify({ persist: true });
+  }
+}
+
+function performMarkFav(id, fav = true) {
+  const record = STATE.items.find((item) => item.id === id);
+  if (!record) return;
+  record.fav = !!fav;
+  record.updatedAt = Date.now();
+  sortItems();
+  notify({ persist: true });
 }
 
 function loadLegacy() {
@@ -137,9 +199,22 @@ async function hydrate() {
       }
     }
     applyState(items, { notifySubscribers: false });
+    const queuedMutations = PENDING_MUTATIONS.splice(0, PENDING_MUTATIONS.length);
     hydrated = true;
     hydrationPromise = null;
-    notify({ persist: migrated });
+    const shouldPersist = migrated || persistPendingUntilHydrated;
+    persistPendingUntilHydrated = false;
+    if (queuedMutations.length) {
+      queuedMutations.forEach((fn) => {
+        try {
+          fn();
+        } catch (err) {
+          try { console && console.warn && console.warn('email templates replay failed', err); }
+          catch (_) {}
+        }
+      });
+    }
+    notify({ persist: shouldPersist });
     return STATE;
   })();
   return hydrationPromise;
@@ -164,53 +239,35 @@ export const Templates = {
   },
   upsert(payload, { silent = false, skipSort = false } = {}) {
     ensureHydrated().catch(() => {});
-    const { id: incomingId, name, subject, body, fav } = payload || {};
-    let id = incomingId;
-    const now = Date.now();
-    if (!id) id = uid();
-    const index = STATE.items.findIndex((item) => item.id === id);
-    const stamp = (payload && typeof payload.updatedAt === 'number') ? payload.updatedAt : now;
-    const previous = index >= 0 ? STATE.items[index] : null;
-    const record = {
-      id,
-      name: (typeof name === 'string' && name.length) ? name : (previous ? previous.name : 'Untitled'),
-      subject: (typeof subject === 'string') ? subject : (previous ? previous.subject : ''),
-      body: (typeof body === 'string') ? body : (previous ? previous.body : ''),
-      fav: (typeof fav === 'boolean') ? fav : (previous ? !!previous.fav : false),
-      updatedAt: stamp,
-    };
-    let stored;
-    if (index >= 0) {
-      stored = Object.assign(STATE.items[index], record);
-      STATE.items[index] = stored;
-    } else {
-      stored = record;
-      STATE.items.push(stored);
-    }
-    if (!skipSort) sortItems();
-    if (!silent) {
-      notify({ persist: true });
-    } else {
-      schedulePersist();
+    const shouldQueue = !hydrated;
+    const stored = performUpsert(payload, { silent, skipSort });
+    if (shouldQueue) {
+      const payloadClone = payload && typeof payload === 'object' ? { ...payload } : {};
+      if (!payloadClone.id && stored && stored.id) {
+        payloadClone.id = stored.id;
+      }
+      if (stored && typeof stored.updatedAt === 'number' && typeof payloadClone.updatedAt !== 'number') {
+        payloadClone.updatedAt = stored.updatedAt;
+      }
+      queueMutation(() => performUpsert(payloadClone, { silent, skipSort }));
     }
     return stored;
   },
   remove(id) {
     ensureHydrated().catch(() => {});
-    const before = STATE.items.length;
-    STATE.items = STATE.items.filter((item) => item.id !== id);
-    if (STATE.items.length !== before) {
-      notify({ persist: true });
+    const shouldQueue = !hydrated;
+    performRemove(id);
+    if (shouldQueue) {
+      queueMutation(() => performRemove(id));
     }
   },
   markFav(id, fav = true) {
     ensureHydrated().catch(() => {});
-    const record = this.get(id);
-    if (!record) return;
-    record.fav = !!fav;
-    record.updatedAt = Date.now();
-    sortItems();
-    notify({ persist: true });
+    const shouldQueue = !hydrated;
+    performMarkFav(id, fav);
+    if (shouldQueue) {
+      queueMutation(() => performMarkFav(id, fav));
+    }
   },
   subscribe(fn) {
     ensureHydrated().catch(() => {});
