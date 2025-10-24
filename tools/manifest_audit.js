@@ -97,10 +97,6 @@ const canonicalTailOrder = [
   './patches/patch_2025-10-24_dashboard_drag_v2.js',
   './patches/patch_2025-10-23_calendar_contact_and_task.js',
   './patches/patch_2025-10-23_workbench_route.js',
-  [
-    './patches/patch_2025-10-24_longshots_cleanup.js',
-    './patches/patch_2025-10-23_longshots_search_removed.js'
-  ],
   './patches/patch_2025-10-24_polish.js'
 ];
 
