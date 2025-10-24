@@ -140,9 +140,9 @@ function runPatch(){
       const str = String(input).trim();
       if(!str) return null;
       const lower = str.toLowerCase();
-      if(DASHBOARD_WIDGET_KEY_LOOKUP.has(lower)) return DASHBOARD_WIDGET_KEY_LOOKUP.get(lower);
-      if(WIDGET_ID_TO_KEY.has(lower)) return WIDGET_ID_TO_KEY.get(lower);
-      return null;
+      if(DASHBOARD_WIDGET_KEYS.includes(str)) return str;
+      const canonical = DASHBOARD_WIDGET_KEY_LOOKUP.get(lower) || WIDGET_ID_TO_KEY.get(lower) || null;
+      return canonical;
     }
 
     function normalizeWidgetOrder(orderLike){

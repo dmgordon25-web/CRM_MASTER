@@ -61,7 +61,14 @@ const WIDGET_CARD_RESOLVERS = {
 };
 
 const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
-const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
+let widgetCardKeyCache = null;
+
+function getWidgetCardKeys() {
+  if (!widgetCardKeyCache) {
+    widgetCardKeyCache = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
+  }
+  return widgetCardKeyCache;
+}
 
 const prefCache = { value: null, loading: null };
 
@@ -95,10 +102,10 @@ function sanitizePrefs(settings) {
   const prefs = defaultPrefs();
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
   if (!dash || typeof dash !== 'object') return prefs;
-  const widgetSource = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
-  if (widgetSource) {
+  const widgetPrefSource = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
+  if (widgetPrefSource) {
     Object.keys(prefs.widgets).forEach(key => {
-      if (typeof widgetSource[key] === 'boolean') prefs.widgets[key] = widgetSource[key];
+      if (typeof widgetPrefSource[key] === 'boolean') prefs.widgets[key] = widgetPrefSource[key];
     });
   }
   const kpiSource = dash.kpis && typeof dash.kpis === 'object' ? dash.kpis : null;
@@ -170,6 +177,7 @@ function applySurfaceVisibility(prefs) {
   const cardPrefs = prefs && typeof prefs.widgetCards === 'object' ? prefs.widgetCards : {};
   const handledGraphs = new Set();
   const handledCards = new Set();
+  const widgetCardKeys = getWidgetCardKeys();
 
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
     let node = null;
@@ -180,9 +188,9 @@ function applySurfaceVisibility(prefs) {
     }
     const widgetEnabled = widgetPrefs[key] !== false;
     const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
-    const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
+    const cardEnabled = widgetCardKeys.has(key) ? cardPrefs[key] !== false : true;
     if(GRAPH_KEYS.has(key)) handledGraphs.add(key);
-    if(WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
+    if(widgetCardKeys.has(key)) handledCards.add(key);
     const show = widgetEnabled && graphEnabled && cardEnabled;
     applyNodeVisibility(node, show);
   });
