@@ -44,7 +44,16 @@ const state = {
   routeListener: false,
 };
 
-function postLog(event, data) {
+const lateState = {
+  rafId: null,
+  timeoutId: null,
+  observer: null,
+  notify: false,
+  reported: false,
+  reason: null
+};
+
+function postLog(event, data){
   const payload = JSON.stringify(Object.assign({ event }, data || {}));
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     try {
@@ -161,23 +170,19 @@ function buildKeyMaps(entries) {
   });
 }
 
-function readStoredOrderRaw() {
-  const lists = [];
-  const current = readJson(ORDER_STORAGE_KEY);
-  if (Array.isArray(current) && current.length) lists.push(current);
-  const legacy = readJson(LEGACY_ORDER_KEY_V0);
-  if (Array.isArray(legacy) && legacy.length) lists.push(legacy);
-  const keys = readJson(LEGACY_ORDER_KEY);
-  if (Array.isArray(keys) && keys.length) lists.push(keys);
-  const combined = [];
-  const seen = new Set();
-  lists.forEach((list) => {
-    list.forEach((value) => {
-      const str = String(value || '').trim();
-      if (!str || seen.has(str)) return;
-      seen.add(str);
-      combined.push(str);
-    });
+function applyOrder(container, order){
+  if(!container || !order || !order.length) return;
+  const items = Array.from(container.querySelectorAll(ITEM_SELECTOR)).filter(node => node && node.id);
+  if(!items.length) return;
+  const map = new Map();
+  items.forEach(item => map.set(item.id, item));
+  const handled = new Set();
+  const frag = document.createDocumentFragment();
+  order.forEach(id => {
+    const node = map.get(id);
+    if(!node || handled.has(node)) return;
+    handled.add(node);
+    frag.appendChild(node);
   });
   return combined;
 }
@@ -239,18 +244,108 @@ function toLegacyKeys(ids) {
   return out;
 }
 
-function persistOrderExtras(ids) {
-  const order = Array.from(new Set(ids.map(String).filter(Boolean)));
-  const keys = toLegacyKeys(order);
-  if (typeof localStorage !== 'undefined') {
-    try {
-      if (keys.length) {
-        localStorage.setItem(LEGACY_ORDER_KEY, JSON.stringify(keys));
-      } else {
-        localStorage.removeItem(LEGACY_ORDER_KEY);
+function applyLayoutOnce(container){
+  const target = container || ensureContainer();
+  if(!target) return false;
+  if(target !== state.container) state.container = target;
+  const order = readOrderIds();
+  if(order.length) applyOrder(target, order);
+  const hiddenIds = readHiddenIds().map(String);
+  state.hidden = new Set(hiddenIds);
+  applyVisibility();
+  if(lateState.notify && !lateState.reported){
+    lateState.reported = true;
+    const payload = lateState.reason ? { reason: lateState.reason } : undefined;
+    try{ console.info('[VIS] dash layout applied'); }
+    catch (_err){}
+    postLog('dash-layout-applied', payload);
+  }
+  return true;
+}
+
+function scheduleLateLayout(container, options = {}){
+  const hasDocument = typeof document !== 'undefined';
+  const initialTarget = container && hasDocument && document.contains(container)
+    ? container
+    : ensureContainer();
+  const skipImmediate = !!options.skipImmediate;
+  lateState.notify = true;
+  lateState.reported = false;
+  lateState.reason = options.reason || null;
+  if(lateState.rafId !== null && typeof cancelAnimationFrame === 'function'){
+    try{ cancelAnimationFrame(lateState.rafId); }
+    catch (_err){}
+  }
+  lateState.rafId = null;
+  if(lateState.timeoutId !== null){
+    try{ clearTimeout(lateState.timeoutId); }
+    catch (_err){}
+  }
+  lateState.timeoutId = null;
+  if(lateState.observer){
+    try{ lateState.observer.disconnect(); }
+    catch (_err){}
+    lateState.observer = null;
+  }
+  const apply = () => {
+    const nextTarget = container && hasDocument && document.contains(container)
+      ? container
+      : ensureContainer();
+    return nextTarget ? applyLayoutOnce(nextTarget) : applyLayoutOnce();
+  };
+  if(!skipImmediate){
+    apply();
+  }
+  if(typeof requestAnimationFrame === 'function'){
+    lateState.rafId = requestAnimationFrame(() => {
+      lateState.rafId = null;
+      apply();
+    });
+  }
+  if(typeof setTimeout === 'function'){
+    lateState.timeoutId = setTimeout(() => {
+      lateState.timeoutId = null;
+      apply();
+    }, 0);
+  }
+  if(typeof MutationObserver === 'function' && initialTarget){
+    const observer = new MutationObserver(mutationsList => {
+      if(!Array.isArray(mutationsList)) return;
+      const hasChild = mutationsList.some(mutation => mutation && mutation.type === 'childList');
+      if(!hasChild) return;
+      apply();
+      observer.disconnect();
+      if(lateState.observer === observer){
+        lateState.observer = null;
       }
-      localStorage.removeItem(LEGACY_ORDER_KEY_V0);
-    } catch (_err) {}
+    });
+    try{ observer.observe(initialTarget, { childList: true }); }
+    catch (_err){
+      observer.disconnect();
+      return;
+    }
+    lateState.observer = observer;
+    if(typeof requestAnimationFrame === 'function'){
+      let frames = 0;
+      const release = () => {
+        frames += 1;
+        if(frames >= 2){
+          if(lateState.observer === observer){
+            observer.disconnect();
+            lateState.observer = null;
+          }
+          return;
+        }
+        requestAnimationFrame(release);
+      };
+      requestAnimationFrame(release);
+    }
+  }
+}
+function computeGridOptions(container){
+  const first = container ? container.querySelector(ITEM_SELECTOR) : null;
+  if(!first || typeof first.getBoundingClientRect !== 'function'){
+    return { colWidth: 320, rowHeight: 260, gap: 16 };
   }
   if (typeof window !== 'undefined' && window.Settings && typeof window.Settings.save === 'function') {
     try {
@@ -357,36 +452,53 @@ function ensureDrag() {
   return state.drag;
 }
 
-function applyCurrentLayout(reason) {
-  const container = ensureContainer();
-  if (!container) return;
-  const entries = scanWidgets(container, DASHBOARD_WIDGET_SELECTOR);
-  if (!entries.length) return;
-  buildKeyMaps(entries);
-  const { list, needsPersist } = loadStoredOrder(entries);
-  const changed = !arraysEqual(state.order, list);
-  state.order = list;
-  if (needsPersist || changed) {
-    writeOrder(state.order, { syncLegacy: true });
-  }
-  if (state.order.length) {
-    const applied = applyOrder(container, state.order, DASHBOARD_WIDGET_SELECTOR, getWidgetId);
-    if (applied.length && !arraysEqual(state.order, applied)) {
-      state.order = applied;
-      writeOrder(state.order, { syncLegacy: true });
-    }
-  }
-  applyVisibility(entries);
-  ensureDrag();
-  if (state.drag) state.drag.refresh();
+function logInit(){
+  if(state.loggedInit) return;
+  const items = collectDashboardItems();
+  const listeners = dragListenerCount();
+  try{ console.info('[VIS] dash-drag init', { listeners, items: items.length }); }
+  catch (_err){}
+  postLog('dash-drag-init', { items: items.length, listeners });
+  state.loggedInit = true;
 }
 
-function handleOrderChange(orderIds) {
-  const ids = Array.isArray(orderIds) ? orderIds.map(String).filter(Boolean) : [];
-  if (!ids.length) return;
-  if (!arraysEqual(state.order, ids)) {
-    state.order = ids.slice();
-    writeOrder(state.order, { syncLegacy: true });
+function reapplyLayout(reason){
+  const container = ensureContainer();
+  if(!container){
+    scheduleLateLayout(null, { skipImmediate: false, reason });
+    return;
+  }
+  const applied = applyLayoutOnce(container);
+  if(state.drag){
+    state.drag.refresh();
+  }else{
+    ensureDrag();
+  }
+  scheduleLateLayout(container, { skipImmediate: applied, reason });
+}
+
+function onStorage(evt){
+  if(!evt || typeof evt.key !== 'string') return;
+  if(evt.key === HIDDEN_STORAGE_KEY){
+    state.hidden = new Set(readHiddenIds());
+    applyVisibility();
+    return;
+  }
+  if(evt.key === MODE_STORAGE_KEY){
+    const next = readLayoutModeFlag();
+    setDashboardLayoutMode(next, { persist: false, force: true });
+    return;
+  }
+  if(evt.key === ORDER_STORAGE_KEY){
+    if(state.drag){
+      state.drag.refresh();
+    }else{
+      const order = readOrderIds();
+      if(order.length && ensureContainer()){
+        applyOrder(state.container, order);
+      }
+    }
+    applyVisibility();
   }
   applyVisibility();
 }
@@ -538,73 +650,34 @@ function handleHashChange() {
   }
 }
 
-function handleViewChange(evt) {
-  const detail = evt && evt.detail ? evt.detail : {};
-  const view = detail.view || detail.id || detail.route || '';
-  if (view === 'dashboard') {
-    handleRouteEvent({ detail: '#/dashboard' });
-  } else if (view) {
-    state.lastRouteSeen = 'other';
-  }
+export function requestDashboardLayoutPass(input){
+  const opts = typeof input === 'string' ? { reason: input } : (input || {});
+  const container = opts.container && typeof opts.container === 'object' && opts.container.nodeType === 1
+    ? opts.container
+    : null;
+  scheduleLateLayout(container, { skipImmediate: !!opts.skipImmediate, reason: opts.reason || null });
 }
 
-function onStorage(evt) {
-  if (!evt || typeof evt.key !== 'string') return;
-  const key = evt.key;
-  if (key === HIDDEN_STORAGE_KEY || key === LEGACY_HIDDEN_KEY_V0) {
-    state.hidden = new Set(readHiddenIds());
-    applyVisibility();
-    return;
-  }
-  if (key === MODE_STORAGE_KEY || key === LEGACY_MODE_KEY_V0) {
-    const next = readLayoutModeFlag();
-    setDashboardLayoutMode(next, { persist: false, force: true });
-    return;
-  }
-  if (key === ORDER_STORAGE_KEY || key === LEGACY_ORDER_KEY || key === LEGACY_ORDER_KEY_V0) {
-    applyCurrentLayout('storage');
-  }
-}
-
-export function readStoredLayoutMode() {
-  return readLayoutModeFlag();
-}
-
-export function readStoredHiddenIds() {
-  return readHiddenIds();
-}
-
-export function reapplyDashboardLayout(reason) {
-  applyCurrentLayout(reason || 'manual');
-}
-
-export function getDashboardListenerCount() {
-  return getListenerCount();
-}
-
-export function initDashboardLayout() {
-  if (state.wired) {
-    ensureContainer();
-    applyCurrentLayout('reinit');
+export function initDashboardLayout(){
+  if(state.wired){
+    const container = ensureContainer();
+    const applied = container ? applyLayoutOnce(container) : applyLayoutOnce();
+    ensureDrag();
     updateLayoutModeAttr();
+    scheduleLateLayout(container || null, { skipImmediate: applied, reason: 'reinit' });
     return state;
   }
   state.layoutMode = readLayoutModeFlag();
   state.hidden = new Set(readHiddenIds());
-  ensureContainer();
-  applyCurrentLayout('init');
-  updateLayoutModeAttr();
+  ensureStyle();
+  const container = ensureContainer();
+  const applied = container ? applyLayoutOnce(container) : applyLayoutOnce();
   ensureDrag();
-  applyVisibility();
-  if (typeof window !== 'undefined') {
-    if (!state.storageListener) {
-      window.addEventListener('storage', onStorage);
-      state.storageListener = true;
-    }
-    if (!state.hashListener) {
-      window.addEventListener('hashchange', handleHashChange);
-      state.hashListener = true;
-    }
+  updateLayoutModeAttr();
+  scheduleLateLayout(container || null, { skipImmediate: applied, reason: 'init' });
+  logInit();
+  if(typeof window !== 'undefined'){
+    attachOnce(window, 'storage', onStorage, 'dash-layout:storage');
   }
   if (typeof document !== 'undefined') {
     if (!state.viewListener) {
