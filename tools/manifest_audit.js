@@ -37,6 +37,7 @@ const canonicalPatchOrder = [
   './patches/patch_2025-10-23_actionbar_drag.js',
   './patches/patch_2025-10-23_calendar_contact_and_task.js',
   './patches/patch_2025-10-24_longshots_cleanup.js'
+  './patches/patch_2025-10-24_quickadd_header_only.js'
 ];
 
 function loadManifest() {

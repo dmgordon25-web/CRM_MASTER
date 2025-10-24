@@ -157,27 +157,14 @@ function ensureMenuElements() {
   state.wrapper = wrapper;
   state.menu = menu;
 
-  ensureButton('Contact', 'contact');
   ensureButton('Partner', 'partner');
+  ensureButton('Contact', 'contact');
   ensureButton('Task', 'task');
 
   return { wrapper, menu };
 }
 
-function normalizeSource(source, anchor) {
-  const value = typeof source === 'string' ? source : 'header';
-  if (value !== 'kbd') {
-    return value;
-  }
-  if (anchor && typeof anchor.id === 'string') {
-    const id = anchor.id.trim();
-    if (id === 'global-new') {
-      return 'actionbar';
-    }
-    if (id === 'btn-header-new') {
-      return 'header';
-    }
-  }
+function normalizeSource() {
   return 'header';
 }
 
@@ -270,7 +257,7 @@ function handleKeyDown(event) {
   }
 }
 
-function positionMenu(anchor, source) {
+function positionMenu(anchor) {
   const { wrapper, menu } = state;
   if (!wrapper || !menu) return;
   const anchorRect = anchor && typeof anchor.getBoundingClientRect === 'function'
@@ -288,42 +275,24 @@ function positionMenu(anchor, source) {
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || document.documentElement.clientWidth || 0 : 0;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight || document.documentElement.clientHeight || 0 : 0;
 
-  const margin = source === 'actionbar' ? 12 : 8;
-  let top;
-  if (source === 'actionbar') {
-    const anchorTop = anchorRect ? anchorRect.top : viewportHeight;
-    top = anchorTop - menuRect.height - margin;
-    if (!Number.isFinite(top)) {
-      top = viewportHeight - menuRect.height - 72;
-    }
-    if (top < 8) {
-      const fallback = anchorRect ? anchorRect.bottom + margin : 8;
-      const maxTop = Math.max(8, viewportHeight - menuRect.height - 8);
-      top = Math.min(fallback, maxTop);
-    }
-  } else {
-    const anchorBottom = anchorRect ? anchorRect.bottom : 48;
-    top = anchorBottom + margin;
-    if (!Number.isFinite(top)) {
-      top = 64;
-    }
-    if (viewportHeight && top + menuRect.height + 8 > viewportHeight) {
-      const candidate = anchorRect ? anchorRect.top - menuRect.height - margin : viewportHeight - menuRect.height - 8;
-      if (candidate >= 8) {
-        top = candidate;
-      } else {
-        top = Math.max(8, viewportHeight - menuRect.height - 8);
-      }
+  const margin = 8;
+  const anchorBottom = anchorRect ? anchorRect.bottom : 48;
+  let top = anchorBottom + margin;
+  if (!Number.isFinite(top)) {
+    top = 64;
+  }
+  if (viewportHeight && top + menuRect.height + margin > viewportHeight) {
+    const candidate = anchorRect ? anchorRect.top - menuRect.height - margin : viewportHeight - menuRect.height - margin;
+    if (Number.isFinite(candidate) && candidate >= margin) {
+      top = candidate;
+    } else {
+      top = Math.max(margin, viewportHeight - menuRect.height - margin);
     }
   }
 
   let left;
   if (anchorRect) {
-    if (source === 'actionbar') {
-      left = anchorRect.left + (anchorRect.width / 2) - (menuRect.width / 2);
-    } else {
-      left = anchorRect.left + anchorRect.width - menuRect.width;
-    }
+    left = anchorRect.left + anchorRect.width - menuRect.width;
   } else {
     left = (viewportWidth - menuRect.width) / 2;
   }
@@ -392,11 +361,11 @@ export function openQuickCreateMenu(options = {}) {
   const elements = ensureMenuElements();
   if (!elements) return;
   state.anchor = anchor;
-  state.source = normalizeSource(source, anchor);
+  state.source = normalizeSource();
   state.origin = origin;
   state.open = true;
   state.restoreFocus = anchor && typeof anchor.focus === 'function' ? anchor : null;
-  positionMenu(anchor, state.source);
+  positionMenu(anchor);
   if (!state.outsideHandler) {
     state.outsideHandler = (event) => handleOutsideClick(event);
     document.addEventListener('click', state.outsideHandler, true);
@@ -415,7 +384,7 @@ export function openQuickCreateMenu(options = {}) {
 export function toggleQuickCreateMenu(options = {}) {
   const { anchor = null, source = 'header' } = options;
   if (state.open) {
-    const normalizedSource = normalizeSource(source, anchor);
+    const normalizedSource = normalizeSource();
     const sameAnchor = anchor && state.anchor === anchor;
     const sameSource = state.source === normalizedSource;
     if ((sameAnchor && sameSource) || (!anchor && sameSource)) {
@@ -423,7 +392,7 @@ export function toggleQuickCreateMenu(options = {}) {
       return state.open;
     }
   }
-  openQuickCreateMenu({ anchor, source: normalizeSource(source, anchor), origin: source });
+  openQuickCreateMenu({ anchor, source: normalizeSource(), origin: source });
   return state.open;
 }
 
