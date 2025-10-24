@@ -97,4 +97,61 @@ function applyRouteFromPath(){
 
 applyRouteFromPath();
 
+function isWorkbenchHash(hash){
+  const normalized = typeof hash === 'string' ? hash.trim().toLowerCase() : '';
+  return normalized === '#/workbench' || normalized === '#workbench';
+}
+
+function queueWorkbenchMount(){
+  if(typeof window === 'undefined') return;
+  if(!window.requestAnimationFrame || typeof window.requestAnimationFrame !== 'function'){
+    if(queueWorkbenchMount.__pending) return;
+    queueWorkbenchMount.__pending = true;
+    setTimeout(async () => {
+      queueWorkbenchMount.__pending = false;
+      await loadWorkbench();
+    }, 0);
+    return;
+  }
+  if(queueWorkbenchMount.__pending) return;
+  queueWorkbenchMount.__pending = true;
+  window.requestAnimationFrame(() => {
+    setTimeout(async () => {
+      queueWorkbenchMount.__pending = false;
+      await loadWorkbench();
+    }, 0);
+  });
+}
+
+async function loadWorkbench(){
+  try{
+    const mod = await import('../workbench/index.js');
+    const root = (typeof document !== 'undefined' && document)
+      ? (document.querySelector('#route-root') || document.body)
+      : undefined;
+    if(mod && typeof mod.mountWorkbench === 'function'){
+      await mod.mountWorkbench(root);
+    }
+    try{ console.info('[VIS] workbench armed (direct)'); }
+    catch (_err){}
+  }catch (err){
+    try{ console.warn('[soft] [router] workbench route failed', err); }
+    catch (_err){}
+  }
+}
+
+function ensureWorkbenchRoute(hash){
+  if(!isWorkbenchHash(hash)) return;
+  queueWorkbenchMount();
+}
+
+if(typeof window !== 'undefined' && window){
+  try{ ensureWorkbenchRoute(window.location && window.location.hash); }
+  catch (_err){}
+  window.addEventListener('hashchange', () => {
+    try{ ensureWorkbenchRoute(window.location && window.location.hash); }
+    catch (_err){}
+  });
+}
+
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };

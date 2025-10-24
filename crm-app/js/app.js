@@ -938,7 +938,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     dashboard: '#/dashboard',
     longshots: '#/long-shots',
     pipeline: '#/pipeline',
-    partners: '#/partners'
+    partners: '#/partners',
+    workbench: '#/workbench'
   };
   const HASH_TO_VIEW = new Map();
   Object.entries(VIEW_HASH).forEach(([view, hash]) => {
@@ -1049,6 +1050,20 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
             event.stopImmediatePropagation();
           }
         });
+      }
+    },
+    workbench: {
+      id: 'view-workbench',
+      ui: 'workbench-view',
+      mount(root){
+        if(!root) return;
+        const existing = root.querySelector('#route-root');
+        if(!existing){
+          const section = document.createElement('section');
+          section.id = 'route-root';
+          section.className = 'card';
+          root.appendChild(section);
+        }
       }
     }
   };
@@ -1311,7 +1326,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function handleHashChange(){
     const currentView = viewFromHash(normalizedHash());
-    if(!currentView || currentView === 'workbench') return;
+    if(!currentView) return;
     if(currentView === activeView) return;
     suppressHashUpdate = true;
     try{ activate(currentView); }
@@ -1416,78 +1431,41 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   $('#main-nav').addEventListener('click', (e)=>{
     const btn = e.target.closest('button[data-nav]'); if(!btn) return;
     const navTarget = btn.getAttribute('data-nav');
-    if(navTarget === 'workbench') return;
+    if(navTarget === 'workbench'){
+      e.preventDefault();
+      goto('#/workbench');
+      return;
+    }
     e.preventDefault();
     activate(navTarget);
   });
 
-  (function wireWorkbenchNav(){
-    if (window.__WB_NAV__) return;
-    window.__WB_NAV__ = true;
+  (function bridgeLegacyWorkbench(){
+    if(window.__WB_ROUTE_SHIM__) return;
+    window.__WB_ROUTE_SHIM__ = true;
 
-    const ensureWorkbenchMount = () => {
-      let mount = document.getElementById('view-workbench');
-      if(!mount){
-        mount = document.createElement('main');
-        mount.id = 'view-workbench';
-        mount.classList.add('hidden');
-        mount.setAttribute('data-view', 'workbench');
-        const container = document.querySelector('.container');
-        if(container){
-          container.appendChild(mount);
-        }else{
-          document.body.appendChild(mount);
-        }
-      }
-      return mount;
-    };
+    function isLegacyHash(hash){
+      const value = typeof hash === 'string' ? hash.trim().toLowerCase() : '';
+      return value === '#workbench';
+    }
 
-    const updateHash = () => {
+    function normalizeInitial(){
       try{
-        if(history && typeof history.replaceState === 'function'){
-          history.replaceState(null, '', '#workbench');
-        }else if(window.location){
-          window.location.hash = '#workbench';
+        const current = window.location && window.location.hash;
+        if(isLegacyHash(current)){
+          goto('#/workbench');
         }
-      }catch (_) { }
-    };
-
-    async function goWB(evt){
-      if(evt && typeof evt.preventDefault === 'function') evt.preventDefault();
-      const mount = ensureWorkbenchMount();
-      activate('workbench');
-      try{
-        const [mod, selftest] = await Promise.all([
-          import(fromHere('./pages/workbench.js')),
-          import(fromHere('./selftest.js')).catch(() => ({}))
-        ]);
-        const renderFn = mod.initWorkbench || mod.renderWorkbench || (()=>{});
-        const options = {};
-        if(selftest && typeof selftest.runSelfTest === 'function'){
-          options.onRunSelfTest = selftest.runSelfTest;
-        }
-        const outcome = renderFn(mount, options);
-        if(outcome && typeof outcome.then === 'function'){
-          await outcome;
-        }
-      }catch (err) {
-        console.warn('[soft] [workbench] render failed', err);
-      }
-      updateHash();
+      }catch (_err){}
     }
 
     document.addEventListener('click', (evt) => {
-      const target = evt.target && evt.target.closest('[data-nav="workbench"], a[href="#workbench"], button[data-page="workbench"], button[data-nav="workbench"]');
-      if(!target) return;
-      goWB(evt);
+      const anchor = evt.target && evt.target.closest("a[href='#workbench']");
+      if(!anchor) return;
+      evt.preventDefault();
+      goto('#/workbench');
     });
 
-    const initialHash = window.location && typeof window.location.hash === 'string'
-      ? window.location.hash
-      : '';
-    if(initialHash === '#workbench' || initialHash === '#/workbench'){
-      goWB();
-    }
+    normalizeInitial();
   })();
 
   initSelectionBindings();

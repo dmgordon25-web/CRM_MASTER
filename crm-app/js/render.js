@@ -1127,7 +1127,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normal
     if(tablesHost){
       tablesHost.innerHTML = `
         <div class="wb-pointer" role="note">
-          <div>Detailed tables moved to <a href="#workbench" data-nav="workbench">Workbench</a> for speed and clarity.</div>
+          <div>Detailed tables moved to <a href="#/workbench" data-nav="workbench">Workbench</a> for speed and clarity.</div>
         </div>
       `;
     }
