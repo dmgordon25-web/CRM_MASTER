@@ -6,13 +6,19 @@ import initDashboardLayout, {
   getDashboardWidgets
 } from '../ui/dashboard_layout.js';
 
+const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card[id], :scope > section.grid[id], :scope > div.card[id]';
+const defaultWidgets = getDashboardWidgets();
+const defaultOrderIndex = new Map(defaultWidgets.map((widget, index) => [widget.id, index]));
+
 const prefsState = {
   wired: false,
   logged: false,
   layoutMode: false,
   hidden: new Set(),
-  widgets: getDashboardWidgets()
+  widgets: defaultWidgets.slice()
 };
+
+const widgetLabelMap = new Map(prefsState.widgets.map(widget => [widget.id, widget.label]));
 
 function postLog(event, data){
   const payload = JSON.stringify(Object.assign({ event }, data || {}));
@@ -75,6 +81,64 @@ function hideLegacyWidgetCard(panel){
   if(legacyCard) legacyCard.style.display = 'none';
 }
 
+function findDashboardContainer(){
+  if(typeof document === 'undefined') return null;
+  return document.querySelector('main[data-ui="dashboard-root"]')
+    || document.getElementById('view-dashboard')
+    || null;
+}
+
+function resolveWidgetLabel(node){
+  if(!node) return '';
+  const dataLabel = node.getAttribute('data-widget-label');
+  if(dataLabel) return dataLabel.trim();
+  const labelNode = node.querySelector('[data-ui="card-title"], .insight-head, .row > strong:first-child, header, h2, h3, h4');
+  if(labelNode && typeof labelNode.textContent === 'string'){
+    return labelNode.textContent.trim();
+  }
+  return '';
+}
+
+function scanWidgets(container){
+  if(!container) return;
+  let nodes;
+  try{
+    nodes = Array.from(container.querySelectorAll(DASHBOARD_WIDGET_SELECTOR)).filter(el => el && el.id);
+  }catch (_err){
+    return;
+  }
+  if(!nodes.length) return;
+  const seen = new Set();
+  const next = [];
+  nodes.forEach(node => {
+    const id = String(node.id || '').trim();
+    if(!id || seen.has(id)) return;
+    seen.add(id);
+    let label = widgetLabelMap.get(id);
+    if(!label){
+      label = resolveWidgetLabel(node) || id;
+      widgetLabelMap.set(id, label);
+    }
+    next.push({ id, label });
+  });
+  const fallback = [];
+  widgetLabelMap.forEach((label, id) => {
+    if(seen.has(id)) return;
+    const order = defaultOrderIndex.has(id) ? defaultOrderIndex.get(id) : Number.MAX_SAFE_INTEGER;
+    fallback.push({ id, label, order });
+  });
+  if(fallback.length){
+    fallback.sort((a, b) => {
+      if(a.order === b.order) return a.id.localeCompare(b.id);
+      return a.order - b.order;
+    });
+    fallback.forEach(entry => next.push({ id: entry.id, label: entry.label }));
+  }
+  if(next.length){
+    prefsState.widgets = next;
+  }
+}
+
 function renderWidgetList(list){
   list.innerHTML = '';
   prefsState.widgets.forEach(widget => {
@@ -99,6 +163,8 @@ function render(){
   hideLegacyWidgetCard(panel);
   const card = ensureCard(panel);
   if(!card) return;
+  const dashContainer = findDashboardContainer();
+  scanWidgets(dashContainer);
   refreshState();
   card.innerHTML = '';
   const header = document.createElement('h3');
