@@ -49,14 +49,24 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
   const DASHBOARD_WIDGET_ENTRIES = [
+    {key:'focus', label:'Focus Summary'},
     {key:'filters', label:'Filters'},
     {key:'kpis', label:'KPIs'},
     {key:'pipeline', label:'Pipeline Overview'},
     {key:'today', label:"Today's Work"},
     {key:'leaderboard', label:'Referral Leaderboard'},
     {key:'stale', label:'Stale Deals'},
-    {key:'insights', label:'Numbers & Milestones'},
-    {key:'opportunities', label:'Relationship Opportunities'}
+    {key:'goalProgress', label:'Production Goals'},
+    {key:'numbersGlance', label:'Numbers at a Glance'},
+    {key:'pipelineCalendar', label:'Pipeline Calendar'},
+    {key:'priorityActions', label:'Priority Actions'},
+    {key:'milestones', label:'Milestones Ahead'},
+    {key:'docPulse', label:'Document Pulse'},
+    {key:'relationshipOpportunities', label:'Relationship Opportunities'},
+    {key:'clientCareRadar', label:'Client Care Radar'},
+    {key:'closingWatch', label:'Closing Watchlist'},
+    {key:'docCenter', label:'Document Center'},
+    {key:'statusStack', label:'Status Panels'}
   ];
   const DASHBOARD_GRAPH_ENTRIES = [
     {key:'goalProgress', label:'Production Goals'},
