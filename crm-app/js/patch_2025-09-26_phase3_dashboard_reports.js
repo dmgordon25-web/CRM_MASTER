@@ -46,6 +46,15 @@ function runPatch(){
     };
 
     const DASHBOARD_WIDGET_KEYS = ['focus','filters','kpis','pipeline','today','leaderboard','stale','insights','opportunities'];
+    const DASHBOARD_GRAPH_KEYS = ['goalProgress','numbersGlance','pipelineCalendar'];
+    const DASHBOARD_WIDGET_CARD_KEYS = ['priorityActions','milestones','docPulse','relationshipOpportunities','clientCareRadar','closingWatch'];
+    const DASHBOARD_KPI_KEYS = ['kpiNewLeads7d','kpiActivePipeline','kpiFundedYTD','kpiFundedVolumeYTD','kpiAvgCycleLeadToFunded','kpiTasksToday','kpiTasksOverdue','kpiReferralsYTD'];
+
+    function buildDefaultToggleMap(keys){
+      const map = {};
+      keys.forEach(key => { map[key] = true; });
+      return map;
+    }
 
     const DASHBOARD_WIDGET_DEFAULTS = {
       mode: 'today',
@@ -59,6 +68,9 @@ function runPatch(){
         insights: false,
         opportunities: false
       },
+      graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
+      widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
+      kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS),
       order: DASHBOARD_WIDGET_KEYS.slice()
     };
 
@@ -486,6 +498,24 @@ function runPatch(){
           if(typeof source.widgets[key] === 'boolean') widgets[key] = source.widgets[key];
         });
       }
+      const graphs = Object.assign({}, DASHBOARD_WIDGET_DEFAULTS.graphs);
+      if(source.graphs && typeof source.graphs === 'object'){
+        Object.keys(graphs).forEach(key => {
+          if(typeof source.graphs[key] === 'boolean') graphs[key] = source.graphs[key];
+        });
+      }
+      const widgetCards = Object.assign({}, DASHBOARD_WIDGET_DEFAULTS.widgetCards);
+      if(source.widgetCards && typeof source.widgetCards === 'object'){
+        Object.keys(widgetCards).forEach(key => {
+          if(typeof source.widgetCards[key] === 'boolean') widgetCards[key] = source.widgetCards[key];
+        });
+      }
+      const kpis = Object.assign({}, DASHBOARD_WIDGET_DEFAULTS.kpis);
+      if(source.kpis && typeof source.kpis === 'object'){
+        Object.keys(kpis).forEach(key => {
+          if(typeof source.kpis[key] === 'boolean') kpis[key] = source.kpis[key];
+        });
+      }
       const storedMode = readStoredDashboardMode();
       const hasExplicitMode = Object.prototype.hasOwnProperty.call(source, 'mode');
       let mode;
@@ -499,7 +529,7 @@ function runPatch(){
       const order = normalizeWidgetOrder(rawOrder);
       writeStoredDashboardMode(mode);
       writeStoredWidgetOrder(order);
-      return { mode, widgets, order };
+      return { mode, widgets, graphs, widgetCards, kpis, order };
     }
 
     async function loadDashboardSettings(force){

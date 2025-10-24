@@ -1,3 +1,4 @@
+import './dashboard/index.js';
 import './dashboard/kpis.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
