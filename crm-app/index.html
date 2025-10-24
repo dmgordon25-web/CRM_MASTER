@@ -530,7 +530,8 @@
        Partners
       </strong>
       <button class="btn brand" id="btn-add-partner">
-       Add Partner
+       <span aria-hidden="true" class="btn-icon">+</span>
+       <span class="btn-label">Add Partner</span>
       </button>
       <span class="grow">
       </span>
@@ -1799,9 +1800,9 @@
             Relationship Overview
            </h4>
            <div class="field-grid cols-2">
-            <label>
+            <label data-required="true">
              Partner Name
-             <input id="p-name" placeholder="Full name"/>
+             <input aria-required="true" id="p-name" placeholder="Full name"/>
             </label>
             <label>
              Company / Team
@@ -1858,13 +1859,13 @@
             Contact Details
            </h4>
            <div class="field-grid cols-2">
-            <label>
+            <label data-required="true">
              Email
-             <input id="p-email" placeholder="name@company.com" type="email"/>
+             <input aria-required="true" id="p-email" placeholder="name@company.com" type="email"/>
             </label>
-            <label>
+            <label data-required="true">
              Mobile / Direct Line
-             <input id="p-phone" placeholder="(555) 000-0000" type="tel"/>
+             <input aria-required="true" id="p-phone" placeholder="(555) 000-0000" type="tel"/>
             </label>
             <label>
              Preferred Contact Method

@@ -205,11 +205,30 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
         btn.type = 'button';
         btn.className = 'btn brand';
         btn.dataset.role = 'contact-modal-add-contact';
-        btn.textContent = 'Add Contact';
         btn.setAttribute('aria-label', 'Add Contact');
         btn.setAttribute('title', 'Add Contact');
         btn.style.marginBottom = '12px';
         bodyHost.insertBefore(btn, bodyHost.firstChild || null);
+      }
+      if(btn){
+        const ensureContent = ()=>{
+          const icon = btn.querySelector('.btn-icon');
+          const label = btn.querySelector('.btn-label');
+          if(icon && label){
+            label.textContent = 'Add Contact';
+            return;
+          }
+          btn.innerHTML = '';
+          const iconEl = document.createElement('span');
+          iconEl.className = 'btn-icon';
+          iconEl.setAttribute('aria-hidden', 'true');
+          iconEl.textContent = '+';
+          const labelEl = document.createElement('span');
+          labelEl.className = 'btn-label';
+          labelEl.textContent = 'Add Contact';
+          btn.append(iconEl, labelEl);
+        };
+        ensureContent();
       }
       if(!btn.__wired){
         btn.__wired = true;
@@ -318,14 +337,14 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
             <section class="modal-section modal-panel active" data-panel="profile">
               <h4>Borrower Profile</h4>
               <div class="field-grid cols-2">
-                <label>First Name<input id="c-first" value="${escape(c.first||'')}"></label>
-                <label>Last Name<input id="c-last" value="${escape(c.last||'')}"></label>
+                <label data-required="true">First Name<input aria-required="true" id="c-first" value="${escape(c.first||'')}"></label>
+                <label data-required="true">Last Name<input aria-required="true" id="c-last" value="${escape(c.last||'')}"></label>
                 <label>Contact Role<select id="c-type">${optionList(CONTACT_TYPES, c.contactType||'Borrower')}</select></label>
                 <label>Priority<select id="c-priority">${optionList(PRIORITIES, c.priority||'Warm')}</select></label>
                 <label>Lead Source<select id="c-source"><option value="">Select source</option>${optionList(LEAD_SOURCES, c.leadSource||'')}</select></label>
                 <label>Communication Preference<select id="c-pref">${optionList(COMM_PREFS, c.communicationPreference||'Phone')}</select></label>
-                <label>Primary Email<input id="c-email" type="email" value="${escape(c.email||'')}"></label>
-                <label>Mobile / Direct Line<input id="c-phone" type="tel" value="${escape(c.phone||'')}"></label>
+                <label data-required="true">Primary Email<input aria-required="true" id="c-email" type="email" value="${escape(c.email||'')}"></label>
+                <label data-required="true">Mobile / Direct Line<input aria-required="true" id="c-phone" type="tel" value="${escape(c.phone||'')}"></label>
                 <label data-advanced="contact">Secondary Email<input id="c-email2" type="email" value="${escape(c.secondaryEmail||'')}"></label>
                 <label data-advanced="contact">Secondary Phone<input id="c-phone2" type="tel" value="${escape(c.secondaryPhone||'')}"></label>
               </div>
@@ -347,8 +366,8 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
               <div style="margin-top:18px">
                 <h4>Property &amp; Loan Snapshot</h4>
                 <div class="field-grid cols-3">
-                  <label>Stage<select id="c-stage">${optionList(STAGES, c.stage||'application')}</select></label>
-                  <label>Status<select id="c-status">${optionList(STATUSES, c.status||'inprogress')}</select></label>
+                  <label data-required="true">Stage<select aria-required="true" id="c-stage">${optionList(STAGES, c.stage||'application')}</select></label>
+                  <label data-required="true">Status<select aria-required="true" id="c-status">${optionList(STATUSES, c.status||'inprogress')}</select></label>
                   <label data-advanced="loan">Closing Timeline<select id="c-timeline">${optionList(TIMELINES, c.closingTimeline||'')}</select></label>
                   <label data-advanced="loan">Loan Purpose<select id="c-purpose">${optionList(LOAN_PURPOSES, c.loanPurpose||'Purchase')}</select></label>
                   <label data-advanced="loan">Loan Program<select id="c-loanType">${optionList(LOAN_PROGRAMS, c.loanType||c.loanProgram||'Conventional')}</select></label>
@@ -851,7 +870,6 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       btn = document.createElement('button');
       btn.id = 'btn-add-contact';
       btn.className = 'btn brand btn-add-contact';
-      btn.textContent = 'Add Contact';
       const grow = host.querySelector('.grow');
       if(grow && grow.parentElement === host){
         grow.insertAdjacentElement('beforebegin', btn);
@@ -859,6 +877,26 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
         host.appendChild(btn);
       }
     }
+    const syncButtonContent = ()=>{
+      if(!btn) return;
+      const labelText = 'Add Contact';
+      const icon = btn.querySelector('.btn-icon');
+      const label = btn.querySelector('.btn-label');
+      if(icon && label){
+        label.textContent = labelText;
+        return;
+      }
+      btn.innerHTML = '';
+      const iconEl = document.createElement('span');
+      iconEl.className = 'btn-icon';
+      iconEl.setAttribute('aria-hidden', 'true');
+      iconEl.textContent = '+';
+      const labelEl = document.createElement('span');
+      labelEl.className = 'btn-label';
+      labelEl.textContent = labelText;
+      btn.append(iconEl, labelEl);
+    };
+    syncButtonContent();
     btn.type = 'button';
     btn.classList.add('btn-add-contact');
     btn.setAttribute('aria-label', 'Add Contact');
