@@ -613,6 +613,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     }else{
       const grid = document.createElement('div');
       grid.className = 'calendar-grid';
+      grid.dataset.calendarEnhanced = '1';
       for(let i=0;i<dayCount;i++){
         const d = addDays(start,i);
         const inMonth = d.getMonth()===anchor.getMonth();

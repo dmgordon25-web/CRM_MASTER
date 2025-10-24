@@ -63,6 +63,10 @@ function buildCard(event, metaFor, openContact, addTask){
   card.style.boxShadow = '0 1px 2px rgba(15,23,42,0.08)';
   card.style.display = 'grid';
   card.style.gap = '6px';
+  if(event && event.contactId){
+    card.tabIndex = 0;
+    card.style.cursor = 'pointer';
+  }
 
   const meta = typeof metaFor === 'function' ? metaFor(event.type) : null;
 
@@ -138,6 +142,25 @@ function buildCard(event, metaFor, openContact, addTask){
   actions.appendChild(taskBtn);
   card.appendChild(actions);
 
+  const triggerOpen = ()=>{
+    if(!event || !event.contactId) return;
+    if(typeof openContact !== 'function') return;
+    Promise.resolve(openContact(event.contactId)).catch(()=>{});
+  };
+  if(event && event.contactId){
+    card.addEventListener('click', (evt)=>{
+      if(evt.defaultPrevented) return;
+      triggerOpen();
+    });
+    card.addEventListener('keydown', (evt)=>{
+      if(evt.defaultPrevented) return;
+      if(evt.key === 'Enter' || evt.key === ' '){
+        evt.preventDefault();
+        triggerOpen();
+      }
+    });
+  }
+
   return card;
 }
 
@@ -152,6 +175,7 @@ export function renderDailyView({ root, anchor, events, metaFor, openContact, ad
 
   const container = document.createElement('div');
   container.dataset.calendarDaily = '1';
+  container.dataset.calendarEnhanced = '1';
   container.style.display = 'grid';
   container.style.gridTemplateColumns = 'minmax(200px, 260px) 1fr';
   container.style.gap = '24px';
@@ -214,14 +238,16 @@ export function renderDailyView({ root, anchor, events, metaFor, openContact, ad
   const dayLabel = document.createElement('div');
   dayLabel.style.fontSize = '18px';
   dayLabel.style.fontWeight = '600';
-  dayLabel.textContent = 'Today';
+  const isToday = anchor instanceof Date && !Number.isNaN(anchor.getTime())
+    && new Date().toDateString() === anchor.toDateString();
+  dayLabel.textContent = isToday ? 'Today' : 'Selected Day';
   summary.appendChild(dayLabel);
 
   const dateLabel = document.createElement('div');
   dateLabel.style.fontSize = '13px';
   dateLabel.style.color = '#4b5563';
   const dateFmt = anchor instanceof Date && !Number.isNaN(anchor.getTime())
-    ? anchor.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' })
+    ? anchor.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' })
     : '';
   dateLabel.textContent = dateFmt;
   summary.appendChild(dateLabel);
