@@ -132,14 +132,54 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
   }
   async function getAll(store){ try{ if(typeof dbGetAll==='function') return await dbGetAll(store); }catch (_) {} return []; }
 
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const EVENT_ICON_PATHS = Object.freeze({
+    followup: 'M2.25 6.75C2.25 15.0343 8.96573 21.75 17.25 21.75H19.5C20.7426 21.75 21.75 20.7426 21.75 19.5V18.1284C21.75 17.6121 21.3987 17.1622 20.8979 17.037L16.4747 15.9312C16.0355 15.8214 15.5734 15.9855 15.3018 16.3476L14.3316 17.6412C14.05 18.0166 13.563 18.1827 13.1223 18.0212C9.81539 16.8098 7.19015 14.1846 5.97876 10.8777C5.81734 10.437 5.98336 9.94998 6.3588 9.6684L7.65242 8.69818C8.01453 8.4266 8.17861 7.96445 8.06883 7.52533L6.96304 3.10215C6.83783 2.60133 6.38785 2.25 5.87163 2.25H4.5C3.25736 2.25 2.25 3.25736 2.25 4.5V6.75Z',
+    closing: 'M3 3V4.5M3 21V15M3 15L5.77009 14.3075C7.85435 13.7864 10.0562 14.0281 11.9778 14.9889L12.0856 15.0428C13.9687 15.9844 16.1224 16.2359 18.1718 15.7537L21.2861 15.0209C21.097 13.2899 21 11.5313 21 9.75C21 7.98343 21.0954 6.23914 21.2814 4.52202L18.1718 5.25369C16.1224 5.73591 13.9687 5.48435 12.0856 4.54278L11.9778 4.48892C10.0562 3.52812 7.85435 3.28641 5.77009 3.80748L3 4.5M3 15V4.5',
+    funded: 'M12 6V18M9 15.1818L9.87887 15.841C11.0504 16.7197 12.9498 16.7197 14.1214 15.841C15.2929 14.9623 15.2929 13.5377 14.1214 12.659C13.5355 12.2196 12.7677 12 11.9999 12C11.275 12 10.5502 11.7804 9.99709 11.341C8.891 10.4623 8.891 9.03772 9.9971 8.15904C11.1032 7.28036 12.8965 7.28036 14.0026 8.15904L14.4175 8.48863M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z',
+    task: 'M11.3495 3.83619C11.2848 4.04602 11.25 4.26894 11.25 4.5C11.25 4.91421 11.5858 5.25 12 5.25H16.5C16.9142 5.25 17.25 4.91421 17.25 4.5C17.25 4.26894 17.2152 4.04602 17.1505 3.83619M11.3495 3.83619C11.6328 2.91757 12.4884 2.25 13.5 2.25H15C16.0116 2.25 16.8672 2.91757 17.1505 3.83619M11.3495 3.83619C10.9739 3.85858 10.5994 3.88529 10.2261 3.91627C9.09499 4.01015 8.25 4.97324 8.25 6.10822V8.25M17.1505 3.83619C17.5261 3.85858 17.9006 3.88529 18.2739 3.91627C19.405 4.01015 20.25 4.97324 20.25 6.10822V16.5C20.25 17.7426 19.2426 18.75 18 18.75H15.75M8.25 8.25H4.875C4.25368 8.25 3.75 8.75368 3.75 9.375V20.625C3.75 21.2463 4.25368 21.75 4.875 21.75H14.625C15.2463 21.75 15.75 21.2463 15.75 20.625V18.75M8.25 8.25H14.625C15.2463 8.25 15.75 8.75368 15.75 9.375V18.75M7.5 15.75L9 17.25L12 13.5',
+    deal: 'M20.25 14.1499V18.4C20.25 19.4944 19.4631 20.4359 18.3782 20.58C16.2915 20.857 14.1624 21 12 21C9.83757 21 7.70854 20.857 5.62185 20.58C4.5369 20.4359 3.75 19.4944 3.75 18.4V14.1499M20.25 14.1499C20.7219 13.7476 21 13.1389 21 12.4889V8.70569C21 7.62475 20.2321 6.69082 19.1631 6.53086C18.0377 6.36247 16.8995 6.23315 15.75 6.14432M20.25 14.1499C20.0564 14.315 19.8302 14.4453 19.5771 14.5294C17.1953 15.3212 14.6477 15.75 12 15.75C9.35229 15.75 6.80469 15.3212 4.42289 14.5294C4.16984 14.4452 3.94361 14.3149 3.75 14.1499M3.75 14.1499C3.27808 13.7476 3 13.1389 3 12.4889V8.70569C3 7.62475 3.7679 6.69082 4.83694 6.53086C5.96233 6.36247 7.10049 6.23315 8.25 6.14432M15.75 6.14432V5.25C15.75 4.00736 14.7426 3 13.5 3H10.5C9.25736 3 8.25 4.00736 8.25 5.25V6.14432M15.75 6.14432C14.5126 6.0487 13.262 6 12 6C10.738 6 9.48744 6.0487 8.25 6.14432M12 12.75H12.0075V12.7575H12V12.75Z',
+    birthday: 'M12 8.25V6.75M12 8.25C10.6448 8.25 9.30281 8.30616 7.97608 8.41627C6.84499 8.51015 6 9.47323 6 10.6082V13.1214M12 8.25C13.3552 8.25 14.6972 8.30616 16.0239 8.41627C17.155 8.51015 18 9.47323 18 10.6082V13.1214M15 8.25V6.75M9 8.25V6.75M21 16.5L19.5 17.25C18.5557 17.7221 17.4443 17.7221 16.5 17.25C15.5557 16.7779 14.4443 16.7779 13.5 17.25C12.5557 17.7221 11.4443 17.7221 10.5 17.25C9.55573 16.7779 8.44427 16.7779 7.5 17.25C6.55573 17.7221 5.44427 17.7221 4.5 17.25L3 16.5M18 13.1214C16.0344 12.8763 14.032 12.75 12 12.75C9.96804 12.75 7.96557 12.8763 6 13.1214M18 13.1214C18.3891 13.1699 18.7768 13.2231 19.163 13.2809C20.2321 13.4408 21 14.3747 21 15.4557V20.625C21 21.2463 20.4963 21.75 19.875 21.75H4.125C3.50368 21.75 3 21.2463 3 20.625V15.4557C3 14.3747 3.76793 13.4408 4.83697 13.2809C5.22316 13.2231 5.61086 13.1699 6 13.1214M12.2652 3.10983C12.4117 3.25628 12.4117 3.49372 12.2652 3.64016C12.1188 3.78661 11.8813 3.78661 11.7349 3.64016C11.5884 3.49372 11.5884 3.25628 11.7349 3.10983C11.8104 3.03429 12.0001 2.84467 12.0001 2.84467C12.0001 2.84467 12.1943 3.03893 12.2652 3.10983ZM9.26522 3.10983C9.41167 3.25628 9.41167 3.49372 9.26522 3.64016C9.11878 3.78661 8.88134 3.78661 8.73489 3.64016C8.58844 3.49372 8.58844 3.25628 8.73489 3.10983C8.81044 3.03429 9.00005 2.84467 9.00005 2.84467C9.00005 2.84467 9.19432 3.03893 9.26522 3.10983ZM15.2652 3.10983C15.4117 3.25628 15.4117 3.49372 15.2652 3.64016C15.1188 3.78661 14.8813 3.78661 14.7349 3.64016C14.5884 3.49372 14.5884 3.25628 14.7349 3.10983C14.8104 3.03429 15.0001 2.84467 15.0001 2.84467C15.0001 2.84467 15.1943 3.03893 15.2652 3.10983Z',
+    anniversary: 'M21 8.25C21 5.76472 18.9013 3.75 16.3125 3.75C14.3769 3.75 12.7153 4.87628 12 6.48342C11.2847 4.87628 9.62312 3.75 7.6875 3.75C5.09867 3.75 3 5.76472 3 8.25C3 15.4706 12 20.25 12 20.25C12 20.25 21 15.4706 21 8.25Z'
+  });
+  const EVENT_ICON_FALLBACK = 'followup';
+  const EVENT_ICON_CACHE = new Map();
+
+  function createEventIconSvg(key, path){
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    svg.dataset.iconKey = key;
+    const segment = document.createElementNS(SVG_NS, 'path');
+    segment.setAttribute('d', path);
+    segment.setAttribute('fill', 'none');
+    segment.setAttribute('stroke', 'currentColor');
+    segment.setAttribute('stroke-width', '1.5');
+    segment.setAttribute('stroke-linecap', 'round');
+    segment.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(segment);
+    return svg;
+  }
+
+  function getEventIcon(type){
+    const key = EVENT_ICON_PATHS[type] ? type : EVENT_ICON_FALLBACK;
+    if(!EVENT_ICON_CACHE.has(key)){
+      const path = EVENT_ICON_PATHS[key];
+      EVENT_ICON_CACHE.set(key, path ? createEventIconSvg(key, path) : null);
+    }
+    const base = EVENT_ICON_CACHE.get(key);
+    return base ? base.cloneNode(true) : null;
+  }
+
   const EVENT_META = [
-    {type:'followup', label:text('calendar.event.follow-up'), icon:'📞'},
-    {type:'closing', label:text('calendar.event.closing'), icon:'🏁'},
-    {type:'funded', label:text('calendar.event.funded'), icon:'💰'},
-    {type:'task', label:text('calendar.event.task'), icon:'✅'},
-    {type:'deal', label:text('calendar.event.deal'), icon:'📋'},
-    {type:'birthday', label:text('calendar.event.birthday'), icon:'🎂'},
-    {type:'anniversary', label:text('calendar.event.anniversary'), icon:'💍'}
+    {type:'followup', label:text('calendar.event.follow-up'), iconKey:'followup'},
+    {type:'closing', label:text('calendar.event.closing'), iconKey:'closing'},
+    {type:'funded', label:text('calendar.event.funded'), iconKey:'funded'},
+    {type:'task', label:text('calendar.event.task'), iconKey:'task'},
+    {type:'deal', label:text('calendar.event.deal'), iconKey:'deal'},
+    {type:'birthday', label:text('calendar.event.birthday'), iconKey:'birthday'},
+    {type:'anniversary', label:text('calendar.event.anniversary'), iconKey:'anniversary'}
   ];
   const EVENT_META_MAP = new Map(EVENT_META.map(meta => [meta.type, meta]));
   const LOAN_PALETTE = Object.freeze([
@@ -424,8 +464,21 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     EVENT_META.forEach(meta => {
       const chip = document.createElement('span');
       chip.className = 'legend-chip';
-      chip.innerHTML = `<span class="icon">${meta.icon||''}</span>${meta.label}`;
+      chip.dataset.event = meta.type;
       chip.setAttribute('title', text('calendar.legend.tooltip.events'));
+      const iconWrap = document.createElement('span');
+      iconWrap.className = 'icon';
+      const iconKey = meta.iconKey || meta.type;
+      const iconNode = getEventIcon(iconKey);
+      if(iconNode){
+        iconWrap.dataset.icon = iconNode.dataset.iconKey || iconKey;
+        iconWrap.setAttribute('aria-hidden', 'true');
+        iconWrap.appendChild(iconNode);
+      }else{
+        iconWrap.textContent = '•';
+      }
+      chip.appendChild(iconWrap);
+      chip.append(meta.label);
       eventList.appendChild(chip);
     });
     eventSection.appendChild(eventTitle);
@@ -606,6 +659,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         anchor,
         events: dayEvents,
         metaFor: (type)=> EVENT_META_MAP.get(type) || null,
+        iconFor: (type)=> getEventIcon(type),
         openContact: openContactRecord,
         addTask: createTaskFromEvent,
         closePopover: closeEventPopover
@@ -703,7 +757,15 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
 
           const icon = document.createElement('span');
           icon.className = 'ev-icon';
-          icon.textContent = meta.icon || '';
+          const iconKey = meta && meta.iconKey ? meta.iconKey : (ev.type || '');
+          const iconNode = getEventIcon(iconKey);
+          if(iconNode){
+            icon.dataset.icon = iconNode.dataset.iconKey || iconKey;
+            icon.setAttribute('aria-hidden', 'true');
+            icon.appendChild(iconNode);
+          }else{
+            icon.textContent = '•';
+          }
           item.appendChild(icon);
           const textWrap = document.createElement('div');
           textWrap.className = 'ev-text';

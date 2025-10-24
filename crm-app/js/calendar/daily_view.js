@@ -54,7 +54,7 @@ const SLOT_DEFS = [
   { key:'evening', label:'6:00 PM' }
 ];
 
-function buildCard(event, metaFor, openContact, addTask){
+function buildCard(event, metaFor, iconFor, openContact, addTask){
   const card = document.createElement('div');
   card.style.border = '1px solid #e5e7eb';
   card.style.borderRadius = '8px';
@@ -73,11 +73,20 @@ function buildCard(event, metaFor, openContact, addTask){
   const header = document.createElement('div');
   header.style.display = 'flex';
   header.style.alignItems = 'center';
-  header.style.gap = '6px';
-  const icon = document.createElement('span');
-  icon.style.fontSize = '14px';
-  icon.textContent = meta && meta.icon ? meta.icon : '•';
-  header.appendChild(icon);
+  header.style.gap = '10px';
+  const iconWrap = document.createElement('span');
+  iconWrap.className = 'calendar-daily-icon';
+  const iconKey = meta && meta.iconKey ? meta.iconKey : (event && event.type) || '';
+  const iconNode = typeof iconFor === 'function' ? iconFor(iconKey) : null;
+  if(iconNode){
+    const derivedKey = iconNode.dataset && iconNode.dataset.iconKey ? iconNode.dataset.iconKey : iconKey;
+    if(derivedKey) iconWrap.dataset.icon = derivedKey;
+    iconWrap.setAttribute('aria-hidden', 'true');
+    iconWrap.appendChild(iconNode);
+  }else{
+    iconWrap.textContent = '•';
+  }
+  header.appendChild(iconWrap);
   const title = document.createElement('div');
   title.style.fontWeight = '600';
   title.style.fontSize = '13px';
@@ -165,7 +174,7 @@ function buildCard(event, metaFor, openContact, addTask){
   return card;
 }
 
-export function renderDailyView({ root, anchor, events, metaFor, openContact, addTask, closePopover }){
+export function renderDailyView({ root, anchor, events, metaFor, iconFor, openContact, addTask, closePopover }){
   if(!root) return;
   if(typeof closePopover === 'function'){
     try{ closePopover(); }
@@ -219,7 +228,7 @@ export function renderDailyView({ root, anchor, events, metaFor, openContact, ad
       list.appendChild(empty);
     }else{
       listEvents.forEach(ev => {
-        list.appendChild(buildCard(ev, metaFor, openContact, addTask));
+        list.appendChild(buildCard(ev, metaFor, iconFor, openContact, addTask));
       });
     }
     row.appendChild(list);
@@ -280,7 +289,7 @@ export function renderDailyView({ root, anchor, events, metaFor, openContact, ad
       const wrap = document.createElement('div');
       wrap.style.display = 'grid';
       wrap.style.gap = '6px';
-      wrap.appendChild(buildCard(ev, metaFor, openContact, addTask));
+      wrap.appendChild(buildCard(ev, metaFor, iconFor, openContact, addTask));
       agenda.appendChild(wrap);
     });
   }

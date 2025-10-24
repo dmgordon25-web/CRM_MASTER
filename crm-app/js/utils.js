@@ -1,6 +1,52 @@
 // utils.js
 window.$ = (sel, root=document) => root.querySelector(sel);
 window.$all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+const TOAST_VARIANT_MAP = new Map([
+  ['success', 'success'],
+  ['ok', 'success'],
+  ['info', 'info'],
+  ['warn', 'warn'],
+  ['warning', 'warn'],
+  ['error', 'error'],
+  ['danger', 'error'],
+  ['loading', 'loading']
+]);
+
+function normalizeToastOptions(options){
+  if(!options) return {};
+  if(typeof options === 'string') return { variant: options };
+  if(typeof options === 'object') return Object.assign({}, options);
+  return {};
+}
+
+function resolveToastVariant(options){
+  const opts = normalizeToastOptions(options);
+  const raw = opts.variant || opts.tone || opts.status || opts.kind;
+  const key = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if(key && TOAST_VARIANT_MAP.has(key)) return TOAST_VARIANT_MAP.get(key);
+  if(opts.loading === true) return 'loading';
+  return 'default';
+}
+
+function createLegacyToastIcon(variant){
+  const wrap = document.createElement('span');
+  wrap.className = 'toast-icon';
+  wrap.setAttribute('aria-hidden', 'true');
+  if(variant === 'loading'){
+    const spinner = document.createElement('span');
+    spinner.className = 'ui-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(spinner);
+    return wrap;
+  }
+  const glyph = variant === 'success' ? '✓'
+    : variant === 'error' ? '×'
+    : variant === 'warn' ? '!'
+    : '•';
+  wrap.textContent = glyph;
+  return wrap;
+}
 window.toast = (input, opts) => {
   const hasToastApi = window.Toast && typeof window.Toast.show === 'function';
   if(hasToastApi){
@@ -14,17 +60,44 @@ window.toast = (input, opts) => {
     window.Toast.show(input, opts);
     return;
   }
-  const payload = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
+  const isObjectInput = input && typeof input === 'object' && !Array.isArray(input);
+  const payload = isObjectInput ? Object.assign({}, input) : {};
   const message = typeof input === 'string' ? input : String(payload.message || '');
+  if(isObjectInput) delete payload.message;
   if(!message){ return; }
-  const t = $('#toast');
-  if(!t){
+  const host = $('#toast');
+  if(!host){
     if(typeof alert === 'function') alert(message);
     return;
   }
-  t.textContent = message;
-  t.classList.add('show');
-  setTimeout(()=> t.classList.remove('show'), Number(payload.duration)||2000);
+  if(host.__toastTimer){
+    clearTimeout(host.__toastTimer);
+    host.__toastTimer = null;
+  }
+  const mergedOptions = Object.assign({}, payload, normalizeToastOptions(opts));
+  const variant = resolveToastVariant(mergedOptions);
+  const icon = createLegacyToastIcon(variant);
+  host.innerHTML = '';
+  host.dataset.variant = variant;
+  host.setAttribute('data-variant', variant);
+  host.dataset.visible = 'true';
+  host.setAttribute('data-visible', 'true');
+  host.classList.add('show');
+  host.appendChild(icon);
+  const textEl = document.createElement('span');
+  textEl.className = 'toast-message';
+  textEl.textContent = message;
+  host.appendChild(textEl);
+  let duration = Number(mergedOptions.duration);
+  if(!Number.isFinite(duration) || duration <= 0) duration = 2200;
+  host.__toastTimer = setTimeout(()=>{
+    host.classList.remove('show');
+    host.removeAttribute('data-visible');
+    delete host.dataset.visible;
+    host.removeAttribute('data-variant');
+    delete host.dataset.variant;
+    host.__toastTimer = null;
+  }, duration);
 };
 window.money = (n) => {
   const v = Number(n||0);

@@ -973,15 +973,66 @@ function runPatch(){
       }catch (_err) {}
     }
 
+    const ACTION_BUSY_LABELS = new Map([
+      ['edit', 'Opening editor'],
+      ['merge', 'Preparing merge'],
+      ['emailtogether', 'Preparing email'],
+      ['emailmass', 'Building email list'],
+      ['task', 'Creating tasks'],
+      ['bulklog', 'Logging activity'],
+      ['clear', 'Clearing selection'],
+      ['delete', 'Deleting records']
+    ]);
+    const DEFAULT_BUSY_LABEL = 'Working';
+
+    function labelForBusyAction(action){
+      if(!action) return DEFAULT_BUSY_LABEL;
+      const key = String(action).trim().toLowerCase();
+      if(!key) return DEFAULT_BUSY_LABEL;
+      return ACTION_BUSY_LABELS.get(key) || DEFAULT_BUSY_LABEL;
+    }
+
+    function busyIndicator(){
+      const bar = actionbar();
+      if(!bar) return null;
+      return bar.querySelector('[data-role="busy"]');
+    }
+
+    function updateBusyIndicator(action, label){
+      const indicator = busyIndicator();
+      if(!indicator) return;
+      const textEl = indicator.querySelector('[data-role="busy-label"]');
+      if(action){
+        indicator.hidden = false;
+        indicator.dataset.action = action;
+        if(label) indicator.dataset.label = label;
+        else indicator.removeAttribute('data-label');
+        if(textEl) textEl.textContent = label || DEFAULT_BUSY_LABEL;
+      }else{
+        indicator.hidden = true;
+        indicator.removeAttribute('data-action');
+        indicator.removeAttribute('data-label');
+        if(textEl) textEl.textContent = '';
+      }
+    }
+
     function setActionbarBusy(isBusy, action){
       actionState.busy = !!isBusy;
       const bar = actionbar();
       if(!bar) return;
       bar.classList.toggle('is-busy', !!isBusy);
       if(isBusy){
-        bar.setAttribute('data-busy-action', action || '');
+        const actionKey = action ? String(action) : '';
+        const label = labelForBusyAction(actionKey);
+        bar.setAttribute('data-busy-action', actionKey);
+        bar.setAttribute('data-busy-label', label);
+        bar.dataset.busy = 'true';
+        updateBusyIndicator(actionKey, label);
       }else{
         bar.removeAttribute('data-busy-action');
+        bar.removeAttribute('data-busy-label');
+        delete bar.dataset.busy;
+        updateBusyIndicator('', '');
       }
     }
 
