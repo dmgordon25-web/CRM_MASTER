@@ -1,5 +1,7 @@
 
 import { STR, text } from './ui/strings.js';
+import { renderDailyView } from './calendar/daily_view.js';
+import { createTaskFromEvent } from './tasks/api.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
 
@@ -178,6 +180,48 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     return Number.isFinite(num) && num>0 ? CURRENCY.format(num) : '';
   }
 
+  const popoverState = { node: null, detach: null, anchor: null };
+
+  function closeEventPopover(){
+    if(popoverState.detach){
+      try{ popoverState.detach(); }
+      catch (_err){}
+      popoverState.detach = null;
+    }
+    if(popoverState.node){
+      try{ popoverState.node.remove(); }
+      catch (_err){}
+      popoverState.node = null;
+    }
+    popoverState.anchor = null;
+  }
+
+  function postVisLog(eventName){
+    const payload = JSON.stringify({ event: eventName });
+    let delivered = false;
+    if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'){
+      try{
+        const blob = new Blob([payload], { type:'application/json' });
+        delivered = navigator.sendBeacon('/__log', blob) === true;
+      }catch (_err){}
+    }
+    if(delivered || typeof fetch !== 'function') return;
+    try{
+      fetch('/__log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true
+      }).catch(()=>{});
+    }catch (_err){}
+  }
+
+  function logCalendarContact(){
+    try{ console && typeof console.info === 'function' && console.info('[VIS] calendar→contact modal'); }
+    catch (_err){}
+    postVisLog('calendar-contact-modal');
+  }
+
   function collectEvents(contacts,tasks,deals,anchor){
     const events = [];
     const year = anchor.getFullYear();
@@ -187,12 +231,15 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       if(key) contactMap.set(key, c);
     }
 
-    function push(dateInput, type, title, subtitle, loanType, hasLoanOverride, source = null, status = ''){
+    function push(dateInput, type, title, subtitle, loanType, hasLoanOverride, source = null, status = '', extra = {}){
       const rawDate = dateInput instanceof Date ? new Date(dateInput) : parseISOish(dateInput);
       if(!rawDate) return;
       rawDate.setHours(0,0,0,0);
       const hasLoan = hasLoanOverride!=null ? hasLoanOverride : !!loanType;
       const loanMeta = hasLoan ? resolveLoanMeta(loanType) : loanMetaFromKey(DEFAULT_LOAN);
+      const contactId = extra && extra.contactId ? String(extra.contactId).trim() : '';
+      const contactStage = extra && extra.contactStage ? String(extra.contactStage).trim() : '';
+      const contactNameLabel = extra && extra.contactName ? String(extra.contactName).trim() : '';
       events.push({
         date: rawDate,
         type,
@@ -202,7 +249,11 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         loanLabel: loanMeta.label,
         hasLoan,
         status: status || '',
-        source: source // { entity:'contacts'|'tasks'|'deals', id:'...', field:'...' }
+        source: source,
+        contactId,
+        contactStage,
+        contactName: contactNameLabel,
+        raw: extra && extra.raw ? extra.raw : null
       });
     }
 
@@ -211,13 +262,15 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       const loanType = c.loanType || c.loanProgram || '';
       const stage = c.stage || '';
       const amount = formatAmount(c.loanAmount || c.amount);
+      const contactId = String(c.id||c.contactId||c.contactID||'');
 
       if(c.nextFollowUp){
         const parts = [text('calendar.subtitle.next-touch')];
         if(stage) parts.push(stage);
         push(c.nextFollowUp, 'followup', name, parts.filter(Boolean).join(' • '), loanType, undefined,
-          { entity:'contacts', id:String(c.id||c.contactId||c.contactID||''), field:'nextFollowUp' },
-          stage);
+          { entity:'contacts', id:contactId, field:'nextFollowUp' },
+          stage,
+          { contactId, contactStage: stage, contactName: name, raw: c });
       }
       const closeRaw = c.expectedClosing || c.closingDate || '';
       if(closeRaw){
@@ -225,15 +278,17 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         if(stage) parts.push(stage);
         if(amount) parts.push(amount);
         push(closeRaw, 'closing', name, parts.filter(Boolean).join(' • '), loanType, undefined,
-          { entity:'contacts', id:String(c.id||c.contactId||c.contactID||''), field:'expectedClosing' },
-          stage);
+          { entity:'contacts', id:contactId, field:'expectedClosing' },
+          stage,
+          { contactId, contactStage: stage, contactName: name, raw: c });
       }
       if(c.fundedDate){
         const parts = [text('calendar.subtitle.funded')];
         if(amount) parts.push(amount);
         push(c.fundedDate, 'funded', name, parts.filter(Boolean).join(' • '), loanType, undefined,
-          { entity:'contacts', id:String(c.id||c.contactId||c.contactID||''), field:'fundedDate' },
-          stage);
+          { entity:'contacts', id:contactId, field:'fundedDate' },
+          stage,
+          { contactId, contactStage: stage, contactName: name, raw: c });
       }
       const bd = c.birthday || c.birthdate || c.birthDate;
       if(bd){
@@ -241,8 +296,9 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         if(d){
           const e = new Date(year, d.getMonth(), d.getDate());
           push(e, 'birthday', name, text('calendar.subtitle.birthday'), loanType, undefined,
-            { entity:'contacts', id:String(c.id||c.contactId||c.contactID||''), field:'birthday' },
-            stage);
+            { entity:'contacts', id:contactId, field:'birthday' },
+            stage,
+            { contactId, contactStage: stage, contactName: name, raw: c });
         }
       }
       const ann = c.anniversary || c.anniversaryDate;
@@ -251,8 +307,9 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         if(d){
           const e = new Date(year, d.getMonth(), d.getDate());
           push(e, 'anniversary', name, text('calendar.subtitle.anniversary'), loanType, undefined,
-            { entity:'contacts', id:String(c.id||c.contactId||c.contactID||''), field:'anniversary' },
-            stage);
+            { entity:'contacts', id:contactId, field:'anniversary' },
+            stage,
+            { contactId, contactStage: stage, contactName: name, raw: c });
         }
       }
     }
@@ -264,6 +321,8 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       const title = t.title || t.name || text('calendar.event.task');
       const parts = [];
       let loanType = '';
+      const contactId = contact ? String(contact.id||contact.contactId||contact.contactID||'') : String(t.contactId||'');
+      const stage = contact ? (contact.stage||'') : (t.stage||'');
       if(contact){
         parts.push(contactName(contact));
         if(t.stage) parts.push(t.stage);
@@ -274,7 +333,8 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       }
       push(when, 'task', title, parts.filter(Boolean).join(' • '), loanType, contact ? undefined : false,
         { entity:'tasks', id:String(t.id||t.taskId||''), field:'due' },
-        (contact && (contact.stage||'')) || '');
+        stage,
+        { contactId, contactStage: stage, contactName: contact ? contactName(contact) : '', raw: t });
     }
 
     for(const dl of deals||[]){
@@ -285,9 +345,12 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       const title = contact ? contactName(contact) : (dl.name || text('calendar.event.deal'));
       const parts = [text('calendar.subtitle.deal')];
       if(dl.name && contact) parts.push(dl.name);
+      const stage = (dl.status||'');
+      const contactId = contact ? String(contact.id||contact.contactId||contact.contactID||'') : String(dl.contactId||'');
       push(close, 'deal', title, parts.filter(Boolean).join(' • '), loanType, contact ? undefined : false,
         { entity:'deals', id:String(dl.id||dl.dealId||''), field:'expectedClose' },
-        (dl.status||''));
+        stage,
+        { contactId, contactStage: contact ? (contact.stage||'') : stage, contactName: contact ? contactName(contact) : '', raw: dl });
     }
 
     events.sort((a,b)=>{
@@ -402,11 +465,24 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       label.textContent = formatRange(anchor, view, start, end);
     }
 
+    closeEventPopover();
     root.innerHTML = '';
     root.setAttribute('data-view', view);
-    const grid = document.createElement('div');
-    grid.className = 'calendar-grid';
     const todayStr = new Date().toDateString();
+
+    const openContactRecord = (contactId)=>{
+      const targetId = contactId ? String(contactId).trim() : '';
+      if(targetId && typeof window.renderContactModal === 'function'){
+        logCalendarContact();
+        try{ window.renderContactModal(targetId); }
+        catch (err) { console && console.warn && console.warn('renderContactModal failed', err); }
+        return true;
+      }
+      if(typeof window.toast === 'function'){
+        window.toast('Contact unavailable for this event');
+      }
+      return false;
+    };
 
     let __calPending = new Set();
     let __calFlushScheduled = false;
@@ -458,136 +534,264 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     }
 
     const dayCount = Math.round((end - start)/86400000);
-    for(let i=0;i<dayCount;i++){
-      const d = addDays(start,i);
-      const inMonth = d.getMonth()===anchor.getMonth();
-
-      const cell = document.createElement('div');
-      cell.className='cal-cell';
-      if(!inMonth && view==='month') cell.classList.add('muted');
-      if(d.toDateString()===todayStr) cell.classList.add('today');
-
-      const head = document.createElement('div');
-      head.className='cal-cell-head';
-      head.textContent = d.getDate();
-      head.style.fontSize = '12px';
-      cell.appendChild(head);
-
-      const box = document.createElement('div');
-      box.className='cal-events';
-
-      cell.addEventListener('dragover', (e)=>{ e.preventDefault(); });
-      cell.addEventListener('drop', async (e)=>{
-        e.preventDefault();
-        const data = e.dataTransfer && e.dataTransfer.getData('text/plain');
-        if(!data) return;
-        try{
-          const payload = JSON.parse(data);
-          if(payload && payload.source){
-            await persistEventDate(payload.source, new Date(d));
-          }
-        }catch (_) { }
+    if(view === 'day'){
+      const dayEvents = events.filter(e=> ymd(e.date)===ymd(anchor));
+      renderDailyView({
+        root,
+        anchor,
+        events: dayEvents,
+        metaFor: (type)=> EVENT_META_MAP.get(type) || null,
+        openContact: openContactRecord,
+        addTask: createTaskFromEvent,
+        closePopover: closeEventPopover
       });
+    }else{
+      const grid = document.createElement('div');
+      grid.className = 'calendar-grid';
+      for(let i=0;i<dayCount;i++){
+        const d = addDays(start,i);
+        const inMonth = d.getMonth()===anchor.getMonth();
 
-      const todays = events.filter(e=> ymd(e.date)===ymd(d) );
+        const cell = document.createElement('div');
+        cell.className='cal-cell';
+        if(!inMonth && view==='month') cell.classList.add('muted');
+        if(d.toDateString()===todayStr) cell.classList.add('today');
 
-      if(view==='month'){
-        box.style.maxHeight = '140px';
-        box.style.overflowY = 'auto';
-        box.style.paddingRight = '2px';
-      }
+        const head = document.createElement('div');
+        head.className='cal-cell-head';
+        head.textContent = d.getDate();
+        head.style.fontSize = '12px';
+        cell.appendChild(head);
 
-      for(let j=0; j<todays.length; j++){
-        const ev = todays[j];
-        const meta = EVENT_META_MAP.get(ev.type) || {label:ev.type, icon:''};
-        const item = document.createElement('div');
-        item.className = 'ev ev-'+ev.type;
-        item.style.fontSize = '12px';
-        item.style.background = colorForLoan(ev.loanKey) + '1A';
-        item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
-        const canDrag = !!(ev.source && ev.source.entity && ev.source.id);
-        item.draggable = canDrag;
-        item.dataset.date = String(ev.date?.toISOString?.() || '');
-        if (canDrag) {
-          item.dataset.source = `${ev.source.entity}:${ev.source.id}:${ev.source.field||''}`;
-        }
+        const box = document.createElement('div');
+        box.className='cal-events';
 
-        const bar = document.createElement('div');
-        bar.className = 'ev-status';
-        bar.style.height = '3px';
-        bar.style.background = colorForStatus(ev.status);
-        bar.style.marginBottom = '2px';
-        item.appendChild(bar);
-
-        if (canDrag){
-          item.addEventListener('dragstart', (e)=>{
-            if(!e.dataTransfer) return;
-            const payload = { type: ev.type, date: ev.date, source: ev.source || null };
-            try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch (_) { }
-          });
-        }
-
-        item.addEventListener('click', (e)=>{
+        cell.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+        cell.addEventListener('drop', async (e)=>{
           e.preventDefault();
-          const wrap = document.createElement('div');
-          wrap.className = 'modal';
-          wrap.style.position = 'fixed'; wrap.style.inset = '0'; wrap.style.background = 'rgba(0,0,0,0.35)';
-          wrap.style.display = 'grid'; wrap.style.placeItems = 'center'; wrap.style.zIndex = '9999';
-          const boxModal = document.createElement('div');
-          boxModal.className = 'modal-box';
-          boxModal.style.background = '#fff'; boxModal.style.padding = '12px'; boxModal.style.maxWidth = '420px'; boxModal.style.width = 'calc(100% - 32px)'; boxModal.style.borderRadius = '8px';
-          const dt = new Date(ev.date); dt.setHours(0,0,0,0);
-          const iso = dt.toISOString().slice(0,10);
-          boxModal.innerHTML = `
-    <h3 style="margin:0 0 8px 0;">Edit Event</h3>
-    <div style="display:grid;gap:8px;">
-      <div><label>Date<br><input type="date" value="${iso}" data-field="date"></label></div>
-      <div class="muted">${ev.title||''}</div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
-        <button id="btn-cancel">Cancel</button>
-        <button id="btn-save">Save</button>
-      </div>
-    </div>
-  `;
-          wrap.appendChild(boxModal);
-          const close = ()=> wrap.remove();
-          wrap.addEventListener('click', (evx)=>{ if(evx.target===wrap) close(); });
-          boxModal.querySelector('#btn-cancel').addEventListener('click', close);
-          boxModal.querySelector('#btn-save').addEventListener('click', async ()=>{
-            const val = boxModal.querySelector('[data-field="date"]').value;
-            const nd = val ? new Date(val) : null;
-            if (nd && ev.source) {
-              await persistEventDate(ev.source, nd);
+          const data = e.dataTransfer && e.dataTransfer.getData('text/plain');
+          if(!data) return;
+          try{
+            const payload = JSON.parse(data);
+            if(payload && payload.source){
+              await persistEventDate(payload.source, new Date(d));
             }
-            close();
-          });
-          document.body.appendChild(wrap);
+          }catch (_) { }
         });
 
-        const icon = document.createElement('span');
-        icon.className = 'ev-icon';
-        icon.textContent = meta.icon || '';
-        item.appendChild(icon);
-        const textWrap = document.createElement('div');
-        textWrap.className = 'ev-text';
-        const title = document.createElement('strong');
-        title.textContent = ev.title || meta.label;
-        textWrap.appendChild(title);
-        if(ev.subtitle){
-          const sub = document.createElement('div');
-          sub.className = 'muted';
-          sub.textContent = ev.subtitle;
-          textWrap.appendChild(sub);
-        }
-        item.appendChild(textWrap);
-        item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
-        box.appendChild(item);
-      }
-      cell.appendChild(box);
-      grid.appendChild(cell);
-    }
+        const todays = events.filter(e=> ymd(e.date)===ymd(d) );
 
-    root.appendChild(grid);
+        if(view==='month'){
+          box.style.maxHeight = '140px';
+          box.style.overflowY = 'auto';
+          box.style.paddingRight = '2px';
+        }
+
+        for(let j=0; j<todays.length; j++){
+          const ev = todays[j];
+          const meta = EVENT_META_MAP.get(ev.type) || {label:ev.type, icon:''};
+          const item = document.createElement('div');
+          item.className = 'ev ev-'+ev.type;
+          item.style.fontSize = '12px';
+          item.style.background = colorForLoan(ev.loanKey) + '1A';
+          item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
+          item.style.position = 'relative';
+          item.dataset.date = String(ev.date?.toISOString?.() || '');
+          item.dataset.eventType = ev.type || '';
+          item.dataset.calendarEnhanced = '1';
+          const contactId = ev.contactId ? String(ev.contactId) : '';
+          if(contactId) item.dataset.contactId = contactId;
+          const canDrag = !!(ev.source && ev.source.entity && ev.source.id);
+          item.draggable = canDrag;
+          if (canDrag) {
+            item.dataset.source = `${ev.source.entity}:${ev.source.id}:${ev.source.field||''}`;
+          }
+
+          const bar = document.createElement('div');
+          bar.className = 'ev-status';
+          bar.style.height = '3px';
+          bar.style.background = colorForStatus(ev.status);
+          bar.style.marginBottom = '2px';
+          item.appendChild(bar);
+
+          if (canDrag){
+            item.addEventListener('dragstart', (e)=>{
+              if(!e.dataTransfer) return;
+              const payload = { type: ev.type, date: ev.date, source: ev.source || null };
+              try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch (_) { }
+            });
+          }
+
+          const openContact = (evt) => {
+            if(evt){ evt.preventDefault(); }
+            closeEventPopover();
+            openContactRecord(contactId);
+          };
+
+          item.addEventListener('click', openContact);
+
+          const icon = document.createElement('span');
+          icon.className = 'ev-icon';
+          icon.textContent = meta.icon || '';
+          item.appendChild(icon);
+          const textWrap = document.createElement('div');
+          textWrap.className = 'ev-text';
+          const title = document.createElement('strong');
+          title.textContent = ev.title || meta.label;
+          textWrap.appendChild(title);
+          if(ev.subtitle){
+            const sub = document.createElement('div');
+            sub.className = 'muted';
+            sub.textContent = ev.subtitle;
+            textWrap.appendChild(sub);
+          } else if(ev.contactName){
+            const sub = document.createElement('div');
+            sub.className = 'muted';
+            sub.textContent = ev.contactName;
+            textWrap.appendChild(sub);
+          }
+          item.appendChild(textWrap);
+          item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
+
+          const menuBtn = document.createElement('button');
+          menuBtn.type = 'button';
+          menuBtn.setAttribute('aria-label', 'Event quick actions');
+          menuBtn.textContent = '⋯';
+          menuBtn.style.position = 'absolute';
+          menuBtn.style.top = '2px';
+          menuBtn.style.right = '4px';
+          menuBtn.style.border = 'none';
+          menuBtn.style.background = 'transparent';
+          menuBtn.style.cursor = 'pointer';
+          menuBtn.style.fontSize = '16px';
+          menuBtn.style.lineHeight = '1';
+          menuBtn.style.padding = '0 4px';
+          menuBtn.style.color = '#555';
+          menuBtn.addEventListener('click', (evt)=>{
+            evt.preventDefault();
+            evt.stopPropagation();
+            if(popoverState.anchor === item){
+              closeEventPopover();
+              return;
+            }
+            closeEventPopover();
+            const pop = document.createElement('div');
+            pop.className = 'calendar-popover';
+            pop.setAttribute('role', 'dialog');
+            pop.style.position = 'absolute';
+            pop.style.minWidth = '220px';
+            pop.style.maxWidth = '260px';
+            pop.style.background = '#fff';
+            pop.style.border = '1px solid rgba(17,24,39,0.1)';
+            pop.style.boxShadow = '0 10px 30px rgba(15,23,42,0.18)';
+            pop.style.borderRadius = '8px';
+            pop.style.padding = '12px';
+            pop.style.fontSize = '12px';
+            pop.style.color = '#111827';
+            pop.style.zIndex = '10000';
+
+            const header = document.createElement('div');
+            header.style.fontWeight = '600';
+            header.style.marginBottom = '4px';
+            header.textContent = ev.title || meta.label || 'Calendar Event';
+            pop.appendChild(header);
+
+            const detail = document.createElement('div');
+            detail.style.marginBottom = '8px';
+            detail.style.color = '#4b5563';
+            const detailParts = [];
+            if(ev.contactName) detailParts.push(ev.contactName);
+            if(ev.subtitle) detailParts.push(ev.subtitle);
+            if(ev.contactStage) detailParts.push(ev.contactStage);
+            detail.textContent = detailParts.filter(Boolean).join(' • ') || meta.label || '';
+            pop.appendChild(detail);
+
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            actions.style.flexWrap = 'wrap';
+            actions.style.alignItems = 'center';
+
+            const openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'btn';
+            openBtn.textContent = 'Open Contact';
+            if(!contactId || typeof window.renderContactModal !== 'function'){
+              openBtn.disabled = true;
+            }
+            openBtn.addEventListener('click', (event)=>{
+              event.preventDefault();
+              event.stopPropagation();
+              openContact(event);
+              closeEventPopover();
+            });
+            actions.appendChild(openBtn);
+
+            const taskBtn = document.createElement('button');
+            taskBtn.type = 'button';
+            taskBtn.className = 'btn brand';
+            taskBtn.textContent = 'Add as Task';
+            if(!contactId){
+              taskBtn.disabled = true;
+            }
+            taskBtn.addEventListener('click', async (event)=>{
+              event.preventDefault();
+              event.stopPropagation();
+              if(taskBtn.disabled) return;
+              taskBtn.disabled = true;
+              try{
+                const result = await createTaskFromEvent(ev);
+                if(!result || result.status !== 'ok'){
+                  taskBtn.disabled = false;
+                  return;
+                }
+                closeEventPopover();
+              }catch (err){
+                taskBtn.disabled = false;
+                console && console.warn && console.warn('createTaskFromEvent failed', err);
+              }
+            });
+            actions.appendChild(taskBtn);
+            pop.appendChild(actions);
+
+            const rect = item.getBoundingClientRect();
+            const docEl = document.documentElement || document.body;
+            const top = rect.bottom + (window.scrollY || docEl.scrollTop || 0) + 6;
+            let left = rect.left + (window.scrollX || docEl.scrollLeft || 0);
+            pop.style.top = `${top}px`;
+            pop.style.left = `${Math.max(8, left)}px`;
+
+            document.body.appendChild(pop);
+
+            const adjust = () => {
+              const w = pop.getBoundingClientRect().width;
+              const viewportWidth = window.innerWidth || docEl.clientWidth || 0;
+              if(left + w > viewportWidth - 16){
+                left = Math.max(8, viewportWidth - w - 16);
+                pop.style.left = `${left}px`;
+              }
+            };
+            adjust();
+
+            const onDocClick = (docEvt) => {
+              if(!pop.contains(docEvt.target) && docEvt.target !== menuBtn){
+                closeEventPopover();
+              }
+            };
+            document.addEventListener('click', onDocClick, true);
+            popoverState.detach = () => { document.removeEventListener('click', onDocClick, true); };
+            popoverState.node = pop;
+            popoverState.anchor = item;
+          });
+          item.appendChild(menuBtn);
+
+          box.appendChild(item);
+        }
+        cell.appendChild(box);
+        grid.appendChild(cell);
+      }
+      root.appendChild(grid);
+    }
     legend(events);
 
     const snapshot = events.map((ev, index) => {
@@ -614,7 +818,10 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         loanKey: ev.loanKey || '',
         loanLabel: ev.loanLabel || '',
         date,
-        source
+        source,
+        contactId: ev.contactId || '',
+        contactStage: ev.contactStage || '',
+        contactName: ev.contactName || ''
       };
     });
     const rangeStart = start ? new Date(start.getTime()) : null;
@@ -631,7 +838,10 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         loanKey: ev.loanKey,
         loanLabel: ev.loanLabel,
         date: new Date(ev.date.getTime()),
-        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null
+        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
+        contactId: ev.contactId || '',
+        contactStage: ev.contactStage || '',
+        contactName: ev.contactName || ''
       }));
     };
     calendarApi.currentRange = {

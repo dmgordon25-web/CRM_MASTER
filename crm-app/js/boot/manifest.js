@@ -65,6 +65,7 @@ export const PATCHES = [
   './patches/patch_2025-10-23_unify_quick_create.js',
   './patches/patch_2025-10-23_dashboard_drag_fix.js',
   './patches/patch_2025-10-23_actionbar_drag.js',
+  './patches/patch_2025-10-23_calendar_contact_and_task.js',
   './ui/Toast.js',
   './ui/Confirm.js',
   './data/settings.js',
