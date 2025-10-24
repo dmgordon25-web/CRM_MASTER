@@ -350,8 +350,7 @@ import { normalizeStatus } from './pipeline/constants.js';
       {scope:'active',sel:'#tbl-status-active tbody tr'},
       {scope:'clients',sel:'#tbl-status-clients tbody tr'},
       {scope:'statusLongshots',sel:'#tbl-status-longshots tbody tr'},
-      {scope:'partners',sel:'#tbl-partners tbody tr'},
-      {scope:'longshots',sel:'#tbl-longshots tbody tr'}
+      {scope:'partners',sel:'#tbl-partners tbody tr'}
     ].forEach(({scope,sel})=>{
       const rows = $all(sel);
       if(!rows.length) return;
@@ -606,8 +605,7 @@ import { normalizeStatus } from './pipeline/constants.js';
       ['active','#btn-filters-active'],
       ['clients','#btn-filters-clients'],
       ['statusLongshots','#btn-filters-statusLongshots'],
-      ['partners','#btn-filters-partners'],
-      ['longshots','#btn-filters-longshots']
+      ['partners','#btn-filters-partners']
     ].forEach(([sc,sel])=>{
       const b=$(sel); if(b&&!b.__wired){ b.__wired=true; b.addEventListener('click', ()=> openFilters(sc)); }
     });
@@ -615,8 +613,7 @@ import { normalizeStatus } from './pipeline/constants.js';
       ['inprog','#btn-saveview-inprog'],
       ['active','#btn-saveview-active'],
       ['clients','#btn-saveview-clients'],
-      ['statusLongshots','#btn-saveview-statusLongshots'],
-      ['longshots','#btn-saveview-longshots']
+      ['statusLongshots','#btn-saveview-statusLongshots']
     ].forEach(([sc,sel])=>{
       const b=$(sel); if(b&&!b.__wired){ b.__wired=true; b.addEventListener('click', ()=> saveView(sc)); }
     });
@@ -624,8 +621,7 @@ import { normalizeStatus } from './pipeline/constants.js';
       ['inprog','#btn-delview-inprog'],
       ['active','#btn-delview-active'],
       ['clients','#btn-delview-clients'],
-      ['statusLongshots','#btn-delview-statusLongshots'],
-      ['longshots','#btn-delview-longshots']
+      ['statusLongshots','#btn-delview-statusLongshots']
     ].forEach(([sc,sel])=>{
       const b=$(sel); if(b&&!b.__wired){ b.__wired=true; b.addEventListener('click', ()=> deleteView(sc)); }
     });
@@ -633,8 +629,7 @@ import { normalizeStatus } from './pipeline/constants.js';
       ['inprog','#views-inprog'],
       ['active','#views-active'],
       ['clients','#views-clients'],
-      ['statusLongshots','#views-statusLongshots'],
-      ['longshots','#views-longshots']
+      ['statusLongshots','#views-statusLongshots']
     ].forEach(([sc,sel])=>{
       const dd=$(sel); if(dd&&!dd.__wired){ dd.__wired=true; dd.addEventListener('change', e=>{ const name=e.target.value; if(name) applyView(sc,name); }); refreshViewsUI(sc); }
     });
