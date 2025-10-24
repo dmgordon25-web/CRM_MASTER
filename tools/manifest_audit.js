@@ -1,151 +1,145 @@
 /* Node script to validate manifest lists. Exits 0 when OK, 2 on fatal. */
 const fs = require('fs'), path = require('path');
-const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
+
+const repoRoot = path.resolve(__dirname, '..');
+const jsRoot = path.join(repoRoot, 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
-const patchDir = path.join(jsRoot, 'patches');
+const patchesManifestPath = path.join(repoRoot, 'crm-app', 'patches', 'manifest.json');
+const bootManifestPath = path.join(manifestDir, 'manifest.js');
 
-const canonicalPatchOrder = [
-  './patch_20250923_baseline.js',
-  './patch_20250924_bootstrap_ready.js',
-  './patch_20250926_ctc_actionbar.js',
-  './patch_2025-09-26_phase1_pipeline_partners.js',
-  './patch_2025-09-26_phase2_automations.js',
-  './patch_2025-09-26_phase3_dashboard_reports.js',
-  './patch_2025-09-26_phase4_polish_regression.js',
-  './patch_2025-09-27_doccenter2.js',
-  './patch_2025-09-27_contact_linking_5A.js',
-  './patch_2025-09-27_contact_linking_5B.js',
-  './patch_2025-09-27_contact_linking_5C.js',
-  './patch_2025-09-27_merge_ui.js',
-  // Order rationale: feature polish → bundle/QA → fixes → final prep. Keep in lockstep with crm-app/js/boot/manifest.js.
-  './patch_2025-09-27_phase6_polish_telemetry.js',
-  './patch_2025-09-27_nth_bundle_and_qa.js',
-  './patch_2025-09-27_masterfix.js',
-  './patches/polish_overlay_ready.js',
-  './patch_2025-09-27_release_prep.js',
-  './patch_2025-10-02_baseline_ux_cleanup.js',
-  './patch_2025-10-02_medium_nice.js',
-  './patch_2025-10-03_calendar_ics_button.js',
-  './patch_2025-10-03_quick_add_partner.js',
-  './patch_2025-10-03_automation_seed.js',
-  './patches/patch_2025-10-23_dashboard_drag.js',
-  './contacts_merge.js',
-  './contacts_merge_orchestrator.js',
-  './pipeline/kanban_dnd.js',
-  './patches/patch_2025-10-23_session_beacon.js',
-  './patches/patch_2025-10-23_dashboard_drag_fix.js',
-  './ui/Toast.js',
-  './ui/Confirm.js',
-  './data/settings.js',
-  './data/seed.js',
-  './migrations.js',
-  './templates.js',
-  './filters.js',
-  './state/selectionStore.js',
-  './state/actionBarGuards.js',
-  './ui/notifications_panel.js',
-  './ui/action_bar.js',
-  './ui/merge_modal.js',
-  './debug/overlay.js',
-  './quick_add.js',
-  './doccenter_rules.js',
-  './contacts.js',
-  './partners.js',
-  './partners_modal.js',
-  './partners/list.js',
-  './partners_merge.js',
-  './partners_merge_orchestrator.js',
-  './dash_range.js',
-  './importer.js',
-  './reports.js',
-  './notifications.js',
-  './calendar_impl.js',
-  './calendar_actions.js',
-  './calendar.js',
-  './calendar_ics.js',
-  './diagnostics_quiet.js',
-  './doc/doc_center_enhancer.js',
-  './email/templates_store.js',
-  './importer_contacts.js',
-  './importer_helpers.js',
-  './importer_partners.js',
-  './merge/merge_core.js',
-  './notifications/notifier.js',
-  './patches/loader.js',
-  './selftest.js',
-  './selftest_panel.js',
-  '../seed_test_data.js',
-  './snapshot.js',
-  './ui/GhostButton.js',
-  './ui/PrimaryButton.js',
-  './ui/form_footer.js',
-  './ui/header_toolbar.js',
-  './ui/route_toast_sentinel.js',
-  './ui/quick_add_unified.js',
-  './ui/settings_form.js',
-  './ui/strings.js',
-  './util/strings.js',
-  './ux/svg_sanitizer.js',
-  './services/selection_adapter.js',
-  './services/selection_fallback.js',
-  './core/capabilities_probe.js',
-  './patches/patch_2025-10-23_unify_quick_create.js',
-  './patches/patch_2025-10-23_actionbar_drag.js'
-];
-
-const canonicalTailOrder = [
-  './patches/patch_2025-10-24_quickadd_header_only.js',
-  './patches/patch_2025-10-24_dashboard_drag_v2.js',
-  './patches/patch_2025-10-23_calendar_contact_and_task.js',
-  './patches/patch_2025-10-23_workbench_route.js',
-  './patches/patch_2025-10-24_polish.js'
-].filter(fileExists);
-
-const polishTailEntry = resolvePolishTailEntry();
-if (polishTailEntry && !canonicalTailOrder.includes(polishTailEntry)) {
-  canonicalTailOrder.push(polishTailEntry);
+function readJSON(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-for (const candidate of canonicalTailOrder) {
-  if (!canonicalPatchOrder.includes(candidate)) {
-    canonicalPatchOrder.push(candidate);
-  }
+function normalizeSpec(spec) {
+  const value = String(spec).trim();
+  if (!value) return value;
+  if (value.startsWith('./') || value.startsWith('../') || value.startsWith('/')) return value;
+  if (value.startsWith('crm-app/js/')) return `./${value.slice('crm-app/js/'.length)}`;
+  if (value.startsWith('js/')) return `./${value.slice(3)}`;
+  return value.startsWith('.') ? value : `./${value}`;
 }
 
-/* parse-ok: tail unified */ ;void 0;
-
-function resolvePolishTailEntry() {
-  const preferred = './patches/patch_2025-10-24_polish.js';
-  if (fileExists(preferred)) return preferred;
-  let matches = [];
-  try {
-    matches = fs.readdirSync(patchDir)
-      .filter(name => /^patch_\d{4}-\d{2}-\d{2}_.*polish.*\.js$/i.test(name))
-      .sort();
-  } catch (err) {
-    if (err && err.code !== 'ENOENT') throw err;
-  }
-  if (!matches.length) return null;
-  const latest = matches[matches.length - 1];
-  return `./patches/${latest}`;
-}
+/* merge-proof parse beacon */ void 0;
 
 function loadManifest() {
-  const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
+  const code = fs.readFileSync(bootManifestPath, 'utf8');
   const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
   const patchMatch = [...code.matchAll(/PATCHES\s*=\s*\[(.*?)\]/gs)][0];
   if (!coreMatch || !patchMatch) return { core: [], patches: [] };
-  const getList = s => (s.match(/'([^']+)'/g) || []).map(x => x.slice(1, -1));
+  const getList = (s) => (s.match(/'([^']+)'/g) || []).map((x) => normalizeSpec(x.slice(1, -1)));
   return { core: getList(coreMatch[1]), patches: getList(patchMatch[1]) };
 }
 
-function fileExists(p) {
-  const clean = p.startsWith('./') ? p.slice(2) : p;
-  return fs.existsSync(path.resolve(jsRoot, clean));
+function fileExists(spec) {
+  const normalized = normalizeSpec(spec);
+  if (normalized.startsWith('/')) return fs.existsSync(normalized);
+  return fs.existsSync(path.resolve(jsRoot, normalized));
 }
 
 (function main(){
   const { core: CORE, patches: PATCHES } = loadManifest();
+
+  let patchManifestRaw;
+  try {
+    patchManifestRaw = readJSON(patchesManifestPath);
+  } catch (err) {
+    console.error('[AUDIT] Failed to parse crm-app/patches/manifest.json');
+    console.error(err.message || err);
+    process.exit(2);
+  }
+
+  let patchManifestList = null;
+  if (Array.isArray(patchManifestRaw)) {
+    patchManifestList = patchManifestRaw.map(String);
+  } else if (patchManifestRaw && Array.isArray(patchManifestRaw.patches)) {
+    patchManifestList = patchManifestRaw.patches.map(String);
+  }
+
+  if (!patchManifestList) {
+    console.error('[AUDIT] Invalid crm-app/patches/manifest.json structure; expected an array or { patches: [] }');
+    process.exit(2);
+  }
+
+  const normalizedPatchManifest = patchManifestList.map(normalizeSpec);
+
+  const manifestsNormalized = normalizedPatchManifest.every((entry, idx) => entry === patchManifestList[idx]);
+  if (!manifestsNormalized) {
+    console.error('[AUDIT] crm-app/patches/manifest.json entries must be relative to crm-app/js using ./ prefixes');
+    process.exit(2);
+  }
+
+  const sameLength = normalizedPatchManifest.length === PATCHES.length;
+  const sameItems = sameLength && PATCHES.every((entry, idx) => entry === normalizedPatchManifest[idx]);
+  if (!sameItems) {
+    const limit = Math.max(PATCHES.length, normalizedPatchManifest.length);
+    let diffIndex = -1;
+    for (let i = 0; i < limit; i += 1) {
+      if (PATCHES[i] !== normalizedPatchManifest[i]) {
+        diffIndex = i;
+        break;
+      }
+    }
+    console.error('[AUDIT] PATCHES mismatch between manifests. First diff at index:', diffIndex);
+    console.error('patches/manifest.json tail:', normalizedPatchManifest.slice(-6));
+    console.error('boot/manifest.js tail:', PATCHES.slice(-6));
+    process.exit(3);
+  }
+
+  const TAIL_RULES = [
+    './patches/patch_2025-10-24_quickadd_header_only.js',
+    './patches/patch_2025-10-24_dashboard_drag_v2.js',
+    './patches/patch_2025-10-23_calendar_contact_and_task.js',
+    './patches/patch_2025-10-23_workbench_route.js',
+    './patches/patch_2025-10-24_polish.js',
+  ].map(normalizeSpec).filter((spec) => fileExists(spec));
+
+  const tailLen = TAIL_RULES.length;
+  if (tailLen) {
+    const tailSlice = PATCHES.slice(-tailLen);
+    const matches = tailSlice.every((entry, idx) => entry === TAIL_RULES[idx]);
+    if (!matches) {
+      console.error('[AUDIT] Tail rule violation. Expected tail:', TAIL_RULES);
+      console.error('[AUDIT] Actual tail:', tailSlice);
+      process.exit(4);
+    }
+  }
+
+  const all = [...CORE, ...PATCHES];
+  const seen = new Set(), dups = [];
+  for (const p of all) {
+    if (seen.has(p)) dups.push(p);
+    else seen.add(p);
+  }
+  const missing = all.filter((p) => !fileExists(p));
+
+  const patchSeen = new Set();
+  const patchDupes = [];
+  for (const patch of PATCHES) {
+    if (patchSeen.has(patch)) patchDupes.push(patch);
+    else patchSeen.add(patch);
+  }
+
+  const patchOrderIssues = [];
+
+  // Crawl js folder for unphased files (warn only)
+  function walk(dir){
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const out = [];
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...walk(full));
+      else if (full.endsWith('.js')) out.push(full);
+    }
+    return out;
+  }
+  const allJs = walk(jsRoot)
+    .map(p => './' + path.relative(jsRoot, p).replace(/\\/g, '/'));
+  const phList = new Set(all);
+  const unphased = allJs
+    .filter(p => !p.startsWith('./boot/'))
+    .filter(p => !phList.has(p));
+
   const CORE_DISALLOWED = [
     './ui/',
     './calendar_',
@@ -177,54 +171,6 @@ function fileExists(p) {
     process.exit(1);
   }
 
-  const all = [...CORE, ...PATCHES];
-  const seen = new Set(), dups = [];
-  for (const p of all) (seen.has(p) ? dups.push(p) : seen.add(p));
-  const missing = all.filter(p => !fileExists(p));
-
-  const patchSeen = new Set();
-  const patchDupes = [];
-  for (const patch of PATCHES) {
-    if (patchSeen.has(patch)) patchDupes.push(patch);
-    else patchSeen.add(patch);
-  }
-
-  const patchOrderIssues = [];
-  for (let i = 0; i < canonicalPatchOrder.length; i += 1) {
-    const expected = canonicalPatchOrder[i];
-    const actual = PATCHES[i];
-    if (actual === undefined) {
-      patchOrderIssues.push(`index ${i}: expected ${expected} but manifest ended`);
-      continue;
-    }
-    if (actual !== expected) {
-      const foundAt = PATCHES.indexOf(expected);
-      if (foundAt === -1) {
-        patchOrderIssues.push(`index ${i}: expected ${expected} but found ${actual} (missing expected entry)`);
-      } else {
-        patchOrderIssues.push(`index ${i}: expected ${expected} but found ${actual} (expected entry currently at index ${foundAt})`);
-      }
-    }
-  }
-  // Crawl js folder for unphased files (warn only)
-  function walk(dir){
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const out = [];
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) out.push(...walk(full));
-      else if (full.endsWith('.js')) out.push(full);
-    }
-    return out;
-  }
-  const allJs = walk(jsRoot)
-    .map(p => './' + path.relative(jsRoot, p).replace(/\\/g, '/'));
-  const phList = new Set(all);
-  const unphased = allJs
-    .filter(p => !p.startsWith('./boot/'))
-    .filter(p => !phList.has(p));
-
-  // Report
   const errors = [];
   if (dups.length) errors.push(['Duplicates:', dups]);
   if (missing.length) errors.push(['Missing or unreachable modules:', missing]);
