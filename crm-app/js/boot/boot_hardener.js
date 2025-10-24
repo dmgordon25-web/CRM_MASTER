@@ -131,17 +131,7 @@ function afterFirstPaint() {
 function scheduleReadyFinalization() {
   if (readyFinalizationPromise) return readyFinalizationPromise;
   readyFinalizationPromise = afterFirstPaint()
-    .then(() => {
-      if(globalScope && typeof globalScope.requestAnimationFrame === 'function'){
-        globalScope.requestAnimationFrame(() => {
-          try {
-            globalScope.__SPLASH_HIDDEN__ = true;
-            console.info('[VIS] splash hidden');
-          } catch (_) {}
-        });
-      }
-      return finalizeOnce('ready');
-    })
+    .then(() => finalizeOnce('ready'))
     .catch(() => {});
   return readyFinalizationPromise;
 }
