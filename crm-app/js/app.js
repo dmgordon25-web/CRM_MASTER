@@ -954,7 +954,69 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   const VIEW_LIFECYCLE = {
     dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
-    longshots: { id: 'view-longshots', ui: 'longshots-root' },
+    longshots: {
+      id: 'view-longshots',
+      ui: 'longshots-root',
+      mount(root){
+        if(!root || root.__longshotsSimplified) return;
+        root.__longshotsSimplified = true;
+
+        const removeNode = (node)=>{
+          if(!node) return;
+          if(typeof node.remove === 'function'){
+            node.remove();
+            return;
+          }
+          if(node.parentNode){
+            node.parentNode.removeChild(node);
+          }
+        };
+
+        const removeSelector = (selector, scope)=>{
+          const host = scope || root;
+          const node = host ? host.querySelector(selector) : null;
+          if(node) removeNode(node);
+        };
+
+        const card = root.querySelector('.card') || root;
+        const queryShell = card.querySelector('.query-shell[data-query-scope="longshots"]');
+        removeNode(queryShell);
+
+        const saveRow = card.querySelector('.row.query-save-row');
+        removeNode(saveRow);
+
+        ['#btn-filters-longshots', '#btn-saveview-longshots', '#btn-delview-longshots', '#views-longshots']
+          .forEach((selector)=> removeSelector(selector, card));
+
+        const simpleSearch = card.querySelector('input[data-table-search="#tbl-longshots"]');
+        if(simpleSearch){
+          try { applyTableSearch(simpleSearch); }
+          catch (_err) {}
+        }
+
+        if(!window.__LONGSHOTS_SIMPLIFIED_BEACONED__){
+          window.__LONGSHOTS_SIMPLIFIED_BEACONED__ = true;
+          try { console.info('[VIS] long-shots simplified'); }
+          catch (_err) {}
+          const payload = JSON.stringify({ event: 'longshots-simplified' });
+          let sent = false;
+          if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'){
+            try { sent = navigator.sendBeacon('/__log', payload) || sent; }
+            catch (_err) {}
+          }
+          if(!sent && typeof fetch === 'function'){
+            try {
+              fetch('/__log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+              }).catch(()=>{});
+            } catch (_err) {}
+          }
+        }
+      }
+    },
     pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
     partners: {
       id: 'view-partners',

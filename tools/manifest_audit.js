@@ -2,6 +2,7 @@
 const fs = require('fs'), path = require('path');
 const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
+const patchDir = path.join(jsRoot, 'patches');
 
 const canonicalPatchOrder = [
   './patch_20250923_baseline.js',
@@ -92,33 +93,47 @@ const canonicalPatchOrder = [
   './ux/svg_sanitizer.js',
   './services/selection_adapter.js',
   './services/selection_fallback.js',
-  './core/capabilities_probe.js'
+  './core/capabilities_probe.js',
+  './patches/patch_2025-10-23_unify_quick_create.js',
+  './patches/patch_2025-10-23_actionbar_drag.js'
 ];
 
-const tailCandidates = [
-  ['./patches/patch_2025-10-23_unify_quick_create.js'],
-  ['./patches/patch_2025-10-23_actionbar_drag.js'],
-  [
-    './patches/patch_2025-10-24_longshots_cleanup.js',
-    './patches/patch_2025-10-23_longshots_search_removed.js'
-  ],
-  ['./patches/patch_2025-10-24_quickadd_header_only.js'],
-  ['./patches/patch_2025-10-24_dashboard_drag_v2.js'],
-  ['./patches/patch_2025-10-23_calendar_contact_and_task.js'],
-  ['./patches/patch_2025-10-23_workbench_route.js'],
-  ['./patches/patch_2025-10-24_polish.js']
-];
+const canonicalTailOrder = [
+  './patches/patch_2025-10-24_quickadd_header_only.js',
+  './patches/patch_2025-10-24_dashboard_drag_v2.js',
+  './patches/patch_2025-10-23_calendar_contact_and_task.js',
+  './patches/patch_2025-10-23_workbench_route.js',
+  './patches/patch_2025-10-24_polish.js'
+].filter(fileExists);
 
-for (const group of tailCandidates) {
-  const entry = group.find(candidate => {
-    if (canonicalPatchOrder.includes(candidate)) return false;
-    const clean = candidate.startsWith('./') ? candidate.slice(2) : candidate;
-    return fs.existsSync(path.resolve(jsRoot, clean));
-  });
-  if (entry) canonicalPatchOrder.push(entry);
+const polishTailEntry = resolvePolishTailEntry();
+if (polishTailEntry && !canonicalTailOrder.includes(polishTailEntry)) {
+  canonicalTailOrder.push(polishTailEntry);
 }
 
-/* parse-ok */ ;void 0;
+for (const candidate of canonicalTailOrder) {
+  if (!canonicalPatchOrder.includes(candidate)) {
+    canonicalPatchOrder.push(candidate);
+  }
+}
+
+/* parse-ok: tail unified */ ;void 0;
+
+function resolvePolishTailEntry() {
+  const preferred = './patches/patch_2025-10-24_polish.js';
+  if (fileExists(preferred)) return preferred;
+  let matches = [];
+  try {
+    matches = fs.readdirSync(patchDir)
+      .filter(name => /^patch_\d{4}-\d{2}-\d{2}_.*polish.*\.js$/i.test(name))
+      .sort();
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') throw err;
+  }
+  if (!matches.length) return null;
+  const latest = matches[matches.length - 1];
+  return `./patches/${latest}`;
+}
 
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
