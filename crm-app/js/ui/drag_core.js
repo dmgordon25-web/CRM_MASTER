@@ -228,6 +228,34 @@ function ensurePlaceholder(state, item, rect){
   return placeholder;
 }
 
+function ensureGridOverlay(state){
+  if(state.gridOverlay || typeof document === 'undefined') return state.gridOverlay || null;
+  const container = state.container;
+  if(!container) return null;
+  const overlay = document.createElement('div');
+  overlay.className = 'dash-gridlines';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.zIndex = '0';
+  try{
+    container.insertBefore(overlay, container.firstChild || null);
+  }catch (_err){
+    container.appendChild(overlay);
+  }
+  state.gridOverlay = overlay;
+  return overlay;
+}
+
+function removeGridOverlay(state){
+  if(state.gridOverlay && state.gridOverlay.parentNode){
+    try{ state.gridOverlay.parentNode.removeChild(state.gridOverlay); }
+    catch (_err){}
+  }
+  state.gridOverlay = null;
+}
+
 export function applyOrder(container, orderIds, itemSelector, idGetter){
   if(!container || !itemSelector) return [];
   const orderList = Array.isArray(orderIds) ? orderIds.map(normalizeIdValue).filter(Boolean) : [];
@@ -346,6 +374,35 @@ function movePlaceholder(state, index){
 }
 
 function updatePlaceholderForPosition(state, x, y){
+  if(Array.isArray(state.itemsMeta) && state.itemsMeta.length){
+    const width = state.itemRect ? state.itemRect.width : 0;
+    const height = state.itemRect ? state.itemRect.height : 0;
+    const pointerX = x + width / 2;
+    const pointerY = y + height / 2;
+    let target = null;
+    let minDist = Infinity;
+    state.itemsMeta.forEach(meta => {
+      if(!meta) return;
+      const dx = pointerX - meta.centerX;
+      const dy = pointerY - meta.centerY;
+      const dist = dx * dx + dy * dy;
+      if(dist < minDist){
+        minDist = dist;
+        target = meta;
+      }
+    });
+    let index = state.itemsMeta.length;
+    if(target){
+      const horizontalBias = Math.abs(pointerX - target.centerX) > Math.abs(pointerY - target.centerY);
+      if(horizontalBias){
+        index = pointerX < target.centerX ? target.order : target.order + 1;
+      }else{
+        index = pointerY < target.centerY ? target.order : target.order + 1;
+      }
+    }
+    movePlaceholder(state, index);
+    return;
+  }
   const metrics = state.metrics;
   if(!metrics) return;
   const stepX = metrics.stepX || 1;
@@ -426,6 +483,8 @@ function finishDrag(state, commit){
   state.prevContainerPosition = '';
   state.startOrder = null;
   state.startIndex = null;
+  removeGridOverlay(state);
+  state.itemsMeta = null;
 }
 
 function cancelDrag(state, commit){
@@ -449,7 +508,7 @@ function handleGridPointerMove(evt, state){
   const translateX = snappedX - state.elemStartX;
   const translateY = snappedY - state.elemStartY;
   state.dragEl.style.transform = `translate(${translateX}px, ${translateY}px)`;
-  updatePlaceholderForPosition(state, snappedX, snappedY);
+  updatePlaceholderForPosition(state, rawX, rawY);
 }
 
 function handleGridPointerUp(evt, state){
@@ -479,6 +538,20 @@ function beginGridDrag(state, item, evt){
   state.elemStartY = itemRect.top - state.containerRect.top;
   state.originX = evt.clientX;
   state.originY = evt.clientY;
+  state.itemsMeta = items
+    .filter(el => el !== item)
+    .map((el, index) => {
+      const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      if(!rect) return null;
+      return {
+        node: el,
+        order: index,
+        rect,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2
+      };
+    })
+    .filter(Boolean);
   state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow']);
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
@@ -491,6 +564,7 @@ function beginGridDrag(state, item, evt){
       }
     }catch (_err){}
   }
+  ensureGridOverlay(state);
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
@@ -617,6 +691,8 @@ function ensureState(container){
       moveListener: null,
       upListener: null,
       restoreSelection: null,
+      gridOverlay: null,
+      itemsMeta: null,
       appliedInitialOrder: false,
       lastOrderSignature: null,
       pendingDrag: null

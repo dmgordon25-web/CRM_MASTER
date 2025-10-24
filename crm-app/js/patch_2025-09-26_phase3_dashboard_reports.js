@@ -45,7 +45,26 @@ function runPatch(){
       'uncategorized':'Unspecified'
     };
 
-    const DASHBOARD_WIDGET_KEYS = ['focus','filters','kpis','pipeline','today','leaderboard','stale','insights','opportunities'];
+    const DASHBOARD_WIDGET_KEYS = [
+      'focus',
+      'filters',
+      'kpis',
+      'pipeline',
+      'today',
+      'leaderboard',
+      'stale',
+      'goalProgress',
+      'numbersGlance',
+      'pipelineCalendar',
+      'priorityActions',
+      'milestones',
+      'docPulse',
+      'relationshipOpportunities',
+      'clientCareRadar',
+      'closingWatch',
+      'docCenter',
+      'statusStack'
+    ];
     const DASHBOARD_GRAPH_KEYS = ['goalProgress','numbersGlance','pipelineCalendar'];
     const DASHBOARD_WIDGET_CARD_KEYS = ['priorityActions','milestones','docPulse','relationshipOpportunities','clientCareRadar','closingWatch'];
     const DASHBOARD_KPI_KEYS = ['kpiNewLeads7d','kpiActivePipeline','kpiFundedYTD','kpiFundedVolumeYTD','kpiAvgCycleLeadToFunded','kpiTasksToday','kpiTasksOverdue','kpiReferralsYTD'];
@@ -56,18 +75,13 @@ function runPatch(){
       return map;
     }
 
+    const widgetDefaults = buildDefaultToggleMap(DASHBOARD_WIDGET_KEYS);
+    widgetDefaults.pipeline = false;
+    widgetDefaults.leaderboard = false;
+    widgetDefaults.stale = false;
     const DASHBOARD_WIDGET_DEFAULTS = {
       mode: 'today',
-      widgets: {
-        filters: true,
-        kpis: true,
-        pipeline: false,
-        today: true,
-        leaderboard: false,
-        stale: false,
-        insights: false,
-        opportunities: false
-      },
+      widgets: widgetDefaults,
       graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
       widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
       kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS),
@@ -82,13 +96,27 @@ function runPatch(){
       today: 'dashboard-today',
       leaderboard: 'referral-leaderboard',
       stale: 'dashboard-stale',
-      insights: 'dashboard-insights',
-      opportunities: 'dashboard-opportunities'
+      goalProgress: 'goal-progress-card',
+      numbersGlance: 'numbers-glance-card',
+      pipelineCalendar: 'pipeline-calendar-card',
+      priorityActions: 'priority-actions-card',
+      milestones: 'milestones-card',
+      docPulse: 'doc-pulse-card',
+      relationshipOpportunities: 'rel-opps-card',
+      clientCareRadar: 'nurture-card',
+      closingWatch: 'closing-watch-card',
+      docCenter: 'doc-center-card',
+      statusStack: 'dashboard-status-stack'
     };
 
-    const DASHBOARD_WIDGET_KEY_SET = new Set(DASHBOARD_WIDGET_KEYS);
+    const DASHBOARD_WIDGET_KEY_SET = new Set([].concat(DASHBOARD_WIDGET_KEYS, DASHBOARD_WIDGET_KEYS.map(key => key.toLowerCase())));
+    const DASHBOARD_WIDGET_KEY_LOOKUP = new Map(DASHBOARD_WIDGET_KEYS.map(key => [key.toLowerCase(), key]));
     const DASHBOARD_ORDER_STORAGE_KEY = 'dashboard.widgets.order';
-    const WIDGET_ID_TO_KEY = new Map(Object.entries(WIDGET_SECTION_IDS).map(([key, id]) => [String(id||'').toLowerCase(), key]));
+    const WIDGET_ID_TO_KEY = new Map(Object.entries(WIDGET_SECTION_IDS).flatMap(([key, id]) => {
+      const value = String(id || '').trim();
+      if(!value) return [];
+      return [[value.toLowerCase(), key], [value, key]];
+    }));
 
     function readStoredDashboardMode(){
       if(typeof localStorage === 'undefined') return null;
@@ -112,7 +140,7 @@ function runPatch(){
       const str = String(input).trim();
       if(!str) return null;
       const lower = str.toLowerCase();
-      if(DASHBOARD_WIDGET_KEY_SET.has(lower)) return lower;
+      if(DASHBOARD_WIDGET_KEY_LOOKUP.has(lower)) return DASHBOARD_WIDGET_KEY_LOOKUP.get(lower);
       if(WIDGET_ID_TO_KEY.has(lower)) return WIDGET_ID_TO_KEY.get(lower);
       return null;
     }
@@ -1265,10 +1293,12 @@ function runPatch(){
       }
       toggleSectionVisibility(WIDGET_SECTION_IDS.stale, widgetVisible('stale'));
 
-      const showInsights = state.dashboard.mode === 'all' && state.dashboard.widgets.insights !== false;
-      const showOpportunities = state.dashboard.mode === 'all' && state.dashboard.widgets.opportunities !== false;
-      toggleSectionVisibility(WIDGET_SECTION_IDS.insights, showInsights);
-      toggleSectionVisibility(WIDGET_SECTION_IDS.opportunities, showOpportunities);
+      const insightWidgetKeys = ['goalProgress','numbersGlance','pipelineCalendar','priorityActions','milestones','docPulse'];
+      const opportunityWidgetKeys = ['relationshipOpportunities','clientCareRadar','closingWatch'];
+      const showInsights = state.dashboard.mode === 'all' && insightWidgetKeys.some(widgetVisible);
+      const showOpportunities = state.dashboard.mode === 'all' && opportunityWidgetKeys.some(widgetVisible);
+      toggleSectionVisibility('dashboard-insights', showInsights);
+      toggleSectionVisibility('dashboard-opportunities', showOpportunities);
 
       applyWidgetOrderToDom(state.dashboard.order);
       ensureWidgetDnDWired();

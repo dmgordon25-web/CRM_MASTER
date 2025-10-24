@@ -9,17 +9,35 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   today: 'dashboard-today',
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
-  insights: 'dashboard-insights',
-  opportunities: 'dashboard-opportunities'
+  goalProgress: 'goal-progress-card',
+  numbersGlance: 'numbers-glance-card',
+  pipelineCalendar: 'pipeline-calendar-card',
+  priorityActions: 'priority-actions-card',
+  milestones: 'milestones-card',
+  docPulse: 'doc-pulse-card',
+  relationshipOpportunities: 'rel-opps-card',
+  clientCareRadar: 'nurture-card',
+  closingWatch: 'closing-watch-card',
+  docCenter: 'doc-center-card',
+  statusStack: 'dashboard-status-stack'
 };
 
 const DASHBOARD_WIDGET_ORDER = Object.keys(DASHBOARD_WIDGET_DOM_IDS);
-const DASHBOARD_WIDGET_KEY_SET = new Set(DASHBOARD_WIDGET_ORDER);
+const DASHBOARD_WIDGET_KEY_SET = (() => {
+  const set = new Set();
+  DASHBOARD_WIDGET_ORDER.forEach(key => {
+    const str = String(key);
+    set.add(str);
+    set.add(str.toLowerCase());
+  });
+  return set;
+})();
 const DASHBOARD_WIDGET_ID_MAP = (() => {
   const map = new Map();
   Object.entries(DASHBOARD_WIDGET_DOM_IDS).forEach(([key, id]) => {
     if(typeof id === 'string'){
       map.set(id.toLowerCase(), key);
+      map.set((id || '').trim(), key);
     }
   });
   return map;
@@ -289,18 +307,13 @@ function shouldValidateGeneral(partial){
   }
 
   function normalizeDashboard(input){
+    const widgetDefaults = buildDefaultToggleMap(DASHBOARD_WIDGET_ORDER);
+    widgetDefaults.pipeline = false;
+    widgetDefaults.leaderboard = false;
+    widgetDefaults.stale = false;
     const defaults = {
       mode: 'today',
-      widgets: {
-        filters: true,
-        kpis: true,
-        pipeline: false,
-        today: true,
-        leaderboard: false,
-        stale: false,
-        insights: false,
-        opportunities: false
-      },
+      widgets: widgetDefaults,
       graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
       widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
       kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS)
@@ -311,6 +324,18 @@ function shouldValidateGeneral(partial){
     const widgetCardSource = source.widgetCards && typeof source.widgetCards === 'object' ? source.widgetCards : {};
     const kpiSource = source.kpis && typeof source.kpis === 'object' ? source.kpis : {};
     const widgets = Object.assign({}, defaults.widgets);
+    if(typeof widgetsSource.insights === 'boolean'){
+      const value = widgetsSource.insights;
+      ['goalProgress','numbersGlance','pipelineCalendar','priorityActions','milestones','docPulse'].forEach(key => {
+        if(typeof widgetsSource[key] !== 'boolean') widgets[key] = value;
+      });
+    }
+    if(typeof widgetsSource.opportunities === 'boolean'){
+      const value = widgetsSource.opportunities;
+      ['relationshipOpportunities','clientCareRadar','closingWatch'].forEach(key => {
+        if(typeof widgetsSource[key] !== 'boolean') widgets[key] = value;
+      });
+    }
     Object.keys(widgets).forEach(key => {
       if(typeof widgetsSource[key] === 'boolean') widgets[key] = widgetsSource[key];
     });

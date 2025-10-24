@@ -14,12 +14,29 @@ const KPI_KEYS = [
 
 const GRAPH_RESOLVERS = {
   goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
-  numbersGlance: () => doc ? doc.querySelector('#dashboard-insights .numbers-glance') : null,
-  pipelineCalendar: () => {
-    if(!doc) return null;
-    const node = doc.getElementById('pipeline-calendar');
-    return node ? node.closest('.insight-card') : null;
-  }
+  numbersGlance: () => doc ? doc.getElementById('numbers-glance-card') : null,
+  pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null
+};
+
+const WIDGET_RESOLVERS = {
+  focus: () => doc ? doc.getElementById('dashboard-focus') : null,
+  filters: () => doc ? doc.getElementById('dashboard-filters') : null,
+  kpis: () => doc ? doc.getElementById('dashboard-kpis') : null,
+  pipeline: () => doc ? doc.getElementById('dashboard-pipeline-overview') : null,
+  today: () => doc ? doc.getElementById('dashboard-today') : null,
+  leaderboard: () => doc ? doc.getElementById('referral-leaderboard') : null,
+  stale: () => doc ? doc.getElementById('dashboard-stale') : null,
+  goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
+  numbersGlance: () => doc ? doc.getElementById('numbers-glance-card') : null,
+  pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null,
+  priorityActions: () => doc ? doc.getElementById('priority-actions-card') : null,
+  milestones: () => doc ? doc.getElementById('milestones-card') : null,
+  docPulse: () => doc ? doc.getElementById('doc-pulse-card') : null,
+  relationshipOpportunities: () => doc ? doc.getElementById('rel-opps-card') : null,
+  clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
+  closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
+  docCenter: () => doc ? doc.getElementById('doc-center-card') : null,
+  statusStack: () => doc ? doc.getElementById('dashboard-status-stack') : null
 };
 
 const WIDGET_CARD_RESOLVERS = {
@@ -43,6 +60,9 @@ const WIDGET_CARD_RESOLVERS = {
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
 
+const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
+const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
+
 const prefCache = { value: null, loading: null };
 
 function buildDefaultMap(keys) {
@@ -55,6 +75,7 @@ function buildDefaultMap(keys) {
 
 function defaultPrefs() {
   return {
+    widgets: buildDefaultMap(Object.keys(WIDGET_RESOLVERS)),
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
     widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS))
@@ -63,6 +84,7 @@ function defaultPrefs() {
 
 function clonePrefs(prefs) {
   return {
+    widgets: Object.assign({}, prefs.widgets),
     kpis: Object.assign({}, prefs.kpis),
     graphs: Object.assign({}, prefs.graphs),
     widgetCards: Object.assign({}, prefs.widgetCards)
@@ -73,6 +95,12 @@ function sanitizePrefs(settings) {
   const prefs = defaultPrefs();
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
   if (!dash || typeof dash !== 'object') return prefs;
+  const widgetSource = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
+  if (widgetSource) {
+    Object.keys(prefs.widgets).forEach(key => {
+      if (typeof widgetSource[key] === 'boolean') prefs.widgets[key] = widgetSource[key];
+    });
+  }
   const kpiSource = dash.kpis && typeof dash.kpis === 'object' ? dash.kpis : null;
   if (kpiSource) {
     Object.keys(prefs.kpis).forEach(key => {
@@ -85,10 +113,10 @@ function sanitizePrefs(settings) {
       if (typeof graphSource[key] === 'boolean') prefs.graphs[key] = graphSource[key];
     });
   }
-  const widgetSource = dash.widgetCards && typeof dash.widgetCards === 'object' ? dash.widgetCards : null;
-  if (widgetSource) {
+  const widgetCardSource = dash.widgetCards && typeof dash.widgetCards === 'object' ? dash.widgetCards : null;
+  if (widgetCardSource) {
     Object.keys(prefs.widgetCards).forEach(key => {
-      if (typeof widgetSource[key] === 'boolean') prefs.widgetCards[key] = widgetSource[key];
+      if (typeof widgetCardSource[key] === 'boolean') prefs.widgetCards[key] = widgetCardSource[key];
     });
   }
   return prefs;
@@ -136,28 +164,50 @@ function applyNodeVisibility(node, show) {
   }
 }
 
-function applyGraphVisibility(prefs) {
-  Object.entries(GRAPH_RESOLVERS).forEach(([key, resolver]) => {
+function applySurfaceVisibility(prefs) {
+  const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
+  const graphPrefs = prefs && typeof prefs.graphs === 'object' ? prefs.graphs : {};
+  const cardPrefs = prefs && typeof prefs.widgetCards === 'object' ? prefs.widgetCards : {};
+  const handledGraphs = new Set();
+  const handledCards = new Set();
+
+  Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
     let node = null;
     try {
       node = resolver();
     } catch (_err) {
       node = null;
     }
-    const show = prefs[key] !== false;
+    const widgetEnabled = widgetPrefs[key] !== false;
+    const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
+    const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
+    if(GRAPH_KEYS.has(key)) handledGraphs.add(key);
+    if(WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
+    const show = widgetEnabled && graphEnabled && cardEnabled;
     applyNodeVisibility(node, show);
   });
-}
 
-function applyWidgetCardVisibility(prefs) {
-  Object.entries(WIDGET_CARD_RESOLVERS).forEach(([key, resolver]) => {
+  Object.entries(GRAPH_RESOLVERS).forEach(([key, resolver]) => {
+    if(handledGraphs.has(key)) return;
     let node = null;
     try {
       node = resolver();
     } catch (_err) {
       node = null;
     }
-    const show = prefs[key] !== false;
+    const show = graphPrefs[key] !== false;
+    applyNodeVisibility(node, show);
+  });
+
+  Object.entries(WIDGET_CARD_RESOLVERS).forEach(([key, resolver]) => {
+    if(handledCards.has(key)) return;
+    let node = null;
+    try {
+      node = resolver();
+    } catch (_err) {
+      node = null;
+    }
+    const show = cardPrefs[key] !== false;
     applyNodeVisibility(node, show);
   });
 }
@@ -208,8 +258,7 @@ function scheduleApply() {
     pendingApply = false;
     try {
       const prefs = await getSettingsPrefs();
-      applyGraphVisibility(prefs.graphs);
-      applyWidgetCardVisibility(prefs.widgetCards);
+      applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
     } catch (err) {
       if (console && console.warn) console.warn('[dashboard] apply prefs failed', err);

@@ -8,6 +8,7 @@ const LEGACY_WIDGET_ORDER_KEY = 'dashboard.widgets.order';
 const LEGACY_HIDDEN_KEYS = ['dash:hidden:1'];
 const LEGACY_MODE_KEYS = ['dash:layoutMode:1'];
 const ITEM_SELECTOR = ':scope > section.card, :scope > section.grid, :scope > div.card';
+const GROUP_WIDGET_SELECTOR = '#dashboard-insights > .card, #dashboard-insights > section.card, #dashboard-opportunities > .card, #dashboard-opportunities > section.card';
 const HANDLE_SELECTOR = '[data-ui="card-title"], .insight-head, .row > strong:first-child, header, h2, h3, h4';
 const STYLE_ID = 'dash-layout-mode-style';
 const DASHBOARD_ROOT_SELECTOR = 'main[data-ui="dashboard-root"]';
@@ -20,12 +21,52 @@ const DASHBOARD_WIDGETS = [
   { id: 'dashboard-today', key: 'today', label: "Today's Work" },
   { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard' },
   { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals' },
-  { id: 'dashboard-insights', key: 'insights', label: 'Insights Grid' },
-  { id: 'dashboard-opportunities', key: 'opportunities', label: 'Opportunities' }
+  { id: 'goal-progress-card', key: 'goalProgress', label: 'Production Goals' },
+  { id: 'numbers-glance-card', key: 'numbersGlance', label: 'Numbers at a Glance' },
+  { id: 'pipeline-calendar-card', key: 'pipelineCalendar', label: 'Pipeline Calendar' },
+  { id: 'priority-actions-card', key: 'priorityActions', label: 'Priority Actions' },
+  { id: 'milestones-card', key: 'milestones', label: 'Milestones Ahead' },
+  { id: 'doc-pulse-card', key: 'docPulse', label: 'Document Pulse' },
+  { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities' },
+  { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar' },
+  { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist' },
+  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' },
+  { id: 'dashboard-status-stack', key: 'statusStack', label: 'Status Panels' }
 ];
 
-const KEY_TO_ID = new Map(DASHBOARD_WIDGETS.map(widget => [widget.key, widget.id]));
-const ID_TO_KEY = new Map(DASHBOARD_WIDGETS.map(widget => [widget.id, widget.key]));
+const LEGACY_WIDGET_REDIRECT = (() => {
+  const entries = [
+    ['dashboard-insights', ['goal-progress-card', 'numbers-glance-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
+    ['insights', ['goal-progress-card', 'numbers-glance-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
+    ['dashboard-opportunities', ['rel-opps-card', 'nurture-card', 'closing-watch-card']],
+    ['opportunities', ['rel-opps-card', 'nurture-card', 'closing-watch-card']]
+  ];
+  const map = new Map();
+  entries.forEach(([alias, ids]) => {
+    if(!alias || !ids || !ids.length) return;
+    const primary = String(alias).trim();
+    if(!primary) return;
+    const value = ids.filter(Boolean).map(id => String(id).trim()).filter(Boolean);
+    if(!value.length) return;
+    map.set(primary, value.slice());
+    map.set(primary.toLowerCase(), value.slice());
+    map.set(normalizeId(primary), value.slice());
+  });
+  return map;
+})();
+
+const KEY_TO_ID = new Map();
+const ID_TO_KEY = new Map();
+DASHBOARD_WIDGETS.forEach(widget => {
+  if(!widget || typeof widget !== 'object') return;
+  const key = typeof widget.key === 'string' ? widget.key : String(widget.key || '');
+  const id = typeof widget.id === 'string' ? widget.id : String(widget.id || '');
+  if(!key || !id) return;
+  KEY_TO_ID.set(key, id);
+  KEY_TO_ID.set(key.toLowerCase(), id);
+  ID_TO_KEY.set(id, key);
+  ID_TO_KEY.set(id.toLowerCase(), key);
+});
 
 const state = {
   wired: false,
@@ -76,6 +117,15 @@ function ensureStyle(){
 }
 [data-dash-layout-mode="on"] .dash-drag-placeholder::before {
   content: '';
+}
+[data-dash-layout-mode="on"] .dash-gridlines {
+  border: 2px dashed var(--border-strong, #94a3b8);
+  border-radius: 14px;
+  opacity: 0.35;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px),
+    repeating-linear-gradient(90deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px);
+  background-size: cover;
 }
 `;
   const head = document.head || document.getElementsByTagName('head')[0];
@@ -194,15 +244,35 @@ function writeLayoutModeFlag(enabled){
 }
 
 function convertKeysToIds(keys){
-  return keys
-    .map(key => KEY_TO_ID.get(String(key)) || String(key))
-    .map(normalizeId)
-    .filter(Boolean);
+  const results = [];
+  if(!Array.isArray(keys)) return results;
+  keys.forEach(raw => {
+    const value = raw == null ? '' : String(raw).trim();
+    if(!value) return;
+    const redirect = LEGACY_WIDGET_REDIRECT.get(value) || LEGACY_WIDGET_REDIRECT.get(value.toLowerCase()) || LEGACY_WIDGET_REDIRECT.get(normalizeId(value));
+    if(Array.isArray(redirect) && redirect.length){
+      redirect.forEach(id => {
+        const normalized = normalizeId(id);
+        if(normalized) results.push(normalized);
+      });
+      return;
+    }
+    const mapped = KEY_TO_ID.get(value) || KEY_TO_ID.get(value.toLowerCase()) || value;
+    const normalized = normalizeId(mapped);
+    if(normalized) results.push(normalized);
+  });
+  return results;
 }
 
 function convertIdsToKeys(ids){
+  if(!Array.isArray(ids)) return [];
   return ids
-    .map(id => ID_TO_KEY.get(String(id)) || String(id))
+    .map(id => {
+      const value = id == null ? '' : String(id).trim();
+      if(!value) return '';
+      const mapped = ID_TO_KEY.get(value) || ID_TO_KEY.get(value.toLowerCase()) || ID_TO_KEY.get(normalizeId(value));
+      return mapped || value;
+    })
     .map(normalizeId)
     .filter(Boolean);
 }
@@ -253,6 +323,31 @@ function collectWidgets(container){
   }
 }
 
+function collectGroupWidgets(container){
+  if(!container) return [];
+  try{
+    return Array.from(container.querySelectorAll(GROUP_WIDGET_SELECTOR))
+      .filter(node => node && node.nodeType === 1);
+  }catch (_err){
+    return [];
+  }
+}
+
+function collectAllWidgets(container){
+  if(!container) return [];
+  const list = [];
+  const seen = new Set();
+  const push = (node) => {
+    if(!node || node.nodeType !== 1) return;
+    if(seen.has(node)) return;
+    seen.add(node);
+    list.push(node);
+  };
+  collectWidgets(container).forEach(push);
+  collectGroupWidgets(container).forEach(push);
+  return list;
+}
+
 function ensureWidgetId(node, seen){
   if(!node) return '';
   const dataset = node.dataset || {};
@@ -285,8 +380,43 @@ function ensureWidgetId(node, seen){
   return finalId;
 }
 
+function expandHiddenIds(values){
+  const result = new Set();
+  if(!values) return result;
+  const add = (id) => {
+    const normalized = normalizeId(id);
+    if(normalized) result.add(normalized);
+  };
+  if(values instanceof Set){
+    values.forEach(value => {
+      const raw = value == null ? '' : String(value).trim();
+      if(!raw) return;
+      const redirect = LEGACY_WIDGET_REDIRECT.get(raw) || LEGACY_WIDGET_REDIRECT.get(raw.toLowerCase()) || LEGACY_WIDGET_REDIRECT.get(normalizeId(raw));
+      if(Array.isArray(redirect) && redirect.length){
+        redirect.forEach(add);
+        return;
+      }
+      add(raw);
+    });
+    return result;
+  }
+  if(Array.isArray(values)){
+    values.forEach(value => {
+      const raw = value == null ? '' : String(value).trim();
+      if(!raw) return;
+      const redirect = LEGACY_WIDGET_REDIRECT.get(raw) || LEGACY_WIDGET_REDIRECT.get(raw.toLowerCase()) || LEGACY_WIDGET_REDIRECT.get(normalizeId(raw));
+      if(Array.isArray(redirect) && redirect.length){
+        redirect.forEach(add);
+        return;
+      }
+      add(raw);
+    });
+  }
+  return result;
+}
+
 function prepareWidgets(container){
-  const items = collectWidgets(container);
+  const items = collectAllWidgets(container);
   if(!items.length) return items;
   state.slugCounts = new Map();
   const seen = new Set();
@@ -304,7 +434,7 @@ function getWidgetId(node){
 function applyVisibility(container){
   const target = container || ensureContainer();
   if(!target) return;
-  const items = collectWidgets(target);
+  const items = collectAllWidgets(target);
   if(!items.length) return;
   const seen = new Set();
   items.forEach(item => {
@@ -333,7 +463,7 @@ function applyVisibility(container){
 function applyLayoutFromStorage(reason){
   const container = ensureContainer();
   if(!container) return false;
-  state.hidden = new Set(readHiddenIds());
+  state.hidden = expandHiddenIds(readHiddenIds());
   prepareWidgets(container);
   const order = readOrderIds();
   if(order.length){
@@ -521,16 +651,17 @@ export function setDashboardLayoutMode(enabled, options = {}){
 
 export function applyDashboardHidden(input, options = {}){
   const nextSet = toIdSet(input);
-  let changed = nextSet.size !== state.hidden.size;
+  const expanded = expandHiddenIds(nextSet);
+  let changed = expanded.size !== state.hidden.size;
   if(!changed){
-    for(const id of nextSet){
+    for(const id of expanded){
       if(!state.hidden.has(id)){ changed = true; break; }
     }
   }
   if(!changed) return;
-  state.hidden = nextSet;
+  state.hidden = expanded;
   if(options.persist !== false){
-    writeHiddenIds(Array.from(nextSet).sort());
+    writeHiddenIds(Array.from(expanded).sort());
   }
   applyVisibility();
 }
