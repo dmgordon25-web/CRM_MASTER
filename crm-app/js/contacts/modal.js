@@ -217,7 +217,10 @@ function buildContext(config, dialog, detail){
     name,
     email,
     phone,
-    reminderLabel: config.getReminderLabel(dialog, { id, name, email, phone })
+    reminderLabel: config.getReminderLabel(dialog, { id, name, email, phone }),
+    entity: config.entity || 'contact',
+    contactId: config.entity === 'contact' ? id : null,
+    partnerId: config.entity === 'partner' ? id : (detail && detail.partnerId ? detail.partnerId : null)
   };
 }
 

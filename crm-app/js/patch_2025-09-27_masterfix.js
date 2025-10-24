@@ -714,11 +714,17 @@ function runPatch(){
 
     function ensureEmailModal(){
       let modal = document.getElementById('email-compose-modal');
-      if(modal) return modal;
+      if(modal){
+        if(modal.dataset && modal.dataset.composeVariant === 'automation-templates-v1'){
+          return modal;
+        }
+        return modal;
+      }
       modal = document.createElement('dialog');
       modal.id = 'email-compose-modal';
       modal.className = 'record-modal';
       modal.innerHTML = '<div class="dlg">\n      <div class="modal-header"><strong>Email Compose</strong><button type="button" class="btn" data-close>Close</button></div>\n      <div class="dialog-scroll"><div class="modal-body">\n        <label>To<input type="text" data-field="to" readonly></label>\n        <label>Subject<input type="text" data-field="subject"></label>\n        <label>Body<textarea data-field="body"></textarea></label>\n      </div></div>\n      <div class="modal-footer">\n        <button class="btn" type="button" data-open-mail>Open in default mail</button>\n        <button class="btn brand" type="button" data-copy>Copy to clipboard</button>\n      </div>\n    </div>';
+      modal.dataset.composeHandlers = 'automation-legacy';
       modal.addEventListener('click', evt => {
         if(evt.target && evt.target.closest('[data-close]')){
           evt.preventDefault();

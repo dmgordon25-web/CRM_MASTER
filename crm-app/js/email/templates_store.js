@@ -7,6 +7,93 @@ let hydrationPromise = null;
 let persistScheduled = false;
 let writeChain = Promise.resolve();
 
+const DEFAULT_TEMPLATE_SEED = [
+  {
+    id: 'default:birthday',
+    name: 'Birthday Celebration',
+    subject: 'Happy Birthday, {{PreferredName}}!',
+    body: 'Hi {{PreferredName}},\n\nWishing you a fantastic birthday from everyone at {{Company}}. If anything about your home plans has changed, let me know how I can help.\n\nWarmly,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:home-anniversary',
+    name: 'Home Anniversary',
+    subject: 'Celebrating your home anniversary!',
+    body: 'Hi {{PreferredName}},\n\nHappy home anniversary! It has been a pleasure supporting you since {{CloseDate}}. If you would like a quick check-in, market update, or refinance review, I am here for you.\n\nAll my best,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:touch-weekly',
+    name: 'Outreach Touch · Weekly',
+    subject: 'Quick weekly check-in',
+    body: 'Hi {{PreferredName}},\n\nJust dropping a quick note to see how everything is going this week. Anything I can handle for you or your clients?\n\nThanks,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:touch-biweekly',
+    name: 'Outreach Touch · Biweekly',
+    subject: 'Biweekly market pulse',
+    body: 'Hi {{PreferredName}},\n\nHere is your biweekly market pulse. Let me know if you would like deeper insights for {{PropertyAddress}} or your pipeline. I am glad to help.\n\nCheers,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:touch-monthly',
+    name: 'Outreach Touch · Monthly',
+    subject: 'Monthly homeowner tips',
+    body: 'Hi {{PreferredName}},\n\nSharing this month’s homeowner tips and loan updates. If you have questions about financing, planning, or referrals, I am one reply away.\n\nTake care,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:referral-post-close',
+    name: 'Referral Request · Post-Close',
+    subject: 'Thank you — and a quick request',
+    body: 'Hi {{PreferredName}},\n\nCongratulations again on your closing! If you know anyone looking for guidance, I would be grateful for an introduction. I will take great care of them just as I did for you.\n\nThank you,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:preapproval-expiring',
+    name: 'Milestone Nudge · Pre-Approval Expiring',
+    subject: 'Your pre-approval expires on {{PreapprovalExpiryDate}}',
+    body: 'Hi {{PreferredName}},\n\nA quick reminder that your pre-approval is set to expire on {{PreapprovalExpiryDate}}. Let’s refresh paperwork so you stay offer-ready. I can help gather what we need.\n\nTalk soon,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:clear-to-close',
+    name: 'Milestone Nudge · Clear to Close',
+    subject: 'You are clear to close! 🎉',
+    body: 'Hi {{PreferredName}},\n\nGreat news — we are clear to close! I will coordinate the final details so we stay on schedule for {{CloseDate}}. Reach out with any last-minute questions.\n\nExcited for you,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:post-close-7',
+    name: 'Post-Close Check-In · Day 7',
+    subject: 'Checking in after your closing',
+    body: 'Hi {{PreferredName}},\n\nJust checking in one week after closing to make sure everything is settling in nicely. Need vendor recs or paperwork? I am here to help.\n\nBest,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:post-close-30',
+    name: 'Post-Close Check-In · Day 30',
+    subject: '30-day homeowner check-in',
+    body: 'Hi {{PreferredName}},\n\nIt has been about a month since closing — how are things going? If you have questions about your loan, escrow, or anything else, let me know.\n\nSincerely,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:post-close-90',
+    name: 'Post-Close Check-In · Day 90',
+    subject: 'Quarterly check-in from {{LoanOfficerName}}',
+    body: 'Hi {{PreferredName}},\n\nChecking in a few months after closing to see how homeownership is treating you. When you are ready for a review or need advice, I am one message away.\n\nWarm regards,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:dormant-reactivation',
+    name: 'Dormant Lead Reactivation',
+    subject: 'Let’s reconnect on your goals',
+    body: 'Hi {{PreferredName}},\n\nIt has been a little while since we connected, and I wanted to see how your plans are progressing. If anything has changed or you would like fresh options, let’s schedule a quick catch-up.\n\nLooking forward to hearing from you,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:document-request',
+    name: 'Document Request',
+    subject: 'Quick document request for your file',
+    body: 'Hi {{PreferredName}},\n\nTo keep everything moving smoothly, could you send over the remaining documents we discussed? Once I have them, we can button up the file for {{PropertyAddress}}.\n\nThank you,\n{{LoanOfficerName}}',
+  },
+  {
+    id: 'default:import-welcome',
+    name: 'Welcome & Onboarding',
+    subject: 'Welcome to {{Company}} — next steps inside',
+    body: 'Hi {{PreferredName}},\n\nWelcome aboard! I am {{LoanOfficerName}}, and I will guide you through every step. Let’s schedule time to review goals, paperwork, and timelines so we start strong.\n\nTalk soon,\n{{LoanOfficerName}}',
+  },
+];
+
 const schedule = typeof queueMicrotask === 'function'
   ? queueMicrotask
   : (fn) => Promise.resolve().then(fn);
@@ -136,10 +223,15 @@ async function hydrate() {
         migrated = true;
       }
     }
+    let seeded = false;
+    if (!items.length && DEFAULT_TEMPLATE_SEED.length) {
+      items = DEFAULT_TEMPLATE_SEED.slice();
+      seeded = true;
+    }
     applyState(items, { notifySubscribers: false });
     hydrated = true;
     hydrationPromise = null;
-    notify({ persist: migrated });
+    notify({ persist: migrated || seeded });
     return STATE;
   })();
   return hydrationPromise;
