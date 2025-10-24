@@ -8,6 +8,8 @@ import {
   stageLabelFromKey,
 } from './pipeline/stages.js';
 import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normalizeStatus } from './pipeline/constants.js';
+import { openContactModal } from './contacts.js';
+import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_edit/index.js';
 
 (function(){
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
@@ -580,6 +582,65 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normal
     }
   }
 
+  function dispatchContactModal(contactId, options){
+    if(!contactId) return null;
+    const openers = [];
+    if(typeof openContactModal === 'function') openers.push(openContactModal);
+    if(typeof window !== 'undefined'){
+      if(typeof window.renderContactModal === 'function') openers.push(window.renderContactModal);
+      if(typeof window.openContactModal === 'function') openers.push(window.openContactModal);
+    }
+    for(const fn of openers){
+      if(typeof fn !== 'function') continue;
+      try{
+        const result = fn(contactId, options);
+        if(result && typeof result.catch === 'function'){
+          result.catch(err => {
+            try{ console && console.warn && console.warn('openContactModal failed', err); }
+            catch(_err){}
+          });
+        }
+        return result;
+      }catch (err){
+        try{ console && console.warn && console.warn('openContactModal failed', err); }
+        catch(_err){}
+      }
+    }
+    try{ console && console.warn && console.warn('contact modal unavailable', { contactId }); }
+    catch(_err){}
+    return null;
+  }
+
+  function dispatchPartnerModal(partnerId, options){
+    if(!partnerId) return null;
+    const openers = [];
+    if(typeof openPartnerModal === 'function') openers.push(openPartnerModal);
+    if(typeof window !== 'undefined'){
+      if(typeof window.openPartnerEditModal === 'function') openers.push(window.openPartnerEditModal);
+      if(typeof window.requestPartnerModal === 'function') openers.push(window.requestPartnerModal);
+      if(typeof window.openPartnerEdit === 'function') openers.push(window.openPartnerEdit);
+    }
+    for(const fn of openers){
+      if(typeof fn !== 'function') continue;
+      try{
+        const result = fn(partnerId, options);
+        if(result && typeof result.catch === 'function'){
+          result.catch(err => {
+            try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+            catch(_err){}
+          });
+        }
+        return result;
+      }catch (err){
+        try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+        catch(_err){}
+      }
+    }
+    try{ console && console.warn && console.warn('partner modal unavailable', { partnerId }); }
+    catch(_err){}
+    return null;
+  }
+
   function ensureWidgetClickHandlers(){
     ['rel-opps','nurture','closing-watch','needs-attn','upcoming'].forEach(id=>{
       const list = asEl(id);
@@ -591,10 +652,27 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normal
           if(!item) return;
           evt.preventDefault();
           const id = item.dataset.id;
-          if(id && typeof window.renderContactModal === 'function') window.renderContactModal(id);
+          if(!id) return;
+          const widgetKey = item.dataset.widget || id || 'widget';
+          const sourceHint = `dashboard:widget:${widgetKey}`;
+          dispatchContactModal(id, { sourceHint, trigger: item });
         });
       }
     });
+    const partnerList = asEl('top3');
+    if(partnerList && !partnerList.__wired){
+      partnerList.__wired = true;
+      partnerList.addEventListener('click', evt => {
+        const item = evt.target.closest('li[data-partner-id]');
+        if(!item) return;
+        evt.preventDefault();
+        const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId;
+        if(!partnerId) return;
+        const widgetKey = item.dataset.widget || 'top-partners';
+        const sourceHint = `dashboard:widget:${widgetKey}`;
+        dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
+      });
+    }
   }
 
   document.addEventListener('click', evt=>{
@@ -782,7 +860,14 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normal
       const focusLine = focus ? `<div class="insight-sub">Focus: ${safe(focus)}</div>` : '';
       const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
       const volumeLine = stat.volume ? `<div class="insight-sub">Loan Volume: ${money(stat.volume)}</div>` : '';
-      return `<li>
+      const attrPieces = ['role="button"'];
+      const partnerAttr = attr(pid);
+      if(partnerAttr){
+        attrPieces.push(`data-partner-id="${partnerAttr}"`);
+        attrPieces.push('data-widget="top-partners"');
+      }
+      const attrs = attrPieces.length ? ` ${attrPieces.join(' ')}` : '';
+      return `<li${attrs}>
         <div class="list-main">
           <span class="insight-avatar">${initials(p.name||'')}</span>
           <div>
