@@ -1,4 +1,5 @@
 import { mergeMatchers, normalizeBasePath, normalizePathname, resolveRoute } from './patterns.js';
+import { initSettingsAvatarRoute } from '../settings/index.js';
 
 function ensureDefaultHash(){
   if(typeof window === 'undefined' || !window?.location) return;
@@ -126,5 +127,6 @@ function installWorkbenchRoute(){
 }
 
 installWorkbenchRoute();
+initSettingsAvatarRoute();
 
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };

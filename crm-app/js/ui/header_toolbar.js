@@ -5,7 +5,6 @@ import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_men
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const BUTTON_ID = 'btn-header-new';
-let ensureControlsRef = null;
 let headerOnlyBeaconed = false;
 
 function postQuickAddLog(eventName) {
@@ -41,18 +40,6 @@ function emitHeaderOnlyBeacon() {
     console && typeof console.info === 'function' && console.info('[VIS] quick-add: header-only');
   } catch (_) {}
   postQuickAddLog('quickadd-header-only');
-}
-
-export function ensureProfileControls() {
-  try {
-    if (typeof ensureControlsRef === 'function') {
-      ensureControlsRef();
-    }
-  } catch (err) {
-    if (console && typeof console.info === 'function') {
-      console.info('[A_BEACON] ensureProfileControls error', err && (err.message || err));
-    }
-  }
 }
 
 function setupGlobalNewButton() {
@@ -172,288 +159,135 @@ if (typeof document !== 'undefined') {
     setupGlobalNewButton();
   }
 }
-(function(){
-  if(typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  const PROFILE_KEY = 'profile:v1';
-  const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
-  // localStorage is typically capped around 5 MB per-origin but strings are
-  // stored as UTF-16, so keep writes under ~4 MB of characters to avoid quota
-  // overflows once the data URL prefix is factored in.
-  const LOCAL_STORAGE_SAFE_CHARS = 4 * 1024 * 1024;
+const AVATAR_STORAGE_KEY = 'user:avatar:dataurl';
+const LEGACY_PROFILE_KEY = 'profile:v1';
+let headerAvatarBridgeInitialized = false;
+
+function warnAvatarBridge(message, detail) {
   try {
-    if(console && typeof console.info === 'function'){
-      console.info('[A_BEACON] avatar: limit=6MB');
-    }
-  } catch (_err) {}
-  // accept="image/" sentinel retained so legacy probes find the settings upload affordance.
-  const FILE_INPUT_HTML = '<input type="file" accept="image/*">';
-
-  function readProfileLocal(){
-    try{
-      const raw = localStorage.getItem(PROFILE_KEY);
-      if(!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    }catch (_err){
-      return null;
-    }
-  }
-
-  function isQuotaExceededError(err){
-    if(!err) return false;
-    return err.name === 'QuotaExceededError'
-      || err.name === 'NS_ERROR_DOM_QUOTA_REACHED'
-      || err.code === 22
-      || err.code === 1014;
-  }
-
-  function writeProfileLocal(profile){
-    try{
-      if(profile && typeof profile === 'object'){
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-      }else{
-        localStorage.removeItem(PROFILE_KEY);
-      }
-      return { ok: true, quota: false };
-    }catch (err){
-      return { ok: false, quota: isQuotaExceededError(err), error: err };
-    }
-  }
-
-  function mergeProfile(patch){
-    const current = readProfileLocal() || {};
-    const merged = Object.assign({}, current, patch || {});
-    const writeResult = writeProfileLocal(merged);
-    if(writeResult.ok){
-      if(window.Settings && typeof window.Settings.save === 'function'){
-        try{
-          const result = window.Settings.save({ loProfile: merged });
-          if(result && typeof result.then === 'function'){
-            result.catch(()=>{});
-          }
-        }catch (_err){}
-      }
-      return { profile: merged, writeError: null };
-    }
-    return { profile: current, writeError: writeResult };
-  }
-
-  function renderHeader(profile){
-    const chip = document.getElementById('lo-profile-chip');
-    if(!chip) return;
-    const nameEl = chip.querySelector('[data-role="lo-name"]');
-    const contactEl = chip.querySelector('[data-role="lo-contact"]');
-    const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
-    const email = typeof profile?.email === 'string' ? profile.email.trim() : '';
-    const phone = typeof profile?.phone === 'string' ? profile.phone.trim() : '';
-    const photo = typeof profile?.photoDataUrl === 'string' ? profile.photoDataUrl : '';
-    if(nameEl){
-      if(photo){
-        if(!nameEl.__photoOriginal){
-          nameEl.__photoOriginal = {
-            display: nameEl.style.display || '',
-            alignItems: nameEl.style.alignItems || '',
-            gap: nameEl.style.gap || ''
-          };
-        }
-        nameEl.style.display = 'flex';
-        nameEl.style.alignItems = 'center';
-        nameEl.style.gap = '8px';
-      }else if(nameEl.__photoOriginal){
-        const original = nameEl.__photoOriginal;
-        nameEl.style.display = original.display;
-        nameEl.style.alignItems = original.alignItems;
-        nameEl.style.gap = original.gap;
-      }
-      nameEl.textContent = name || 'Set your profile';
-      if(photo){
-        let img = nameEl.querySelector('[data-role="lo-photo"]');
-        if(!img){
-          img = document.createElement('img');
-          img.dataset.role = 'lo-photo';
-          img.alt = '';
-          img.style.cssText = 'width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;';
-          nameEl.insertBefore(img, nameEl.firstChild);
-        }
-        img.src = photo;
-      }else{
-        const img = nameEl.querySelector('[data-role="lo-photo"]');
-        if(img) img.remove();
+    if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+      if (detail !== undefined) {
+        console.warn(message, detail);
+      } else {
+        console.warn(message);
       }
     }
-    if(contactEl){
-      const parts = [];
-      if(email) parts.push(email);
-      if(phone) parts.push(phone);
-      contactEl.textContent = parts.length ? parts.join(' • ') : '—';
-    }
-  }
+  } catch (_) {}
+}
 
-  function renderPhotoPreview(photo){
-    const preview = document.getElementById('lo-photo-preview');
-    const emptyState = document.getElementById('lo-photo-empty');
-    if(preview){
-      if(photo){
-        preview.src = photo;
-        preview.style.display = 'block';
-      }else{
-        preview.removeAttribute('src');
-        preview.style.display = 'none';
+function readLegacyAvatar() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return '';
+  } catch (err) {
+    warnAvatarBridge('[soft] legacy avatar storage unavailable', err && (err.message || err));
+    return '';
+  }
+  try {
+    const raw = window.localStorage.getItem(LEGACY_PROFILE_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && typeof parsed.photoDataUrl === 'string') {
+      return parsed.photoDataUrl;
+    }
+  } catch (err) {
+    warnAvatarBridge('[soft] legacy avatar parse failed', err && (err.message || err));
+  }
+  return '';
+}
+
+function readStoredAvatar() {
+  if (typeof window === 'undefined') return '';
+  try {
+    if (window.localStorage) {
+      const direct = window.localStorage.getItem(AVATAR_STORAGE_KEY);
+      if (typeof direct === 'string') {
+        return direct;
       }
     }
-    if(emptyState){
-      emptyState.style.display = photo ? 'none' : '';
-    }
+  } catch (err) {
+    warnAvatarBridge('[soft] avatar storage read failed', err && (err.message || err));
+    return '';
   }
+  return readLegacyAvatar();
+}
 
-  function applyProfile(profile){
-    renderHeader(profile || {});
-    const photo = profile && typeof profile.photoDataUrl === 'string' ? profile.photoDataUrl : '';
-    renderPhotoPreview(photo);
+function applyHeaderAvatar(dataUrl) {
+  if (typeof document === 'undefined') return;
+  const chip = document.getElementById('lo-profile-chip');
+  if (!chip) return;
+  const nameEl = chip.querySelector('[data-role="lo-name"]');
+  if (!nameEl) return;
+
+  const photoDataUrl = typeof dataUrl === 'string' ? dataUrl : '';
+  const hasPhoto = !!photoDataUrl && photoDataUrl.startsWith('data:');
+  if (hasPhoto) {
+    if (!nameEl.__photoOriginal) {
+      nameEl.__photoOriginal = {
+        display: nameEl.style.display || '',
+        alignItems: nameEl.style.alignItems || '',
+        gap: nameEl.style.gap || ''
+      };
+    }
+    nameEl.style.display = 'flex';
+    nameEl.style.alignItems = 'center';
+    nameEl.style.gap = '8px';
+    let img = nameEl.querySelector('[data-role="lo-photo"]');
+    if (!img) {
+      img = document.createElement('img');
+      img.dataset.role = 'lo-photo';
+      img.alt = '';
+      img.style.cssText = 'width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;';
+      nameEl.insertBefore(img, nameEl.firstChild);
+    }
+    img.src = photoDataUrl;
+    nameEl.__photoFlexApplied = true;
+  } else {
+    const img = nameEl.querySelector('[data-role="lo-photo"]');
+    if (img) {
+      try { img.remove(); }
+      catch (_) { if (img.parentNode) img.parentNode.removeChild(img); }
+    }
+    if (nameEl.__photoFlexApplied && nameEl.__photoOriginal) {
+      const original = nameEl.__photoOriginal;
+      nameEl.style.display = original.display;
+      nameEl.style.alignItems = original.alignItems;
+      nameEl.style.gap = original.gap;
+    }
+    nameEl.__photoFlexApplied = false;
   }
+}
 
-  function handleFileInput(input){
-    const file = input && input.files ? input.files[0] : null;
-    if(!file){
-      if(input) input.value = '';
-      return;
-    }
-    if(file.size > PHOTO_MAX_BYTES){
-      if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Please choose an image under 6 MB.');
-      }
-      input.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.addEventListener('load', ()=>{
-      const result = reader.result;
-      if(typeof result === 'string'){
-        if(result.length > LOCAL_STORAGE_SAFE_CHARS){
-          if(window.Toast && typeof window.Toast.show === 'function'){
-            window.Toast.show('Image is too large to store locally. Please choose a smaller photo (about 3.5 MB or less).');
-          }
-          input.value = '';
-          return;
-        }
-        const { profile, writeError } = mergeProfile({ photoDataUrl: result });
-        if(writeError && window.Toast && typeof window.Toast.show === 'function'){
-          if(writeError.quota){
-            window.Toast.show('Browser storage quota exceeded. Please choose a smaller photo (about 3.5 MB or less).');
-          }else{
-            window.Toast.show('Unable to store photo locally. Please try again.');
-          }
-        }
-        applyProfile(profile);
-      }else if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Unable to read image.');
-      }
-      input.value = '';
-    });
-    reader.addEventListener('error', ()=>{
-      if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Unable to read image.');
-      }
-      input.value = '';
-    });
-    try{
-      reader.readAsDataURL(file);
-    }catch (_err){
-      if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show('Unable to read image.');
-      }
-      input.value = '';
-    }
-  }
+function initHeaderAvatarBridge() {
+  if (headerAvatarBridgeInitialized) return;
+  headerAvatarBridgeInitialized = true;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  function handleClear(){
-    const { profile, writeError } = mergeProfile({ photoDataUrl: '' });
-    if(writeError && window.Toast && typeof window.Toast.show === 'function'){
-      window.Toast.show(writeError.quota ? 'Unable to clear photo due to storage quota.' : 'Unable to clear photo.');
-    }
-    applyProfile(profile);
-  }
-
-  function ensureControls(){
-    const panel = document.getElementById('lo-profile-settings');
-    if(!panel) return;
-    let input = document.getElementById('lo-photo');
-    const label = panel.querySelector('label:last-of-type') || panel;
-    if(!input){
-      const template = document.createElement('div');
-      template.innerHTML = FILE_INPUT_HTML;
-      input = template.firstElementChild;
-      if(!input){
-        return;
-      }
-      input.id = 'lo-photo';
-      label.appendChild(input);
-    }
-    input.type = 'file';
-    input.setAttribute('accept', 'image/*');
-    if(!input.__headerToolbar){
-      input.__headerToolbar = true;
-      input.addEventListener('change', evt => {
-        const target = evt && evt.target instanceof HTMLInputElement ? evt.target : input;
-        handleFileInput(target);
-      });
-    }
-    const clearBtn = document.getElementById('btn-lo-photo-clear');
-    if(clearBtn && !clearBtn.__headerToolbar){
-      clearBtn.__headerToolbar = true;
-      clearBtn.addEventListener('click', evt => {
-        evt.preventDefault();
-        evt.stopPropagation();
-        handleClear();
-      });
-    }
-  }
-
-  ensureControlsRef = ensureControls;
-
-  function hydrate(){
-    const localProfile = readProfileLocal();
-    if(localProfile){
-      applyProfile(localProfile);
-      return;
-    }
-    if(window.Settings && typeof window.Settings.get === 'function'){
-      Promise.resolve(window.Settings.get())
-        .then(data => {
-          const profile = data && typeof data.loProfile === 'object' ? data.loProfile : {};
-          if(profile && typeof profile === 'object'){
-            const writeResult = writeProfileLocal(profile);
-            if(!writeResult.ok && writeResult.quota && window.Toast && typeof window.Toast.show === 'function'){
-              window.Toast.show('Stored profile is too large for browser storage. Please reduce the avatar size.');
-            }
-            applyProfile(profile);
-          }
-        })
-        .catch(()=>{});
-    }
-  }
-
-  const init = ()=>{
-    ensureControls();
-    hydrate();
+  const update = (fallbackUrl) => {
+    const stored = readStoredAvatar();
+    const dataUrl = stored || (typeof fallbackUrl === 'string' ? fallbackUrl : '');
+    applyHeaderAvatar(dataUrl);
   };
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init, { once:true });
-  }else{
-    init();
+  const ready = () => update('');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready, { once: true });
+  } else {
+    ready();
   }
 
-  window.addEventListener('storage', evt => {
-    if(evt && evt.key === PROFILE_KEY){
-      hydrate();
-    }
+  window.addEventListener('avatar:updated', (event) => {
+    const detailUrl = event && event.detail && typeof event.detail.dataUrl === 'string'
+      ? event.detail.dataUrl
+      : '';
+    update(detailUrl);
   });
 
-  document.addEventListener('app:data:changed', evt => {
-    const scope = evt && evt.detail && evt.detail.scope;
-    if(scope && scope !== 'settings') return;
-    hydrate();
-  });
-})();
+  try {
+    if (typeof console !== 'undefined' && typeof console.info === 'function') {
+      console.info('[VIS] header avatar bridge ready');
+    }
+  } catch (_) {}
+}
+
+initHeaderAvatarBridge();
