@@ -39,9 +39,6 @@ const WIDGET_RESOLVERS = {
   statusStack: () => doc ? doc.getElementById('dashboard-status-stack') : null
 };
 
-const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
-const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
-
 const WIDGET_CARD_RESOLVERS = {
   priorityActions: () => {
     if(!doc) return null;
@@ -62,6 +59,9 @@ const WIDGET_CARD_RESOLVERS = {
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
+
+const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
+const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
 
 const prefCache = { value: null, loading: null };
 
@@ -113,10 +113,10 @@ function sanitizePrefs(settings) {
       if (typeof graphSource[key] === 'boolean') prefs.graphs[key] = graphSource[key];
     });
   }
-  const widgetSource = dash.widgetCards && typeof dash.widgetCards === 'object' ? dash.widgetCards : null;
-  if (widgetSource) {
+  const widgetCardSource = dash.widgetCards && typeof dash.widgetCards === 'object' ? dash.widgetCards : null;
+  if (widgetCardSource) {
     Object.keys(prefs.widgetCards).forEach(key => {
-      if (typeof widgetSource[key] === 'boolean') prefs.widgetCards[key] = widgetSource[key];
+      if (typeof widgetCardSource[key] === 'boolean') prefs.widgetCards[key] = widgetCardSource[key];
     });
   }
   return prefs;

@@ -110,6 +110,7 @@ function runPatch(){
     };
 
     const DASHBOARD_WIDGET_KEY_SET = new Set([].concat(DASHBOARD_WIDGET_KEYS, DASHBOARD_WIDGET_KEYS.map(key => key.toLowerCase())));
+    const DASHBOARD_WIDGET_KEY_LOOKUP = new Map(DASHBOARD_WIDGET_KEYS.map(key => [key.toLowerCase(), key]));
     const DASHBOARD_ORDER_STORAGE_KEY = 'dashboard.widgets.order';
     const WIDGET_ID_TO_KEY = new Map(Object.entries(WIDGET_SECTION_IDS).flatMap(([key, id]) => {
       const value = String(id || '').trim();
@@ -139,7 +140,7 @@ function runPatch(){
       const str = String(input).trim();
       if(!str) return null;
       const lower = str.toLowerCase();
-      if(DASHBOARD_WIDGET_KEY_SET.has(lower)) return lower;
+      if(DASHBOARD_WIDGET_KEY_LOOKUP.has(lower)) return DASHBOARD_WIDGET_KEY_LOOKUP.get(lower);
       if(WIDGET_ID_TO_KEY.has(lower)) return WIDGET_ID_TO_KEY.get(lower);
       return null;
     }
