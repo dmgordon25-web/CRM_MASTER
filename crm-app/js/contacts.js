@@ -815,6 +815,21 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     try{ dlg.showModal(); }catch (_) { dlg.setAttribute('open',''); }
   };
 
+  if(typeof window !== 'undefined' && typeof window.renderContactModal === 'function'){
+    try{
+      Object.defineProperty(window.renderContactModal, '__crmReady', { value:true, configurable:true });
+    }catch (_err){
+      try{ window.renderContactModal.__crmReady = true; }
+      catch (__err){}
+    }
+    const ready = Promise.resolve(true);
+    try{
+      Object.defineProperty(window, '__CONTACT_MODAL_READY__', { value: ready, configurable:true });
+    }catch (_err){
+      window.__CONTACT_MODAL_READY__ = ready;
+    }
+  }
+
   document.addEventListener('click', (e)=>{
     const hit = e.target.closest('#btn-add-contact,[data-nav="add-contact"],.btn-add-contact');
     if(hit){ e.preventDefault(); window.renderContactModal(null); }

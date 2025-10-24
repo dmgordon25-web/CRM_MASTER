@@ -107,7 +107,9 @@ function buildCard(event, metaFor, openContact, addTask){
     evt.preventDefault();
     evt.stopPropagation();
     if(!event.contactId) return;
-    if(typeof openContact === 'function') openContact(event.contactId);
+    if(typeof openContact === 'function'){
+      Promise.resolve(openContact(event.contactId)).catch(()=>{});
+    }
   });
   actions.appendChild(openBtn);
 
