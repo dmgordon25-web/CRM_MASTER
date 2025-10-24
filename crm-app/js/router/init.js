@@ -97,4 +97,34 @@ function applyRouteFromPath(){
 
 applyRouteFromPath();
 
+function installWorkbenchRoute(){
+  if(typeof window === 'undefined') return;
+  let armed = false;
+  const matches = (hash) => {
+    const value = String(hash || '').trim().toLowerCase();
+    return value === '#/workbench' || value === '#workbench';
+  };
+  const handle = () => {
+    if(!window || !window.location) return;
+    if(!matches(window.location.hash)) return;
+    if(armed) return;
+    armed = true;
+    requestAnimationFrame(() => setTimeout(async () => {
+      try{
+        const mod = await import('../workbench/index.js');
+        const root = document.querySelector('#route-root') || document.body;
+        await mod.mountWorkbench(root);
+        console.info('[VIS] workbench armed (lazy)');
+      }catch (err){
+        console.warn('[soft] [workbench] lazy mount failed', err);
+        armed = false;
+      }
+    }, 0));
+  };
+  window.addEventListener('hashchange', handle);
+  handle();
+}
+
+installWorkbenchRoute();
+
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };
