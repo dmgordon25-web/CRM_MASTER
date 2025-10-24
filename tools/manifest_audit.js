@@ -32,13 +32,92 @@ const canonicalPatchOrder = [
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js',
   './patches/patch_2025-10-23_session_beacon.js',
-  './patches/patch_2025-10-23_unify_quick_create.js',
   './patches/patch_2025-10-23_dashboard_drag_fix.js',
   './patches/patch_2025-10-23_actionbar_drag.js',
   './patches/patch_2025-10-23_calendar_contact_and_task.js',
   './patches/patch_2025-10-24_dashboard_drag_v2.js'
   './patches/patch_2025-10-24_quickadd_header_only.js'
+  './ui/Toast.js',
+  './ui/Confirm.js',
+  './data/settings.js',
+  './data/seed.js',
+  './migrations.js',
+  './templates.js',
+  './filters.js',
+  './state/selectionStore.js',
+  './state/actionBarGuards.js',
+  './ui/notifications_panel.js',
+  './ui/action_bar.js',
+  './ui/merge_modal.js',
+  './debug/overlay.js',
+  './quick_add.js',
+  './doccenter_rules.js',
+  './contacts.js',
+  './partners.js',
+  './partners_modal.js',
+  './partners/list.js',
+  './partners_merge.js',
+  './partners_merge_orchestrator.js',
+  './dash_range.js',
+  './importer.js',
+  './reports.js',
+  './notifications.js',
+  './calendar_impl.js',
+  './calendar_actions.js',
+  './calendar.js',
+  './calendar_ics.js',
+  './diagnostics_quiet.js',
+  './doc/doc_center_enhancer.js',
+  './email/templates_store.js',
+  './importer_contacts.js',
+  './importer_helpers.js',
+  './importer_partners.js',
+  './merge/merge_core.js',
+  './notifications/notifier.js',
+  './patches/loader.js',
+  './selftest.js',
+  './selftest_panel.js',
+  '../seed_test_data.js',
+  './snapshot.js',
+  './ui/GhostButton.js',
+  './ui/PrimaryButton.js',
+  './ui/form_footer.js',
+  './ui/header_toolbar.js',
+  './ui/route_toast_sentinel.js',
+  './ui/quick_add_unified.js',
+  './ui/settings_form.js',
+  './ui/strings.js',
+  './util/strings.js',
+  './ux/svg_sanitizer.js',
+  './services/selection_adapter.js',
+  './services/selection_fallback.js',
+  './core/capabilities_probe.js'
 ];
+
+const tailCandidates = [
+  ['./patches/patch_2025-10-23_unify_quick_create.js'],
+  ['./patches/patch_2025-10-23_actionbar_drag.js'],
+  [
+    './patches/patch_2025-10-24_longshots_cleanup.js',
+    './patches/patch_2025-10-23_longshots_search_removed.js'
+  ],
+  ['./patches/patch_2025-10-24_quickadd_header_only.js'],
+  ['./patches/patch_2025-10-24_dashboard_drag_v2.js'],
+  ['./patches/patch_2025-10-23_calendar_contact_and_task.js'],
+  ['./patches/patch_2025-10-23_workbench_route.js'],
+  ['./patches/patch_2025-10-24_polish.js']
+];
+
+for (const group of tailCandidates) {
+  const entry = group.find(candidate => {
+    if (canonicalPatchOrder.includes(candidate)) return false;
+    const clean = candidate.startsWith('./') ? candidate.slice(2) : candidate;
+    return fs.existsSync(path.resolve(jsRoot, clean));
+  });
+  if (entry) canonicalPatchOrder.push(entry);
+}
+
+/* parse-ok */ ;void 0;
 
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
