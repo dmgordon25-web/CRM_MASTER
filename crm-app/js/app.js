@@ -1446,9 +1446,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const updateHash = () => {
       try{
         if(history && typeof history.replaceState === 'function'){
-          history.replaceState(null, '', '#workbench');
+          history.replaceState(null, '', '#/workbench');
         }else if(window.location){
-          window.location.hash = '#workbench';
+          window.location.hash = '#/workbench';
         }
       }catch (_) { }
     };
@@ -1478,7 +1478,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
 
     document.addEventListener('click', (evt) => {
-      const target = evt.target && evt.target.closest('[data-nav="workbench"], a[href="#workbench"], button[data-page="workbench"], button[data-nav="workbench"]');
+      const target = evt.target && evt.target.closest('[data-nav="workbench"], a[href="#workbench"], a[href="#/workbench"], button[data-page="workbench"], button[data-nav="workbench"]');
       if(!target) return;
       goWB(evt);
     });
