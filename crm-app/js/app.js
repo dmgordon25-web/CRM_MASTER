@@ -1395,11 +1395,21 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const mount = ensureWorkbenchMount();
       activate('workbench');
       try{
+        const routeLoader = window.WorkbenchRoute && typeof window.WorkbenchRoute.load === 'function'
+          ? window.WorkbenchRoute.load
+          : null;
+        const loadWorkbenchModule = async () => {
+          if(typeof routeLoader === 'function'){
+            try{ const mod = await routeLoader(); if(mod) return mod; }
+            catch (err){ console.warn('[soft] [workbench] route override failed', err); }
+          }
+          return import(fromHere('./pages/workbench.js'));
+        };
         const [mod, selftest] = await Promise.all([
-          import(fromHere('./pages/workbench.js')),
+          loadWorkbenchModule(),
           import(fromHere('./selftest.js')).catch(() => ({}))
         ]);
-        const renderFn = mod.initWorkbench || mod.renderWorkbench || (()=>{});
+        const renderFn = (mod && (mod.initWorkbench || mod.renderWorkbench)) || (()=>{});
         const options = {};
         if(selftest && typeof selftest.runSelfTest === 'function'){
           options.onRunSelfTest = selftest.runSelfTest;
