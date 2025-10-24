@@ -154,6 +154,7 @@ function buildCard(event, metaFor, openContact, addTask){
     });
     card.addEventListener('keydown', (evt)=>{
       if(evt.defaultPrevented) return;
+      if(evt.target !== card) return;
       if(evt.key === 'Enter' || evt.key === ' '){
         evt.preventDefault();
         triggerOpen();
