@@ -32,6 +32,15 @@ const state = {
   loggedInit: false
 };
 
+const lateState = {
+  rafId: null,
+  timeoutId: null,
+  observer: null,
+  notify: false,
+  reported: false,
+  reason: null
+};
+
 function postLog(event, data){
   const payload = JSON.stringify(Object.assign({ event }, data || {}));
   if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'){
@@ -159,7 +168,7 @@ function convertIdsToKeys(ids){
     .filter(Boolean);
 }
 
-function reorderElements(container, order){
+function applyOrder(container, order){
   if(!container || !order || !order.length) return;
   const items = Array.from(container.querySelectorAll(ITEM_SELECTOR)).filter(node => node && node.id);
   if(!items.length) return;
@@ -187,6 +196,105 @@ function collectDashboardItems(){
     return Array.from(container.querySelectorAll(ITEM_SELECTOR)).filter(el => el && el.id);
   }catch (_err){
     return [];
+  }
+}
+
+function applyLayoutOnce(container){
+  const target = container || ensureContainer();
+  if(!target) return false;
+  if(target !== state.container) state.container = target;
+  const order = readOrderIds();
+  if(order.length) applyOrder(target, order);
+  const hiddenIds = readHiddenIds().map(String);
+  state.hidden = new Set(hiddenIds);
+  applyVisibility();
+  if(lateState.notify && !lateState.reported){
+    lateState.reported = true;
+    const payload = lateState.reason ? { reason: lateState.reason } : undefined;
+    try{ console.info('[VIS] dash layout applied'); }
+    catch (_err){}
+    postLog('dash-layout-applied', payload);
+  }
+  return true;
+}
+
+function scheduleLateLayout(container, options = {}){
+  const hasDocument = typeof document !== 'undefined';
+  const initialTarget = container && hasDocument && document.contains(container)
+    ? container
+    : ensureContainer();
+  const skipImmediate = !!options.skipImmediate;
+  lateState.notify = true;
+  lateState.reported = false;
+  lateState.reason = options.reason || null;
+  if(lateState.rafId !== null && typeof cancelAnimationFrame === 'function'){
+    try{ cancelAnimationFrame(lateState.rafId); }
+    catch (_err){}
+  }
+  lateState.rafId = null;
+  if(lateState.timeoutId !== null){
+    try{ clearTimeout(lateState.timeoutId); }
+    catch (_err){}
+  }
+  lateState.timeoutId = null;
+  if(lateState.observer){
+    try{ lateState.observer.disconnect(); }
+    catch (_err){}
+    lateState.observer = null;
+  }
+  const apply = () => {
+    const nextTarget = container && hasDocument && document.contains(container)
+      ? container
+      : ensureContainer();
+    return nextTarget ? applyLayoutOnce(nextTarget) : applyLayoutOnce();
+  };
+  if(!skipImmediate){
+    apply();
+  }
+  if(typeof requestAnimationFrame === 'function'){
+    lateState.rafId = requestAnimationFrame(() => {
+      lateState.rafId = null;
+      apply();
+    });
+  }
+  if(typeof setTimeout === 'function'){
+    lateState.timeoutId = setTimeout(() => {
+      lateState.timeoutId = null;
+      apply();
+    }, 0);
+  }
+  if(typeof MutationObserver === 'function' && initialTarget){
+    const observer = new MutationObserver(mutationsList => {
+      if(!Array.isArray(mutationsList)) return;
+      const hasChild = mutationsList.some(mutation => mutation && mutation.type === 'childList');
+      if(!hasChild) return;
+      apply();
+      observer.disconnect();
+      if(lateState.observer === observer){
+        lateState.observer = null;
+      }
+    });
+    try{ observer.observe(initialTarget, { childList: true }); }
+    catch (_err){
+      observer.disconnect();
+      return;
+    }
+    lateState.observer = observer;
+    if(typeof requestAnimationFrame === 'function'){
+      let frames = 0;
+      const release = () => {
+        frames += 1;
+        if(frames >= 2){
+          if(lateState.observer === observer){
+            observer.disconnect();
+            lateState.observer = null;
+          }
+          return;
+        }
+        requestAnimationFrame(release);
+      };
+      requestAnimationFrame(release);
+    }
   }
 }
 function computeGridOptions(container){
@@ -307,15 +415,18 @@ function logInit(){
 }
 
 function reapplyLayout(reason){
-  if(!ensureContainer()) return;
+  const container = ensureContainer();
+  if(!container){
+    scheduleLateLayout(null, { skipImmediate: false, reason });
+    return;
+  }
+  const applied = applyLayoutOnce(container);
   if(state.drag){
     state.drag.refresh();
   }else{
-    const order = readOrderIds();
-    if(order.length) reorderElements(state.container, order);
     ensureDrag();
   }
-  applyVisibility();
+  scheduleLateLayout(container, { skipImmediate: applied, reason });
 }
 
 function onStorage(evt){
@@ -336,7 +447,7 @@ function onStorage(evt){
     }else{
       const order = readOrderIds();
       if(order.length && ensureContainer()){
-        reorderElements(state.container, order);
+        applyOrder(state.container, order);
       }
     }
     applyVisibility();
@@ -412,25 +523,31 @@ export function getDashboardListenerCount(){
   return dragListenerCount();
 }
 
+export function requestDashboardLayoutPass(input){
+  const opts = typeof input === 'string' ? { reason: input } : (input || {});
+  const container = opts.container && typeof opts.container === 'object' && opts.container.nodeType === 1
+    ? opts.container
+    : null;
+  scheduleLateLayout(container, { skipImmediate: !!opts.skipImmediate, reason: opts.reason || null });
+}
+
 export function initDashboardLayout(){
   if(state.wired){
-    ensureContainer();
+    const container = ensureContainer();
+    const applied = container ? applyLayoutOnce(container) : applyLayoutOnce();
     ensureDrag();
-    applyVisibility();
     updateLayoutModeAttr();
+    scheduleLateLayout(container || null, { skipImmediate: applied, reason: 'reinit' });
     return state;
   }
   state.layoutMode = readLayoutModeFlag();
   state.hidden = new Set(readHiddenIds());
   ensureStyle();
   const container = ensureContainer();
-  if(container){
-    const order = readOrderIds();
-    if(order.length) reorderElements(container, order);
-  }
+  const applied = container ? applyLayoutOnce(container) : applyLayoutOnce();
   ensureDrag();
   updateLayoutModeAttr();
-  applyVisibility();
+  scheduleLateLayout(container || null, { skipImmediate: applied, reason: 'init' });
   logInit();
   if(typeof window !== 'undefined'){
     attachOnce(window, 'storage', onStorage, 'dash-layout:storage');
