@@ -51,10 +51,6 @@ function snapshotItems() {
   }));
 }
 
-function enqueueMutation(fn) {
-  pendingMutations.push(fn);
-}
-
 function requestPersist() {
   if (hydrated) {
     schedulePersist();
@@ -214,15 +210,13 @@ async function hydrate() {
         migrated = true;
       }
     }
-    const queued = pendingMutations.slice();
-    pendingMutations.length = 0;
-    const shouldPersist = pendingPersist;
+    const pendingPersistRequest = pendingPersist;
     pendingPersist = false;
     applyState(items, { notifySubscribers: false });
     const queuedMutations = PENDING_MUTATIONS.splice(0, PENDING_MUTATIONS.length);
     hydrated = true;
     hydrationPromise = null;
-    const shouldPersist = migrated || persistPendingUntilHydrated;
+    const shouldPersist = migrated || persistPendingUntilHydrated || pendingPersistRequest;
     persistPendingUntilHydrated = false;
     if (queuedMutations.length) {
       queuedMutations.forEach((fn) => {
