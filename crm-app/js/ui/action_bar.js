@@ -4,6 +4,10 @@ import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_men
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
 const FAB_ID = 'global-new';
+const ACTION_BAR_STORAGE_KEY = 'actionbar:pos:1';
+
+let actionBarDragInitLogged = false;
+let actionBarDragInitGuard = false;
 
 const globalWiringState = typeof window !== 'undefined'
   ? (window.__ACTION_BAR_WIRING__ = window.__ACTION_BAR_WIRING__ || {
@@ -58,6 +62,30 @@ const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
     try { fn(); }
     catch (_) {}
   };
+
+function postActionBarTelemetry(event, data) {
+  if (!event) return;
+  const payload = JSON.stringify({ event, ...(data && typeof data === 'object' ? data : {}) });
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    try {
+      const blob = new Blob([payload], { type: 'application/json' });
+      navigator.sendBeacon('/__log', blob);
+      return;
+    } catch (_) {}
+  }
+  if (typeof fetch === 'function') {
+    try { fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }); }
+    catch (_) {}
+  }
+}
+
+function announceActionBarDragReady() {
+  if (actionBarDragInitLogged) return;
+  actionBarDragInitLogged = true;
+  try { console.info('[VIS] action-bar drag ready'); }
+  catch (_) {}
+  postActionBarTelemetry('actionbar-drag-ready');
+}
 
 function refreshActionBarVisibility() {
   if (typeof document === 'undefined') return;
@@ -198,6 +226,12 @@ function centerActionBarForRoute(options = {}) {
   if (!globalWiringState.actionsReady) return;
   const bar = document.getElementById('actionbar');
   if (!bar || !bar.isConnected) return;
+  if (applyStoredActionBarPosition(bar)) {
+    if (options.pulse !== false) {
+      triggerActionBarPulse(bar);
+    }
+    return;
+  }
   clearActionBarInlinePosition(bar);
   const rect = bar.getBoundingClientRect();
   if (!rect || !Number.isFinite(rect.top)) return;
@@ -574,6 +608,8 @@ function markActionbarHost() {
   if (dragState && dragState.hasManualPosition && dragState.lastPosition) {
     const { left = 0, top = 0 } = dragState.lastPosition;
     applyManualPosition(bar, left, top);
+  } else if (applyStoredActionBarPosition(bar)) {
+    /* position restored from storage */
   } else if (globalWiringState.routeState && globalWiringState.routeState.centerActive) {
     centerActionBarForRoute({ pulse: false, silent: true });
   }
@@ -718,6 +754,75 @@ function applyManualPosition(bar, left, top) {
   bar.style.bottom = 'auto';
 }
 
+function readStoredActionBarPosition() {
+  if (typeof window === 'undefined') return null;
+  const storage = window.localStorage;
+  if (!storage || typeof storage.getItem !== 'function') return null;
+  try {
+    const raw = storage.getItem(ACTION_BAR_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const left = Number(parsed.left);
+    const top = Number(parsed.top);
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return null;
+    return { left, top };
+  } catch (_) {
+    return null;
+  }
+}
+
+function persistActionBarPosition(position) {
+  if (typeof window === 'undefined' || !position) return;
+  const left = Number(position.left);
+  const top = Number(position.top);
+  if (!Number.isFinite(left) || !Number.isFinite(top)) return;
+  const storage = window.localStorage;
+  if (!storage || typeof storage.setItem !== 'function') return;
+  try {
+    storage.setItem(ACTION_BAR_STORAGE_KEY, JSON.stringify({ left, top }));
+  } catch (_) {}
+}
+
+function applyStoredActionBarPosition(bar) {
+  if (!bar) return false;
+  const stored = readStoredActionBarPosition();
+  if (!stored) return false;
+  const rect = typeof bar.getBoundingClientRect === 'function' ? bar.getBoundingClientRect() : null;
+  const width = rect && Number.isFinite(rect.width) && rect.width > 0
+    ? rect.width
+    : (typeof bar.offsetWidth === 'number' ? bar.offsetWidth : 0);
+  const height = rect && Number.isFinite(rect.height) && rect.height > 0
+    ? rect.height
+    : (typeof bar.offsetHeight === 'number' ? bar.offsetHeight : 0);
+  const viewportWidth = typeof window !== 'undefined' && typeof window.innerWidth === 'number' && window.innerWidth > 0
+    ? window.innerWidth
+    : null;
+  const viewportHeight = typeof window !== 'undefined' && typeof window.innerHeight === 'number' && window.innerHeight > 0
+    ? window.innerHeight
+    : null;
+  const effectiveWidth = Number.isFinite(width) && width > 0 ? width : 0;
+  const effectiveHeight = Number.isFinite(height) && height > 0 ? height : 0;
+  const maxLeft = viewportWidth != null ? Math.max(0, viewportWidth - effectiveWidth) : stored.left;
+  const maxTop = viewportHeight != null ? Math.max(0, viewportHeight - effectiveHeight) : stored.top;
+  const left = viewportWidth != null ? clamp(stored.left, 0, maxLeft) : stored.left;
+  const top = viewportHeight != null ? clamp(stored.top, 0, maxTop) : stored.top;
+  applyManualPosition(bar, left, top);
+  const state = globalWiringState.dragState;
+  if (state) {
+    state.hasManualPosition = true;
+    state.lastPosition = { left, top };
+    state.width = effectiveWidth;
+    state.height = effectiveHeight;
+  }
+  const routeState = globalWiringState.routeState;
+  if (routeState) {
+    routeState.centerActive = false;
+  }
+  persistActionBarPosition({ left, top });
+  return true;
+}
+
 function constrainManualPositionWithinViewport(bar) {
   if (typeof window === 'undefined' || !bar) return;
   const state = globalWiringState.dragState;
@@ -734,32 +839,35 @@ function constrainManualPositionWithinViewport(bar) {
   const top = clamp(state.lastPosition.top || 0, 0, maxTop);
   applyManualPosition(bar, left, top);
   state.lastPosition = { left, top };
+  persistActionBarPosition(state.lastPosition);
 }
 
 function ensureActionBarDragHandles(bar) {
   if (!bar) return;
   const state = globalWiringState.dragState;
   if (!state) return;
-  const shell = bar.querySelector('.actionbar-shell');
-  if (!shell) return;
-  if (state.wiredTarget && state.wiredTarget !== shell && state.downHandler) {
+  const handleTarget = bar;
+  if (!handleTarget || typeof handleTarget.addEventListener !== 'function') return;
+  if (state.wiredTarget && state.wiredTarget !== handleTarget && state.downHandler) {
     state.wiredTarget.removeEventListener('pointerdown', state.downHandler);
     state.wiredTarget = null;
     state.downHandler = null;
   }
-  if (state.wiredTarget === shell && state.downHandler) return;
+  if (state.wiredTarget === handleTarget && state.downHandler) return;
   const handlePointerDown = (event) => {
+    if (!event) return;
+    const isPrimary = typeof event.isPrimary === 'boolean' ? event.isPrimary : true;
+    if (!isPrimary) return;
     const btn = typeof event.button === 'number' ? event.button : 0;
     if (btn !== 0) return;
-    if (!isActionBarRouteActive()) return;
-    if ((globalWiringState.selectedCount || 0) <= 0) return;
+    if (bar.getAttribute('data-visible') !== '1') return;
     const target = event.target;
     if (target && typeof target.closest === 'function') {
       if (target.closest('button, [data-action], [data-act], a, input, select, textarea')) return;
     }
-    const barEl = document.getElementById('actionbar');
-    if (!barEl) return;
-    const rect = barEl.getBoundingClientRect();
+    const barEl = handleTarget;
+    if (!barEl || !barEl.isConnected) return;
+    const rect = typeof barEl.getBoundingClientRect === 'function' ? barEl.getBoundingClientRect() : null;
     if (!rect || rect.width <= 0 || rect.height <= 0) return;
     stopActionBarDrag('silent');
     applyManualPosition(barEl, rect.left, rect.top);
@@ -770,7 +878,7 @@ function ensureActionBarDragHandles(bar) {
     dragState.offsetY = event.clientY - rect.top;
     dragState.width = rect.width;
     dragState.height = rect.height;
-    dragState.shell = shell;
+    dragState.shell = handleTarget;
     dragState.hasManualPosition = true;
     dragState.lastPosition = { left: rect.left, top: rect.top };
     const routeState = globalWiringState.routeState;
@@ -779,44 +887,75 @@ function ensureActionBarDragHandles(bar) {
     }
     const moveHandler = (evt) => {
       if (!dragState.active || evt.pointerId !== dragState.pointerId) return;
-      const viewWidth = typeof window !== 'undefined' && typeof window.innerWidth === 'number' ? window.innerWidth : rect.right;
-      const viewHeight = typeof window !== 'undefined' && typeof window.innerHeight === 'number' ? window.innerHeight : rect.bottom;
-      const maxLeft = Math.max(0, viewWidth - dragState.width);
-      const maxTop = Math.max(0, viewHeight - dragState.height);
+      const primary = typeof evt.isPrimary === 'boolean' ? evt.isPrimary : true;
+      if (!primary) return;
+      const viewWidth = typeof window !== 'undefined' && typeof window.innerWidth === 'number'
+        ? window.innerWidth
+        : rect.right;
+      const viewHeight = typeof window !== 'undefined' && typeof window.innerHeight === 'number'
+        ? window.innerHeight
+        : rect.bottom;
+      const width = dragState.width || rect.width;
+      const height = dragState.height || rect.height;
+      const maxLeft = Math.max(0, viewWidth - width);
+      const maxTop = Math.max(0, viewHeight - height);
       const rawLeft = evt.clientX - dragState.offsetX;
       const rawTop = evt.clientY - dragState.offsetY;
       const left = clamp(rawLeft, 0, maxLeft);
       const top = clamp(rawTop, 0, maxTop);
       applyManualPosition(barEl, left, top);
       dragState.lastPosition = { left, top };
+      dragState.hasManualPosition = true;
       evt.preventDefault();
+    };
+    const finalize = () => {
+      if (dragState.lastPosition) {
+        persistActionBarPosition(dragState.lastPosition);
+      }
+      stopActionBarDrag();
     };
     const upHandler = (evt) => {
       if (evt.pointerId !== dragState.pointerId) return;
-      stopActionBarDrag();
+      finalize();
     };
     const cancelHandler = (evt) => {
       if (evt.pointerId !== dragState.pointerId) return;
-      stopActionBarDrag();
+      finalize();
     };
     dragState.moveHandler = moveHandler;
     dragState.upHandler = upHandler;
     dragState.cancelHandler = cancelHandler;
-    shell.addEventListener('pointermove', moveHandler);
-    shell.addEventListener('pointerup', upHandler);
-    shell.addEventListener('pointercancel', cancelHandler);
-    if (typeof shell.setPointerCapture === 'function') {
-      try { shell.setPointerCapture(event.pointerId); }
+    handleTarget.addEventListener('pointermove', moveHandler);
+    handleTarget.addEventListener('pointerup', upHandler);
+    handleTarget.addEventListener('pointercancel', cancelHandler);
+    if (typeof handleTarget.setPointerCapture === 'function') {
+      try { handleTarget.setPointerCapture(event.pointerId); }
       catch (_) {}
     }
     try { console.info('[A_BEACON] actionbar:drag-start'); }
     catch (_) {}
-    event.preventDefault();
   };
-  shell.addEventListener('pointerdown', handlePointerDown);
+  handleTarget.addEventListener('pointerdown', handlePointerDown);
   state.wired = true;
-  state.wiredTarget = shell;
+  state.wiredTarget = handleTarget;
   state.downHandler = handlePointerDown;
+}
+
+export function initActionBarDrag() {
+  if (actionBarDragInitGuard) return;
+  if (typeof document === 'undefined') return;
+  const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+  if (!bar) return;
+  actionBarDragInitGuard = true;
+  ensureActionBarDragHandles(bar);
+  const dragState = globalWiringState.dragState;
+  if (dragState && dragState.hasManualPosition && dragState.lastPosition) {
+    const { left = 0, top = 0 } = dragState.lastPosition;
+    applyManualPosition(bar, left, top);
+  } else {
+    applyStoredActionBarPosition(bar);
+  }
+  announceActionBarDragReady();
 }
 
 function getActionsHost() {
