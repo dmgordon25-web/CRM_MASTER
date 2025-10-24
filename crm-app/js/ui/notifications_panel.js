@@ -1,4 +1,5 @@
 import { listNotifications, onNotificationsChanged, replaceNotifications } from '../notifications/notifier.js';
+import { toastInfo, toastSoftError } from './toast_helpers.js';
 
 if (!window.__WIRED_NOTIF_TAB_COUNT__) {
   window.__WIRED_NOTIF_TAB_COUNT__ = true;
@@ -6,6 +7,9 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
   const raf = window.requestAnimationFrame || (cb => setTimeout(cb,16));
 
   let latest = [];
+  let readErrorNotified = false;
+  let persistErrorNotified = false;
+  let refreshErrorNotified = false;
 
   function isRecord(obj) {
     return obj && typeof obj === 'object';
@@ -24,9 +28,17 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
     try {
       const list = typeof listNotifications === 'function' ? listNotifications() : [];
       if (!Array.isArray(list)) return [];
+      readErrorNotified = false;
       return list.map(cloneNotification).filter(Boolean);
     } catch (err) {
-      console.warn('notifications panel: unable to read notifications', err);
+      const label = 'notifications panel: unable to read notifications';
+      if (!readErrorNotified) {
+        readErrorNotified = true;
+        toastSoftError(label, err, 'Unable to load notifications.');
+      } else {
+        try { console.warn(label, err); }
+        catch (_) {}
+      }
       return [];
     }
   }
@@ -127,20 +139,6 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
     host.appendChild(frag);
   }
 
-  function toast(message) {
-    if (window.Toast && typeof window.Toast.info === 'function') {
-      window.Toast.info(message);
-      return;
-    }
-    if (window.Toast && typeof window.Toast.show === 'function') {
-      window.Toast.show(message);
-      return;
-    }
-    if (typeof window.toast === 'function') {
-      window.toast(message);
-    }
-  }
-
   function persistReadAll(list) {
     if (!Array.isArray(list) || !list.length) return null;
     let changed = false;
@@ -158,9 +156,17 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
     }
     try {
       replaceNotifications(next);
+      persistErrorNotified = false;
       return next.map(cloneNotification).filter(Boolean);
     } catch (err) {
-      console.warn('notifications panel: unable to persist mark-all read', err);
+      const label = 'notifications panel: unable to persist mark-all read';
+      if (!persistErrorNotified) {
+        persistErrorNotified = true;
+        toastSoftError(label, err, 'Unable to mark notifications read.');
+      } else {
+        try { console.warn(label, err); }
+        catch (_) {}
+      }
       return null;
     }
   }
@@ -190,7 +196,7 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
       updateBadge(unread);
       setTab(unread);
       renderList(latest);
-      toast('All notifications marked read');
+      toastInfo('All notifications marked read');
     });
   }
 
@@ -241,13 +247,21 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
     setTab(unread);
     renderList(latest);
     ensureMarkAllButton();
+    refreshErrorNotified = false;
   }
 
   function apply() {
     try {
       refresh();
     } catch (err) {
-      console.warn('notifications panel: refresh failed', err);
+      const label = 'notifications panel: refresh failed';
+      if (!refreshErrorNotified) {
+        refreshErrorNotified = true;
+        toastSoftError(label, err, 'Unable to refresh notifications.');
+      } else {
+        try { console.warn(label, err); }
+        catch (_) {}
+      }
     }
   }
 

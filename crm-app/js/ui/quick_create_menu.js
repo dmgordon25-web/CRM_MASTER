@@ -1,4 +1,5 @@
 import { openPartnerEditModal } from './modals/partner_edit/index.js';
+import { toastInfo, toastWarn } from './toast_helpers.js';
 
 const WRAPPER_ID = 'global-new-menu';
 const MENU_ID = 'header-new-menu';
@@ -62,28 +63,6 @@ if (!bootBeaconEmitted) {
   postLog('quick-create-unified');
 }
 
-function showToast(kind, message) {
-  const text = String(message == null ? '' : message).trim();
-  if (!text) return;
-  const toast = window.Toast;
-  if (toast && typeof toast[kind] === 'function') {
-    try {
-      toast[kind](text);
-      return;
-    } catch (_) {}
-  }
-  if (toast && typeof toast.show === 'function') {
-    try {
-      toast.show(text);
-      return;
-    } catch (_) {}
-  }
-  if (typeof window.toast === 'function') {
-    try { window.toast(text); }
-    catch (_) {}
-  }
-}
-
 function callSafely(fn, ...args) {
   if (typeof fn !== 'function') return null;
   try {
@@ -92,7 +71,7 @@ function callSafely(fn, ...args) {
     if (console && typeof console.warn === 'function') {
       console.warn('[quick-create] action failed', err);
     }
-    showToast('warn', 'Something went wrong');
+    toastWarn('Something went wrong');
     return null;
   }
 }
@@ -269,7 +248,7 @@ function openContactEditor() {
     callSafely(window.openNewContact);
     return;
   }
-  showToast('warn', 'Contact modal unavailable');
+  toastWarn('Contact modal unavailable');
 }
 
 function openPartnerEditor() {
@@ -281,7 +260,7 @@ function openPartnerEditor() {
     Promise.resolve(callSafely(window.openPartnerEditModal, '', { allowAutoOpen: true }));
     return;
   }
-  showToast('warn', 'Partner modal unavailable');
+  toastWarn('Partner modal unavailable');
 }
 
 function openTaskEditor() {
@@ -297,7 +276,7 @@ function openTaskEditor() {
     catch (_) {}
     return;
   }
-  showToast('info', 'Tasks coming soon');
+  toastInfo('Tasks coming soon');
 }
 
 function handleOutsideClick(event) {
