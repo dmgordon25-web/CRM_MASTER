@@ -1,13 +1,12 @@
 import { openMergeModal } from './merge_modal.js';
-import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_menu.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
-const FAB_ID = 'global-new';
 const ACTION_BAR_STORAGE_KEY = 'actionbar:pos:1';
 
 let actionBarDragInitLogged = false;
 let actionBarDragInitGuard = false;
+let actionBarFabRemovedLogged = false;
 
 const globalWiringState = typeof window !== 'undefined'
   ? (window.__ACTION_BAR_WIRING__ = window.__ACTION_BAR_WIRING__ || {
@@ -77,6 +76,14 @@ function postActionBarTelemetry(event, data) {
     try { fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }); }
     catch (_) {}
   }
+}
+
+function emitActionBarFabRemoved() {
+  if (actionBarFabRemovedLogged) return;
+  actionBarFabRemovedLogged = true;
+  try { console && typeof console.info === 'function' && console.info('[VIS] action-bar plus removed'); }
+  catch (_) {}
+  postActionBarTelemetry('actionbar-plus-removed');
 }
 
 function announceActionBarDragReady() {
@@ -620,7 +627,8 @@ function markActionbarHost() {
 function initializeActionBar() {
   resetActionBarState();
   const bar = markActionbarHost();
-  ensureGlobalNewFab();
+  injectActionBarStyle();
+  ensureActionBarFabRemoved(bar);
   ensureMergeHandler();
   ensureSelectionSubscription();
   syncActionBarVisibility(0, bar);
@@ -667,43 +675,6 @@ function injectActionBarStyle(){
       #actionbar .btn{ padding:6px 10px; font-size:0.95rem; border-radius:10px; }
       #actionbar .btn.disabled{ opacity:.45; pointer-events:none; }
       #actionbar .btn.active{ outline:2px solid rgba(255,255,255,.35); transform:translateY(-1px); }
-      #actionbar .actionbar-fab{ position:relative; display:flex; align-items:center; justify-content:center; }
-      #global-new{
-        min-width:56px; min-height:56px; border-radius:999px; border:none;
-        background:var(--primary); color:var(--primary-text); cursor:pointer;
-        display:flex; align-items:center; justify-content:center;
-        font-size:30px; font-weight:600; line-height:1; padding:0;
-        box-shadow:0 12px 32px rgba(10,102,194,0.3);
-      }
-      #global-new:hover,#global-new:focus-visible{
-        background:var(--primary);
-        outline:none;
-      }
-      #global-new:active{
-        transform:none;
-      }
-      #global-new[aria-expanded="true"]{
-        background:var(--primary);
-      }
-      #global-new-menu{
-        position:fixed; left:50%; transform:translateX(-50%);
-        bottom:calc(var(--fab-safe-bottom, 24px) + 72px);
-        display:flex; flex-direction:column; gap:8px;
-        background:rgba(15,23,42,0.96); padding:12px;
-        border-radius:12px; min-width:200px;
-        box-shadow:0 18px 40px rgba(15,23,42,0.35);
-        z-index:10000;
-      }
-      #global-new-menu[hidden]{ display:none; }
-      #global-new-menu button{
-        border:none; border-radius:8px; padding:10px 12px;
-        background:rgba(248,250,252,0.08); color:#f8fafc;
-        font-size:14px; text-align:left; cursor:pointer;
-      }
-      #global-new-menu button:hover,#global-new-menu button:focus-visible{
-        background:rgba(248,250,252,0.16);
-        outline:none;
-      }
     `;
   document.head.appendChild(s);
 }
@@ -963,78 +934,30 @@ function getActionsHost() {
   return bar ? bar.querySelector('.actionbar-actions') : null;
 }
 
-function ensureFabElements() {
-  const host = getActionsHost();
-  if (!host) return null;
-  let wrap = host.querySelector('.actionbar-fab');
-  if (!wrap) {
-    wrap = document.createElement('div');
-    wrap.className = 'actionbar-fab';
-    host.appendChild(wrap);
-  }
-
-  let fab = document.getElementById(FAB_ID);
-  if (!fab) {
-    fab = document.createElement('button');
-    fab.id = FAB_ID;
-    fab.type = 'button';
-    fab.setAttribute('role', 'button');
-    fab.setAttribute('aria-label', 'New');
-    fab.setAttribute('data-qa', 'fab');
-    fab.setAttribute('aria-expanded', 'false');
-    fab.textContent = '+';
-    wrap.appendChild(fab);
-  } else if (!wrap.contains(fab)) {
-    wrap.appendChild(fab);
-  }
-
-  if (fab) {
-    if (!fab.classList.contains('fab')) {
-      fab.classList.add('fab');
+function ensureActionBarFabRemoved(bar) {
+  if (typeof document === 'undefined') return;
+  const root = bar || document.getElementById('actionbar');
+  if (!root) return;
+  const host = root.querySelector('.actionbar-actions') || root;
+  const wrappers = host ? Array.from(host.querySelectorAll('.actionbar-fab')) : [];
+  wrappers.forEach((wrap) => {
+    const fab = wrap.querySelector('#global-new');
+    if (fab) {
+      try { fab.remove(); }
+      catch (_) {}
     }
-    if (fab.getAttribute('aria-label') !== 'New') {
-      fab.setAttribute('aria-label', 'New');
+    if (!wrap.children.length) {
+      wrap.remove();
     }
-    if (fab.getAttribute('data-qa') !== 'fab') {
-      fab.setAttribute('data-qa', 'fab');
-    }
-    if (!fab.hasAttribute('data-action')) {
-      fab.setAttribute('data-action', 'new');
-    }
+  });
+  const strayFab = document.getElementById('global-new');
+  if (strayFab) {
+    try { strayFab.remove(); }
+    catch (_) {}
   }
-
-  if (!fab.__fabWired) {
-    fab.__fabWired = true;
-    fab.addEventListener('click', (event) => {
-      event.preventDefault();
-      toggleQuickCreateMenu({ anchor: fab, source: 'actionbar' });
-    });
+  if (!document.getElementById('global-new')) {
+    emitActionBarFabRemoved();
   }
-
-  if (!fab.__quickCreateStateWired) {
-    fab.__quickCreateStateWired = true;
-    const handleState = (event) => {
-      const detail = event && event.detail ? event.detail : {};
-      const expanded = !!(detail.open && detail.source === 'actionbar');
-      fab.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      if (!fab.isConnected) {
-        document.removeEventListener('quick-create-menu:state', handleState);
-      }
-    };
-    document.addEventListener('quick-create-menu:state', handleState);
-    if (isQuickCreateMenuOpen('actionbar')) {
-      fab.setAttribute('aria-expanded', 'true');
-    }
-  }
-
-  return { fab };
-}
-
-function ensureGlobalNewFab() {
-  injectActionBarStyle();
-  const bar = markActionbarHost();
-  if (!bar) return;
-  ensureFabElements();
 }
 
 function getSelectionStore() {
@@ -1216,9 +1139,9 @@ if (typeof window !== 'undefined') {
 }
 
 export function ensurePartnersMergeButton() {
-  markActionbarHost();
+  const bar = markActionbarHost();
   injectActionBarStyle();
-  ensureGlobalNewFab();
+  ensureActionBarFabRemoved(bar);
   const host = getActionsHost();
   if (!host) return null;
   let btn = document.getElementById(BUTTON_ID);
