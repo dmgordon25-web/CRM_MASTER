@@ -86,6 +86,59 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
     developing:'#92400e',
     partner:'#4f46e5'
   };
+  function parseHexColor(value){
+    if(!value) return null;
+    const hex = String(value).trim();
+    const match = /^#?([a-f0-9]{6})$/i.exec(hex);
+    if(!match) return null;
+    const raw = match[1];
+    return {
+      r: parseInt(raw.slice(0,2), 16),
+      g: parseInt(raw.slice(2,4), 16),
+      b: parseInt(raw.slice(4,6), 16)
+    };
+  }
+  function tintedColor(color, alpha){
+    const rgb = parseHexColor(color);
+    if(!rgb) return null;
+    const a = typeof alpha === 'number' ? Math.max(0, Math.min(1, alpha)) : 0;
+    return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+  }
+  function rowToneStyle(color){
+    if(!color || !parseHexColor(color)) return '';
+    const pieces = [`--row-accent:${color}`];
+    const tint = tintedColor(color, 0.08);
+    const hover = tintedColor(color, 0.16);
+    if(tint) pieces.push(`--row-tint:${tint}`);
+    if(hover) pieces.push(`--row-hover:${hover}`);
+    return pieces.length ? ` style="${attr(pieces.join(';'))}"` : '';
+  }
+  function classToken(value){
+    if(!value) return '';
+    return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+  function colorForStage(value){
+    if(!value) return null;
+    const raw = String(value).trim();
+    if(!raw) return null;
+    const lowered = raw.toLowerCase();
+    if(stageColors[lowered]) return stageColors[lowered];
+    const normalized = normalizeStatus(raw);
+    if(normalized){
+      if(stageColors[normalized]) return stageColors[normalized];
+      const spaced = normalized.replace(/-/g, ' ');
+      if(stageColors[spaced]) return stageColors[spaced];
+    }
+    const spacedRaw = lowered.replace(/-/g, ' ');
+    if(stageColors[spacedRaw]) return stageColors[spacedRaw];
+    return null;
+  }
+  function colorForTier(value){
+    if(!value) return null;
+    const lowered = String(value).trim().toLowerCase();
+    if(!lowered) return null;
+    return tierColors[lowered] || null;
+  }
   const $ = (sel, root=document) => root.querySelector(sel);
   const $all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
@@ -694,12 +747,17 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
       const email = p.email || '';
       const phone = p.phone || '';
       const tier = p.tier || 'Developing';
+      const tierToken = classToken(tier);
+      const tierTone = colorForTier(tier) || null;
+      const rowClasses = ['status-row','partner-tier-row'];
+      if(tierToken) rowClasses.push(`tier-${tierToken}`);
+      const rowToneAttr = tierToken ? ` data-row-tone="${attr(tierToken)}"` : '';
       const emailKey = attr(String(email||'').toLowerCase());
       const nameKey = attr(String(name||'').toLowerCase());
       const companyKey = attr(String(company||'').toLowerCase());
       const phoneKey = attr(String(phone||'').toLowerCase());
       const tierKey = attr(String(tier||'').toLowerCase());
-      return `<tr data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
+      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
         <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${safe(name)}</a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
@@ -1233,6 +1291,12 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
         const stageMeta = stageInfo(c.stage);
         const stageAttr = attr(stageMeta.normalizedKey);
         const stageCanonicalAttr = stageMeta.canonicalKey ? ` data-stage-canonical="${attr(stageMeta.canonicalKey)}"` : '';
+        const stageClass = classToken(stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '');
+        const stageToneKey = stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '';
+        const stageTone = colorForStage(stageToneKey);
+        const rowClasses = ['status-row','contact-stage-row'];
+        if(stageClass) rowClasses.push(`stage-${stageClass}`);
+        const rowToneAttr = stageClass ? ` data-row-tone="${attr(stageClass)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
         const amountVal = Number(c.loanAmount||0) || 0;
@@ -1248,7 +1312,7 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
@@ -1261,6 +1325,12 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
         const stageMeta = stageInfo(c.stage);
         const stageAttr = attr(stageMeta.normalizedKey);
         const stageCanonicalAttr = stageMeta.canonicalKey ? ` data-stage-canonical="${attr(stageMeta.canonicalKey)}"` : '';
+        const stageClass = classToken(stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '');
+        const stageToneKey = stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '';
+        const stageTone = colorForStage(stageToneKey);
+        const rowClasses = ['status-row','contact-stage-row'];
+        if(stageClass) rowClasses.push(`stage-${stageClass}`);
+        const rowToneAttr = stageClass ? ` data-row-tone="${attr(stageClass)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
         const amountVal = Number(c.loanAmount||0) || 0;
@@ -1277,7 +1347,7 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
@@ -1293,6 +1363,12 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
         const amountAttr = attr(amountVal);
         const emailAttr = attr((c.email||'').trim().toLowerCase());
         const phoneAttr = attr(normalizePhone(c.phone||''));
+        const longshotStageKey = normalizeStatus(c.stage) || normalizeStatus(c.status) || 'long shot';
+        const longshotClass = classToken(longshotStageKey);
+        const longshotTone = colorForStage(longshotStageKey) || colorForStage('long shot');
+        const rowClasses = ['status-row','contact-stage-row'];
+        if(longshotClass) rowClasses.push(`stage-${longshotClass}`);
+        const rowToneAttr = longshotClass ? ` data-row-tone="${attr(longshotClass)}"` : '';
         const lastIso = attr(isoDate(c.lastContact || c.nextFollowUp) || '');
         const refTokens = [];
         if(c.referredBy) refTokens.push(String(c.referredBy));
@@ -1303,7 +1379,7 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}">
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${safe(loanLabel||'')}</td><td>${amountVal ? money(amountVal) : '—'}</td>
