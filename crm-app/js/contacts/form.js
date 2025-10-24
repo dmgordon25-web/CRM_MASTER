@@ -1,3 +1,5 @@
+import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
+
 window.CRM = window.CRM || {};
 
 const QA_BUTTON = 'referred-by-quick-add';
@@ -109,19 +111,6 @@ function ensureButton(state){
     button.addEventListener('click', (evt)=>{
       evt.preventDefault();
       const trigger = evt?.currentTarget instanceof HTMLElement ? evt.currentTarget : button;
-      const openPartnerEdit = (window.CRM && typeof window.CRM.openPartnerEditModal === 'function')
-        ? window.CRM.openPartnerEditModal
-        : (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
-      if(typeof openPartnerEdit !== 'function'){
-        if(window.Toast?.show){
-          window.Toast.show('Partner editor unavailable');
-        }else if(typeof window.toast === 'function'){
-          try{ window.toast('Partner editor unavailable'); }
-          catch(_err){}
-        }
-        return;
-      }
-
       if(typeof button.__partnerCleanup === 'function'){
         try{ button.__partnerCleanup(); }
         catch(_cleanupErr){}
@@ -179,17 +168,13 @@ function ensureButton(state){
       try{ console && console.info && console.info('[A_BEACON] contact->add-new-partner: open'); }
       catch(_logErr){}
 
-      const result = openPartnerEdit('', { allowAutoOpen: true, sourceHint, trigger });
+      const result = openPartnerEditModal('', { allowAutoOpen: true, sourceHint, trigger });
       Promise.resolve(result).then(root => {
         watcher.root = root || null;
         if(!root){
           cleanup();
-          if(window.Toast?.show){
-            window.Toast.show('Partner editor unavailable');
-          }else if(typeof window.toast === 'function'){
-            try{ window.toast('Partner editor unavailable'); }
-            catch(_err){}
-          }
+          try{ console && console.warn && console.warn('openPartnerEditModal returned no root for contact add partner'); }
+          catch(_err){}
           return null;
         }
         try{ root.addEventListener('close', handleClose, { once: true }); }
@@ -199,12 +184,6 @@ function ensureButton(state){
         cleanup();
         try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
         catch(_warnErr){}
-        if(window.Toast?.show){
-          window.Toast.show('Partner editor unavailable');
-        }else if(typeof window.toast === 'function'){
-          try{ window.toast('Partner editor unavailable'); }
-          catch(_err){}
-        }
       });
     });
   }
