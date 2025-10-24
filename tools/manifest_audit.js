@@ -88,7 +88,6 @@ function fileExists(spec) {
 
   const TAIL_RULES = [
     './patches/patch_2025-10-24_quickadd_header_only.js',
-    './patches/patch_2025-10-24_dashboard_drag_v2.js',
     './patches/patch_2025-10-23_calendar_contact_and_task.js',
     './patches/patch_2025-10-23_workbench_route.js',
     './patches/patch_2025-10-24_polish.js',

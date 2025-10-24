@@ -3,10 +3,11 @@ import initDashboardLayout, {
   applyDashboardHidden,
   readStoredLayoutMode,
   readStoredHiddenIds,
-  getDashboardWidgets
+  getDashboardWidgets,
+  requestDashboardLayoutPass
 } from '../ui/dashboard_layout.js';
 
-const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card[id], :scope > section.grid[id], :scope > div.card[id]';
+const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card, :scope > section.grid, :scope > div.card';
 const defaultWidgets = getDashboardWidgets();
 const defaultOrderIndex = new Map(defaultWidgets.map((widget, index) => [widget.id, index]));
 
@@ -103,7 +104,7 @@ function scanWidgets(container){
   if(!container) return;
   let nodes;
   try{
-    nodes = Array.from(container.querySelectorAll(DASHBOARD_WIDGET_SELECTOR)).filter(el => el && el.id);
+    nodes = Array.from(container.querySelectorAll(DASHBOARD_WIDGET_SELECTOR)).filter(el => el && el.nodeType === 1);
   }catch (_err){
     return;
   }
@@ -111,9 +112,32 @@ function scanWidgets(container){
   const seen = new Set();
   const next = [];
   nodes.forEach(node => {
-    const id = String(node.id || '').trim();
-    if(!id || seen.has(id)) return;
+    const dataset = node.dataset || {};
+    let id = dataset.widgetId || dataset.widget || '';
+    id = id ? String(id).trim() : '';
+    if(!id){
+      id = String(node.id || '').trim();
+    }
+    if(!id){
+      const fallback = resolveWidgetLabel(node);
+      if(fallback){
+        id = fallback.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      }
+    }
+    if(!id) return;
+    if(seen.has(id)){
+      let index = 1;
+      let candidate = `${id}-${index}`;
+      while(seen.has(candidate)){
+        index += 1;
+        candidate = `${id}-${index}`;
+      }
+      id = candidate;
+    }
     seen.add(id);
+    if(!dataset.widgetId){
+      node.dataset.widgetId = id;
+    }
     let label = widgetLabelMap.get(id);
     if(!label){
       label = resolveWidgetLabel(node) || id;
@@ -196,6 +220,7 @@ function render(){
       prefsState.layoutMode = enabled;
       setDashboardLayoutMode(enabled);
       dispatchLayoutMode(enabled);
+      requestDashboardLayoutPass({ reason: 'prefs-layout-mode' });
     });
   }
   if(!list.__wired){
@@ -216,6 +241,7 @@ function render(){
       prefsState.hidden = nextHidden;
       applyDashboardHidden(nextHidden);
       dispatchHiddenChange(nextHidden);
+      requestDashboardLayoutPass({ reason: 'prefs-hidden' });
     });
   }
   list.querySelectorAll('input[data-widget-id]').forEach(input => {

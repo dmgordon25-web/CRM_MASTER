@@ -38,10 +38,60 @@ function collectItems(container, itemSelector){
   if(!container || !itemSelector) return [];
   try{
     return Array.from(container.querySelectorAll(itemSelector))
-      .filter(el => el && el.nodeType === 1 && el.id);
+      .filter(el => el && el.nodeType === 1);
   }catch (_err){
     return [];
   }
+}
+
+function normalizeIdValue(value){
+  if(value == null) return '';
+  return String(value).trim();
+}
+
+function defaultElementId(item){
+  if(!item) return '';
+  const dataset = item.dataset || {};
+  const candidates = [
+    dataset.widgetId,
+    dataset.id,
+    dataset.key,
+    item.getAttribute ? item.getAttribute('data-widget-id') : null,
+    item.getAttribute ? item.getAttribute('data-id') : null,
+    item.getAttribute ? item.getAttribute('data-key') : null,
+    item.id
+  ];
+  for(const candidate of candidates){
+    const normalized = normalizeIdValue(candidate);
+    if(normalized) return normalized;
+  }
+  return '';
+}
+
+function wrapIdGetter(getter){
+  if(typeof getter === 'function'){
+    return (item) => {
+      try{
+        const value = normalizeIdValue(getter(item));
+        if(value) return value;
+      }catch (_err){}
+      return defaultElementId(item);
+    };
+  }
+  return defaultElementId;
+}
+
+function getItemId(state, item){
+  if(!item) return '';
+  const getter = state && typeof state.idGetter === 'function' ? state.idGetter : defaultElementId;
+  try{
+    const value = normalizeIdValue(getter(item));
+    if(value) return value;
+  }catch (_err){}
+  if(getter !== defaultElementId){
+    return defaultElementId(item);
+  }
+  return '';
 }
 
 function firstHandleFor(item, selectors){
@@ -161,6 +211,44 @@ function ensurePlaceholder(state, item, rect){
   return placeholder;
 }
 
+export function applyOrder(container, orderIds, itemSelector, idGetter){
+  if(!container || !itemSelector) return [];
+  const orderList = Array.isArray(orderIds) ? orderIds.map(normalizeIdValue).filter(Boolean) : [];
+  let items = [];
+  try{
+    items = Array.from(container.querySelectorAll(itemSelector));
+  }catch (_err){
+    items = [];
+  }
+  items = items.filter(el => el && el.nodeType === 1);
+  if(!items.length) return [];
+  const getId = wrapIdGetter(idGetter);
+  const map = new Map();
+  items.forEach(item => {
+    const id = normalizeIdValue(getId(item));
+    if(id && !map.has(id)) map.set(id, item);
+  });
+  const handled = new Set();
+  const frag = document.createDocumentFragment();
+  orderList.forEach(id => {
+    const node = map.get(id);
+    if(!node || handled.has(node)) return;
+    handled.add(node);
+    frag.appendChild(node);
+  });
+  items.forEach(item => {
+    if(handled.has(item)) return;
+    frag.appendChild(item);
+  });
+  if(frag.childNodes.length){
+    container.appendChild(frag);
+  }
+  return Array.from(container.querySelectorAll(itemSelector))
+    .filter(el => el && el.nodeType === 1)
+    .map(item => normalizeIdValue(getId(item)))
+    .filter(Boolean);
+}
+
 function deriveMetrics(state, rect){
   const container = state.container;
   const firstItem = rect ? null : collectItems(container, state.itemSelector)[0];
@@ -191,25 +279,13 @@ function deriveMetrics(state, rect){
 function reorderFromOrder(state, order, signature){
   const container = state.container;
   if(!container || !order || !order.length) return [];
-  const items = collectItems(container, state.itemSelector);
-  if(!items.length) return [];
-  const map = new Map();
-  items.forEach(item => map.set(item.id, item));
-  const handled = new Set();
-  const frag = document.createDocumentFragment();
-  order.forEach(id => {
-    const node = map.get(id);
-    if(!node || handled.has(node)) return;
-    handled.add(node);
-    frag.appendChild(node);
-  });
-  items.forEach(item => {
-    if(handled.has(item)) return;
-    frag.appendChild(item);
-  });
-  container.appendChild(frag);
-  const applied = collectItems(container, state.itemSelector).map(item => item.id);
-  state.lastOrderSignature = signature || applied.join('|');
+  const applied = applyOrder(container, order, state.itemSelector, state.idGetter);
+  const appliedSignature = applied.length ? applied.join('|') : null;
+  if(appliedSignature){
+    state.lastOrderSignature = appliedSignature;
+  }else if(signature){
+    state.lastOrderSignature = signature;
+  }
   return applied;
 }
 
@@ -218,15 +294,20 @@ function applyStoredOrder(state, options = {}){
   const order = readStoredOrder(state.storageKey);
   if(!order.length){
     if(options.force){
-      const current = collectItems(state.container, state.itemSelector).map(item => item.id);
+      const current = collectItems(state.container, state.itemSelector)
+        .map(item => getItemId(state, item))
+        .filter(Boolean);
       state.lastOrderSignature = current.join('|');
     }
     state.appliedInitialOrder = true;
     return;
   }
-  const signature = order.join('|');
+  const signature = order.map(normalizeIdValue).filter(Boolean).join('|');
   if(!options.force && signature === state.lastOrderSignature) return;
-  reorderFromOrder(state, order, signature);
+  const applied = reorderFromOrder(state, order, signature);
+  if(applied.length){
+    state.lastOrderSignature = applied.join('|');
+  }
   state.appliedInitialOrder = true;
 }
 function movePlaceholder(state, index){
@@ -265,7 +346,9 @@ function persistCurrentOrder(state){
   if(!container || !itemSelector || !storageKey) return;
   const items = collectItems(container, itemSelector);
   if(!items.length) return;
-  const order = items.map(item => item.id);
+  const order = items
+    .map(item => getItemId(state, item))
+    .filter(Boolean);
   const signature = order.join('|');
   if(signature === state.lastOrderSignature) return;
   writeStoredOrder(storageKey, order);
@@ -366,7 +449,9 @@ function beginGridDrag(state, item, evt){
   state.dragging = true;
   state.dragEl = item;
   state.pointerId = evt.pointerId;
-  state.startOrder = items.map(el => el.id);
+  state.startOrder = items
+    .map(el => getItemId(state, el))
+    .filter(Boolean);
   state.startIndex = items.indexOf(item);
   state.targetIndex = state.startIndex;
   state.itemRect = itemRect;
@@ -426,7 +511,9 @@ function handlePointerDown(evt, state){
   const item = evt.target && state.itemSelector
     ? evt.target.closest(state.itemSelector)
     : null;
-  if(!item || !item.id || !state.container.contains(item)) return;
+  if(!item || !state.container.contains(item)) return;
+  const itemId = getItemId(state, item);
+  if(!itemId) return;
   const handle = firstHandleFor(item, state.handleSelectors);
   if(!handle || !handle.contains(evt.target)) return;
   evt.preventDefault();
@@ -442,6 +529,7 @@ function ensureState(container){
       handleSelectors: [],
       storageKey: '',
       gridOptions: {},
+      idGetter: defaultElementId,
       onOrderChange: null,
       enabled: true,
       dragging: false,
@@ -505,6 +593,7 @@ export function makeDraggableGrid(options = {}){
   state.handleSelectors = parseSelectors(handleSel);
   state.storageKey = storageKey;
   state.gridOptions = options.grid || {};
+  state.idGetter = wrapIdGetter(options.idGetter);
   state.onOrderChange = typeof options.onOrderChange === 'function' ? options.onOrderChange : null;
   state.enabled = options.enabled === undefined ? true : !!options.enabled;
   applyStoredOrder(state, { force: true });
