@@ -1,6 +1,5 @@
 const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
-let GLOBAL_LISTENER_COUNT = 0;
 
 function parseSelectors(sel){
   if(!sel) return [];
@@ -577,7 +576,6 @@ export function attachOnce(el, type, fn, flagKey){
   if(flags.has(key)) return false;
   el.addEventListener(type, fn);
   flags.add(key);
-  GLOBAL_LISTENER_COUNT += 1;
   return true;
 }
 
@@ -621,16 +619,3 @@ export function makeDraggableGrid(options = {}){
   };
   return controller;
 }
-
-export function makeDraggableList(options = {}){
-  return makeDraggableGrid(options);
-}
-
-export function listenerCount(){
-  return GLOBAL_LISTENER_COUNT;
-}
-
-makeDraggableGrid.listenerCount = listenerCount;
-makeDraggableList.listenerCount = listenerCount;
-
-export default makeDraggableGrid;

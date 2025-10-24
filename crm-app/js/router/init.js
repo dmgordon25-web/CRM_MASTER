@@ -1,4 +1,5 @@
 import { mergeMatchers, normalizeBasePath, normalizePathname, resolveRoute } from './patterns.js';
+import { initDashboardDragOnce } from '../ui/dashboard_layout.js';
 
 function ensureDefaultHash(){
   if(typeof window === 'undefined' || !window?.location) return;
@@ -126,5 +127,33 @@ function installWorkbenchRoute(){
 }
 
 installWorkbenchRoute();
+
+function installDashboardRouteInit(){
+  if(typeof window === 'undefined') return;
+  let pending = false;
+  const arm = () => {
+    if(!window?.location) return;
+    const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
+    if(!hash.startsWith('#/dashboard')) return;
+    if(pending) return;
+    pending = true;
+    const invoke = () => {
+      pending = false;
+      initDashboardDragOnce();
+    };
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(invoke);
+    }else{
+      invoke();
+    }
+  };
+  window.addEventListener('hashchange', () => {
+    pending = false;
+    arm();
+  });
+  arm();
+}
+
+installDashboardRouteInit();
 
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };

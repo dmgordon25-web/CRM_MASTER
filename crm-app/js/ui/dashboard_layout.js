@@ -1,4 +1,4 @@
-import { makeDraggableGrid, applyOrder as applyGridOrder, attachOnce, listenerCount as dragListenerCount } from './drag_core.js';
+import { makeDraggableGrid, applyOrder as applyGridOrder, attachOnce } from './drag_core.js';
 
 const ORDER_STORAGE_KEY = 'dash:layout:order:v1';
 const HIDDEN_STORAGE_KEY = 'dash:layout:hidden:v1';
@@ -28,16 +28,19 @@ const KEY_TO_ID = new Map(DASHBOARD_WIDGETS.map(widget => [widget.key, widget.id
 const ID_TO_KEY = new Map(DASHBOARD_WIDGETS.map(widget => [widget.id, widget.key]));
 
 const state = {
-  wired: false,
+  initOnce: false,
   container: null,
   drag: null,
+  dragContainer: null,
   layoutMode: false,
   hidden: new Set(),
   readyLogged: false,
   stableLogged: false,
   idMemo: new WeakMap(),
   slugCounts: new Map(),
-  late: { raf: null, timeout: null, observer: null }
+  late: { raf: null, timeout: null, observer: null },
+  routeHooked: false,
+  renderGuardHooked: false
 };
 
 function postLog(event, data){
@@ -237,10 +240,17 @@ function getDashboardContainer(){
 
 function ensureContainer(){
   if(typeof document === 'undefined') return null;
-  if(state.container && document.contains(state.container)) return state.container;
   const next = getDashboardContainer();
-  if(next) state.container = next;
-  return state.container;
+  if(!next){
+    state.container = null;
+    return null;
+  }
+  if(state.container !== next){
+    state.container = next;
+    state.idMemo = new WeakMap();
+  }
+  if(!document.contains(next)) return null;
+  return next;
 }
 
 function collectWidgets(container){
@@ -330,76 +340,6 @@ function applyVisibility(container){
   });
 }
 
-function applyLayoutFromStorage(reason){
-  const container = ensureContainer();
-  if(!container) return false;
-  state.hidden = new Set(readHiddenIds());
-  prepareWidgets(container);
-  const order = readOrderIds();
-  if(order.length){
-    applyGridOrder(container, order, ITEM_SELECTOR, getWidgetId);
-  }
-  applyVisibility(container);
-  return true;
-}
-
-function lateApply(reason){
-  const applied = applyLayoutFromStorage(reason);
-  if(applied && !state.stableLogged){
-    state.stableLogged = true;
-    try{ console.info('[VIS] dash layout applied (stable)'); }
-    catch (_err){}
-    postLog('dash-layout-applied', reason ? { reason } : undefined);
-  }
-}
-
-function cancelLatePass(){
-  if(state.late.raf !== null && typeof cancelAnimationFrame === 'function'){
-    try{ cancelAnimationFrame(state.late.raf); }
-    catch (_err){}
-  }
-  state.late.raf = null;
-  if(state.late.timeout !== null){
-    try{ clearTimeout(state.late.timeout); }
-    catch (_err){}
-  }
-  state.late.timeout = null;
-  if(state.late.observer){
-    try{ state.late.observer.disconnect(); }
-    catch (_err){}
-    state.late.observer = null;
-  }
-}
-
-function scheduleLatePass(reason){
-  const container = ensureContainer();
-  cancelLatePass();
-  const apply = () => lateApply(reason);
-  if(typeof requestAnimationFrame === 'function'){
-    state.late.raf = requestAnimationFrame(() => {
-      state.late.raf = null;
-      apply();
-    });
-  }
-  if(typeof setTimeout === 'function'){
-    state.late.timeout = setTimeout(() => {
-      state.late.timeout = null;
-      apply();
-    }, 0);
-  }
-  if(container && typeof MutationObserver === 'function'){
-    const observer = new MutationObserver(() => {
-      observer.disconnect();
-      if(state.late.observer === observer){
-        state.late.observer = null;
-      }
-      apply();
-    });
-    try{ observer.observe(container, { childList: true }); state.late.observer = observer; }
-    catch (_err){ observer.disconnect(); }
-  }
-}
-
 function computeGridMetrics(container){
   const first = container ? container.querySelector(ITEM_SELECTOR) : null;
   if(!first || typeof first.getBoundingClientRect !== 'function'){
@@ -425,64 +365,6 @@ function computeGridMetrics(container){
   };
 }
 
-function handleOrderChange(orderIds){
-  const normalized = Array.isArray(orderIds) ? orderIds.map(normalizeId).filter(Boolean) : [];
-  writeOrderIds(normalized);
-  scheduleLatePass('order-change');
-}
-
-function ensureDrag(){
-  const container = ensureContainer();
-  if(!container) return null;
-  if(!state.drag){
-    const metrics = computeGridMetrics(container);
-    state.drag = makeDraggableGrid({
-      container,
-      itemSel: ITEM_SELECTOR,
-      handleSel: HANDLE_SELECTOR,
-      storageKey: ORDER_STORAGE_KEY,
-      grid: metrics,
-      idGetter: getWidgetId,
-      enabled: state.layoutMode,
-      onOrderChange: handleOrderChange
-    });
-    if(!state.readyLogged){
-      state.readyLogged = true;
-      try{ console.info('[VIS] dash drag ready (direct)'); }
-      catch (_err){}
-      postLog('dash-drag-direct');
-    }
-  }else{
-    if(state.layoutMode) state.drag.enable();
-    else state.drag.disable();
-    state.drag.refresh();
-  }
-  return state.drag;
-}
-
-function updateLayoutModeAttr(){
-  const container = ensureContainer();
-  if(!container) return;
-  container.setAttribute('data-dash-layout-mode', state.layoutMode ? 'on' : 'off');
-}
-
-function onStorage(evt){
-  if(!evt || typeof evt.key !== 'string') return;
-  if(evt.key === MODE_STORAGE_KEY || LEGACY_MODE_KEYS.includes(evt.key)){
-    const next = readLayoutModeFlag();
-    setDashboardLayoutMode(next, { persist: false, force: true, silent: true });
-    return;
-  }
-  if(evt.key === HIDDEN_STORAGE_KEY || LEGACY_HIDDEN_KEYS.includes(evt.key)){
-    state.hidden = new Set(readHiddenIds());
-    requestDashboardLayoutPass({ reason: 'storage-hidden' });
-    return;
-  }
-  if(evt.key === ORDER_STORAGE_KEY || LEGACY_ORDER_KEYS.includes(evt.key) || evt.key === LEGACY_WIDGET_ORDER_KEY){
-    requestDashboardLayoutPass({ reason: 'storage-order', skipImmediate: true });
-  }
-}
-
 function toIdSet(input){
   const result = new Set();
   if(input instanceof Set){
@@ -501,6 +383,202 @@ function toIdSet(input){
   return result;
 }
 
+function isDashboardRoute(){
+  if(typeof location === 'undefined' || !location) return false;
+  const hash = typeof location.hash === 'string' ? location.hash : '';
+  return hash.startsWith('#/dashboard');
+}
+
+function cleanupLateHandles(){
+  if(state.late.raf !== null && typeof cancelAnimationFrame === 'function'){
+    try{ cancelAnimationFrame(state.late.raf); }
+    catch (_err){}
+  }
+  state.late.raf = null;
+  if(state.late.timeout !== null){
+    try{ clearTimeout(state.late.timeout); }
+    catch (_err){}
+  }
+  state.late.timeout = null;
+  if(state.late.observer){
+    try{ state.late.observer.disconnect(); }
+    catch (_err){}
+    state.late.observer = null;
+  }
+}
+
+function runLayoutPass(reason, options = {}){
+  const container = ensureContainer();
+  if(!container) return false;
+  if(options.refreshHidden !== false){
+    state.hidden = new Set(readHiddenIds());
+  }
+  prepareWidgets(container);
+  if(options.refreshOrder !== false){
+    const order = readOrderIds();
+    if(order.length){
+      applyGridOrder(container, order, ITEM_SELECTOR, getWidgetId);
+    }
+  }
+  applyVisibility(container);
+  return true;
+}
+
+function scheduleStabilize(reason){
+  if(!isDashboardRoute()) return;
+  const container = ensureContainer();
+  if(!container) return;
+  cleanupLateHandles();
+  const lateApply = () => {
+    const applied = runLayoutPass(reason || 'late');
+    if(applied && !state.stableLogged){
+      state.stableLogged = true;
+      try{ console.info('[VIS] dash layout applied (stable)'); }
+      catch (_err){}
+      postLog('dash-layout-applied', reason ? { reason } : undefined);
+    }
+  };
+  if(typeof requestAnimationFrame === 'function'){
+    state.late.raf = requestAnimationFrame(() => {
+      state.late.raf = null;
+      lateApply();
+    });
+  }
+  if(typeof setTimeout === 'function'){
+    state.late.timeout = setTimeout(() => {
+      state.late.timeout = null;
+      lateApply();
+    }, 0);
+  }
+  if(typeof MutationObserver === 'function'){
+    const observer = new MutationObserver(() => {
+      observer.disconnect();
+      if(state.late.observer === observer){
+        state.late.observer = null;
+      }
+      lateApply();
+    });
+    try{
+      observer.observe(container, { childList: true });
+      state.late.observer = observer;
+    }catch (_err){
+      observer.disconnect();
+    }
+  }
+}
+
+function handleOrderChange(orderIds){
+  const normalized = Array.isArray(orderIds) ? orderIds.map(normalizeId).filter(Boolean) : [];
+  writeOrderIds(normalized);
+  state.stableLogged = false;
+  scheduleStabilize('order-change');
+}
+
+function ensureDragController(container){
+  if(!container) return null;
+  if(state.drag && state.dragContainer !== container){
+    try{ state.drag.disable?.(); }
+    catch (_err){}
+    state.drag = null;
+    state.dragContainer = null;
+  }
+  if(state.drag){
+    if(state.layoutMode){
+      state.drag.enable?.();
+    }else{
+      state.drag.disable?.();
+    }
+    state.drag.refresh?.();
+    return state.drag;
+  }
+  const metrics = computeGridMetrics(container);
+  const controller = makeDraggableGrid({
+    container,
+    itemSel: ITEM_SELECTOR,
+    handleSel: HANDLE_SELECTOR,
+    storageKey: ORDER_STORAGE_KEY,
+    grid: metrics,
+    idGetter: getWidgetId,
+    enabled: true,
+    onOrderChange: handleOrderChange
+  });
+  if(!controller) return null;
+  state.drag = controller;
+  state.dragContainer = container;
+  if(state.layoutMode){
+    controller.enable?.();
+  }else{
+    controller.disable?.();
+  }
+  return controller;
+}
+
+function updateLayoutModeAttr(container){
+  const target = container || ensureContainer();
+  if(!target) return;
+  target.setAttribute('data-dash-layout-mode', state.layoutMode ? 'on' : 'off');
+}
+
+function handleRouteLeave(){
+  cleanupLateHandles();
+  state.container = null;
+  state.dragContainer = null;
+  state.idMemo = new WeakMap();
+  state.slugCounts = new Map();
+  state.stableLogged = false;
+  state.readyLogged = false;
+  if(state.drag){
+    try{ state.drag.disable(); }
+    catch (_err){}
+    state.drag = null;
+  }
+}
+
+function ensureRouteHook(){
+  if(state.routeHooked || typeof window === 'undefined') return;
+  const handler = () => {
+    if(!isDashboardRoute()){
+      handleRouteLeave();
+    }
+  };
+  window.addEventListener('hashchange', handler);
+  state.routeHooked = true;
+}
+
+function ensureRenderGuardHook(){
+  if(state.renderGuardHooked || typeof window === 'undefined') return;
+  const guard = window.RenderGuard;
+  if(!guard || typeof guard.registerHook !== 'function') return;
+  try{
+    guard.registerHook(() => {
+      requestDashboardLayoutPass({ reason: 'render-guard', skipImmediate: true });
+    });
+    state.renderGuardHooked = true;
+  }catch (_err){}
+}
+
+function onStorage(evt){
+  if(!evt || typeof evt.key !== 'string') return;
+  if(evt.key === MODE_STORAGE_KEY || LEGACY_MODE_KEYS.includes(evt.key)){
+    const next = readLayoutModeFlag();
+    setDashboardLayoutMode(next, { persist: false, force: true, silent: true });
+    return;
+  }
+  if(evt.key === HIDDEN_STORAGE_KEY || LEGACY_HIDDEN_KEYS.includes(evt.key)){
+    state.hidden = new Set(readHiddenIds());
+    if(isDashboardRoute()){
+      requestDashboardLayoutPass({ reason: 'storage-hidden' });
+    }
+    return;
+  }
+  if(evt.key === ORDER_STORAGE_KEY || LEGACY_ORDER_KEYS.includes(evt.key) || evt.key === LEGACY_WIDGET_ORDER_KEY){
+    if(isDashboardRoute()){
+      state.stableLogged = false;
+      requestDashboardLayoutPass({ reason: 'storage-order', skipImmediate: true });
+    }
+  }
+}
+
 export function setDashboardLayoutMode(enabled, options = {}){
   const next = !!enabled;
   const force = !!options.force;
@@ -509,12 +587,16 @@ export function setDashboardLayoutMode(enabled, options = {}){
   if(options.persist !== false){
     writeLayoutModeFlag(next);
   }
-  if(state.drag){
-    if(next) state.drag.enable();
-    else state.drag.disable();
+  const container = ensureContainer();
+  if(next && isDashboardRoute()){
+    ensureDragController(container);
+  }else if(state.drag){
+    try{ state.drag.disable(); }
+    catch (_err){}
   }
-  updateLayoutModeAttr();
-  if(!options.silent){
+  updateLayoutModeAttr(container);
+  if(!options.silent && isDashboardRoute()){
+    state.stableLogged = false;
     requestDashboardLayoutPass({ reason: 'layout-mode', skipImmediate: true });
   }
 }
@@ -533,6 +615,10 @@ export function applyDashboardHidden(input, options = {}){
     writeHiddenIds(Array.from(nextSet).sort());
   }
   applyVisibility();
+  if(isDashboardRoute()){
+    state.stableLogged = false;
+    scheduleStabilize('visibility-change');
+  }
 }
 
 export function readStoredLayoutMode(){
@@ -551,41 +637,61 @@ export function reapplyDashboardLayout(reason){
   requestDashboardLayoutPass({ reason: reason || 'reapply' });
 }
 
-export function getDashboardListenerCount(){
-  return dragListenerCount();
-}
-
 export function requestDashboardLayoutPass(input){
   const opts = typeof input === 'string' ? { reason: input } : (input || {});
   const reason = opts.reason || null;
+  if(!isDashboardRoute()) return;
+  const container = ensureContainer();
+  if(!container) return;
   if(!opts.skipImmediate){
-    lateApply(reason);
+    runLayoutPass(reason);
   }
-  scheduleLatePass(reason);
+  state.stableLogged = false;
+  scheduleStabilize(reason);
+}
+
+export function initDashboardDragOnce(){
+  if(!isDashboardRoute()) return;
+  const container = ensureContainer();
+  if(!container) return;
+
+  if(!state.initOnce){
+    state.layoutMode = readLayoutModeFlag();
+    state.hidden = new Set(readHiddenIds());
+    ensureStyle();
+    if(typeof window !== 'undefined'){
+      attachOnce(window, 'storage', onStorage, 'dash-layout:storage');
+    }
+    ensureRouteHook();
+    ensureRenderGuardHook();
+    state.initOnce = true;
+  }else{
+    state.layoutMode = readLayoutModeFlag();
+    state.hidden = new Set(readHiddenIds());
+  }
+
+  runLayoutPass('init');
+  state.stableLogged = false;
+  scheduleStabilize('init');
+  updateLayoutModeAttr(container);
+
+  if(state.layoutMode){
+    ensureDragController(container);
+  }else if(state.drag){
+    try{ state.drag.disable(); }
+    catch (_err){}
+  }
+
+  if(!state.readyLogged){
+    state.readyLogged = true;
+    try{ console.info('[VIS] dash drag ready (idle-until-dashboard)'); }
+    catch (_err){}
+    postLog('dash-drag-direct');
+  }
 }
 
 export function initDashboardLayout(){
-  if(state.wired){
-    applyLayoutFromStorage('reinit');
-    ensureDrag();
-    updateLayoutModeAttr();
-    scheduleLatePass('reinit');
-    return state;
-  }
-  state.layoutMode = readLayoutModeFlag();
-  state.hidden = new Set(readHiddenIds());
-  ensureStyle();
-  applyLayoutFromStorage('init');
-  ensureDrag();
-  updateLayoutModeAttr();
-  scheduleLatePass('init');
-  if(typeof window !== 'undefined'){
-    attachOnce(window, 'storage', onStorage, 'dash-layout:storage');
-  }
-  if(typeof window !== 'undefined'){
-    window.RenderGuard?.registerHook?.(() => requestDashboardLayoutPass({ reason: 'render-guard', skipImmediate: true }));
-  }
-  state.wired = true;
+  initDashboardDragOnce();
   return state;
 }
 
