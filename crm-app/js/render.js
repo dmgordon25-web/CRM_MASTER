@@ -1125,11 +1125,21 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normal
 
     const tablesHost = document.querySelector('.status-stack');
     if(tablesHost){
-      tablesHost.innerHTML = `
-        <div class="wb-pointer" role="note">
-          <div>Detailed tables moved to <a href="#workbench" data-nav="workbench">Workbench</a> for speed and clarity.</div>
-        </div>
-      `;
+      if(typeof console !== 'undefined' && typeof console.info === 'function'){
+        try{ console.info('[VIS] workbench dashboard card removed'); }catch (_err){}
+      }
+      let posted = false;
+      if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && typeof Blob !== 'undefined'){
+        try{
+          const payload = JSON.stringify({ event: 'workbench-card-removed' });
+          const blob = new Blob([payload], { type: 'application/json' });
+          posted = navigator.sendBeacon('/__log', blob) || false;
+        }catch (_err){}
+      }
+      if(!posted && typeof fetch === 'function'){
+        try{ fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'workbench-card-removed' }) }); }catch (_err){}
+      }
+      tablesHost.remove();
     }
 
     const tbPipe = $('#tbl-pipeline tbody'); if(tbPipe){
