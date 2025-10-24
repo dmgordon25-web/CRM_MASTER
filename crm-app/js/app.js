@@ -1432,47 +1432,58 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         mount.id = 'view-workbench';
         mount.classList.add('hidden');
         mount.setAttribute('data-view', 'workbench');
-        const container = document.querySelector('.container');
-        if(container){
+        const container = document.querySelector('#route-root')
+          || document.querySelector('.container')
+          || document.body;
+        if(container && typeof container.appendChild === 'function'){
           container.appendChild(mount);
-        }else{
-          document.body.appendChild(mount);
         }
       }
       return mount;
     };
 
-    const updateHash = () => {
+    const notifyRouter = () => {
+      if(typeof window === 'undefined') return;
       try{
-        if(history && typeof history.replaceState === 'function'){
-          history.replaceState(null, '', '#workbench');
-        }else if(window.location){
-          window.location.hash = '#workbench';
-        }
-      }catch (_) { }
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        return;
+      }catch (_err){}
+      try{
+        const evt = document.createEvent('HashChangeEvent');
+        const current = window.location ? window.location.href : '#/workbench';
+        evt.initHashChangeEvent('hashchange', true, false, current, current);
+        window.dispatchEvent(evt);
+      }catch (_err){}
     };
 
-    async function goWB(evt){
-      if(evt && typeof evt.preventDefault === 'function') evt.preventDefault();
-      const mount = ensureWorkbenchMount();
-      activate('workbench');
+    const updateHash = () => {
+      const target = '#/workbench';
+      let changed = false;
       try{
-        const [mod, selftest] = await Promise.all([
-          import(fromHere('./pages/workbench.js')),
-          import(fromHere('./selftest.js')).catch(() => ({}))
-        ]);
-        const renderFn = mod.initWorkbench || mod.renderWorkbench || (()=>{});
-        const options = {};
-        if(selftest && typeof selftest.runSelfTest === 'function'){
-          options.onRunSelfTest = selftest.runSelfTest;
+        if(window.location && window.location.hash !== target){
+          window.location.hash = target;
+          changed = true;
         }
-        const outcome = renderFn(mount, options);
-        if(outcome && typeof outcome.then === 'function'){
-          await outcome;
-        }
-      }catch (err) {
-        console.warn('[soft] [workbench] render failed', err);
+      }catch (_err){
+        try{
+          if(history && typeof history.replaceState === 'function'){
+            history.replaceState(null, '', target);
+          }
+        }catch (__err){}
       }
+      if(!changed){
+        if(typeof requestAnimationFrame === 'function'){
+          requestAnimationFrame(notifyRouter);
+        }else{
+          notifyRouter();
+        }
+      }
+    };
+
+    function goWB(evt){
+      if(evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+      ensureWorkbenchMount();
+      activate('workbench');
       updateHash();
     }
 
