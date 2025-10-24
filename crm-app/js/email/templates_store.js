@@ -7,8 +7,7 @@ let hydrationPromise = null;
 let persistScheduled = false;
 let pendingPersist = false;
 let writeChain = Promise.resolve();
-const PENDING_MUTATIONS = [];
-let persistPendingUntilHydrated = false;
+const pendingMutations = [];
 
 const schedule = typeof queueMicrotask === 'function'
   ? queueMicrotask
@@ -70,7 +69,7 @@ function notify({ persist = true } = {}) {
 
 function schedulePersist() {
   if (!hydrated) {
-    persistPendingUntilHydrated = true;
+    pendingPersist = true;
     return;
   }
   if (persistScheduled) return;
@@ -109,13 +108,7 @@ function applyState(list, { notifySubscribers = true, persist = false } = {}) {
   if (notifySubscribers) notify({ persist });
 }
 
-function queueMutation(fn) {
-  if (!hydrated) {
-    PENDING_MUTATIONS.push(fn);
-  }
-}
-
-function performUpsert(payload, { silent = false, skipSort = false } = {}) {
+function internalUpsert(payload, { silent = false, skipSort = false, persist = true } = {}) {
   const { id: incomingId, name, subject, body, fav } = payload || {};
   let id = incomingId;
   const now = Date.now();
@@ -141,24 +134,29 @@ function performUpsert(payload, { silent = false, skipSort = false } = {}) {
   }
   if (!skipSort) sortItems();
   if (!silent) {
-    notify({ persist: true });
-  } else {
-    schedulePersist();
+    notify({ persist });
+  } else if (persist) {
+    requestPersist();
   }
   return stored;
 }
 
-function performRemove(id) {
+function internalRemove(id, { persist = true, silent = false } = {}) {
   const before = STATE.items.length;
   STATE.items = STATE.items.filter((item) => item.id !== id);
   if (STATE.items.length !== before) {
+    if (!silent) {
+      notify({ persist });
+    } else if (persist) {
+      requestPersist();
+    }
     notify({ persist: true });
     return true;
   }
   return false;
 }
 
-function performMarkFav(id, fav = true) {
+function internalMarkFav(id, fav = true, { persist = true, silent = false } = {}) {
   const record = STATE.items.find((item) => item.id === id);
   if (!record) return false;
   record.fav = !!fav;
@@ -213,7 +211,6 @@ async function hydrate() {
     const pendingPersistRequest = pendingPersist;
     pendingPersist = false;
     applyState(items, { notifySubscribers: false });
-    const queuedMutations = PENDING_MUTATIONS.splice(0, PENDING_MUTATIONS.length);
     hydrated = true;
     hydrationPromise = null;
     const shouldPersist = migrated || persistPendingUntilHydrated || pendingPersistRequest;
@@ -227,8 +224,12 @@ async function hydrate() {
           catch (_) {}
         }
       });
+      sortItems();
     }
-    notify({ persist: shouldPersist });
+    notify({ persist: false });
+    if (migrated || shouldPersist || queued.length) {
+      requestPersist();
+    }
     return STATE;
   })();
   return hydrationPromise;
@@ -253,17 +254,12 @@ export const Templates = {
   },
   upsert(payload, { silent = false, skipSort = false } = {}) {
     ensureHydrated().catch(() => {});
-    const shouldQueue = !hydrated;
-    const stored = performUpsert(payload, { silent, skipSort });
-    if (shouldQueue) {
-      const payloadClone = payload && typeof payload === 'object' ? { ...payload } : {};
-      if (!payloadClone.id && stored && stored.id) {
-        payloadClone.id = stored.id;
-      }
-      if (stored && typeof stored.updatedAt === 'number' && typeof payloadClone.updatedAt !== 'number') {
-        payloadClone.updatedAt = stored.updatedAt;
-      }
-      queueMutation(() => performUpsert(payloadClone, { silent, skipSort }));
+    const persistNow = hydrated;
+    const stored = internalUpsert(payload, { silent, skipSort, persist: persistNow });
+    if (!persistNow) {
+      pendingPersist = true;
+      const replayPayload = Object.assign({}, stored);
+      enqueueMutation(() => internalUpsert(replayPayload, { silent: true, skipSort, persist: false }));
     }
     return stored;
   },
