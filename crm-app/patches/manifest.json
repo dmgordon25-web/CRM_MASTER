@@ -19,9 +19,10 @@
   "js/patch_2025-10-03_calendar_ics_button.js",
   "js/patches/patch_2025-10-23_dashboard_drag.js",
   "js/patches/patch_2025-10-23_session_beacon.js",
-  "js/patches/patch_2025-10-23_unify_quick_create.js",
   "js/patches/patch_2025-10-23_dashboard_drag_fix.js",
+  "js/patches/patch_2025-10-23_unify_quick_create.js",
   "js/patches/patch_2025-10-23_actionbar_drag.js",
   "js/patches/patch_2025-10-23_workbench_route.js"
-  "js/patches/patch_2025-10-24_quickadd_header_only.js"
+  "js/patches/patch_2025-10-24_quickadd_header_only.js",
+  "js/patches/patch_2025-10-23_calendar_contact_and_task.js"
 ]

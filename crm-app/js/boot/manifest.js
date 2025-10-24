@@ -62,7 +62,6 @@ export const PATCHES = [
   './contacts_merge_orchestrator.js',
   './pipeline/kanban_dnd.js',
   './patches/patch_2025-10-23_session_beacon.js',
-  './patches/patch_2025-10-23_unify_quick_create.js',
   './patches/patch_2025-10-23_dashboard_drag_fix.js',
   './patches/patch_2025-10-23_actionbar_drag.js',
   './patches/patch_2025-10-23_workbench_route.js',
@@ -122,7 +121,11 @@ export const PATCHES = [
   './ux/svg_sanitizer.js',
   './services/selection_adapter.js',
   './services/selection_fallback.js',
-  './core/capabilities_probe.js'
+  './core/capabilities_probe.js',
+  './patches/patch_2025-10-23_unify_quick_create.js',
+  './patches/patch_2025-10-23_actionbar_drag.js',
+  './patches/patch_2025-10-24_quickadd_header_only.js',
+  './patches/patch_2025-10-23_calendar_contact_and_task.js'
 ];
 
 export const SAFE_MODE = isSafeMode();
