@@ -1257,13 +1257,32 @@ function runPatch(){
       return LOSS_REASON_LABELS[raw] ? raw : 'other';
     }
 
+    function polishBeacon(area){
+      try{
+        if(!window.__VIS_POLISH__) window.__VIS_POLISH__ = {};
+        if(window.__VIS_POLISH__[area]) return;
+        window.__VIS_POLISH__[area] = true;
+        console.info(`[VIS] polish applied:${area}`);
+        if(typeof fetch === 'function'){
+          fetch('/__log', {
+            method: 'POST',
+            headers: {'content-type':'application/json'},
+            body: JSON.stringify({event:`polish:${area}`})
+          }).catch(()=>{});
+        }
+      }catch (_err) {}
+    }
+
     function ensureReportsShell(){
       const root = document.getElementById('reports-root');
       if(!root) return null;
       if(!root.__built){
         root.innerHTML = `
           <div class="row" style="align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <strong>Reports</strong>
+            <strong style="display:flex;align-items:center;gap:6px">
+              <span aria-hidden="true">📈</span>
+              <span>Reports</span>
+            </strong>
             <span class="muted" style="font-size:12px">Ready-made snapshots with exportable CSVs.</span>
             <span class="grow"></span>
             <div class="btn-group" role="group" aria-label="Report tabs">
@@ -1279,6 +1298,7 @@ function runPatch(){
           <div data-report="fallout" class="hidden"></div>
         `;
         root.__built = true;
+        polishBeacon('reports-icons');
       }
       return root;
     }
@@ -1394,7 +1414,8 @@ function runPatch(){
       container.classList.toggle('hidden', state.reportView !== key);
       if(state.reportView !== key) return;
       const headerHtml = headers.map(label => `<th>${label.replace(/([A-Z])/g,' $1').trim()}</th>`).join('');
-      const bodyHtml = rows.length ? rows.map(row => {
+      const hasRows = rows.length > 0;
+      const bodyHtml = hasRows ? rows.map(row => {
         return `<tr>${headers.map(h => {
           const value = row[h];
           if(h === 'FundedVolume' || h === 'LoanAmount') return `<td>${formatMoney(value)}</td>`;
@@ -1403,10 +1424,17 @@ function runPatch(){
           if(typeof value === 'number') return `<td>${formatNumber(value)}</td>`;
           return `<td>${value == null ? '—' : value}</td>`;
         }).join('')}</tr>`;
-      }).join('') : `<tr><td colspan="${headers.length}" class="muted">No data available.</td></tr>`;
+      }).join('') : `<tr><td colspan="${headers.length}" class="muted" style="text-align:center;padding:24px 12px;">
+          <div><strong>No items yet</strong></div>
+          <div class="fine-print" style="margin-top:4px">Run activity in this report to unlock insights.</div>
+        </td></tr>`;
+      if(!hasRows) polishBeacon('reports-empty');
       container.innerHTML = `
         <div class="row" style="align-items:center;gap:8px;margin-bottom:8px">
-          <strong>${titleForReport(key)}</strong>
+          <strong style="display:flex;align-items:center;gap:6px">
+            <span aria-hidden="true">${iconForReport(key)}</span>
+            <span>${titleForReport(key)}</span>
+          </strong>
           <span class="grow"></span>
           <button class="btn" data-act="export-csv" data-report-key="${key}">Export CSV</button>
         </div>
@@ -1426,6 +1454,16 @@ function runPatch(){
         case 'past-clients': return 'Past Clients (3 Years)';
         case 'fallout': return 'Loan Fallout';
         default: return 'Report';
+      }
+    }
+
+    function iconForReport(key){
+      switch(key){
+        case 'stage': return '📊';
+        case 'partner': return '🤝';
+        case 'past-clients': return '🏡';
+        case 'fallout': return '⚠️';
+        default: return '📈';
       }
     }
 

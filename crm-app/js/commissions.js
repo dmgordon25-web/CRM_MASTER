@@ -41,8 +41,30 @@
   function csvEscape(s){const v=String(s??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
   function downloadFile(name, text){ const blob=new Blob([text],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500); }
 
+  function polishBeacon(area){
+    try{
+      if(!window.__VIS_POLISH__) window.__VIS_POLISH__ = {};
+      if(window.__VIS_POLISH__[area]) return;
+      window.__VIS_POLISH__[area] = true;
+      console.info(`[VIS] polish applied:${area}`);
+      if(typeof fetch === 'function'){
+        fetch('/__log', {
+          method: 'POST',
+          headers: {'content-type':'application/json'},
+          body: JSON.stringify({event:`polish:${area}`})
+        }).catch(()=>{});
+      }
+    }catch (_err) {}
+  }
+
   function renderRows(rows){
-    if(!rows.length) return '<div class="muted">No funded loans found.</div>';
+    if(!rows.length){
+      polishBeacon('commissions-empty');
+      return '<div class="muted" style="padding:16px;text-align:center">'
+        + '<div><strong>No items yet</strong></div>'
+        + '<div class="fine-print" style="margin-top:4px">Record funded loans to populate this payout summary.</div>'
+        + '</div>';
+    }
     const hdr = '<div class="grid" style="grid-template-columns: 1fr 80px 90px 90px 90px 90px"><div><strong>Contact</strong></div><div><strong>Type</strong></div><div><strong>Amount</strong></div><div><strong>Gross</strong></div><div><strong>LO</strong></div><div><strong>House</strong></div></div>';
     const body = rows.map(r => `<div class="grid" style="grid-template-columns: 1fr 80px 90px 90px 90px 90px">
       <div>${r.name}</div><div>${r.loanType||''}</div><div>$${r.amount.toLocaleString()}</div>
@@ -209,17 +231,25 @@
       // received table
       const tbRec = document.querySelector('#tbl-ledger-received tbody');
       if(tbRec){
-        tbRec.innerHTML = received.map(c=>{
-          const name = `${c.first||''} ${c.last||''}`.trim() || (c.name||'');
-          const partner = (pMap.get(c.partnerId)?.name) || c.partnerName || 'None';
-          const amt = Number(c.amount||c.loanAmount||0);
-          const paid = !!commFlags[c.id];
-          return `<tr data-id="${c.id}">
-            <td><input type="checkbox" class="paid-flag"${paid?' checked':''}></td>
-            <td>${name}</td><td>${(c.loanType||'').toUpperCase()}</td>
-            <td>${toMoney(amt)}</td><td>${ymd(c.fundedDate)}</td><td>${partner}</td>
-          </tr>`;
-        }).join('');
+        if(received.length){
+          tbRec.innerHTML = received.map(c=>{
+            const name = `${c.first||''} ${c.last||''}`.trim() || (c.name||'');
+            const partner = (pMap.get(c.partnerId)?.name) || c.partnerName || 'None';
+            const amt = Number(c.amount||c.loanAmount||0);
+            const paid = !!commFlags[c.id];
+            return `<tr data-id="${c.id}">
+              <td><input type="checkbox" class="paid-flag"${paid?' checked':''}></td>
+              <td>${name}</td><td>${(c.loanType||'').toUpperCase()}</td>
+              <td>${toMoney(amt)}</td><td>${ymd(c.fundedDate)}</td><td>${partner}</td>
+            </tr>`;
+          }).join('');
+        }else{
+          tbRec.innerHTML = `<tr><td colspan="6" class="muted" style="text-align:center;padding:18px 12px;">
+            <div><strong>No items yet</strong></div>
+            <div class="fine-print" style="margin-top:4px">Mark funded deals as paid to track received commissions.</div>
+          </td></tr>`;
+          polishBeacon('commissions-empty');
+        }
       }
       const recSumEl = $id('led-rec-sum');
       if(recSumEl){ const sum = received.reduce((s,c)=> s + Number(c.amount||c.loanAmount||0), 0); recSumEl.textContent = toMoney(sum); }
@@ -227,15 +257,23 @@
       // projected table
       const tbProj = document.querySelector('#tbl-ledger-projected tbody');
       if(tbProj){
-        tbProj.innerHTML = projected.map(c=>{
-          const name = `${c.first||''} ${c.last||''}`.trim() || (c.name||'');
-          const partner = (pMap.get(c.partnerId)?.name) || c.partnerName || 'None';
-          const amt = Number(c.amount||c.loanAmount||0);
-          return `<tr data-id="${c.id}">
-            <td>${name}</td><td>${String(c.stage||'').toUpperCase()}</td>
-            <td>${(c.loanType||'').toUpperCase()}</td><td>${toMoney(amt)}</td><td>${partner}</td>
-          </tr>`;
-        }).join('');
+        if(projected.length){
+          tbProj.innerHTML = projected.map(c=>{
+            const name = `${c.first||''} ${c.last||''}`.trim() || (c.name||'');
+            const partner = (pMap.get(c.partnerId)?.name) || c.partnerName || 'None';
+            const amt = Number(c.amount||c.loanAmount||0);
+            return `<tr data-id="${c.id}">
+              <td>${name}</td><td>${String(c.stage||'').toUpperCase()}</td>
+              <td>${(c.loanType||'').toUpperCase()}</td><td>${toMoney(amt)}</td><td>${partner}</td>
+            </tr>`;
+          }).join('');
+        }else{
+          tbProj.innerHTML = `<tr><td colspan="5" class="muted" style="text-align:center;padding:18px 12px;">
+            <div><strong>No items yet</strong></div>
+            <div class="fine-print" style="margin-top:4px">Add active deals to project upcoming commission opportunities.</div>
+          </td></tr>`;
+          polishBeacon('commissions-empty');
+        }
       }
       const projSumEl = $id('led-proj-sum');
       if(projSumEl){ const sum = projected.reduce((s,c)=> s + Number(c.amount||c.loanAmount||0), 0); projSumEl.textContent = toMoney(sum); }
