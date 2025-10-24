@@ -2,6 +2,7 @@
 const fs = require('fs'), path = require('path');
 const jsRoot = path.resolve(__dirname, '..', 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
+const patchDir = path.join(jsRoot, 'patches');
 
 const canonicalPatchOrder = [
   './patch_20250923_baseline.js',
@@ -96,22 +97,37 @@ const canonicalTailOrder = [
   './patches/patch_2025-10-24_quickadd_header_only.js',
   './patches/patch_2025-10-24_dashboard_drag_v2.js',
   './patches/patch_2025-10-23_calendar_contact_and_task.js',
-  './patches/patch_2025-10-23_workbench_route.js',
-  './patches/patch_2025-10-24_polish.js'
-];
+  './patches/patch_2025-10-23_workbench_route.js'
+].filter(fileExists);
 
-for (const group of canonicalTailOrder) {
-  if (Array.isArray(group)) {
-    const entry = group.find(candidate => !canonicalPatchOrder.includes(candidate) && fileExists(candidate));
-    if (entry) canonicalPatchOrder.push(entry);
-    continue;
-  }
-  if (!canonicalPatchOrder.includes(group) && fileExists(group)) {
-    canonicalPatchOrder.push(group);
+const polishTailEntry = resolvePolishTailEntry();
+if (polishTailEntry && !canonicalTailOrder.includes(polishTailEntry)) {
+  canonicalTailOrder.push(polishTailEntry);
+}
+
+for (const candidate of canonicalTailOrder) {
+  if (!canonicalPatchOrder.includes(candidate)) {
+    canonicalPatchOrder.push(candidate);
   }
 }
 
-/* parse-ok: canonical tail repaired */ ;void 0;
+/* parse-ok: tail repaired */ ;void 0;
+
+function resolvePolishTailEntry() {
+  const preferred = './patches/patch_2025-10-24_polish.js';
+  if (fileExists(preferred)) return preferred;
+  let matches = [];
+  try {
+    matches = fs.readdirSync(patchDir)
+      .filter(name => /^patch_\d{4}-\d{2}-\d{2}_.*polish.*\.js$/i.test(name))
+      .sort();
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') throw err;
+  }
+  if (!matches.length) return null;
+  const latest = matches[matches.length - 1];
+  return `./patches/${latest}`;
+}
 
 function loadManifest() {
   const code = fs.readFileSync(path.join(manifestDir, 'manifest.js'), 'utf8');
