@@ -153,20 +153,27 @@ function performUpsert(payload, { silent = false, skipSort = false } = {}) {
 }
 
 function performRemove(id) {
-  const before = STATE.items.length;
-  STATE.items = STATE.items.filter((item) => item.id !== id);
-  if (STATE.items.length !== before) {
-    notify({ persist: true });
+  const index = STATE.items.findIndex((item) => item.id === id);
+  if (index === -1) {
+    return false;
   }
+  STATE.items.splice(index, 1);
+  notify({ persist: true });
+  return true;
 }
 
 function performMarkFav(id, fav = true) {
   const record = STATE.items.find((item) => item.id === id);
-  if (!record) return;
-  record.fav = !!fav;
+  if (!record) return false;
+  const normalizedFav = !!fav;
+  if (record.fav === normalizedFav) {
+    return false;
+  }
+  record.fav = normalizedFav;
   record.updatedAt = Date.now();
   sortItems();
   notify({ persist: true });
+  return true;
 }
 
 function loadLegacy() {
@@ -273,18 +280,20 @@ export const Templates = {
   remove(id) {
     ensureHydrated().catch(() => {});
     const shouldQueue = !hydrated;
-    performRemove(id);
+    const removed = performRemove(id);
     if (shouldQueue) {
       queueMutation(() => performRemove(id));
     }
+    return removed;
   },
   markFav(id, fav = true) {
     ensureHydrated().catch(() => {});
     const shouldQueue = !hydrated;
-    performMarkFav(id, fav);
+    const updated = performMarkFav(id, fav);
     if (shouldQueue) {
       queueMutation(() => performMarkFav(id, fav));
     }
+    return updated;
   },
   subscribe(fn) {
     ensureHydrated().catch(() => {});
