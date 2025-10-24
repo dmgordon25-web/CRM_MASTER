@@ -50,10 +50,6 @@ function snapshotItems() {
   }));
 }
 
-function enqueueMutation(fn) {
-  pendingMutations.push(fn);
-}
-
 function requestPersist() {
   if (hydrated) {
     schedulePersist();
@@ -154,6 +150,7 @@ function internalRemove(id, { persist = true, silent = false } = {}) {
     } else if (persist) {
       requestPersist();
     }
+    notify({ persist: true });
     return true;
   }
   return false;
@@ -162,18 +159,10 @@ function internalRemove(id, { persist = true, silent = false } = {}) {
 function internalMarkFav(id, fav = true, { persist = true, silent = false } = {}) {
   const record = STATE.items.find((item) => item.id === id);
   if (!record) return false;
-  const normalizedFav = !!fav;
-  if (record.fav === normalizedFav) {
-    return false;
-  }
-  record.fav = normalizedFav;
+  record.fav = !!fav;
   record.updatedAt = Date.now();
   sortItems();
-  if (!silent) {
-    notify({ persist });
-  } else if (persist) {
-    requestPersist();
-  }
+  notify({ persist: true });
   return true;
 }
 
@@ -219,16 +208,21 @@ async function hydrate() {
         migrated = true;
       }
     }
-    const queued = pendingMutations.slice();
-    pendingMutations.length = 0;
-    const shouldPersist = pendingPersist;
+    const pendingPersistRequest = pendingPersist;
     pendingPersist = false;
     applyState(items, { notifySubscribers: false });
     hydrated = true;
     hydrationPromise = null;
-    if (queued.length) {
-      queued.forEach((fn) => {
-        try { fn(); } catch (_) {}
+    const shouldPersist = migrated || persistPendingUntilHydrated || pendingPersistRequest;
+    persistPendingUntilHydrated = false;
+    if (queuedMutations.length) {
+      queuedMutations.forEach((fn) => {
+        try {
+          fn();
+        } catch (err) {
+          try { console && console.warn && console.warn('email templates replay failed', err); }
+          catch (_) {}
+        }
       });
       sortItems();
     }
@@ -271,23 +265,19 @@ export const Templates = {
   },
   remove(id) {
     ensureHydrated().catch(() => {});
-    const persistNow = hydrated;
-    const removed = internalRemove(id, { persist: persistNow });
-    if (!persistNow) {
-      pendingPersist = true;
-      enqueueMutation(() => internalRemove(id, { persist: false, silent: true }));
+    const shouldQueue = !hydrated;
+    if (shouldQueue) {
+      queueMutation(() => performRemove(id));
     }
-    return removed;
+    performRemove(id);
   },
   markFav(id, fav = true) {
     ensureHydrated().catch(() => {});
-    const persistNow = hydrated;
-    const updated = internalMarkFav(id, fav, { persist: persistNow });
-    if (!persistNow) {
-      pendingPersist = true;
-      enqueueMutation(() => internalMarkFav(id, fav, { persist: false, silent: true }));
+    const shouldQueue = !hydrated;
+    if (shouldQueue) {
+      queueMutation(() => performMarkFav(id, fav));
     }
-    return updated;
+    performMarkFav(id, fav);
   },
   subscribe(fn) {
     ensureHydrated().catch(() => {});
