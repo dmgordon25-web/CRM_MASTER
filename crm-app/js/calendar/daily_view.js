@@ -130,8 +130,12 @@ function buildCard(event, metaFor, iconFor, openContact, addTask){
   taskBtn.type = 'button';
   taskBtn.className = 'btn brand';
   taskBtn.textContent = 'Add as Task';
-  if(!event.contactId){
+  const isTaskEvent = String(event?.type || '').toLowerCase() === 'task';
+  if(!event.contactId || isTaskEvent){
     taskBtn.disabled = true;
+    if(isTaskEvent){
+      taskBtn.title = 'Task already scheduled';
+    }
   }
   taskBtn.addEventListener('click', async (evt)=>{
     evt.preventDefault();

@@ -2,13 +2,10 @@
 import { STR, text } from './ui/strings.js';
 import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
+import { rangeForView, addDays, ymd, parseDateInput, loadCalendarData, isWithinRange } from './calendar/index.js';
+import { ensureContactModalReady, openContactModal } from './contacts.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
-const GLOBAL_SCOPE = typeof globalThis !== 'undefined'
-  ? globalThis
-  : (typeof window !== 'undefined' ? window : {});
-
-const DB_WARNED = new Set();
 
 (function(){
   if(typeof window !== 'undefined'){
@@ -127,77 +124,6 @@ const DB_WARNED = new Set();
     dd.setDate(dd.getDate()-day); dd.setHours(0,0,0,0); return dd;
   }
   function addDays(d,n){ const dd=new Date(d); dd.setDate(dd.getDate()+n); return dd; }
-  function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
-  function toLocalMidnight(date){
-    if(!(date instanceof Date)) return null;
-    const copy = new Date(date.getTime());
-    copy.setHours(0,0,0,0);
-    return copy;
-  }
-  function parseDateInput(value){
-    if(value instanceof Date) return toLocalMidnight(value);
-    if(typeof value === 'number' && Number.isFinite(value)){
-      const parsed = new Date(value);
-      if(Number.isNaN(parsed.getTime())) return null;
-      return toLocalMidnight(parsed);
-    }
-    const text = value == null ? '' : String(value).trim();
-    if(!text) return null;
-    const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(iso){
-      const parsed = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-      return toLocalMidnight(parsed);
-    }
-    const parsed = new Date(text);
-    if(Number.isNaN(parsed.getTime())) return null;
-    return toLocalMidnight(parsed);
-  }
-  function cloneList(list){
-    return (Array.isArray(list) ? list : []).map(item => Object.assign({}, item || {}));
-  }
-  function seedFallback(store){
-    const dataset = GLOBAL_SCOPE && GLOBAL_SCOPE.__SEED_DATA__;
-    if(!dataset || typeof dataset !== 'object') return [];
-    const list = dataset[store];
-    return cloneList(Array.isArray(list) ? list : []);
-  }
-  async function getAll(store){
-    const scope = GLOBAL_SCOPE;
-    const fn = scope && typeof scope.dbGetAll === 'function' ? scope.dbGetAll : null;
-    if(fn){
-      try{
-        const records = await fn.call(scope, store);
-        if(Array.isArray(records)){
-          if(records.length) return records;
-          const seeds = seedFallback(store);
-          return seeds.length ? seeds : records;
-        }
-      }catch (err){
-        if(!DB_WARNED.has(store) && console && typeof console.warn === 'function'){
-          console.warn('calendar store load failed', store, err);
-          DB_WARNED.add(store);
-        }
-      }
-    }
-    const seeds = seedFallback(store);
-    return seeds;
-  }
-  function isWithinRange(date, start, end){
-    if(!(date instanceof Date)) return false;
-    const time = date.getTime();
-    if(start instanceof Date && time < start.getTime()) return false;
-    if(end instanceof Date && time >= end.getTime()) return false;
-    return true;
-  }
-  async function loadCalendarData({ start, end }){
-    const [contacts, tasks, deals] = await Promise.all([
-      getAll('contacts'),
-      getAll('tasks'),
-      getAll('deals')
-    ]);
-    return { contacts, tasks, deals, start, end };
-  }
-
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const EVENT_ICON_PATHS = Object.freeze({
     followup: 'M2.25 6.75C2.25 15.0343 8.96573 21.75 17.25 21.75H19.5C20.7426 21.75 21.75 20.7426 21.75 19.5V18.1284C21.75 17.6121 21.3987 17.1622 20.8979 17.037L16.4747 15.9312C16.0355 15.8214 15.5734 15.9855 15.3018 16.3476L14.3316 17.6412C14.05 18.0166 13.563 18.1827 13.1223 18.0212C9.81539 16.8098 7.19015 14.1846 5.97876 10.8777C5.81734 10.437 5.98336 9.94998 6.3588 9.6684L7.65242 8.69818C8.01453 8.4266 8.17861 7.96445 8.06883 7.52533L6.96304 3.10215C6.83783 2.60133 6.38785 2.25 5.87163 2.25H4.5C3.25736 2.25 2.25 3.25736 2.25 4.5V6.75Z',
@@ -287,52 +213,6 @@ const DB_WARNED = new Set();
   }
 
   const popoverState = { node: null, detach: null, anchor: null };
-
-  const ensureContactModal = (() => {
-    let inflight = null;
-    let warned = false;
-    const noteWarn = (label, err) => {
-      if(warned) return;
-      warned = true;
-      if(console && typeof console.warn === 'function'){
-        console.warn(label, err);
-      }
-    };
-    return async function ensureContactModal(){
-      if(typeof window === 'undefined') return false;
-      if(typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true){
-        return true;
-      }
-      const ready = window.__CONTACT_MODAL_READY__;
-      if(ready && typeof ready.then === 'function'){
-        try{ await ready; }
-        catch (err){ noteWarn('contact modal ready wait failed', err); }
-        if(typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true){
-          return true;
-        }
-      }
-      if(inflight){
-        try{ await inflight; }
-        catch (_err){}
-        return typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true;
-      }
-      try{
-        inflight = import(fromHere('./contacts.js'));
-        await inflight;
-      }catch (err){
-        noteWarn('contact modal import failed', err);
-        inflight = null;
-        return false;
-      }
-      inflight = null;
-      const postReady = window.__CONTACT_MODAL_READY__;
-      if(postReady && typeof postReady.then === 'function'){
-        try{ await postReady; }
-        catch (err){ noteWarn('contact modal ready wait failed', err); }
-      }
-      return typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true;
-    };
-  })();
 
   function closeEventPopover(){
     if(popoverState.detach){
@@ -544,6 +424,55 @@ const DB_WARNED = new Set();
     return events;
   }
 
+  function normalizeProvidedEvents(list, anchorDate, start, end){
+    const normalized = [];
+    const begin = start instanceof Date ? start.getTime() : null;
+    const finish = end instanceof Date ? end.getTime() : null;
+    for(const entry of Array.isArray(list) ? list : []){
+      if(!entry || typeof entry !== 'object') continue;
+      const parsedDate = parseDateInput(entry.date ?? entry.when ?? entry.start);
+      if(!(parsedDate instanceof Date)) continue;
+      const stamp = parsedDate.getTime();
+      if(begin != null && stamp < begin) continue;
+      if(finish != null && stamp >= finish) continue;
+      const typeKey = String(entry.type || '').trim().toLowerCase() || 'followup';
+      const source = entry.source && typeof entry.source === 'object'
+        ? {
+            entity: String(entry.source.entity || ''),
+            id: String(entry.source.id || ''),
+            field: String(entry.source.field || '')
+          }
+        : null;
+      const contactId = entry.contactId ? String(entry.contactId).trim() : '';
+      const contactStage = entry.contactStage ? String(entry.contactStage).trim() : '';
+      const contactName = entry.contactName ? String(entry.contactName).trim() : '';
+      const status = entry.status ? String(entry.status).trim() : '';
+      const title = entry.title ? String(entry.title) : '';
+      const subtitle = entry.subtitle ? String(entry.subtitle) : '';
+      const rawLoan = entry.loanKey ? entry.loanKey : (entry.loanType || '');
+      const loanMeta = entry.loanKey && LOAN_PALETTE_MAP.has(entry.loanKey)
+        ? LOAN_PALETTE_MAP.get(entry.loanKey)
+        : resolveLoanMeta(rawLoan);
+      const hasLoan = entry.hasLoan != null ? !!entry.hasLoan : !!rawLoan;
+      normalized.push({
+        date: parsedDate,
+        type: typeKey,
+        title: title || (EVENT_META_MAP.get(typeKey)?.label || ''),
+        subtitle,
+        loanKey: loanMeta.key,
+        loanLabel: loanMeta.label,
+        hasLoan,
+        status,
+        source,
+        contactId,
+        contactStage,
+        contactName,
+        raw: entry
+      });
+    }
+    return normalized;
+  }
+
   function legend(events){
     const view = document.getElementById('view-calendar');
     const host = view ? view.querySelector('#calendar-legend') : document.getElementById('calendar-legend');
@@ -644,25 +573,31 @@ const DB_WARNED = new Set();
     if(!root) return;
     // Read data deterministically
     // Build frame
-    let start, end, cols;
-    if(view==='week'){ const s=startOfWeek(anchor); start=s; end=addDays(s,7); cols=7; }
-    else if(view==='day'){ const s=new Date(anchor); s.setHours(0,0,0,0); start=s; end=addDays(s,1); cols=1; }
-    else { // month grid (6 rows * 7)
-      const first=new Date(anchor.getFullYear(), anchor.getMonth(),1);
-      start=startOfWeek(first); end=addDays(start,42); cols=7;
-    }
+    const range = rangeForView(anchor, view);
+    const currentView = range.view;
+    const anchorDate = range.anchor;
+    const start = range.start;
+    const end = range.end;
+    const dayCount = range.days;
 
-    const { contacts, tasks, deals } = await loadCalendarData({ start, end });
-    const events = collectEvents(contacts,tasks,deals, anchor, start, end);
+    const data = await loadCalendarData({ start, end, anchor: anchorDate, view: currentView });
+    const providedEvents = Array.isArray(data.events) ? data.events : [];
+    let events = [];
+    if(providedEvents.length){
+      events = normalizeProvidedEvents(providedEvents, anchorDate, start, end);
+    }
+    if(!events.length){
+      events = collectEvents(data.contacts, data.tasks, data.deals, anchorDate, start, end);
+    }
 
     const label = document.getElementById('calendar-label');
     if(label){
-      label.textContent = formatRange(anchor, view, start, end);
+      label.textContent = formatRange(anchorDate, currentView, start, end);
     }
 
     closeEventPopover();
     root.innerHTML = '';
-    root.setAttribute('data-view', view);
+    root.setAttribute('data-view', currentView);
     const todayStr = new Date().toDateString();
 
     const openContactRecord = async (contactId)=>{
@@ -674,24 +609,24 @@ const DB_WARNED = new Set();
         return false;
       }
       let ready = false;
-      try{ ready = await ensureContactModal(); }
+      try{ ready = await ensureContactModalReady(); }
       catch (err){
         if(console && typeof console.warn === 'function'){
           console.warn('contact modal ensure failed', err);
         }
         ready = false;
       }
-      if(!ready || typeof window.renderContactModal !== 'function' || window.renderContactModal.__crmReady !== true){
+      if(!ready || typeof openContactModal !== 'function'){
         if(typeof window.toast === 'function'){
           window.toast('Contact unavailable for this event');
         }
         return false;
       }
       logCalendarContact();
-      try{ window.renderContactModal(targetId); }
+      try{ openContactModal(targetId); }
       catch (err) {
         if(console && typeof console.warn === 'function'){
-          console.warn('renderContactModal failed', err);
+          console.warn('openContactModal failed', err);
         }
         return false;
       }
@@ -747,12 +682,11 @@ const DB_WARNED = new Set();
       return true;
     }
 
-    const dayCount = Math.round((end - start)/86400000);
-    if(view === 'day'){
-      const dayEvents = events.filter(e=> ymd(e.date)===ymd(anchor));
+    if(currentView === 'day'){
+      const dayEvents = events.filter(e=> ymd(e.date)===ymd(anchorDate));
       renderDailyView({
         root,
-        anchor,
+        anchor: anchorDate,
         events: dayEvents,
         metaFor: (type)=> EVENT_META_MAP.get(type) || null,
         iconFor: (type)=> getEventIcon(type),
@@ -766,11 +700,11 @@ const DB_WARNED = new Set();
       grid.dataset.calendarEnhanced = '1';
       for(let i=0;i<dayCount;i++){
         const d = addDays(start,i);
-        const inMonth = d.getMonth()===anchor.getMonth();
+        const inMonth = d.getMonth()===anchorDate.getMonth();
 
         const cell = document.createElement('div');
         cell.className='cal-cell';
-        if(!inMonth && view==='month') cell.classList.add('muted');
+        if(!inMonth && currentView==='month') cell.classList.add('muted');
         if(d.toDateString()===todayStr) cell.classList.add('today');
 
         const head = document.createElement('div');
@@ -797,7 +731,7 @@ const DB_WARNED = new Set();
 
         const todays = events.filter(e=> ymd(e.date)===ymd(d) );
 
-        if(view==='month'){
+        if(currentView==='month'){
           box.style.maxHeight = '140px';
           box.style.overflowY = 'auto';
           box.style.paddingRight = '2px';
@@ -1073,8 +1007,8 @@ const DB_WARNED = new Set();
       }));
     };
     calendarApi.currentRange = {
-      view,
-      anchor: new Date(anchor.getTime()),
+      view: currentView,
+      anchor: new Date(anchorDate.getTime()),
       start: rangeStart,
       end: rangeEnd
     };
@@ -1082,9 +1016,15 @@ const DB_WARNED = new Set();
     calendarApi.loadRange = async function(rangeStartDate, rangeEndDate){
       const safeStart = parseDateInput(rangeStartDate) || null;
       const safeEnd = parseDateInput(rangeEndDate) || null;
-      const baseAnchor = safeStart instanceof Date ? safeStart : anchor;
-      const data = await loadCalendarData({ start: safeStart, end: safeEnd });
-      const rangeEvents = collectEvents(data.contacts, data.tasks, data.deals, baseAnchor, safeStart, safeEnd);
+      const baseAnchor = safeStart instanceof Date ? safeStart : anchorDate;
+      const data = await loadCalendarData({ start: safeStart, end: safeEnd, anchor: baseAnchor, view: currentView });
+      let rangeEvents = [];
+      if(Array.isArray(data.events) && data.events.length){
+        rangeEvents = normalizeProvidedEvents(data.events, baseAnchor, safeStart, safeEnd);
+      }
+      if(!rangeEvents.length){
+        rangeEvents = collectEvents(data.contacts, data.tasks, data.deals, baseAnchor, safeStart, safeEnd);
+      }
       return rangeEvents.map(ev => ({
         type: ev.type,
         title: ev.title,

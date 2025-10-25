@@ -1,4 +1,5 @@
 import { openDB, dbPut } from '../db.js';
+import { recordTask } from './store.js';
 
 let logged = false;
 
@@ -153,6 +154,11 @@ export async function createTaskFromEvent(event){
   try{
     await openDB();
     await dbPut('tasks', record);
+    try{
+      recordTask(record);
+    }catch (err){
+      console && console.warn && console.warn('tasks store update failed', err);
+    }
   }catch (err){
     console && console.warn && console.warn('createTaskFromEvent dbPut failed', err);
     toastSafe('Unable to save task');
