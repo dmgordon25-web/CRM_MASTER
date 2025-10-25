@@ -2,6 +2,7 @@ import { makeDraggableGrid } from '../ui/drag_core.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
+import { loadEventsBetween, addDays, toLocalMidnight, ymd } from '../calendar/index.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -15,12 +16,26 @@ const DASHBOARD_CLICK_THRESHOLD = 5;
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
 const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
 const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
+const CELEBRATIONS_WIDGET_KEY = 'celebrations';
+const CELEBRATIONS_WIDGET_ID = 'dashboard-celebrations';
+const CELEBRATIONS_WINDOW_DAYS = 7;
 
 const todayHighlightState = {
   modeObserver: null,
   modeButton: null,
   hostObserver: null,
   host: null
+};
+
+const celebrationsState = {
+  host: null,
+  list: null,
+  empty: null,
+  error: null,
+  status: null,
+  inflight: null,
+  lastRangeKey: '',
+  itemsRendered: false
 };
 
 const KPI_KEYS = [
@@ -47,6 +62,7 @@ const WIDGET_RESOLVERS = {
   kpis: () => doc ? doc.getElementById('dashboard-kpis') : null,
   pipeline: () => doc ? doc.getElementById('dashboard-pipeline-overview') : null,
   today: () => doc ? doc.getElementById('dashboard-today') : null,
+  celebrations: () => doc ? doc.getElementById(CELEBRATIONS_WIDGET_ID) : null,
   leaderboard: () => doc ? doc.getElementById('referral-leaderboard') : null,
   stale: () => doc ? doc.getElementById('dashboard-stale') : null,
   favorites: () => doc ? doc.getElementById('favorites-card') : null,
@@ -92,6 +108,7 @@ const WIDGET_DOM_ID_MAP = {
   kpis: 'dashboard-kpis',
   pipeline: 'dashboard-pipeline-overview',
   today: 'dashboard-today',
+  celebrations: CELEBRATIONS_WIDGET_ID,
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
   favorites: 'favorites-card',
@@ -262,6 +279,397 @@ function ensureDashboardDragStyles() {
   [data-ui="dashboard-root"].dash-grid-host {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+@media (min-width: 90rem) {
+  [data-ui="dashboard-root"].dash-grid-host {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+[data-ui="dashboard-root"].dash-grid-host > #dashboard-header,
+[data-ui="dashboard-root"].dash-grid-host > .dash-full-width {
+  grid-column: 1 / -1;
+}
+
+[data-ui="dashboard-root"].dash-grid-host > section.grid,
+[data-ui="dashboard-root"].dash-grid-host > section.status-stack {
+  grid-column: 1 / -1;
+}
+
+[data-ui="dashboard-root"].dash-grid-host > [data-dash-widget] {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.dash-drag-handle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.9));
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(51, 65, 85, 0.88);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  z-index: 5;
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dash-drag-handle::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.82;
+}
+
+.dash-drag-handle span {
+  pointer-events: none;
+  display: none;
+}
+
+.dash-drag-handle:hover {
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.95), rgba(226, 232, 240, 0.95));
+  color: rgba(30, 41, 59, 0.92);
+}
+
+.dash-drag-handle:focus-visible {
+  outline: 2px solid var(--focus-ring, #2563eb);
+  outline-offset: 2px;
+}
+
+.dash-dragging .dash-drag-handle {
+  cursor: grabbing;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+}
+
+.dash-drag-placeholder {
+  border: 2px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 18px;
+  background-color: rgba(148, 163, 184, 0.12);
+  background-image: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0, rgba(148, 163, 184, 0.18) 4px, transparent 4px, transparent 8px);
+  transition: opacity 0.18s ease;
+}
+
+.dash-dragging .dash-drag-placeholder {
+  opacity: 0.85;
+}
+
+.dash-gridlines {
+  display: none;
+  border-radius: 18px;
+  border: 2px dashed rgba(148, 163, 184, 0.45);
+  opacity: 0.7;
+  background-size: var(--dash-grid-step-x, 320px) var(--dash-grid-step-y, 240px);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent var(--dash-grid-step-y, 240px)),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent var(--dash-grid-step-x, 320px));
+}
+
+.dash-dragging .dash-gridlines {
+  display: block;
+}
+
+.dash-dragging [data-dash-widget] {
+  transition: transform 0.18s ease;
+}
+`;
+  const head = doc.head || doc.getElementsByTagName('head')[0];
+  if (head) {
+    head.appendChild(style);
+  }
+}
+
+function syncCelebrationsRefs(host) {
+  if (!host) return;
+  celebrationsState.host = host;
+  celebrationsState.list = host.querySelector('[data-role="celebrations-list"]');
+  celebrationsState.empty = host.querySelector('[data-role="celebrations-empty"]');
+  celebrationsState.error = host.querySelector('[data-role="celebrations-error"]');
+  celebrationsState.status = host.querySelector('[data-role="celebrations-status"]');
+}
+
+function formatCelebrationDate(date) {
+  if (!(date instanceof Date)) return '';
+  try {
+    return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  } catch (_err) {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+}
+
+function formatCelebrationKind(type) {
+  return type === 'anniversary' ? 'Loan Anniversary' : 'Birthday';
+}
+
+function ensureUpcomingCelebrationsWidget() {
+  if (!doc) return null;
+  let host = doc.getElementById(CELEBRATIONS_WIDGET_ID);
+  if (!host) {
+    const container = getDashboardContainerNode();
+    if (!container) return null;
+    host = doc.createElement('section');
+    host.className = 'card';
+    host.id = CELEBRATIONS_WIDGET_ID;
+    host.dataset.widgetLabel = 'Upcoming Celebrations';
+    host.dataset.widgetId = CELEBRATIONS_WIDGET_KEY;
+    host.dataset.dashWidget = CELEBRATIONS_WIDGET_KEY;
+    host.setAttribute('data-dash-widget', CELEBRATIONS_WIDGET_KEY);
+
+    const header = doc.createElement('header');
+    header.className = 'row';
+    header.style.alignItems = 'baseline';
+    header.style.justifyContent = 'space-between';
+
+    const title = doc.createElement('strong');
+    title.textContent = 'Upcoming Celebrations';
+    title.setAttribute('data-ui', 'card-title');
+    header.appendChild(title);
+
+    const status = doc.createElement('span');
+    status.className = 'muted';
+    status.dataset.role = 'celebrations-status';
+    status.textContent = `Next ${CELEBRATIONS_WINDOW_DAYS} days`;
+    header.appendChild(status);
+
+    host.appendChild(header);
+
+    const list = doc.createElement('ul');
+    list.dataset.role = 'celebrations-list';
+    list.className = 'insight-list spotlight';
+    host.appendChild(list);
+
+    const empty = doc.createElement('div');
+    empty.dataset.role = 'celebrations-empty';
+    empty.className = 'muted';
+    empty.style.marginTop = '8px';
+    empty.textContent = 'No birthdays or anniversaries in the next 7 days.';
+    empty.style.display = 'none';
+    host.appendChild(empty);
+
+    const error = doc.createElement('div');
+    error.dataset.role = 'celebrations-error';
+    error.className = 'muted';
+    error.style.marginTop = '8px';
+    error.style.display = 'none';
+    error.textContent = 'Unable to load celebrations right now.';
+    host.appendChild(error);
+
+    const anchor = doc.getElementById('dashboard-stale');
+    if (anchor && anchor.parentNode === container) {
+      container.insertBefore(host, anchor);
+    } else {
+      container.appendChild(host);
+    }
+  } else {
+    if (!host.dataset.widgetLabel) host.dataset.widgetLabel = 'Upcoming Celebrations';
+    if (!host.dataset.widgetId) host.dataset.widgetId = CELEBRATIONS_WIDGET_KEY;
+    host.dataset.dashWidget = CELEBRATIONS_WIDGET_KEY;
+    host.setAttribute('data-dash-widget', CELEBRATIONS_WIDGET_KEY);
+    let status = host.querySelector('[data-role="celebrations-status"]');
+    if (!status) {
+      status = doc.createElement('span');
+      status.className = 'muted';
+      status.dataset.role = 'celebrations-status';
+      status.textContent = `Next ${CELEBRATIONS_WINDOW_DAYS} days`;
+      const header = host.querySelector('header');
+      if (header) {
+        header.appendChild(status);
+      } else {
+        const wrapper = doc.createElement('header');
+        wrapper.className = 'row';
+        wrapper.style.alignItems = 'baseline';
+        wrapper.style.justifyContent = 'space-between';
+        const title = doc.createElement('strong');
+        title.textContent = 'Upcoming Celebrations';
+        title.setAttribute('data-ui', 'card-title');
+        wrapper.appendChild(title);
+        wrapper.appendChild(status);
+        host.insertBefore(wrapper, host.firstChild || null);
+      }
+    }
+    let list = host.querySelector('[data-role="celebrations-list"]');
+    if (!list) {
+      list = doc.createElement('ul');
+      list.dataset.role = 'celebrations-list';
+      list.className = 'insight-list spotlight';
+      host.appendChild(list);
+    }
+    if (!list.classList.contains('insight-list')) list.classList.add('insight-list');
+    if (!list.classList.contains('spotlight')) list.classList.add('spotlight');
+    if (!host.querySelector('[data-role="celebrations-empty"]')) {
+      const empty = doc.createElement('div');
+      empty.dataset.role = 'celebrations-empty';
+      empty.className = 'muted';
+      empty.style.marginTop = '8px';
+      empty.textContent = 'No birthdays or anniversaries in the next 7 days.';
+      empty.style.display = 'none';
+      host.appendChild(empty);
+    }
+    if (!host.querySelector('[data-role="celebrations-error"]')) {
+      const error = doc.createElement('div');
+      error.dataset.role = 'celebrations-error';
+      error.className = 'muted';
+      error.style.marginTop = '8px';
+      error.style.display = 'none';
+      error.textContent = 'Unable to load celebrations right now.';
+      host.appendChild(error);
+    }
+  }
+  syncCelebrationsRefs(host);
+  return host;
+}
+
+function isCelebrationsVisible(host) {
+  if (!host) return false;
+  const hiddenAttr = host.getAttribute('aria-hidden');
+  if (hiddenAttr === 'true') return false;
+  const display = host.style && typeof host.style.display === 'string' ? host.style.display : '';
+  if (display && display.toLowerCase() === 'none') return false;
+  return true;
+}
+
+function renderCelebrationsList(items) {
+  const { list, empty, error, status } = celebrationsState;
+  if (status) {
+    status.textContent = `Next ${CELEBRATIONS_WINDOW_DAYS} days`;
+  }
+  if (error) {
+    error.style.display = 'none';
+  }
+  if (!list) return;
+  list.innerHTML = '';
+  if (!items.length) {
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  const fragment = doc.createDocumentFragment();
+  items.forEach(item => {
+    const li = doc.createElement('li');
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.setAttribute('data-contact-id', String(item.contactId));
+    button.style.display = 'flex';
+    button.style.flexDirection = 'column';
+    button.style.alignItems = 'flex-start';
+    button.style.width = '100%';
+    button.style.background = 'none';
+    button.style.border = 'none';
+    button.style.padding = '0';
+    button.style.font = 'inherit';
+    button.style.cursor = 'pointer';
+    button.style.textAlign = 'left';
+    button.style.gap = '2px';
+    const name = doc.createElement('span');
+    name.textContent = item.title || 'View contact';
+    name.style.fontWeight = '600';
+    const meta = doc.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `${formatCelebrationKind(item.type)} • ${formatCelebrationDate(item.date)}`;
+    button.appendChild(name);
+    button.appendChild(meta);
+    li.appendChild(button);
+    fragment.appendChild(li);
+  });
+  list.appendChild(fragment);
+}
+
+async function refreshCelebrationsWidget(options = {}) {
+  const { force = false } = options || {};
+  const host = ensureUpcomingCelebrationsWidget();
+  if (!host) return;
+  syncCelebrationsRefs(host);
+  const { status, error, empty } = celebrationsState;
+  if (!force && !isCelebrationsVisible(host)) {
+    celebrationsState.itemsRendered = false;
+    return;
+  }
+  const today = toLocalMidnight(new Date());
+  const rangeKey = ymd(today) || String(today.getTime());
+  if (!force && celebrationsState.itemsRendered && celebrationsState.lastRangeKey === rangeKey) {
+    return;
+  }
+  if (!force && celebrationsState.inflight) {
+    return celebrationsState.inflight;
+  }
+  if (status) {
+    status.textContent = 'Loading…';
+  }
+  if (error) {
+    error.style.display = 'none';
+  }
+  if (empty) {
+    empty.style.display = 'none';
+  }
+
+  const start = today;
+  const end = addDays(start, CELEBRATIONS_WINDOW_DAYS);
+
+  const loadPromise = (async () => {
+    let events = [];
+    try {
+      events = await loadEventsBetween(start, end, { anchor: start, view: 'week' });
+    } catch (err) {
+      if (console && console.warn) console.warn('[dashboard] celebrations load failed', err);
+      throw err;
+    }
+    const filtered = events.filter(event => {
+      if (!event) return false;
+      if (event.type !== 'birthday' && event.type !== 'anniversary') return false;
+      const id = event.contactId ? String(event.contactId).trim() : '';
+      if (!id) return false;
+      if (!(event.date instanceof Date)) return false;
+      return true;
+    });
+    filtered.sort((a, b) => {
+      const diff = a.date - b.date;
+      if (diff !== 0) return diff;
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return (a.title || '').localeCompare(b.title || '');
+    });
+    return filtered;
+  })();
+
+  celebrationsState.inflight = loadPromise
+    .then(items => {
+      celebrationsState.lastRangeKey = rangeKey;
+      celebrationsState.itemsRendered = true;
+      renderCelebrationsList(items);
+      return items;
+    })
+    .catch(err => {
+      celebrationsState.itemsRendered = false;
+      celebrationsState.lastRangeKey = '';
+      if (status) {
+        status.textContent = `Next ${CELEBRATIONS_WINDOW_DAYS} days`;
+      }
+      if (empty) {
+        empty.style.display = 'none';
+      }
+      if (celebrationsState.list) {
+        celebrationsState.list.innerHTML = '';
+      }
+      if (celebrationsState.error) {
+        celebrationsState.error.style.display = '';
+      }
+      return [];
+    })
+    .finally(() => {
+      celebrationsState.inflight = null;
+    });
+
+  return celebrationsState.inflight;
 }
 
 @media (min-width: 90rem) {
@@ -1168,10 +1576,12 @@ function scheduleApply() {
     pendingApply = false;
     try {
       ensureDashboardLegend();
+      ensureUpcomingCelebrationsWidget();
       refreshWidgetIdLookup();
       const prefs = await getSettingsPrefs();
       applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
+      await refreshCelebrationsWidget();
     } catch (err) {
       if (console && console.warn) console.warn('[dashboard] apply prefs failed', err);
     }
@@ -1220,6 +1630,12 @@ function init() {
   doc.addEventListener('app:data:changed', evt => {
     const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
     if (scope === 'settings') invalidatePrefs();
+    if (scope === 'contacts' || scope === 'calendar' || scope === 'tasks' || scope === 'deals') {
+      const result = refreshCelebrationsWidget({ force: true });
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {});
+      }
+    }
     scheduleApply();
   });
   refreshTodayHighlightWiring();
