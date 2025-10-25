@@ -837,6 +837,25 @@ function applyDashboardLayoutClasses(container) {
   }
 }
 
+function resolveGridGap(container) {
+  if (!container) return 12;
+  try {
+    const win = container.ownerDocument ? container.ownerDocument.defaultView : null;
+    const styles = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(container) : null;
+    if (styles) {
+      const gap = styles.gap || styles.gridGap || '';
+      if (typeof gap === 'string' && gap.trim()) {
+        const first = gap.trim().split(/\s+/)[0];
+        const parsed = parseFloat(first);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    }
+  } catch (_err) {}
+  return 12;
+}
+
 function slugify(text) {
   if (!text) return '';
   return String(text)
@@ -1261,6 +1280,7 @@ function ensureWidgetDnD() {
   }
   if (!dashDnDState.controller) {
     try {
+      const gap = resolveGridGap(container);
       dashDnDState.controller = makeDraggableGrid({
         container,
         itemSel: DASHBOARD_ITEM_SELECTOR,
@@ -1268,7 +1288,7 @@ function ensureWidgetDnD() {
         storageKey: DASHBOARD_ORDER_STORAGE_KEY,
         idGetter: el => (el && el.dataset && el.dataset.dashWidget) ? el.dataset.dashWidget : (el && el.id ? String(el.id).trim() : ''),
         onOrderChange: persistDashboardOrder,
-        grid: { gap: 24 }
+        grid: { gap }
       });
     } catch (err) {
       try {
