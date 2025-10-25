@@ -1,10 +1,11 @@
 import './quick_add_compat.js';
-import { toggleQuickCreateMenu, isQuickCreateMenuOpen } from './quick_create_menu.js';
+import { bindQuickCreateMenu } from './quick_create_menu.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const BUTTON_ID = 'btn-header-new';
+const UNIFIED_NEW_DEFAULT = true;
 let ensureControlsRef = null;
 let headerOnlyBeaconed = false;
 
@@ -14,9 +15,12 @@ const headerState = (() => {
   }
   const existing = window[STATE_KEY];
   if (existing && typeof existing === 'object') {
+    if (!('unbind' in existing)) {
+      existing.unbind = null;
+    }
     return existing;
   }
-  const state = { host: null, header: null, observer: null, pending: false, toggle: null, wired: false };
+  const state = { host: null, header: null, observer: null, pending: false, toggle: null, wired: false, unbind: null };
   window[STATE_KEY] = state;
   return state;
 })();
@@ -92,13 +96,29 @@ function findHeaderNode() {
   return null;
 }
 
+function isUnifiedNewEnabled() {
+  if (typeof window !== 'undefined' && window) {
+    const safe = window.__SAFE_MODE__;
+    if (safe === true || safe === 1 || safe === '1') {
+      return false;
+    }
+    const flag = window.__CRM_ENABLE_UNIFIED_NEW__;
+    if (typeof flag === 'boolean') {
+      return flag;
+    }
+  }
+  return UNIFIED_NEW_DEFAULT;
+}
+
 function removeLegacyHeaderButtons(header) {
   if (!header) return;
   const legacyButtons = header.querySelectorAll([
     '#btn-add-contact',
     '#btn-add-partner',
+    '#quick-add',
     '.btn-add-contact',
-    '.btn-add-partner'
+    '.btn-add-partner',
+    '[data-quick-add]'
   ].join(','));
   legacyButtons.forEach((btn) => {
     if (btn && btn.parentNode) {
@@ -107,34 +127,13 @@ function removeLegacyHeaderButtons(header) {
   });
 }
 
-function ensureToggleWiring(toggle) {
-  if (!toggle) return;
-  toggle.setAttribute('aria-haspopup', 'true');
-  if (toggle.getAttribute('aria-expanded') !== 'true') {
-    toggle.setAttribute('aria-expanded', 'false');
+function teardownQuickCreateBinding() {
+  const { unbind } = headerState;
+  if (typeof unbind === 'function') {
+    try { unbind(); }
+    catch (_) {}
   }
-  if (!toggle.__headerToolbarClick) {
-    toggle.__headerToolbarClick = true;
-    toggle.addEventListener('click', (event) => {
-      event.preventDefault();
-      toggleQuickCreateMenu({ anchor: toggle, source: 'header' });
-    });
-  }
-  if (!toggle.__quickCreateStateWired) {
-    toggle.__quickCreateStateWired = true;
-    const handleState = (event) => {
-      const detail = event && event.detail ? event.detail : {};
-      const expanded = !!(detail.open && detail.source === 'header');
-      toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      if (!toggle.isConnected) {
-        document.removeEventListener('quick-create-menu:state', handleState);
-      }
-    };
-    document.addEventListener('quick-create-menu:state', handleState);
-    if (isQuickCreateMenuOpen('header')) {
-      toggle.setAttribute('aria-expanded', 'true');
-    }
-  }
+  headerState.unbind = null;
 }
 
 function ensureHostNode() {
@@ -159,10 +158,29 @@ function ensureHostNode() {
   } else if (!toggle.textContent || toggle.textContent.trim() !== '+ New') {
     toggle.textContent = '+ New';
   }
-  ensureToggleWiring(toggle);
   headerState.host = host;
   headerState.toggle = toggle;
   return host;
+}
+
+function ensureQuickCreateBinding(host) {
+  if (!host) {
+    teardownQuickCreateBinding();
+    return;
+  }
+  teardownQuickCreateBinding();
+  try {
+    const unbind = bindQuickCreateMenu(host, {
+      toggleSelector: `#${BUTTON_ID}`,
+      enableActionBar: true
+    });
+    headerState.unbind = typeof unbind === 'function' ? unbind : null;
+  } catch (err) {
+    headerState.unbind = null;
+    if (console && typeof console.warn === 'function') {
+      console.warn('[header] quick-create bind failed', err);
+    }
+  }
 }
 
 function pickHeaderMount(header) {
@@ -238,17 +256,35 @@ function ensureHeaderToolbar() {
   try {
     const header = findHeaderNode();
     if (!header) {
+      teardownQuickCreateBinding();
       headerState.header = null;
       headerState.wired = false;
       return false;
     }
+    if (!isUnifiedNewEnabled()) {
+      teardownQuickCreateBinding();
+      if (headerState.host && headerState.host.parentElement) {
+        try { headerState.host.remove(); }
+        catch (_) {
+          try { headerState.host.parentElement.removeChild(headerState.host); }
+          catch (__err) {}
+        }
+      }
+      headerState.host = null;
+      headerState.toggle = null;
+      headerState.header = header;
+      headerState.wired = true;
+      return true;
+    }
     removeLegacyHeaderButtons(header);
     const host = ensureHostNode();
     if (!host) {
+      teardownQuickCreateBinding();
       headerState.wired = false;
       return false;
     }
     placeHost(header, host);
+    ensureQuickCreateBinding(host);
     headerState.header = header;
     headerState.wired = !!host.isConnected;
     if (host.isConnected) {
@@ -256,6 +292,7 @@ function ensureHeaderToolbar() {
     }
     return headerState.wired;
   } catch (err) {
+    teardownQuickCreateBinding();
     headerState.wired = false;
     if (console && typeof console.warn === 'function') {
       console.warn('header toolbar injection failed', err);

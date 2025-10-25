@@ -6,6 +6,14 @@ const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';
 const ACTION_BAR_ID = 'global-new';
 const ACTION_BAR_SOURCE = 'actionbar';
+const HEADER_SOURCE = 'header';
+const HEADER_TOGGLE_SELECTOR = '#btn-header-new';
+
+const defaultOpeners = {
+  contact: () => openContactEditor(),
+  partner: () => openPartnerEditor(),
+  task: () => openTaskEditor()
+};
 
 const state = {
   open: false,
@@ -16,11 +24,11 @@ const state = {
   wrapper: null,
   menu: null,
   outsideHandler: null,
-  keyHandler: null
+  keyHandler: null,
+  openers: defaultOpeners
 };
 
 let bootBeaconEmitted = false;
-let actionBarListenerWired = false;
 
 function emitState() {
   if (typeof document === 'undefined') return;
@@ -32,6 +40,7 @@ function emitState() {
 }
 
 function postLog(eventName) {
+  if (!eventName) return;
   const payload = JSON.stringify({ event: eventName });
   let sent = false;
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
@@ -55,7 +64,10 @@ function postLog(eventName) {
   } catch (_) {}
 }
 
-if (!bootBeaconEmitted) {
+function ensureBootBeacon() {
+  if (bootBeaconEmitted) {
+    return;
+  }
   bootBeaconEmitted = true;
   try {
     console && typeof console.info === 'function' && console.info('[VIS] quick-create unified');
@@ -157,7 +169,7 @@ function normalizeSource(value) {
   if (raw === ACTION_BAR_SOURCE) {
     return ACTION_BAR_SOURCE;
   }
-  return 'header';
+  return HEADER_SOURCE;
 }
 
 function focusFirstMenuItem() {
@@ -175,108 +187,20 @@ function focusFirstMenuItem() {
   }
 }
 
+function getOpener(kind) {
+  const openers = state.openers && typeof state.openers === 'object' ? state.openers : defaultOpeners;
+  const fn = openers && typeof openers[kind] === 'function' ? openers[kind] : defaultOpeners[kind];
+  return typeof fn === 'function' ? fn : () => null;
+}
+
 function handleSelection(kind) {
   closeQuickCreateMenu();
   const item = kind === 'partner' ? 'partner' : kind === 'task' ? 'task' : 'contact';
   try {
     console && typeof console.info === 'function' && console.info('[A_BEACON] quick-create:select', { item });
   } catch (_) {}
-  if (kind === 'contact') {
-    openContactEditor();
-    return;
-  }
-  if (kind === 'partner') {
-    openPartnerEditor();
-    return;
-  }
-  if (kind === 'task') {
-    openTaskEditor();
-  }
-}
-
-function wireAnchorState(anchor, source) {
-  if (!anchor) return;
-  if (!anchor.__quickCreateStateWired) {
-    anchor.__quickCreateStateWired = true;
-    anchor.setAttribute('aria-haspopup', 'true');
-    anchor.setAttribute('aria-expanded', 'false');
-    const handleState = (event) => {
-      const detail = event && event.detail ? event.detail : {};
-      const expanded = !!(detail.open && detail.source === source);
-      anchor.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      if (!anchor.isConnected) {
-        document.removeEventListener('quick-create-menu:state', handleState);
-      }
-    };
-    document.addEventListener('quick-create-menu:state', handleState);
-    if (isQuickCreateMenuOpen(source)) {
-      anchor.setAttribute('aria-expanded', 'true');
-    }
-  }
-}
-
-function ensureActionBarTrigger() {
-  if (actionBarListenerWired || typeof document === 'undefined') {
-    return;
-  }
-  actionBarListenerWired = true;
-  const handleClick = (event) => {
-    if (!event || !event.target || typeof event.target.closest !== 'function') {
-      return;
-    }
-    const anchor = event.target.closest(`#${ACTION_BAR_ID}`);
-    if (!anchor) {
-      return;
-    }
-    wireAnchorState(anchor, ACTION_BAR_SOURCE);
-    event.preventDefault();
-    toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
-  };
-  document.addEventListener('click', handleClick, false);
-  const existing = document.getElementById(ACTION_BAR_ID);
-  if (existing) {
-    wireAnchorState(existing, ACTION_BAR_SOURCE);
-  }
-}
-
-function openContactEditor() {
-  if (typeof window.renderContactModal === 'function') {
-    callSafely(window.renderContactModal, null);
-    return;
-  }
-  if (typeof window.openNewContact === 'function') {
-    callSafely(window.openNewContact);
-    return;
-  }
-  toastWarn('Contact modal unavailable');
-}
-
-function openPartnerEditor() {
-  if (typeof openPartnerEditModal === 'function') {
-    Promise.resolve(callSafely(openPartnerEditModal, '', { allowAutoOpen: true }));
-    return;
-  }
-  if (typeof window.openPartnerEditModal === 'function') {
-    Promise.resolve(callSafely(window.openPartnerEditModal, '', { allowAutoOpen: true }));
-    return;
-  }
-  toastWarn('Partner modal unavailable');
-}
-
-function openTaskEditor() {
-  const handlers = [
-    window.openTaskQuickAdd,
-    window.CRM && window.CRM.openTaskQuickCreate,
-    window.Tasks && window.Tasks.openQuickCreate,
-    window.openTaskQuickCreate,
-    window.renderTaskModal
-  ].filter((fn) => typeof fn === 'function');
-  if (handlers.length) {
-    try { handlers[0](); }
-    catch (_) {}
-    return;
-  }
-  toastInfo('Tasks coming soon');
+  const opener = getOpener(item);
+  callSafely(opener);
 }
 
 function handleOutsideClick(event) {
@@ -394,7 +318,7 @@ export function closeQuickCreateMenu() {
 }
 
 export function openQuickCreateMenu(options = {}) {
-  const { anchor = null, source = 'header', origin = source } = options;
+  const { anchor = null, source = HEADER_SOURCE, origin = source } = options;
   const normalizedSource = normalizeSource(source);
   const elements = ensureMenuElements();
   if (!elements) return;
@@ -420,7 +344,7 @@ export function openQuickCreateMenu(options = {}) {
 }
 
 export function toggleQuickCreateMenu(options = {}) {
-  const { anchor = null, source = 'header' } = options;
+  const { anchor = null, source = HEADER_SOURCE } = options;
   const normalizedSource = normalizeSource(source);
   if (state.open) {
     const sameAnchor = anchor && state.anchor === anchor;
@@ -440,12 +364,171 @@ export function isQuickCreateMenuOpen(source) {
   return state.source === source;
 }
 
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      ensureActionBarTrigger();
-    }, { once: true });
-  } else {
-    ensureActionBarTrigger();
+function defaultOpenContactEditor() {
+  if (typeof window.renderContactModal === 'function') {
+    callSafely(window.renderContactModal, null);
+    return;
   }
+  if (typeof window.openNewContact === 'function') {
+    callSafely(window.openNewContact);
+    return;
+  }
+  toastWarn('Contact modal unavailable');
+}
+
+function defaultOpenPartnerEditor() {
+  if (typeof openPartnerEditModal === 'function') {
+    Promise.resolve(callSafely(openPartnerEditModal, '', { allowAutoOpen: true }));
+    return;
+  }
+  if (typeof window.openPartnerEditModal === 'function') {
+    Promise.resolve(callSafely(window.openPartnerEditModal, '', { allowAutoOpen: true }));
+    return;
+  }
+  toastWarn('Partner modal unavailable');
+}
+
+function defaultOpenTaskEditor() {
+  const handlers = [
+    window.openTaskQuickAdd,
+    window.CRM && window.CRM.openTaskQuickCreate,
+    window.Tasks && window.Tasks.openQuickCreate,
+    window.openTaskQuickCreate,
+    window.renderTaskModal
+  ].filter((fn) => typeof fn === 'function');
+  if (handlers.length) {
+    try { handlers[0](); }
+    catch (_) {}
+    return;
+  }
+  toastInfo('Tasks coming soon');
+}
+
+function openContactEditor() {
+  return defaultOpenContactEditor();
+}
+
+function openPartnerEditor() {
+  return defaultOpenPartnerEditor();
+}
+
+function openTaskEditor() {
+  return defaultOpenTaskEditor();
+}
+
+function createAnchorBinding(anchor, source) {
+  if (!anchor || typeof anchor.addEventListener !== 'function') return null;
+  const normalizedSource = normalizeSource(source);
+  anchor.setAttribute('aria-haspopup', 'true');
+  if (anchor.getAttribute('aria-expanded') !== 'true') {
+    anchor.setAttribute('aria-expanded', 'false');
+  }
+  const handleClick = (event) => {
+    event.preventDefault();
+    toggleQuickCreateMenu({ anchor, source: normalizedSource });
+  };
+  const handleState = (event) => {
+    const detail = event && event.detail ? event.detail : {};
+    const expanded = !!(detail.open && detail.source === normalizedSource);
+    anchor.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    if (!anchor.isConnected) {
+      document.removeEventListener('quick-create-menu:state', handleState);
+    }
+  };
+  anchor.addEventListener('click', handleClick);
+  document.addEventListener('quick-create-menu:state', handleState);
+  if (isQuickCreateMenuOpen(normalizedSource)) {
+    anchor.setAttribute('aria-expanded', 'true');
+  }
+  return () => {
+    try { anchor.removeEventListener('click', handleClick); }
+    catch (_) {}
+    try { document.removeEventListener('quick-create-menu:state', handleState); }
+    catch (_) {}
+    if (anchor.getAttribute('aria-haspopup') === 'true' && !isQuickCreateMenuOpen(normalizedSource)) {
+      anchor.setAttribute('aria-expanded', 'false');
+    }
+  };
+}
+
+export function bindQuickCreateMenu(root, options = {}) {
+  if (typeof document === 'undefined') {
+    return () => {};
+  }
+  const host = root && typeof root.querySelectorAll === 'function' ? root : document;
+  const toggleSelector = typeof options.toggleSelector === 'string' && options.toggleSelector
+    ? options.toggleSelector
+    : HEADER_TOGGLE_SELECTOR;
+  const enableActionBar = options.enableActionBar === true;
+  const actionBarSelector = typeof options.actionBarSelector === 'string' && options.actionBarSelector
+    ? options.actionBarSelector
+    : `#${ACTION_BAR_ID}`;
+  const openerConfig = {
+    contact: typeof options.openContact === 'function' ? options.openContact : defaultOpenContactEditor,
+    partner: typeof options.openPartner === 'function' ? options.openPartner : defaultOpenPartnerEditor,
+    task: typeof options.openTask === 'function' ? options.openTask : defaultOpenTaskEditor
+  };
+
+  const nextOpeners = openerConfig;
+  const previousOpeners = state.openers;
+  state.openers = nextOpeners;
+  ensureBootBeacon();
+
+  const localBindings = new Map();
+
+  function registerAnchor(anchor, source) {
+    if (!anchor || localBindings.has(anchor)) return;
+    const unbind = createAnchorBinding(anchor, source);
+    if (typeof unbind === 'function') {
+      localBindings.set(anchor, unbind);
+    }
+  }
+
+  const toggles = Array.from(host.querySelectorAll(toggleSelector));
+  toggles.forEach((toggle) => {
+    registerAnchor(toggle, HEADER_SOURCE);
+  });
+
+  let actionBarCleanup = null;
+  if (enableActionBar) {
+    const handleActionBarClick = (event) => {
+      if (!event || !event.target || typeof event.target.closest !== 'function') {
+        return;
+      }
+      const anchor = event.target.closest(actionBarSelector);
+      if (!anchor) {
+        return;
+      }
+      registerAnchor(anchor, ACTION_BAR_SOURCE);
+      event.preventDefault();
+      toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
+    };
+    document.addEventListener('click', handleActionBarClick, false);
+    const existing = document.querySelector(actionBarSelector);
+    if (existing) {
+      registerAnchor(existing, ACTION_BAR_SOURCE);
+    }
+    actionBarCleanup = () => {
+      document.removeEventListener('click', handleActionBarClick, false);
+    };
+  }
+
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    localBindings.forEach((unbind, anchor) => {
+      if (typeof unbind === 'function') {
+        try { unbind(); }
+        catch (_) {}
+      }
+      localBindings.delete(anchor);
+    });
+    if (actionBarCleanup) {
+      actionBarCleanup();
+    }
+    if (state.openers === nextOpeners) {
+      state.openers = previousOpeners || defaultOpeners;
+    }
+  };
 }
