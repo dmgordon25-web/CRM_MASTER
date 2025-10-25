@@ -601,6 +601,18 @@ function shouldValidateGeneral(partial){
     return clone(next);
   }
 
+  async function persistDashboardOrderOnly(orderLike){
+    const normalized = normalizeDashboardOrder(orderLike);
+    if(cache && Array.isArray(cache.dashboardOrder)){
+      const sameLength = normalized.length === cache.dashboardOrder.length;
+      const matches = sameLength && normalized.every((value, index) => cache.dashboardOrder[index] === value);
+      if(matches){
+        return clone(cache);
+      }
+    }
+    return save({ dashboardOrder: normalized });
+  }
+
   async function refresh(){
     cache = null;
     return load();
@@ -731,6 +743,7 @@ function shouldValidateGeneral(partial){
     get: load,
     save,
     refresh,
-    deleteAll: handleDeleteAll
+    deleteAll: handleDeleteAll,
+    persistDashboardOrder: persistDashboardOrderOnly
   };
 })();
