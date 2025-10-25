@@ -2,7 +2,7 @@
 import { STR, text } from './ui/strings.js';
 import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
-import { rangeForView, addDays, ymd, parseDateInput, loadCalendarData, isWithinRange } from './calendar/index.js';
+import { rangeForView, addDays, ymd, parseDateInput, loadEventsBetween, isWithinRange } from './calendar/index.js';
 import { ensureContactModalReady, openContactModal } from './contacts.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
@@ -547,6 +547,52 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     return anchor.toLocaleDateString(locale, {month:'long', year:'numeric'});
   }
 
+  function renderSkeleton(root, range, currentView){
+    if(!root) return;
+    root.innerHTML = '';
+    root.setAttribute('data-view', currentView);
+    const todayStr = new Date().toDateString();
+    if(currentView === 'day'){
+      const loading = document.createElement('div');
+      loading.className = 'muted';
+      loading.style.padding = '24px';
+      loading.style.textAlign = 'center';
+      loading.textContent = 'Loading…';
+      root.appendChild(loading);
+      return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+    grid.dataset.calendarEnhanced = '1';
+    for(let i=0;i<range.days;i++){
+      const d = addDays(range.start, i);
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      if(currentView === 'month' && d.getMonth() !== range.anchor.getMonth()){
+        cell.classList.add('muted');
+      }
+      if(d.toDateString() === todayStr){
+        cell.classList.add('today');
+      }
+      const head = document.createElement('div');
+      head.className = 'cal-cell-head';
+      head.textContent = d.getDate();
+      head.style.fontSize = '12px';
+      cell.appendChild(head);
+      const box = document.createElement('div');
+      box.className = 'cal-events';
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.style.fontSize = '11px';
+      empty.style.padding = '4px 0 6px';
+      empty.textContent = 'Loading…';
+      box.appendChild(empty);
+      cell.appendChild(box);
+      grid.appendChild(cell);
+    }
+    root.appendChild(grid);
+  }
+
   const LOAN_COLORS = Object.freeze({
     fha:'#2E86DE', va:'#10AC84', conv:'#C56CF0', jumbo:'#F368E0', other:'#8395A7'
   });
@@ -580,22 +626,29 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     const end = range.end;
     const dayCount = range.days;
 
-    const data = await loadCalendarData({ start, end, anchor: anchorDate, view: currentView });
-    const providedEvents = Array.isArray(data.events) ? data.events : [];
-    let events = [];
-    if(providedEvents.length){
-      events = normalizeProvidedEvents(providedEvents, anchorDate, start, end);
-    }
-    if(!events.length){
-      events = collectEvents(data.contacts, data.tasks, data.deals, anchorDate, start, end);
-    }
-
     const label = document.getElementById('calendar-label');
+    const labelText = formatRange(anchorDate, currentView, start, end);
     if(label){
-      label.textContent = formatRange(anchorDate, currentView, start, end);
+      label.textContent = `${labelText} • Loading…`;
+      label.dataset.loading = '1';
     }
 
     closeEventPopover();
+    renderSkeleton(root, range, currentView);
+
+    let events = [];
+    try{
+      events = await loadEventsBetween(start, end, { anchor: anchorDate, view: currentView });
+    }catch (err){
+      if(console && console.warn) console.warn('[CAL] provider fallback (empty):', err);
+      events = [];
+    }
+
+    if(label){
+      delete label.dataset.loading;
+      label.textContent = labelText;
+    }
+
     root.innerHTML = '';
     root.setAttribute('data-view', currentView);
     const todayStr = new Date().toDateString();
@@ -908,6 +961,10 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
                   return;
                 }
                 closeEventPopover();
+                if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
+                  try{ window.renderCalendar(); }
+                  catch (_err){}
+                }
               }catch (err){
                 taskBtn.disabled = false;
                 console && console.warn && console.warn('createTaskFromEvent failed', err);
@@ -1017,13 +1074,13 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       const safeStart = parseDateInput(rangeStartDate) || null;
       const safeEnd = parseDateInput(rangeEndDate) || null;
       const baseAnchor = safeStart instanceof Date ? safeStart : anchorDate;
-      const data = await loadCalendarData({ start: safeStart, end: safeEnd, anchor: baseAnchor, view: currentView });
       let rangeEvents = [];
-      if(Array.isArray(data.events) && data.events.length){
-        rangeEvents = normalizeProvidedEvents(data.events, baseAnchor, safeStart, safeEnd);
-      }
-      if(!rangeEvents.length){
-        rangeEvents = collectEvents(data.contacts, data.tasks, data.deals, baseAnchor, safeStart, safeEnd);
+      try{
+        const loaded = await loadEventsBetween(safeStart, safeEnd, { anchor: baseAnchor, view: currentView });
+        if(Array.isArray(loaded)) rangeEvents = loaded;
+      }catch (err){
+        if(console && console.warn) console.warn('[CAL] provider fallback (empty):', err);
+        rangeEvents = [];
       }
       return rangeEvents.map(ev => ({
         type: ev.type,
@@ -1033,7 +1090,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         hasLoan: !!ev.hasLoan,
         loanKey: ev.loanKey || '',
         loanLabel: ev.loanLabel || '',
-        date: new Date(ev.date.getTime()),
+        date: ev.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev.date) || new Date(),
         source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
         contactId: ev.contactId || '',
         contactStage: ev.contactStage || '',
@@ -1049,6 +1106,6 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     loanPalette: LOAN_PALETTE.map(meta => ({...meta})),
     normalizeLoanType
   };
-  window.__CALENDAR_IMPL__ = { render, __test__ };
+  window.__CALENDAR_IMPL__ = { render, collectEvents, normalizeProvidedEvents, __test__ };
 
 })();
