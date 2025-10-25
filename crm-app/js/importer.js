@@ -2,6 +2,7 @@ import { STR, text } from './ui/strings.js';
 import { safeMax, normalizePhone, normalizeEmail } from './util/strings.js';
 import { stageKeyFromLabel } from './pipeline/stages.js';
 import { normalizeStatus } from './pipeline/constants.js';
+import { toastError, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import './importer_helpers.js';
 import './importer_partners.js';
 import './importer_contacts.js';
@@ -278,7 +279,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let rec = settings.find(s => s.id==='csvMappings');
     if(!rec){ rec = { id:'csvMappings', partners:{}, contacts:{} }; }
     rec[kind] = mapping; await dbPut('settings', rec);
-    toast('Saved default mapping for ' + kind);
+    toastSuccess(`Saved default mapping for ${kind}`);
   }
 
   function mapIndex(headers){ const m={}; headers.forEach((h,i)=>{ m[h]=i; m[h.trim()]=i; m[lc(h)]=i; }); return m; }
@@ -616,6 +617,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if(truncated.length){
           const msg = text('importer.error.truncated-header', { headers: truncated.join(', ') });
           if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
+          toastWarn(msg);
           if(container) container.innerHTML = '';
           if(actionButton){ actionButton.disabled = true; actionButton.onclick = null; }
           return;
@@ -639,37 +641,62 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         const saveBtn = dlg.querySelector('#save-map-' + kind);
         if(saveBtn){ saveBtn.onclick = async ()=>{ const m = collectMapping(container); await saveDefaultMapping(kind, { autoMap, m }); }; }
 
-        if(actionButton) actionButton.onclick = async ()=>{
-          try{
-            const userMap = collectMapping(container);
-            const mapping = Object.assign({}, autoMap, userMap);
-            const missing = required.filter(k => !mapping[k]);
-            if(missing.length){
-              const msg = text('importer.error.missing-mapping', { fields: missing.join(', ') });
-              if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
-              return;
+        if(actionButton) {
+          const setBusy = (active)=>{
+            if(active){
+              try{ dlg.setAttribute('data-loading', '1'); }
+              catch(_err){}
+              actionButton.dataset.loading = '1';
+              actionButton.disabled = true;
+            }else{
+              try{ dlg.removeAttribute('data-loading'); }
+              catch(_err){}
+              delete actionButton.dataset.loading;
+              actionButton.disabled = false;
             }
-            const res = (kind==='partners')
-              ? await importPartners(rows, headers, mode, mapping)
-              : await importContacts(rows, headers, mode, mapping);
-            const count = res.partners || res.contacts || 0;
-            const extra = res.partnersAutocreated ? text('general.auto-created-partners', { count: res.partnersAutocreated }) : '';
-            const summary = extra
-              ? text('importer.status.imported-with-auto', { count, extra })
-              : text('importer.status.imported', { count });
-            const clampNote = renderClampNote(res.clamped || 0);
-            if(statusEl) statusEl.innerHTML = `${summary}${clampNote}`;
-            if(kind==='contacts') dlg.close();
-          }catch (err) {
-            if(err && err.code === 'IMPORT_TRUNCATED_HEADERS'){
-              const msg = err.message || text('importer.error.truncated-header', { headers: (err.truncatedHeaders||[]).join(', ') });
+          };
+          actionButton.onclick = async ()=>{
+            if(actionButton.dataset.loading === '1') return;
+            setBusy(true);
+            try{
+              const userMap = collectMapping(container);
+              const mapping = Object.assign({}, autoMap, userMap);
+              const missing = required.filter(k => !mapping[k]);
+              if(missing.length){
+                const msg = text('importer.error.missing-mapping', { fields: missing.join(', ') });
+                if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
+                toastWarn(msg);
+                return;
+              }
+              const res = (kind==='partners')
+                ? await importPartners(rows, headers, mode, mapping)
+                : await importContacts(rows, headers, mode, mapping);
+              const count = res.partners || res.contacts || 0;
+              const extra = res.partnersAutocreated ? text('general.auto-created-partners', { count: res.partnersAutocreated }) : '';
+              const summary = extra
+                ? text('importer.status.imported-with-auto', { count, extra })
+                : text('importer.status.imported', { count });
+              const clampCount = res.clamped || 0;
+              const clampNote = renderClampNote(clampCount);
+              if(statusEl) statusEl.innerHTML = `${summary}${clampNote}`;
+              const toastMessage = clampCount ? `${summary} (clamped ${clampCount})` : summary;
+              toastSuccess(toastMessage);
+              if(kind==='contacts') dlg.close();
+            }catch (err) {
+              if(err && err.code === 'IMPORT_TRUNCATED_HEADERS'){
+                const msg = err.message || text('importer.error.truncated-header', { headers: (err.truncatedHeaders||[]).join(', ') });
+                if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
+                toastWarn(msg);
+                return;
+              }
+              const msg = text('importer.status.error', { message: String(err.message||err) });
               if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
-              return;
+              toastError(msg);
+            }finally{
+              setBusy(false);
             }
-            const msg = text('importer.status.error', { message: String(err.message||err) });
-            if(statusEl) statusEl.innerHTML = `<span style="color:#b91c1c">${msg}</span>`;
-          }
-        };
+          };
+        }
       };
     }
 

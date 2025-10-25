@@ -1,6 +1,7 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
+import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -10,10 +11,21 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
 
   const $ = (s,r=document)=>r.querySelector(s);
   const escape = (val)=> String(val||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-  const notify = (msg)=>{
+  const notify = (msg, kind = 'info')=>{
+    const text = String(msg ?? '').trim();
+    if(!text) return;
     try{
-      if(window.toast) window.toast(msg); else console.log('[contacts]', msg);
-    }catch (_) { console.log('[contacts]', msg); }
+      if(kind === 'warn') {
+        toastWarn(text);
+      } else if(kind === 'error') {
+        toastError(text);
+      } else {
+        toastInfo(text);
+      }
+    }catch (_) {
+      try { console && console.info && console.info('[contacts]', text); }
+      catch(__err){}
+    }
   };
 
   const STAGES = [
@@ -157,7 +169,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
       dlg = document.createElement('dialog');
       dlg.id = 'contact-modal';
       dlg.classList.add('record-modal');
-      dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><strong class="grow">Add / Edit Contact</strong><button type="button" class="btn" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
+      dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
       document.body.appendChild(dlg);
     }
     if(!dlg.__wired){
@@ -691,7 +703,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           await dbPut('contacts', record);
           if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(record);
           if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
-          if(!options.silent) notify('Required document checklist synced.');
+          if(!options.silent) toastSuccess('Required document checklist synced.');
         } else if(!options.silent){
           notify('Save this contact to generate the document checklist.');
         }
@@ -712,7 +724,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           const docs = JSON.parse(docEmailBtn.dataset.docs||'[]');
           if(!docs.length){ notify('No required documents to email yet.'); return; }
           const email = $('#c-email', body)?.value?.trim();
-          if(!email){ notify('Add a primary email before sending a request.'); return; }
+          if(!email){ notify('Add a primary email before sending a request.', 'warn'); return; }
           const first = $('#c-first', body)?.value?.trim();
           const greeting = first ? `Hi ${first},` : 'Hi there,';
           const loanLabel = docEmailBtn.dataset.loan || getLoanLabel();
@@ -721,7 +733,7 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
           const subject = `Document Request for your ${loanLabel}`;
           const href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
           try{ window.open(href, '_self'); }catch (_) { window.location.href = href; }
-        }catch (err) { console.warn('email docs', err); notify('Unable to build document request email.'); }
+        }catch (err) { console.warn('email docs', err); notify('Unable to build document request email.', 'error'); }
       });
     }
 
@@ -755,77 +767,106 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
 
     const saveBtn = dlg.querySelector('#btn-save-contact');
+    const setBusy = (active)=>{
+      if(active){
+        try{ dlg.setAttribute('data-loading', '1'); }
+        catch(_err){}
+        if(saveBtn){
+          saveBtn.dataset.loading = '1';
+          saveBtn.setAttribute('aria-busy', 'true');
+          saveBtn.disabled = true;
+        }
+      }else{
+        try{ dlg.removeAttribute('data-loading'); }
+        catch(_err){}
+        if(saveBtn){
+          delete saveBtn.dataset.loading;
+          saveBtn.removeAttribute('aria-busy');
+          saveBtn.disabled = false;
+        }
+      }
+    };
     const handleSave = async ()=>{
       const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
       const prevStage = c.stage;
-      const u = Object.assign({}, c, {
-        first: $('#c-first',body).value.trim(), last: $('#c-last',body).value.trim(),
-        email: $('#c-email',body).value.trim(), phone: $('#c-phone',body).value.trim(),
-        address: $('#c-address',body).value.trim(), city: $('#c-city',body).value.trim(),
-        state: ($('#c-state',body).value||'').toUpperCase(), zip: $('#c-zip',body).value.trim(),
-        stage: $('#c-stage',body).value, status: $('#c-status',body).value,
-        loanAmount: Number($('#c-amount',body).value||0), rate: Number($('#c-rate',body).value||0),
-        fundedDate: $('#c-funded',body).value || '', buyerPartnerId: $('#c-buyer',body).value||null,
-        listingPartnerId: $('#c-listing',body).value||null, lastContact: $('#c-lastcontact',body).value||'',
-        referredBy: $('#c-ref',body).value||'', notes: $('#c-notes',body).value||'', updatedAt: Date.now(),
-        contactType: $('#c-type',body).value,
-        priority: $('#c-priority',body).value,
-        leadSource: $('#c-source',body).value,
-        communicationPreference: $('#c-pref',body).value,
-        closingTimeline: $('#c-timeline',body).value,
-        loanPurpose: $('#c-purpose',body).value,
-        loanProgram: $('#c-loanType',body).value,
-        loanType: $('#c-loanType',body).value,
-        propertyType: $('#c-property',body).value,
-        occupancy: $('#c-occupancy',body).value,
-        employmentType: $('#c-employment',body).value,
-        creditRange: $('#c-credit',body).value,
-        docStage: $('#c-docstage',body).value,
-        pipelineMilestone: $('#c-milestone',body).value,
-        preApprovalExpires: $('#c-preexp',body).value||'',
-        nextFollowUp: $('#c-nexttouch',body).value||'',
-        secondaryEmail: $('#c-email2',body).value.trim(),
-        secondaryPhone: $('#c-phone2',body).value.trim()
-      });
-      if(typeof window.updateContactStage === 'function'){
-        window.updateContactStage(u, u.stage, prevStage);
-      }else{
-        const canonFn = typeof window.canonicalizeStage === 'function' ? window.canonicalizeStage : (val)=> String(val||'').toLowerCase();
-        const prevCanon = canonFn(prevStage);
-        const nextCanon = canonFn(u.stage);
-        u.stage = nextCanon;
-        if(!u.stageEnteredAt || prevCanon !== nextCanon){
-          u.stageEnteredAt = new Date().toISOString();
-        }
-      }
-      if(!u.stageEnteredAt){
-        u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
-      }
-      await openDB(); await dbPut('contacts', u);
+      setBusy(true);
       try{
-        if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
-        if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
-      }catch (err) { console.warn('post-save doc sync', err); }
-      const detail = {
-        scope:'contacts',
-        contactId:String(u.id||''),
-        action: existed ? 'update' : 'create',
-        source:'contact:modal'
-      };
-      if(typeof window.dispatchAppDataChanged === 'function'){
-        window.dispatchAppDataChanged(detail);
-      }else if(console && typeof console.warn === 'function'){
-        console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+        const u = Object.assign({}, c, {
+          first: $('#c-first',body).value.trim(), last: $('#c-last',body).value.trim(),
+          email: $('#c-email',body).value.trim(), phone: $('#c-phone',body).value.trim(),
+          address: $('#c-address',body).value.trim(), city: $('#c-city',body).value.trim(),
+          state: ($('#c-state',body).value||'').toUpperCase(), zip: $('#c-zip',body).value.trim(),
+          stage: $('#c-stage',body).value, status: $('#c-status',body).value,
+          loanAmount: Number($('#c-amount',body).value||0), rate: Number($('#c-rate',body).value||0),
+          fundedDate: $('#c-funded',body).value || '', buyerPartnerId: $('#c-buyer',body).value||null,
+          listingPartnerId: $('#c-listing',body).value||null, lastContact: $('#c-lastcontact',body).value||'',
+          referredBy: $('#c-ref',body).value||'', notes: $('#c-notes',body).value||'', updatedAt: Date.now(),
+          contactType: $('#c-type',body).value,
+          priority: $('#c-priority',body).value,
+          leadSource: $('#c-source',body).value,
+          communicationPreference: $('#c-pref',body).value,
+          closingTimeline: $('#c-timeline',body).value,
+          loanPurpose: $('#c-purpose',body).value,
+          loanProgram: $('#c-loanType',body).value,
+          loanType: $('#c-loanType',body).value,
+          propertyType: $('#c-property',body).value,
+          occupancy: $('#c-occupancy',body).value,
+          employmentType: $('#c-employment',body).value,
+          creditRange: $('#c-credit',body).value,
+          docStage: $('#c-docstage',body).value,
+          pipelineMilestone: $('#c-milestone',body).value,
+          preApprovalExpires: $('#c-preexp',body).value||'',
+          nextFollowUp: $('#c-nexttouch',body).value||'',
+          secondaryEmail: $('#c-email2',body).value.trim(),
+          secondaryPhone: $('#c-phone2',body).value.trim()
+        });
+        if(typeof window.updateContactStage === 'function'){
+          window.updateContactStage(u, u.stage, prevStage);
+        }else{
+          const canonFn = typeof window.canonicalizeStage === 'function' ? window.canonicalizeStage : (val)=> String(val||'').toLowerCase();
+          const prevCanon = canonFn(prevStage);
+          const nextCanon = canonFn(u.stage);
+          u.stage = nextCanon;
+          if(!u.stageEnteredAt || prevCanon !== nextCanon){
+            u.stageEnteredAt = new Date().toISOString();
+          }
+        }
+        if(!u.stageEnteredAt){
+          u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
+        }
+        await openDB();
+        await dbPut('contacts', u);
+        try{
+          if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
+          if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
+        }catch (err) { console.warn('post-save doc sync', err); }
+        const detail = {
+          scope:'contacts',
+          contactId:String(u.id||''),
+          action: existed ? 'update' : 'create',
+          source:'contact:modal'
+        };
+        if(typeof window.dispatchAppDataChanged === 'function'){
+          window.dispatchAppDataChanged(detail);
+        }else if(console && typeof console.warn === 'function'){
+          console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+        }
+        toastSuccess(existed ? 'Contact updated' : 'Contact created');
+        closeDialog();
+        return u;
+      }catch (err){
+        if(console && typeof console.warn === 'function'){
+          console.warn('[contacts] save failed', err);
+        }
+        toastError('Contact save failed');
+        return null;
+      }finally{
+        setBusy(false);
       }
-      if(window.Toast && typeof window.Toast.show === 'function'){
-        window.Toast.show(existed ? 'Updated' : 'Created');
-      }
-      closeDialog();
-      return u;
     };
     if(saveBtn){
       if(typeof window.saveForm === 'function'){
-        window.saveForm(saveBtn, handleSave, {successMessage:'Contact saved'});
+        window.saveForm(saveBtn, handleSave, { successMessage: null });
       }else{
         saveBtn.onclick = async (e)=>{ e.preventDefault(); await handleSave(); };
       }
@@ -849,88 +890,6 @@ import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from 
     }
   }
 
-  document.addEventListener('click', (e)=>{
-    const hit = e.target.closest('#btn-add-contact,[data-nav="add-contact"],.btn-add-contact');
-    if(hit){ e.preventDefault(); window.renderContactModal(null); }
-  });
-  const ensureAddContactButton = ()=>{
-    if(typeof document==='undefined') return;
-    let btn = document.getElementById('btn-add-contact');
-    let host = document.querySelector('.status-panel[data-panel="inprogress"] .status-actions');
-    if(!host){
-      host = document.querySelector('.status-panel[data-panel="active"] .status-actions');
-      if(!host){
-        host = document.querySelector('.header-bar');
-      }
-    }
-    if(!host){
-      return;
-    }
-    if(!btn){
-      btn = document.createElement('button');
-      btn.id = 'btn-add-contact';
-      btn.className = 'btn brand btn-add-contact';
-      const grow = host.querySelector('.grow');
-      if(grow && grow.parentElement === host){
-        grow.insertAdjacentElement('beforebegin', btn);
-      }else{
-        host.appendChild(btn);
-      }
-    }
-    const syncButtonContent = ()=>{
-      if(!btn) return;
-      const labelText = 'Add Contact';
-      const icon = btn.querySelector('.btn-icon');
-      const label = btn.querySelector('.btn-label');
-      if(icon && label){
-        label.textContent = labelText;
-        return;
-      }
-      btn.innerHTML = '';
-      const iconEl = document.createElement('span');
-      iconEl.className = 'btn-icon';
-      iconEl.setAttribute('aria-hidden', 'true');
-      iconEl.textContent = '+';
-      const labelEl = document.createElement('span');
-      labelEl.className = 'btn-label';
-      labelEl.textContent = labelText;
-      btn.append(iconEl, labelEl);
-    };
-    syncButtonContent();
-    btn.type = 'button';
-    btn.classList.add('btn-add-contact');
-    btn.setAttribute('aria-label', 'Add Contact');
-    btn.setAttribute('title', 'Add Contact');
-    if(!btn.__contactModalOpener){
-      btn.__contactModalOpener = true;
-      btn.addEventListener('click', (event)=>{
-        event.preventDefault();
-        try{
-          window.renderContactModal?.(null);
-        }catch (err){
-          if(console && typeof console.warn === 'function'){
-            console.warn('renderContactModal missing', err);
-          }
-        }
-      });
-    }
-  };
-  const bootAddButton = ()=>{
-    try{
-      ensureAddContactButton();
-    }catch (err){
-      if(console && typeof console.info === 'function'){
-        console.info('[contacts] ensure add contact failed', err && (err.message || err));
-      }
-    }
-  };
-  if(typeof document!=='undefined'){
-    if(document.readyState==='loading'){
-      document.addEventListener('DOMContentLoaded', bootAddButton, { once:true });
-    }else{
-      bootAddButton();
-    }
-  }
 })();
 
 export function openContactModal(contactId, options){

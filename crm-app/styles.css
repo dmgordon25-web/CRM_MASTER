@@ -29,6 +29,8 @@ h1{margin:0;font-size:22px;letter-spacing:.2px}
 .btn.ghost{background:transparent;border-color:transparent;color:var(--ink);box-shadow:none}
 .btn.ghost:hover,.btn.ghost:focus-visible{background:rgba(99,102,241,.08);border-color:transparent;box-shadow:none}
 .btn.ghost:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.btn[data-loading]{pointer-events:none;opacity:.78}
+.btn[data-loading]::before{content:"";width:16px;height:16px;margin-right:8px;border-radius:999px;border:2px solid rgba(15,23,42,.2);border-top-color:var(--brand,#6366f1);animation:ui-spin .75s linear infinite}
 .btn.good{background:var(--ok);border-color:var(--ok);color:#fff}
 .btn.warn{background:var(--warn);border-color:var(--warn);color:#111}
 .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -210,10 +212,10 @@ textarea{min-height:100px}
 .actionbar.is-busy .actionbar-busy{opacity:1;transform:translateY(0)}
 .actionbar.is-busy .actionbar-actions .btn{pointer-events:none;opacity:.55}
 .actionbar.is-busy .actionbar-shell{opacity:.96}
-:is(dialog)[data-loading]{position:relative;pointer-events:none}
-:is(dialog)[data-loading]::after{content:"";position:absolute;inset:0;background:rgba(15,23,42,.28);border-radius:inherit;z-index:4}
-:is(dialog)[data-loading]::before{content:"";position:absolute;top:50%;left:50%;margin:-18px 0 0 -18px;width:36px;height:36px;border-radius:999px;border:3px solid rgba(248,250,252,.45);border-top-color:#f8fafc;animation:ui-spin .8s linear infinite;z-index:5;box-shadow:0 10px 24px rgba(15,23,42,.24)}
-:is(dialog)[data-loading]>*{filter:saturate(.9)}
+:is(dialog,.record-modal)[data-loading]{position:relative;pointer-events:none}
+:is(dialog,.record-modal)[data-loading]::after{content:"";position:absolute;inset:0;background:rgba(15,23,42,.28);border-radius:inherit;z-index:4}
+:is(dialog,.record-modal)[data-loading]::before{content:"";position:absolute;top:50%;left:50%;margin:-18px 0 0 -18px;width:36px;height:36px;border-radius:999px;border:3px solid rgba(248,250,252,.45);border-top-color:#f8fafc;animation:ui-spin .8s linear infinite;z-index:5;box-shadow:0 10px 24px rgba(15,23,42,.24)}
+:is(dialog,.record-modal)[data-loading]>*{filter:saturate(.9)}
 :is(.toast-host,.toast){position:fixed;bottom:24px;right:24px;background:rgba(15,23,42,.94);color:#f8fafc;padding:12px 16px;border-radius:14px;display:flex;align-items:center;gap:12px;max-width:min(360px,calc(100vw - 40px));font-size:13px;line-height:1.45;letter-spacing:.01em;box-shadow:0 16px 42px rgba(15,23,42,.28);opacity:0;transform:translateY(6px);transition:opacity .18s ease,transform .18s ease;pointer-events:none;z-index:2147483647}
 .toast{left:50%;right:auto;bottom:20px;transform:translate(-50%,6px)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -482,16 +484,19 @@ dialog .dlg{padding:20px;min-width:720px;width:min(1200px,calc(100vw - 64px));ma
 dialog::backdrop{ background:rgba(0,0,0,.35); }
 
 /* Modal layouts */
-.modal-header{display:flex;align-items:center;gap:12px;margin:0 0 12px}
-.modal-header h3,.modal-header strong{margin:0;font-size:18px;letter-spacing:.2px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:0 0 12px;border-bottom:1px solid #e2e8f0}
+.modal-header h3,.modal-header strong,.modal-header .modal-title{margin:0;font-size:18px;letter-spacing:.2px;font-weight:700;color:var(--ink)}
+.modal-header .btn{min-width:auto}
+.modal-header .btn.ghost{color:#1f2937;border-color:transparent;background:rgba(148,163,184,.12)}
+.modal-header .btn.ghost:hover{background:rgba(148,163,184,.2)}
 .modal-body{flex:1;display:flex;flex-direction:column;gap:18px}
 .dialog-scroll{overflow:auto;padding-right:8px;margin-right:-8px;max-height:calc(100vh - 200px)}
-.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:12px;border-top:1px solid #e2e8f0}
 .modal-footer.form-footer{justify-content:space-between;align-items:center}
 .form-footer__start,.form-footer__end{display:flex;align-items:center;gap:10px}
 .form-footer__start{margin-right:auto}
 .form-footer__end{margin-left:auto}
-.record-modal .modal-footer{padding-top:12px;border-top:1px solid #e2e8f0}
+.record-modal .modal-footer{padding-top:12px}
 .record-modal form{display:flex;flex-direction:column;height:100%}
 .modal-form-layout{display:flex;gap:18px;align-items:flex-start}
 .modal-summary{flex:0 0 260px;background:linear-gradient(145deg,#eef2ff,#e0f2fe);border-radius:14px;padding:16px;border:1px solid #dbeafe;box-shadow:0 12px 32px rgba(79,70,229,.12)}

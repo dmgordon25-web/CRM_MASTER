@@ -1,4 +1,5 @@
 import { chooseValue } from '../merge/merge_core.js';
+import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
 
 const ACTIVE_GUARD = '__MERGE_MODAL_ACTIVE__';
 let activeModal = null;
@@ -30,25 +31,6 @@ function _clearMergeModalVisibility(modalEl) {
   try {
     modalEl?.setAttribute('data-visible', '0');
   } catch {}
-}
-
-function showToast(kind, message) {
-  const text = String(message == null ? '' : message).trim();
-  if (!text) return;
-  const toast = typeof window !== 'undefined' ? window.Toast : undefined;
-  if (toast && typeof toast[kind] === 'function') {
-    try { toast[kind](text); return; }
-    catch (_) {}
-  }
-  if (toast && typeof toast.show === 'function') {
-    try { toast.show(text); return; }
-    catch (_) {}
-  }
-  const legacy = typeof window !== 'undefined' ? window.toast : undefined;
-  if (typeof legacy === 'function') {
-    try { legacy(text); }
-    catch (_) {}
-  }
 }
 
 function dispatchMergeEvent(name, detail) {
@@ -830,11 +812,30 @@ function renderSelectionModal(items, options = {}) {
   cancelBtn.addEventListener('click', cancel);
   listeners.push(() => cancelBtn.removeEventListener('click', cancel));
 
+  const setBusy = (state) => {
+    submitting = state;
+    if (state) {
+      try { overlay.setAttribute('data-loading', '1'); }
+      catch (_err) {}
+      confirmBtn.dataset.loading = '1';
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+    } else {
+      try { overlay.removeAttribute('data-loading'); }
+      catch (_err) {}
+      delete confirmBtn.dataset.loading;
+      cancelBtn.disabled = false;
+      updateState();
+    }
+  };
+
   const confirm = async () => {
     if (submitting) return;
-    if (!primaryId || !secondaryIds.size) return;
-    submitting = true;
-    updateState();
+    if (!primaryId || !secondaryIds.size) {
+      toastWarn('Select a primary record and at least one record to merge.');
+      return;
+    }
+    setBusy(true);
 
     const primary = items.find((item) => item.id === primaryId) || null;
     const chosen = items.filter((item) => secondaryIds.has(item.id));
@@ -853,8 +854,6 @@ function renderSelectionModal(items, options = {}) {
       ids: [primaryId, ...secondaryIdsList]
     };
 
-    close({ silent: true });
-
     let handled = false;
     try {
       if (options && typeof options.onConfirm === 'function') {
@@ -862,31 +861,37 @@ function renderSelectionModal(items, options = {}) {
       } else {
         handled = await delegateSelectionMerge(context);
       }
+      if (!handled) {
+        let result = null;
+        try {
+          result = await mergeRecords(primary, chosen);
+        } catch (err) {
+          console.warn('[merge-modal] merge preview failed', err);
+          toastWarn('Preview unavailable, completing merge without preview.');
+        }
+        const detail = {
+          type,
+          source: context.source,
+          primary,
+          secondaries: chosen,
+          items: context.items,
+          ids: context.ids,
+          result
+        };
+        dispatchUiMerge(detail);
+        dispatchMergeEvent('merge:complete', detail);
+        toastSuccess('Merge complete');
+      } else {
+        toastSuccess('Merge requested');
+      }
     } catch (err) {
       console.warn('[merge-modal] confirm delegate failed', err);
+      toastError('Merge failed');
+    } finally {
+      setBusy(false);
+      close({ silent: true });
+      dispatchMergeEvent('merge:closed', { delegated: handled, type, ids: context.ids });
     }
-
-    if (!handled) {
-      let result = null;
-      try {
-        result = await mergeRecords(primary, chosen);
-      } catch (err) {
-        console.warn('[merge-modal] merge preview failed', err);
-      }
-      const detail = {
-        type,
-        source: context.source,
-        primary,
-        secondaries: chosen,
-        items: context.items,
-        ids: context.ids,
-        result
-      };
-      dispatchUiMerge(detail);
-      dispatchMergeEvent('merge:complete', detail);
-    }
-
-    dispatchMergeEvent('merge:closed', { delegated: handled, type, ids: context.ids });
   };
 
   confirmBtn.addEventListener('click', confirm);

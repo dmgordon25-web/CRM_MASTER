@@ -98,14 +98,6 @@ function ensurePartnersBoot(ctx){
 
   window.requestPartnerModal = requestPartnerModal;
 
-  const addBtn = document.getElementById('btn-add-partner');
-  if (addBtn && !addBtn.__wired){
-    addBtn.__wired = true;
-    addBtn.addEventListener('click', async () => {
-      await requestPartnerModal();
-    });
-  }
-
   function syncSelectionCheckboxes(scope, ids){
     const scopeKey = scope && scope.trim() ? scope.trim() : 'partners';
     const idSet = ids instanceof Set

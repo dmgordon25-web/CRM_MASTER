@@ -1,6 +1,7 @@
 import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from './modal_singleton.js';
 import { createFormFooter } from './form_footer.js';
 import { registerModalActions } from '../contacts/modal.js';
+import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
@@ -38,27 +39,6 @@ function __closeStrayDialogsOnce(label = '[STRAY_DIALOG_CLOSED]'){
   const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
   raf(() => { closeStrays(); });
 }
-
-function callToast(kind, message){
-  const text = String(message ?? '').trim();
-  if(!text) return;
-  const api = window.Toast || null;
-  if(api && typeof api[kind] === 'function'){
-    try { api[kind](text); return; }
-    catch (_err) {}
-  }
-  if(api && typeof api.show === 'function'){
-    try { api.show(text); return; }
-    catch (_err) {}
-  }
-  if(typeof window.toast === 'function'){
-    try { window.toast(text); }
-    catch (_err) {}
-  }
-}
-
-const toastSuccess = (message) => callToast('success', message);
-const toastWarn = (message) => callToast('warn', message);
 
 const escapeHtml = (val)=> String(val||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
@@ -414,60 +394,82 @@ async function renderPartnerEditor(root, partnerId){
 
   const btnSave = root.querySelector('#p-save') || footerHandle?.saveButton || null;
   if(btnSave && !btnSave.__wired){
+    const setBusy = (active)=>{
+      if(active){
+        try{ root.setAttribute('data-loading', '1'); }
+        catch(_err){}
+        btnSave.dataset.loading = '1';
+        btnSave.setAttribute('aria-busy', 'true');
+        btnSave.disabled = true;
+      }else{
+        try{ root.removeAttribute('data-loading'); }
+        catch(_err){}
+        delete btnSave.dataset.loading;
+        btnSave.removeAttribute('aria-busy');
+        btnSave.disabled = false;
+      }
+    };
     btnSave.__wired = true;
     btnSave.addEventListener('click', async (evt)=>{
       if(evt) evt.preventDefault();
-      const baseRecord = Object.assign({}, root.__currentPartnerBase || {});
-      if(!baseRecord.id){
-        baseRecord.id = root.dataset.partnerId || String(Date.now());
+      if(btnSave.dataset.loading === '1') return;
+      setBusy(true);
+      try{
+        const baseRecord = Object.assign({}, root.__currentPartnerBase || {});
+        if(!baseRecord.id){
+          baseRecord.id = root.dataset.partnerId || String(Date.now());
+        }
+        const rec = Object.assign({}, baseRecord, {
+          id: baseRecord.id,
+          name: root.querySelector('#p-name')?.value?.trim() || '',
+          company: root.querySelector('#p-company')?.value?.trim() || '',
+          email: root.querySelector('#p-email')?.value?.trim() || '',
+          phone: root.querySelector('#p-phone')?.value?.trim() || '',
+          partnerType: root.querySelector('#p-type')?.value || 'Realtor Partner',
+          tier: root.querySelector('#p-tier')?.value || 'Developing',
+          focus: root.querySelector('#p-focus')?.value || 'Purchase',
+          priority: root.querySelector('#p-priority')?.value || 'Emerging',
+          preferredContact: root.querySelector('#p-pref')?.value || 'Phone',
+          cadence: root.querySelector('#p-cadence')?.value || 'Monthly',
+          address: root.querySelector('#p-address')?.value?.trim() || '',
+          city: root.querySelector('#p-city')?.value?.trim() || '',
+          state: (root.querySelector('#p-state')?.value || '').toUpperCase(),
+          zip: root.querySelector('#p-zip')?.value?.trim() || '',
+          referralVolume: root.querySelector('#p-volume')?.value || '1-2 / month',
+          lastTouch: root.querySelector('#p-lasttouch')?.value || '',
+          nextTouch: root.querySelector('#p-nexttouch')?.value || '',
+          relationshipOwner: root.querySelector('#p-owner')?.value?.trim() || '',
+          collaborationFocus: root.querySelector('#p-collab')?.value || 'Co-Marketing',
+          notes: root.querySelector('#p-notes')?.value || '',
+          updatedAt: Date.now()
+        });
+        await dbPut('partners', rec);
+        const wasSaved = !!root.__partnerWasSaved;
+        root.__currentPartnerBase = Object.assign({}, rec);
+        root.dataset.partnerId = String(rec.id || '');
+        const detail = {
+          scope:'partners',
+          partnerId:String(rec.id||''),
+          action: wasSaved ? 'update' : 'create',
+          source:'partner:modal',
+          sourceHint: root.__partnerSourceHint || root.dataset?.sourceHint || ''
+        };
+        if(typeof window.dispatchAppDataChanged === 'function'){
+          window.dispatchAppDataChanged(detail);
+        }else{
+          document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+        }
+        toastSuccess(wasSaved ? 'Partner updated' : 'Partner created');
+        root.__partnerWasSaved = true;
+        closeDialog();
+      }catch (err){
+        if(console && typeof console.warn === 'function'){
+          console.warn('[partner-modal] save failed', err);
+        }
+        toastError('Partner save failed');
+      }finally{
+        setBusy(false);
       }
-      const rec = Object.assign({}, baseRecord, {
-        id: baseRecord.id,
-        name: root.querySelector('#p-name')?.value?.trim() || '',
-        company: root.querySelector('#p-company')?.value?.trim() || '',
-        email: root.querySelector('#p-email')?.value?.trim() || '',
-        phone: root.querySelector('#p-phone')?.value?.trim() || '',
-        partnerType: root.querySelector('#p-type')?.value || 'Realtor Partner',
-        tier: root.querySelector('#p-tier')?.value || 'Developing',
-        focus: root.querySelector('#p-focus')?.value || 'Purchase',
-        priority: root.querySelector('#p-priority')?.value || 'Emerging',
-        preferredContact: root.querySelector('#p-pref')?.value || 'Phone',
-        cadence: root.querySelector('#p-cadence')?.value || 'Monthly',
-        address: root.querySelector('#p-address')?.value?.trim() || '',
-        city: root.querySelector('#p-city')?.value?.trim() || '',
-        state: (root.querySelector('#p-state')?.value || '').toUpperCase(),
-        zip: root.querySelector('#p-zip')?.value?.trim() || '',
-        referralVolume: root.querySelector('#p-volume')?.value || '1-2 / month',
-        lastTouch: root.querySelector('#p-lasttouch')?.value || '',
-        nextTouch: root.querySelector('#p-nexttouch')?.value || '',
-        relationshipOwner: root.querySelector('#p-owner')?.value?.trim() || '',
-        collaborationFocus: root.querySelector('#p-collab')?.value || 'Co-Marketing',
-        notes: root.querySelector('#p-notes')?.value || '',
-        updatedAt: Date.now()
-      });
-      root.__currentPartnerBase = Object.assign({}, rec);
-      root.dataset.partnerId = String(rec.id || '');
-      await dbPut('partners', rec);
-      const action = root.__partnerWasSaved ? 'update' : 'create';
-      const detail = {
-        scope:'partners',
-        partnerId:String(rec.id||''),
-        action,
-        source:'partner:modal',
-        sourceHint: root.__partnerSourceHint || root.dataset?.sourceHint || ''
-      };
-      if(typeof window.dispatchAppDataChanged === 'function'){
-        window.dispatchAppDataChanged(detail);
-      }else{
-        document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
-      }
-      if(action === 'update'){
-        toastSuccess('Partner updated');
-      }else{
-        toastSuccess('Partner created');
-      }
-      root.__partnerWasSaved = true;
-      closeDialog();
     });
   }
 

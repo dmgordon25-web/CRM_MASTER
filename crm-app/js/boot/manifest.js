@@ -14,7 +14,6 @@ export const CORE = [
   './seed_data.js',
   './ui_shims.js',
   './header_ui.js',
-  './add_contact.js',
   './email/merge_vars.js',
   './contact_stage_tracker.js',
   './commissions.js',
