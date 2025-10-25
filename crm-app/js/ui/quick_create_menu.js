@@ -501,9 +501,9 @@ export function bindQuickCreateMenu(root, options = {}) {
       if (!anchor) {
         return;
       }
-      const bound = registerAnchor(anchor, ACTION_BAR_SOURCE);
+      const newlyBound = registerAnchor(anchor, ACTION_BAR_SOURCE);
       event.preventDefault();
-      if (bound) {
+      if (newlyBound) {
         toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
       }
     };
