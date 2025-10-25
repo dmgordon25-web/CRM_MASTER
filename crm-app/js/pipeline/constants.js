@@ -1,13 +1,30 @@
 // crm-app/js/pipeline/constants.js
 // Canonical pipeline stage definitions used for color-coded chips.
 
+export const PIPELINE_TONES = Object.freeze(['progress', 'success', 'warning', 'danger']);
+
+export const DEFAULT_STAGE_TONE = 'progress';
+
+export function toneClassName(tone) {
+  const key = String(tone || '').trim().toLowerCase();
+  return PIPELINE_TONES.includes(key) ? `tone-${key}` : '';
+}
+
+export function normalizeTone(tone, fallback = DEFAULT_STAGE_TONE) {
+  const key = String(tone || '').trim().toLowerCase();
+  if (PIPELINE_TONES.includes(key)) return key;
+  return fallback;
+}
+
+export const TONE_CLASSNAMES = Object.freeze(PIPELINE_TONES.map((tone) => `tone-${tone}`));
+
 export const STAGES = {
-  new: { label: 'New', colorVar: '--stage-new' },
-  qualified: { label: 'Qualified', colorVar: '--stage-qualified' },
-  negotiating: { label: 'Negotiating', colorVar: '--stage-negotiating' },
-  clear_to_close: { label: 'Clear to Close', colorVar: '--stage-ctc' },
-  won: { label: 'Won', colorVar: '--stage-won' },
-  lost: { label: 'Lost', colorVar: '--stage-lost' }
+  new: { label: 'New', tone: 'progress' },
+  qualified: { label: 'Qualified', tone: 'progress' },
+  negotiating: { label: 'Negotiating', tone: 'warning' },
+  clear_to_close: { label: 'Clear to Close', tone: 'success' },
+  won: { label: 'Won', tone: 'success' },
+  lost: { label: 'Lost', tone: 'danger' }
 };
 
 export const STATUS_ALIASES = Object.freeze({
@@ -182,12 +199,73 @@ export function canonicalStage(key) {
   return toCanonicalStage(key);
 }
 
+const STATUS_TONES = Object.freeze({
+  inprogress: 'progress',
+  active: 'progress',
+  client: 'success',
+  funded: 'success',
+  approved: 'success',
+  nurture: 'warning',
+  paused: 'warning',
+  followup: 'warning',
+  lost: 'danger',
+  denied: 'danger',
+  canceled: 'danger',
+  cancelled: 'danger'
+});
+
+const STATUS_TONE_ALIASES = Object.freeze({
+  'in-progress': 'inprogress',
+  'in progress': 'inprogress',
+  'follow-up': 'followup',
+  'follow up': 'followup',
+  'needs follow up': 'followup',
+  'needsfollowup': 'followup',
+  'follow': 'followup',
+  'follow-up needed': 'followup',
+  'followup needed': 'followup',
+  'follow needed': 'followup',
+  'cancelled': 'cancelled'
+});
+
+function canonicalStatusToneKey(value) {
+  if (value == null) return '';
+  const raw = String(value).trim().toLowerCase();
+  if (!raw) return '';
+  if (STATUS_TONES[raw]) return raw;
+  if (STATUS_TONE_ALIASES[raw]) return STATUS_TONE_ALIASES[raw];
+  const compact = raw.replace(/[^a-z0-9]+/g, '');
+  if (STATUS_TONES[compact]) return compact;
+  if (STATUS_TONE_ALIASES[compact]) return STATUS_TONE_ALIASES[compact];
+  return raw;
+}
+
+export function toneForStage(key) {
+  const canon = toCanonicalStage(key);
+  if (canon && STAGES[canon]?.tone) {
+    return normalizeTone(STAGES[canon].tone);
+  }
+  return DEFAULT_STAGE_TONE;
+}
+
+export function toneForStatus(value) {
+  const key = canonicalStatusToneKey(value);
+  if (key && STATUS_TONES[key]) {
+    return normalizeTone(STATUS_TONES[key]);
+  }
+  return DEFAULT_STAGE_TONE;
+}
+
 export function renderStageChip(key) {
   const canon = toCanonicalStage(key);
   if (!canon) return '';
   const meta = STAGES[canon];
   if (!meta) return '';
-  const { label, colorVar } = meta;
+  const { label, tone } = meta;
+  const toneKey = normalizeTone(tone);
+  const toneClass = toneClassName(toneKey);
+  const toneAttr = toneKey ? ` data-tone="${toneKey}"` : '';
+  const toneClassSuffix = toneClass ? ` ${toneClass}` : '';
   const qa = `stage-chip-${canon}`;
-  return `<span class="stage-chip stage-${canon}" data-role="stage-chip" data-qa="${qa}" style="background:var(${colorVar})">${label}</span>`;
+  return `<span class="stage-chip stage-${canon}${toneClassSuffix}" data-role="stage-chip" data-qa="${qa}"${toneAttr}>${label}</span>`;
 }

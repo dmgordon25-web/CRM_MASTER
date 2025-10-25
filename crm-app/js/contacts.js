@@ -1,6 +1,14 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
-import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
+import {
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  toneForStage,
+  toneForStatus,
+  toneClassName,
+  TONE_CLASSNAMES
+} from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
@@ -26,6 +34,20 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       try { console && console.info && console.info('[contacts]', text); }
       catch(__err){}
     }
+  };
+
+  const removeToneClasses = (node)=>{
+    if(!node || !node.classList) return;
+    TONE_CLASSNAMES.forEach((cls)=> node.classList.remove(cls));
+  };
+
+  const buildStageFallback = (label, source)=>{
+    const stageLabel = label || 'Stage';
+    const toneKey = toneForStage(source || stageLabel);
+    const toneClass = toneClassName(toneKey);
+    const classSuffix = toneClass ? ` ${toneClass}` : '';
+    const toneAttr = toneKey ? ` data-tone="${toneKey}"` : '';
+    return `<span class="stage-chip stage-generic${classSuffix}" data-role="stage-chip" data-qa="stage-chip-generic"${toneAttr}>${escape(stageLabel)}</span>`;
   };
 
   const STAGES = [
@@ -87,6 +109,78 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
   const PIPELINE_MILESTONES = [
     'Intro Call','Application Sent','Application Submitted','UW in Progress','Conditions Out','Clear to Close','Docs Out','Funded / Post-Close'
   ];
+
+  function avatarCharToken(ch){
+    if(!ch) return '';
+    const upper = ch.toLocaleUpperCase();
+    const lower = ch.toLocaleLowerCase();
+    if(upper !== lower) return upper;
+    return /[0-9]/.test(ch) ? ch : '';
+  }
+  function computeAvatarInitials(name){
+    const parts = Array.from(String(name||'').trim().split(/\s+/).filter(Boolean));
+    if(!parts.length) return '';
+    const tokens = parts.map(part => {
+      const chars = Array.from(part);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token) return token;
+      }
+      return '';
+    }).filter(Boolean);
+    if(!tokens.length) return '';
+    let first = tokens[0] || '';
+    let second = '';
+    if(tokens.length>1){
+      second = tokens[tokens.length-1] || '';
+    }else{
+      const chars = Array.from(parts[0]).slice(1);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token){
+          second = token;
+          break;
+        }
+      }
+    }
+    const combined = (first + second).slice(0,2);
+    return combined || first || '';
+  }
+  function contactAvatarSource(contact){
+    if(!contact) return '';
+    const first = String(contact.first||'').trim();
+    const last = String(contact.last||'').trim();
+    if(first || last) return `${first} ${last}`.trim();
+    if(contact.name) return String(contact.name||'').trim();
+    if(contact.email) return String(contact.email||'').trim();
+    if(contact.company) return String(contact.company||'').trim();
+    return '';
+  }
+  function renderAvatarSpan(name, role){
+    const initials = computeAvatarInitials(name);
+    const classes = ['initials-avatar'];
+    if(!initials) classes.push('is-empty');
+    const roleAttr = role ? ` data-role="${escape(role)}"` : '';
+    const value = initials || '?';
+    return `<span class="${classes.join(' ')}"${roleAttr} aria-hidden="true" data-initials="${escape(value)}"></span>`;
+  }
+  function applyAvatar(el, name, fallback){
+    if(!el) return;
+    const initials = computeAvatarInitials(name);
+    if(initials){
+      el.dataset.initials = initials;
+      el.classList.remove('is-empty');
+      return;
+    }
+    const alt = computeAvatarInitials(fallback);
+    if(alt){
+      el.dataset.initials = alt;
+      el.classList.remove('is-empty');
+      return;
+    }
+    el.dataset.initials = '?';
+    el.classList.add('is-empty');
+  }
   const STATES = [
     {value:'', label:'Select state'},
     {value:'AL', label:'Alabama'},
@@ -298,23 +392,32 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
     const body = dlg.querySelector('#contact-modal-body');
     const stageLabel = findLabel(STAGES, c.stage) || 'Application';
     const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
-    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(stageLabel)}</span>`;
+    const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
+    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
     const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
     const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
+    const statusToneKey = toneForStatus(c.status);
+    const statusToneClass = toneClassName(statusToneKey);
+    const statusToneAttr = statusToneKey ? ` data-tone="${statusToneKey}"` : '';
+    const statusPillHtml = `<span class="status-pill${statusToneClass ? ` ${statusToneClass}` : ''}" data-status="${escape(c.status||'inprogress')}"${statusToneAttr}>${escape(statusLabel)}</span>`;
     const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const loanMetric = Number(c.loanAmount||0)>0 ? fmtCurrency.format(Number(c.loanAmount||0)) : 'TBD';
     const nextTouch = (c.nextFollowUp||'').slice(0,10) || (c.closingTimeline||'TBD');
     const stageSliderMarks = STAGE_FLOW.map((stage, idx)=> `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx+1}</span>`).join('');
     const stageSliderLabels = STAGE_FLOW.map(stage=> `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
+    const firstName = String(c.first||'').trim();
+    const lastName = String(c.last||'').trim();
+    const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
+    const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
     body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id||'')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last||'')}">
       <div class="modal-form-layout">
         <aside class="modal-summary">
-          <div class="summary-name">${escape((c.first||'') + (c.last?' '+c.last:'')) || 'New Contact'}</div>
+          <div class="summary-name">${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span></div>
           <div class="summary-meta">
             <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
-            <span class="status-pill" data-status="${escape(c.status||'inprogress')}">${escape(statusLabel)}</span>
+            ${statusPillHtml}
           </div>
           <div class="summary-metrics">
             <div class="summary-metric">
@@ -536,17 +639,34 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
-      if(summaryName){ summaryName.textContent = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact'; }
+      if(summaryName){
+        const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+        const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+        const label = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
+        if(summaryText){ summaryText.textContent = label; }
+        else { summaryName.textContent = label; }
+        const avatarName = (firstVal||lastVal) ? label : '';
+        applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
+      }
       if(stageWrap){
         const canonicalKey = canonicalStage(stageVal) || canonicalStage(findLabel(STAGES, stageVal));
         if(canonicalKey){ stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
         stageWrap.dataset.stage = stageVal;
         const label = findLabel(STAGES, stageVal) || stageVal || 'Application';
         const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || label) : label;
-        const chip = renderStageChip(stageVal) || renderStageChip(label) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(canonicalLabel || label)}</span>`;
+        const chip = renderStageChip(stageVal) || renderStageChip(label) || buildStageFallback(canonicalLabel || label, stageVal);
         stageWrap.innerHTML = chip;
       }
-      if(statusEl){ statusEl.dataset.status = statusVal; statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress'; }
+      if(statusEl){
+        statusEl.dataset.status = statusVal;
+        const toneKey = toneForStatus(statusVal);
+        const toneClass = toneClassName(toneKey);
+        removeToneClasses(statusEl);
+        if(toneClass){ statusEl.classList.add(toneClass); }
+        if(toneKey){ statusEl.setAttribute('data-tone', toneKey); }
+        else { statusEl.removeAttribute('data-tone'); }
+        statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress';
+      }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
         else if(stageVal==='funded'){ summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }

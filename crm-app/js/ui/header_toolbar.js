@@ -1,4 +1,5 @@
 import { bindQuickCreateMenu } from './quick_create_menu.js';
+import { getQuickAddMenuOptions } from '../quick_add.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
@@ -192,9 +193,16 @@ function ensureQuickCreateBinding(host) {
   }
   teardownQuickCreateBinding();
   try {
+    const quickAddOptions = getQuickAddMenuOptions();
     const unbind = bindQuickCreateMenu(host, {
       toggleSelector: `#${BUTTON_ID}`,
-      enableActionBar: true
+      enableActionBar: true,
+      openContact: quickAddOptions && typeof quickAddOptions.openContact === 'function'
+        ? quickAddOptions.openContact
+        : undefined,
+      openPartner: quickAddOptions && typeof quickAddOptions.openPartner === 'function'
+        ? quickAddOptions.openPartner
+        : undefined
     });
     headerState.unbind = typeof unbind === 'function' ? unbind : null;
     headerState.boundHost = host;

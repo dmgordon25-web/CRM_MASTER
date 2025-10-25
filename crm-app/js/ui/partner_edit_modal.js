@@ -104,6 +104,73 @@ function contactDisplayName(contact){
   return parts.length ? parts.join(' ') : (contact.name || contact.company || 'Unnamed Contact');
 }
 
+function avatarCharToken(ch){
+  if(!ch) return '';
+  const upper = ch.toLocaleUpperCase();
+  const lower = ch.toLocaleLowerCase();
+  if(upper !== lower) return upper;
+  return /[0-9]/.test(ch) ? ch : '';
+}
+
+function computeAvatarInitials(name){
+  const parts = Array.from(String(name||'').trim().split(/\s+/).filter(Boolean));
+  if(!parts.length) return '';
+  const tokens = parts.map(part => {
+    const chars = Array.from(part);
+    for(const ch of chars){
+      const token = avatarCharToken(ch);
+      if(token) return token;
+    }
+    return '';
+  }).filter(Boolean);
+  if(!tokens.length) return '';
+  let first = tokens[0] || '';
+  let second = '';
+  if(tokens.length>1){
+    second = tokens[tokens.length-1] || '';
+  }else{
+    const chars = Array.from(parts[0]).slice(1);
+    for(const ch of chars){
+      const token = avatarCharToken(ch);
+      if(token){
+        second = token;
+        break;
+      }
+    }
+  }
+  const combined = (first + second).slice(0,2);
+  return combined || first || '';
+}
+
+function partnerAvatarSource(record){
+  if(!record) return '';
+  const name = String(record.name||'').trim();
+  if(name) return name;
+  const company = String(record.company||'').trim();
+  if(company) return company;
+  const email = String(record.email||'').trim();
+  if(email) return email;
+  return '';
+}
+
+function applyAvatar(el, primary, fallback){
+  if(!el) return;
+  const initials = computeAvatarInitials(primary);
+  if(initials){
+    el.dataset.initials = initials;
+    el.classList.remove('is-empty');
+    return;
+  }
+  const alt = computeAvatarInitials(fallback);
+  if(alt){
+    el.dataset.initials = alt;
+    el.classList.remove('is-empty');
+    return;
+  }
+  el.dataset.initials = '?';
+  el.classList.add('is-empty');
+}
+
 function fillStateSelect(root, current){
   const select = root?.querySelector?.('#p-state');
   if(!select) return;
@@ -121,19 +188,30 @@ function updateSummary(root){
   const typeSelect = root.querySelector('#p-type');
   const focusSelect = root.querySelector('#p-focus');
   const cadenceSelect = root.querySelector('#p-cadence');
+  const emailInput = root.querySelector('#p-email');
   const summaryName = root.querySelector('#p-summary-name');
   const summaryTier = root.querySelector('#p-summary-tier');
   const summaryType = root.querySelector('#p-summary-type');
   const summaryFocus = root.querySelector('#p-summary-focus');
   const summaryCadence = root.querySelector('#p-summary-cadence');
   const note = root.querySelector('#p-summary-note');
-  const name = nameInput?.value?.trim() || 'New Partner';
-  const company = companyInput?.value?.trim() || '';
+  const nameRaw = nameInput?.value?.trim() || '';
+  const companyRaw = companyInput?.value?.trim() || '';
+  const emailRaw = emailInput?.value?.trim() || '';
+  const name = nameRaw || 'New Partner';
+  const company = companyRaw;
   const tier = tierSelect?.value || 'Developing';
   const type = typeSelect?.value || 'Realtor Partner';
   const focus = focusSelect?.value || 'Purchase';
   const cadence = cadenceSelect?.value || 'Monthly';
-  if(summaryName) summaryName.textContent = company ? `${name} · ${company}` : name;
+  if(summaryName){
+    const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+    const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+    const label = company ? `${name} · ${company}` : name;
+    if(summaryText){ summaryText.textContent = label; }
+    else { summaryName.textContent = label; }
+    applyAvatar(avatarEl, nameRaw, partnerAvatarSource({ name: nameRaw, company: companyRaw, email: emailRaw }));
+  }
   if(summaryTier) summaryTier.textContent = `Tier — ${tier}`;
   if(summaryType) summaryType.textContent = type;
   if(summaryFocus) summaryFocus.textContent = focus;
