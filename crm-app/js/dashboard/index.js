@@ -12,6 +12,16 @@ const DASHBOARD_WIDGET_NODE_SELECTOR = 'section.card, section.grid, div.card, se
 const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
 const DASHBOARD_CLICK_THRESHOLD = 5;
+const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
+const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
+const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
+
+const todayHighlightState = {
+  modeObserver: null,
+  modeButton: null,
+  hostObserver: null,
+  host: null
+};
 
 const KPI_KEYS = [
   'kpiNewLeads7d',
@@ -963,6 +973,105 @@ function applyHiddenWidgetPrefs(hiddenList) {
   return true;
 }
 
+function isTodayModeActive() {
+  if (!doc) return false;
+  const btn = doc.querySelector(TODAY_MODE_BUTTON_SELECTOR);
+  if (!btn || !btn.classList) return false;
+  return btn.classList.contains('active');
+}
+
+function applyTodayPrioritiesHighlight() {
+  if (!doc) return;
+  const host = doc.getElementById('dashboard-today');
+  if (!host || !host.firstElementChild) return;
+  const highlight = isTodayModeActive();
+  const container = host.firstElementChild;
+  if (container && container.classList) {
+    if (highlight) {
+      if (container.dataset) container.dataset.todayHighlightContainer = 'on';
+      TODAY_PRIORITIES_CONTAINER_CLASSES.forEach(cls => {
+        container.classList.add(cls);
+      });
+    } else if (!container.dataset || container.dataset.todayHighlightContainer === 'on') {
+      TODAY_PRIORITIES_CONTAINER_CLASSES.forEach(cls => {
+        container.classList.remove(cls);
+      });
+      if (container.dataset) delete container.dataset.todayHighlightContainer;
+    }
+  }
+  const headerRow = container && container.querySelector ? container.querySelector(':scope > .row') : null;
+  const heading = headerRow && headerRow.querySelector ? headerRow.querySelector('strong') : null;
+  if (heading && heading.classList) {
+    if (highlight) {
+      if (heading.dataset) heading.dataset.todayHighlightHeading = 'on';
+      TODAY_PRIORITIES_HEADING_CLASSES.forEach(cls => {
+        heading.classList.add(cls);
+      });
+    } else if (!heading.dataset || heading.dataset.todayHighlightHeading === 'on') {
+      TODAY_PRIORITIES_HEADING_CLASSES.forEach(cls => {
+        heading.classList.remove(cls);
+      });
+      if (heading.dataset) delete heading.dataset.todayHighlightHeading;
+    }
+  }
+}
+
+function ensureTodayModeObserver() {
+  const { modeObserver } = todayHighlightState;
+  if (!doc || typeof MutationObserver !== 'function') {
+    if (modeObserver) modeObserver.disconnect();
+    todayHighlightState.modeObserver = null;
+    todayHighlightState.modeButton = null;
+    return;
+  }
+  const btn = doc.querySelector(TODAY_MODE_BUTTON_SELECTOR);
+  if (!btn) {
+    if (modeObserver) modeObserver.disconnect();
+    todayHighlightState.modeObserver = null;
+    todayHighlightState.modeButton = null;
+    return;
+  }
+  if (todayHighlightState.modeButton === btn && modeObserver) return;
+  if (modeObserver) modeObserver.disconnect();
+  const observer = new MutationObserver(() => {
+    applyTodayPrioritiesHighlight();
+  });
+  observer.observe(btn, { attributes: true, attributeFilter: ['class'] });
+  todayHighlightState.modeObserver = observer;
+  todayHighlightState.modeButton = btn;
+}
+
+function ensureTodayHostObserver() {
+  const { hostObserver } = todayHighlightState;
+  if (!doc || typeof MutationObserver !== 'function') {
+    if (hostObserver) hostObserver.disconnect();
+    todayHighlightState.hostObserver = null;
+    todayHighlightState.host = null;
+    return;
+  }
+  const host = doc.getElementById('dashboard-today');
+  if (!host) {
+    if (hostObserver) hostObserver.disconnect();
+    todayHighlightState.hostObserver = null;
+    todayHighlightState.host = null;
+    return;
+  }
+  if (todayHighlightState.host === host && hostObserver) return;
+  if (hostObserver) hostObserver.disconnect();
+  const observer = new MutationObserver(() => {
+    applyTodayPrioritiesHighlight();
+  });
+  observer.observe(host, { childList: true });
+  todayHighlightState.hostObserver = observer;
+  todayHighlightState.host = host;
+}
+
+function refreshTodayHighlightWiring() {
+  ensureTodayModeObserver();
+  ensureTodayHostObserver();
+  applyTodayPrioritiesHighlight();
+}
+
 function applySurfaceVisibility(prefs) {
   const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
   const graphPrefs = prefs && typeof prefs.graphs === 'object' ? prefs.graphs : {};
@@ -1064,6 +1173,7 @@ function scheduleApply() {
     } catch (err) {
       if (console && console.warn) console.warn('[dashboard] apply prefs failed', err);
     }
+    refreshTodayHighlightWiring();
     ensureWidgetDnD();
   });
 }
@@ -1082,6 +1192,7 @@ function handleHiddenChange(evt) {
   } else {
     ensureWidgetDnD();
   }
+  refreshTodayHighlightWiring();
 }
 
 function init() {
@@ -1109,6 +1220,7 @@ function init() {
     if (scope === 'settings') invalidatePrefs();
     scheduleApply();
   });
+  refreshTodayHighlightWiring();
 }
 
 init();
