@@ -1,6 +1,14 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
-import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
+import {
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  toneForStage,
+  toneForStatus,
+  toneClassName,
+  TONE_CLASSNAMES
+} from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
@@ -26,6 +34,20 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       try { console && console.info && console.info('[contacts]', text); }
       catch(__err){}
     }
+  };
+
+  const removeToneClasses = (node)=>{
+    if(!node || !node.classList) return;
+    TONE_CLASSNAMES.forEach((cls)=> node.classList.remove(cls));
+  };
+
+  const buildStageFallback = (label, source)=>{
+    const stageLabel = label || 'Stage';
+    const toneKey = toneForStage(source || stageLabel);
+    const toneClass = toneClassName(toneKey);
+    const classSuffix = toneClass ? ` ${toneClass}` : '';
+    const toneAttr = toneKey ? ` data-tone="${toneKey}"` : '';
+    return `<span class="stage-chip stage-generic${classSuffix}" data-role="stage-chip" data-qa="stage-chip-generic"${toneAttr}>${escape(stageLabel)}</span>`;
   };
 
   const STAGES = [
@@ -298,9 +320,14 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
     const body = dlg.querySelector('#contact-modal-body');
     const stageLabel = findLabel(STAGES, c.stage) || 'Application';
     const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
-    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(stageLabel)}</span>`;
+    const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
+    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
     const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
     const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
+    const statusToneKey = toneForStatus(c.status);
+    const statusToneClass = toneClassName(statusToneKey);
+    const statusToneAttr = statusToneKey ? ` data-tone="${statusToneKey}"` : '';
+    const statusPillHtml = `<span class="status-pill${statusToneClass ? ` ${statusToneClass}` : ''}" data-status="${escape(c.status||'inprogress')}"${statusToneAttr}>${escape(statusLabel)}</span>`;
     const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const loanMetric = Number(c.loanAmount||0)>0 ? fmtCurrency.format(Number(c.loanAmount||0)) : 'TBD';
     const nextTouch = (c.nextFollowUp||'').slice(0,10) || (c.closingTimeline||'TBD');
@@ -314,7 +341,7 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
           <div class="summary-name">${escape((c.first||'') + (c.last?' '+c.last:'')) || 'New Contact'}</div>
           <div class="summary-meta">
             <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
-            <span class="status-pill" data-status="${escape(c.status||'inprogress')}">${escape(statusLabel)}</span>
+            ${statusPillHtml}
           </div>
           <div class="summary-metrics">
             <div class="summary-metric">
@@ -543,10 +570,19 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         stageWrap.dataset.stage = stageVal;
         const label = findLabel(STAGES, stageVal) || stageVal || 'Application';
         const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || label) : label;
-        const chip = renderStageChip(stageVal) || renderStageChip(label) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(canonicalLabel || label)}</span>`;
+        const chip = renderStageChip(stageVal) || renderStageChip(label) || buildStageFallback(canonicalLabel || label, stageVal);
         stageWrap.innerHTML = chip;
       }
-      if(statusEl){ statusEl.dataset.status = statusVal; statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress'; }
+      if(statusEl){
+        statusEl.dataset.status = statusVal;
+        const toneKey = toneForStatus(statusVal);
+        const toneClass = toneClassName(toneKey);
+        removeToneClasses(statusEl);
+        if(toneClass){ statusEl.classList.add(toneClass); }
+        if(toneKey){ statusEl.setAttribute('data-tone', toneKey); }
+        else { statusEl.removeAttribute('data-tone'); }
+        statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress';
+      }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
         else if(stageVal==='funded'){ summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }

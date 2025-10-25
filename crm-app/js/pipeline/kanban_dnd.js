@@ -1,5 +1,5 @@
 import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from './stages.js';
-import { renderStageChip, canonicalStage } from './constants.js';
+import { renderStageChip, canonicalStage, toneForStage, toneClassName } from './constants.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
 
@@ -140,9 +140,15 @@ function ensureStageChip(card){
     wrapper.innerHTML = chipHtml;
   } else {
     const fallbackLabel = stageLabelFor(stageValue);
-    wrapper.innerHTML = fallbackLabel
-      ? `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escapeHtml(fallbackLabel)}</span>`
-      : '';
+    if(fallbackLabel){
+      const toneKey = toneForStage(stageValue || fallbackLabel);
+      const toneClass = toneClassName(toneKey);
+      const toneAttr = toneKey ? ` data-tone="${toneKey}"` : '';
+      const classSuffix = toneClass ? ` ${toneClass}` : '';
+      wrapper.innerHTML = `<span class="stage-chip stage-generic${classSuffix}" data-role="stage-chip" data-qa="stage-chip-generic"${toneAttr}>${escapeHtml(fallbackLabel)}</span>`;
+    } else {
+      wrapper.innerHTML = '';
+    }
   }
 }
 
