@@ -278,11 +278,9 @@ function updateGridOverlayAppearance(state){
 }
 
 function removeGridOverlay(state){
-  if(state.gridOverlay && state.gridOverlay.parentNode){
-    try{ state.gridOverlay.parentNode.removeChild(state.gridOverlay); }
-    catch (_err){}
+  if(state.gridOverlay){
+    state.gridOverlay.style.display = 'none';
   }
-  state.gridOverlay = null;
 }
 
 export function applyOrder(container, orderIds, itemSelector, idGetter){
@@ -648,7 +646,7 @@ function beginGridDrag(state, item, evt){
   item.style.margin = '0';
   item.style.transition = 'none';
   item.style.pointerEvents = 'none';
-  item.style.zIndex = '1000';
+  item.style.zIndex = '50';
   item.style.willChange = 'transform';
   item.style.boxShadow = '0 18px 36px rgba(15,23,42,0.16)';
   state.grabOffsetX = evt.clientX - itemRect.left;
