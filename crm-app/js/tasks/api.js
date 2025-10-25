@@ -85,6 +85,66 @@ function cloneSource(source){
   return { entity, id, field };
 }
 
+function emitTasksChanged(detail){
+  const payload = detail && typeof detail === 'object' ? detail : {};
+  let emitted = false;
+  try{
+    const bus = typeof window !== 'undefined'
+      ? (window.__APP_BUS__ || window.appEvents || window.events || null)
+      : null;
+    if(bus && typeof bus.emit === 'function'){
+      bus.emit('tasks:changed', payload);
+      emitted = true;
+    }
+  }catch (_err){}
+  if(emitted) return true;
+  if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+    try{
+      document.dispatchEvent(new CustomEvent('tasks:changed', { detail: payload }));
+      emitted = true;
+    }catch (_err){}
+  }
+  return emitted;
+}
+
+async function persistTask(record){
+  await openDB();
+  await dbPut('tasks', record);
+  try{
+    recordTask(record);
+  }catch (err){
+    console && console.warn && console.warn('tasks store update failed', err);
+  }
+}
+
+function broadcastTaskCreate(record, meta){
+  if(!record) return;
+  const detail = Object.assign({
+    scope: 'tasks',
+    action: 'task:create',
+    source: 'tasks:api'
+  }, meta || {});
+  detail.taskId = record.id;
+  if(!Array.isArray(detail.ids)) detail.ids = [record.id];
+  if(record.contactId && !detail.contactId) detail.contactId = record.contactId;
+  if(record.partnerId && !detail.partnerId) detail.partnerId = record.partnerId;
+  let dispatched = false;
+  try{
+    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
+      window.dispatchAppDataChanged(detail);
+      dispatched = true;
+    }
+  }catch (err){
+    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
+  }
+  emitTasksChanged({ action: detail.action, task: record });
+  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+    try{
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+    }catch (_err){}
+  }
+}
+
 function parseEventDate(raw){
   if(raw instanceof Date) return raw;
   if(typeof raw === 'number' && Number.isFinite(raw)){
@@ -152,37 +212,78 @@ export async function createTaskFromEvent(event){
     if(origin.status) record.statusLabel = origin.status;
   }
   try{
-    await openDB();
-    await dbPut('tasks', record);
-    try{
-      recordTask(record);
-    }catch (err){
-      console && console.warn && console.warn('tasks store update failed', err);
-    }
+    await persistTask(record);
   }catch (err){
     console && console.warn && console.warn('createTaskFromEvent dbPut failed', err);
     toastSafe('Unable to save task');
     return { status:'error', error: err };
   }
-  let dispatched = false;
-  try{
-    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
-      window.dispatchAppDataChanged({ source:'calendar', action:'task:create', taskId: record.id, contactId });
-      dispatched = true;
-    }
-  }catch (err){
-    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
-  }
+  broadcastTaskCreate(record, { source:'calendar', contactId });
   if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
     try{ window.__CALENDAR_IMPL__.invalidateCache(); }
     catch (_err){}
   }
-  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
-    try{
-      document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
-    }catch (_err){}
-  }
   toastSafe('Task added');
+  return { status:'ok', task: record };
+}
+
+export async function createFollowUpTask(options){
+  ensureReadyLog();
+  const opts = options && typeof options === 'object' ? options : {};
+  const contactId = safeString(opts.contactId);
+  const partnerId = safeString(opts.partnerId);
+  if(!contactId && !partnerId){
+    return { status:'error', reason:'missing-target' };
+  }
+  const dueDate = toISODate(opts.due || opts.date || new Date());
+  const now = Date.now();
+  const name = safeString(opts.name);
+  const explicitTitle = safeString(opts.title);
+  const title = explicitTitle || (name ? `Follow up with ${name}` : 'Follow up');
+  const note = safeString(opts.note);
+  const record = {
+    id: uuid(),
+    title,
+    due: dueDate,
+    status: 'open',
+    done: false,
+    createdAt: now,
+    updatedAt: now,
+    source: safeString(opts.source) || (contactId ? 'contact-modal' : 'partner-modal')
+  };
+  if(contactId) record.contactId = contactId;
+  if(partnerId) record.partnerId = partnerId;
+  if(name && contactId) record.contactName = name;
+  if(name && partnerId) record.partnerName = name;
+  if(note) record.note = note;
+  if(opts.stage) record.stage = safeString(opts.stage);
+  const originType = safeString(opts.originType) || (contactId ? 'contact:follow-up' : 'partner:follow-up');
+  record.origin = {
+    type: originType,
+    title,
+    subtitle: note,
+    date: dueDate,
+    contactName: contactId ? name : '',
+    partnerName: partnerId ? name : '',
+    source: { entity: contactId ? 'contact' : 'partner', id: contactId || partnerId, field: 'follow-up' }
+  };
+  try{
+    await persistTask(record);
+  }catch (err){
+    console && console.warn && console.warn('createFollowUpTask failed', err);
+    if(opts.showToast === true){
+      toastSafe('Unable to save task');
+    }
+    return { status:'error', error: err };
+  }
+  broadcastTaskCreate(record, {
+    source: safeString(opts.changeSource) || (contactId ? 'contact-modal' : 'partner-modal'),
+    contactId: contactId || undefined,
+    partnerId: partnerId || undefined
+  });
+  if(opts.showToast === true){
+    toastSafe('Follow-up scheduled');
+  }
   return { status:'ok', task: record };
 }
 

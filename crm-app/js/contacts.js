@@ -1,4 +1,5 @@
 import { createFormFooter } from './ui/form_footer.js';
+import { createFollowUpTask } from './tasks/api.js';
 import { setReferredBy } from './contacts/form.js';
 import {
   renderStageChip,
@@ -157,6 +158,293 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     if(contact.email) return String(contact.email||'').trim();
     if(contact.company) return String(contact.company||'').trim();
     return '';
+  }
+
+  const scheduleMicrotask = typeof queueMicrotask === 'function'
+    ? queueMicrotask
+    : (cb)=>{
+      Promise.resolve().then(cb).catch(()=>{});
+    };
+
+  function formatFollowUpDate(value){
+    if(!value) return '';
+    const parsed = new Date(value);
+    if(Number.isNaN(parsed.getTime())) return value;
+    try{
+      return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }catch (_err){
+      return value;
+    }
+  }
+
+  function wireInlineFollowUp(host, config){
+    if(!host || host.__followUpWired) return;
+    const cfg = config && typeof config === 'object' ? config : {};
+    const getId = typeof cfg.getId === 'function' ? cfg.getId : (()=>'');
+    const getName = typeof cfg.getName === 'function' ? cfg.getName : (()=>'');
+    const getDefaultDate = typeof cfg.getDefaultDate === 'function' ? cfg.getDefaultDate : (()=>'');
+    const onSuccess = typeof cfg.onSuccess === 'function' ? cfg.onSuccess : (()=>{});
+    const getStage = typeof cfg.getStage === 'function' ? cfg.getStage : (()=>'');
+    const entityLabel = cfg.entity || 'record';
+    const defaultSource = cfg.entity === 'partner' ? 'partner-modal' : 'contact-modal';
+    host.innerHTML = '';
+    host.classList.add('followup-action-shell');
+    host.style.display = host.style.display || 'flex';
+    host.style.flexDirection = host.style.flexDirection || 'column';
+    host.style.gap = host.style.gap || '6px';
+    host.style.marginTop = host.style.marginTop || '12px';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'btn ghost';
+    trigger.textContent = 'Schedule Follow-up';
+    trigger.dataset.role = 'followup-trigger';
+    trigger.setAttribute('aria-expanded', 'false');
+    host.appendChild(trigger);
+
+    const prompt = document.createElement('div');
+    prompt.className = 'followup-inline';
+    prompt.hidden = true;
+    prompt.style.display = 'none';
+    prompt.style.flexDirection = 'column';
+    prompt.style.gap = '8px';
+    prompt.style.padding = '12px';
+    prompt.style.border = '1px solid var(--border-muted, #d8d8d8)';
+    prompt.style.borderRadius = '8px';
+    prompt.style.background = 'var(--surface-subtle, #f9f9f9)';
+
+    const dateLabel = document.createElement('label');
+    dateLabel.className = 'fine-print';
+    dateLabel.textContent = 'Follow-up date';
+    dateLabel.style.display = 'flex';
+    dateLabel.style.flexDirection = 'column';
+    dateLabel.style.gap = '4px';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.required = true;
+    dateInput.dataset.role = 'followup-date';
+    dateInput.style.minHeight = '32px';
+    dateLabel.appendChild(dateInput);
+
+    const noteLabel = document.createElement('label');
+    noteLabel.className = 'fine-print';
+    noteLabel.textContent = 'Note (optional)';
+    noteLabel.style.display = 'flex';
+    noteLabel.style.flexDirection = 'column';
+    noteLabel.style.gap = '4px';
+    const noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.placeholder = 'Optional note';
+    noteInput.dataset.role = 'followup-note';
+    noteInput.style.minHeight = '32px';
+    noteLabel.appendChild(noteInput);
+
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    actions.style.gap = '8px';
+    actions.style.flexWrap = 'wrap';
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn brand';
+    confirmBtn.textContent = 'Schedule';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn ghost';
+    cancelBtn.textContent = 'Cancel';
+    actions.append(confirmBtn, cancelBtn);
+
+    prompt.append(dateLabel, noteLabel, actions);
+    host.appendChild(prompt);
+
+    const status = document.createElement('p');
+    status.className = 'muted fine-print';
+    status.dataset.role = 'followup-status';
+    status.setAttribute('aria-live', 'polite');
+    status.style.margin = '0';
+    status.hidden = true;
+    host.appendChild(status);
+
+    const setStatus = (text, tone)=>{
+      const value = String(text || '').trim();
+      if(!value){
+        status.textContent = '';
+        status.hidden = true;
+        status.removeAttribute('data-tone');
+        status.style.color = '';
+        return;
+      }
+      status.hidden = false;
+      status.textContent = value;
+      status.dataset.tone = tone || '';
+      if(tone === 'error'){
+        status.style.color = 'var(--danger-600, #b42318)';
+      }else if(tone === 'success'){
+        status.style.color = 'var(--success-600, #027a48)';
+      }else{
+        status.style.color = '';
+      }
+    };
+
+    const syncDefaultDate = ()=>{
+      const next = getDefaultDate() || '';
+      if(next){
+        dateInput.value = next;
+      }
+    };
+
+    let isOpen = false;
+    const openPrompt = ()=>{
+      if(isOpen) return;
+      isOpen = true;
+      prompt.hidden = false;
+      prompt.style.display = 'flex';
+      trigger.setAttribute('aria-expanded', 'true');
+      setStatus('', '');
+      syncDefaultDate();
+      scheduleMicrotask(()=>{
+        try{ dateInput.focus({ preventScroll: true }); }
+        catch(_err){}
+      });
+    };
+    const closePrompt = ()=>{
+      if(!isOpen) return;
+      isOpen = false;
+      prompt.hidden = true;
+      prompt.style.display = 'none';
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+
+    const setBusy = (state)=>{
+      if(state){
+        confirmBtn.dataset.loading = '1';
+        confirmBtn.disabled = true;
+        cancelBtn.disabled = true;
+        trigger.disabled = true;
+        confirmBtn.setAttribute('aria-busy', 'true');
+      }else{
+        delete confirmBtn.dataset.loading;
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        trigger.disabled = false;
+        confirmBtn.removeAttribute('aria-busy');
+      }
+    };
+
+    trigger.addEventListener('click', (event)=>{
+      event.preventDefault();
+      if(!getId()){
+        setStatus(`Save this ${entityLabel} before scheduling a follow-up.`, 'error');
+        return;
+      }
+      noteInput.value = '';
+      openPrompt();
+    });
+
+    cancelBtn.addEventListener('click', (event)=>{
+      event.preventDefault();
+      closePrompt();
+    });
+
+    confirmBtn.addEventListener('click', async (event)=>{
+      event.preventDefault();
+      if(confirmBtn.dataset.loading === '1') return;
+      const targetId = getId();
+      if(!targetId){
+        setStatus(`Save this ${entityLabel} before scheduling a follow-up.`, 'error');
+        return;
+      }
+      const dueValue = dateInput.value;
+      if(!dueValue){
+        setStatus('Choose a follow-up date.', 'error');
+        try{ dateInput.focus({ preventScroll: true }); }
+        catch(_err){}
+        return;
+      }
+      const noteValue = noteInput.value ? noteInput.value.trim() : '';
+      const nameValue = getName();
+      const stageValue = getStage();
+      setBusy(true);
+      try{
+        const payload = {
+          due: dueValue,
+          note: noteValue,
+          name: nameValue,
+          stage: stageValue,
+          showToast: false,
+          changeSource: cfg.changeSource,
+          source: cfg.source || defaultSource,
+          originType: cfg.originType
+        };
+        if(cfg.entity === 'partner') payload.partnerId = targetId;
+        else payload.contactId = targetId;
+        if(!payload.stage) delete payload.stage;
+        if(!payload.originType) delete payload.originType;
+        const result = await createFollowUpTask(payload);
+        if(result && result.status === 'ok'){
+          onSuccess(dueValue);
+          const formatted = formatFollowUpDate(dueValue);
+          setStatus(`Follow-up scheduled${formatted ? ` for ${formatted}` : ''}.`, 'success');
+          closePrompt();
+          noteInput.value = '';
+          scheduleMicrotask(()=>{
+            try{ trigger.focus({ preventScroll: true }); }
+            catch(_err){}
+            import('../calendar/index.js').then(mod => mod.scheduleRefresh?.()).catch(()=>{});
+          });
+        }else{
+          const reason = result && result.reason === 'missing-target'
+            ? `Save this ${entityLabel} before scheduling a follow-up.`
+            : 'Unable to schedule follow-up.';
+          setStatus(reason, 'error');
+        }
+      }catch (err){
+        try{ console && console.warn && console.warn('schedule follow-up failed', err); }
+        catch(_err){}
+        setStatus('Unable to schedule follow-up.', 'error');
+      }finally{
+        setBusy(false);
+      }
+    });
+
+    syncDefaultDate();
+    host.__followUpWired = true;
+  }
+
+  function wireContactFollowUp(body, record){
+    if(!body) return;
+    const host = body.querySelector('[data-role="followup-action"]');
+    if(!host) return;
+    const getName = ()=>{
+      const summaryText = body.querySelector('.summary-name-text');
+      const summaryValue = summaryText && summaryText.textContent ? summaryText.textContent.trim() : '';
+      if(summaryValue) return summaryValue;
+      const first = $('#c-first', body)?.value?.trim() || '';
+      const last = $('#c-last', body)?.value?.trim() || '';
+      const combined = `${first} ${last}`.trim();
+      if(combined) return combined;
+      const email = $('#c-email', body)?.value?.trim() || '';
+      if(email) return email;
+      const company = $('#c-company', body)?.value?.trim() || '';
+      if(company) return company;
+      return 'contact';
+    };
+    wireInlineFollowUp(host, {
+      entity: 'contact',
+      getId: ()=> $('#c-id', body)?.value?.trim() || '',
+      getName,
+      getDefaultDate: ()=> $('#c-nexttouch', body)?.value?.trim() || (record && record.nextFollowUp ? String(record.nextFollowUp).slice(0,10) : ''),
+      getStage: ()=> $('#c-stage', body)?.value?.trim() || (record && record.stage ? String(record.stage) : ''),
+      originType: record && record.stage ? `contact:${String(record.stage)}` : undefined,
+      changeSource: 'contact-modal',
+      onSuccess: (date)=>{
+        const nextTouchInput = $('#c-nexttouch', body);
+        if(nextTouchInput){
+          nextTouchInput.value = date;
+          nextTouchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          nextTouchInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
   }
   function renderAvatarSpan(name, role){
     const initials = computeAvatarInitials(name);
@@ -453,6 +741,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           <div class="modal-note" id="c-summary-note">
             Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
           </div>
+          <div class="modal-inline-action" data-role="followup-action"></div>
         </aside>
         <div class="modal-main">
           <nav class="modal-tabs" id="contact-tabs">
@@ -704,6 +993,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     });
     syncStageSlider(c.stage||'application');
     updateSummary();
+    wireContactFollowUp(body, c);
 
     const ensureReferredByButton = ()=>{
       const select = body.querySelector('#c-ref');

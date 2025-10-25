@@ -4,8 +4,310 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { toastError, toastSuccess } from './ui/toast_helpers.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
+import { createFollowUpTask } from './tasks/api.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
+const scheduleMicrotask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (cb)=>{
+    Promise.resolve().then(cb).catch(()=>{});
+  };
+
+function formatFollowUpDate(value){
+  if(!value) return '';
+  const parsed = new Date(value);
+  if(Number.isNaN(parsed.getTime())) return value;
+  try{
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }catch (_err){
+    return value;
+  }
+}
+
+function wireInlineFollowUp(host, config){
+  if(!host) return;
+  if(host.__followUpCleanup){
+    try{ host.__followUpCleanup(); }
+    catch(_err){}
+    host.__followUpCleanup = null;
+  }
+  host.innerHTML = '';
+  const cfg = config && typeof config === 'object' ? config : {};
+  const getId = typeof cfg.getId === 'function' ? cfg.getId : (()=>'');
+  const getName = typeof cfg.getName === 'function' ? cfg.getName : (()=>'');
+  const getDefaultDate = typeof cfg.getDefaultDate === 'function' ? cfg.getDefaultDate : (()=>'');
+  const onSuccess = typeof cfg.onSuccess === 'function' ? cfg.onSuccess : (()=>{});
+  const entityLabel = cfg.entity || 'record';
+  const defaultSource = cfg.entity === 'partner' ? 'partner-modal' : 'contact-modal';
+
+  host.classList.add('followup-action-shell');
+  host.style.display = host.style.display || 'flex';
+  host.style.flexDirection = host.style.flexDirection || 'column';
+  host.style.gap = host.style.gap || '6px';
+  host.style.marginTop = host.style.marginTop || '12px';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'btn ghost';
+  trigger.textContent = 'Schedule Follow-up';
+  trigger.dataset.role = 'followup-trigger';
+  trigger.setAttribute('aria-expanded', 'false');
+  host.appendChild(trigger);
+
+  const prompt = document.createElement('div');
+  prompt.className = 'followup-inline';
+  prompt.hidden = true;
+  prompt.style.display = 'none';
+  prompt.style.flexDirection = 'column';
+  prompt.style.gap = '8px';
+  prompt.style.padding = '12px';
+  prompt.style.border = '1px solid var(--border-muted, #d8d8d8)';
+  prompt.style.borderRadius = '8px';
+  prompt.style.background = 'var(--surface-subtle, #f9f9f9)';
+
+  const dateLabel = document.createElement('label');
+  dateLabel.className = 'fine-print';
+  dateLabel.textContent = 'Follow-up date';
+  dateLabel.style.display = 'flex';
+  dateLabel.style.flexDirection = 'column';
+  dateLabel.style.gap = '4px';
+  const dateInput = document.createElement('input');
+  dateInput.type = 'date';
+  dateInput.required = true;
+  dateInput.dataset.role = 'followup-date';
+  dateInput.style.minHeight = '32px';
+  dateLabel.appendChild(dateInput);
+
+  const noteLabel = document.createElement('label');
+  noteLabel.className = 'fine-print';
+  noteLabel.textContent = 'Note (optional)';
+  noteLabel.style.display = 'flex';
+  noteLabel.style.flexDirection = 'column';
+  noteLabel.style.gap = '4px';
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text';
+  noteInput.placeholder = 'Optional note';
+  noteInput.dataset.role = 'followup-note';
+  noteInput.style.minHeight = '32px';
+  noteLabel.appendChild(noteInput);
+
+  const actions = document.createElement('div');
+  actions.className = 'row';
+  actions.style.gap = '8px';
+  actions.style.flexWrap = 'wrap';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = 'btn brand';
+  confirmBtn.textContent = 'Schedule';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'btn ghost';
+  cancelBtn.textContent = 'Cancel';
+  actions.append(confirmBtn, cancelBtn);
+
+  prompt.append(dateLabel, noteLabel, actions);
+  host.appendChild(prompt);
+
+  const status = document.createElement('p');
+  status.className = 'muted fine-print';
+  status.dataset.role = 'followup-status';
+  status.setAttribute('aria-live', 'polite');
+  status.style.margin = '0';
+  status.hidden = true;
+  host.appendChild(status);
+
+  const setStatus = (text, tone)=>{
+    const value = String(text || '').trim();
+    if(!value){
+      status.textContent = '';
+      status.hidden = true;
+      status.removeAttribute('data-tone');
+      status.style.color = '';
+      return;
+    }
+    status.hidden = false;
+    status.textContent = value;
+    status.dataset.tone = tone || '';
+    if(tone === 'error'){
+      status.style.color = 'var(--danger-600, #b42318)';
+    }else if(tone === 'success'){
+      status.style.color = 'var(--success-600, #027a48)';
+    }else{
+      status.style.color = '';
+    }
+  };
+
+  const syncDefaultDate = ()=>{
+    const next = getDefaultDate() || '';
+    if(next){
+      dateInput.value = next;
+    }
+  };
+
+  let isOpen = false;
+  const openPrompt = ()=>{
+    if(isOpen) return;
+    if(!getId()){
+      setStatus(`Save this ${entityLabel} before scheduling a follow-up.`, 'error');
+      return;
+    }
+    isOpen = true;
+    prompt.hidden = false;
+    prompt.style.display = 'flex';
+    trigger.setAttribute('aria-expanded', 'true');
+    setStatus('', '');
+    syncDefaultDate();
+    noteInput.value = '';
+    scheduleMicrotask(()=>{
+      try{ dateInput.focus({ preventScroll: true }); }
+      catch(_err){}
+    });
+  };
+  const closePrompt = ()=>{
+    if(!isOpen) return;
+    isOpen = false;
+    prompt.hidden = true;
+    prompt.style.display = 'none';
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  const setBusy = (state)=>{
+    if(state){
+      confirmBtn.dataset.loading = '1';
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      trigger.disabled = true;
+      confirmBtn.setAttribute('aria-busy', 'true');
+    }else{
+      delete confirmBtn.dataset.loading;
+      confirmBtn.disabled = false;
+      cancelBtn.disabled = false;
+      trigger.disabled = false;
+      confirmBtn.removeAttribute('aria-busy');
+    }
+  };
+
+  trigger.addEventListener('click', (event)=>{
+    event.preventDefault();
+    openPrompt();
+  });
+
+  cancelBtn.addEventListener('click', (event)=>{
+    event.preventDefault();
+    closePrompt();
+  });
+
+  confirmBtn.addEventListener('click', async (event)=>{
+    event.preventDefault();
+    if(confirmBtn.dataset.loading === '1') return;
+    const targetId = getId();
+    if(!targetId){
+      setStatus(`Save this ${entityLabel} before scheduling a follow-up.`, 'error');
+      return;
+    }
+    const dueValue = dateInput.value;
+    if(!dueValue){
+      setStatus('Choose a follow-up date.', 'error');
+      try{ dateInput.focus({ preventScroll: true }); }
+      catch(_err){}
+      return;
+    }
+    const noteValue = noteInput.value ? noteInput.value.trim() : '';
+    const nameValue = getName();
+    setBusy(true);
+    try{
+      const payload = {
+        due: dueValue,
+        note: noteValue,
+        name: nameValue,
+        showToast: false,
+        changeSource: cfg.changeSource,
+        source: cfg.source || defaultSource,
+        originType: cfg.originType
+      };
+      if(cfg.entity === 'partner') payload.partnerId = targetId;
+      else payload.contactId = targetId;
+      if(!payload.originType) delete payload.originType;
+      const result = await createFollowUpTask(payload);
+      if(result && result.status === 'ok'){
+        onSuccess(dueValue);
+        const formatted = formatFollowUpDate(dueValue);
+        setStatus(`Follow-up scheduled${formatted ? ` for ${formatted}` : ''}.`, 'success');
+        closePrompt();
+        noteInput.value = '';
+        scheduleMicrotask(()=>{
+          try{ trigger.focus({ preventScroll: true }); }
+          catch(_err){}
+          import('../calendar/index.js').then(mod => mod.scheduleRefresh?.()).catch(()=>{});
+        });
+      }else{
+        const reason = result && result.reason === 'missing-target'
+          ? `Save this ${entityLabel} before scheduling a follow-up.`
+          : 'Unable to schedule follow-up.';
+        setStatus(reason, 'error');
+      }
+    }catch (err){
+      try{ console && console.warn && console.warn('[partners] follow-up failed', err); }
+      catch(_err){}
+      setStatus('Unable to schedule follow-up.', 'error');
+    }finally{
+      setBusy(false);
+    }
+  });
+
+  syncDefaultDate();
+  host.__followUpWired = true;
+  host.__followUpCleanup = ()=>{
+    trigger.removeAttribute('aria-expanded');
+  };
+}
+
+function installPartnerFollowUp(detail){
+  const dialog = detail && detail.dialog ? detail.dialog : null;
+  if(!dialog) return;
+  const summary = dialog.querySelector('#partner-summary');
+  if(!summary) return;
+  let host = summary.querySelector('[data-role="followup-action"]');
+  if(!host){
+    host = document.createElement('div');
+    host.dataset.role = 'followup-action';
+    host.className = 'modal-inline-action';
+    const note = summary.querySelector('#p-summary-note');
+    if(note){
+      note.insertAdjacentElement('afterend', host);
+    }else{
+      summary.appendChild(host);
+    }
+  }
+  host.classList.add('modal-inline-action');
+  const record = detail && detail.record ? detail.record : {};
+  const getName = ()=>{
+    const summaryText = dialog.querySelector('#p-summary-name .summary-name-text');
+    const summaryValue = summaryText && summaryText.textContent ? summaryText.textContent.trim() : '';
+    if(summaryValue) return summaryValue;
+    const name = dialog.querySelector('#p-name')?.value?.trim() || '';
+    const company = dialog.querySelector('#p-company')?.value?.trim() || '';
+    if(name && company) return `${name} · ${company}`;
+    return name || company || 'partner';
+  };
+  wireInlineFollowUp(host, {
+    entity: 'partner',
+    getId: ()=> dialog.dataset?.partnerId?.trim() || '',
+    getName,
+    getDefaultDate: ()=> dialog.querySelector('#p-nexttouch')?.value?.trim() || (record && record.nextTouch ? String(record.nextTouch).slice(0,10) : ''),
+    changeSource: 'partner-modal',
+    originType: 'partner:follow-up',
+    onSuccess: (date)=>{
+      const nextTouch = dialog.querySelector('#p-nexttouch');
+      if(nextTouch){
+        nextTouch.value = date;
+        nextTouch.dispatchEvent(new Event('input', { bubbles: true }));
+        nextTouch.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  });
+}
 
 function ensurePartnersBoot(ctx){
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -408,6 +710,7 @@ function ensurePartnersBoot(ctx){
         const detail = event && event.detail ? event.detail : {};
         installPartnerTouchLogging(detail);
         applyPartnerFavorite(detail);
+        installPartnerFollowUp(detail);
       }catch (err){
         try{ console && console.warn && console.warn('[partners] touch logging init failed', err); }
         catch(_err){}
