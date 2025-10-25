@@ -239,34 +239,79 @@ function ensureDashboardDragStyles() {
   const style = doc.createElement('style');
   style.id = DASHBOARD_STYLE_ID;
   style.textContent = `
-[data-dash-widget] {
+[data-ui="dashboard-root"].dash-grid-host {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: stretch;
+}
+
+@media (min-width: 64rem) {
+  [data-ui="dashboard-root"].dash-grid-host {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 90rem) {
+  [data-ui="dashboard-root"].dash-grid-host {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+[data-ui="dashboard-root"].dash-grid-host > #dashboard-header,
+[data-ui="dashboard-root"].dash-grid-host > .dash-full-width {
+  grid-column: 1 / -1;
+}
+
+[data-ui="dashboard-root"].dash-grid-host > section.grid,
+[data-ui="dashboard-root"].dash-grid-host > section.status-stack {
+  grid-column: 1 / -1;
+}
+
+[data-ui="dashboard-root"].dash-grid-host > [data-dash-widget] {
   position: relative;
+  min-width: 0;
+  height: 100%;
 }
 
 .dash-drag-handle {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
+  top: 12px;
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.45);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.9));
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(71, 85, 105, 0.85);
+  color: rgba(51, 65, 85, 0.88);
   font-size: 18px;
   line-height: 1;
   cursor: grab;
   z-index: 5;
-  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dash-drag-handle::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.82;
+}
+
+.dash-drag-handle span {
+  pointer-events: none;
+  display: none;
 }
 
 .dash-drag-handle:hover {
-  background: rgba(148, 163, 184, 0.15);
-  color: rgba(30, 41, 59, 0.85);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.95), rgba(226, 232, 240, 0.95));
+  color: rgba(30, 41, 59, 0.92);
 }
 
 .dash-drag-handle:focus-visible {
@@ -274,21 +319,32 @@ function ensureDashboardDragStyles() {
   outline-offset: 2px;
 }
 
-.dash-drag-handle span {
-  pointer-events: none;
-}
-
 .dash-dragging .dash-drag-handle {
   cursor: grabbing;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+}
+
+.dash-drag-placeholder {
+  border: 2px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 18px;
+  background-color: rgba(148, 163, 184, 0.12);
+  background-image: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0, rgba(148, 163, 184, 0.18) 4px, transparent 4px, transparent 8px);
+  transition: opacity 0.18s ease;
+}
+
+.dash-dragging .dash-drag-placeholder {
+  opacity: 0.85;
 }
 
 .dash-gridlines {
   display: none;
   border-radius: 18px;
   border: 2px dashed rgba(148, 163, 184, 0.45);
+  opacity: 0.7;
+  background-size: var(--dash-grid-step-x, 320px) var(--dash-grid-step-y, 240px);
   background-image:
-    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent 32px),
-    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent 32px);
+    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent var(--dash-grid-step-y, 240px)),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.22) 0, rgba(148, 163, 184, 0.22) 1px, transparent 1px, transparent var(--dash-grid-step-x, 320px));
 }
 
 .dash-dragging .dash-gridlines {
@@ -340,7 +396,7 @@ function ensureWidgetHandle(node) {
   handle.title = 'Drag to reorder widgets';
   const icon = doc.createElement('span');
   icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '⠿';
+  icon.textContent = '⋮⋮';
   handle.appendChild(icon);
   handle.addEventListener('click', evt => {
     evt.preventDefault();
@@ -460,6 +516,9 @@ function ensureDashboardWidgets(container) {
   const nodes = collectWidgetNodes(container);
   if (!nodes.length) return nodes;
   ensureDashboardDragStyles();
+  if (container && container.classList && !container.classList.contains('dash-grid-host')) {
+    container.classList.add('dash-grid-host');
+  }
   const canonicalIndex = buildCanonicalWidgetKeyIndex(container);
   const seen = new Set();
   nodes.forEach((node, index) => {
@@ -485,6 +544,9 @@ function ensureDashboardWidgets(container) {
     node.dataset.dashWidget = uniqueKey;
     node.setAttribute('data-dash-widget', uniqueKey);
     ensureWidgetHandle(node);
+    if (node.classList && (node.classList.contains('grid') || node.classList.contains('status-stack'))) {
+      node.classList.add('dash-full-width');
+    }
   });
   return nodes;
 }
@@ -597,6 +659,17 @@ function wireTileTap(container) {
       state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
     }
   };
+  const onKeyDown = evt => {
+    if (evt.repeat) return;
+    if (evt.key !== 'Enter' && evt.key !== ' ') return;
+    if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
+    const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    if (!target) return;
+    const handled = handleDashboardTap(evt, target);
+    if (handled) {
+      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
+    }
+  };
   const onClick = evt => {
     if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
     const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
@@ -619,8 +692,9 @@ function wireTileTap(container) {
   container.addEventListener('pointermove', onPointerMove);
   container.addEventListener('pointerup', onPointerUp);
   container.addEventListener('pointercancel', onPointerCancel);
+  container.addEventListener('keydown', onKeyDown);
   container.addEventListener('click', onClick);
-  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick };
+  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onKeyDown, onClick };
 }
 
 function persistDashboardOrder(orderLike) {
@@ -629,19 +703,56 @@ function persistDashboardOrder(orderLike) {
   if (signature === dashDnDState.orderSignature) return;
   dashDnDState.orderSignature = signature;
   if (!normalized.length) return;
-  if (win && win.Settings && typeof win.Settings.save === 'function') {
+  if (win && win.Settings) {
     try {
-      Promise.resolve(win.Settings.save({ dashboardOrder: normalized })).catch(err => {
-        try {
-          if (console && console.warn) console.warn('[dashboard] order save failed', err);
-        } catch (_warnErr) {}
-      });
+      const api = win.Settings;
+      let result = null;
+      if (typeof api.persistDashboardOrder === 'function') {
+        result = api.persistDashboardOrder(normalized);
+      } else if (typeof api.save === 'function') {
+        result = api.save({ dashboardOrder: normalized });
+      }
+      if (result && typeof result.catch === 'function') {
+        result.catch(err => {
+          try {
+            if (console && console.warn) console.warn('[dashboard] order save failed', err);
+          } catch (_warnErr) {}
+        });
+      }
     } catch (err) {
       try {
         if (console && console.warn) console.warn('[dashboard] order save failed', err);
       } catch (_warnErr) {}
     }
   }
+}
+
+function readCurrentDashboardOrder() {
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (!container) return [];
+  const nodes = collectWidgetNodes(container);
+  if (!nodes.length) return [];
+  return nodes
+    .map(node => {
+      if (!node) return '';
+      const dataset = node.dataset || {};
+      const value = dataset.dashWidget || dataset.widgetId || node.id || '';
+      return value ? String(value).trim() : '';
+    })
+    .filter(Boolean);
+}
+
+function persistDashboardOrderImmediate() {
+  const order = readCurrentDashboardOrder();
+  if (!order.length) {
+    syncStoredDashboardOrder(order);
+    return;
+  }
+  const signature = order.join('|');
+  if (signature !== dashDnDState.orderSignature) {
+    persistDashboardOrder(order);
+  }
+  syncStoredDashboardOrder(order);
 }
 
 function ensureWidgetDnD() {
@@ -666,7 +777,8 @@ function ensureWidgetDnD() {
         handleSel: '.dash-drag-handle',
         storageKey: DASHBOARD_ORDER_STORAGE_KEY,
         idGetter: el => (el && el.dataset && el.dataset.dashWidget) ? el.dataset.dashWidget : (el && el.id ? String(el.id).trim() : ''),
-        onOrderChange: persistDashboardOrder
+        onOrderChange: persistDashboardOrder,
+        grid: { gap: 24 }
       });
     } catch (err) {
       try {
@@ -960,6 +1072,16 @@ function handleHiddenChange(evt) {
   const detail = evt && typeof evt === 'object' ? evt.detail : null;
   const hidden = detail && Array.isArray(detail.hidden) ? detail.hidden : [];
   applyHiddenWidgetPrefs(hidden);
+  persistDashboardOrderImmediate();
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (container) {
+    ensureDashboardWidgets(container);
+  }
+  if (dashDnDState.controller && typeof dashDnDState.controller.refresh === 'function') {
+    dashDnDState.controller.refresh();
+  } else {
+    ensureWidgetDnD();
+  }
 }
 
 function init() {
