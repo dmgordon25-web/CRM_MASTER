@@ -7,7 +7,14 @@ import {
   stageKeyFromLabel,
   stageLabelFromKey,
 } from './pipeline/stages.js';
-import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normalizeStatus } from './pipeline/constants.js';
+import {
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  normalizeStatus,
+  toneForStage,
+  toneClassName
+} from './pipeline/constants.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_edit/index.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
@@ -199,7 +206,13 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       renderStageChip(mappedLabel);
     const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || mappedLabel) : mappedLabel;
     const label = canonicalLabel || mappedLabel || 'Stage';
-    const html = chipHtml || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${safe(label)}</span>`;
+    const fallbackTone = toneForStage(canonicalKey || canonicalSource || trimmed);
+    const fallbackClass = toneClassName(fallbackTone);
+    const fallbackClassSuffix = fallbackClass ? ` ${fallbackClass}` : '';
+    const fallbackAttr = fallbackTone ? ` data-tone="${fallbackTone}"` : '';
+    const html =
+      chipHtml ||
+      `<span class="stage-chip stage-generic${fallbackClassSuffix}" data-role="stage-chip" data-qa="stage-chip-generic"${fallbackAttr}>${safe(label)}</span>`;
     return { html, canonicalKey, normalizedKey, label };
   }
 
