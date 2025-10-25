@@ -158,6 +158,9 @@ const dashDnDState = {
 };
 
 const pointerTapState = new Map();
+const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
+const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
+const DASHBOARD_SKIP_CLICK_WINDOW = 350;
 
 function normalizeOrderList(input) {
   if (!Array.isArray(input)) return [];
@@ -523,7 +526,8 @@ function wireTileTap(container) {
       startX: evt.clientX,
       startY: evt.clientY,
       dataTarget,
-      cancelled: false
+      cancelled: false,
+      preventClick: false
     });
   };
   const onPointerMove = evt => {
@@ -533,23 +537,57 @@ function wireTileTap(container) {
     const dy = Math.abs(evt.clientY - state.startY);
     if (dx > DASHBOARD_CLICK_THRESHOLD || dy > DASHBOARD_CLICK_THRESHOLD) {
       state.cancelled = true;
+      state.preventClick = true;
     }
   };
   const onPointerUp = evt => {
     const state = pointerTapState.get(evt.pointerId);
     pointerTapState.delete(evt.pointerId);
-    if (!state || state.cancelled) return;
+    if (!state) return;
+    if (state.preventClick && state.dataTarget) {
+      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
+      return;
+    }
+    if (state.cancelled) return;
     const resolved = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
-    handleDashboardTap(evt, resolved || state.dataTarget);
+    const target = resolved || state.dataTarget;
+    if (!target) return;
+    const handled = handleDashboardTap(evt, target);
+    if (handled) {
+      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
+    }
   };
   const onPointerCancel = evt => {
+    const state = pointerTapState.get(evt.pointerId);
     pointerTapState.delete(evt.pointerId);
+    if (state && state.dataTarget && state.preventClick) {
+      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
+    }
+  };
+  const onClick = evt => {
+    if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
+    const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    if (!target) return;
+    const skipUntil = target[DASHBOARD_SKIP_CLICK_KEY] || 0;
+    if (skipUntil && skipUntil > Date.now()) {
+      target[DASHBOARD_SKIP_CLICK_KEY] = 0;
+      return;
+    }
+    const lastHandled = target[DASHBOARD_HANDLED_CLICK_KEY] || 0;
+    if (lastHandled && Date.now() - lastHandled < DASHBOARD_SKIP_CLICK_WINDOW) {
+      return;
+    }
+    const handled = handleDashboardTap(evt, target);
+    if (handled) {
+      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
+    }
   };
   container.addEventListener('pointerdown', onPointerDown);
   container.addEventListener('pointermove', onPointerMove);
   container.addEventListener('pointerup', onPointerUp);
   container.addEventListener('pointercancel', onPointerCancel);
-  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel };
+  container.addEventListener('click', onClick);
+  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick };
 }
 
 function persistDashboardOrder(orderLike) {

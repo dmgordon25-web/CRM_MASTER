@@ -361,6 +361,36 @@ function applyStoredOrder(state, options = {}){
   }
   state.appliedInitialOrder = true;
 }
+function refreshItemsMeta(state){
+  if(!state || !state.container) {
+    if(state) state.itemsMeta = null;
+    return null;
+  }
+  let items = collectItems(state.container, state.itemSelector);
+  if(items.length){
+    items = items.filter(el => el !== state.dragEl);
+  }
+  const meta = items.map((el, order) => {
+    if(!el || typeof el.getBoundingClientRect !== 'function') return null;
+    let rect = null;
+    try{
+      rect = el.getBoundingClientRect();
+    }catch (_err){
+      rect = null;
+    }
+    if(!rect) return null;
+    return {
+      node: el,
+      order,
+      rect,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2
+    };
+  }).filter(Boolean);
+  state.itemsMeta = meta.length ? meta : null;
+  return state.itemsMeta;
+}
+
 function movePlaceholder(state, index){
   const placeholder = state.placeholder;
   const container = state.container;
@@ -377,20 +407,33 @@ function movePlaceholder(state, index){
   }
   state.placeholderIndex = clamped;
   state.targetIndex = clamped;
+  refreshItemsMeta(state);
 }
 
-function updatePlaceholderForPosition(state, x, y){
+function updatePlaceholderForPosition(state, x, y, clientX, clientY){
   if(Array.isArray(state.itemsMeta) && state.itemsMeta.length){
     const width = state.itemRect ? state.itemRect.width : 0;
     const height = state.itemRect ? state.itemRect.height : 0;
-    const pointerX = x + width / 2;
-    const pointerY = y + height / 2;
+    const pointerLocalX = x + width / 2;
+    const pointerLocalY = y + height / 2;
+    let pointerClientX = typeof clientX === 'number' ? clientX : null;
+    let pointerClientY = typeof clientY === 'number' ? clientY : null;
+    if(pointerClientX == null || pointerClientY == null){
+      const containerRect = state.containerRect || null;
+      if(containerRect){
+        pointerClientX = pointerLocalX + containerRect.left;
+        pointerClientY = pointerLocalY + containerRect.top;
+      }else{
+        pointerClientX = pointerLocalX;
+        pointerClientY = pointerLocalY;
+      }
+    }
     let target = null;
     let minDist = Infinity;
     state.itemsMeta.forEach(meta => {
       if(!meta) return;
-      const dx = pointerX - meta.centerX;
-      const dy = pointerY - meta.centerY;
+      const dx = pointerClientX - meta.centerX;
+      const dy = pointerClientY - meta.centerY;
       const dist = dx * dx + dy * dy;
       if(dist < minDist){
         minDist = dist;
@@ -399,11 +442,11 @@ function updatePlaceholderForPosition(state, x, y){
     });
     let index = state.itemsMeta.length;
     if(target){
-      const horizontalBias = Math.abs(pointerX - target.centerX) > Math.abs(pointerY - target.centerY);
+      const horizontalBias = Math.abs(pointerClientX - target.centerX) > Math.abs(pointerClientY - target.centerY);
       if(horizontalBias){
-        index = pointerX < target.centerX ? target.order : target.order + 1;
+        index = pointerClientX < target.centerX ? target.order : target.order + 1;
       }else{
-        index = pointerY < target.centerY ? target.order : target.order + 1;
+        index = pointerClientY < target.centerY ? target.order : target.order + 1;
       }
     }
     movePlaceholder(state, index);
@@ -520,7 +563,7 @@ function handleGridPointerMove(evt, state){
   const translateX = snappedX - state.elemStartX;
   const translateY = snappedY - state.elemStartY;
   state.dragEl.style.transform = `translate(${translateX}px, ${translateY}px)`;
-  updatePlaceholderForPosition(state, rawX, rawY);
+  updatePlaceholderForPosition(state, rawX, rawY, evt.clientX, evt.clientY);
 }
 
 function handleGridPointerUp(evt, state){
@@ -550,20 +593,7 @@ function beginGridDrag(state, item, evt){
   state.elemStartY = itemRect.top - state.containerRect.top;
   state.originX = evt.clientX;
   state.originY = evt.clientY;
-  state.itemsMeta = items
-    .filter(el => el !== item)
-    .map((el, index) => {
-      const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
-      if(!rect) return null;
-      return {
-        node: el,
-        order: index,
-        rect,
-        centerX: rect.left + rect.width / 2,
-        centerY: rect.top + rect.height / 2
-      };
-    })
-    .filter(Boolean);
+  refreshItemsMeta(state);
   state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow']);
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
