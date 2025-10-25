@@ -2,7 +2,8 @@
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
-import { toastError, toastSuccess } from './ui/toast_helpers.js';
+import { toastError, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { createFollowUpTask } from './tasks/api.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
 
@@ -149,6 +150,297 @@ function ensurePartnersBoot(ctx){
     if(!footer) return;
     const start = footer.querySelector('.form-footer__start');
     if(!start) return;
+
+    const ensureFollowUpScheduler = ()=>{
+      let controls = dialog.__partnerFollowUpControls || null;
+      if(!controls){
+        const wrapper = document.createElement('div');
+        wrapper.dataset.role = 'followup-control';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '8px';
+        wrapper.style.marginRight = '8px';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn ghost';
+        button.textContent = 'Schedule Follow-up';
+        button.setAttribute('aria-expanded', 'false');
+
+        const panel = document.createElement('div');
+        panel.dataset.role = 'followup-panel';
+        panel.hidden = true;
+        panel.style.display = 'none';
+        panel.style.position = 'absolute';
+        panel.style.top = 'calc(100% + 4px)';
+        panel.style.left = '0';
+        panel.style.zIndex = '40';
+        panel.style.background = '#ffffff';
+        panel.style.borderRadius = '12px';
+        panel.style.boxShadow = '0 18px 34px rgba(15, 23, 42, 0.18)';
+        panel.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+        panel.style.padding = '14px';
+        panel.style.flexDirection = 'column';
+        panel.style.gap = '10px';
+        panel.style.minWidth = '260px';
+
+        const dueGroup = document.createElement('label');
+        dueGroup.style.display = 'flex';
+        dueGroup.style.flexDirection = 'column';
+        dueGroup.style.gap = '4px';
+
+        const dueHeading = document.createElement('span');
+        dueHeading.textContent = 'Due date';
+        dueHeading.style.fontSize = '12px';
+        dueHeading.style.fontWeight = '600';
+        dueHeading.style.letterSpacing = '0.05em';
+        dueHeading.style.textTransform = 'uppercase';
+        dueHeading.style.color = '#475569';
+
+        const dueInput = document.createElement('input');
+        dueInput.type = 'date';
+        dueInput.required = true;
+        dueInput.className = 'input';
+        dueInput.dataset.role = 'followup-date';
+
+        dueGroup.append(dueHeading, dueInput);
+
+        const noteGroup = document.createElement('label');
+        noteGroup.style.display = 'flex';
+        noteGroup.style.flexDirection = 'column';
+        noteGroup.style.gap = '4px';
+
+        const noteHeading = document.createElement('span');
+        noteHeading.textContent = 'Note (optional)';
+        noteHeading.style.fontSize = '12px';
+        noteHeading.style.fontWeight = '600';
+        noteHeading.style.letterSpacing = '0.05em';
+        noteHeading.style.textTransform = 'uppercase';
+        noteHeading.style.color = '#475569';
+
+        const noteInput = document.createElement('input');
+        noteInput.type = 'text';
+        noteInput.placeholder = 'Add a note';
+        noteInput.className = 'input';
+        noteInput.dataset.role = 'followup-note';
+
+        noteGroup.append(noteHeading, noteInput);
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.justifyContent = 'flex-end';
+        actions.style.gap = '8px';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn ghost';
+        cancelBtn.textContent = 'Cancel';
+
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'button';
+        submitBtn.className = 'btn brand';
+        submitBtn.textContent = 'Create Task';
+
+        actions.append(cancelBtn, submitBtn);
+
+        panel.append(dueGroup, noteGroup, actions);
+        wrapper.append(button, panel);
+
+        if(start.firstChild){
+          start.insertBefore(wrapper, start.firstChild);
+        }else{
+          start.appendChild(wrapper);
+        }
+
+        controls = { wrapper, button, panel, dueInput, noteInput, submitBtn, cancelBtn };
+        dialog.__partnerFollowUpControls = controls;
+      }else if(controls.wrapper && !start.contains(controls.wrapper)){
+        if(start.firstChild){
+          start.insertBefore(controls.wrapper, start.firstChild);
+        }else{
+          start.appendChild(controls.wrapper);
+        }
+      }
+
+      const { button, panel, dueInput, noteInput, submitBtn, cancelBtn } = controls;
+      const todayIso = ()=>{
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      const resolveDefaultDue = ()=>{
+        const nextField = form.querySelector('#p-nexttouch');
+        const raw = nextField && nextField.value ? nextField.value.trim() : '';
+        return raw || todayIso();
+      };
+      const getRecordId = ()=>{
+        const attr = dialog.dataset ? dialog.dataset.partnerId : '';
+        return attr ? String(attr).trim() : '';
+      };
+      const getName = ()=>{
+        const name = form.querySelector('#p-name')?.value?.trim() || '';
+        if(name) return name;
+        const company = form.querySelector('#p-company')?.value?.trim() || '';
+        if(company) return company;
+        const email = form.querySelector('#p-email')?.value?.trim() || '';
+        if(email) return email;
+        const phone = form.querySelector('#p-phone')?.value?.trim() || '';
+        return phone;
+      };
+      const getStatusLabel = ()=>{
+        const tier = form.querySelector('#p-tier')?.value || '';
+        if(tier) return tier;
+        const priority = form.querySelector('#p-priority')?.value || '';
+        return priority;
+      };
+      const hidePanel = ()=>{
+        if(panel.hidden) return;
+        panel.hidden = true;
+        panel.style.display = 'none';
+        button.setAttribute('aria-expanded', 'false');
+        noteInput.value = '';
+        submitBtn.disabled = false;
+        delete submitBtn.dataset.loading;
+        submitBtn.removeAttribute('aria-busy');
+      };
+      const showPanel = ()=>{
+        if(!panel.hidden) return;
+        panel.hidden = false;
+        panel.style.display = 'flex';
+        button.setAttribute('aria-expanded', 'true');
+        dueInput.value = resolveDefaultDue();
+        noteInput.value = '';
+        try{ dueInput.focus({ preventScroll: true }); }
+        catch(_err){}
+      };
+      const setBusy = (active)=>{
+        if(active){
+          submitBtn.disabled = true;
+          submitBtn.dataset.loading = '1';
+          submitBtn.setAttribute('aria-busy', 'true');
+        }else{
+          submitBtn.disabled = false;
+          delete submitBtn.dataset.loading;
+          submitBtn.removeAttribute('aria-busy');
+        }
+      };
+      const updateButtonState = ()=>{
+        const id = getRecordId();
+        const disabled = !id;
+        button.disabled = disabled;
+        button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+        button.title = disabled ? 'Save this partner to schedule a follow-up' : '';
+        if(disabled){
+          hidePanel();
+        }
+      };
+
+      if(!button.__wired){
+        button.__wired = true;
+        button.addEventListener('click', (event)=>{
+          event.preventDefault();
+          if(button.disabled) return;
+          if(panel.hidden) showPanel();
+          else hidePanel();
+        });
+      }
+      if(!cancelBtn.__wired){
+        cancelBtn.__wired = true;
+        cancelBtn.addEventListener('click', (event)=>{
+          event.preventDefault();
+          hidePanel();
+        });
+      }
+      if(!submitBtn.__wired){
+        submitBtn.__wired = true;
+        submitBtn.addEventListener('click', async (event)=>{
+          event.preventDefault();
+          if(submitBtn.dataset.loading === '1') return;
+          const recordId = getRecordId();
+          if(!recordId){
+            toastWarn('Save this partner before scheduling a follow-up.');
+            hidePanel();
+            return;
+          }
+          const dueValue = dueInput.value ? dueInput.value.trim() : '';
+          if(!dueValue){
+            toastWarn('Choose a due date for the follow-up.');
+            try{ dueInput.focus({ preventScroll: true }); }
+            catch(_err){}
+            return;
+          }
+          const noteValue = noteInput.value ? noteInput.value.trim() : '';
+          const name = getName();
+          const status = getStatusLabel();
+          setBusy(true);
+          try{
+            const result = await createFollowUpTask({
+              entity: 'partner',
+              recordId,
+              dueDate: dueValue,
+              note: noteValue,
+              name,
+              statusLabel: status
+            });
+            if(result && result.status === 'ok'){
+              toastSuccess(name ? `Follow-up scheduled for ${name}.` : 'Follow-up scheduled.');
+              hidePanel();
+            }else{
+              toastError('Unable to schedule follow-up.');
+            }
+          }catch (err){
+            console && console.warn && console.warn('partner follow-up scheduling failed', err);
+            toastError('Unable to schedule follow-up.');
+          }finally{
+            setBusy(false);
+          }
+        });
+      }
+
+      if(!controls.keyHandler){
+        const keyHandler = (event)=>{
+          if(event.key === 'Escape'){
+            event.preventDefault();
+            hidePanel();
+            if(typeof button.focus === 'function'){
+              try{ button.focus({ preventScroll: true }); }
+              catch(_err){}
+            }
+            return;
+          }
+          if(event.key === 'Enter' && panel.contains(event.target)){
+            event.preventDefault();
+            submitBtn.click();
+          }
+        };
+        panel.addEventListener('keydown', keyHandler);
+        controls.keyHandler = keyHandler;
+      }
+
+      if(!controls.outsideHandler){
+        const outsideHandler = (event)=>{
+          if(panel.hidden) return;
+          if(!controls.wrapper) return;
+          if(controls.wrapper.contains(event.target)) return;
+          hidePanel();
+        };
+        dialog.addEventListener('click', outsideHandler);
+        controls.outsideHandler = outsideHandler;
+      }
+      if(!controls.closeHandler){
+        const closeHandler = ()=> hidePanel();
+        try{ dialog.addEventListener('close', closeHandler); }
+        catch(_err){ dialog.addEventListener('close', closeHandler); }
+        controls.closeHandler = closeHandler;
+      }
+
+      updateButtonState();
+    };
+
+    ensureFollowUpScheduler();
 
     let controls = dialog.__partnerTouchControls || null;
     if(!controls){

@@ -186,6 +186,118 @@ export async function createTaskFromEvent(event){
   return { status:'ok', task: record };
 }
 
+export async function createFollowUpTask(options){
+  ensureReadyLog();
+  const opts = options && typeof options === 'object' ? options : {};
+  const entity = opts.entity === 'partner' ? 'partner' : 'contact';
+  const recordId = safeString(opts.recordId || (entity === 'contact' ? opts.contactId : opts.partnerId));
+  if(!recordId){
+    return { status:'error', reason:'missing-record' };
+  }
+  const dueInput = opts.dueDate != null ? opts.dueDate : opts.due;
+  const dueString = typeof dueInput === 'string' ? dueInput.trim() : '';
+  let due = '';
+  if(dueString && /^\d{4}-\d{2}-\d{2}$/.test(dueString)){
+    due = dueString;
+  }else{
+    const dueDate = parseEventDate(dueInput);
+    if(!dueDate){
+      return { status:'error', reason:'invalid-due' };
+    }
+    due = toISODate(dueDate);
+  }
+  const name = safeString(opts.name || '');
+  const stage = safeString(opts.stage || '');
+  const statusLabel = safeString(opts.statusLabel || '');
+  const note = safeString(opts.note || '');
+  const title = safeString(opts.title)
+    || (name ? `Follow up — ${name}` : (entity === 'partner' ? 'Partner follow-up' : 'Follow up'));
+  const now = Date.now();
+  const record = {
+    id: uuid(),
+    entity,
+    title,
+    label: title,
+    due,
+    status: 'open',
+    done: false,
+    createdAt: now,
+    updatedAt: now,
+    source: 'manual-followup'
+  };
+  if(entity === 'contact'){
+    record.contactId = recordId;
+    if(name) record.contactName = name;
+    if(stage) record.stage = stage;
+    if(statusLabel) record.statusLabel = statusLabel;
+  }else{
+    record.partnerId = recordId;
+    if(name) record.partnerName = name;
+  }
+  if(note){
+    record.note = note;
+    record.text = note;
+  }
+  const origin = {
+    type: 'follow-up',
+    title,
+    date: due,
+    source: {
+      entity: entity === 'partner' ? 'partners' : 'contacts',
+      id: recordId,
+      field: 'followup'
+    }
+  };
+  if(note) origin.subtitle = note;
+  if(stage) origin.stage = stage;
+  if(statusLabel) origin.status = statusLabel;
+  if(entity === 'contact' && name) origin.contactName = name;
+  if(entity === 'partner' && name) origin.partnerName = name;
+  record.origin = origin;
+
+  try{
+    await openDB();
+    await dbPut('tasks', record);
+    try{
+      recordTask(record);
+    }catch (err){
+      console && console.warn && console.warn('tasks store update failed', err);
+    }
+  }catch (err){
+    console && console.warn && console.warn('createFollowUpTask dbPut failed', err);
+    return { status:'error', error: err };
+  }
+
+  let dispatched = false;
+  try{
+    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
+      window.dispatchAppDataChanged({
+        source: 'followup',
+        action: 'task:create',
+        taskId: record.id,
+        contactId: entity === 'contact' ? recordId : '',
+        partnerId: entity === 'partner' ? recordId : ''
+      });
+      dispatched = true;
+    }
+  }catch (err){
+    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
+  }
+  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
+    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
+    catch (_err){}
+  }
+  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+    try{
+      const detail = { scope: 'tasks', ids: [record.id] };
+      if(entity === 'contact') detail.contactId = recordId;
+      else detail.partnerId = recordId;
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+    }catch (_err){}
+  }
+  return { status:'ok', task: record };
+}
+
 ensureReadyLog();
 
 export default createTaskFromEvent;

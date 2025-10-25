@@ -1,5 +1,6 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
+import { createFollowUpTask } from './tasks/api.js';
 import {
   renderStageChip,
   canonicalStage,
@@ -1000,11 +1001,316 @@ import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessag
         setBusy(false);
       }
     };
+    const ensureFollowUpScheduler = (start)=>{
+      if(!start) return;
+      let controls = dlg.__contactFollowUpControls || null;
+      if(!controls){
+        const wrapper = document.createElement('div');
+        wrapper.dataset.role = 'followup-control';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '8px';
+        wrapper.style.marginRight = '8px';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn ghost';
+        button.textContent = 'Schedule Follow-up';
+        button.setAttribute('aria-expanded', 'false');
+
+        const panel = document.createElement('div');
+        panel.dataset.role = 'followup-panel';
+        panel.hidden = true;
+        panel.style.display = 'none';
+        panel.style.position = 'absolute';
+        panel.style.top = 'calc(100% + 4px)';
+        panel.style.left = '0';
+        panel.style.zIndex = '40';
+        panel.style.background = '#ffffff';
+        panel.style.borderRadius = '12px';
+        panel.style.boxShadow = '0 18px 34px rgba(15, 23, 42, 0.18)';
+        panel.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+        panel.style.padding = '14px';
+        panel.style.flexDirection = 'column';
+        panel.style.gap = '10px';
+        panel.style.minWidth = '260px';
+
+        const dueGroup = document.createElement('label');
+        dueGroup.style.display = 'flex';
+        dueGroup.style.flexDirection = 'column';
+        dueGroup.style.gap = '4px';
+
+        const dueHeading = document.createElement('span');
+        dueHeading.textContent = 'Due date';
+        dueHeading.style.fontSize = '12px';
+        dueHeading.style.fontWeight = '600';
+        dueHeading.style.letterSpacing = '0.05em';
+        dueHeading.style.textTransform = 'uppercase';
+        dueHeading.style.color = '#475569';
+
+        const dueInput = document.createElement('input');
+        dueInput.type = 'date';
+        dueInput.required = true;
+        dueInput.className = 'input';
+        dueInput.dataset.role = 'followup-date';
+
+        dueGroup.append(dueHeading, dueInput);
+
+        const noteGroup = document.createElement('label');
+        noteGroup.style.display = 'flex';
+        noteGroup.style.flexDirection = 'column';
+        noteGroup.style.gap = '4px';
+
+        const noteHeading = document.createElement('span');
+        noteHeading.textContent = 'Note (optional)';
+        noteHeading.style.fontSize = '12px';
+        noteHeading.style.fontWeight = '600';
+        noteHeading.style.letterSpacing = '0.05em';
+        noteHeading.style.textTransform = 'uppercase';
+        noteHeading.style.color = '#475569';
+
+        const noteInput = document.createElement('input');
+        noteInput.type = 'text';
+        noteInput.placeholder = 'Add a note';
+        noteInput.className = 'input';
+        noteInput.dataset.role = 'followup-note';
+
+        noteGroup.append(noteHeading, noteInput);
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.justifyContent = 'flex-end';
+        actions.style.gap = '8px';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn ghost';
+        cancelBtn.textContent = 'Cancel';
+
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'button';
+        submitBtn.className = 'btn brand';
+        submitBtn.textContent = 'Create Task';
+
+        actions.append(cancelBtn, submitBtn);
+
+        panel.append(dueGroup, noteGroup, actions);
+        const wrapperChildren = [button, panel];
+        wrapperChildren.forEach(child => wrapper.appendChild(child));
+
+        if(start.firstChild){
+          start.insertBefore(wrapper, start.firstChild);
+        }else{
+          start.appendChild(wrapper);
+        }
+
+        controls = { wrapper, button, panel, dueInput, noteInput, submitBtn, cancelBtn };
+        dlg.__contactFollowUpControls = controls;
+      }else if(controls.wrapper && !start.contains(controls.wrapper)){
+        if(start.firstChild){
+          start.insertBefore(controls.wrapper, start.firstChild);
+        }else{
+          start.appendChild(controls.wrapper);
+        }
+      }
+
+      const { button, panel, dueInput, noteInput, submitBtn, cancelBtn } = controls;
+      const todayIso = ()=>{
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      const resolveDefaultDue = ()=>{
+        const nextField = $('#c-nexttouch', body);
+        const raw = nextField && nextField.value ? nextField.value.trim() : '';
+        return raw || todayIso();
+      };
+      const getRecordId = ()=>{
+        const field = $('#c-id', body);
+        return field && field.value ? field.value.trim() : '';
+      };
+      const getStage = ()=>{
+        const field = $('#c-stage', body);
+        return field && field.value ? field.value : '';
+      };
+      const getStatus = ()=>{
+        const field = $('#c-status', body);
+        return field && field.value ? field.value : '';
+      };
+      const getName = ()=>{
+        const first = $('#c-first', body)?.value?.trim() || '';
+        const last = $('#c-last', body)?.value?.trim() || '';
+        const combined = `${first} ${last}`.trim();
+        if(combined) return combined;
+        const fallback = $('#c-name', body)?.value?.trim() || '';
+        if(fallback) return fallback;
+        const email = $('#c-email', body)?.value?.trim() || '';
+        if(email) return email;
+        const company = $('#c-company', body)?.value?.trim() || '';
+        return company;
+      };
+      const hidePanel = ()=>{
+        if(panel.hidden) return;
+        panel.hidden = true;
+        panel.style.display = 'none';
+        button.setAttribute('aria-expanded', 'false');
+        noteInput.value = '';
+        submitBtn.disabled = false;
+        delete submitBtn.dataset.loading;
+        submitBtn.removeAttribute('aria-busy');
+      };
+      const showPanel = ()=>{
+        if(!panel.hidden) return;
+        panel.hidden = false;
+        panel.style.display = 'flex';
+        button.setAttribute('aria-expanded', 'true');
+        dueInput.value = resolveDefaultDue();
+        noteInput.value = '';
+        try{ dueInput.focus({ preventScroll: true }); }
+        catch(_err){}
+      };
+      const setBusy = (active)=>{
+        if(active){
+          submitBtn.disabled = true;
+          submitBtn.dataset.loading = '1';
+          submitBtn.setAttribute('aria-busy', 'true');
+        }else{
+          submitBtn.disabled = false;
+          delete submitBtn.dataset.loading;
+          submitBtn.removeAttribute('aria-busy');
+        }
+      };
+      const updateButtonState = ()=>{
+        const id = getRecordId();
+        const disabled = !id;
+        button.disabled = disabled;
+        button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+        button.title = disabled ? 'Save this contact to schedule a follow-up' : '';
+        if(disabled){
+          hidePanel();
+        }
+      };
+
+      if(!button.__wired){
+        button.__wired = true;
+        button.addEventListener('click', (event)=>{
+          event.preventDefault();
+          if(button.disabled) return;
+          if(panel.hidden) showPanel();
+          else hidePanel();
+        });
+      }
+      if(!cancelBtn.__wired){
+        cancelBtn.__wired = true;
+        cancelBtn.addEventListener('click', (event)=>{
+          event.preventDefault();
+          hidePanel();
+        });
+      }
+      if(!submitBtn.__wired){
+        submitBtn.__wired = true;
+        submitBtn.addEventListener('click', async (event)=>{
+          event.preventDefault();
+          if(submitBtn.dataset.loading === '1') return;
+          const recordId = getRecordId();
+          if(!recordId){
+            toastWarn('Save this contact before scheduling a follow-up.');
+            hidePanel();
+            return;
+          }
+          const dueValue = dueInput.value ? dueInput.value.trim() : '';
+          if(!dueValue){
+            toastWarn('Choose a due date for the follow-up.');
+            try{ dueInput.focus({ preventScroll: true }); }
+            catch(_err){}
+            return;
+          }
+          const noteValue = noteInput.value ? noteInput.value.trim() : '';
+          const name = getName();
+          const stage = getStage();
+          const status = getStatus();
+          setBusy(true);
+          try{
+            const result = await createFollowUpTask({
+              entity: 'contact',
+              recordId,
+              dueDate: dueValue,
+              note: noteValue,
+              name,
+              stage,
+              statusLabel: status
+            });
+            if(result && result.status === 'ok'){
+              toastSuccess(name ? `Follow-up scheduled for ${name}.` : 'Follow-up scheduled.');
+              hidePanel();
+            }else{
+              toastError('Unable to schedule follow-up.');
+            }
+          }catch (err){
+            console && console.warn && console.warn('contact follow-up scheduling failed', err);
+            toastError('Unable to schedule follow-up.');
+          }finally{
+            setBusy(false);
+          }
+        });
+      }
+
+      if(!controls.keyHandler){
+        const keyHandler = (event)=>{
+          if(event.key === 'Escape'){
+            event.preventDefault();
+            hidePanel();
+            if(typeof button.focus === 'function'){
+              try{ button.focus({ preventScroll: true }); }
+              catch(_err){}
+            }
+            return;
+          }
+          if(event.key === 'Enter' && panel.contains(event.target)){
+            event.preventDefault();
+            submitBtn.click();
+          }
+        };
+        panel.addEventListener('keydown', keyHandler);
+        controls.keyHandler = keyHandler;
+      }
+
+      if(!controls.outsideHandler){
+        const outsideHandler = (event)=>{
+          if(panel.hidden) return;
+          if(!controls.wrapper) return;
+          if(controls.wrapper.contains(event.target)) return;
+          hidePanel();
+        };
+        dlg.addEventListener('click', outsideHandler);
+        controls.outsideHandler = outsideHandler;
+      }
+      if(!controls.closeHandler){
+        const closeHandler = ()=> hidePanel();
+        try{ dlg.addEventListener('close', closeHandler); }
+        catch(_err){ dlg.addEventListener('close', closeHandler); }
+        controls.closeHandler = closeHandler;
+      }
+
+      const idField = $('#c-id', body);
+      if(idField && !idField.__followScheduler){
+        idField.__followScheduler = true;
+        idField.addEventListener('change', updateButtonState);
+        idField.addEventListener('input', updateButtonState);
+      }
+
+      updateButtonState();
+    };
     const installTouchLogging = ()=>{
       const footer = dlg.querySelector('[data-component="form-footer"]');
       if(!footer) return;
       const start = footer.querySelector('.form-footer__start');
       if(!start) return;
+
+      ensureFollowUpScheduler(start);
 
       let controls = dlg.__contactTouchControls || null;
       if(!controls){
