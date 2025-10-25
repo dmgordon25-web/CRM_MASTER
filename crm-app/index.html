@@ -333,7 +333,7 @@
        </div>
       </div>
       <div class="status-table-wrap">
-      <table class="status-table" data-selection-scope="contacts" id="tbl-inprog">
+      <table class="status-table table" data-selection-scope="contacts" id="tbl-inprog">
         <thead>
          <tr>
           <th style="width:28px">
@@ -397,7 +397,7 @@
        </div>
       </div>
      <div class="status-table-wrap">
-      <table class="status-table" data-selection-scope="contacts" id="tbl-status-active">
+      <table class="status-table table" data-selection-scope="contacts" id="tbl-status-active">
        <thead>
         <tr>
           <th style="width:28px">
@@ -433,7 +433,7 @@
       <div class="status-summary">
        <div>
         <strong>Client Stages</strong>
-        <div class="status-sub muted">Approved, CTC, and Funded records ready for follow-through.</div>
+        <div class="status-sub muted">Approved, <abbr title="Cleared to Close">CTC</abbr>, and Funded records ready for follow-through.</div>
        </div>
        <span class="status-count"><span id="count-clients">0</span> funded</span>
       </div>
@@ -452,7 +452,7 @@
        </div>
       </div>
      <div class="status-table-wrap">
-      <table class="status-table" data-selection-scope="contacts" id="tbl-status-clients">
+      <table class="status-table table" data-selection-scope="contacts" id="tbl-status-clients">
        <thead>
         <tr>
           <th style="width:28px">
@@ -507,7 +507,7 @@
        </div>
       </div>
      <div class="status-table-wrap">
-      <table class="status-table" data-selection-scope="contacts" id="tbl-status-longshots">
+      <table class="status-table table" data-selection-scope="contacts" id="tbl-status-longshots">
        <thead>
         <tr>
           <th style="width:28px">
@@ -563,7 +563,7 @@
      <div class="table-search">
       <input aria-label="Search partners" data-table-search="#tbl-partners" placeholder="Search Partners" type="search"/>
      </div>
-     <table data-selection-scope="partners" id="tbl-partners">
+     <table class="table" data-selection-scope="partners" id="tbl-partners">
       <thead>
        <tr>
         <th style="width:28px">
@@ -627,7 +627,7 @@
      <div class="table-search">
       <input aria-label="Search pipeline" data-table-search="#tbl-pipeline" placeholder="Search Pipeline" type="search"/>
      </div>
-     <table data-selection-scope="pipeline" id="tbl-pipeline">
+     <table class="table" data-selection-scope="pipeline" id="tbl-pipeline">
        <thead>
         <tr>
          <th style="width:28px">
@@ -656,12 +656,12 @@
      </div>
      <div class="card">
      <h3>
-      Clients (Approved / CTC / Funded)
+      Clients (Approved / <abbr title="Cleared to Close">CTC</abbr> / Funded)
      </h3>
      <div class="table-search">
       <input aria-label="Search clients" data-table-search="#tbl-clients" placeholder="Search Clients" type="search"/>
      </div>
-     <table data-selection-scope="pipeline" id="tbl-clients">
+     <table class="table" data-selection-scope="pipeline" id="tbl-clients">
        <thead>
         <tr>
          <th style="width:28px">
@@ -723,7 +723,7 @@
       <div class="table-search">
        <input aria-label="Search document templates" data-table-search="#tbl-doc-templates" placeholder="Search Document Templates" type="search"/>
       </div>
-      <table id="tbl-doc-templates">
+      <table class="table" id="tbl-doc-templates">
         <thead>
          <tr>
           <th>
@@ -765,7 +765,7 @@
       <div class="table-search">
        <input aria-label="Search message templates" data-table-search="#tbl-msg-templates" placeholder="Search Message Templates" type="search"/>
       </div>
-      <table id="tbl-msg-templates">
+      <table class="table" id="tbl-msg-templates">
         <thead>
          <tr>
           <th>
@@ -862,7 +862,7 @@
     <div class="table-search">
      <input aria-label="Search long shots" data-table-search="#tbl-longshots" placeholder="Search Long Shots" type="search"/>
     </div>
-    <table data-selection-scope="pipeline" id="tbl-longshots">
+    <table class="table" data-selection-scope="pipeline" id="tbl-longshots">
      <thead>
       <tr>
        <th style="width:28px">
@@ -1102,7 +1102,7 @@
      <div class="table-search">
       <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals" type="search"/>
      </div>
-     <table id="tbl-funded">
+     <table class="table" id="tbl-funded">
        <thead>
         <tr>
          <th>
@@ -1192,7 +1192,7 @@
       <div class="table-search">
        <input aria-label="Search received ledger" data-table-search="#tbl-ledger-received" placeholder="Search Received" type="search"/>
       </div>
-      <table id="tbl-ledger-received">
+      <table class="table" id="tbl-ledger-received">
         <thead>
          <tr>
           <th>
@@ -1243,7 +1243,7 @@
       <div class="table-search">
        <input aria-label="Search projected ledger" data-table-search="#tbl-ledger-projected" placeholder="Search Projected" type="search"/>
       </div>
-      <table id="tbl-ledger-projected">
+      <table class="table" id="tbl-ledger-projected">
         <thead>
          <tr>
           <th>
@@ -1477,7 +1477,7 @@
             <label><input checked="" name="seed-stage" type="checkbox" value="processing"/> Processing</label>
             <label><input checked="" name="seed-stage" type="checkbox" value="underwriting"/> Underwriting</label>
             <label><input checked="" name="seed-stage" type="checkbox" value="approved"/> Approved</label>
-            <label><input checked="" name="seed-stage" type="checkbox" value="cleared-to-close"/> CTC</label>
+            <label><input checked="" name="seed-stage" type="checkbox" value="cleared-to-close"/> <abbr title="Cleared to Close">CTC</abbr></label>
             <label><input checked="" name="seed-stage" type="checkbox" value="funded"/> Funded</label>
            </div>
           </fieldset>

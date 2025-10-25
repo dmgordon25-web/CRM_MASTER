@@ -8,7 +8,8 @@ export function createGhostButton(options = {}) {
   if (opts.id) button.id = opts.id;
   if (opts.value != null) button.value = opts.value;
   if (opts.ariaLabel) button.setAttribute('aria-label', opts.ariaLabel);
-  if (opts.title) button.title = opts.title;
+  const tooltip = opts.title || (opts.icon ? (opts.ariaLabel || opts.label || '') : '');
+  if (tooltip) button.title = tooltip;
   applyDataset(button, opts.dataset);
 
   if (opts.icon) {
