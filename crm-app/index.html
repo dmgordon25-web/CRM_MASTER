@@ -55,9 +55,11 @@
      <button class="btn" id="btn-open-settings" type="button">
       Settings
      </button>
-     <button class="btn" data-quick-add id="quick-add" type="button" aria-label="Open Quick Add menu" title="Open Quick Add menu">
-      Quick Add
-     </button>
+     <div class="dropdown header-new-wrap" data-role="header-new-host" style="position:relative">
+      <button class="btn brand" id="btn-header-new" type="button" aria-label="Create new record">
+       (+ New)
+      </button>
+     </div>
      <div class="dropdown" id="notif-wrap" style="position:relative">
       <button aria-label="Notifications" class="btn" id="notif-bell" title="Notifications">
        🔔
@@ -541,10 +543,6 @@
       <strong>
        Partners
       </strong>
-      <button class="btn brand" id="btn-add-partner" aria-label="Add partner" title="Add partner">
-       <span aria-hidden="true" class="btn-icon">+</span>
-       <span class="btn-label">Add Partner</span>
-      </button>
       <span class="grow">
       </span>
       <button class="btn" id="btn-filters-partners">
@@ -1751,10 +1749,10 @@
    <div class="dlg" tabindex="-1">
     <form class="modal-form-shell" id="partner-form">
      <div class="modal-header">
-      <h3 class="grow" id="partner-title">
+      <h3 class="grow modal-title" id="partner-title">
        Add / Edit Partner
       </h3>
-      <button class="btn" data-close-partner="" type="button">
+      <button class="btn ghost" data-close-partner="" type="button">
        Close
       </button>
      </div>
@@ -2005,10 +2003,10 @@
    <div class="dlg" tabindex="-1">
     <form class="modal-form-shell" id="contact-form" method="dialog">
      <div class="modal-header">
-      <strong class="grow">
+      <h3 class="grow modal-title">
        Add / Edit Contact
-      </strong>
-      <button class="btn" data-close="" type="button">
+      </h3>
+      <button class="btn ghost" data-close="" type="button">
        Close
       </button>
      </div>
