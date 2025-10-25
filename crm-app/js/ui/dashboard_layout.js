@@ -22,7 +22,9 @@ const DASHBOARD_WIDGETS = [
   { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard' },
   { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals' },
   { id: 'goal-progress-card', key: 'goalProgress', label: 'Production Goals' },
-  { id: 'numbers-glance-card', key: 'numbersGlance', label: 'Numbers at a Glance' },
+  { id: 'numbers-portfolio-card', key: 'numbersPortfolio', label: 'Partner Portfolio' },
+  { id: 'numbers-referrals-card', key: 'numbersReferrals', label: 'Referral Leaders' },
+  { id: 'numbers-momentum-card', key: 'numbersMomentum', label: 'Pipeline Momentum' },
   { id: 'pipeline-calendar-card', key: 'pipelineCalendar', label: 'Pipeline Calendar' },
   { id: 'priority-actions-card', key: 'priorityActions', label: 'Priority Actions' },
   { id: 'milestones-card', key: 'milestones', label: 'Milestones Ahead' },
@@ -36,8 +38,10 @@ const DASHBOARD_WIDGETS = [
 
 const LEGACY_WIDGET_REDIRECT = (() => {
   const entries = [
-    ['dashboard-insights', ['goal-progress-card', 'numbers-glance-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
-    ['insights', ['goal-progress-card', 'numbers-glance-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
+    ['numbers-glance-card', ['numbers-portfolio-card', 'numbers-referrals-card', 'numbers-momentum-card']],
+    ['numbersGlance', ['numbers-portfolio-card', 'numbers-referrals-card', 'numbers-momentum-card']],
+    ['dashboard-insights', ['goal-progress-card', 'numbers-portfolio-card', 'numbers-referrals-card', 'numbers-momentum-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
+    ['insights', ['goal-progress-card', 'numbers-portfolio-card', 'numbers-referrals-card', 'numbers-momentum-card', 'pipeline-calendar-card', 'priority-actions-card', 'milestones-card', 'doc-pulse-card']],
     ['dashboard-opportunities', ['rel-opps-card', 'nurture-card', 'closing-watch-card']],
     ['opportunities', ['rel-opps-card', 'nurture-card', 'closing-watch-card']]
   ];
@@ -78,7 +82,11 @@ const state = {
   stableLogged: false,
   idMemo: new WeakMap(),
   slugCounts: new Map(),
-  late: { raf: null, timeout: null, observer: null }
+  late: { raf: null, timeout: null, observer: null },
+  hiddenSignature: null,
+  orderSignature: null,
+  suppressOrderPersist: false,
+  settingsListenerWired: false
 };
 
 function postLog(event, data){
@@ -216,6 +224,62 @@ function writeHiddenIds(ids){
       localStorage.removeItem(key);
     }
   }catch (_err){}
+}
+
+function computeHiddenSignature(hiddenSet){
+  if(!(hiddenSet instanceof Set)) return '';
+  const parts = [];
+  DASHBOARD_WIDGETS.forEach(widget => {
+    if(!widget || !widget.key) return;
+    const id = normalizeId(widget.id);
+    if(!id) return;
+    const hidden = hiddenSet.has(id);
+    parts.push(`${widget.key}:${hidden ? '0' : '1'}`);
+  });
+  return parts.join('|');
+}
+
+function computeOrderSignature(orderIds){
+  const keys = convertIdsToKeys(orderIds);
+  return keys.join('|');
+}
+
+function persistHiddenToSettings(hiddenSet){
+  if(!window || !window.Settings || typeof window.Settings.save !== 'function') return;
+  const signature = computeHiddenSignature(hiddenSet);
+  if(signature === state.hiddenSignature) return;
+  const widgets = {};
+  DASHBOARD_WIDGETS.forEach(widget => {
+    if(!widget || !widget.key) return;
+    const id = normalizeId(widget.id);
+    if(!id) return;
+    widgets[widget.key] = !hiddenSet.has(id);
+  });
+  const payload = { dashboard: { widgets } };
+  Promise.resolve(window.Settings.save(payload))
+    .then(result => {
+      if(result === false) return;
+      state.hiddenSignature = signature;
+    })
+    .catch(err => {
+      if(console && console.warn) console.warn('[dashboard-layout] settings save (hidden) failed', err);
+    });
+}
+
+function persistOrderToSettings(orderIds){
+  if(!window || !window.Settings || typeof window.Settings.save !== 'function') return;
+  const signature = computeOrderSignature(orderIds);
+  if(signature === state.orderSignature) return;
+  const keys = convertIdsToKeys(orderIds);
+  const payload = { dashboardOrder: keys };
+  Promise.resolve(window.Settings.save(payload))
+    .then(result => {
+      if(result === false) return;
+      state.orderSignature = signature;
+    })
+    .catch(err => {
+      if(console && console.warn) console.warn('[dashboard-layout] settings save (order) failed', err);
+    });
 }
 
 function readLayoutModeFlag(){
@@ -558,6 +622,11 @@ function computeGridMetrics(container){
 function handleOrderChange(orderIds){
   const normalized = Array.isArray(orderIds) ? orderIds.map(normalizeId).filter(Boolean) : [];
   writeOrderIds(normalized);
+  if(state.suppressOrderPersist){
+    state.orderSignature = computeOrderSignature(normalized);
+  }else{
+    persistOrderToSettings(normalized);
+  }
   scheduleLatePass('order-change');
 }
 
@@ -660,10 +729,21 @@ export function applyDashboardHidden(input, options = {}){
   }
   if(!changed) return;
   state.hidden = expanded;
+  const signature = computeHiddenSignature(expanded);
   if(options.persist !== false){
     writeHiddenIds(Array.from(expanded).sort());
+    if(options.skipSettings){
+      state.hiddenSignature = signature;
+    }else{
+      persistHiddenToSettings(expanded);
+    }
+  }else if(options.skipSettings){
+    state.hiddenSignature = signature;
   }
   applyVisibility();
+  if(options.persist === false && !options.skipSettings){
+    state.hiddenSignature = signature;
+  }
 }
 
 export function readStoredLayoutMode(){
@@ -695,12 +775,45 @@ export function requestDashboardLayoutPass(input){
   scheduleLatePass(reason);
 }
 
+async function syncDashboardPrefsFromSettings(reason){
+  if(!window || !window.Settings || typeof window.Settings.get !== 'function') return;
+  try{
+    const settings = await window.Settings.get();
+    if(!settings) return;
+    const dash = settings.dashboard && typeof settings.dashboard === 'object' ? settings.dashboard : {};
+    const widgetsConfig = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : {};
+    const hiddenIds = [];
+    DASHBOARD_WIDGETS.forEach(widget => {
+      if(!widget || !widget.key) return;
+      if(widgetsConfig[widget.key] === false){
+        hiddenIds.push(widget.id);
+      }
+    });
+    applyDashboardHidden(hiddenIds, { skipSettings: true });
+    state.hiddenSignature = computeHiddenSignature(state.hidden);
+    const orderKeys = Array.isArray(settings.dashboardOrder) ? settings.dashboardOrder : [];
+    const orderIds = convertKeysToIds(orderKeys);
+    state.suppressOrderPersist = true;
+    writeOrderIds(orderIds);
+    const container = ensureContainer();
+    if(container && orderIds.length){
+      applyGridOrder(container, orderIds, ITEM_SELECTOR, getWidgetId);
+    }
+    state.suppressOrderPersist = false;
+    state.orderSignature = computeOrderSignature(orderIds);
+    scheduleLatePass(reason || 'settings-sync');
+  }catch (err){
+    if(console && console.warn) console.warn('[dashboard-layout] sync from settings failed', err);
+  }
+}
+
 export function initDashboardLayout(){
   if(state.wired){
     applyLayoutFromStorage('reinit');
     ensureDrag();
     updateLayoutModeAttr();
     scheduleLatePass('reinit');
+    syncDashboardPrefsFromSettings('reinit');
     return state;
   }
   state.layoutMode = readLayoutModeFlag();
@@ -710,11 +823,20 @@ export function initDashboardLayout(){
   ensureDrag();
   updateLayoutModeAttr();
   scheduleLatePass('init');
+  syncDashboardPrefsFromSettings('init');
   if(typeof window !== 'undefined'){
     attachOnce(window, 'storage', onStorage, 'dash-layout:storage');
   }
   if(typeof window !== 'undefined'){
     window.RenderGuard?.registerHook?.(() => requestDashboardLayoutPass({ reason: 'render-guard', skipImmediate: true }));
+  }
+  if(!state.settingsListenerWired && typeof document !== 'undefined'){
+    state.settingsListenerWired = true;
+    document.addEventListener('app:data:changed', evt => {
+      const scope = evt && evt.detail && evt.detail.scope;
+      if(scope && scope !== 'settings') return;
+      syncDashboardPrefsFromSettings('settings-change');
+    });
   }
   state.wired = true;
   return state;

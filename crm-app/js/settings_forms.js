@@ -57,7 +57,9 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     {key:'leaderboard', label:'Referral Leaderboard'},
     {key:'stale', label:'Stale Deals'},
     {key:'goalProgress', label:'Production Goals'},
-    {key:'numbersGlance', label:'Numbers at a Glance'},
+    {key:'numbersPortfolio', label:'Partner Portfolio'},
+    {key:'numbersReferrals', label:'Referral Leaders'},
+    {key:'numbersMomentum', label:'Pipeline Momentum'},
     {key:'pipelineCalendar', label:'Pipeline Calendar'},
     {key:'priorityActions', label:'Priority Actions'},
     {key:'milestones', label:'Milestones Ahead'},
@@ -70,7 +72,8 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   ];
   const DASHBOARD_GRAPH_ENTRIES = [
     {key:'goalProgress', label:'Production Goals'},
-    {key:'numbersGlance', label:'Numbers at a Glance'},
+    {key:'numbersPortfolio', label:'Partner Portfolio'},
+    {key:'numbersMomentum', label:'Pipeline Momentum'},
     {key:'pipelineCalendar', label:'Pipeline Calendar'}
   ];
   const DASHBOARD_WIDGET_CARD_ENTRIES = [
@@ -181,6 +184,12 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       Object.keys(widgets).forEach(key => {
         if(typeof source.widgets[key] === 'boolean') widgets[key] = source.widgets[key];
       });
+      if(typeof source.widgets.numbersGlance === 'boolean'){
+        const legacyValue = source.widgets.numbersGlance;
+        ['numbersPortfolio','numbersReferrals','numbersMomentum'].forEach(key => {
+          if(typeof source.widgets[key] !== 'boolean') widgets[key] = legacyValue;
+        });
+      }
     }
     dashboardState.widgets = widgets;
     const graphs = Object.assign({}, dashboardDefaults.graphs);
@@ -188,6 +197,12 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       Object.keys(graphs).forEach(key => {
         if(typeof source.graphs[key] === 'boolean') graphs[key] = source.graphs[key];
       });
+      if(typeof source.graphs.numbersGlance === 'boolean'){
+        const legacyValue = source.graphs.numbersGlance;
+        ['numbersPortfolio','numbersMomentum'].forEach(key => {
+          if(typeof source.graphs[key] !== 'boolean') graphs[key] = legacyValue;
+        });
+      }
     }
     dashboardState.graphs = graphs;
     const widgetCards = Object.assign({}, dashboardDefaults.widgetCards);

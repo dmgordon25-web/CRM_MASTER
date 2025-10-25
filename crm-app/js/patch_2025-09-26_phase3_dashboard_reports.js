@@ -54,7 +54,9 @@ function runPatch(){
       'leaderboard',
       'stale',
       'goalProgress',
-      'numbersGlance',
+      'numbersPortfolio',
+      'numbersReferrals',
+      'numbersMomentum',
       'pipelineCalendar',
       'priorityActions',
       'milestones',
@@ -65,7 +67,7 @@ function runPatch(){
       'docCenter',
       'statusStack'
     ];
-    const DASHBOARD_GRAPH_KEYS = ['goalProgress','numbersGlance','pipelineCalendar'];
+    const DASHBOARD_GRAPH_KEYS = ['goalProgress','numbersPortfolio','numbersMomentum','pipelineCalendar'];
     const DASHBOARD_WIDGET_CARD_KEYS = ['priorityActions','milestones','docPulse','relationshipOpportunities','clientCareRadar','closingWatch'];
     const DASHBOARD_KPI_KEYS = ['kpiNewLeads7d','kpiActivePipeline','kpiFundedYTD','kpiFundedVolumeYTD','kpiAvgCycleLeadToFunded','kpiTasksToday','kpiTasksOverdue','kpiReferralsYTD'];
 
@@ -97,7 +99,9 @@ function runPatch(){
       leaderboard: 'referral-leaderboard',
       stale: 'dashboard-stale',
       goalProgress: 'goal-progress-card',
-      numbersGlance: 'numbers-glance-card',
+      numbersPortfolio: 'numbers-portfolio-card',
+      numbersReferrals: 'numbers-referrals-card',
+      numbersMomentum: 'numbers-momentum-card',
       pipelineCalendar: 'pipeline-calendar-card',
       priorityActions: 'priority-actions-card',
       milestones: 'milestones-card',
@@ -1293,7 +1297,7 @@ function runPatch(){
       }
       toggleSectionVisibility(WIDGET_SECTION_IDS.stale, widgetVisible('stale'));
 
-      const insightWidgetKeys = ['goalProgress','numbersGlance','pipelineCalendar','priorityActions','milestones','docPulse'];
+      const insightWidgetKeys = ['goalProgress','numbersPortfolio','numbersReferrals','numbersMomentum','pipelineCalendar','priorityActions','milestones','docPulse'];
       const opportunityWidgetKeys = ['relationshipOpportunities','clientCareRadar','closingWatch'];
       const showInsights = state.dashboard.mode === 'all' && insightWidgetKeys.some(widgetVisible);
       const showOpportunities = state.dashboard.mode === 'all' && opportunityWidgetKeys.some(widgetVisible);

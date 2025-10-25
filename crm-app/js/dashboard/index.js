@@ -14,7 +14,8 @@ const KPI_KEYS = [
 
 const GRAPH_RESOLVERS = {
   goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
-  numbersGlance: () => doc ? doc.getElementById('numbers-glance-card') : null,
+  numbersPortfolio: () => doc ? doc.getElementById('numbers-portfolio-card') : null,
+  numbersMomentum: () => doc ? doc.getElementById('numbers-momentum-card') : null,
   pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null
 };
 
@@ -27,7 +28,9 @@ const WIDGET_RESOLVERS = {
   leaderboard: () => doc ? doc.getElementById('referral-leaderboard') : null,
   stale: () => doc ? doc.getElementById('dashboard-stale') : null,
   goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
-  numbersGlance: () => doc ? doc.getElementById('numbers-glance-card') : null,
+  numbersPortfolio: () => doc ? doc.getElementById('numbers-portfolio-card') : null,
+  numbersReferrals: () => doc ? doc.getElementById('numbers-referrals-card') : null,
+  numbersMomentum: () => doc ? doc.getElementById('numbers-momentum-card') : null,
   pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null,
   priorityActions: () => doc ? doc.getElementById('priority-actions-card') : null,
   milestones: () => doc ? doc.getElementById('milestones-card') : null,
@@ -100,6 +103,12 @@ function sanitizePrefs(settings) {
     Object.keys(prefs.widgets).forEach(key => {
       if (typeof widgetSource[key] === 'boolean') prefs.widgets[key] = widgetSource[key];
     });
+    if (typeof widgetSource.numbersGlance === 'boolean') {
+      const legacyValue = widgetSource.numbersGlance;
+      ['numbersPortfolio', 'numbersReferrals', 'numbersMomentum'].forEach(key => {
+        if (typeof widgetSource[key] !== 'boolean') prefs.widgets[key] = legacyValue;
+      });
+    }
   }
   const kpiSource = dash.kpis && typeof dash.kpis === 'object' ? dash.kpis : null;
   if (kpiSource) {
@@ -112,6 +121,12 @@ function sanitizePrefs(settings) {
     Object.keys(prefs.graphs).forEach(key => {
       if (typeof graphSource[key] === 'boolean') prefs.graphs[key] = graphSource[key];
     });
+    if (typeof graphSource.numbersGlance === 'boolean') {
+      const legacyValue = graphSource.numbersGlance;
+      ['numbersPortfolio', 'numbersMomentum'].forEach(key => {
+        if (typeof graphSource[key] !== 'boolean') prefs.graphs[key] = legacyValue;
+      });
+    }
   }
   const widgetCardSource = dash.widgetCards && typeof dash.widgetCards === 'object' ? dash.widgetCards : null;
   if (widgetCardSource) {
@@ -148,19 +163,48 @@ function invalidatePrefs() {
 
 function applyNodeVisibility(node, show) {
   if (!node) return;
+  const style = node && typeof node.style === 'object' ? node.style : null;
+  const hasDataset = !!(node && node.dataset && typeof node.dataset === 'object');
+  const dataset = hasDataset ? node.dataset : null;
+  const storeKey = '__dashPrefDisplay';
+  const hasSetAttr = typeof node.setAttribute === 'function';
+  const hasRemoveAttr = typeof node.removeAttribute === 'function';
+
   if (show) {
-    if (node.dataset && Object.prototype.hasOwnProperty.call(node.dataset, 'dashPrefDisplay')) {
-      node.style.display = node.dataset.dashPrefDisplay || '';
-    } else {
-      node.style.display = '';
+    let displayValue = '';
+    if (hasDataset && Object.prototype.hasOwnProperty.call(dataset, 'dashPrefDisplay')) {
+      displayValue = dataset.dashPrefDisplay || '';
+    } else if (!hasDataset && Object.prototype.hasOwnProperty.call(node, storeKey)) {
+      displayValue = node[storeKey] || '';
     }
-    node.removeAttribute('aria-hidden');
+    if (style) {
+      style.display = displayValue;
+    }
+    if (!hasDataset && Object.prototype.hasOwnProperty.call(node, storeKey)) {
+      node[storeKey] = displayValue;
+    }
+    if (hasRemoveAttr) {
+      node.removeAttribute('aria-hidden');
+    }
   } else {
-    if (node.dataset && !Object.prototype.hasOwnProperty.call(node.dataset, 'dashPrefDisplay')) {
-      node.dataset.dashPrefDisplay = node.style.display || '';
+    if (style) {
+      const currentDisplay = style.display || '';
+      if (hasDataset) {
+        if (!Object.prototype.hasOwnProperty.call(dataset, 'dashPrefDisplay')) {
+          dataset.dashPrefDisplay = currentDisplay;
+        }
+      } else if (!Object.prototype.hasOwnProperty.call(node, storeKey)) {
+        try {
+          Object.defineProperty(node, storeKey, { value: currentDisplay, writable: true, configurable: true });
+        } catch (_err) {
+          node[storeKey] = currentDisplay;
+        }
+      }
+      style.display = 'none';
     }
-    node.style.display = 'none';
-    node.setAttribute('aria-hidden', 'true');
+    if (hasSetAttr) {
+      node.setAttribute('aria-hidden', 'true');
+    }
   }
 }
 

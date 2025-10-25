@@ -156,35 +156,47 @@
       <div class="goal-footnote muted" id="goal-progress-footnote">Targets reset each calendar month.</div>
      </div>
     </div>
-    <div class="card insight-card partner-hub numbers-glance span-full" id="numbers-glance-card">
-     <div class="insight-head numbers-glance-head">
-      <div class="insight-icon numbers-glance-icon">📊</div>
+    <div class="card insight-card numbers-card" id="numbers-portfolio-card">
+     <div class="insight-head numbers-card-head">
+      <div class="insight-icon numbers-portfolio-icon">📊</div>
       <div>
-       <h4>Numbers at a glance</h4>
-       <p class="muted">A quick pulse on partners, referrals, and pipeline momentum.</p>
+       <h4>Partner Portfolio</h4>
+       <p class="muted">Tier mix across active partners</p>
+      </div>
+      <span class="count-badge" id="partner-portfolio-count">0</span>
+     </div>
+     <div class="numbers-card-body">
+      <div class="insight-list" id="partner-tier-breakdown">
+       —
       </div>
      </div>
-     <div class="partner-hub-grid numbers-glance-grid">
-      <section>
-       <h5>Partner Portfolio <span class="count-badge" id="partner-portfolio-count">0</span></h5>
-       <p class="partner-hub-sub muted">Tier mix across active partners</p>
-       <div class="insight-list" id="partner-tier-breakdown">
-        —
-       </div>
-      </section>
-      <section>
-       <h5>Referral Leaders</h5>
-       <p class="partner-hub-sub muted">Top partners feeding your funnel</p>
-       <ol class="insight-list ranked" id="top3">
-       </ol>
-      </section>
-      <section>
-       <h5>Pipeline Momentum <span class="count-badge" id="pipeline-momentum-count">0</span></h5>
-       <p class="partner-hub-sub muted">Stage distribution at a glance</p>
-       <div class="insight-list stage-breakdown" id="pipeline-breakdown">
-        —
-       </div>
-      </section>
+    </div>
+    <div class="card insight-card numbers-card" id="numbers-referrals-card">
+     <div class="insight-head numbers-card-head">
+      <div class="insight-icon numbers-referrals-icon">🏆</div>
+      <div>
+       <h4>Referral Leaders</h4>
+       <p class="muted">Top partners feeding your funnel</p>
+      </div>
+     </div>
+     <div class="numbers-card-body">
+      <ol class="insight-list ranked" id="top3">
+      </ol>
+     </div>
+    </div>
+    <div class="card insight-card numbers-card span-2" id="numbers-momentum-card">
+     <div class="insight-head numbers-card-head">
+      <div class="insight-icon numbers-momentum-icon">📈</div>
+      <div>
+       <h4>Pipeline Momentum</h4>
+       <p class="muted">Stage distribution at a glance</p>
+      </div>
+      <span class="count-badge" id="pipeline-momentum-count">0</span>
+     </div>
+     <div class="numbers-card-body">
+      <div class="insight-list stage-breakdown" id="pipeline-breakdown">
+       —
+      </div>
      </div>
     </div>
      <div class="card insight-card span-2" id="pipeline-calendar-card">

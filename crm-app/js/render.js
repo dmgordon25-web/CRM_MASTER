@@ -10,9 +10,11 @@ import {
 import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META, normalizeStatus } from './pipeline/constants.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_edit/index.js';
+import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
+import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
+import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
 
 (function(){
-  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
   const STAGES_PIPE = ['application','processing','underwriting'];
   const STAGES_CLIENT = ['approved','cleared-to-close','funded','post-close'];
 
@@ -869,76 +871,25 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
     setText($('#kpi-comm-received'), money(loanVol * 0.005));
     setText($('#kpi-comm-proj'), money(loanVol * 0.012));
 
-    const tiers = partners.reduce((m,p)=>{ const t = p.tier||'Developing'; m[t]=(m[t]||0)+1; return m; }, {});
-    const tierEntries = Object.entries(tiers).sort((a,b)=>b[1]-a[1]);
-    const tierTotal = tierEntries.reduce((sum, [,count])=>sum+count, 0);
-    const tierHost = $('#partner-tier-breakdown');
-    if(tierHost){
-      if(!tierEntries.length){
-        tierHost.innerHTML = '<div class="mini-bar-chart portfolio-chart"><div class="mini-bar-row empty">Add partners to see portfolio mix.</div></div>';
-      }else{
-        const rows = tierEntries.map(([tier,count])=>{
-          const pct = tierTotal ? Math.round((count/tierTotal)*100) : 0;
-          const color = colorForTier(tier);
-          return `<div class="mini-bar-row"><div class="mini-bar-label"><span class="mini-bar-dot" style="background:${color}"></span>${safe(tier)}</div><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.max(pct,3)}%"></div></div><div class="mini-bar-value">${count} • ${pct}%</div></div>`;
-        }).join('');
-        tierHost.innerHTML = `<div class="mini-bar-chart portfolio-chart">${rows}</div>`;
-      }
-    }
-    const portfolioCountEl = asEl('partner-portfolio-count');
-    if(portfolioCountEl){
-      portfolioCountEl.textContent = tierTotal || 0;
-    }
-
-    const referralStats = new Map();
-    contacts.forEach(c => {
-      const pid = c.buyerPartnerId || c.listingPartnerId;
-      if(!pid || pid===NONE_PARTNER_ID) return;
-      const entry = referralStats.get(pid) || {count:0, volume:0, contacts:[]};
-      entry.count += 1;
-      entry.volume += Number(c.loanAmount||0)||0;
-      entry.contacts.push(c);
-      referralStats.set(pid, entry);
+    renderPortfolioMixWidget({
+      host: $('#partner-tier-breakdown'),
+      countEl: asEl('partner-portfolio-count'),
+      partners,
+      safe,
+      colorForTier
     });
-    const top3 = Array.from(referralStats.entries()).sort((a,b)=> (b[1]?.count||0) - (a[1]?.count||0)).slice(0,3);
-    const totalRef = Array.from(referralStats.values()).reduce((s,v)=>s+(v.count||0),0) || 0;
-    html($('#top3'), top3.length ? top3.map(([pid,stat])=>{
-      const p = partners.find(x=> String(x.id)===String(pid)) || {name:'—'};
-      const share = totalRef ? Math.round((stat.count/totalRef)*100) : 0;
-      const tier = p.tier ? `<span class="insight-tag light">${safe(p.tier)}</span>` : '';
-      const details = [p.company, p.phone, p.email].filter(Boolean).map(val=>safe(val)).join(' • ');
-      const stageCounts = stat.contacts.reduce((acc,contact)=>{
-        const key = normalizeStatus(contact.stage);
-        if(!key) return acc;
-        acc[key] = (acc[key]||0)+1;
-        return acc;
-      },{});
-      const topStage = Object.entries(stageCounts).sort((a,b)=>b[1]-a[1])[0];
-      const focus = topStage ? `${stageLabels[topStage[0]] || topStage[0]} (${topStage[1]})` : '';
-      const focusLine = focus ? `<div class="insight-sub">Focus: ${safe(focus)}</div>` : '';
-      const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
-      const volumeLine = stat.volume ? `<div class="insight-sub">Loan Volume: ${money(stat.volume)}</div>` : '';
-      const attrPieces = ['role="button"'];
-      const partnerAttr = attr(pid);
-      if(partnerAttr){
-        attrPieces.push(`data-partner-id="${partnerAttr}"`);
-        attrPieces.push('data-widget="top-partners"');
-      }
-      const attrs = attrPieces.length ? ` ${attrPieces.join(' ')}` : '';
-      return `<li${attrs}>
-        <div class="list-main">
-          <span class="insight-avatar">${initials(p.name||'')}</span>
-          <div>
-            <div class="insight-title">${safe(p.name||'—')}</div>
-            <div class="insight-sub">${stat.count} referrals • ${share}% share</div>
-            ${focusLine}
-            ${volumeLine}
-            ${detailLine}
-          </div>
-        </div>
-        <div class="insight-meta">${tier || ''}</div>
-      </li>`;
-    }).join('') : '<li class="empty">Recruit or tag partners to surface leaders.</li>');
+
+    renderReferralLeadersWidget({
+      host: $('#top3'),
+      contacts,
+      partners,
+      safe,
+      money,
+      attr,
+      initials,
+      normalizeStatus,
+      stageLabels
+    });
 
     const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
       const dueDate = toDate(t.due);
@@ -1005,36 +956,15 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 
-    const stageCounts = contacts.reduce((m,c)=>{
-      const key = normalizeStatus(c.stage);
-      if(!key) return m;
-      m[key] = (m[key]||0)+1;
-      return m;
-    },{});
-    const orderedStages = ['application','processing','underwriting','approved','cleared-to-close','funded','post-close','nurture','lost','denied','long shot'];
-    const stageTotal = Object.values(stageCounts).reduce((sum,val)=>sum+val,0);
-    const orderedSet = new Set(orderedStages);
-    const additionalStages = Object.keys(stageCounts).filter(key=> !orderedSet.has(key) && stageCounts[key]);
-    const stageOrder = orderedStages.filter(key=> stageCounts[key]).concat(additionalStages);
-    const momentumHost = $('#pipeline-breakdown');
-    if(momentumHost){
-      if(!stageTotal){
-        momentumHost.innerHTML = '<div class="mini-bar-chart momentum-chart"><div class="mini-bar-row empty">Add contacts to chart pipeline momentum.</div></div>';
-      }else{
-        const rows = stageOrder.map(key=>{
-          const count = stageCounts[key]||0;
-          const pct = stageTotal ? Math.round((count/stageTotal)*100) : 0;
-          const label = stageLabels[key] || (key ? key.replace(/-/g,' ') : 'Stage');
-          const color = colorForStage(key);
-          return `<div class="mini-bar-row"><div class="mini-bar-label"><span class="mini-bar-dot" style="background:${color}"></span>${safe(label)}</div><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.max(pct,3)}%"></div></div><div class="mini-bar-value">${count} • ${pct}%</div></div>`;
-        }).join('');
-        momentumHost.innerHTML = `<div class="mini-bar-chart momentum-chart">${rows}</div>`;
-      }
-    }
-    const momentumCountEl = asEl('pipeline-momentum-count');
-    if(momentumCountEl){
-      momentumCountEl.textContent = stageTotal || 0;
-    }
+    renderPipelineMomentumWidget({
+      host: $('#pipeline-breakdown'),
+      countEl: asEl('pipeline-momentum-count'),
+      contacts,
+      safe,
+      normalizeStatus,
+      stageLabels,
+      colorForStage
+    });
 
     const docs = documents || [];
     const docHost = $('#doc-status-summary');
