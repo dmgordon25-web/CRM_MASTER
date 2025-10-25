@@ -6,6 +6,11 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
 
+const CELEBRATIONS_WIDGET_KEY = 'upcomingCelebrations';
+const CELEBRATIONS_WIDGET_ID = 'dashboard-celebrations';
+const CELEBRATIONS_WIDGET_TITLE = 'Upcoming Birthdays & Anniversaries (7 days)';
+const CELEBRATIONS_WINDOW_DAYS = 7;
+
 const DASHBOARD_CONTAINER_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASHBOARD_ITEM_SELECTOR = ':scope > [data-dash-widget]';
 const DASHBOARD_WIDGET_NODE_SELECTOR = 'section.card, section.grid, div.card, section.status-stack';
@@ -61,6 +66,7 @@ const WIDGET_RESOLVERS = {
   relationshipOpportunities: () => doc ? doc.getElementById('rel-opps-card') : null,
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
+  upcomingCelebrations: resolveCelebrationsWidget,
   docCenter: () => doc ? doc.getElementById('doc-center-card') : null,
   statusStack: () => doc ? doc.getElementById('dashboard-status-stack') : null
 };
@@ -106,6 +112,7 @@ const WIDGET_DOM_ID_MAP = {
   relationshipOpportunities: 'rel-opps-card',
   clientCareRadar: 'nurture-card',
   closingWatch: 'closing-watch-card',
+  upcomingCelebrations: CELEBRATIONS_WIDGET_ID,
   docCenter: 'doc-center-card',
   statusStack: 'dashboard-status-stack'
 };
@@ -174,6 +181,475 @@ const pointerTapState = new Map();
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
 const DASHBOARD_SKIP_CLICK_WINDOW = 350;
+
+const celebrationsState = {
+  node: null,
+  list: null,
+  empty: null,
+  shouldRender: false,
+  hydrated: false,
+  hydrating: false,
+  dirty: true,
+  dndReady: false,
+  hydrationScheduled: false,
+  pendingHydration: false,
+  bindingApplied: false,
+  dateFormatter: null,
+  items: []
+};
+
+const scheduleIdleTask = (typeof win !== 'undefined' && win && typeof win.requestIdleCallback === 'function')
+  ? cb => win.requestIdleCallback(cb)
+  : cb => setTimeout(() => cb({ didTimeout: true, timeRemaining: () => 0 }), 0);
+
+function resolveCelebrationsWidget() {
+  const { node } = celebrationsState;
+  if (node && node.isConnected) return node;
+  return null;
+}
+
+function ensureCelebrationsWidgetShell() {
+  if (!doc) return null;
+  let { node, list, empty } = celebrationsState;
+  const container = getDashboardContainerNode();
+  if (!container) return (node && node.isConnected) ? node : null;
+  const ensureInserted = target => {
+    if (!target) return;
+    if (target.parentElement === container) return;
+    const before = doc.getElementById('dashboard-status-stack');
+    if (before && before.parentElement === container) {
+      container.insertBefore(target, before);
+    } else {
+      container.appendChild(target);
+    }
+  };
+  if (!node || !node.isConnected) {
+    if (!node) {
+      node = doc.createElement('section');
+      node.className = 'card insight-card';
+      node.id = CELEBRATIONS_WIDGET_ID;
+      node.setAttribute('data-widget-label', CELEBRATIONS_WIDGET_TITLE);
+      node.dataset.widgetId = CELEBRATIONS_WIDGET_KEY;
+      const head = doc.createElement('div');
+      head.className = 'insight-head';
+      const icon = doc.createElement('div');
+      icon.className = 'insight-icon celebrations';
+      icon.textContent = '🎉';
+      const textWrap = doc.createElement('div');
+      const title = doc.createElement('h4');
+      title.textContent = CELEBRATIONS_WIDGET_TITLE;
+      const subtitle = doc.createElement('p');
+      subtitle.className = 'muted';
+      subtitle.textContent = 'Celebrate clients before their big day.';
+      textWrap.appendChild(title);
+      textWrap.appendChild(subtitle);
+      head.appendChild(icon);
+      head.appendChild(textWrap);
+      node.appendChild(head);
+      list = doc.createElement('ul');
+      list.className = 'insight-list spotlight';
+      list.id = `${CELEBRATIONS_WIDGET_ID}-list`;
+      list.dataset.widget = CELEBRATIONS_WIDGET_KEY;
+      node.appendChild(list);
+      empty = doc.createElement('div');
+      empty.className = 'empty muted';
+      empty.dataset.role = 'celebrations-empty';
+      empty.textContent = 'No upcoming celebrations in the next 7 days.';
+      node.appendChild(empty);
+      celebrationsState.node = node;
+      celebrationsState.list = list;
+      celebrationsState.empty = empty;
+    } else {
+      ensureInserted(node);
+    }
+  }
+  if (!list || !list.isConnected) {
+    list = node ? node.querySelector('ul.insight-list') : null;
+    celebrationsState.list = list;
+  }
+  if (!empty || !empty.isConnected) {
+    empty = node ? node.querySelector('[data-role="celebrations-empty"]') : null;
+    celebrationsState.empty = empty;
+  }
+  if (node) {
+    ensureInserted(node);
+    if (!node.dataset.widgetId) node.dataset.widgetId = CELEBRATIONS_WIDGET_KEY;
+    if (!node.dataset.dashWidget) node.dataset.dashWidget = CELEBRATIONS_WIDGET_KEY;
+  }
+  if (celebrationsState.list && !celebrationsState.bindingApplied) {
+    celebrationsState.list.addEventListener('click', handleCelebrationsListClick);
+    celebrationsState.bindingApplied = true;
+  }
+  return celebrationsState.node || null;
+}
+
+function handleCelebrationsListClick(evt) {
+  const target = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
+  if (!target) return;
+  evt.preventDefault();
+  const contactId = target.getAttribute('data-contact-id') || target.dataset.contactId || '';
+  if (!contactId) return;
+  tryOpenContact(contactId);
+}
+
+function formatCelebrationDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  if (!celebrationsState.dateFormatter) {
+    try {
+      celebrationsState.dateFormatter = new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        weekday: 'short'
+      });
+    } catch (_err) {
+      celebrationsState.dateFormatter = null;
+    }
+  }
+  if (celebrationsState.dateFormatter) {
+    try {
+      return celebrationsState.dateFormatter.format(date);
+    } catch (_err) {}
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatCelebrationCountdown(days) {
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return `In ${days} days`;
+}
+
+function renderCelebrationsItems(items) {
+  const node = ensureCelebrationsWidgetShell();
+  const { list, empty } = celebrationsState;
+  celebrationsState.items = Array.isArray(items) ? items.slice() : [];
+  if (!node || !list) return;
+  while (list.firstChild) {
+    list.removeChild(list.firstChild);
+  }
+  if (!items || !items.length) {
+    if (list.style) list.style.display = 'none';
+    list.hidden = true;
+    if (empty) {
+      if (empty.style) empty.style.display = '';
+      empty.hidden = false;
+    }
+    return;
+  }
+  if (list.style) list.style.display = '';
+  list.hidden = false;
+  if (empty) {
+    if (empty.style) empty.style.display = 'none';
+    empty.hidden = true;
+  }
+  const frag = doc.createDocumentFragment();
+  items.forEach(item => {
+    const li = doc.createElement('li');
+    li.dataset.widget = CELEBRATIONS_WIDGET_KEY;
+    if (item.contactId) {
+      li.dataset.id = item.contactId;
+      li.dataset.contactId = item.contactId;
+      li.setAttribute('data-contact-id', item.contactId);
+    }
+    const main = doc.createElement('div');
+    main.className = 'list-main';
+    const avatar = doc.createElement('span');
+    avatar.className = 'insight-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = item.icon || '🎉';
+    const textWrap = doc.createElement('div');
+    const title = doc.createElement('div');
+    title.className = 'insight-title';
+    title.textContent = item.name || 'Contact';
+    const subtitle = doc.createElement('div');
+    subtitle.className = 'insight-sub';
+    const dateLabel = formatCelebrationDate(item.date);
+    subtitle.textContent = item.label && dateLabel ? `${item.label} • ${dateLabel}` : (item.label || dateLabel || '');
+    textWrap.appendChild(title);
+    textWrap.appendChild(subtitle);
+    main.appendChild(avatar);
+    main.appendChild(textWrap);
+    li.appendChild(main);
+    const meta = doc.createElement('div');
+    meta.className = 'insight-meta';
+    meta.textContent = formatCelebrationCountdown(item.daysUntil || 0);
+    li.appendChild(meta);
+    frag.appendChild(li);
+  });
+  list.appendChild(frag);
+}
+
+function getFieldValue(source, pathList) {
+  if (!source || typeof source !== 'object') return null;
+  for (let i = 0; i < pathList.length; i += 1) {
+    const parts = String(pathList[i] || '').split('.');
+    let cur = source;
+    let found = true;
+    for (let j = 0; j < parts.length; j += 1) {
+      const key = parts[j];
+      if (!key) continue;
+      if (!cur || typeof cur !== 'object' || !(key in cur)) {
+        found = false;
+        break;
+      }
+      cur = cur[key];
+    }
+    if (!found) continue;
+    if (cur != null && cur !== '') return cur;
+  }
+  return null;
+}
+
+function parseMonthDay(value) {
+  if (value == null) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return { month: value.getMonth() + 1, day: value.getDate() };
+  }
+  const str = String(value).trim();
+  if (!str) return null;
+  const iso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const month = Number.parseInt(iso[2], 10);
+    const day = Number.parseInt(iso[3], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+  }
+  const dash = str.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (dash) {
+    const month = Number.parseInt(dash[1], 10);
+    const day = Number.parseInt(dash[2], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+  }
+  const slash = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (slash) {
+    const month = Number.parseInt(slash[1], 10);
+    const day = Number.parseInt(slash[2], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+  }
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return { month: parsed.getMonth() + 1, day: parsed.getDate() };
+  }
+  return null;
+}
+
+function nextOccurrence(md, baseDate) {
+  if (!md) return null;
+  const year = baseDate.getFullYear();
+  let next = new Date(year, md.month - 1, md.day);
+  const base = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  if (next < base) {
+    next = new Date(year + 1, md.month - 1, md.day);
+  }
+  return next;
+}
+
+function daysBetween(baseDate, futureDate) {
+  const baseUtc = Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  const futureUtc = Date.UTC(futureDate.getFullYear(), futureDate.getMonth(), futureDate.getDate());
+  return Math.round((futureUtc - baseUtc) / 86400000);
+}
+
+function formatContactName(contact) {
+  if (!contact || typeof contact !== 'object') return 'Contact';
+  const preferred = contact.preferredName || contact.nickname;
+  const first = contact.first;
+  const last = contact.last;
+  let name = '';
+  if (preferred) {
+    name = `${preferred}${last ? ` ${last}` : ''}`.trim();
+  }
+  if (!name) {
+    const parts = [];
+    if (first) parts.push(first);
+    if (last) parts.push(last);
+    name = parts.join(' ').trim();
+  }
+  if (!name) {
+    const company = contact.company || contact.organization || contact.businessName;
+    if (company) name = String(company).trim();
+  }
+  if (!name && contact.email) {
+    name = String(contact.email).trim();
+  }
+  if (!name && contact.phone) {
+    name = String(contact.phone).trim();
+  }
+  if (!name && contact.id != null) {
+    name = `Contact ${contact.id}`;
+  }
+  return name || 'Contact';
+}
+
+function appendCelebrationsForContact(items, contact, baseDate) {
+  if (!contact || typeof contact !== 'object') return;
+  const contactId = contact.id == null ? '' : String(contact.id).trim();
+  if (!contactId) return;
+  const name = formatContactName(contact);
+  const birthday = getFieldValue(contact, ['birthday', 'extras.birthday']);
+  const anniversary = getFieldValue(contact, ['anniversary', 'extras.anniversary']);
+  const events = [];
+  if (birthday) events.push({ raw: birthday, type: 'birthday', label: 'Birthday', icon: '🎂' });
+  if (anniversary) events.push({ raw: anniversary, type: 'anniversary', label: 'Anniversary', icon: '💍' });
+  events.forEach(event => {
+    const md = parseMonthDay(event.raw);
+    if (!md) return;
+    const next = nextOccurrence(md, baseDate);
+    if (!next) return;
+    const days = daysBetween(baseDate, next);
+    if (days < 0 || days > CELEBRATIONS_WINDOW_DAYS) return;
+    items.push({
+      contactId,
+      name,
+      type: event.type,
+      label: event.label,
+      icon: event.icon,
+      date: next,
+      daysUntil: days,
+      sortName: name.toLowerCase()
+    });
+  });
+}
+
+function computeCelebrationItems(contacts, baseDate) {
+  return new Promise(resolve => {
+    if (!Array.isArray(contacts) || !contacts.length) {
+      resolve([]);
+      return;
+    }
+    const items = [];
+    const total = contacts.length;
+    let index = 0;
+    const step = deadline => {
+      const start = Date.now();
+      while (index < total) {
+        appendCelebrationsForContact(items, contacts[index], baseDate);
+        index += 1;
+        if (deadline && typeof deadline.timeRemaining === 'function') {
+          if (deadline.timeRemaining() <= 0) break;
+        } else if (Date.now() - start >= 8) {
+          break;
+        }
+      }
+      if (index < total) {
+        scheduleIdleTask(step);
+        return;
+      }
+      items.sort((a, b) => {
+        const timeDiff = a.date.getTime() - b.date.getTime();
+        if (timeDiff !== 0) return timeDiff;
+        if (a.sortName && b.sortName) {
+          const nameDiff = a.sortName.localeCompare(b.sortName);
+          if (nameDiff !== 0) return nameDiff;
+        }
+        return a.type.localeCompare(b.type);
+      });
+      resolve(items);
+    };
+    scheduleIdleTask(step);
+  });
+}
+
+function scheduleCelebrationsHydration() {
+  if (!celebrationsState.shouldRender) return;
+  const node = ensureCelebrationsWidgetShell();
+  if (!node) return;
+  if (!celebrationsState.dndReady) {
+    celebrationsState.pendingHydration = true;
+    return;
+  }
+  if (!celebrationsState.dirty && celebrationsState.hydrated) return;
+  if (celebrationsState.hydrating) {
+    celebrationsState.pendingHydration = true;
+    return;
+  }
+  if (celebrationsState.hydrationScheduled) return;
+  celebrationsState.hydrationScheduled = true;
+  Promise.resolve().then(() => {
+    celebrationsState.hydrationScheduled = false;
+    runCelebrationsHydration();
+  });
+}
+
+async function runCelebrationsHydration() {
+  if (!celebrationsState.shouldRender) return;
+  if (!celebrationsState.dndReady) {
+    celebrationsState.pendingHydration = true;
+    return;
+  }
+  const node = ensureCelebrationsWidgetShell();
+  const { list } = celebrationsState;
+  if (!node || !list) return;
+  celebrationsState.hydrating = true;
+  celebrationsState.pendingHydration = false;
+  let contacts = [];
+  if (win && typeof win.dbGetAll === 'function') {
+    try {
+      contacts = await win.dbGetAll('contacts');
+    } catch (err) {
+      contacts = [];
+      try {
+        if (console && console.warn) console.warn('[dashboard] celebrations fetch failed', err);
+      } catch (_warnErr) {}
+    }
+  } else if (typeof window !== 'undefined' && typeof window.dbGetAll === 'function') {
+    try {
+      contacts = await window.dbGetAll('contacts');
+    } catch (err) {
+      contacts = [];
+      try {
+        if (console && console.warn) console.warn('[dashboard] celebrations fetch failed', err);
+      } catch (_warnErr) {}
+    }
+  }
+  const today = new Date();
+  const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let items = [];
+  try {
+    items = await computeCelebrationItems(contacts, baseDate);
+  } catch (err) {
+    try {
+      if (console && console.warn) console.warn('[dashboard] celebrations compute failed', err);
+    } catch (_warnErr) {}
+    items = [];
+  }
+  if (!celebrationsState.shouldRender) {
+    celebrationsState.hydrating = false;
+    celebrationsState.items = items;
+    return;
+  }
+  celebrationsState.hydrating = false;
+  celebrationsState.hydrated = true;
+  celebrationsState.dirty = false;
+  renderCelebrationsItems(items);
+  if (celebrationsState.pendingHydration || celebrationsState.dirty) {
+    celebrationsState.pendingHydration = false;
+    scheduleCelebrationsHydration();
+  }
+}
+
+function markCelebrationsDirty() {
+  celebrationsState.dirty = true;
+  celebrationsState.hydrated = false;
+  if (celebrationsState.shouldRender && celebrationsState.dndReady) {
+    scheduleCelebrationsHydration();
+  }
+}
+
+function maybeHydrateCelebrations(prefs) {
+  const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
+  const enabled = widgetPrefs[CELEBRATIONS_WIDGET_KEY] !== false;
+  const previouslyEnabled = celebrationsState.shouldRender;
+  celebrationsState.shouldRender = enabled;
+  if (!enabled) return;
+  ensureCelebrationsWidgetShell();
+  if (!previouslyEnabled) {
+    celebrationsState.dirty = true;
+    celebrationsState.hydrated = false;
+  }
+  if (celebrationsState.dirty || !celebrationsState.hydrated) {
+    scheduleCelebrationsHydration();
+  }
+}
 
 function ensureDashboardLegend(){
   if(!doc) return;
@@ -769,10 +1245,15 @@ function persistDashboardOrderImmediate() {
 
 function ensureWidgetDnD() {
   const container = getDashboardContainerNode();
-  if (!container) return;
+  if (!container) {
+    celebrationsState.dndReady = false;
+    return;
+  }
   dashDnDState.container = container;
   const nodes = ensureDashboardWidgets(container);
-  if (!nodes.length) {
+  const hasNodes = Array.isArray(nodes) && nodes.length > 0;
+  celebrationsState.dndReady = hasNodes;
+  if (!hasNodes) {
     if (dashDnDState.controller && typeof dashDnDState.controller.disable === 'function') {
       dashDnDState.controller.disable();
     }
@@ -801,6 +1282,12 @@ function ensureWidgetDnD() {
     dashDnDState.controller.refresh();
   }
   wireTileTap(container);
+  if (celebrationsState.shouldRender) {
+    if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
+      celebrationsState.pendingHydration = false;
+      scheduleCelebrationsHydration();
+    }
+  }
 }
 
 function buildDefaultMap(keys) {
@@ -812,8 +1299,12 @@ function buildDefaultMap(keys) {
 }
 
 function defaultPrefs() {
+  const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS));
+  if (Object.prototype.hasOwnProperty.call(widgets, CELEBRATIONS_WIDGET_KEY)) {
+    widgets[CELEBRATIONS_WIDGET_KEY] = false;
+  }
   return {
-    widgets: buildDefaultMap(Object.keys(WIDGET_RESOLVERS)),
+    widgets,
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
     widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS))
@@ -971,6 +1462,7 @@ function applyHiddenWidgetPrefs(hiddenList) {
   prefCache.value = next;
   prefCache.loading = null;
   applySurfaceVisibility(next);
+  maybeHydrateCelebrations(next);
   ensureWidgetDnD();
   return true;
 }
@@ -1082,15 +1574,18 @@ function applySurfaceVisibility(prefs) {
   const handledCards = new Set();
 
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
+    const widgetEnabled = widgetPrefs[key] !== false;
+    const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
+    const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
+    if (key === CELEBRATIONS_WIDGET_KEY && widgetEnabled && graphEnabled && cardEnabled) {
+      ensureCelebrationsWidgetShell();
+    }
     let node = null;
     try {
       node = resolver();
     } catch (_err) {
       node = null;
     }
-    const widgetEnabled = widgetPrefs[key] !== false;
-    const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
-    const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
     if(GRAPH_KEYS.has(key)) handledGraphs.add(key);
     if(WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
     const show = widgetEnabled && graphEnabled && cardEnabled;
@@ -1166,14 +1661,22 @@ function scheduleApply() {
   pendingApply = true;
   Promise.resolve().then(async () => {
     pendingApply = false;
+    let prefs = null;
     try {
       ensureDashboardLegend();
       refreshWidgetIdLookup();
-      const prefs = await getSettingsPrefs();
+      prefs = await getSettingsPrefs();
       applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
     } catch (err) {
       if (console && console.warn) console.warn('[dashboard] apply prefs failed', err);
+    }
+    if (prefs) {
+      maybeHydrateCelebrations(prefs);
+    } else if (prefCache.value) {
+      maybeHydrateCelebrations(prefCache.value);
+    } else {
+      maybeHydrateCelebrations(defaultPrefs());
     }
     refreshTodayHighlightWiring();
     ensureWidgetDnD();
@@ -1220,6 +1723,10 @@ function init() {
   doc.addEventListener('app:data:changed', evt => {
     const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
     if (scope === 'settings') invalidatePrefs();
+    const normalizedScope = typeof scope === 'string' ? scope.toLowerCase() : '';
+    if (!normalizedScope || normalizedScope.includes('contact') || normalizedScope.includes('setting')) {
+      markCelebrationsDirty();
+    }
     scheduleApply();
   });
   refreshTodayHighlightWiring();
