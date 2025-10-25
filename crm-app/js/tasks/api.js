@@ -125,6 +125,59 @@ function buildOrigin(event, fallbackDate){
   return origin;
 }
 
+function normalizeRecordName(value){
+  const str = safeString(value);
+  if(!str) return '';
+  return str.replace(/\s+/g, ' ').trim();
+}
+
+async function persistTask(record, options = {}){
+  const detail = options && typeof options === 'object' ? options : {};
+  const toastMessage = safeString(detail.toastMessage) || 'Task added';
+  const source = safeString(detail.source) || 'tasks';
+  const contactId = record && record.contactId ? String(record.contactId).trim() : '';
+  const partnerId = record && record.partnerId ? String(record.partnerId).trim() : '';
+  try{
+    await openDB();
+    await dbPut('tasks', record);
+    try{
+      recordTask(record);
+    }catch (err){
+      console && console.warn && console.warn('tasks store update failed', err);
+    }
+  }catch (err){
+    console && console.warn && console.warn('persistTask dbPut failed', err);
+    toastSafe('Unable to save task');
+    return { status:'error', error: err };
+  }
+  let dispatched = false;
+  try{
+    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
+      const payload = { source, action:'task:create', taskId: record.id };
+      if(contactId) payload.contactId = contactId;
+      if(partnerId) payload.partnerId = partnerId;
+      window.dispatchAppDataChanged(payload);
+      dispatched = true;
+    }
+  }catch (err){
+    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
+  }
+  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
+    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
+    catch (_err){}
+  }
+  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+    try{
+      const payload = { scope:'tasks', ids:[record.id] };
+      if(contactId) payload.contactId = contactId;
+      if(partnerId) payload.partnerId = partnerId;
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
+    }catch (_err){}
+  }
+  toastSafe(toastMessage);
+  return { status:'ok', task: record };
+}
+
 export async function createTaskFromEvent(event){
   ensureReadyLog();
   const contactId = event && event.contactId ? String(event.contactId).trim() : '';
@@ -151,39 +204,67 @@ export async function createTaskFromEvent(event){
     if(origin.contactName) record.contactName = origin.contactName;
     if(origin.status) record.statusLabel = origin.status;
   }
-  try{
-    await openDB();
-    await dbPut('tasks', record);
-    try{
-      recordTask(record);
-    }catch (err){
-      console && console.warn && console.warn('tasks store update failed', err);
+  return persistTask(record, { toastMessage:'Task added', source:'calendar' });
+}
+
+export async function createLinkedTask(options){
+  ensureReadyLog();
+  const opts = options && typeof options === 'object' ? options : {};
+  const entity = opts.entity === 'partner' ? 'partner' : 'contact';
+  const recordId = safeString(opts.recordId);
+  if(!recordId){
+    toastSafe('Save the record before scheduling follow-ups');
+    return { status:'error', reason:'missing-record' };
+  }
+  const dueDate = parseEventDate(opts.due) || new Date();
+  const due = toISODate(dueDate);
+  const now = Date.now();
+  const title = normalizeRecordName(opts.title) || 'Follow up';
+  const displayName = normalizeRecordName(opts.displayName || opts.contactName);
+  const stage = safeString(opts.stage);
+  const statusLabel = safeString(opts.statusLabel);
+  const note = safeString(opts.note || opts.notes);
+  const record = {
+    id: uuid(),
+    title,
+    due,
+    status: 'open',
+    done: false,
+    createdAt: now,
+    updatedAt: now,
+    source: entity === 'partner' ? 'partner-followup' : 'contact-followup'
+  };
+  if(entity === 'partner'){ record.partnerId = recordId; }
+  else { record.contactId = recordId; }
+  if(stage) record.stage = stage;
+  if(statusLabel) record.statusLabel = statusLabel;
+  if(entity === 'contact' && displayName){
+    record.contactName = displayName;
+  }else if(entity === 'partner' && displayName){
+    record.partnerName = displayName;
+  }
+  if(note){
+    record.notes = note;
+  }
+  const originSource = entity === 'partner' ? 'partners' : 'contacts';
+  record.origin = {
+    type: 'manual-followup',
+    title,
+    subtitle: note,
+    contactName: entity === 'contact' ? displayName : '',
+    status: statusLabel,
+    stage,
+    date: due,
+    source: {
+      entity: originSource,
+      id: recordId,
+      field: entity === 'partner' ? 'nextTouch' : 'nextFollowUp'
     }
-  }catch (err){
-    console && console.warn && console.warn('createTaskFromEvent dbPut failed', err);
-    toastSafe('Unable to save task');
-    return { status:'error', error: err };
-  }
-  let dispatched = false;
-  try{
-    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
-      window.dispatchAppDataChanged({ source:'calendar', action:'task:create', taskId: record.id, contactId });
-      dispatched = true;
-    }
-  }catch (err){
-    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
-  }
-  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
-    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
-    catch (_err){}
-  }
-  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
-    try{
-      document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
-    }catch (_err){}
-  }
-  toastSafe('Task added');
-  return { status:'ok', task: record };
+  };
+  return persistTask(record, {
+    toastMessage: 'Follow-up scheduled',
+    source: entity === 'partner' ? 'partner-followup' : 'contact-followup'
+  });
 }
 
 ensureReadyLog();

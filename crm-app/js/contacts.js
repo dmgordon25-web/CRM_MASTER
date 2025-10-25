@@ -12,6 +12,7 @@ import {
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
+import { createLinkedTask } from './tasks/api.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -157,6 +158,203 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     if(contact.email) return String(contact.email||'').trim();
     if(contact.company) return String(contact.company||'').trim();
     return '';
+  }
+
+  function isoToday(){
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    try{ return now.toISOString().slice(0,10); }
+    catch (_err){ return ''; }
+  }
+
+  function normalizeDateInput(value){
+    if(value instanceof Date){
+      const copy = new Date(value);
+      if(Number.isNaN(copy.getTime())) return isoToday();
+      copy.setHours(0,0,0,0);
+      return copy.toISOString().slice(0,10);
+    }
+    if(typeof value === 'number' && Number.isFinite(value)){
+      const parsed = new Date(value);
+      if(!Number.isNaN(parsed.getTime())){
+        parsed.setHours(0,0,0,0);
+        return parsed.toISOString().slice(0,10);
+      }
+    }
+    if(typeof value === 'string' && value.trim()){
+      const parsed = new Date(value);
+      if(!Number.isNaN(parsed.getTime())){
+        parsed.setHours(0,0,0,0);
+        return parsed.toISOString().slice(0,10);
+      }
+    }
+    return isoToday();
+  }
+
+  function ensureContactFollowUp(body, context){
+    if(!body) return;
+    const shell = body.querySelector('[data-role="contact-followup"]');
+    if(!shell) return;
+    const trigger = shell.querySelector('[data-role="contact-followup-trigger"]');
+    const form = shell.querySelector('[data-role="contact-followup-form"]');
+    const dueInput = shell.querySelector('[data-role="contact-followup-due"]');
+    const noteInput = shell.querySelector('[data-role="contact-followup-note"]');
+    const cancelBtn = shell.querySelector('[data-role="contact-followup-cancel"]');
+    const saveBtn = shell.querySelector('[data-role="contact-followup-save"]');
+    if(!trigger || !form || !dueInput || !saveBtn) return;
+
+    let ctx = context && typeof context === 'object' ? { ...context } : {};
+    const state = shell.__followupState || { open:false, saving:false };
+    shell.__followupState = state;
+
+    const getContactId = ()=>{
+      if(ctx && ctx.record && ctx.record.id) return String(ctx.record.id);
+      const hidden = body.querySelector('#c-id');
+      return hidden ? String(hidden.value||'').trim() : '';
+    };
+    const computeName = ()=>{
+      const first = body.querySelector('#c-first')?.value?.trim() || '';
+      const last = body.querySelector('#c-last')?.value?.trim() || '';
+      const combined = `${first} ${last}`.trim();
+      if(combined) return combined;
+      if(ctx && ctx.record){
+        const fallbackFirst = ctx.record.first ? String(ctx.record.first).trim() : '';
+        const fallbackLast = ctx.record.last ? String(ctx.record.last).trim() : '';
+        const fallbackCombined = `${fallbackFirst} ${fallbackLast}`.trim();
+        if(fallbackCombined) return fallbackCombined;
+        if(ctx.record.name) return String(ctx.record.name).trim();
+      }
+      return 'Contact';
+    };
+    const computeStage = ()=> body.querySelector('#c-stage')?.value || (ctx && ctx.record && ctx.record.stage) || '';
+    const computeStatus = ()=> body.querySelector('#c-status')?.value || (ctx && ctx.record && ctx.record.status) || '';
+    const computeDefaultDue = ()=>{
+      const field = body.querySelector('#c-nexttouch');
+      if(field && field.value){
+        return normalizeDateInput(field.value);
+      }
+      if(ctx && ctx.record && ctx.record.nextFollowUp){
+        return normalizeDateInput(ctx.record.nextFollowUp);
+      }
+      return normalizeDateInput();
+    };
+    const hideForm = ()=>{
+      state.open = false;
+      form.hidden = true;
+      form.style.display = 'none';
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+    const showForm = ()=>{
+      if(state.saving) return;
+      state.open = true;
+      form.hidden = false;
+      form.style.display = 'flex';
+      trigger.setAttribute('aria-expanded', 'true');
+      dueInput.value = computeDefaultDue();
+      try{ dueInput.focus({ preventScroll: true }); }
+      catch (_err){
+        try{ dueInput.focus(); }
+        catch(__err){}
+      }
+    };
+    const updateAvailability = ()=>{
+      const id = getContactId();
+      const allowed = ctx && ctx.existing !== false;
+      const canUse = Boolean(id) && allowed;
+      trigger.disabled = !canUse;
+      trigger.title = canUse ? 'Schedule a follow-up task' : 'Save this contact before scheduling follow-ups';
+      if(!canUse){
+        hideForm();
+      }
+    };
+    if(!trigger.__followupHandler){
+      trigger.__followupHandler = true;
+      trigger.addEventListener('click', (event)=>{
+        event.preventDefault();
+        if(state.saving) return;
+        if(state.open) hideForm();
+        else showForm();
+      });
+    }
+    if(cancelBtn && !cancelBtn.__followupHandler){
+      cancelBtn.__followupHandler = true;
+      cancelBtn.addEventListener('click', (event)=>{
+        event.preventDefault();
+        if(state.saving) return;
+        hideForm();
+      });
+    }
+    if(noteInput && !noteInput.__followupAutosize){
+      noteInput.__followupAutosize = true;
+      noteInput.addEventListener('input', ()=>{
+        noteInput.style.height = 'auto';
+        const nextHeight = Math.min(160, noteInput.scrollHeight || 0);
+        if(nextHeight){
+          noteInput.style.height = `${nextHeight}px`;
+        }
+      });
+    }
+    if(!saveBtn.__followupHandler){
+      saveBtn.__followupHandler = true;
+      saveBtn.addEventListener('click', async (event)=>{
+        event.preventDefault();
+        if(state.saving) return;
+        if(ctx && ctx.existing === false){
+          notify('Save this contact before scheduling follow-ups.', 'warn');
+          return;
+        }
+        const contactId = getContactId();
+        if(!contactId){
+          notify('Save this contact before scheduling follow-ups.', 'warn');
+          return;
+        }
+        state.saving = true;
+        saveBtn.disabled = true;
+        trigger.disabled = true;
+        const iso = normalizeDateInput(dueInput.value);
+        const noteVal = noteInput ? noteInput.value || '' : '';
+        try{
+          const result = await createLinkedTask({
+            entity: 'contact',
+            recordId: contactId,
+            due: iso,
+            note: noteVal,
+            title: `Follow up with ${computeName()}`,
+            displayName: computeName(),
+            stage: computeStage(),
+            statusLabel: computeStatus()
+          });
+          if(result && result.status === 'ok'){
+            const follow = body.querySelector('#c-nexttouch');
+            if(follow){
+              follow.value = iso;
+              follow.dispatchEvent(new Event('input', { bubbles:true }));
+              follow.dispatchEvent(new Event('change', { bubbles:true }));
+            }
+            if(noteInput){ noteInput.value = ''; }
+            hideForm();
+            if(ctx && typeof ctx.updateSummary === 'function'){
+              try{ ctx.updateSummary(); }
+              catch (_err){}
+            }
+          }
+        }catch (err){
+          try{ console && console.warn && console.warn('contact follow-up task failed', err); }
+          catch(__err){}
+        }finally{
+          state.saving = false;
+          saveBtn.disabled = false;
+          updateAvailability();
+        }
+      });
+    }
+
+    updateAvailability();
+
+    shell.__followupContext = (next)=>{
+      ctx = next && typeof next === 'object' ? { ...next } : ctx || {};
+      updateAvailability();
+    };
   }
   function renderAvatarSpan(name, role){
     const initials = computeAvatarInitials(name);
@@ -385,6 +583,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       docStage:'application-started', pipelineMilestone:'Intro Call', preApprovalExpires:'', nextFollowUp:'',
       secondaryEmail:'', secondaryPhone:'', missingDocs:''
     };
+    const hasExistingRecord = Array.isArray(contacts) && contacts.some(item => item && String(item.id) === String(c.id));
     const opts = partners.map(p=>{
       const id = escape(String(p.id));
       const name = escape(p.name||'—');
@@ -452,6 +651,17 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           </div>
           <div class="modal-note" id="c-summary-note">
             Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
+          </div>
+          <div class="inline-followup" data-role="contact-followup" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+            <button type="button" class="btn ghost" data-role="contact-followup-trigger" aria-expanded="false">Schedule Follow-up</button>
+            <div data-role="contact-followup-form" hidden style="display:none;flex-direction:column;gap:8px;background:var(--surface-subdued,#f5f5f5);padding:12px;border-radius:8px;">
+              <label style="display:flex;flex-direction:column;gap:4px;">Due Date<input type="date" data-role="contact-followup-due"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;">Note (optional)<textarea data-role="contact-followup-note" rows="2" style="min-height:48px;resize:vertical;"></textarea></label>
+              <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" class="btn" data-role="contact-followup-cancel">Cancel</button>
+                <button type="button" class="btn brand" data-role="contact-followup-save">Add Task</button>
+              </div>
+            </div>
           </div>
         </aside>
         <div class="modal-main">
@@ -738,6 +948,8 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
     ensureReferredByButton();
 
+    ensureContactFollowUp(body, { record: c, existing: hasExistingRecord, updateSummary });
+
     const docListEl = $('#c-doc-list', body);
     const docSummaryEl = $('#c-doc-summary', body);
     const docMissingEl = $('#c-doc-missing', body);
@@ -986,6 +1198,10 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           }
         }
         Object.assign(c, u);
+        const followShell = body.querySelector('[data-role="contact-followup"]');
+        if(followShell && typeof followShell.__followupContext === 'function'){
+          followShell.__followupContext({ record: c, existing: true, updateSummary });
+        }
         try{
           if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
           if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
