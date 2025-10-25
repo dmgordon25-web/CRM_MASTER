@@ -14,6 +14,7 @@ export function renderPortfolioMixWidget(options = {}){
   const host = options.host || null;
   const countEl = options.countEl || null;
   if(!host) return;
+  if(host.dataset && host.dataset.dashHidden === 'true') return;
   const partners = Array.isArray(options.partners) ? options.partners : [];
   const safe = ensureSafe(options.safe);
   const colorForTier = ensureColorResolver(options.colorForTier);

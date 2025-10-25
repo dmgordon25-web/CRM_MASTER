@@ -74,6 +74,77 @@ const WIDGET_CARD_RESOLVERS = {
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
 
+const WIDGET_DOM_ID_MAP = {
+  focus: 'dashboard-focus',
+  filters: 'dashboard-filters',
+  kpis: 'dashboard-kpis',
+  pipeline: 'dashboard-pipeline-overview',
+  today: 'dashboard-today',
+  leaderboard: 'referral-leaderboard',
+  stale: 'dashboard-stale',
+  goalProgress: 'goal-progress-card',
+  numbersPortfolio: 'numbers-portfolio-card',
+  numbersReferrals: 'numbers-referrals-card',
+  numbersMomentum: 'numbers-momentum-card',
+  pipelineCalendar: 'pipeline-calendar-card',
+  priorityActions: 'priority-actions-card',
+  milestones: 'milestones-card',
+  docPulse: 'doc-pulse-card',
+  relationshipOpportunities: 'rel-opps-card',
+  clientCareRadar: 'nurture-card',
+  closingWatch: 'closing-watch-card',
+  docCenter: 'doc-center-card',
+  statusStack: 'dashboard-status-stack'
+};
+
+const WIDGET_ID_LOOKUP = new Map();
+
+function registerWidgetLookupId(value, key) {
+  if (!value || !key) return;
+  const normalized = String(value).trim();
+  if (!normalized) return;
+  if (!WIDGET_ID_LOOKUP.has(normalized)) {
+    WIDGET_ID_LOOKUP.set(normalized, key);
+  }
+  const lower = normalized.toLowerCase();
+  if (!WIDGET_ID_LOOKUP.has(lower)) {
+    WIDGET_ID_LOOKUP.set(lower, key);
+  }
+}
+
+Object.entries(WIDGET_DOM_ID_MAP).forEach(([key, domId]) => {
+  registerWidgetLookupId(domId, key);
+});
+
+function refreshWidgetIdLookup() {
+  if (!doc) return;
+  Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
+    let node = null;
+    try {
+      node = resolver();
+    } catch (_err) {
+      node = null;
+    }
+    if (!node) return;
+    registerWidgetLookupId(node.id, key);
+    const dataset = node.dataset || {};
+    ['dashWidget', 'widgetId', 'widget', 'widgetKey'].forEach(attr => {
+      if (!dataset[attr]) return;
+      registerWidgetLookupId(dataset[attr], key);
+    });
+  });
+}
+
+function resolveWidgetKeyFromId(rawId) {
+  if (rawId == null) return '';
+  const normalized = String(rawId).trim();
+  if (!normalized) return '';
+  const direct = WIDGET_ID_LOOKUP.get(normalized) || WIDGET_ID_LOOKUP.get(normalized.toLowerCase());
+  if (direct) return direct;
+  refreshWidgetIdLookup();
+  return WIDGET_ID_LOOKUP.get(normalized) || WIDGET_ID_LOOKUP.get(normalized.toLowerCase()) || '';
+}
+
 const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
 const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
 
@@ -683,6 +754,32 @@ function applyNodeVisibility(node, show) {
   }
 }
 
+function applyHiddenWidgetPrefs(hiddenList) {
+  refreshWidgetIdLookup();
+  const items = Array.isArray(hiddenList) ? hiddenList : [];
+  const hiddenKeys = new Set();
+  items.forEach(entry => {
+    const key = resolveWidgetKeyFromId(entry);
+    if (key) hiddenKeys.add(key);
+  });
+  const base = prefCache.value ? clonePrefs(prefCache.value) : defaultPrefs();
+  const next = clonePrefs(base);
+  let changed = false;
+  Object.keys(next.widgets).forEach(key => {
+    const visible = !hiddenKeys.has(key);
+    if (next.widgets[key] !== visible) {
+      next.widgets[key] = visible;
+      changed = true;
+    }
+  });
+  if (!changed && prefCache.value) return false;
+  prefCache.value = next;
+  prefCache.loading = null;
+  applySurfaceVisibility(next);
+  ensureWidgetDnD();
+  return true;
+}
+
 function applySurfaceVisibility(prefs) {
   const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
   const graphPrefs = prefs && typeof prefs.graphs === 'object' ? prefs.graphs : {};
@@ -776,6 +873,7 @@ function scheduleApply() {
   Promise.resolve().then(async () => {
     pendingApply = false;
     try {
+      refreshWidgetIdLookup();
       const prefs = await getSettingsPrefs();
       applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
@@ -784,6 +882,12 @@ function scheduleApply() {
     }
     ensureWidgetDnD();
   });
+}
+
+function handleHiddenChange(evt) {
+  const detail = evt && typeof evt === 'object' ? evt.detail : null;
+  const hidden = detail && Array.isArray(detail.hidden) ? detail.hidden : [];
+  applyHiddenWidgetPrefs(hidden);
 }
 
 function init() {
@@ -805,6 +909,7 @@ function init() {
   if (win) {
     win.addEventListener('hashchange', scheduleApply);
   }
+  doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
   doc.addEventListener('app:data:changed', evt => {
     const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
     if (scope === 'settings') invalidatePrefs();
