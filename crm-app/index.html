@@ -298,9 +298,22 @@
         <button class="btn pill" data-ics-source="closing-watch">Export .ics</button>
        </div>
       </div>
-      <ul class="insight-list spotlight" id="closing-watch">
-       —
+     <ul class="insight-list spotlight" id="closing-watch">
+      —
+     </ul>
+    </div>
+     <div class="card insight-card" id="favorites-card" data-has-favorites="0">
+      <div class="insight-head">
+       <div class="insight-icon favorites">⭐</div>
+       <div>
+        <h4>Favorites</h4>
+        <p class="muted">Starred partners and contacts</p>
+       </div>
+       <span class="count-badge" data-role="favorites-count">0</span>
+      </div>
+      <ul class="insight-list spotlight" data-role="favorites-list" id="favorites-list" hidden>
       </ul>
+      <div class="empty muted" data-role="favorites-empty">Star a contact or partner to pin them here.</div>
      </div>
     </section>
     <section class="card" id="doc-center-card">
@@ -1760,11 +1773,12 @@
       <div class="modal-body">
        <div class="modal-form-layout">
         <aside class="modal-summary" id="partner-summary">
-         <div class="summary-name" id="p-summary-name">
+         <div class="summary-name" id="p-summary-name" data-role="favorite-host" data-favorite-type="partner" data-record-id="">
           <span aria-hidden="true" class="initials-avatar is-empty" data-initials="?" data-role="summary-avatar"></span>
           <span class="summary-name-text" data-role="summary-name-text">
            New Partner
           </span>
+          <span class="summary-actions" data-role="favorite-actions"></span>
          </div>
          <div class="summary-meta">
           <span class="summary-chip" id="p-summary-tier">

@@ -20,6 +20,7 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
+import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 
 (function(){
@@ -227,6 +228,35 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
   }
   const $ = (sel, root=document) => root.querySelector(sel);
   const $all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  function ensureFavoriteColumn(table){
+    if(!table || !table.tHead || !table.tHead.rows || !table.tHead.rows[0]) return;
+    const head = table.tHead.rows[0];
+    const hasFavorite = Array.from(head.cells || []).some(cell => cell && cell.dataset && cell.dataset.column === 'favorite');
+    if(hasFavorite) return;
+    const th = document.createElement('th');
+    th.dataset.column = 'favorite';
+    th.className = 'favorite-col';
+    th.setAttribute('aria-label', 'Favorite');
+    th.title = 'Favorite';
+    th.innerHTML = '<span aria-hidden="true">★</span>';
+    th.style.width = '36px';
+    th.style.minWidth = '36px';
+    th.style.textAlign = 'center';
+    head.insertBefore(th, head.cells[1] || null);
+  }
+
+  function extractFavoritesSnapshot(rawSettings){
+    if(!rawSettings) return null;
+    if(Array.isArray(rawSettings)){
+      const record = rawSettings.find(entry => entry && entry.id === 'app:settings');
+      return record && record.favorites ? normalizeFavoriteSnapshot(record.favorites) : null;
+    }
+    if(rawSettings && typeof rawSettings === 'object' && rawSettings.favorites){
+      return normalizeFavoriteSnapshot(rawSettings.favorites);
+    }
+    return null;
+  }
 
   function stageInfo(value){
     const raw = value == null ? '' : String(value);
@@ -787,8 +817,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
   }
 
   function ensureWidgetClickHandlers(){
-    ['rel-opps','nurture','closing-watch','needs-attn','upcoming'].forEach(id=>{
-      const list = asEl(id);
+    ['rel-opps','nurture','closing-watch','needs-attn','upcoming','favorites-list'].forEach(listId=>{
+      const list = asEl(listId);
       if(list && !list.__wired){
         list.__wired = true;
         list.addEventListener('click', evt=>{
@@ -796,11 +826,21 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
           const item = evt.target.closest('li[data-id]');
           if(!item) return;
           evt.preventDefault();
-          const id = item.dataset.id;
-          if(!id) return;
-          const widgetKey = item.dataset.widget || id || 'widget';
+          const rawId = item.dataset.id;
+          const widgetKey = item.dataset.widget || listId || rawId || 'widget';
           const sourceHint = `dashboard:widget:${widgetKey}`;
-          dispatchContactModal(id, { sourceHint, trigger: item });
+          const itemKind = item.dataset.kind === 'partner' ? 'partner' : 'contact';
+          if(itemKind === 'partner'){
+            const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId || rawId;
+            if(partnerId){
+              dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
+            }
+          }else{
+            const contactId = item.getAttribute('data-contact-id') || item.dataset.contactId || rawId;
+            if(contactId){
+              dispatchContactModal(contactId, { sourceHint, trigger: item });
+            }
+          }
         });
       }
     });
@@ -829,9 +869,39 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
     exportWidgetIcs(source);
   });
 
+  function ensureFavoriteToggleHandlers(){
+    if(typeof document === 'undefined') return;
+    if(document.__favoriteToggleHandler) return;
+    const handler = evt => {
+      const target = evt.target && evt.target.closest ? evt.target.closest('[data-role="favorite-toggle"]') : null;
+      if(!target) return;
+      evt.preventDefault();
+      const busy = target.dataset.favoriteBusy === '1';
+      if(busy) return;
+      const type = target.dataset.favoriteType === 'partner' ? 'partner' : 'contact';
+      const id = target.getAttribute('data-record-id') || target.dataset.recordId || '';
+      if(!id) return;
+      target.dataset.favoriteBusy = '1';
+      Promise.resolve(toggleFavorite(type, id)).catch(err => {
+        try {
+          if(console && console.warn) console.warn('[favorites] toggle failed', err);
+        } catch (_warnErr) {}
+      }).finally(() => {
+        delete target.dataset.favoriteBusy;
+      });
+    };
+    document.addEventListener('click', handler);
+    document.__favoriteToggleHandler = handler;
+  }
+
+  ensureFavoriteToggleHandlers();
+
   function renderPartnersTable(partners){
-    const tbPartners = $('#tbl-partners tbody');
+    const table = document.getElementById('tbl-partners');
+    if(table) ensureFavoriteColumn(table);
+    const tbPartners = table && table.tBodies && table.tBodies[0] ? table.tBodies[0] : $('#tbl-partners tbody');
     if(!tbPartners) return;
+    const favoriteState = ensureFavoriteState();
     tbPartners.innerHTML = (partners||[]).map(p => {
       const pid = attr(p.id||'');
       const name = p.name || '—';
@@ -843,14 +913,19 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       const tierTone = colorForTier(tier) || null;
       const rowClasses = ['status-row','partner-tier-row'];
       if(tierToken) rowClasses.push(`tier-${tierToken}`);
+      const isFavorite = favoriteState.partners.has(String(p.id||''));
+      if(isFavorite) rowClasses.push('is-favorite');
       const rowToneAttr = tierToken ? ` data-row-tone="${attr(tierToken)}"` : '';
       const emailKey = attr(String(email||'').toLowerCase());
       const nameKey = attr(String(name||'').toLowerCase());
       const companyKey = attr(String(company||'').toLowerCase());
       const phoneKey = attr(String(phone||'').toLowerCase());
       const tierKey = attr(String(tier||'').toLowerCase());
-      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
+      const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('partner', p.id, isFavorite)}</td>`;
+      const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}"${favoriteAttr}>
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
+        ${favoriteCell}
         <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
     }).join('');
@@ -881,6 +956,9 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
     contactIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
     partnerIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
     window.__NAME_ID_MAP__ = nameLookup;
+    const favoritesSnapshot = extractFavoritesSnapshot(rawSettings) || { contacts: [], partners: [] };
+    applyFavoriteSnapshot(favoritesSnapshot);
+    const favoriteState = ensureFavoriteState();
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const contactById = new Map((contacts||[]).map(c=>[String(c.id), c]));
@@ -1291,7 +1369,109 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       }
     }
 
-    window.__WIDGET_DATA__ = { relOpportunities, nurtureCandidates, closingCandidates, pipelineEvents, attention, timeline };
+    const MAX_FAVORITE_WIDGET_ITEMS = 8;
+
+    function computeFavoriteRecords(){
+      const state = ensureFavoriteState();
+      const index = window.__RECORD_INDEX__ || {};
+      const contactEntries = index.contacts && index.contacts.byId instanceof Map ? index.contacts.byId : new Map();
+      const partnerEntries = index.partners && index.partners.byId instanceof Map ? index.partners.byId : new Map();
+      const records = [];
+      state.contacts.forEach(id => {
+        const meta = contactEntries.get(String(id));
+        const contact = meta && meta.record ? meta.record : null;
+        if(!contact) return;
+        const stageMeta = stageInfo(contact.stage);
+        const stageLabel = stageMeta.label || 'Stage';
+        const nextRaw = contact.nextFollowUp || contact.fundedDate || contact.lastContact || '';
+        const nextDate = toDate(nextRaw);
+        const nextLabel = nextDate ? `Next ${shortDate(nextDate)}` : '';
+        const amountLabel = Number(contact.loanAmount||0) ? money(contact.loanAmount) : '';
+        const subtitleParts = [];
+        if(nextLabel) subtitleParts.push(nextLabel);
+        if(amountLabel) subtitleParts.push(amountLabel);
+        records.push({
+          type: 'contact',
+          id: String(contact.id || ''),
+          name: fullName(contact) || '—',
+          subtitle: subtitleParts.filter(Boolean).join(' • ') || '—',
+          meta: stageLabel,
+          record: contact
+        });
+      });
+      state.partners.forEach(id => {
+        const meta = partnerEntries.get(String(id));
+        const partner = meta && meta.record ? meta.record : null;
+        if(!partner) return;
+        const tierLabel = partner.tier || 'Partner';
+        const companyLabel = partner.company || '';
+        const cadence = partner.cadence || '';
+        const subtitleParts = [];
+        if(companyLabel) subtitleParts.push(companyLabel);
+        if(cadence) subtitleParts.push(cadence);
+        records.push({
+          type: 'partner',
+          id: String(partner.id || ''),
+          name: partner.name || partner.company || '—',
+          subtitle: subtitleParts.filter(Boolean).join(' • ') || '—',
+          meta: tierLabel,
+          record: partner
+        });
+      });
+      records.sort((a,b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      return records;
+    }
+
+    function renderFavoritesWidget(){
+      if(typeof document === 'undefined') return;
+      const card = document.getElementById('favorites-card');
+      if(!card) return;
+      const listEl = card.querySelector('[data-role="favorites-list"]') || card.querySelector('#favorites-list');
+      if(!listEl) return;
+      const emptyEl = card.querySelector('[data-role="favorites-empty"]');
+      const countEl = card.querySelector('[data-role="favorites-count"]');
+      const favorites = computeFavoriteRecords();
+      if(countEl) countEl.textContent = String(favorites.length);
+      if(!favorites.length){
+        listEl.innerHTML = '';
+        listEl.hidden = true;
+        if(emptyEl) emptyEl.hidden = false;
+        card.setAttribute('data-has-favorites', '0');
+        return;
+      }
+      const itemsHtml = favorites.slice(0, MAX_FAVORITE_WIDGET_ITEMS).map(item => {
+        const idAttr = attr(item.id || '');
+        const attrs = [`data-id="${idAttr}"`, 'data-widget="favorites"', `data-kind="${item.type === 'partner' ? 'partner' : 'contact'}"`];
+        if(item.type === 'partner'){
+          attrs.push(`data-partner-id="${idAttr}"`);
+        }else{
+          attrs.push(`data-contact-id="${idAttr}"`);
+        }
+        const avatar = initials(item.name);
+        const subtitle = item.subtitle ? safe(item.subtitle) : '—';
+        const metaLabel = item.meta ? safe(item.meta) : (item.type === 'partner' ? 'Partner' : 'Contact');
+        return `<li ${attrs.join(' ')}>
+        <div class="list-main">
+          <span class="insight-avatar">${safe(avatar)}</span>
+          <div>
+            <div class="insight-title">${safe(item.name)}</div>
+            <div class="insight-sub">${subtitle}</div>
+          </div>
+        </div>
+        <div class="insight-meta">${metaLabel}</div>
+      </li>`;
+      }).join('');
+      listEl.innerHTML = itemsHtml;
+      listEl.hidden = false;
+      if(emptyEl) emptyEl.hidden = true;
+      card.setAttribute('data-has-favorites', '1');
+    }
+
+    window.renderFavoritesWidget = renderFavoritesWidget;
+
+    const favoritesForWidget = computeFavoriteRecords();
+    window.__WIDGET_DATA__ = { relOpportunities, nurtureCandidates, closingCandidates, pipelineEvents, attention, timeline, favorites: favoritesForWidget };
+    renderFavoritesWidget();
     ensureWidgetClickHandlers();
 
     const tablesHost = document.querySelector('.status-stack');
@@ -1315,8 +1495,13 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
 
     ensurePipelineLegend();
 
-    const tbPipe = $('#tbl-pipeline tbody'); if(tbPipe){
+    const tblPipeline = document.getElementById('tbl-pipeline');
+    if(tblPipeline) ensureFavoriteColumn(tblPipeline);
+    const tbPipe = tblPipeline && tblPipeline.tBodies && tblPipeline.tBodies[0] ? tblPipeline.tBodies[0] : $('#tbl-pipeline tbody');
+    if(tbPipe){
       tbPipe.innerHTML = pipe.map(c => {
+        const contactId = String(c.id||'');
+        const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
         const stageMeta = stageInfo(c.stage);
         const stageAttr = attr(stageMeta.normalizedKey);
@@ -1326,6 +1511,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         const stageTone = colorForStage(stageToneKey);
         const rowClasses = ['status-row','contact-stage-row'];
         if(stageClass) rowClasses.push(`stage-${stageClass}`);
+        const isFavorite = favoriteState.contacts.has(contactId);
+        if(isFavorite) rowClasses.push('is-favorite');
         const rowToneAttr = stageClass ? ` data-row-tone="${attr(stageClass)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
@@ -1342,15 +1529,23 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}">
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
+        const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
+        ${favoriteCell}
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
       }).join('');
     }
-    const tbClients = $('#tbl-clients tbody'); if(tbClients){
+    const tblClients = document.getElementById('tbl-clients');
+    if(tblClients) ensureFavoriteColumn(tblClients);
+    const tbClients = tblClients && tblClients.tBodies && tblClients.tBodies[0] ? tblClients.tBodies[0] : $('#tbl-clients tbody');
+    if(tbClients){
       tbClients.innerHTML = clientsTbl.map(c => {
+        const contactId = String(c.id||'');
+        const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
         const stageMeta = stageInfo(c.stage);
         const stageAttr = attr(stageMeta.normalizedKey);
@@ -1360,6 +1555,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         const stageTone = colorForStage(stageToneKey);
         const rowClasses = ['status-row','contact-stage-row'];
         if(stageClass) rowClasses.push(`stage-${stageClass}`);
+        const isFavorite = favoriteState.contacts.has(contactId);
+        if(isFavorite) rowClasses.push('is-favorite');
         const rowToneAttr = stageClass ? ` data-row-tone="${attr(stageClass)}"` : '';
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
@@ -1377,15 +1574,23 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}">
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
+        const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
+        ${favoriteCell}
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
       }).join('');
     }
-    const tbLs = $('#tbl-longshots tbody'); if(tbLs){
+    const tblLongshots = document.getElementById('tbl-longshots');
+    if(tblLongshots) ensureFavoriteColumn(tblLongshots);
+    const tbLs = tblLongshots && tblLongshots.tBodies && tblLongshots.tBodies[0] ? tblLongshots.tBodies[0] : $('#tbl-longshots tbody');
+    if(tbLs){
       tbLs.innerHTML = lshot.map(c => {
+        const contactId = String(c.id||'');
+        const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
         const loanLabel = c.loanType || c.loanProgram || '';
         const loanAttr = attr(String(loanLabel).toLowerCase());
@@ -1398,6 +1603,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         const longshotTone = colorForStage(longshotStageKey) || colorForStage('long shot');
         const rowClasses = ['status-row','contact-stage-row'];
         if(longshotClass) rowClasses.push(`stage-${longshotClass}`);
+        const isFavorite = favoriteState.contacts.has(contactId);
+        if(isFavorite) rowClasses.push('is-favorite');
         const rowToneAttr = longshotClass ? ` data-row-tone="${attr(longshotClass)}"` : '';
         const lastIso = attr(isoDate(c.lastContact || c.nextFollowUp) || '');
         const refTokens = [];
@@ -1409,8 +1616,11 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${attr(c.id||'')}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}">
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${attr(c.id||'')}"></td>
+        const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
+        const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>
+        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
+        ${favoriteCell}
         <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
         <td>${safe(loanLabel||'')}</td><td>${amountVal ? money(amountVal) : '—'}</td>
         <td>${safe(c.referredBy||'')}</td><td>${safe(c.lastContact||'')}</td></tr>`;

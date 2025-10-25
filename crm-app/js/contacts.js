@@ -11,6 +11,7 @@ import {
 } from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
+import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -410,12 +411,23 @@ import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessag
     const lastName = String(c.last||'').trim();
     const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
     const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
+    const favoriteState = ensureFavoriteState();
+    const isFavoriteContact = favoriteState.contacts.has(String(c.id || ''));
+    const favoriteToggleHtml = renderFavoriteToggle('contact', c.id, isFavoriteContact);
+    const summaryClasses = ['summary-name'];
+    if(isFavoriteContact) summaryClasses.push('is-favorite');
+    const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
+    const summaryIdAttr = escape(c.id || '');
     body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id||'')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last||'')}">
       <div class="modal-form-layout">
         <aside class="modal-summary">
-          <div class="summary-name">${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span></div>
+          <div class="${summaryClasses.join(' ')}" data-role="favorite-host" data-favorite-type="contact" data-record-id="${summaryIdAttr}"${summaryFavoriteAttr}>
+            ${summaryAvatarMarkup}
+            <span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span>
+            <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
+          </div>
           <div class="summary-meta">
             <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
             ${statusPillHtml}
@@ -643,6 +655,13 @@ import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessag
       if(summaryName){
         const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
         const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+        const idInput = $('#c-id', body);
+        const recordIdVal = idInput ? String(idInput.value || '') : '';
+        summaryName.dataset.favoriteType = 'contact';
+        summaryName.dataset.recordId = recordIdVal;
+        summaryName.setAttribute('data-role', 'favorite-host');
+        summaryName.setAttribute('data-favorite-type', 'contact');
+        summaryName.setAttribute('data-record-id', recordIdVal);
         const label = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
         if(summaryText){ summaryText.textContent = label; }
         else { summaryName.textContent = label; }
