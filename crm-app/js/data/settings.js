@@ -10,7 +10,9 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
   goalProgress: 'goal-progress-card',
-  numbersGlance: 'numbers-glance-card',
+  numbersPortfolio: 'numbers-portfolio-card',
+  numbersReferrals: 'numbers-referrals-card',
+  numbersMomentum: 'numbers-momentum-card',
   pipelineCalendar: 'pipeline-calendar-card',
   priorityActions: 'priority-actions-card',
   milestones: 'milestones-card',
@@ -43,7 +45,7 @@ const DASHBOARD_WIDGET_ID_MAP = (() => {
   return map;
 })();
 
-const DASHBOARD_GRAPH_KEYS = ['goalProgress', 'numbersGlance', 'pipelineCalendar'];
+const DASHBOARD_GRAPH_KEYS = ['goalProgress', 'numbersPortfolio', 'numbersMomentum', 'pipelineCalendar'];
 const DASHBOARD_WIDGET_CARD_KEYS = [
   'priorityActions',
   'milestones',
@@ -326,7 +328,7 @@ function shouldValidateGeneral(partial){
     const widgets = Object.assign({}, defaults.widgets);
     if(typeof widgetsSource.insights === 'boolean'){
       const value = widgetsSource.insights;
-      ['goalProgress','numbersGlance','pipelineCalendar','priorityActions','milestones','docPulse'].forEach(key => {
+      ['goalProgress','numbersPortfolio','numbersReferrals','numbersMomentum','pipelineCalendar','priorityActions','milestones','docPulse'].forEach(key => {
         if(typeof widgetsSource[key] !== 'boolean') widgets[key] = value;
       });
     }
@@ -339,10 +341,22 @@ function shouldValidateGeneral(partial){
     Object.keys(widgets).forEach(key => {
       if(typeof widgetsSource[key] === 'boolean') widgets[key] = widgetsSource[key];
     });
+    if(typeof widgetsSource.numbersGlance === 'boolean'){
+      const legacyValue = widgetsSource.numbersGlance;
+      ['numbersPortfolio','numbersReferrals','numbersMomentum'].forEach(key => {
+        if(typeof widgetsSource[key] !== 'boolean') widgets[key] = legacyValue;
+      });
+    }
     const graphs = Object.assign({}, defaults.graphs);
     Object.keys(graphs).forEach(key => {
       if(typeof graphSource[key] === 'boolean') graphs[key] = graphSource[key];
     });
+    if(typeof graphSource.numbersGlance === 'boolean'){
+      const legacyValue = graphSource.numbersGlance;
+      ['numbersPortfolio','numbersMomentum'].forEach(key => {
+        if(typeof graphSource[key] !== 'boolean') graphs[key] = legacyValue;
+      });
+    }
     const widgetCards = Object.assign({}, defaults.widgetCards);
     Object.keys(widgetCards).forEach(key => {
       if(typeof widgetCardSource[key] === 'boolean') widgetCards[key] = widgetCardSource[key];
@@ -369,6 +383,16 @@ function shouldValidateGeneral(partial){
         key = lower;
       }else if(DASHBOARD_WIDGET_ID_MAP.has(lower)){
         key = DASHBOARD_WIDGET_ID_MAP.get(lower);
+      }else{
+        const normalized = lower.replace(/[^a-z0-9]+/g, '');
+        if(normalized === 'numbersglance' || normalized === 'numbersglancecard'){
+          ['numbersPortfolio','numbersReferrals','numbersMomentum'].forEach(legacyKey => {
+            if(seen.has(legacyKey)) return;
+            seen.add(legacyKey);
+            next.push(legacyKey);
+          });
+          return;
+        }
       }
       if(key && !seen.has(key)){
         seen.add(key);

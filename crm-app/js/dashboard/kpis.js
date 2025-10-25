@@ -113,7 +113,8 @@ function renderPipelineTiles(){
   if(!totals) return;
   const container = ensureTileContainer(host);
   container.innerHTML = '';
-  const frag = document.createDocumentFragment();
+  const supportsFragment = typeof document.createDocumentFragment === 'function';
+  const frag = supportsFragment ? document.createDocumentFragment() : null;
   GROUP_DEFS.forEach(def => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -140,9 +141,15 @@ function renderPipelineTiles(){
     card.appendChild(valueEl);
     card.appendChild(labelEl);
     button.appendChild(card);
-    frag.appendChild(button);
+    if (frag) {
+      frag.appendChild(button);
+    } else {
+      container.appendChild(button);
+    }
   });
-  container.appendChild(frag);
+  if (frag) {
+    container.appendChild(frag);
+  }
 }
 
 let pending = false;
