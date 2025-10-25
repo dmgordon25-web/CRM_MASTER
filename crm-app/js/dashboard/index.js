@@ -1,6 +1,7 @@
 import { makeDraggableGrid } from '../ui/drag_core.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
+import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -162,6 +163,38 @@ const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
 const DASHBOARD_SKIP_CLICK_WINDOW = 350;
 
+function ensureDashboardLegend(){
+  if(!doc) return;
+  const header = doc.getElementById('dashboard-header');
+  if(!header || header.__legendAttached) return;
+  if(typeof header.querySelector !== 'function' || typeof header.appendChild !== 'function'){
+    header.__legendAttached = true;
+    return;
+  }
+  const legend = createLegendPopover({
+    id: 'dashboard-stage-legend',
+    summaryLabel: 'Legend',
+    summaryAriaLabel: 'Dashboard color legend',
+    title: 'Stage colors',
+    entries: STAGE_LEGEND_ENTRIES,
+    note: 'Status pills reuse these tones for Active, Client, Lost, and Paused states.'
+  });
+  if(!legend) return;
+  const canInsertBefore = typeof header.insertBefore === 'function';
+  const scopeGroup = typeof header.querySelector === 'function' ? header.querySelector('[role="group"][aria-label]') : null;
+  if(scopeGroup && canInsertBefore){
+    header.insertBefore(legend, scopeGroup);
+  }else{
+    const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
+    if(grow && grow.parentElement === header && canInsertBefore){
+      header.insertBefore(legend, grow.nextSibling);
+    }else{
+      header.appendChild(legend);
+    }
+  }
+  header.__legendAttached = true;
+}
+
 function normalizeOrderList(input) {
   if (!Array.isArray(input)) return [];
   return input
@@ -303,8 +336,8 @@ function ensureWidgetHandle(node) {
   const handle = doc.createElement('button');
   handle.type = 'button';
   handle.className = 'dash-drag-handle';
-  handle.setAttribute('aria-label', 'Drag widget');
-  handle.title = 'Drag to reorder';
+  handle.setAttribute('aria-label', 'Drag widget to reorder');
+  handle.title = 'Drag to reorder widgets';
   const icon = doc.createElement('span');
   icon.setAttribute('aria-hidden', 'true');
   icon.textContent = '⠿';
@@ -911,6 +944,7 @@ function scheduleApply() {
   Promise.resolve().then(async () => {
     pendingApply = false;
     try {
+      ensureDashboardLegend();
       refreshWidgetIdLookup();
       const prefs = await getSettingsPrefs();
       applySurfaceVisibility(prefs);

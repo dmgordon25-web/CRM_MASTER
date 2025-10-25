@@ -529,7 +529,11 @@ function syncActionBarVisibility(selCount, explicitEl) {
   if (ready && numeric > 0 && _isActuallyVisible(bar)) {
     bar.setAttribute('data-visible', '1');
   } else {
-    bar.removeAttribute('data-visible');
+    if (typeof bar.removeAttribute === 'function') {
+      bar.removeAttribute('data-visible');
+    } else {
+      bar.setAttribute('data-visible', '0');
+    }
   }
 }
 
@@ -582,7 +586,11 @@ function markActionbarHost() {
   }
   setActionsReady(true);
   if (bar.hasAttribute('data-visible') && bar.getAttribute('data-visible') !== '1') {
-    bar.removeAttribute('data-visible');
+    if (typeof bar.removeAttribute === 'function') {
+      bar.removeAttribute('data-visible');
+    } else {
+      bar.setAttribute('data-visible', '0');
+    }
   }
   requestVisibilityRefresh();
   syncActionBarVisibility(globalWiringState.selectedCount || 0, bar);

@@ -654,6 +654,22 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
 .legend-chip.loan.loan-investor{background:#fee2e2;border-color:#fecaca;color:#991b1b}
 .legend-chip.loan.loan-reverse{background:#fce7f3;border-color:#fbcfe8;color:#9d174d}
 .legend-chip.loan.loan-other{background:#e2e8f0;border-color:#cbd5f5;color:#334155}
+.legend-inline-row{display:flex;justify-content:flex-end;gap:8px}
+.legend-popover{position:relative;display:inline-block;font-size:12px}
+.legend-popover:not([open])>.legend-content{display:none}
+.legend-summary{list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border-radius:999px;font-weight:600;color:#1d4ed8;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28);transition:background .2s ease,border-color .2s ease}
+.legend-summary::-webkit-details-marker{display:none}
+.legend-summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.legend-popover[open]>.legend-content{display:flex}
+.legend-content{position:absolute;right:0;margin-top:8px;min-width:240px;padding:14px;border-radius:14px;background:#fff;border:1px solid rgba(148,163,184,.35);box-shadow:0 18px 36px rgba(15,23,42,.18);display:flex;flex-direction:column;gap:10px;z-index:20}
+.legend-title{font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#334155}
+.legend-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.legend-item{display:flex;gap:10px;align-items:flex-start}
+.legend-item-body{display:flex;flex-direction:column;gap:2px;font-size:12px;color:#334155;line-height:1.35}
+.legend-item-title{font-weight:700;color:#0f172a}
+.legend-item-desc{font-size:12px;color:#475569}
+.legend-swatch{width:14px;height:14px;border-radius:999px;flex:0 0 14px;margin-top:3px;background:var(--legend-swatch-color,#cbd5f5);box-shadow:0 0 0 1px rgba(15,23,42,.12)}
+.legend-note{font-size:11px;color:#64748b;margin:0}
 
 .cal-badge{display:block;margin:2px 0;padding:2px 4px;border-radius:4px}
 .cal-more{background:none;border:0;cursor:pointer;text-decoration:underline}

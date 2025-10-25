@@ -1,5 +1,6 @@
 import { normalizeStatus } from '../pipeline/constants.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
+import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -1208,6 +1209,7 @@ function toggleWindow(lensState, open){
   if(toggle){
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.textContent = open ? 'Hide' : 'Show';
+    toggle.title = open ? 'Hide results' : 'Show results';
   }
   ensureLayout();
   state.layout.open[lensState.config.key] = open;
@@ -1347,6 +1349,8 @@ function buildWindow(lensState){
   toggleBtn.className = 'btn';
   toggleBtn.setAttribute('aria-expanded', lensState.open ? 'true' : 'false');
   toggleBtn.textContent = lensState.open ? 'Hide' : 'Show';
+  toggleBtn.setAttribute('aria-label', `Toggle ${config.label} window`);
+  toggleBtn.title = lensState.open ? 'Hide results' : 'Show results';
   toggleBtn.addEventListener('click', () => {
     toggleWindow(lensState, !lensState.open);
   });
@@ -1356,6 +1360,8 @@ function buildWindow(lensState){
   runBtn.type = 'button';
   runBtn.className = 'btn brand';
   runBtn.textContent = 'Run';
+  runBtn.setAttribute('aria-label', `Run ${config.label} query`);
+  runBtn.title = 'Run query now';
   runBtn.addEventListener('click', () => {
     state.layout.lastActive = lensState.config.key;
     scheduleLayoutSave();
@@ -1367,6 +1373,8 @@ function buildWindow(lensState){
   saveBtn.type = 'button';
   saveBtn.className = 'btn';
   saveBtn.textContent = 'Save Query';
+  saveBtn.setAttribute('aria-label', 'Save this query configuration');
+  saveBtn.title = 'Save this query';
   saveBtn.addEventListener('click', () => {
     const name = window.prompt('Save query as', lensState.savedQueryId ? (state.savedQueries.find((entry) => entry.id === lensState.savedQueryId)?.name || '') : '');
     if(name == null) return;
@@ -1405,6 +1413,8 @@ function buildWindow(lensState){
   exportBtn.type = 'button';
   exportBtn.className = 'btn';
   exportBtn.textContent = 'Export CSV';
+  exportBtn.setAttribute('aria-label', 'Export visible rows to CSV');
+  exportBtn.title = 'Export visible rows to CSV';
   exportBtn.addEventListener('click', () => handleExport(lensState));
   header.appendChild(exportBtn);
 
@@ -1430,6 +1440,8 @@ function buildWindow(lensState){
   addFilterBtn.type = 'button';
   addFilterBtn.className = 'btn';
   addFilterBtn.textContent = 'Add Filter';
+  addFilterBtn.setAttribute('aria-label', 'Add filter row');
+  addFilterBtn.title = 'Add filter row';
   addFilterBtn.addEventListener('click', () => addFilter(lensState));
   filterRow.appendChild(addFilterBtn);
 
@@ -1593,6 +1605,22 @@ function buildShell(){
   root.style.display = 'flex';
   root.style.flexDirection = 'column';
   root.style.gap = '16px';
+  const legendDoc = root.ownerDocument || document;
+  const legend = createLegendPopover({
+    document: legendDoc,
+    id: 'workbench-stage-legend',
+    summaryLabel: 'Legend',
+    summaryAriaLabel: 'Workbench color legend',
+    title: 'Stage colors',
+    entries: STAGE_LEGEND_ENTRIES,
+    note: 'Row highlights reuse the same pipeline stage colors and status pills share these tones.'
+  });
+  if(legend){
+    const wrap = legendDoc.createElement('div');
+    wrap.className = 'legend-inline-row';
+    wrap.appendChild(legend);
+    root.appendChild(wrap);
+  }
   ensureLensStates();
   state.lensStates.forEach((lensState) => {
     const section = buildWindow(lensState);

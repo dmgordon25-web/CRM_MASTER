@@ -55,7 +55,7 @@
      <button class="btn" id="btn-open-settings" type="button">
       Settings
      </button>
-     <button class="btn" data-quick-add id="quick-add" type="button">
+     <button class="btn" data-quick-add id="quick-add" type="button" aria-label="Open Quick Add menu" title="Open Quick Add menu">
       Quick Add
      </button>
      <div class="dropdown" id="notif-wrap" style="position:relative">
@@ -541,7 +541,7 @@
       <strong>
        Partners
       </strong>
-      <button class="btn brand" id="btn-add-partner">
+      <button class="btn brand" id="btn-add-partner" aria-label="Add partner" title="Add partner">
        <span aria-hidden="true" class="btn-icon">+</span>
        <span class="btn-label">Add Partner</span>
       </button>
@@ -704,10 +704,10 @@
       </span>
       <span class="grow">
       </span>
-      <button class="btn" id="btn-add-doc-template">
+      <button class="btn" id="btn-add-doc-template" aria-label="Create new document template" title="Create new document template">
        New Doc Template
       </button>
-      <button class="btn" id="btn-add-msg-template">
+      <button class="btn" id="btn-add-msg-template" aria-label="Create new message template" title="Create new message template">
        New Message Template
       </button>
       <button class="btn" id="btn-export-templates">
@@ -929,7 +929,7 @@
        <button class="btn" data-ui="calendar-export-ics" type="button">
         Export .ics
        </button>
-       <button class="btn" data-ui="calendar-export-csv" type="button">
+       <button class="btn" data-ui="calendar-export-csv" type="button" aria-label="Export calendar to CSV" title="Export calendar to CSV">
         Export CSV
        </button>
       </div>
@@ -1066,7 +1066,7 @@
       <button class="btn" id="rep-apply">
        Apply
       </button>
-      <button class="btn" id="rep-export">
+      <button class="btn" id="rep-export" aria-label="Export report results to CSV" title="Export report results to CSV">
        Export CSV
       </button>
      </div>
@@ -1137,7 +1137,7 @@
        <input id="comm-month" type="month"/>
       </label>
       <span class="grow"></span>
-      <button class="btn" id="btn-comm-export">Export CSV</button>
+      <button class="btn" id="btn-comm-export" aria-label="Export commission snapshot to CSV" title="Export commission snapshot to CSV">Export CSV</button>
      </div>
      <div class="commission-table" id="comm-table"></div>
     </section>
@@ -1182,7 +1182,7 @@
       <button class="btn" id="led-apply">
        Apply
       </button>
-      <button class="btn" id="led-export">
+      <button class="btn" id="led-export" aria-label="Export ledger to CSV" title="Export ledger to CSV">
        Export CSV
       </button>
      </div>
@@ -1295,7 +1295,7 @@
     <strong>Notifications Center</strong>
     <span class="badge-pill" id="notifications-count-pill" style="display:none"></span>
     <div class="grow"></div>
-    <button class="btn" id="notifications-export">Export CSV</button>
+    <button class="btn" id="notifications-export" aria-label="Export notifications to CSV" title="Export notifications to CSV">Export CSV</button>
    </div>
    <div class="muted" id="notifications-subhead">Queued notifications respect daily throttles per contact/event.</div>
    <div id="notif-filters" class="row" style="gap:12px;margin:12px 0;align-items:flex-end"></div>
@@ -1715,28 +1715,28 @@
      No contacts or partners in focus yet.
     </div>
     <div class="actionbar-actions">
-     <button class="btn" data-act="edit">
+     <button class="btn" data-act="edit" aria-label="Edit selected records" title="Edit selected records">
       Edit
      </button>
-     <button class="btn" data-act="merge">
+     <button class="btn" data-act="merge" aria-label="Merge selected records" title="Merge selected records">
       Merge (2)
      </button>
-     <button class="btn" data-act="emailTogether">
+     <button class="btn" data-act="emailTogether" aria-label="Email selected contacts together" title="Email selected contacts together">
       Email Together
      </button>
-     <button class="btn" data-act="emailMass">
+     <button class="btn" data-act="emailMass" aria-label="Start mass email copy" title="Start mass email copy">
       Email Mass (copy)
      </button>
-     <button class="btn" data-act="task">
+     <button class="btn" data-act="task" aria-label="Add task for selected records" title="Add task for selected records">
       Add Task
      </button>
-     <button class="btn" data-act="bulkLog">
+     <button class="btn" data-act="bulkLog" aria-label="Bulk log activity" title="Bulk log activity">
       Bulk Log
      </button>
-     <button class="btn" data-act="clear">
+     <button class="btn" data-act="clear" aria-label="Clear current selection" title="Clear current selection">
       Clear
      </button>
-    <button class="btn danger" data-act="delete">
+    <button class="btn danger" data-act="delete" aria-label="Delete selected records" title="Delete selected records">
      Delete
     </button>
    </div>

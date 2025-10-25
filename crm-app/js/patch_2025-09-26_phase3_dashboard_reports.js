@@ -1500,7 +1500,7 @@ function runPatch(){
             <span>${titleForReport(key)}</span>
           </strong>
           <span class="grow"></span>
-          <button class="btn" data-act="export-csv" data-report-key="${key}">Export CSV</button>
+          <button class="btn" data-act="export-csv" data-report-key="${key}" title="Export this report to CSV" aria-label="Export this report to CSV">Export CSV</button>
         </div>
         <div class="status-table-wrap">
           <table class="status-table">
