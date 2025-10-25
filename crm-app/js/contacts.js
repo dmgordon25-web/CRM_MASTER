@@ -109,6 +109,78 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
   const PIPELINE_MILESTONES = [
     'Intro Call','Application Sent','Application Submitted','UW in Progress','Conditions Out','Clear to Close','Docs Out','Funded / Post-Close'
   ];
+
+  function avatarCharToken(ch){
+    if(!ch) return '';
+    const upper = ch.toLocaleUpperCase();
+    const lower = ch.toLocaleLowerCase();
+    if(upper !== lower) return upper;
+    return /[0-9]/.test(ch) ? ch : '';
+  }
+  function computeAvatarInitials(name){
+    const parts = Array.from(String(name||'').trim().split(/\s+/).filter(Boolean));
+    if(!parts.length) return '';
+    const tokens = parts.map(part => {
+      const chars = Array.from(part);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token) return token;
+      }
+      return '';
+    }).filter(Boolean);
+    if(!tokens.length) return '';
+    let first = tokens[0] || '';
+    let second = '';
+    if(tokens.length>1){
+      second = tokens[tokens.length-1] || '';
+    }else{
+      const chars = Array.from(parts[0]).slice(1);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token){
+          second = token;
+          break;
+        }
+      }
+    }
+    const combined = (first + second).slice(0,2);
+    return combined || first || '';
+  }
+  function contactAvatarSource(contact){
+    if(!contact) return '';
+    const first = String(contact.first||'').trim();
+    const last = String(contact.last||'').trim();
+    if(first || last) return `${first} ${last}`.trim();
+    if(contact.name) return String(contact.name||'').trim();
+    if(contact.email) return String(contact.email||'').trim();
+    if(contact.company) return String(contact.company||'').trim();
+    return '';
+  }
+  function renderAvatarSpan(name, role){
+    const initials = computeAvatarInitials(name);
+    const classes = ['initials-avatar'];
+    if(!initials) classes.push('is-empty');
+    const roleAttr = role ? ` data-role="${escape(role)}"` : '';
+    const value = initials || '?';
+    return `<span class="${classes.join(' ')}"${roleAttr} aria-hidden="true" data-initials="${escape(value)}"></span>`;
+  }
+  function applyAvatar(el, name, fallback){
+    if(!el) return;
+    const initials = computeAvatarInitials(name);
+    if(initials){
+      el.dataset.initials = initials;
+      el.classList.remove('is-empty');
+      return;
+    }
+    const alt = computeAvatarInitials(fallback);
+    if(alt){
+      el.dataset.initials = alt;
+      el.classList.remove('is-empty');
+      return;
+    }
+    el.dataset.initials = '?';
+    el.classList.add('is-empty');
+  }
   const STATES = [
     {value:'', label:'Select state'},
     {value:'AL', label:'Alabama'},
@@ -333,12 +405,16 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
     const nextTouch = (c.nextFollowUp||'').slice(0,10) || (c.closingTimeline||'TBD');
     const stageSliderMarks = STAGE_FLOW.map((stage, idx)=> `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx+1}</span>`).join('');
     const stageSliderLabels = STAGE_FLOW.map(stage=> `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
+    const firstName = String(c.first||'').trim();
+    const lastName = String(c.last||'').trim();
+    const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
+    const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
     body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id||'')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last||'')}">
       <div class="modal-form-layout">
         <aside class="modal-summary">
-          <div class="summary-name">${escape((c.first||'') + (c.last?' '+c.last:'')) || 'New Contact'}</div>
+          <div class="summary-name">${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span></div>
           <div class="summary-meta">
             <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
             ${statusPillHtml}
@@ -563,7 +639,15 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
-      if(summaryName){ summaryName.textContent = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact'; }
+      if(summaryName){
+        const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+        const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+        const label = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
+        if(summaryText){ summaryText.textContent = label; }
+        else { summaryName.textContent = label; }
+        const avatarName = (firstVal||lastVal) ? label : '';
+        applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
+      }
       if(stageWrap){
         const canonicalKey = canonicalStage(stageVal) || canonicalStage(findLabel(STAGES, stageVal));
         if(canonicalKey){ stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }

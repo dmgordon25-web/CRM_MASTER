@@ -45,12 +45,54 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
   function fullName(c){ return [c.first,c.last].filter(Boolean).join(' ') || c.name || '—'; }
   function safe(v){ return String(v==null?'':v).replace(/[&<>]/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch])); }
   function attr(v){ return String(v==null?'':v).replace(/[&<>"']/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch])); }
+  function avatarCharToken(ch){
+    if(!ch) return '';
+    const upper = ch.toLocaleUpperCase();
+    const lower = ch.toLocaleLowerCase();
+    if(upper !== lower) return upper;
+    return /[0-9]/.test(ch) ? ch : '';
+  }
+  function computeInitialsToken(name){
+    const parts = Array.from(String(name||'').trim().split(/\s+/).filter(Boolean));
+    if(!parts.length) return '';
+    const tokens = parts.map(part => {
+      const chars = Array.from(part);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token) return token;
+      }
+      return '';
+    }).filter(Boolean);
+    if(!tokens.length) return '';
+    let first = tokens[0] || '';
+    let second = '';
+    if(tokens.length>1){
+      second = tokens[tokens.length-1] || '';
+    }else{
+      const chars = Array.from(parts[0]).slice(1);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token){
+          second = token;
+          break;
+        }
+      }
+    }
+    const combined = (first + second).slice(0,2);
+    return combined || first || '';
+  }
   function initials(name){
-    const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
-    if(!parts.length) return '—';
-    const first = parts[0][0] || '';
-    const last = parts.length>1 ? parts[parts.length-1][0] || '' : '';
-    return (first+last).toUpperCase() || first.toUpperCase() || '—';
+    return computeInitialsToken(name) || '—';
+  }
+  function renderAvatar(name){
+    const tokens = computeInitialsToken(name);
+    const classes = ['initials-avatar'];
+    let value = tokens;
+    if(!tokens){
+      classes.push('is-empty');
+      value = '?';
+    }
+    return `<span class="${classes.join(' ')}" aria-hidden="true" data-initials="${attr(value)}"></span>`;
   }
   function toDate(value){
     if(!value) return null;
@@ -809,7 +851,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       const tierKey = attr(String(tier||'').toLowerCase());
       return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}">
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
-        <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${safe(name)}</a></td>
+        <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
     }).join('');
     $all('#tbl-partners tbody tr').forEach(tr => {
@@ -1094,7 +1136,15 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
     const partnerMap = new Map(partners.map(p=>[String(p.id), p]));
     const isoDate = (value)=>{ const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0,10) : ''; };
     const displayDate = (value)=>{ const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString() : '—'; };
-    const contactLink = (c)=> `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-id="${attr(c.id||'')}">${safe(fullName(c))}</a>`;
+    const contactLink = (c)=> {
+      const nameParts = [];
+      if(c && c.first) nameParts.push(c.first);
+      if(c && c.last) nameParts.push(c.last);
+      const avatarSource = nameParts.length ? nameParts.join(' ') : (c && c.name) || '';
+      const avatar = renderAvatar(avatarSource);
+      const displayName = safe(fullName(c));
+      return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-id="${attr(c.id||'')}">${avatar}<span class="name-text">${displayName}</span></a>`;
+    };
 
     const relOpportunities = inpr.map(c=>{
       const lastTouch = toDate(c.lastContact || c.nextFollowUp);
