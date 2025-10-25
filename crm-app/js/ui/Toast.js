@@ -148,7 +148,8 @@
       host.setAttribute('data-has-action', 'true');
     }else{
       delete host.dataset.hasAction;
-      host.removeAttribute('data-has-action');
+      if(typeof host.removeAttribute === 'function') host.removeAttribute('data-has-action');
+      else host.setAttribute('data-has-action', 'false');
     }
     host.setAttribute('aria-live', variant === 'error' || variant === 'warn' ? 'assertive' : 'polite');
     host.setAttribute('aria-busy', variant === 'loading' ? 'true' : 'false');

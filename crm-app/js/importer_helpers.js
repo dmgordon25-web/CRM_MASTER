@@ -1,6 +1,10 @@
 /* P6d: Import helpers (deterministic None partner, hashing, dedupe) */
 (function(){
-  if (window.__IMPORT_HELPERS_V1__) return; window.__IMPORT_HELPERS_V1__ = true;
+  const globalScope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : null);
+  if(!globalScope) return;
+  const win = typeof window !== 'undefined' ? window : (globalScope.window || globalScope);
+  if(!globalScope.window) globalScope.window = win;
+  if (win.__IMPORT_HELPERS_V1__) return; win.__IMPORT_HELPERS_V1__ = true;
 
   function hash32(s){
     let h = 2166136261 >>> 0;
@@ -15,20 +19,20 @@
 
   const NONE_PARTNER_NAME = "None";
   const NONE_PARTNER_ID = uuidFromSeed("PARTNER:NONE:CANONICAL");
-  if (!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
+  if (!win.NONE_PARTNER_ID) win.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
   async function ensureNonePartner(){
     try {
       let existing = null;
-      if (typeof window.dbGet === 'function'){
-        existing = await window.dbGet('partners', NONE_PARTNER_ID);
+      if (typeof win.dbGet === 'function'){
+        existing = await win.dbGet('partners', NONE_PARTNER_ID);
       } else {
-        existing = await window.db?.get?.('partners', NONE_PARTNER_ID);
+        existing = await win.db?.get?.('partners', NONE_PARTNER_ID);
       }
       if (existing) return existing;
       const row = { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME, tier:'-', phone:'', email:'', createdAt: Date.now() };
-      if (typeof window.dbPut === 'function') await window.dbPut('partners', row);
-      else await window.db?.put?.('partners', row);
+      if (typeof win.dbPut === 'function') await win.dbPut('partners', row);
+      else await win.db?.put?.('partners', row);
       return row;
     } catch (e) { return { id: NONE_PARTNER_ID, name: NONE_PARTNER_NAME }; }
   }
@@ -44,5 +48,5 @@
     return { email, phone, name, city };
   }
 
-  window.IMPORT_HELPERS = { NONE_PARTNER_ID, ensureNonePartner, keyTuple };
+  win.IMPORT_HELPERS = { NONE_PARTNER_ID, ensureNonePartner, keyTuple };
 })();

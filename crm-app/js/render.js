@@ -13,6 +13,7 @@ import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_ed
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
+import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -114,6 +115,40 @@ import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momen
     if(tint) pieces.push(`--row-tint:${tint}`);
     if(hover) pieces.push(`--row-hover:${hover}`);
     return pieces.length ? ` style="${attr(pieces.join(';'))}"` : '';
+  }
+
+  function ensurePipelineLegend(){
+    if(typeof document === 'undefined') return;
+    const card = document.getElementById('kanban-card');
+    if(!card) return;
+    const header = card.querySelector('.row');
+    if(!header || header.__legendAttached) return;
+    if(typeof header.appendChild !== 'function'){
+      header.__legendAttached = true;
+      return;
+    }
+    const legend = createLegendPopover({
+      id: 'pipeline-stage-legend',
+      summaryLabel: 'Legend',
+      summaryAriaLabel: 'Pipeline color legend',
+      title: 'Stage colors',
+      entries: STAGE_LEGEND_ENTRIES,
+      note: 'Row highlights and Kanban chips share these pipeline colors.'
+    });
+    if(!legend) return;
+    const canInsertBefore = typeof header.insertBefore === 'function';
+    const controls = typeof header.querySelector === 'function' ? header.querySelector('.kanban-controls') : null;
+    if(controls && canInsertBefore){
+      header.insertBefore(legend, controls);
+    }else{
+      const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
+      if(grow && grow.parentElement === header && canInsertBefore){
+        header.insertBefore(legend, grow.nextSibling);
+      }else{
+        header.appendChild(legend);
+      }
+    }
+    header.__legendAttached = true;
   }
   function classToken(value){
     if(!value) return '';
@@ -1214,6 +1249,8 @@ import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momen
       }
       tablesHost.remove();
     }
+
+    ensurePipelineLegend();
 
     const tbPipe = $('#tbl-pipeline tbody'); if(tbPipe){
       tbPipe.innerHTML = pipe.map(c => {

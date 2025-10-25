@@ -137,13 +137,21 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
   const EVENT_ICON_FALLBACK = 'followup';
   const EVENT_ICON_CACHE = new Map();
 
+  function createSvgNode(tag){
+    if(typeof document === 'undefined') return null;
+    if(typeof document.createElementNS === 'function') return document.createElementNS(SVG_NS, tag);
+    return document.createElement(tag);
+  }
+
   function createEventIconSvg(key, path){
-    const svg = document.createElementNS(SVG_NS, 'svg');
+    const svg = createSvgNode('svg');
+    if(!svg) return null;
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('focusable', 'false');
     svg.dataset.iconKey = key;
-    const segment = document.createElementNS(SVG_NS, 'path');
+    const segment = createSvgNode('path');
+    if(!segment) return svg;
     segment.setAttribute('d', path);
     segment.setAttribute('fill', 'none');
     segment.setAttribute('stroke', 'currentColor');

@@ -7,7 +7,13 @@ const MODULE_LABEL = typeof __filename === 'string'
   : 'crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js';
 
 let __wired = false;
-function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
+function domReady(){
+  const doc = typeof document === 'undefined' ? null : document;
+  if (!doc) return Promise.resolve();
+  if(['complete','interactive'].includes(doc.readyState)) return Promise.resolve();
+  if (typeof doc.addEventListener !== 'function') return Promise.resolve();
+  return new Promise(r=>doc.addEventListener('DOMContentLoaded', r, {once:true}));
+}
 function ensureCRM(){ window.CRM = window.CRM || {}; window.CRM.health = window.CRM.health || {}; window.CRM.modules = window.CRM.modules || {}; }
 
 function runPatch(){
@@ -1133,7 +1139,7 @@ function runPatch(){
         <form method="dialog" class="modal-form-shell loss-modal">
           <div class="modal-header"><strong data-role="title">Reason</strong><button type="submit" data-action="cancel" class="btn">Cancel</button></div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding-top:12px">
-            <label>Loss Reason<select required></select></label>
+            <label data-required="true">Loss Reason<select aria-required="true" required></select></label>
             <div class="muted" data-role="error"></div>
           </div>
           <div class="modal-footer"><button class="btn brand" type="submit">Save</button></div>
@@ -1514,4 +1520,13 @@ export async function init(ctx){
 ensureCRM();
 window.CRM.modules['patch_2025-09-26_phase1_pipeline_partners'] = window.CRM.modules['patch_2025-09-26_phase1_pipeline_partners'] || {};
 window.CRM.modules['patch_2025-09-26_phase1_pipeline_partners'].init = init;
+
+if (typeof window !== 'undefined') {
+  const autoInit = () => { try { init(); } catch (_) {} };
+  if (typeof document !== 'undefined' && document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoInit, { once: true });
+  } else {
+    autoInit();
+  }
+}
 
