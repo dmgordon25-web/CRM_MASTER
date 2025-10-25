@@ -727,36 +727,7 @@ function ensureDashboardDragStyles() {
   const style = doc.createElement('style');
   style.id = DASHBOARD_STYLE_ID;
   style.textContent = `
-[data-ui="dashboard-root"].dash-grid-host {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  align-items: stretch;
-}
-
-@media (min-width: 64rem) {
-  [data-ui="dashboard-root"].dash-grid-host {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 90rem) {
-  [data-ui="dashboard-root"].dash-grid-host {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-[data-ui="dashboard-root"].dash-grid-host > #dashboard-header,
-[data-ui="dashboard-root"].dash-grid-host > .dash-full-width {
-  grid-column: 1 / -1;
-}
-
-[data-ui="dashboard-root"].dash-grid-host > section.grid,
-[data-ui="dashboard-root"].dash-grid-host > section.status-stack {
-  grid-column: 1 / -1;
-}
-
-[data-ui="dashboard-root"].dash-grid-host > [data-dash-widget] {
+[data-ui="dashboard-root"] > [data-dash-widget] {
   position: relative;
   min-width: 0;
   height: 100%;
@@ -779,7 +750,7 @@ function ensureDashboardDragStyles() {
   font-size: 18px;
   line-height: 1;
   cursor: grab;
-  z-index: 5;
+  z-index: 3;
   transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -846,6 +817,23 @@ function ensureDashboardDragStyles() {
   const head = doc.head || doc.getElementsByTagName('head')[0];
   if (head) {
     head.appendChild(style);
+  }
+}
+
+function applyDashboardLayoutClasses(container) {
+  if (!container || !container.classList) return;
+  if (container.classList.contains('dash-grid-host')) {
+    container.classList.remove('dash-grid-host');
+  }
+  if (!container.classList.contains('grid')) {
+    container.classList.add('grid');
+  }
+  if (!container.classList.contains('insights-grid')) {
+    container.classList.add('insights-grid');
+  }
+  const header = container.querySelector('#dashboard-header');
+  if (header && header.classList && !header.classList.contains('span-full')) {
+    header.classList.add('span-full');
   }
 }
 
@@ -1001,12 +989,13 @@ function findCanonicalWidgetKey(node, candidateKey, canonicalIndex) {
 }
 
 function ensureDashboardWidgets(container) {
+  applyDashboardLayoutClasses(container);
   const nodes = collectWidgetNodes(container);
-  if (!nodes.length) return nodes;
-  ensureDashboardDragStyles();
-  if (container && container.classList && !container.classList.contains('dash-grid-host')) {
-    container.classList.add('dash-grid-host');
+  if (!nodes.length) {
+    ensureDashboardDragStyles();
+    return nodes;
   }
+  ensureDashboardDragStyles();
   const canonicalIndex = buildCanonicalWidgetKeyIndex(container);
   const seen = new Set();
   nodes.forEach((node, index) => {
@@ -1032,8 +1021,16 @@ function ensureDashboardWidgets(container) {
     node.dataset.dashWidget = uniqueKey;
     node.setAttribute('data-dash-widget', uniqueKey);
     ensureWidgetHandle(node);
-    if (node.classList && (node.classList.contains('grid') || node.classList.contains('status-stack'))) {
-      node.classList.add('dash-full-width');
+    if (node.classList) {
+      if (node.classList.contains('dash-full-width')) {
+        node.classList.remove('dash-full-width');
+      }
+      if (node.classList.contains('grid') || node.classList.contains('status-stack')) {
+        node.classList.add('span-full');
+      }
+      if (!node.classList.contains('span-full') && node.dataset && node.dataset.dashWidget === 'statusStack') {
+        node.classList.add('span-full');
+      }
     }
   });
   return nodes;
@@ -1686,16 +1683,20 @@ function scheduleApply() {
 function handleHiddenChange(evt) {
   const detail = evt && typeof evt === 'object' ? evt.detail : null;
   const hidden = detail && Array.isArray(detail.hidden) ? detail.hidden : [];
-  applyHiddenWidgetPrefs(hidden);
-  persistDashboardOrderImmediate();
   const container = dashDnDState.container || getDashboardContainerNode();
   if (container) {
+    persistDashboardOrderImmediate();
+  }
+  const changed = applyHiddenWidgetPrefs(hidden);
+  if (container && changed) {
     ensureDashboardWidgets(container);
   }
-  if (dashDnDState.controller && typeof dashDnDState.controller.refresh === 'function') {
-    dashDnDState.controller.refresh();
-  } else {
-    ensureWidgetDnD();
+  if (changed) {
+    if (dashDnDState.controller && typeof dashDnDState.controller.refresh === 'function') {
+      dashDnDState.controller.refresh();
+    } else {
+      ensureWidgetDnD();
+    }
   }
   refreshTodayHighlightWiring();
 }

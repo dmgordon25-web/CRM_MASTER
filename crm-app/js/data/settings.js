@@ -662,7 +662,7 @@ function shouldValidateGeneral(partial){
         return clone(cache);
       }
     }
-    return save({ dashboardOrder: normalized });
+    return save({ dashboardOrder: normalized }, { silent: true });
   }
 
   async function refresh(){
