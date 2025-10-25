@@ -2,8 +2,8 @@
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
-import { toastError, toastSuccess, toastWarn } from './ui/toast_helpers.js';
-import { createFollowUpTask } from './tasks/api.js';
+import { toastError, toastSuccess } from './ui/toast_helpers.js';
+import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
 
@@ -139,6 +139,35 @@ function ensurePartnersBoot(ctx){
   initSelectionMirror();
   if (typeof document !== 'undefined'){
     document.addEventListener('DOMContentLoaded', initSelectionMirror);
+  }
+
+  function applyPartnerFavorite(detail){
+    const dialog = detail && detail.dialog ? detail.dialog : null;
+    const record = detail && detail.record ? detail.record : {};
+    if(!dialog) return;
+    const summaryName = dialog.querySelector('#p-summary-name');
+    if(!summaryName) return;
+    const partnerId = String(record && record.id ? record.id : '');
+    summaryName.dataset.favoriteType = 'partner';
+    summaryName.dataset.recordId = partnerId;
+    summaryName.setAttribute('data-role', 'favorite-host');
+    summaryName.setAttribute('data-favorite-type', 'partner');
+    summaryName.setAttribute('data-record-id', partnerId);
+    const isFavorite = ensureFavoriteState().partners.has(partnerId);
+    summaryName.classList.toggle('is-favorite', isFavorite);
+    if(isFavorite){
+      summaryName.setAttribute('data-favorite', '1');
+    }else{
+      summaryName.removeAttribute('data-favorite');
+    }
+    let actions = summaryName.querySelector('[data-role="favorite-actions"]');
+    if(!actions){
+      actions = document.createElement('span');
+      actions.className = 'summary-actions';
+      actions.dataset.role = 'favorite-actions';
+      summaryName.appendChild(actions);
+    }
+    actions.innerHTML = renderFavoriteToggle('partner', partnerId, isFavorite);
   }
 
   function installPartnerTouchLogging(detail){
@@ -667,7 +696,9 @@ function ensurePartnersBoot(ctx){
     if(document.__partnerTouchReadyListener) return;
     const handler = (event)=>{
       try{
-        installPartnerTouchLogging(event && event.detail ? event.detail : {});
+        const detail = event && event.detail ? event.detail : {};
+        installPartnerTouchLogging(detail);
+        applyPartnerFavorite(detail);
       }catch (err){
         try{ console && console.warn && console.warn('[partners] touch logging init failed', err); }
         catch(_err){}
