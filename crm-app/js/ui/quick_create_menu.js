@@ -477,11 +477,13 @@ export function bindQuickCreateMenu(root, options = {}) {
   const localBindings = new Map();
 
   function registerAnchor(anchor, source) {
-    if (!anchor || localBindings.has(anchor)) return;
+    if (!anchor || localBindings.has(anchor)) return false;
     const unbind = createAnchorBinding(anchor, source);
     if (typeof unbind === 'function') {
       localBindings.set(anchor, unbind);
+      return true;
     }
+    return false;
   }
 
   const toggles = Array.from(host.querySelectorAll(toggleSelector));
@@ -499,9 +501,11 @@ export function bindQuickCreateMenu(root, options = {}) {
       if (!anchor) {
         return;
       }
-      registerAnchor(anchor, ACTION_BAR_SOURCE);
+      const bound = registerAnchor(anchor, ACTION_BAR_SOURCE);
       event.preventDefault();
-      toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
+      if (bound) {
+        toggleQuickCreateMenu({ anchor, source: ACTION_BAR_SOURCE });
+      }
     };
     document.addEventListener('click', handleActionBarClick, false);
     const existing = document.querySelector(actionBarSelector);
