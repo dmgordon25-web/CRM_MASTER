@@ -13,6 +13,9 @@
     { key: 'cleared-to-close', label: 'CTC' },
     { key: 'funded', label: 'Funded' }
   ];
+  const STAGE_TOOLTIPS = new Map([
+    ['cleared-to-close', 'Cleared to Close']
+  ]);
   const DEFAULT_STAGE_KEY = STAGE_ITEMS[0].key;
 
   const KEY_TO_LABEL = new Map();
@@ -201,6 +204,8 @@
       btn.type = 'button';
       btn.setAttribute('data-stage', key);
       btn.textContent = stageLabel;
+      const tooltip = STAGE_TOOLTIPS.get(key) || stageLabel;
+      if (tooltip) btn.title = tooltip;
       btn.style.padding = '4px 8px';
       btn.style.fontSize = '12px';
       btn.style.borderRadius = '12px';

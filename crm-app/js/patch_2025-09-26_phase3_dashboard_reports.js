@@ -1234,7 +1234,7 @@ function runPatch(){
             <span class="muted">Contacts in stage longer than 14 days.</span>
           </div>
           <div class="status-table-wrap">
-            <table class="status-table">
+            <table class="status-table table">
               <thead>
                 <tr><th>Borrower</th><th>Stage</th><th>Days in Stage</th><th>Partner(s)</th></tr>
               </thead>
@@ -1503,7 +1503,7 @@ function runPatch(){
           <button class="btn" data-act="export-csv" data-report-key="${key}" title="Export this report to CSV" aria-label="Export this report to CSV">Export CSV</button>
         </div>
         <div class="status-table-wrap">
-          <table class="status-table">
+          <table class="status-table table">
             <thead><tr>${headerHtml}</tr></thead>
             <tbody>${bodyHtml}</tbody>
           </table>
