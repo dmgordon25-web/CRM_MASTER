@@ -538,7 +538,7 @@ function renderTemplatePickerList(modal, items){
   pickerList.innerHTML = '';
   if(!picker.__visibleItems.length){
     const empty = document.createElement('div');
-    empty.textContent = 'No templates found.';
+    empty.textContent = 'No templates yet. Save a draft as a template to reuse it here.';
     empty.className = 'muted';
     empty.style.padding = '12px';
     pickerList.appendChild(empty);

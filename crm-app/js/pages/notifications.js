@@ -69,7 +69,7 @@ function renderList(listEl){
   if (!Array.isArray(items) || !items.length) {
     const empty = document.createElement('div');
     empty.setAttribute('role', 'note');
-    empty.textContent = 'No notifications yet.';
+    empty.textContent = 'No notifications yet. Workflow alerts and reminders will show up here.';
     listEl.replaceChildren(empty);
     return;
   }

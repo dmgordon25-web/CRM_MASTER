@@ -470,7 +470,7 @@ import { normalizeStatus } from './pipeline/constants.js';
     if(tbody){
       if(!enrichedDeals.length){
         tbody.innerHTML = '<tr><td class="muted" colspan="5" style="text-align:center;padding:24px 12px">'
-          + '<div><strong>No items yet</strong></div>'
+          + '<div><strong>No funded deals in this range yet</strong></div>'
           + '<div class="fine-print" style="margin-top:4px">Adjust the range or add funded deals to see results.</div>'
           + '</td></tr>';
         polishBeacon('reports-empty');

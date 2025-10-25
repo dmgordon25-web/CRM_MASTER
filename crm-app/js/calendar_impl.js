@@ -1202,6 +1202,35 @@ function invalidateRenderCache(key){
           label.textContent = `${labelText} • Loading…`;
           label.dataset.loading = '1';
         }
+        cell.appendChild(box);
+        grid.appendChild(cell);
+      }
+      root.appendChild(grid);
+      if(!events.length){
+        const emptyState = document.createElement('div');
+        emptyState.className = 'muted';
+        emptyState.style.padding = '24px';
+        emptyState.style.textAlign = 'center';
+        emptyState.setAttribute('role', 'status');
+        emptyState.textContent = 'Calendar looks clear! Add tasks or closing dates to see them here.';
+        root.appendChild(emptyState);
+      }
+    }
+    legend(events);
+
+    const snapshot = events.map((ev, index) => {
+      const date = new Date(ev.date.getTime());
+      date.setHours(0, 0, 0, 0);
+      const source = ev.source ? {
+        entity: ev.source.entity || '',
+        id: ev.source.id || '',
+        field: ev.source.field || ''
+      } : null;
+      const uidParts = [ev.type || 'event', String(date.getTime())];
+      if (source && source.entity && source.id) {
+        uidParts.push(source.entity, source.id);
+      } else {
+        uidParts.push(String(index));
       }else{
         clearErrorBanner(root);
         renderSkeleton(root, range, currentView);

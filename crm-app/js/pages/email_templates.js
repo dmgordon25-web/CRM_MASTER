@@ -71,7 +71,7 @@ function buildLayout(root) {
             <input type="search" data-role="search" placeholder="Search templates" style="width:100%;padding:8px 10px;border:1px solid rgba(15,23,42,0.16);border-radius:8px;font:inherit;" />
           </label>
           <div data-role="list" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;">
-            <div data-role="empty" class="muted" style="font-size:13px;">No templates yet.</div>
+            <div data-role="empty" class="muted" style="font-size:13px;">No templates yet. Click "New Template" to create your first one.</div>
           </div>
         </aside>
         <section data-role="editor" style="border:1px solid rgba(15,23,42,0.08);border-radius:12px;padding:16px;min-height:420px;">

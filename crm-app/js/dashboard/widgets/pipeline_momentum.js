@@ -27,7 +27,7 @@ export function renderPipelineMomentumWidget(options = {}){
   const orderedStages = ['application','processing','underwriting','approved','cleared-to-close','funded','post-close','nurture','lost','denied','long shot'];
   const stageTotal = Object.values(stageCounts).reduce((sum, val) => sum + (val || 0), 0);
   if(!stageTotal){
-    host.innerHTML = '<div class="mini-bar-chart momentum-chart"><div class="mini-bar-row empty">Add contacts to chart pipeline momentum.</div></div>';
+    host.innerHTML = '<div class="mini-bar-chart momentum-chart"><div class="mini-bar-row empty">Pipeline looks quiet. Add contacts or update stages to watch momentum build.</div></div>';
     if(countEl) countEl.textContent = 0;
     return;
   }

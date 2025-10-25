@@ -760,7 +760,7 @@ function renderSavedQueryList(lensState){
   if(!items.length){
     const empty = document.createElement('div');
     empty.className = 'muted';
-    empty.textContent = 'No saved queries yet.';
+    empty.textContent = 'No saved queries yet. Click "Save Query" to reuse this filter set.';
     list.appendChild(empty);
     return;
   }
@@ -1045,7 +1045,7 @@ function updateStatusMessage(lensState){
     return;
   }
   if(!visibleRows.length){
-    elements.status.textContent = 'No records match the current query.';
+    elements.status.textContent = 'No records match these filters. Adjust filters or add records to see them here.';
     elements.status.classList.remove('muted');
     return;
   }
@@ -1095,7 +1095,7 @@ function renderTable(lensState){
     const cell = document.createElement('td');
     cell.colSpan = config.columns.length + 1;
     cell.className = 'muted';
-    cell.textContent = 'No rows to display.';
+    cell.textContent = 'Nothing here yet. Adjust filters or add records to populate this table.';
     emptyRow.appendChild(cell);
     tbody.appendChild(emptyRow);
     updateStatusMessage(lensState);
