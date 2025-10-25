@@ -1,5 +1,6 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
+import { scheduleFollowUpTask } from './tasks/api.js';
 import {
   renderStageChip,
   canonicalStage,
@@ -34,6 +35,37 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       try { console && console.info && console.info('[contacts]', text); }
       catch(__err){}
     }
+  };
+
+  const isoToday = ()=>{
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    return now.toISOString().slice(0,10);
+  };
+
+  const normalizeDateInput = (value)=>{
+    if(value instanceof Date){
+      const clone = new Date(value);
+      if(!Number.isNaN(clone.getTime())){
+        clone.setHours(0,0,0,0);
+        return clone.toISOString().slice(0,10);
+      }
+    }
+    if(typeof value === 'number' && Number.isFinite(value)){
+      const fromNum = new Date(value);
+      if(!Number.isNaN(fromNum.getTime())){
+        fromNum.setHours(0,0,0,0);
+        return fromNum.toISOString().slice(0,10);
+      }
+    }
+    if(typeof value === 'string' && value.trim()){
+      const parsed = new Date(value);
+      if(!Number.isNaN(parsed.getTime())){
+        parsed.setHours(0,0,0,0);
+        return parsed.toISOString().slice(0,10);
+      }
+    }
+    return isoToday();
   };
 
   const removeToneClasses = (node)=>{
@@ -440,6 +472,17 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
           <div class="modal-note" id="c-summary-note">
             Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
           </div>
+          <div class="summary-actions" id="c-followup-actions" data-role="followup-actions">
+            <button class="btn brand compact" type="button" id="c-followup-open" data-role="followup-open">Schedule Follow-up</button>
+            <div class="inline-prompt" id="c-followup-prompt" data-role="followup-prompt" hidden>
+              <label data-role="followup-date-label">Due Date<input type="date" id="c-followup-date" data-role="followup-date"></label>
+              <label data-role="followup-note-label">Note (optional)<textarea id="c-followup-note" data-role="followup-note" rows="2"></textarea></label>
+              <div class="row followup-buttons" data-role="followup-buttons">
+                <button class="btn brand" type="button" id="c-followup-save" data-role="followup-save">Schedule</button>
+                <button class="btn ghost" type="button" id="c-followup-cancel" data-role="followup-cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
         </aside>
         <div class="modal-main">
           <nav class="modal-tabs" id="contact-tabs">
@@ -716,7 +759,142 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       }
     };
 
+    const wireFollowUpControls = ()=>{
+      const actions = body.querySelector('#c-followup-actions');
+      if(!actions) return;
+      const openBtn = actions.querySelector('#c-followup-open');
+      const prompt = actions.querySelector('#c-followup-prompt');
+      const dateInput = actions.querySelector('#c-followup-date');
+      const noteInput = actions.querySelector('#c-followup-note');
+      const saveBtn = actions.querySelector('#c-followup-save');
+      const cancelBtn = actions.querySelector('#c-followup-cancel');
+      const nextTouchInput = $('#c-nexttouch', body);
+      const summaryTouch = $('#c-summary-touch', body);
+      const summaryNote = $('#c-summary-note', body);
+      if(summaryNote && !summaryNote.dataset.defaultText){
+        summaryNote.dataset.defaultText = summaryNote.textContent || '';
+      }
+      const setSummaryNote = (dueValue)=>{
+        if(!summaryNote) return;
+        const defaultText = summaryNote.dataset.defaultText || 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.';
+        if(dueValue){
+          summaryNote.textContent = `Follow-up scheduled for ${dueValue}.`;
+        }else{
+          summaryNote.textContent = defaultText;
+        }
+      };
+      if(prompt){
+        prompt.hidden = true;
+        prompt.style.display = 'none';
+      }
+      const hidePrompt = ()=>{
+        if(prompt){
+          prompt.hidden = true;
+          prompt.style.display = 'none';
+        }
+        if(openBtn){
+          openBtn.style.display = '';
+          openBtn.setAttribute('aria-expanded', 'false');
+        }
+      };
+      const defaultDue = ()=>{
+        const existing = (nextTouchInput?.value?.trim() || c.nextFollowUp || '').trim();
+        return existing ? normalizeDateInput(existing) : isoToday();
+      };
+      const showPrompt = ()=>{
+        if(prompt){
+          prompt.hidden = false;
+          prompt.style.display = 'block';
+        }
+        if(openBtn){
+          openBtn.style.display = 'none';
+          openBtn.setAttribute('aria-expanded', 'true');
+        }
+        if(dateInput){
+          dateInput.value = defaultDue();
+          try{ dateInput.focus(); }
+          catch(_err){}
+        }
+        if(noteInput){
+          noteInput.value = '';
+        }
+      };
+      const existingDueRaw = nextTouchInput?.value?.trim() || c.nextFollowUp || '';
+      const existingDue = existingDueRaw ? normalizeDateInput(existingDueRaw) : '';
+      setSummaryNote(existingDue);
+      if(openBtn){
+        openBtn.setAttribute('aria-expanded', 'false');
+        if(existingDue){
+          openBtn.textContent = 'Reschedule Follow-up';
+        }
+        openBtn.addEventListener('click', ()=>{ showPrompt(); });
+      }
+      if(cancelBtn){
+        cancelBtn.addEventListener('click', ()=>{ hidePrompt(); });
+      }
+      if(saveBtn){
+        let busy = false;
+        const setBusy = (state)=>{
+          busy = state;
+          if(!saveBtn) return;
+          if(state){
+            saveBtn.setAttribute('aria-busy', 'true');
+            saveBtn.disabled = true;
+          }else{
+            saveBtn.removeAttribute('aria-busy');
+            saveBtn.disabled = false;
+          }
+        };
+        saveBtn.addEventListener('click', async ()=>{
+          if(busy) return;
+          const contactId = $('#c-id', body)?.value?.trim();
+          if(!contactId){
+            toastWarn('Save this contact before scheduling follow-up.');
+            return;
+          }
+          setBusy(true);
+          const dueRaw = dateInput?.value?.trim() || '';
+          const noteRaw = noteInput?.value?.trim() || '';
+          const stageSelect = $('#c-stage', body);
+          const statusSelect = $('#c-status', body);
+          const stageValue = stageSelect ? stageSelect.value : '';
+          const statusValue = statusSelect ? statusSelect.value : '';
+          try{
+            const result = await scheduleFollowUpTask({
+              entity:'contact',
+              entityId: contactId,
+              due: dueRaw || undefined,
+              note: noteRaw,
+              title: summaryLabel ? `Follow up: ${summaryLabel}` : 'Follow up',
+              name: summaryLabel,
+              stage: stageValue,
+              status: statusValue
+            });
+            if(result && result.status === 'ok'){
+              const normalizedDue = normalizeDateInput(result.task?.due || dueRaw);
+              if(nextTouchInput) nextTouchInput.value = normalizedDue;
+              if(summaryTouch) summaryTouch.textContent = normalizedDue || 'TBD';
+              if(openBtn) openBtn.textContent = 'Reschedule Follow-up';
+              setSummaryNote(normalizedDue);
+              hidePrompt();
+            }else if(result && result.reason === 'missing-id'){
+              toastWarn('Save this contact before scheduling follow-up.');
+            }else if(result && result.status === 'error'){
+              toastError('Unable to schedule follow-up');
+            }
+          }catch (err){
+            console && console.warn && console.warn('contact follow-up scheduling failed', err);
+            toastError('Unable to schedule follow-up');
+          }finally{
+            if(noteInput) noteInput.value = '';
+            setBusy(false);
+          }
+        });
+      }
+    };
+
     ensureReferredByButton();
+    wireFollowUpControls();
 
     const docListEl = $('#c-doc-list', body);
     const docSummaryEl = $('#c-doc-summary', body);
