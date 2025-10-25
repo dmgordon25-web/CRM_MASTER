@@ -61,7 +61,7 @@
     if(!rows.length){
       polishBeacon('commissions-empty');
       return '<div class="muted" style="padding:16px;text-align:center">'
-        + '<div><strong>No items yet</strong></div>'
+        + '<div><strong>No commission payouts yet</strong></div>'
         + '<div class="fine-print" style="margin-top:4px">Record funded loans to populate this payout summary.</div>'
         + '</div>';
     }
@@ -245,7 +245,7 @@
           }).join('');
         }else{
           tbRec.innerHTML = `<tr><td colspan="6" class="muted" style="text-align:center;padding:18px 12px;">
-            <div><strong>No items yet</strong></div>
+            <div><strong>No funded payouts yet</strong></div>
             <div class="fine-print" style="margin-top:4px">Mark funded deals as paid to track received commissions.</div>
           </td></tr>`;
           polishBeacon('commissions-empty');
@@ -269,7 +269,7 @@
           }).join('');
         }else{
           tbProj.innerHTML = `<tr><td colspan="5" class="muted" style="text-align:center;padding:18px 12px;">
-            <div><strong>No items yet</strong></div>
+            <div><strong>No projected commissions yet</strong></div>
             <div class="fine-print" style="margin-top:4px">Add active deals to project upcoming commission opportunities.</div>
           </td></tr>`;
           polishBeacon('commissions-empty');

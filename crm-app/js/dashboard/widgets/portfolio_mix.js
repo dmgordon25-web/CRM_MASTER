@@ -29,7 +29,7 @@ export function renderPortfolioMixWidget(options = {}){
   const totalCount = entries.reduce((sum, [, count]) => sum + (count || 0), 0);
 
   if(!entries.length){
-    host.innerHTML = '<div class="mini-bar-chart portfolio-chart"><div class="mini-bar-row empty">Add partners to see portfolio mix.</div></div>';
+    host.innerHTML = '<div class="mini-bar-chart portfolio-chart"><div class="mini-bar-row empty">No partners added yet. Click "+ Add Partner" to get started!</div></div>';
   }else{
     const rows = entries.map(([tier, count]) => {
       const pct = totalCount ? Math.round((count / totalCount) * 100) : 0;

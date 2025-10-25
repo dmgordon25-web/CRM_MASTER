@@ -1018,6 +1018,15 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
         grid.appendChild(cell);
       }
       root.appendChild(grid);
+      if(!events.length){
+        const emptyState = document.createElement('div');
+        emptyState.className = 'muted';
+        emptyState.style.padding = '24px';
+        emptyState.style.textAlign = 'center';
+        emptyState.setAttribute('role', 'status');
+        emptyState.textContent = 'Calendar looks clear! Add tasks or closing dates to see them here.';
+        root.appendChild(emptyState);
+      }
     }
     legend(events);
 
