@@ -553,8 +553,22 @@ dialog::backdrop{ background:rgba(0,0,0,.35); }
 .summary-meta [data-role="stage-chip-wrapper"]{display:inline-flex}
 .status-table td .stage-chip{font-size:11px}
 .status-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;text-transform:capitalize;line-height:1;background:var(--tone-bg,#eef2ff);color:var(--tone-text,var(--ink));border:1px solid var(--tone-border,transparent);gap:6px}
-.summary-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.summary-actions{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
 .summary-actions .btn{padding:6px 10px;font-size:12px}
+.summary-actions .favorite-toggle{font-size:20px}
+.favorite-cell{width:36px;min-width:36px;text-align:center}
+.favorite-toggle{appearance:none;border:none;background:transparent;font-size:18px;line-height:1;color:#cbd5f5;cursor:pointer;transition:color .2s ease,transform .2s ease}
+.favorite-toggle:hover,.favorite-toggle:focus-visible{color:#f59e0b;transform:translateY(-1px)}
+.favorite-toggle.is-active{color:#f59e0b}
+.favorite-toggle:focus-visible{outline:2px solid var(--ring);outline-offset:3px;border-radius:999px}
+.status-row.is-favorite{box-shadow:inset 0 0 0 2px rgba(250,204,21,.25);background:rgba(254,243,199,.25)}
+.status-row.is-favorite td{background:rgba(254,243,199,.15)}
+.modal-summary .summary-name{padding:6px 8px;border-radius:12px;background:rgba(255,255,255,.6)}
+.modal-summary .summary-name.is-favorite{background:linear-gradient(145deg,#fefce8,#fef9c3);box-shadow:inset 0 0 0 2px rgba(250,204,21,.35)}
+.modal-summary .summary-name .favorite-toggle{font-size:22px}
+.insight-icon.favorites{background:linear-gradient(140deg,#fef3c7,#fde68a);color:#92400e}
+#favorites-card .empty{border:1px dashed #e2e8f0;border-radius:12px;padding:16px;text-align:center;font-size:13px}
+#favorites-card[data-has-favorites="0"] .count-badge{background:#e2e8f0;color:#475569}
 .section-subhead{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.35px;color:#475569;font-weight:600}
 .field-stack{display:grid;gap:10px}
 .linked-summary{font-size:12px;color:#475569}

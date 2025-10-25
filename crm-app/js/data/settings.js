@@ -1,3 +1,39 @@
+const __FALLBACK_FAVORITES__ = (() => {
+  function normalizeFavoriteId(value){
+    if(value == null) return '';
+    return String(value).trim();
+  }
+  function normalizeFavoriteList(input){
+    const list = Array.isArray(input) ? input : [];
+    const seen = new Set();
+    const next = [];
+    for(let i = 0; i < list.length; i += 1){
+      const id = normalizeFavoriteId(list[i]);
+      if(!id || seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+    return next;
+  }
+  function normalizeFavoriteSnapshot(snapshot){
+    const source = snapshot && typeof snapshot === 'object' ? snapshot : {};
+    return {
+      contacts: normalizeFavoriteList(source.contacts),
+      partners: normalizeFavoriteList(source.partners)
+    };
+  }
+  function applyFavoriteSnapshot(snapshot){
+    return normalizeFavoriteSnapshot(snapshot);
+  }
+  return { normalizeFavoriteSnapshot, applyFavoriteSnapshot };
+})();
+
+const __FAVORITES_API__ = (typeof window !== 'undefined' && window.__CRM_FAVORITES__)
+  ? window.__CRM_FAVORITES__
+  : __FALLBACK_FAVORITES__;
+
+const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
+
 const EMAIL_FROM_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 const TZ_FALLBACK_PATTERN = /^[A-Za-z0-9_.+-]+(?:\/[A-Za-z0-9_.+-]+)*$/;
 
@@ -9,6 +45,7 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   today: 'dashboard-today',
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
+  favorites: 'favorites-card',
   goalProgress: 'goal-progress-card',
   numbersPortfolio: 'numbers-portfolio-card',
   numbersReferrals: 'numbers-referrals-card',
@@ -416,6 +453,7 @@ function shouldValidateGeneral(partial){
       signature: normalizeSignature(base.signature),
       loProfile: normalizeProfile(profileSource),
       dashboard: normalizeDashboard(base.dashboard),
+      favorites: normalizeFavoriteSnapshot(base.favorites),
       dashboardOrder: normalizeDashboardOrder(base.dashboardOrder),
       updatedAt: base.updatedAt || null
     };
@@ -513,6 +551,7 @@ function shouldValidateGeneral(partial){
       cache = normalized;
       updateSignatureCache(normalized.signature);
       updateProfileCache(normalized.loProfile);
+      applyFavoriteSnapshot(normalized.favorites);
       inflight = null;
       return normalized;
     })();
@@ -546,17 +585,27 @@ function shouldValidateGeneral(partial){
     if(source.dashboardOrder){
       next.dashboardOrder = normalizeDashboardOrder(source.dashboardOrder);
     }
+    if(source.favorites){
+      const currentFavorites = current.favorites || { contacts: [], partners: [] };
+      const mergedFavorites = {
+        contacts: Array.isArray(source.favorites.contacts) ? source.favorites.contacts : currentFavorites.contacts,
+        partners: Array.isArray(source.favorites.partners) ? source.favorites.partners : currentFavorites.partners
+      };
+      next.favorites = normalizeFavoriteSnapshot(mergedFavorites);
+    }
     for(const key of Object.keys(source)){
       if(key === 'goals' || key === 'signature' || key === 'loProfile') continue;
       if(key === 'dashboard') continue;
       if(key === 'dashboardOrder') continue;
+      if(key === 'favorites') continue;
       next[key] = source[key];
     }
     if('profile' in next) delete next.profile;
     return next;
   }
 
-  async function save(partial){
+  async function save(partial, options){
+    const opts = options && typeof options === 'object' ? options : {};
     const current = await load();
     const next = mergeSettings(current, partial);
     applyGeneralSettingsCoercion(next);
@@ -576,6 +625,7 @@ function shouldValidateGeneral(partial){
       }
     }
     cache = next;
+    applyFavoriteSnapshot(next.favorites);
     if(partial && typeof partial.loProfile === 'object'){
       writeProfileLocal(normalizeProfile(partial.loProfile));
     }else if(partial && typeof partial.profile === 'object'){
@@ -595,7 +645,7 @@ function shouldValidateGeneral(partial){
     }else if(window.document && typeof window.document.dispatchEvent === 'function'){
       window.document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
     }
-    if(window.Toast && typeof window.Toast.show === 'function'){
+    if(!opts.silent && window.Toast && typeof window.Toast.show === 'function'){
       window.Toast.show('Saved');
     }
     return clone(next);
