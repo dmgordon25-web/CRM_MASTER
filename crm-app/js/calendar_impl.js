@@ -2,7 +2,7 @@
 import { STR, text } from './ui/strings.js';
 import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
-import { rangeForView, addDays, ymd, parseDateInput, loadEventsBetween, isWithinRange } from './calendar/index.js';
+import { rangeForView, addDays, ymd, parseDateInput, loadCalendarData, isWithinRange } from './calendar/index.js';
 import { ensureContactModalReady, openContactModal } from './contacts.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
