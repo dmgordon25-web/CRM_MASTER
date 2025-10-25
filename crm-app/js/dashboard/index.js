@@ -269,16 +269,101 @@ function collectWidgetNodes(container) {
   return nodes;
 }
 
+function registerCanonicalKey(targetMap, key, canonical) {
+  if (!targetMap || !canonical) return;
+  if (!key) return;
+  const value = String(key).trim();
+  if (!value) return;
+  if (!targetMap.has(value)) {
+    targetMap.set(value, canonical);
+  }
+  const slug = slugify(value);
+  if (slug && !targetMap.has(slug)) {
+    targetMap.set(slug, canonical);
+  }
+}
+
+function buildCanonicalWidgetKeyIndex(container) {
+  if (!container) return null;
+  const byNode = new WeakMap();
+  const byKey = new Map();
+  const registerNode = (node, canonical) => {
+    if (!node || !canonical) return;
+    try {
+      byNode.set(node, canonical);
+    } catch (_err) {}
+    registerCanonicalKey(byKey, canonical, canonical);
+    const dataset = node.dataset || {};
+    registerCanonicalKey(byKey, dataset.dashWidget, canonical);
+    registerCanonicalKey(byKey, dataset.widgetId, canonical);
+    registerCanonicalKey(byKey, dataset.widget, canonical);
+    registerCanonicalKey(byKey, dataset.widgetKey, canonical);
+    registerCanonicalKey(byKey, node.id, canonical);
+  };
+  const resolverEntries = Object.entries(WIDGET_RESOLVERS).concat(Object.entries(WIDGET_CARD_RESOLVERS));
+  resolverEntries.forEach(([canonical, resolver]) => {
+    if (typeof resolver !== 'function') return;
+    let resolved = null;
+    try {
+      resolved = resolver();
+    } catch (_err) {}
+    if (!resolved) return;
+    const widgetNode = container.contains(resolved)
+      ? resolved
+      : (resolved.closest ? resolved.closest('[data-dash-widget]') : null);
+    if (widgetNode && container.contains(widgetNode)) {
+      registerNode(widgetNode, canonical);
+    }
+  });
+  return { byNode, byKey };
+}
+
+function findCanonicalWidgetKey(node, candidateKey, canonicalIndex) {
+  if (!node || !canonicalIndex) return '';
+  const { byNode, byKey } = canonicalIndex;
+  if (byNode && byNode.has(node)) {
+    return byNode.get(node) || '';
+  }
+  const dataset = node.dataset || {};
+  const candidates = [
+    candidateKey,
+    dataset.dashWidget,
+    dataset.widgetId,
+    dataset.widget,
+    dataset.widgetKey,
+    node.id
+  ];
+  if (byKey) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const value = candidates[i] ? String(candidates[i]).trim() : '';
+      if (!value) continue;
+      if (byKey.has(value)) {
+        return byKey.get(value) || '';
+      }
+      const slug = slugify(value);
+      if (slug && byKey.has(slug)) {
+        return byKey.get(slug) || '';
+      }
+    }
+  }
+  return '';
+}
+
 function ensureDashboardWidgets(container) {
   const nodes = collectWidgetNodes(container);
   if (!nodes.length) return nodes;
   ensureDashboardDragStyles();
+  const canonicalIndex = buildCanonicalWidgetKeyIndex(container);
   const seen = new Set();
   nodes.forEach((node, index) => {
     if (!node || node.nodeType !== 1) return;
     const dataset = node.dataset || {};
     let key = dataset.dashWidget || dataset.widgetId || dataset.widget || dataset.widgetKey || node.id || '';
     key = key ? String(key).trim() : '';
+    const canonicalKey = findCanonicalWidgetKey(node, key, canonicalIndex);
+    if (canonicalKey) {
+      key = canonicalKey;
+    }
     if (!key) {
       const label = findWidgetLabel(node);
       key = slugify(label) || `widget-${index + 1}`;
