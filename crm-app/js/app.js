@@ -1531,16 +1531,92 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   initSettingsNav();
   document.addEventListener('DOMContentLoaded', initSettingsNav);
 
+  function clearRowHighlights(row){
+    if(!row) return;
+    row.querySelectorAll('mark[data-search-highlight="1"]').forEach(mark => {
+      const parent = mark.parentNode;
+      if(!parent) return;
+      while(mark.firstChild){
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      parent.removeChild(mark);
+      if(typeof parent.normalize === 'function'){
+        parent.normalize();
+      }
+    });
+  }
+
+  function highlightRowMatches(row, queryLower, queryLength){
+    if(!row || !queryLower || !queryLower.trim()) return;
+    if(!queryLength) return;
+    const filter = {
+      acceptNode(node){
+        if(!node || !node.nodeValue) return NodeFilter.FILTER_REJECT;
+        const value = node.nodeValue;
+        if(!value.trim()) return NodeFilter.FILTER_REJECT;
+        const lower = value.toLowerCase();
+        if(!lower.includes(queryLower)) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentNode;
+        if(!parent) return NodeFilter.FILTER_REJECT;
+        const tag = parent.nodeName;
+        if(tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+        if(parent.closest && parent.closest('mark[data-search-highlight="1"]')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    };
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, filter);
+    const nodes = [];
+    let current = walker.nextNode();
+    while(current){
+      nodes.push(current);
+      current = walker.nextNode();
+    }
+    nodes.forEach(node => {
+      const originalText = node.nodeValue;
+      const lowerText = originalText.toLowerCase();
+      let searchIndex = 0;
+      let matchIndex = lowerText.indexOf(queryLower, searchIndex);
+      if(matchIndex === -1) return;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      while(matchIndex !== -1){
+        if(matchIndex > lastIndex){
+          fragment.appendChild(document.createTextNode(originalText.slice(lastIndex, matchIndex)));
+        }
+        const mark = document.createElement('mark');
+        mark.dataset.searchHighlight = '1';
+        mark.textContent = originalText.slice(matchIndex, matchIndex + queryLength);
+        fragment.appendChild(mark);
+        lastIndex = matchIndex + queryLength;
+        matchIndex = lowerText.indexOf(queryLower, lastIndex);
+      }
+      if(lastIndex < originalText.length){
+        fragment.appendChild(document.createTextNode(originalText.slice(lastIndex)));
+      }
+      const parent = node.parentNode;
+      if(parent){
+        parent.replaceChild(fragment, node);
+      }
+    });
+  }
+
   function applyTableSearch(input){
     const selector = input.dataset.tableSearch;
     const table = selector ? document.querySelector(selector) : input.closest('table');
     if(!table) return;
     const body = table.tBodies ? table.tBodies[0] : null;
     if(!body) return;
-    const q = (input.value||'').toLowerCase();
+    const rawValue = input.value || '';
+    const queryLower = rawValue.toLowerCase();
+    const queryLength = rawValue.length;
     Array.from(body.rows).forEach(row => {
+      clearRowHighlights(row);
       const txt = (row.textContent||'').toLowerCase();
-      row.style.display = txt.includes(q) ? '' : 'none';
+      const match = !queryLower ? true : txt.includes(queryLower);
+      row.style.display = match ? '' : 'none';
+      if(match && queryLength){
+        highlightRowMatches(row, queryLower, queryLength);
+      }
     });
   }
   document.addEventListener('input', evt => {
