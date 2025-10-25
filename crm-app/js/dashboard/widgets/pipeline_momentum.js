@@ -9,6 +9,7 @@ export function renderPipelineMomentumWidget(options = {}){
   const host = options.host || null;
   const countEl = options.countEl || null;
   if(!host) return;
+  if(host.dataset && host.dataset.dashHidden === 'true') return;
   const contacts = Array.isArray(options.contacts) ? options.contacts : [];
   const safe = ensureSafe(options.safe);
   const normalizeStatus = ensureNormalize(options.normalizeStatus);

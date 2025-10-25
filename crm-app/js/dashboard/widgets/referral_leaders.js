@@ -27,6 +27,7 @@ function ensureNormalize(fn){ return typeof fn === 'function' ? fn : FALLBACK_NO
 export function renderReferralLeadersWidget(options = {}){
   const host = options.host || null;
   if(!host) return;
+  if(host.dataset && host.dataset.dashHidden === 'true') return;
   const contacts = Array.isArray(options.contacts) ? options.contacts : [];
   const partners = Array.isArray(options.partners) ? options.partners : [];
   const safe = ensureSafe(options.safe);
