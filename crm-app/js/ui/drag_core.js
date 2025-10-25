@@ -254,6 +254,29 @@ function ensureGridOverlay(state){
   return overlay;
 }
 
+function updateGridOverlayAppearance(state){
+  const overlay = ensureGridOverlay(state);
+  if(!overlay) return null;
+  if(state.container && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
+    try{
+      const containerStyle = window.getComputedStyle(state.container);
+      if(containerStyle && containerStyle.borderRadius){
+        overlay.style.borderRadius = containerStyle.borderRadius;
+      }
+    }catch (_err){}
+  }
+  const metrics = state && state.metrics ? state.metrics : null;
+  if(metrics){
+    const stepX = Math.max(1, Math.round(metrics.stepX || metrics.colWidth || 1));
+    const stepY = Math.max(1, Math.round(metrics.stepY || metrics.rowHeight || 1));
+    const gap = Math.max(0, Math.round(metrics.gap || 0));
+    overlay.style.setProperty('--dash-grid-step-x', `${stepX}px`);
+    overlay.style.setProperty('--dash-grid-step-y', `${stepY}px`);
+    overlay.style.setProperty('--dash-grid-gap', `${gap}px`);
+  }
+  return overlay;
+}
+
 function removeGridOverlay(state){
   if(state.gridOverlay && state.gridOverlay.parentNode){
     try{ state.gridOverlay.parentNode.removeChild(state.gridOverlay); }
@@ -609,7 +632,7 @@ function beginGridDrag(state, item, evt){
   if(state.container && state.container.classList){
     state.container.classList.add('dash-dragging');
   }
-  const overlay = ensureGridOverlay(state);
+  const overlay = updateGridOverlayAppearance(state);
   if(overlay){
     overlay.style.display = 'block';
   }

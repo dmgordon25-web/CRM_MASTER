@@ -11,6 +11,7 @@ import {
   TONE_CLASSNAMES
 } from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -1084,7 +1085,8 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }
       }
     };
-    const handleSave = async ()=>{
+    const handleSave = async (options)=>{
+      const opts = options && typeof options === 'object' ? options : {};
       const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
       const prevStage = c.stage;
       setBusy(true);
@@ -1134,6 +1136,15 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }
         await openDB();
         await dbPut('contacts', u);
+        if(Array.isArray(contacts)){
+          const idx = contacts.findIndex(item => item && String(item.id) === String(u.id));
+          if(idx >= 0){
+            contacts[idx] = Object.assign({}, contacts[idx], u);
+          }else{
+            contacts.push(Object.assign({}, u));
+          }
+        }
+        Object.assign(c, u);
         try{
           if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
           if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
@@ -1149,8 +1160,13 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }else if(console && typeof console.warn === 'function'){
           console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
         }
-        toastSuccess(existed ? 'Contact updated' : 'Contact created');
-        closeDialog();
+        const successMessage = opts.successMessage || (existed ? 'Contact updated' : 'Contact created');
+        if(successMessage){
+          toastSuccess(successMessage);
+        }
+        if(!opts.keepOpen){
+          closeDialog();
+        }
         return u;
       }catch (err){
         if(console && typeof console.warn === 'function'){
@@ -1162,6 +1178,183 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         setBusy(false);
       }
     };
+    const installTouchLogging = ()=>{
+      const footer = dlg.querySelector('[data-component="form-footer"]');
+      if(!footer) return;
+      const start = footer.querySelector('.form-footer__start');
+      if(!start) return;
+
+      let controls = dlg.__contactTouchControls || null;
+      if(!controls){
+        const logButton = document.createElement('button');
+        logButton.type = 'button';
+        logButton.className = 'btn';
+        logButton.dataset.role = 'log-touch';
+        logButton.textContent = 'Log a Touch';
+        logButton.setAttribute('aria-haspopup', 'true');
+        logButton.setAttribute('aria-expanded', 'false');
+
+        const menu = document.createElement('div');
+        menu.dataset.role = 'touch-menu';
+        menu.setAttribute('role', 'menu');
+        menu.hidden = true;
+        menu.style.display = 'none';
+        menu.style.marginLeft = '8px';
+        menu.style.gap = '4px';
+        menu.style.flexWrap = 'wrap';
+
+        start.appendChild(logButton);
+        start.appendChild(menu);
+        controls = { button: logButton, menu };
+        dlg.__contactTouchControls = controls;
+      }else{
+        controls.button.textContent = 'Log a Touch';
+      }
+
+      const { button: logButton, menu } = controls;
+      if(!logButton || !menu) return;
+
+      TOUCH_OPTIONS.forEach(option => {
+        let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
+        if(!optBtn){
+          optBtn = document.createElement('button');
+          optBtn.type = 'button';
+          optBtn.className = 'btn ghost';
+          optBtn.dataset.touchKey = option.key;
+          optBtn.textContent = option.label;
+          optBtn.setAttribute('role', 'menuitem');
+          menu.appendChild(optBtn);
+        }else{
+          optBtn.textContent = option.label;
+        }
+      });
+      Array.from(menu.querySelectorAll('button[data-touch-key]')).forEach(btn => {
+        if(!TOUCH_OPTIONS.some(option => option.key === btn.dataset.touchKey)){
+          btn.remove();
+        }
+      });
+
+      const hideMenu = ()=>{
+        if(menu.hidden) return;
+        menu.hidden = true;
+        menu.style.display = 'none';
+        logButton.setAttribute('aria-expanded', 'false');
+      };
+      const showMenu = ()=>{
+        if(!menu.hidden) return;
+        menu.hidden = false;
+        menu.style.display = 'flex';
+        logButton.setAttribute('aria-expanded', 'true');
+        const first = menu.querySelector('button[data-touch-key]');
+        if(first && typeof first.focus === 'function'){
+          first.focus({ preventScroll: true });
+        }
+      };
+
+      let logging = false;
+      const logTouch = async (key)=>{
+        if(logging) return null;
+        logging = true;
+        try{
+          const notesField = $('#c-notes', body);
+          const lastInput = $('#c-lastcontact', body);
+          if(!notesField || !lastInput){
+            return null;
+          }
+          const entry = createTouchLogEntry(key);
+          const existing = notesField.value || '';
+          const remainderRaw = existing.replace(/^\s+/, '');
+          const remainder = remainderRaw ? `\n${remainderRaw}` : '';
+          const nextValue = `${entry}${remainder}`;
+          notesField.value = nextValue;
+          notesField.dispatchEvent(new Event('input', { bubbles: true }));
+          if(typeof notesField.focus === 'function'){
+            notesField.focus({ preventScroll: true });
+          }
+          if(typeof notesField.setSelectionRange === 'function'){
+            const caretIndex = entry.length;
+            try{ notesField.setSelectionRange(caretIndex, caretIndex); }
+            catch(_err){}
+          }
+          const today = formatTouchDate(new Date());
+          if(today){
+            lastInput.value = today;
+            lastInput.dispatchEvent(new Event('input', { bubbles: true }));
+            lastInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          const result = await handleSave({ keepOpen: true, successMessage: touchSuccessMessage(key) });
+          return result;
+        }catch (err){
+          try{ console && console.warn && console.warn('[contacts] touch log failed', err); }
+          catch(_err){}
+          return null;
+        }finally{
+          logging = false;
+        }
+      };
+
+      if(!logButton.__touchToggle){
+        logButton.__touchToggle = true;
+        logButton.addEventListener('click', (event)=>{
+          event.preventDefault();
+          if(menu.hidden){ showMenu(); }
+          else { hideMenu(); }
+        });
+        logButton.addEventListener('keydown', (event)=>{
+          if(event.key === 'Escape' && !menu.hidden){
+            event.preventDefault();
+            hideMenu();
+            logButton.blur?.();
+            return;
+          }
+          if((event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') && menu.hidden){
+            event.preventDefault();
+            showMenu();
+          }
+        });
+      }
+
+      if(!menu.__touchHandlers){
+        menu.__touchHandlers = true;
+        menu.addEventListener('click', (event)=>{
+          const target = event.target && event.target.closest('button[data-touch-key]');
+          if(!target) return;
+          event.preventDefault();
+          hideMenu();
+          logTouch(target.dataset.touchKey);
+        });
+        menu.addEventListener('keydown', (event)=>{
+          if(event.key === 'Escape'){
+            event.preventDefault();
+            hideMenu();
+            if(typeof logButton.focus === 'function'){
+              logButton.focus({ preventScroll: true });
+            }
+          }
+        });
+      }
+
+      if(!dlg.__touchMenuOutsideHandler){
+        const outsideHandler = (event)=>{
+          if(menu.hidden) return;
+          if(event && (event.target === logButton || logButton.contains(event.target))) return;
+          if(event && menu.contains(event.target)) return;
+          hideMenu();
+        };
+        dlg.addEventListener('click', outsideHandler);
+        dlg.__touchMenuOutsideHandler = outsideHandler;
+      }
+
+      if(!menu.__touchCloseHook){
+        const closeHandler = ()=> hideMenu();
+        try{ dlg.addEventListener('close', closeHandler); }
+        catch(_err){ dlg.addEventListener('close', closeHandler); }
+        menu.__touchCloseHook = closeHandler;
+      }
+    };
+
+    installTouchLogging();
+
     if(saveBtn){
       if(typeof window.saveForm === 'function'){
         window.saveForm(saveBtn, handleSave, { successMessage: null });

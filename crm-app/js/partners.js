@@ -3,6 +3,8 @@ import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { scheduleFollowUpTask } from './tasks/api.js';
 import { toastError, toastWarn } from './ui/toast_helpers.js';
+import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
+import { toastError, toastSuccess } from './ui/toast_helpers.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
 
@@ -345,6 +347,253 @@ function ensurePartnersBoot(ctx){
   if (typeof document !== 'undefined'){
     document.addEventListener('DOMContentLoaded', initSelectionMirror);
   }
+
+  function installPartnerTouchLogging(detail){
+    const dialog = detail && detail.dialog ? detail.dialog : null;
+    if(!dialog) return;
+    const form = detail && detail.form ? detail.form : dialog.querySelector('#partner-form');
+    if(!form) return;
+    const footer = form.querySelector('[data-component="form-footer"]') || form.querySelector('.modal-footer');
+    if(!footer) return;
+    const start = footer.querySelector('.form-footer__start');
+    if(!start) return;
+
+    let controls = dialog.__partnerTouchControls || null;
+    if(!controls){
+      const logButton = document.createElement('button');
+      logButton.type = 'button';
+      logButton.className = 'btn';
+      logButton.dataset.role = 'log-touch';
+      logButton.textContent = 'Log a Touch';
+      logButton.setAttribute('aria-haspopup', 'true');
+      logButton.setAttribute('aria-expanded', 'false');
+
+      const menu = document.createElement('div');
+      menu.dataset.role = 'touch-menu';
+      menu.setAttribute('role', 'menu');
+      menu.hidden = true;
+      menu.style.display = 'none';
+      menu.style.marginLeft = '8px';
+      menu.style.gap = '4px';
+      menu.style.flexWrap = 'wrap';
+
+      start.appendChild(logButton);
+      start.appendChild(menu);
+      controls = { button: logButton, menu };
+      dialog.__partnerTouchControls = controls;
+    }else{
+      controls.button.textContent = 'Log a Touch';
+    }
+
+    const { button: logButton, menu } = controls;
+    if(!logButton || !menu) return;
+
+    TOUCH_OPTIONS.forEach(option => {
+      let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
+      if(!optBtn){
+        optBtn = document.createElement('button');
+        optBtn.type = 'button';
+        optBtn.className = 'btn ghost';
+        optBtn.dataset.touchKey = option.key;
+        optBtn.textContent = option.label;
+        optBtn.setAttribute('role', 'menuitem');
+        menu.appendChild(optBtn);
+      }else{
+        optBtn.textContent = option.label;
+      }
+    });
+    Array.from(menu.querySelectorAll('button[data-touch-key]')).forEach(btn => {
+      if(!TOUCH_OPTIONS.some(option => option.key === btn.dataset.touchKey)){
+        btn.remove();
+      }
+    });
+
+    const hideMenu = ()=>{
+      if(menu.hidden) return;
+      menu.hidden = true;
+      menu.style.display = 'none';
+      logButton.setAttribute('aria-expanded', 'false');
+    };
+    const showMenu = ()=>{
+      if(!menu.hidden) return;
+      menu.hidden = false;
+      menu.style.display = 'flex';
+      logButton.setAttribute('aria-expanded', 'true');
+      const first = menu.querySelector('button[data-touch-key]');
+      if(first && typeof first.focus === 'function'){
+        first.focus({ preventScroll: true });
+      }
+    };
+
+    let logging = false;
+    const logTouch = async (key)=>{
+      if(logging) return null;
+      logging = true;
+      try{
+        const notesField = dialog.querySelector('#p-notes');
+        const lastTouchInput = dialog.querySelector('#p-lasttouch');
+        if(!notesField || !lastTouchInput){
+          return null;
+        }
+        const entry = createTouchLogEntry(key);
+        const existing = notesField.value || '';
+        const remainderRaw = existing.replace(/^\s+/, '');
+        const remainder = remainderRaw ? `\n${remainderRaw}` : '';
+        const nextValue = `${entry}${remainder}`;
+        notesField.value = nextValue;
+        notesField.dispatchEvent(new Event('input', { bubbles: true }));
+        if(typeof notesField.focus === 'function'){
+          notesField.focus({ preventScroll: true });
+        }
+        if(typeof notesField.setSelectionRange === 'function'){
+          const caretIndex = entry.length;
+          try{ notesField.setSelectionRange(caretIndex, caretIndex); }
+          catch(_err){}
+        }
+        const today = formatTouchDate(new Date());
+        if(today){
+          lastTouchInput.value = today;
+          lastTouchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          lastTouchInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if(typeof openDB !== 'function' || typeof dbPut !== 'function'){
+          toastError('Unable to log touch right now.');
+          return null;
+        }
+        const baseRecord = Object.assign({}, dialog.__currentPartnerBase || {});
+        if(!baseRecord.id){
+          baseRecord.id = dialog.dataset.partnerId || (typeof window.uuid === 'function' ? window.uuid() : `partner-${Date.now()}`);
+        }
+        const rec = Object.assign({}, baseRecord, {
+          id: baseRecord.id,
+          name: dialog.querySelector('#p-name')?.value?.trim() || '',
+          company: dialog.querySelector('#p-company')?.value?.trim() || '',
+          email: dialog.querySelector('#p-email')?.value?.trim() || '',
+          phone: dialog.querySelector('#p-phone')?.value?.trim() || '',
+          partnerType: dialog.querySelector('#p-type')?.value || 'Realtor Partner',
+          tier: dialog.querySelector('#p-tier')?.value || 'Developing',
+          focus: dialog.querySelector('#p-focus')?.value || 'Purchase',
+          priority: dialog.querySelector('#p-priority')?.value || 'Emerging',
+          preferredContact: dialog.querySelector('#p-pref')?.value || 'Phone',
+          cadence: dialog.querySelector('#p-cadence')?.value || 'Monthly',
+          address: dialog.querySelector('#p-address')?.value?.trim() || '',
+          city: dialog.querySelector('#p-city')?.value?.trim() || '',
+          state: (dialog.querySelector('#p-state')?.value || '').toUpperCase(),
+          zip: dialog.querySelector('#p-zip')?.value?.trim() || '',
+          referralVolume: dialog.querySelector('#p-volume')?.value || '1-2 / month',
+          lastTouch: lastTouchInput.value || '',
+          nextTouch: dialog.querySelector('#p-nexttouch')?.value || '',
+          relationshipOwner: dialog.querySelector('#p-owner')?.value?.trim() || '',
+          collaborationFocus: dialog.querySelector('#p-collab')?.value || 'Co-Marketing',
+          notes: notesField.value || '',
+          updatedAt: Date.now()
+        });
+        const wasSaved = Boolean(dialog.__partnerWasSaved);
+        await openDB();
+        await dbPut('partners', rec);
+        dialog.__currentPartnerBase = Object.assign({}, rec);
+        dialog.dataset.partnerId = String(rec.id || '');
+        dialog.__partnerWasSaved = true;
+        const changeDetail = {
+          scope: 'partners',
+          partnerId: String(rec.id || ''),
+          action: wasSaved ? 'update' : 'create',
+          source: 'partner:modal',
+          sourceHint: dialog.__partnerSourceHint || dialog.dataset?.sourceHint || ''
+        };
+        if(typeof window.dispatchAppDataChanged === 'function'){
+          window.dispatchAppDataChanged(changeDetail);
+        }else{
+          document.dispatchEvent(new CustomEvent('app:data:changed', { detail: changeDetail }));
+        }
+        toastSuccess(touchSuccessMessage(key));
+        return rec;
+      }catch (err){
+        try{ console && console.warn && console.warn('[partners] touch log failed', err); }
+        catch(_err){}
+        toastError('Unable to log touch');
+        return null;
+      }finally{
+        logging = false;
+      }
+    };
+
+    if(!logButton.__touchToggle){
+      logButton.__touchToggle = true;
+      logButton.addEventListener('click', (event)=>{
+        event.preventDefault();
+        if(menu.hidden){ showMenu(); }
+        else { hideMenu(); }
+      });
+      logButton.addEventListener('keydown', (event)=>{
+        if(event.key === 'Escape' && !menu.hidden){
+          event.preventDefault();
+          hideMenu();
+          logButton.blur?.();
+          return;
+        }
+        if((event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') && menu.hidden){
+          event.preventDefault();
+          showMenu();
+        }
+      });
+    }
+
+    if(!menu.__touchHandlers){
+      menu.__touchHandlers = true;
+      menu.addEventListener('click', (event)=>{
+        const target = event.target && event.target.closest('button[data-touch-key]');
+        if(!target) return;
+        event.preventDefault();
+        hideMenu();
+        logTouch(target.dataset.touchKey);
+      });
+      menu.addEventListener('keydown', (event)=>{
+        if(event.key === 'Escape'){
+          event.preventDefault();
+          hideMenu();
+          if(typeof logButton.focus === 'function'){
+            logButton.focus({ preventScroll: true });
+          }
+        }
+      });
+    }
+
+    if(!dialog.__partnerTouchOutside){
+      const outsideHandler = (event)=>{
+        if(menu.hidden) return;
+        if(event && (event.target === logButton || logButton.contains(event.target))) return;
+        if(event && menu.contains(event.target)) return;
+        hideMenu();
+      };
+      dialog.addEventListener('click', outsideHandler);
+      dialog.__partnerTouchOutside = outsideHandler;
+    }
+
+    if(!menu.__touchCloseHook){
+      const closeHandler = ()=> hideMenu();
+      try{ dialog.addEventListener('close', closeHandler); }
+      catch(_err){ dialog.addEventListener('close', closeHandler); }
+      menu.__touchCloseHook = closeHandler;
+    }
+  }
+
+  function ensurePartnerTouchListener(){
+    if(typeof document === 'undefined') return;
+    if(document.__partnerTouchReadyListener) return;
+    const handler = (event)=>{
+      try{
+        installPartnerTouchLogging(event && event.detail ? event.detail : {});
+      }catch (err){
+        try{ console && console.warn && console.warn('[partners] touch logging init failed', err); }
+        catch(_err){}
+      }
+    };
+    document.addEventListener('partner:modal:ready', handler);
+    document.__partnerTouchReadyListener = handler;
+  }
+
+  ensurePartnerTouchListener();
 
   if (ctx && ctx.logger && typeof ctx.logger.log === 'function'){
     ctx.logger.log('[partners] bootstrapped');
