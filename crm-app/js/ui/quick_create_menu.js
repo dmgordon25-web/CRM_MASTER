@@ -1,4 +1,3 @@
-import { openPartnerEditModal } from './modals/partner_edit/index.js';
 import { toastInfo, toastWarn } from './toast_helpers.js';
 
 const WRAPPER_ID = 'global-new-menu';
@@ -8,6 +7,10 @@ const ACTION_BAR_ID = 'global-new';
 const ACTION_BAR_SOURCE = 'actionbar';
 const HEADER_SOURCE = 'header';
 const HEADER_TOGGLE_SELECTOR = '#btn-header-new';
+
+const BIND_GUARD_KEY = typeof Symbol === 'function'
+  ? Symbol('quick-create-menu:binding')
+  : '__quickCreateMenuBinding__';
 
 const defaultOpeners = {
   contact: () => openContactEditor(),
@@ -25,10 +28,12 @@ const state = {
   menu: null,
   outsideHandler: null,
   keyHandler: null,
-  openers: defaultOpeners
+  openers: defaultOpeners,
+  owner: null
 };
 
 let bootBeaconEmitted = false;
+let partnerModulePromise = null;
 
 function emitState() {
   if (typeof document === 'undefined') return;
@@ -366,26 +371,45 @@ export function isQuickCreateMenuOpen(source) {
 
 function defaultOpenContactEditor() {
   if (typeof window.renderContactModal === 'function') {
-    callSafely(window.renderContactModal, null);
-    return;
+    return callSafely(window.renderContactModal, null);
   }
   if (typeof window.openNewContact === 'function') {
-    callSafely(window.openNewContact);
-    return;
+    return callSafely(window.openNewContact);
   }
   toastWarn('Contact modal unavailable');
+  return null;
+}
+
+function loadPartnerModule() {
+  if (typeof window.openPartnerEditModal === 'function') {
+    return Promise.resolve(window.openPartnerEditModal);
+  }
+  if (!partnerModulePromise) {
+    try {
+      partnerModulePromise = import('./modals/partner_edit/index.js')
+        .then((mod) => {
+          const opener = mod && typeof mod.openPartnerEditModal === 'function'
+            ? mod.openPartnerEditModal
+            : null;
+          return opener || (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
+        })
+        .catch(() => null);
+    } catch (_) {
+      partnerModulePromise = Promise.resolve(null);
+    }
+  }
+  return partnerModulePromise;
 }
 
 function defaultOpenPartnerEditor() {
-  if (typeof openPartnerEditModal === 'function') {
-    Promise.resolve(callSafely(openPartnerEditModal, '', { allowAutoOpen: true }));
-    return;
-  }
-  if (typeof window.openPartnerEditModal === 'function') {
-    Promise.resolve(callSafely(window.openPartnerEditModal, '', { allowAutoOpen: true }));
-    return;
-  }
-  toastWarn('Partner modal unavailable');
+  return Promise.resolve(loadPartnerModule())
+    .then((opener) => {
+      if (typeof opener === 'function') {
+        return callSafely(opener, '', { allowAutoOpen: true });
+      }
+      toastWarn('Partner modal unavailable');
+      return null;
+    });
 }
 
 function defaultOpenTaskEditor() {
@@ -397,11 +421,11 @@ function defaultOpenTaskEditor() {
     window.renderTaskModal
   ].filter((fn) => typeof fn === 'function');
   if (handlers.length) {
-    try { handlers[0](); }
-    catch (_) {}
-    return;
+    try { return handlers[0](); }
+    catch (_) { return null; }
   }
   toastInfo('Tasks coming soon');
+  return null;
 }
 
 function openContactEditor() {
@@ -414,6 +438,15 @@ function openPartnerEditor() {
 
 function openTaskEditor() {
   return defaultOpenTaskEditor();
+}
+
+function buildOpeners(options = {}) {
+  const openers = {
+    contact: typeof options.openContact === 'function' ? options.openContact : defaultOpenContactEditor,
+    partner: typeof options.openPartner === 'function' ? options.openPartner : defaultOpenPartnerEditor,
+    task: typeof options.openTask === 'function' ? options.openTask : defaultOpenTaskEditor
+  };
+  return openers;
 }
 
 function createAnchorBinding(anchor, source) {
@@ -451,11 +484,17 @@ function createAnchorBinding(anchor, source) {
   };
 }
 
-export function bindQuickCreateMenu(root, options = {}) {
-  if (typeof document === 'undefined') {
-    return () => {};
-  }
-  const host = root && typeof root.querySelectorAll === 'function' ? root : document;
+function applyOpeners(binding, options) {
+  const nextOpeners = buildOpeners(options);
+  binding.openers = nextOpeners;
+  const previousOwner = state.owner;
+  const previousOpeners = state.openers;
+  state.owner = binding;
+  state.openers = nextOpeners;
+  binding.previousOpeners = previousOwner === binding ? binding.previousOpeners : previousOpeners;
+}
+
+function createBinding(host, options) {
   const toggleSelector = typeof options.toggleSelector === 'string' && options.toggleSelector
     ? options.toggleSelector
     : HEADER_TOGGLE_SELECTOR;
@@ -463,24 +502,32 @@ export function bindQuickCreateMenu(root, options = {}) {
   const actionBarSelector = typeof options.actionBarSelector === 'string' && options.actionBarSelector
     ? options.actionBarSelector
     : `#${ACTION_BAR_ID}`;
-  const openerConfig = {
-    contact: typeof options.openContact === 'function' ? options.openContact : defaultOpenContactEditor,
-    partner: typeof options.openPartner === 'function' ? options.openPartner : defaultOpenPartnerEditor,
-    task: typeof options.openTask === 'function' ? options.openTask : defaultOpenTaskEditor
+
+  const binding = {
+    disposed: false,
+    host,
+    toggleSelector,
+    actionBarSelector,
+    enableActionBar,
+    localBindings: new Map(),
+    actionBarCleanup: null,
+    previousOpeners: state.openers,
+    openers: state.openers,
+    update(nextOptions) {
+      if (this.disposed) return;
+      applyOpeners(this, nextOptions || options);
+    },
+    unbind: () => {}
   };
 
-  const nextOpeners = openerConfig;
-  const previousOpeners = state.openers;
-  state.openers = nextOpeners;
+  applyOpeners(binding, options);
   ensureBootBeacon();
 
-  const localBindings = new Map();
-
   function registerAnchor(anchor, source) {
-    if (!anchor || localBindings.has(anchor)) return;
+    if (!anchor || binding.localBindings.has(anchor)) return;
     const unbind = createAnchorBinding(anchor, source);
     if (typeof unbind === 'function') {
-      localBindings.set(anchor, unbind);
+      binding.localBindings.set(anchor, unbind);
     }
   }
 
@@ -489,7 +536,6 @@ export function bindQuickCreateMenu(root, options = {}) {
     registerAnchor(toggle, HEADER_SOURCE);
   });
 
-  let actionBarCleanup = null;
   if (enableActionBar) {
     const handleActionBarClick = (event) => {
       if (!event || !event.target || typeof event.target.closest !== 'function') {
@@ -508,27 +554,55 @@ export function bindQuickCreateMenu(root, options = {}) {
     if (existing) {
       registerAnchor(existing, ACTION_BAR_SOURCE);
     }
-    actionBarCleanup = () => {
+    binding.actionBarCleanup = () => {
       document.removeEventListener('click', handleActionBarClick, false);
     };
   }
 
-  let disposed = false;
-  return () => {
-    if (disposed) return;
-    disposed = true;
-    localBindings.forEach((unbind, anchor) => {
+  binding.unbind = () => {
+    if (binding.disposed) return;
+    binding.disposed = true;
+    binding.localBindings.forEach((unbind, anchor) => {
       if (typeof unbind === 'function') {
         try { unbind(); }
         catch (_) {}
       }
-      localBindings.delete(anchor);
+      binding.localBindings.delete(anchor);
     });
-    if (actionBarCleanup) {
-      actionBarCleanup();
+    if (binding.actionBarCleanup) {
+      binding.actionBarCleanup();
+      binding.actionBarCleanup = null;
     }
-    if (state.openers === nextOpeners) {
-      state.openers = previousOpeners || defaultOpeners;
+    if (state.owner === binding) {
+      state.owner = null;
+      state.openers = binding.previousOpeners || defaultOpeners;
+    }
+  };
+
+  return binding;
+}
+
+export function bindQuickCreateMenu(root, options = {}) {
+  if (typeof document === 'undefined') {
+    return () => {};
+  }
+  const host = root && typeof root.querySelectorAll === 'function' ? root : document;
+  const existing = host[BIND_GUARD_KEY];
+  if (existing && typeof existing.unbind === 'function' && !existing.disposed) {
+    if (typeof existing.update === 'function') {
+      existing.update(options);
+    }
+    return existing.unbind;
+  }
+
+  const binding = createBinding(host, options);
+  host[BIND_GUARD_KEY] = binding;
+
+  return () => {
+    binding.unbind();
+    if (host[BIND_GUARD_KEY] === binding) {
+      try { delete host[BIND_GUARD_KEY]; }
+      catch (_) { host[BIND_GUARD_KEY] = null; }
     }
   };
 }
