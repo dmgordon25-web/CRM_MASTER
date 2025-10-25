@@ -2,7 +2,7 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
-const DRAG_DISTANCE_THRESHOLD = 6;
+const DRAG_DISTANCE_THRESHOLD = 5;
 
 function parseSelectors(sel){
   if(!sel) return [];
@@ -144,6 +144,11 @@ function clamp(value, min, max){
 function clearPendingDrag(state){
   const pending = state && state.pendingDrag;
   if(!pending) return;
+  if(pending.captured && pending.handle && pending.pointerId != null){
+    try{ pending.handle.releasePointerCapture(pending.pointerId); }
+    catch(_err){}
+    pending.captured = false;
+  }
   const target = pending.listenerTarget;
   if(target){
     try{ target.removeEventListener('pointermove', pending.moveListener); }
@@ -239,6 +244,7 @@ function ensureGridOverlay(state){
   overlay.style.inset = '0';
   overlay.style.pointerEvents = 'none';
   overlay.style.zIndex = '0';
+  overlay.style.display = 'none';
   try{
     container.insertBefore(overlay, container.firstChild || null);
   }catch (_err){
@@ -483,6 +489,12 @@ function finishDrag(state, commit){
   state.prevContainerPosition = '';
   state.startOrder = null;
   state.startIndex = null;
+  if(state.container && state.container.classList){
+    state.container.classList.remove('dash-dragging');
+  }
+  if(state.gridOverlay){
+    state.gridOverlay.style.display = 'none';
+  }
   removeGridOverlay(state);
   state.itemsMeta = null;
 }
@@ -564,7 +576,13 @@ function beginGridDrag(state, item, evt){
       }
     }catch (_err){}
   }
-  ensureGridOverlay(state);
+  if(state.container && state.container.classList){
+    state.container.classList.add('dash-dragging');
+  }
+  const overlay = ensureGridOverlay(state);
+  if(overlay){
+    overlay.style.display = 'block';
+  }
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
@@ -614,7 +632,7 @@ function handlePointerDown(evt, state){
   const startY = evt.clientY;
   const downEvent = evt;
   const doc = item.ownerDocument || (typeof document !== 'undefined' ? document : null);
-  const target = doc || item;
+  const target = handle || doc || item;
   const pending = {
     pointerId,
     item,
@@ -624,7 +642,8 @@ function handlePointerDown(evt, state){
     downEvent,
     listenerTarget: target,
     moveListener: null,
-    upListener: null
+    upListener: null,
+    captured: false
   };
   pending.moveListener = moveEvt => {
     if(state.dragging || state.pendingDrag !== pending) return;
@@ -648,6 +667,14 @@ function handlePointerDown(evt, state){
     if(upEvt.pointerId != null && pointerId != null && upEvt.pointerId !== pointerId) return;
     clearPendingDrag(state);
   };
+  if(handle && typeof handle.setPointerCapture === 'function' && pointerId != null){
+    try{
+      handle.setPointerCapture(pointerId);
+      pending.captured = true;
+    }catch(_err){
+      pending.captured = false;
+    }
+  }
   if(target && typeof target.addEventListener === 'function'){
     target.addEventListener('pointermove', pending.moveListener);
     target.addEventListener('pointerup', pending.upListener);
