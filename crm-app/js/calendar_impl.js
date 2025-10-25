@@ -2,7 +2,7 @@
 import { STR, text } from './ui/strings.js';
 import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
-import { rangeForView, addDays, ymd, parseDateInput, loadCalendarData, isWithinRange } from './calendar/index.js';
+import { rangeForView, addDays, ymd, parseDateInput, loadEventsBetween, isWithinRange } from './calendar/index.js';
 import { ensureContactModalReady, openContactModal } from './contacts.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
@@ -1214,45 +1214,20 @@ function invalidateRenderCache(key){
         updatePublicApi(safeEvents);
       };
 
-      if(Array.isArray(cachedEvents)){
+      const hasCached = Array.isArray(cachedEvents) && cachedEvents.length > 0;
+      if(hasCached){
         usedCached = true;
         renderEvents(cachedEvents);
         if(label){
           label.textContent = `${labelText} • Loading…`;
           label.dataset.loading = '1';
         }
-        cell.appendChild(box);
-        grid.appendChild(cell);
-      }
-      root.appendChild(grid);
-      if(!events.length){
-        const emptyState = document.createElement('div');
-        emptyState.className = 'muted';
-        emptyState.style.padding = '24px';
-        emptyState.style.textAlign = 'center';
-        emptyState.setAttribute('role', 'status');
-        emptyState.textContent = 'Calendar looks clear! Add tasks or closing dates to see them here.';
-        root.appendChild(emptyState);
-      }
-    }
-    legend(events);
-
-    const snapshot = events.map((ev, index) => {
-      const date = new Date(ev.date.getTime());
-      date.setHours(0, 0, 0, 0);
-      const source = ev.source ? {
-        entity: ev.source.entity || '',
-        id: ev.source.id || '',
-        field: ev.source.field || ''
-      } : null;
-      const uidParts = [ev.type || 'event', String(date.getTime())];
-      if (source && source.entity && source.id) {
-        uidParts.push(source.entity, source.id);
-      } else {
-        uidParts.push(String(index));
       }else{
+        usedCached = false;
         clearErrorBanner(root);
         renderSkeleton(root, range, currentView);
+        legend([]);
+        updatePublicApi([]);
       }
 
       let events = [];
@@ -1265,13 +1240,14 @@ function invalidateRenderCache(key){
 
       if(renderSequence !== seq) return;
 
+      if(label){
+        delete label.dataset.loading;
+        label.textContent = labelText;
+      }
+
       if(loadError){
         if(console && typeof console.warn === 'function'){
           console.warn('[CAL] events load failed', loadError);
-        }
-        if(label){
-          delete label.dataset.loading;
-          label.textContent = labelText;
         }
         root.setAttribute('data-view', currentView);
         ensureErrorBanner(root, 'Could not load calendar data. Please check your connection or try again.', { preserveContent: usedCached });
@@ -1282,12 +1258,9 @@ function invalidateRenderCache(key){
         return;
       }
 
-      renderEvents(events);
-      if(label){
-        delete label.dataset.loading;
-        label.textContent = labelText;
-      }
-      storeCachedEvents(cacheKey, events);
+      const nextEvents = Array.isArray(events) ? events : [];
+      renderEvents(nextEvents);
+      storeCachedEvents(cacheKey, nextEvents);
     });
   }
 
