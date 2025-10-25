@@ -170,6 +170,244 @@ function ensurePartnersBoot(ctx){
     actions.innerHTML = renderFavoriteToggle('partner', partnerId, isFavorite);
   }
 
+  function installPartnerFollowUp(detail){
+    const dialog = detail && detail.dialog ? detail.dialog : null;
+    if(!dialog) return;
+    const form = detail && detail.form ? detail.form : dialog.querySelector('#partner-form');
+    const footer = (form && form.querySelector('[data-component="form-footer"]'))
+      || (form && form.querySelector('.modal-footer'))
+      || dialog.querySelector('.modal-footer');
+    if(!footer) return;
+    const start = footer.querySelector('.form-footer__start') || footer.querySelector('.modal-footer__start') || footer;
+    if(!start) return;
+
+    if(dialog.__partnerFollowUpAbort && typeof dialog.__partnerFollowUpAbort.abort === 'function' && !dialog.__partnerFollowUpAbort.signal?.aborted){
+      dialog.__partnerFollowUpAbort.abort();
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    dialog.__partnerFollowUpAbort = controller;
+
+    const host = document.createElement('div');
+    host.dataset.role = 'partner-followup-host';
+    host.className = 'followup-scheduler';
+    host.style.display = 'flex';
+    host.style.flexDirection = 'column';
+    host.style.gap = '6px';
+    host.style.maxWidth = '240px';
+
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'btn ghost';
+    actionBtn.textContent = 'Schedule Follow-up';
+    actionBtn.setAttribute('aria-haspopup', 'true');
+    actionBtn.setAttribute('aria-expanded', 'false');
+
+    const prompt = document.createElement('div');
+    prompt.dataset.role = 'partner-followup-prompt';
+    prompt.hidden = true;
+    prompt.style.display = 'none';
+    prompt.style.flexDirection = 'column';
+    prompt.style.gap = '6px';
+    prompt.style.padding = '8px';
+    prompt.style.border = '1px solid var(--border-subtle, #d0d7de)';
+    prompt.style.borderRadius = '6px';
+    prompt.style.background = 'var(--surface-subtle, #f6f8fa)';
+
+    const dateLabel = document.createElement('label');
+    dateLabel.textContent = 'Follow-up date';
+    dateLabel.style.display = 'flex';
+    dateLabel.style.flexDirection = 'column';
+    dateLabel.style.gap = '4px';
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.required = true;
+    dateInput.dataset.role = 'followup-date';
+
+    dateLabel.appendChild(dateInput);
+
+    const noteLabel = document.createElement('label');
+    noteLabel.textContent = 'Note (optional)';
+    noteLabel.style.display = 'flex';
+    noteLabel.style.flexDirection = 'column';
+    noteLabel.style.gap = '4px';
+
+    const noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.placeholder = 'Reminder note';
+    noteInput.dataset.role = 'followup-note';
+
+    noteLabel.appendChild(noteInput);
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn brand';
+    confirmBtn.textContent = 'Create';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn ghost';
+    cancelBtn.textContent = 'Cancel';
+
+    actions.append(confirmBtn, cancelBtn);
+
+    prompt.append(dateLabel, noteLabel, actions);
+
+    const status = document.createElement('div');
+    status.dataset.role = 'followup-status';
+    status.setAttribute('aria-live', 'polite');
+    status.style.fontSize = '12px';
+    status.style.minHeight = '16px';
+
+    const setStatus = (message, tone)=>{
+      status.textContent = message || '';
+      status.dataset.state = tone || '';
+      if(tone === 'error'){
+        status.style.color = 'var(--danger-text, #b42318)';
+      }else if(tone === 'success'){
+        status.style.color = 'var(--success-text, #067647)';
+      }else{
+        status.style.color = 'inherit';
+      }
+    };
+
+    const closePrompt = ()=>{
+      prompt.hidden = true;
+      prompt.style.display = 'none';
+      actionBtn.setAttribute('aria-expanded', 'false');
+    };
+    const openPrompt = ()=>{
+      prompt.hidden = false;
+      prompt.style.display = 'flex';
+      actionBtn.setAttribute('aria-expanded', 'true');
+      if(!dateInput.value){
+        try{
+          const today = new Date();
+          const iso = today.toISOString().slice(0,10);
+          dateInput.value = iso;
+        }catch(_err){}
+      }
+      try{ dateInput.focus({ preventScroll: true }); }
+      catch(_err){ dateInput.focus?.(); }
+    };
+
+    let submitting = false;
+    const resolvePartnerId = ()=>{
+      const detailId = detail && detail.record && detail.record.id != null ? detail.record.id : '';
+      const direct = String(detailId || '').trim();
+      if(direct) return direct;
+      if(!form) return '';
+      const idInput = form.querySelector('input[name="id"], input[data-role="partner-id"], #p-id');
+      if(!idInput) return '';
+      return String(idInput.value || '').trim();
+    };
+
+    const handleSubmit = ()=>{
+      if(submitting) return;
+      const linkedId = resolvePartnerId();
+      if(!linkedId){
+        setStatus('Save the partner before scheduling a follow-up.', 'error');
+        return;
+      }
+      const due = String(dateInput.value || '').trim();
+      if(!due){
+        setStatus('Choose a follow-up date.', 'error');
+        try{ dateInput.focus({ preventScroll: true }); }
+        catch(_err){ dateInput.focus?.(); }
+        return;
+      }
+      submitting = true;
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      actionBtn.disabled = true;
+      setStatus('Scheduling follow-up…');
+      const note = String(noteInput.value || '').trim();
+      Promise.resolve().then(async () => {
+        const payload = { linkedType: 'partner', linkedId, due, note };
+        if(!note){ delete payload.note; }
+        const createViaApp = window.App?.tasks?.createMinimal;
+        if(typeof createViaApp === 'function'){
+          await createViaApp(payload);
+        }else{
+          const mod = await import(new URL('../tasks/api.js', import.meta.url));
+          const fn = mod.createMinimalTask || mod.createTask;
+          if(typeof fn !== 'function'){
+            throw new Error('Task API unavailable');
+          }
+          await fn(payload);
+        }
+      }).then(() => {
+        setTimeout(() => {
+          try{
+            window.dispatchEvent(new CustomEvent('tasks:changed'));
+          }catch(_err){}
+        }, 0);
+        setStatus('Follow-up scheduled.', 'success');
+        noteInput.value = '';
+        submitting = false;
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        actionBtn.disabled = false;
+        closePrompt();
+      }).catch(err => {
+        console.warn?.('[followup]', err);
+        submitting = false;
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        actionBtn.disabled = false;
+        setStatus('Unable to schedule follow-up. Try again.', 'error');
+      });
+    };
+
+    actionBtn.addEventListener('click', (event)=>{
+      event.preventDefault();
+      setStatus('');
+      if(prompt.hidden){ openPrompt(); }
+      else { closePrompt(); }
+    }, { signal });
+
+    confirmBtn.addEventListener('click', (event)=>{
+      event.preventDefault();
+      handleSubmit();
+    }, { signal });
+
+    cancelBtn.addEventListener('click', (event)=>{
+      event.preventDefault();
+      closePrompt();
+    }, { signal });
+
+    prompt.addEventListener('keydown', (event)=>{
+      if(event.key === 'Escape'){
+        event.preventDefault();
+        closePrompt();
+        actionBtn.focus?.({ preventScroll: true });
+      }
+    }, { signal });
+
+    signal.addEventListener('abort', ()=>{
+      if(host.parentElement){ host.remove(); }
+      if(dialog.__partnerFollowUpAbort === controller){
+        dialog.__partnerFollowUpAbort = null;
+      }
+    });
+
+    try{ dialog.addEventListener('close', ()=> controller.abort(), { once: true }); }
+    catch(_err){ dialog.addEventListener('close', ()=> controller.abort(), { once: true }); }
+
+    host.append(actionBtn, prompt, status);
+    if(start.firstChild){
+      start.insertBefore(host, start.firstChild);
+    }else{
+      start.appendChild(host);
+    }
+  }
+
   function installPartnerTouchLogging(detail){
     const dialog = detail && detail.dialog ? detail.dialog : null;
     if(!dialog) return;
@@ -406,6 +644,7 @@ function ensurePartnersBoot(ctx){
     const handler = (event)=>{
       try{
         const detail = event && event.detail ? event.detail : {};
+        installPartnerFollowUp(detail);
         installPartnerTouchLogging(detail);
         applyPartnerFavorite(detail);
       }catch (err){
