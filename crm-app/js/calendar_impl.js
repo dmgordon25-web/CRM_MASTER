@@ -4,6 +4,11 @@ import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
+const GLOBAL_SCOPE = typeof globalThis !== 'undefined'
+  ? globalThis
+  : (typeof window !== 'undefined' ? window : {});
+
+const DB_WARNED = new Set();
 
 (function(){
   if(typeof window !== 'undefined'){
@@ -123,14 +128,75 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
   }
   function addDays(d,n){ const dd=new Date(d); dd.setDate(dd.getDate()+n); return dd; }
   function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
-  function parseISOish(s){
-    if(!s) return null;
-    try{
-      if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s+"T00:00:00");
-      const d = new Date(s); return isNaN(d) ? null : d;
-    }catch (_) { return null; }
+  function toLocalMidnight(date){
+    if(!(date instanceof Date)) return null;
+    const copy = new Date(date.getTime());
+    copy.setHours(0,0,0,0);
+    return copy;
   }
-  async function getAll(store){ try{ if(typeof dbGetAll==='function') return await dbGetAll(store); }catch (_) {} return []; }
+  function parseDateInput(value){
+    if(value instanceof Date) return toLocalMidnight(value);
+    if(typeof value === 'number' && Number.isFinite(value)){
+      const parsed = new Date(value);
+      if(Number.isNaN(parsed.getTime())) return null;
+      return toLocalMidnight(parsed);
+    }
+    const text = value == null ? '' : String(value).trim();
+    if(!text) return null;
+    const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(iso){
+      const parsed = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      return toLocalMidnight(parsed);
+    }
+    const parsed = new Date(text);
+    if(Number.isNaN(parsed.getTime())) return null;
+    return toLocalMidnight(parsed);
+  }
+  function cloneList(list){
+    return (Array.isArray(list) ? list : []).map(item => Object.assign({}, item || {}));
+  }
+  function seedFallback(store){
+    const dataset = GLOBAL_SCOPE && GLOBAL_SCOPE.__SEED_DATA__;
+    if(!dataset || typeof dataset !== 'object') return [];
+    const list = dataset[store];
+    return cloneList(Array.isArray(list) ? list : []);
+  }
+  async function getAll(store){
+    const scope = GLOBAL_SCOPE;
+    const fn = scope && typeof scope.dbGetAll === 'function' ? scope.dbGetAll : null;
+    if(fn){
+      try{
+        const records = await fn.call(scope, store);
+        if(Array.isArray(records)){
+          if(records.length) return records;
+          const seeds = seedFallback(store);
+          return seeds.length ? seeds : records;
+        }
+      }catch (err){
+        if(!DB_WARNED.has(store) && console && typeof console.warn === 'function'){
+          console.warn('calendar store load failed', store, err);
+          DB_WARNED.add(store);
+        }
+      }
+    }
+    const seeds = seedFallback(store);
+    return seeds;
+  }
+  function isWithinRange(date, start, end){
+    if(!(date instanceof Date)) return false;
+    const time = date.getTime();
+    if(start instanceof Date && time < start.getTime()) return false;
+    if(end instanceof Date && time >= end.getTime()) return false;
+    return true;
+  }
+  async function loadCalendarData({ start, end }){
+    const [contacts, tasks, deals] = await Promise.all([
+      getAll('contacts'),
+      getAll('tasks'),
+      getAll('deals')
+    ]);
+    return { contacts, tasks, deals, start, end };
+  }
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const EVENT_ICON_PATHS = Object.freeze({
@@ -308,7 +374,7 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
     postVisLog('calendar-contact-modal');
   }
 
-  function collectEvents(contacts,tasks,deals,anchor){
+  function collectEvents(contacts,tasks,deals,anchor,start,end){
     const events = [];
     const year = anchor.getFullYear();
     const contactMap = new Map();
@@ -317,10 +383,15 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       if(key) contactMap.set(key, c);
     }
 
+    const rangeStart = start instanceof Date ? start.getTime() : null;
+    const rangeEnd = end instanceof Date ? end.getTime() : null;
+
     function push(dateInput, type, title, subtitle, loanType, hasLoanOverride, source = null, status = '', extra = {}){
-      const rawDate = dateInput instanceof Date ? new Date(dateInput) : parseISOish(dateInput);
+      const rawDate = parseDateInput(dateInput);
       if(!rawDate) return;
-      rawDate.setHours(0,0,0,0);
+      const time = rawDate.getTime();
+      if(rangeStart != null && time < rangeStart) return;
+      if(rangeEnd != null && time >= rangeEnd) return;
       const hasLoan = hasLoanOverride!=null ? hasLoanOverride : !!loanType;
       const loanMeta = hasLoan ? resolveLoanMeta(loanType) : loanMetaFromKey(DEFAULT_LOAN);
       const contactId = extra && extra.contactId ? String(extra.contactId).trim() : '';
@@ -378,9 +449,22 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       }
       const bd = c.birthday || c.birthdate || c.birthDate;
       if(bd){
-        const d = parseISOish(bd);
+        const d = parseDateInput(bd);
         if(d){
           const e = new Date(year, d.getMonth(), d.getDate());
+          e.setHours(0,0,0,0);
+          if(!isWithinRange(e, start, end)){
+            // try previous year when range spans new year
+            const prev = new Date(year - 1, d.getMonth(), d.getDate());
+            prev.setHours(0,0,0,0);
+            if(isWithinRange(prev, start, end)){
+              push(prev, 'birthday', name, text('calendar.subtitle.birthday'), loanType, undefined,
+                { entity:'contacts', id:contactId, field:'birthday' },
+                stage,
+                { contactId, contactStage: stage, contactName: name, raw: c });
+            }
+            continue;
+          }
           push(e, 'birthday', name, text('calendar.subtitle.birthday'), loanType, undefined,
             { entity:'contacts', id:contactId, field:'birthday' },
             stage,
@@ -389,9 +473,21 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       }
       const ann = c.anniversary || c.anniversaryDate;
       if(ann){
-        const d = parseISOish(ann);
+        const d = parseDateInput(ann);
         if(d){
           const e = new Date(year, d.getMonth(), d.getDate());
+          e.setHours(0,0,0,0);
+          if(!isWithinRange(e, start, end)){
+            const prev = new Date(year - 1, d.getMonth(), d.getDate());
+            prev.setHours(0,0,0,0);
+            if(isWithinRange(prev, start, end)){
+              push(prev, 'anniversary', name, text('calendar.subtitle.anniversary'), loanType, undefined,
+                { entity:'contacts', id:contactId, field:'anniversary' },
+                stage,
+                { contactId, contactStage: stage, contactName: name, raw: c });
+            }
+            continue;
+          }
           push(e, 'anniversary', name, text('calendar.subtitle.anniversary'), loanType, undefined,
             { entity:'contacts', id:contactId, field:'anniversary' },
             stage,
@@ -547,9 +643,6 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       || document.getElementById('calendar');
     if(!root) return;
     // Read data deterministically
-    const [contacts,tasks,deals] = await Promise.all([getAll('contacts'), getAll('tasks'), getAll('deals')]);
-    const events = collectEvents(contacts,tasks,deals, anchor);
-
     // Build frame
     let start, end, cols;
     if(view==='week'){ const s=startOfWeek(anchor); start=s; end=addDays(s,7); cols=7; }
@@ -558,6 +651,9 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       const first=new Date(anchor.getFullYear(), anchor.getMonth(),1);
       start=startOfWeek(first); end=addDays(start,42); cols=7;
     }
+
+    const { contacts, tasks, deals } = await loadCalendarData({ start, end });
+    const events = collectEvents(contacts,tasks,deals, anchor, start, end);
 
     const label = document.getElementById('calendar-label');
     if(label){
@@ -981,6 +1077,28 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       anchor: new Date(anchor.getTime()),
       start: rangeStart,
       end: rangeEnd
+    };
+
+    calendarApi.loadRange = async function(rangeStartDate, rangeEndDate){
+      const safeStart = parseDateInput(rangeStartDate) || null;
+      const safeEnd = parseDateInput(rangeEndDate) || null;
+      const baseAnchor = safeStart instanceof Date ? safeStart : anchor;
+      const data = await loadCalendarData({ start: safeStart, end: safeEnd });
+      const rangeEvents = collectEvents(data.contacts, data.tasks, data.deals, baseAnchor, safeStart, safeEnd);
+      return rangeEvents.map(ev => ({
+        type: ev.type,
+        title: ev.title,
+        subtitle: ev.subtitle,
+        status: ev.status || '',
+        hasLoan: !!ev.hasLoan,
+        loanKey: ev.loanKey || '',
+        loanLabel: ev.loanLabel || '',
+        date: new Date(ev.date.getTime()),
+        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
+        contactId: ev.contactId || '',
+        contactStage: ev.contactStage || '',
+        contactName: ev.contactName || ''
+      }));
     };
 
     });
