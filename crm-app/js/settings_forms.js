@@ -54,6 +54,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     {key:'kpis', label:'KPIs'},
     {key:'pipeline', label:'Pipeline Overview'},
     {key:'today', label:"Today's Work"},
+    {key:'celebrations', label:'Upcoming Celebrations'},
     {key:'leaderboard', label:'Referral Leaderboard'},
     {key:'stale', label:'Stale Deals'},
     {key:'goalProgress', label:'Production Goals'},

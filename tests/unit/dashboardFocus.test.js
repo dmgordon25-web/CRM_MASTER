@@ -1,17 +1,56 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve, join } from 'node:path';
-import vm from 'node:vm';
+import { resolve, relative, dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { transformSync } from 'esbuild';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const jsRoot = resolve(repoRoot, 'crm-app/js');
 const DB_NAME = 'crm';
+const moduleCache = new Map();
+const nodeRequire = createRequire(import.meta.url);
 
 function runScript(relativePath) {
-  const code = readFileSync(join(jsRoot, relativePath), 'utf8');
-  vm.runInThisContext(code, { filename: relativePath });
+  const normalized = relativePath.replace(/\\/g, '/');
+  let absPath = resolve(jsRoot, normalized);
+  if (!existsSync(absPath) && existsSync(`${absPath}.js`)) {
+    absPath = `${absPath}.js`;
+  }
+  if (moduleCache.has(absPath)) {
+    return moduleCache.get(absPath).exports;
+  }
+  const code = readFileSync(absPath, 'utf8');
+  const transformed = transformSync(code, {
+    loader: 'js',
+    format: 'cjs',
+    sourcemap: 'inline',
+    sourcefile: relativePath,
+    target: 'es2020'
+  });
+  const moduleDir = dirname(absPath);
+  const record = { exports: {} };
+  moduleCache.set(absPath, record);
+  const localRequire = spec => {
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      let target = resolve(moduleDir, spec);
+      if (!existsSync(target) && existsSync(`${target}.js`)) {
+        target = `${target}.js`;
+      }
+      const rel = relative(jsRoot, target).replace(/\\/g, '/');
+      return runScript(rel);
+    }
+    return nodeRequire(spec);
+  };
+  try {
+    const factory = new Function('require', 'module', 'exports', transformed.code);
+    factory(localRequire, record, record.exports);
+  } catch (err) {
+    moduleCache.delete(absPath);
+    throw err;
+  }
+  return record.exports;
 }
 
 class StubClassList {
@@ -309,6 +348,7 @@ function setupEnvironment() {
 }
 
 async function resetEnvironment() {
+  moduleCache.clear();
   if (global.window && window.__APP_DB__ && typeof window.__APP_DB__.close === 'function') {
     window.__APP_DB__.close();
   }
@@ -319,7 +359,13 @@ async function resetEnvironment() {
   setupEnvironment();
   runScript('db.js');
   runScript('data/settings.js');
-  runScript('patch_2025-09-26_phase3_dashboard_reports.js');
+  const patchModule = runScript('patch_2025-09-26_phase3_dashboard_reports.js');
+  const patchInit = (patchModule && typeof patchModule.init === 'function')
+    ? patchModule.init
+    : window.CRM?.modules?.['patch_2025-09-26_phase3_dashboard_reports']?.init;
+  if (typeof patchInit === 'function') {
+    await patchInit({ logger: { log: () => {}, error: () => {} } });
+  }
 }
 
 async function seedData() {

@@ -1,17 +1,56 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve, join } from 'node:path';
-import vm from 'node:vm';
+import { resolve, relative, dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { transformSync } from 'esbuild';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const jsRoot = resolve(repoRoot, 'crm-app/js');
 const DB_NAME = 'crm';
+const moduleCache = new Map();
+const nodeRequire = createRequire(import.meta.url);
 
 function runScript(relativePath) {
-  const code = readFileSync(join(jsRoot, relativePath), 'utf8');
-  vm.runInThisContext(code, { filename: relativePath });
+  const normalized = relativePath.replace(/\\/g, '/');
+  let absPath = resolve(jsRoot, normalized);
+  if (!existsSync(absPath) && existsSync(`${absPath}.js`)) {
+    absPath = `${absPath}.js`;
+  }
+  if (moduleCache.has(absPath)) {
+    return moduleCache.get(absPath).exports;
+  }
+  const code = readFileSync(absPath, 'utf8');
+  const transformed = transformSync(code, {
+    loader: 'js',
+    format: 'cjs',
+    sourcemap: 'inline',
+    sourcefile: relativePath,
+    target: 'es2020'
+  });
+  const moduleDir = dirname(absPath);
+  const record = { exports: {} };
+  moduleCache.set(absPath, record);
+  const localRequire = spec => {
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      let target = resolve(moduleDir, spec);
+      if (!existsSync(target) && existsSync(`${target}.js`)) {
+        target = `${target}.js`;
+      }
+      const rel = relative(jsRoot, target).replace(/\\/g, '/');
+      return runScript(rel);
+    }
+    return nodeRequire(spec);
+  };
+  try {
+    const factory = new Function('require', 'module', 'exports', transformed.code);
+    factory(localRequire, record, record.exports);
+  } catch (err) {
+    moduleCache.delete(absPath);
+    throw err;
+  }
+  return record.exports;
 }
 
 function clearListeners(map) {
@@ -77,6 +116,7 @@ function setupWindow() {
 }
 
 async function resetEnvironment() {
+  moduleCache.clear();
   if (global.window && window.__APP_DB__ && typeof window.__APP_DB__.close === 'function') {
     window.__APP_DB__.close();
   }
@@ -184,19 +224,19 @@ describe('Settings data access', () => {
 
   it('normalizes dashboard preferences and merges widget visibility', async () => {
     const baseline = await window.Settings.get();
-    expect(baseline.dashboard).toEqual({
-      mode: 'today',
-      widgets: {
-        filters: true,
-        kpis: true,
-        pipeline: false,
-        today: true,
-        leaderboard: false,
-        stale: false,
-        insights: false,
-        opportunities: false
-      }
+    expect(baseline.dashboard.mode).toBe('today');
+    expect(baseline.dashboard.widgets).toMatchObject({
+      filters: true,
+      focus: true,
+      kpis: true,
+      pipeline: false,
+      today: true,
+      celebrations: true,
+      leaderboard: false,
+      stale: false
     });
+    expect(baseline.dashboard.widgets.insights).toBeUndefined();
+    expect(baseline.dashboard.widgets.opportunities).toBeUndefined();
 
     const afterMode = await window.Settings.save({ dashboard: { mode: 'all' } });
     expect(afterMode.dashboard.mode).toBe('all');

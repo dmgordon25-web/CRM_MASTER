@@ -7,6 +7,7 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   kpis: 'dashboard-kpis',
   pipeline: 'dashboard-pipeline-overview',
   today: 'dashboard-today',
+  celebrations: 'dashboard-celebrations',
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
   goalProgress: 'goal-progress-card',
