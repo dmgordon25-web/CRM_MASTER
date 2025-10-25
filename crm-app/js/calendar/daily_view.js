@@ -146,6 +146,9 @@ function buildCard(event, metaFor, iconFor, openContact, addTask){
       const result = typeof addTask === 'function' ? await addTask(event) : null;
       if(!result || result.status !== 'ok'){
         taskBtn.disabled = false;
+      }else if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
+        try{ window.renderCalendar(); }
+        catch (_err){}
       }
     }catch (err){
       taskBtn.disabled = false;

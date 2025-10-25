@@ -1,3 +1,5 @@
+import { openDB } from '../db.js';
+
 const GLOBAL_SCOPE = typeof globalThis !== 'undefined'
   ? globalThis
   : (typeof window !== 'undefined' ? window : {});
@@ -197,13 +199,114 @@ if(typeof window !== 'undefined'){
   api.rangeForView = rangeForView;
   api.loadCalendarData = loadCalendarData;
   api.loadEventsForRange = loadEventsForRange;
+  api.loadEventsBetween = loadEventsBetween;
   api.registerProvider = registerCalendarProvider;
+}
+
+function normalizeEventDate(value, fallback){
+  const parsed = parseDateInput(value);
+  if(parsed) return parsed;
+  if(fallback instanceof Date) return new Date(fallback.getTime());
+  const safe = toLocalMidnight(new Date());
+  return safe || new Date();
+}
+
+function cloneCalendarEvent(event, fallbackDate){
+  const base = event || {};
+  const date = normalizeEventDate(base.date, fallbackDate);
+  const source = base.source && typeof base.source === 'object'
+    ? {
+        entity: base.source.entity ? String(base.source.entity) : '',
+        id: base.source.id ? String(base.source.id) : '',
+        field: base.source.field ? String(base.source.field) : ''
+      }
+    : null;
+  return {
+    type: base.type || 'event',
+    title: base.title || '',
+    subtitle: base.subtitle || '',
+    status: base.status || '',
+    hasLoan: base.hasLoan != null ? !!base.hasLoan : !!base.loanKey,
+    loanKey: base.loanKey || '',
+    loanLabel: base.loanLabel || '',
+    contactId: base.contactId ? String(base.contactId) : '',
+    contactStage: base.contactStage ? String(base.contactStage) : '',
+    contactName: base.contactName ? String(base.contactName) : '',
+    source,
+    raw: base.raw || base,
+    date
+  };
+}
+
+export async function loadEventsBetween(startTs, endTs, options = {}){
+  const start = startTs instanceof Date ? new Date(startTs.getTime()) : (startTs != null ? parseDateInput(startTs) : null);
+  const end = endTs instanceof Date ? new Date(endTs.getTime()) : (endTs != null ? parseDateInput(endTs) : null);
+  const anchor = options.anchor instanceof Date
+    ? new Date(options.anchor.getTime())
+    : (start instanceof Date ? new Date(start.getTime()) : toLocalMidnight(new Date()));
+  const view = options.view === 'week' || options.view === 'day' ? options.view : 'month';
+
+  try{
+    if(typeof openDB === 'function'){
+      await openDB();
+    }
+  }catch (err){
+    if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+      console.warn('[CAL] provider fallback (empty):', err);
+    }
+  }
+
+  let data;
+  try{
+    data = await loadCalendarData({ start, end, anchor, view });
+  }catch (err){
+    if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+      console.warn('[CAL] provider fallback (empty):', err);
+    }
+    return [];
+  }
+
+  let events = [];
+  if(Array.isArray(data.events) && data.events.length){
+    const helper = typeof window !== 'undefined' ? window.__CALENDAR_IMPL__ : null;
+    if(helper && typeof helper.normalizeProvidedEvents === 'function'){
+      try{
+        events = helper.normalizeProvidedEvents(data.events, anchor, start, end);
+      }catch (err){
+        if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+          console.warn('[CAL] provider fallback (empty):', err);
+        }
+        events = [];
+      }
+    }else{
+      events = data.events.map(ev => cloneCalendarEvent(ev, anchor));
+    }
+  }
+
+  if(!events.length){
+    const helper = typeof window !== 'undefined' ? window.__CALENDAR_IMPL__ : null;
+    if(helper && typeof helper.collectEvents === 'function'){
+      try{
+        events = helper.collectEvents(data.contacts, data.tasks, data.deals, anchor, start, end);
+      }catch (err){
+        if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+          console.warn('[CAL] provider fallback (empty):', err);
+        }
+        events = [];
+      }
+    }
+  }
+
+  return Array.isArray(events)
+    ? events.map(ev => cloneCalendarEvent(ev, anchor))
+    : [];
 }
 
 export default {
   rangeForView,
   loadCalendarData,
   loadEventsForRange,
+  loadEventsBetween,
   registerCalendarProvider,
   parseDateInput,
   toLocalMidnight,
