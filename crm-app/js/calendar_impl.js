@@ -979,6 +979,7 @@ function invalidateRenderCache(key){
             item.style.background = colorForLoan(ev.loanKey) + '1A';
             item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
             item.style.position = 'relative';
+            item.style.transition = 'box-shadow 120ms ease, transform 120ms ease';
             item.dataset.date = String(ev.date?.toISOString?.() || '');
             item.dataset.eventType = ev.type || '';
             item.dataset.calendarEnhanced = '1';
@@ -1047,7 +1048,25 @@ function invalidateRenderCache(key){
               textWrap.appendChild(sub);
             }
             item.appendChild(textWrap);
-            item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
+            const tooltipName = ev.contactName || ev.title || meta.label || '';
+            const tooltipDate = ev.date instanceof Date
+              ? ev.date.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' })
+              : '';
+            const tooltipParts = [];
+            if(tooltipName) tooltipParts.push(tooltipName);
+            if(tooltipDate) tooltipParts.push(tooltipDate);
+            item.title = tooltipParts.join(' — ');
+
+            const enterHover = () => {
+              item.style.boxShadow = '0 6px 14px rgba(15,23,42,0.12)';
+              item.style.transform = 'translateY(-1px)';
+            };
+            const exitHover = () => {
+              item.style.boxShadow = '';
+              item.style.transform = '';
+            };
+            item.addEventListener('mouseenter', enterHover);
+            item.addEventListener('mouseleave', exitHover);
 
             const menuBtn = document.createElement('button');
             menuBtn.type = 'button';
