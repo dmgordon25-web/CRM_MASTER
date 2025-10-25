@@ -1,4 +1,3 @@
-import './quick_add_compat.js';
 import { bindQuickCreateMenu } from './quick_create_menu.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
@@ -18,9 +17,21 @@ const headerState = (() => {
     if (!('unbind' in existing)) {
       existing.unbind = null;
     }
+    if (!('boundHost' in existing)) {
+      existing.boundHost = null;
+    }
     return existing;
   }
-  const state = { host: null, header: null, observer: null, pending: false, toggle: null, wired: false, unbind: null };
+  const state = {
+    host: null,
+    header: null,
+    observer: null,
+    pending: false,
+    toggle: null,
+    wired: false,
+    unbind: null,
+    boundHost: null
+  };
   window[STATE_KEY] = state;
   return state;
 })();
@@ -134,6 +145,7 @@ function teardownQuickCreateBinding() {
     catch (_) {}
   }
   headerState.unbind = null;
+  headerState.boundHost = null;
 }
 
 function ensureHostNode() {
@@ -153,10 +165,17 @@ function ensureHostNode() {
     toggle.type = 'button';
     toggle.className = 'btn brand';
     toggle.id = BUTTON_ID;
-    toggle.textContent = '+ New';
+    toggle.textContent = '(+ New)';
+    toggle.setAttribute('aria-label', 'Create new record');
     host.appendChild(toggle);
-  } else if (!toggle.textContent || toggle.textContent.trim() !== '+ New') {
-    toggle.textContent = '+ New';
+  } else {
+    const label = toggle.textContent ? toggle.textContent.trim() : '';
+    if (label !== '(+ New)') {
+      toggle.textContent = '(+ New)';
+    }
+    if (!toggle.hasAttribute('aria-label')) {
+      toggle.setAttribute('aria-label', 'Create new record');
+    }
   }
   headerState.host = host;
   headerState.toggle = toggle;
@@ -168,6 +187,9 @@ function ensureQuickCreateBinding(host) {
     teardownQuickCreateBinding();
     return;
   }
+  if (headerState.boundHost === host && typeof headerState.unbind === 'function') {
+    return;
+  }
   teardownQuickCreateBinding();
   try {
     const unbind = bindQuickCreateMenu(host, {
@@ -175,6 +197,7 @@ function ensureQuickCreateBinding(host) {
       enableActionBar: true
     });
     headerState.unbind = typeof unbind === 'function' ? unbind : null;
+    headerState.boundHost = host;
   } catch (err) {
     headerState.unbind = null;
     if (console && typeof console.warn === 'function') {
