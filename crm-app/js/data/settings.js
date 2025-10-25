@@ -57,6 +57,7 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   relationshipOpportunities: 'rel-opps-card',
   clientCareRadar: 'nurture-card',
   closingWatch: 'closing-watch-card',
+  upcomingCelebrations: 'dashboard-celebrations',
   docCenter: 'doc-center-card',
   statusStack: 'dashboard-status-stack'
 };
@@ -350,6 +351,7 @@ function shouldValidateGeneral(partial){
     widgetDefaults.pipeline = false;
     widgetDefaults.leaderboard = false;
     widgetDefaults.stale = false;
+    widgetDefaults.upcomingCelebrations = false;
     const defaults = {
       mode: 'today',
       widgets: widgetDefaults,
