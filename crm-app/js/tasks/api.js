@@ -125,6 +125,102 @@ function buildOrigin(event, fallbackDate){
   return origin;
 }
 
+function resolveLinkedContext(payload){
+  if(!payload || typeof payload !== 'object') return { type:'', id:'' };
+  const type = safeString(payload.linkedType).toLowerCase();
+  const id = safeString(payload.linkedId);
+  return { type, id };
+}
+
+function normalizeDueDate(input){
+  if(!input) return toISODate(new Date());
+  if(input instanceof Date || typeof input === 'number'){ return toISODate(input); }
+  if(typeof input === 'string'){
+    const trimmed = input.trim();
+    if(!trimmed) return toISODate(new Date());
+    if(/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const parsed = new Date(trimmed);
+    if(!Number.isNaN(parsed.getTime())){
+      return toISODate(parsed);
+    }
+    return trimmed;
+  }
+  return toISODate(new Date());
+}
+
+function dispatchTaskCreated(record, contactId, source){
+  let dispatched = false;
+  const origin = source || 'followup';
+  try{
+    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
+      window.dispatchAppDataChanged({ source: origin, action:'task:create', taskId: record.id, contactId });
+      dispatched = true;
+    }
+  }catch (err){
+    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
+  }
+  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
+    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
+    catch (_err){}
+  }
+  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+    try{
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
+    }catch (_err){}
+  }
+}
+
+export async function createMinimalTask(payload){
+  ensureReadyLog();
+  const { type: linkedType, id: linkedId } = resolveLinkedContext(payload);
+  if(!linkedType || !linkedId){
+    return { status:'error', reason:'missing-link' };
+  }
+  const due = normalizeDueDate(payload?.due);
+  const note = safeString(payload?.note || payload?.notes);
+  const now = Date.now();
+  const record = {
+    id: uuid(),
+    kind: 'todo',
+    status: 'open',
+    done: false,
+    createdAt: now,
+    updatedAt: now,
+    due,
+    linkedType,
+    linkedId
+  };
+  if(linkedType === 'contact'){
+    record.contactId = linkedId;
+  }else if(linkedType === 'partner'){
+    record.partnerId = linkedId;
+  }
+  if(note){
+    record.notes = note;
+    record.note = note;
+    record.title = note;
+  }else{
+    record.title = 'Follow up';
+  }
+  try{
+    await openDB();
+    await dbPut('tasks', record);
+    try{
+      recordTask(record);
+    }catch (err){
+      console && console.warn && console.warn('tasks store update failed', err);
+    }
+  }catch (err){
+    console && console.warn && console.warn('createMinimalTask dbPut failed', err);
+    toastSafe('Unable to save task');
+    return { status:'error', error: err };
+  }
+  const contactId = record.contactId || (linkedType === 'contact' ? linkedId : '');
+  dispatchTaskCreated(record, contactId, 'followup');
+  toastSafe('Task added');
+  return { status:'ok', task: record };
+}
+
 export async function createTaskFromEvent(event){
   ensureReadyLog();
   const contactId = event && event.contactId ? String(event.contactId).trim() : '';
@@ -164,24 +260,7 @@ export async function createTaskFromEvent(event){
     toastSafe('Unable to save task');
     return { status:'error', error: err };
   }
-  let dispatched = false;
-  try{
-    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
-      window.dispatchAppDataChanged({ source:'calendar', action:'task:create', taskId: record.id, contactId });
-      dispatched = true;
-    }
-  }catch (err){
-    console && console.warn && console.warn('dispatchAppDataChanged failed', err);
-  }
-  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
-    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
-    catch (_err){}
-  }
-  if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
-    try{
-      document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
-    }catch (_err){}
-  }
+  dispatchTaskCreated(record, contactId, 'calendar');
   toastSafe('Task added');
   return { status:'ok', task: record };
 }

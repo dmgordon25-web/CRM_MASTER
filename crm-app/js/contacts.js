@@ -1170,7 +1170,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
             await createViaApp(payload);
           }else{
             const mod = await import(new URL('../tasks/api.js', import.meta.url));
-            const fn = mod.createMinimalTask || mod.createTask;
+            const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function'){
               throw new Error('Task API unavailable');
             }
