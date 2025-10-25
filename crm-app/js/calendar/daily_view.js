@@ -231,7 +231,7 @@ export function renderDailyView({ root, anchor, events, metaFor, iconFor, openCo
       const empty = document.createElement('div');
       empty.className = 'muted';
       empty.style.fontSize = '12px';
-      empty.textContent = 'No events';
+      empty.textContent = 'Nothing scheduled. Add a follow-up or reminder to fill this time.';
       list.appendChild(empty);
     }else{
       listEvents.forEach(ev => {

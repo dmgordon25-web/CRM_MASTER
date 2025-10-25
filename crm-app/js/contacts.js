@@ -1,7 +1,16 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
-import { renderStageChip, canonicalStage, STAGES as CANONICAL_STAGE_META } from './pipeline/constants.js';
+import {
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  toneForStage,
+  toneForStatus,
+  toneClassName,
+  TONE_CLASSNAMES
+} from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -26,6 +35,20 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       try { console && console.info && console.info('[contacts]', text); }
       catch(__err){}
     }
+  };
+
+  const removeToneClasses = (node)=>{
+    if(!node || !node.classList) return;
+    TONE_CLASSNAMES.forEach((cls)=> node.classList.remove(cls));
+  };
+
+  const buildStageFallback = (label, source)=>{
+    const stageLabel = label || 'Stage';
+    const toneKey = toneForStage(source || stageLabel);
+    const toneClass = toneClassName(toneKey);
+    const classSuffix = toneClass ? ` ${toneClass}` : '';
+    const toneAttr = toneKey ? ` data-tone="${toneKey}"` : '';
+    return `<span class="stage-chip stage-generic${classSuffix}" data-role="stage-chip" data-qa="stage-chip-generic"${toneAttr}>${escape(stageLabel)}</span>`;
   };
 
   const STAGES = [
@@ -87,6 +110,78 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
   const PIPELINE_MILESTONES = [
     'Intro Call','Application Sent','Application Submitted','UW in Progress','Conditions Out','Clear to Close','Docs Out','Funded / Post-Close'
   ];
+
+  function avatarCharToken(ch){
+    if(!ch) return '';
+    const upper = ch.toLocaleUpperCase();
+    const lower = ch.toLocaleLowerCase();
+    if(upper !== lower) return upper;
+    return /[0-9]/.test(ch) ? ch : '';
+  }
+  function computeAvatarInitials(name){
+    const parts = Array.from(String(name||'').trim().split(/\s+/).filter(Boolean));
+    if(!parts.length) return '';
+    const tokens = parts.map(part => {
+      const chars = Array.from(part);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token) return token;
+      }
+      return '';
+    }).filter(Boolean);
+    if(!tokens.length) return '';
+    let first = tokens[0] || '';
+    let second = '';
+    if(tokens.length>1){
+      second = tokens[tokens.length-1] || '';
+    }else{
+      const chars = Array.from(parts[0]).slice(1);
+      for(const ch of chars){
+        const token = avatarCharToken(ch);
+        if(token){
+          second = token;
+          break;
+        }
+      }
+    }
+    const combined = (first + second).slice(0,2);
+    return combined || first || '';
+  }
+  function contactAvatarSource(contact){
+    if(!contact) return '';
+    const first = String(contact.first||'').trim();
+    const last = String(contact.last||'').trim();
+    if(first || last) return `${first} ${last}`.trim();
+    if(contact.name) return String(contact.name||'').trim();
+    if(contact.email) return String(contact.email||'').trim();
+    if(contact.company) return String(contact.company||'').trim();
+    return '';
+  }
+  function renderAvatarSpan(name, role){
+    const initials = computeAvatarInitials(name);
+    const classes = ['initials-avatar'];
+    if(!initials) classes.push('is-empty');
+    const roleAttr = role ? ` data-role="${escape(role)}"` : '';
+    const value = initials || '?';
+    return `<span class="${classes.join(' ')}"${roleAttr} aria-hidden="true" data-initials="${escape(value)}"></span>`;
+  }
+  function applyAvatar(el, name, fallback){
+    if(!el) return;
+    const initials = computeAvatarInitials(name);
+    if(initials){
+      el.dataset.initials = initials;
+      el.classList.remove('is-empty');
+      return;
+    }
+    const alt = computeAvatarInitials(fallback);
+    if(alt){
+      el.dataset.initials = alt;
+      el.classList.remove('is-empty');
+      return;
+    }
+    el.dataset.initials = '?';
+    el.classList.add('is-empty');
+  }
   const STATES = [
     {value:'', label:'Select state'},
     {value:'AL', label:'Alabama'},
@@ -298,23 +393,32 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
     const body = dlg.querySelector('#contact-modal-body');
     const stageLabel = findLabel(STAGES, c.stage) || 'Application';
     const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
-    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(stageLabel)}</span>`;
+    const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
+    const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
     const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
     const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
+    const statusToneKey = toneForStatus(c.status);
+    const statusToneClass = toneClassName(statusToneKey);
+    const statusToneAttr = statusToneKey ? ` data-tone="${statusToneKey}"` : '';
+    const statusPillHtml = `<span class="status-pill${statusToneClass ? ` ${statusToneClass}` : ''}" data-status="${escape(c.status||'inprogress')}"${statusToneAttr}>${escape(statusLabel)}</span>`;
     const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const loanMetric = Number(c.loanAmount||0)>0 ? fmtCurrency.format(Number(c.loanAmount||0)) : 'TBD';
     const nextTouch = (c.nextFollowUp||'').slice(0,10) || (c.closingTimeline||'TBD');
     const stageSliderMarks = STAGE_FLOW.map((stage, idx)=> `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx+1}</span>`).join('');
     const stageSliderLabels = STAGE_FLOW.map(stage=> `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
+    const firstName = String(c.first||'').trim();
+    const lastName = String(c.last||'').trim();
+    const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
+    const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
     body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id||'')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last||'')}">
       <div class="modal-form-layout">
         <aside class="modal-summary">
-          <div class="summary-name">${escape((c.first||'') + (c.last?' '+c.last:'')) || 'New Contact'}</div>
+          <div class="summary-name">${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span></div>
           <div class="summary-meta">
             <span data-role="stage-chip-wrapper" data-stage="${escape(c.stage||'application')}"${stageCanonicalAttr}>${stageChip}</span>
-            <span class="status-pill" data-status="${escape(c.status||'inprogress')}">${escape(statusLabel)}</span>
+            ${statusPillHtml}
           </div>
           <div class="summary-metrics">
             <div class="summary-metric">
@@ -536,17 +640,34 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
-      if(summaryName){ summaryName.textContent = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact'; }
+      if(summaryName){
+        const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+        const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+        const label = (firstVal||lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
+        if(summaryText){ summaryText.textContent = label; }
+        else { summaryName.textContent = label; }
+        const avatarName = (firstVal||lastVal) ? label : '';
+        applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
+      }
       if(stageWrap){
         const canonicalKey = canonicalStage(stageVal) || canonicalStage(findLabel(STAGES, stageVal));
         if(canonicalKey){ stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
         stageWrap.dataset.stage = stageVal;
         const label = findLabel(STAGES, stageVal) || stageVal || 'Application';
         const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || label) : label;
-        const chip = renderStageChip(stageVal) || renderStageChip(label) || `<span class="stage-chip stage-generic" data-role="stage-chip" data-qa="stage-chip-generic">${escape(canonicalLabel || label)}</span>`;
+        const chip = renderStageChip(stageVal) || renderStageChip(label) || buildStageFallback(canonicalLabel || label, stageVal);
         stageWrap.innerHTML = chip;
       }
-      if(statusEl){ statusEl.dataset.status = statusVal; statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress'; }
+      if(statusEl){
+        statusEl.dataset.status = statusVal;
+        const toneKey = toneForStatus(statusVal);
+        const toneClass = toneClassName(toneKey);
+        removeToneClasses(statusEl);
+        if(toneClass){ statusEl.classList.add(toneClass); }
+        if(toneKey){ statusEl.setAttribute('data-tone', toneKey); }
+        else { statusEl.removeAttribute('data-tone'); }
+        statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress';
+      }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
         else if(stageVal==='funded'){ summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }
@@ -786,7 +907,8 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }
       }
     };
-    const handleSave = async ()=>{
+    const handleSave = async (options)=>{
+      const opts = options && typeof options === 'object' ? options : {};
       const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
       const prevStage = c.stage;
       setBusy(true);
@@ -836,6 +958,15 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }
         await openDB();
         await dbPut('contacts', u);
+        if(Array.isArray(contacts)){
+          const idx = contacts.findIndex(item => item && String(item.id) === String(u.id));
+          if(idx >= 0){
+            contacts[idx] = Object.assign({}, contacts[idx], u);
+          }else{
+            contacts.push(Object.assign({}, u));
+          }
+        }
+        Object.assign(c, u);
         try{
           if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
           if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
@@ -851,8 +982,13 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         }else if(console && typeof console.warn === 'function'){
           console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
         }
-        toastSuccess(existed ? 'Contact updated' : 'Contact created');
-        closeDialog();
+        const successMessage = opts.successMessage || (existed ? 'Contact updated' : 'Contact created');
+        if(successMessage){
+          toastSuccess(successMessage);
+        }
+        if(!opts.keepOpen){
+          closeDialog();
+        }
         return u;
       }catch (err){
         if(console && typeof console.warn === 'function'){
@@ -864,6 +1000,183 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
         setBusy(false);
       }
     };
+    const installTouchLogging = ()=>{
+      const footer = dlg.querySelector('[data-component="form-footer"]');
+      if(!footer) return;
+      const start = footer.querySelector('.form-footer__start');
+      if(!start) return;
+
+      let controls = dlg.__contactTouchControls || null;
+      if(!controls){
+        const logButton = document.createElement('button');
+        logButton.type = 'button';
+        logButton.className = 'btn';
+        logButton.dataset.role = 'log-touch';
+        logButton.textContent = 'Log a Touch';
+        logButton.setAttribute('aria-haspopup', 'true');
+        logButton.setAttribute('aria-expanded', 'false');
+
+        const menu = document.createElement('div');
+        menu.dataset.role = 'touch-menu';
+        menu.setAttribute('role', 'menu');
+        menu.hidden = true;
+        menu.style.display = 'none';
+        menu.style.marginLeft = '8px';
+        menu.style.gap = '4px';
+        menu.style.flexWrap = 'wrap';
+
+        start.appendChild(logButton);
+        start.appendChild(menu);
+        controls = { button: logButton, menu };
+        dlg.__contactTouchControls = controls;
+      }else{
+        controls.button.textContent = 'Log a Touch';
+      }
+
+      const { button: logButton, menu } = controls;
+      if(!logButton || !menu) return;
+
+      TOUCH_OPTIONS.forEach(option => {
+        let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
+        if(!optBtn){
+          optBtn = document.createElement('button');
+          optBtn.type = 'button';
+          optBtn.className = 'btn ghost';
+          optBtn.dataset.touchKey = option.key;
+          optBtn.textContent = option.label;
+          optBtn.setAttribute('role', 'menuitem');
+          menu.appendChild(optBtn);
+        }else{
+          optBtn.textContent = option.label;
+        }
+      });
+      Array.from(menu.querySelectorAll('button[data-touch-key]')).forEach(btn => {
+        if(!TOUCH_OPTIONS.some(option => option.key === btn.dataset.touchKey)){
+          btn.remove();
+        }
+      });
+
+      const hideMenu = ()=>{
+        if(menu.hidden) return;
+        menu.hidden = true;
+        menu.style.display = 'none';
+        logButton.setAttribute('aria-expanded', 'false');
+      };
+      const showMenu = ()=>{
+        if(!menu.hidden) return;
+        menu.hidden = false;
+        menu.style.display = 'flex';
+        logButton.setAttribute('aria-expanded', 'true');
+        const first = menu.querySelector('button[data-touch-key]');
+        if(first && typeof first.focus === 'function'){
+          first.focus({ preventScroll: true });
+        }
+      };
+
+      let logging = false;
+      const logTouch = async (key)=>{
+        if(logging) return null;
+        logging = true;
+        try{
+          const notesField = $('#c-notes', body);
+          const lastInput = $('#c-lastcontact', body);
+          if(!notesField || !lastInput){
+            return null;
+          }
+          const entry = createTouchLogEntry(key);
+          const existing = notesField.value || '';
+          const remainderRaw = existing.replace(/^\s+/, '');
+          const remainder = remainderRaw ? `\n${remainderRaw}` : '';
+          const nextValue = `${entry}${remainder}`;
+          notesField.value = nextValue;
+          notesField.dispatchEvent(new Event('input', { bubbles: true }));
+          if(typeof notesField.focus === 'function'){
+            notesField.focus({ preventScroll: true });
+          }
+          if(typeof notesField.setSelectionRange === 'function'){
+            const caretIndex = entry.length;
+            try{ notesField.setSelectionRange(caretIndex, caretIndex); }
+            catch(_err){}
+          }
+          const today = formatTouchDate(new Date());
+          if(today){
+            lastInput.value = today;
+            lastInput.dispatchEvent(new Event('input', { bubbles: true }));
+            lastInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          const result = await handleSave({ keepOpen: true, successMessage: touchSuccessMessage(key) });
+          return result;
+        }catch (err){
+          try{ console && console.warn && console.warn('[contacts] touch log failed', err); }
+          catch(_err){}
+          return null;
+        }finally{
+          logging = false;
+        }
+      };
+
+      if(!logButton.__touchToggle){
+        logButton.__touchToggle = true;
+        logButton.addEventListener('click', (event)=>{
+          event.preventDefault();
+          if(menu.hidden){ showMenu(); }
+          else { hideMenu(); }
+        });
+        logButton.addEventListener('keydown', (event)=>{
+          if(event.key === 'Escape' && !menu.hidden){
+            event.preventDefault();
+            hideMenu();
+            logButton.blur?.();
+            return;
+          }
+          if((event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') && menu.hidden){
+            event.preventDefault();
+            showMenu();
+          }
+        });
+      }
+
+      if(!menu.__touchHandlers){
+        menu.__touchHandlers = true;
+        menu.addEventListener('click', (event)=>{
+          const target = event.target && event.target.closest('button[data-touch-key]');
+          if(!target) return;
+          event.preventDefault();
+          hideMenu();
+          logTouch(target.dataset.touchKey);
+        });
+        menu.addEventListener('keydown', (event)=>{
+          if(event.key === 'Escape'){
+            event.preventDefault();
+            hideMenu();
+            if(typeof logButton.focus === 'function'){
+              logButton.focus({ preventScroll: true });
+            }
+          }
+        });
+      }
+
+      if(!dlg.__touchMenuOutsideHandler){
+        const outsideHandler = (event)=>{
+          if(menu.hidden) return;
+          if(event && (event.target === logButton || logButton.contains(event.target))) return;
+          if(event && menu.contains(event.target)) return;
+          hideMenu();
+        };
+        dlg.addEventListener('click', outsideHandler);
+        dlg.__touchMenuOutsideHandler = outsideHandler;
+      }
+
+      if(!menu.__touchCloseHook){
+        const closeHandler = ()=> hideMenu();
+        try{ dlg.addEventListener('close', closeHandler); }
+        catch(_err){ dlg.addEventListener('close', closeHandler); }
+        menu.__touchCloseHook = closeHandler;
+      }
+    };
+
+    installTouchLogging();
+
     if(saveBtn){
       if(typeof window.saveForm === 'function'){
         window.saveForm(saveBtn, handleSave, { successMessage: null });

@@ -812,42 +812,12 @@ function invalidateRenderCache(key){
         rec.updatedAt = Date.now();
         await dbPut(store, rec);
         __calPending.add(`${store}:${source.id}`);
-      scheduleCalendarFlush();
-      invalidateRenderCache();
-      return true;
-    }
+        scheduleCalendarFlush();
+        invalidateRenderCache();
+        return true;
+      }
 
-      const ensureRangeBounds = (baseAnchor, baseView, startHint, endHint) => {
-        const fallback = rangeForView(baseAnchor, baseView);
-        const rangeStart = startHint instanceof Date
-          ? new Date(startHint.getTime())
-          : new Date(fallback.start.getTime());
-        const rangeEnd = endHint instanceof Date
-          ? new Date(endHint.getTime())
-          : new Date(fallback.end.getTime());
-        return { rangeStart, rangeEnd };
-      };
-
-      const fetchEventsForRange = async (baseAnchor, baseView, startHint, endHint) => {
-        const { rangeStart, rangeEnd } = ensureRangeBounds(baseAnchor, baseView, startHint, endHint);
-        try{
-          const data = await loadCalendarData({ start: rangeStart, end: rangeEnd, anchor: baseAnchor, view: baseView });
-          const contacts = Array.isArray(data?.contacts) ? data.contacts : [];
-          const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-          const deals = Array.isArray(data?.deals) ? data.deals : [];
-          let combined = Array.isArray(data?.events) && data.events.length
-            ? normalizeProvidedEvents(data.events, baseAnchor, rangeStart, rangeEnd)
-            : [];
-          if(!combined.length){
-            combined = collectEvents(contacts, tasks, deals, baseAnchor, rangeStart, rangeEnd);
-          }
-          return { events: combined, rangeStart, rangeEnd, error: null };
-        }catch (error){
-          return { events: [], rangeStart, rangeEnd, error };
-        }
-      };
-
-      const updatePublicApi = (eventsList, rangeMeta = {}) => {
+      const updatePublicApi = (eventsList) => {
         const safeEvents = Array.isArray(eventsList) ? eventsList : [];
         const snapshot = safeEvents.map((ev, index) => {
           const date = ev?.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev?.date) || new Date(anchorDate);
@@ -879,10 +849,8 @@ function invalidateRenderCache(key){
             contactName: ev?.contactName || ''
           };
         });
-        const requestedStart = rangeMeta && rangeMeta.rangeStart instanceof Date ? rangeMeta.rangeStart : null;
-        const requestedEnd = rangeMeta && rangeMeta.rangeEnd instanceof Date ? rangeMeta.rangeEnd : null;
-        const rangeStart = requestedStart ? new Date(requestedStart.getTime()) : (start ? new Date(start.getTime()) : null);
-        const rangeEnd = requestedEnd ? new Date(requestedEnd.getTime()) : (end ? new Date(end.getTime()) : null);
+        const rangeStart = start ? new Date(start.getTime()) : null;
+        const rangeEnd = end ? new Date(end.getTime()) : null;
         const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
         calendarApi.visibleEvents = function(){
           return snapshot.map(ev => ({
@@ -912,35 +880,32 @@ function invalidateRenderCache(key){
           const safeStart = parseDateInput(rangeStartDate) || null;
           const safeEnd = parseDateInput(rangeEndDate) || null;
           const baseAnchor = safeStart instanceof Date ? safeStart : anchorDate;
+          let rangeEvents = [];
           try{
-            const result = await fetchEventsForRange(
-              baseAnchor,
-              currentView,
-              safeStart || rangeStart,
-              safeEnd || rangeEnd
-            );
-            if(result.error) return [];
-            return result.events.map(ev => ({
-              type: ev.type,
-              title: ev.title,
-              subtitle: ev.subtitle,
-              status: ev.status || '',
-              hasLoan: !!ev.hasLoan,
-              loanKey: ev.loanKey || '',
-              loanLabel: ev.loanLabel || '',
-              date: ev.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev.date) || new Date(),
-              source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
-              contactId: ev.contactId || '',
-              contactStage: ev.contactStage || '',
-              contactName: ev.contactName || ''
-            }));
-          }catch (_err){
-            return [];
+            const loaded = await loadEventsBetween(safeStart, safeEnd, { anchor: baseAnchor, view: currentView });
+            if(Array.isArray(loaded)) rangeEvents = loaded;
+          }catch (err){
+            if(console && console.warn) console.warn('[CAL] provider fallback (empty):', err);
+            rangeEvents = [];
           }
+          return rangeEvents.map(ev => ({
+            type: ev.type,
+            title: ev.title,
+            subtitle: ev.subtitle,
+            status: ev.status || '',
+            hasLoan: !!ev.hasLoan,
+            loanKey: ev.loanKey || '',
+            loanLabel: ev.loanLabel || '',
+            date: ev.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev.date) || new Date(),
+            source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
+            contactId: ev.contactId || '',
+            contactStage: ev.contactStage || '',
+            contactName: ev.contactName || ''
+          }));
         };
       };
 
-      const renderEvents = (eventsList, rangeMeta = null) => {
+      const renderEvents = (eventsList) => {
         const safeEvents = Array.isArray(eventsList) ? eventsList : [];
         clearErrorBanner(root);
         root.innerHTML = '';
@@ -1014,6 +979,7 @@ function invalidateRenderCache(key){
             item.style.background = colorForLoan(ev.loanKey) + '1A';
             item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
             item.style.position = 'relative';
+            item.style.transition = 'box-shadow 120ms ease, transform 120ms ease';
             item.dataset.date = String(ev.date?.toISOString?.() || '');
             item.dataset.eventType = ev.type || '';
             item.dataset.calendarEnhanced = '1';
@@ -1082,7 +1048,25 @@ function invalidateRenderCache(key){
               textWrap.appendChild(sub);
             }
             item.appendChild(textWrap);
-            item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
+            const tooltipName = ev.contactName || ev.title || meta.label || '';
+            const tooltipDate = ev.date instanceof Date
+              ? ev.date.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' })
+              : '';
+            const tooltipParts = [];
+            if(tooltipName) tooltipParts.push(tooltipName);
+            if(tooltipDate) tooltipParts.push(tooltipDate);
+            item.title = tooltipParts.join(' — ');
+
+            const enterHover = () => {
+              item.style.boxShadow = '0 6px 14px rgba(15,23,42,0.12)';
+              item.style.transform = 'translateY(-1px)';
+            };
+            const exitHover = () => {
+              item.style.boxShadow = '';
+              item.style.transform = '';
+            };
+            item.addEventListener('mouseenter', enterHover);
+            item.addEventListener('mouseleave', exitHover);
 
             const menuBtn = document.createElement('button');
             menuBtn.type = 'button';
@@ -1227,31 +1211,57 @@ function invalidateRenderCache(key){
         }
         root.appendChild(grid);
         legend(safeEvents);
-        const meta = rangeMeta && typeof rangeMeta === 'object' ? rangeMeta : { rangeStart: start, rangeEnd: end };
-        updatePublicApi(safeEvents, meta);
+        updatePublicApi(safeEvents);
       };
-
-      const currentRangeMeta = { rangeStart: start, rangeEnd: end };
 
       if(Array.isArray(cachedEvents)){
         usedCached = true;
-        renderEvents(cachedEvents, currentRangeMeta);
+        renderEvents(cachedEvents);
         if(label){
           label.textContent = `${labelText} • Loading…`;
           label.dataset.loading = '1';
         }
+        cell.appendChild(box);
+        grid.appendChild(cell);
+      }
+      root.appendChild(grid);
+      if(!events.length){
+        const emptyState = document.createElement('div');
+        emptyState.className = 'muted';
+        emptyState.style.padding = '24px';
+        emptyState.style.textAlign = 'center';
+        emptyState.setAttribute('role', 'status');
+        emptyState.textContent = 'Calendar looks clear! Add tasks or closing dates to see them here.';
+        root.appendChild(emptyState);
+      }
+    }
+    legend(events);
+
+    const snapshot = events.map((ev, index) => {
+      const date = new Date(ev.date.getTime());
+      date.setHours(0, 0, 0, 0);
+      const source = ev.source ? {
+        entity: ev.source.entity || '',
+        id: ev.source.id || '',
+        field: ev.source.field || ''
+      } : null;
+      const uidParts = [ev.type || 'event', String(date.getTime())];
+      if (source && source.entity && source.id) {
+        uidParts.push(source.entity, source.id);
+      } else {
+        uidParts.push(String(index));
       }else{
         clearErrorBanner(root);
         renderSkeleton(root, range, currentView);
       }
 
-      const loadResult = await fetchEventsForRange(anchorDate, currentView, start, end);
-      const events = Array.isArray(loadResult.events) ? loadResult.events : [];
-      const loadError = loadResult.error;
-      const loadedRangeMeta = {
-        rangeStart: loadResult.rangeStart instanceof Date ? loadResult.rangeStart : start,
-        rangeEnd: loadResult.rangeEnd instanceof Date ? loadResult.rangeEnd : end
-      };
+      let events = [];
+      let loadError = null;
+      try{
+        events = await loadEventsBetween(start, end, { anchor: anchorDate, view: currentView });
+      }catch (err){
+        loadError = err;
+      }
 
       if(renderSequence !== seq) return;
 
@@ -1267,12 +1277,12 @@ function invalidateRenderCache(key){
         ensureErrorBanner(root, 'Could not load calendar data. Please check your connection or try again.', { preserveContent: usedCached });
         if(!usedCached){
           legend([]);
-          updatePublicApi([], loadedRangeMeta);
+          updatePublicApi([]);
         }
         return;
       }
 
-      renderEvents(events, loadedRangeMeta);
+      renderEvents(events);
       if(label){
         delete label.dataset.loading;
         label.textContent = labelText;

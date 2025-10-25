@@ -32,6 +32,34 @@ function buildCopy(){
   };
 }
 
+function openQuickAdd(kind = 'contact'){
+  const target = kind === 'partner' ? 'partner' : 'contact';
+  wireQuickAddUnified({ copy: buildCopy() });
+  const api = win && win.QuickAddUnified;
+  if(api && typeof api.open === 'function'){
+    api.open(target);
+    return true;
+  }
+  if(win && typeof win.requestAnimationFrame === 'function'){
+    win.requestAnimationFrame(() => {
+      const next = win && win.QuickAddUnified;
+      if(next && typeof next.open === 'function'){
+        next.open(target);
+      }
+    });
+  }
+  return false;
+}
+
+const quickCreateMenuOptions = {
+  openContact: () => openQuickAdd('contact'),
+  openPartner: () => openQuickAdd('partner')
+};
+
+export function getQuickAddMenuOptions(){
+  return quickCreateMenuOptions;
+}
+
 function ensureTrigger(){
   if(!doc || typeof doc.querySelector !== 'function') return;
   const trigger = doc.querySelector('[data-quick-add]');
@@ -40,17 +68,7 @@ function ensureTrigger(){
   trigger.addEventListener('click', (event) => {
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
     if(event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-    const copy = buildCopy();
-    wireQuickAddUnified({ copy });
-    const api = win && win.QuickAddUnified;
-    if(api && typeof api.open === 'function') {
-      api.open('contact');
-    } else if(win && typeof win.requestAnimationFrame === 'function') {
-      win.requestAnimationFrame(() => {
-        const next = win && win.QuickAddUnified;
-        if(next && typeof next.open === 'function') next.open('contact');
-      });
-    }
+    openQuickAdd('contact');
   });
 }
 
