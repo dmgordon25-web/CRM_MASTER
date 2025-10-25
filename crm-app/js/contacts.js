@@ -959,6 +959,40 @@ export function openContactModal(contactId, options){
   return null;
 }
 
+let modalReadyPromise = null;
+export function ensureContactModalReady(){
+  if(typeof window === 'undefined') return Promise.resolve(false);
+  if(typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true){
+    return Promise.resolve(true);
+  }
+  const ready = window.__CONTACT_MODAL_READY__;
+  if(ready && typeof ready.then === 'function'){
+    return ready.then(() => {
+      return typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true;
+    }).catch(err => {
+      if(console && typeof console.warn === 'function'){
+        console.warn('contact modal ready wait failed', err);
+      }
+      return false;
+    });
+  }
+  if(!modalReadyPromise){
+    modalReadyPromise = Promise.resolve(
+      typeof window.renderContactModal === 'function' && window.renderContactModal.__crmReady === true
+    ).then(value => {
+      modalReadyPromise = null;
+      return value;
+    }).catch(err => {
+      modalReadyPromise = null;
+      if(console && typeof console.warn === 'function'){
+        console.warn('contact modal ensure failed', err);
+      }
+      return false;
+    });
+  }
+  return modalReadyPromise;
+}
+
 if(typeof window !== 'undefined' && typeof window.openContactModal !== 'function'){
   window.openContactModal = function(contactId, options){
     return openContactModal(contactId, options);
