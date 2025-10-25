@@ -263,7 +263,10 @@ export async function loadEventsBetween(startTs, endTs, options = {}){
     if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
       console.warn('[CAL] provider fallback (empty):', err);
     }
-    return [];
+    const error = new Error('calendar-load-failed');
+    error.code = 'calendar-load-failed';
+    error.cause = err;
+    throw error;
   }
 
   let events = [];

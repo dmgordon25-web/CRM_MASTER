@@ -2,10 +2,61 @@
 import { STR, text } from './ui/strings.js';
 import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
-import { rangeForView, addDays, ymd, parseDateInput, loadEventsBetween, isWithinRange } from './calendar/index.js';
+import { rangeForView, addDays, ymd, parseDateInput, loadCalendarData, isWithinRange } from './calendar/index.js';
 import { ensureContactModalReady, openContactModal } from './contacts.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
+
+const RENDER_CACHE_LIMIT = 8;
+const RENDER_CACHE = new Map();
+let renderSequence = 0;
+
+function cacheKeyForRange(view, start, end){
+  const begin = start instanceof Date ? start.getTime() : '';
+  const finish = end instanceof Date ? end.getTime() : '';
+  return `${view}:${begin}:${finish}`;
+}
+
+function cloneEventsForCache(events){
+  return (Array.isArray(events) ? events : []).map(ev => ({
+    ...ev,
+    date: ev?.date instanceof Date ? new Date(ev.date.getTime()) : ev?.date ? new Date(ev.date) : null,
+    source: ev && ev.source ? {
+      entity: ev.source.entity || '',
+      id: ev.source.id || '',
+      field: ev.source.field || ''
+    } : null
+  }));
+}
+
+function getCachedEvents(key){
+  if(!key || !RENDER_CACHE.has(key)) return null;
+  return cloneEventsForCache(RENDER_CACHE.get(key));
+}
+
+function storeCachedEvents(key, events){
+  if(!key) return;
+  if(!Array.isArray(events)){
+    RENDER_CACHE.delete(key);
+    return;
+  }
+  const snapshot = cloneEventsForCache(events);
+  if(!RENDER_CACHE.has(key) && RENDER_CACHE.size >= RENDER_CACHE_LIMIT){
+    const firstKey = RENDER_CACHE.keys().next();
+    if(firstKey && !firstKey.done){
+      RENDER_CACHE.delete(firstKey.value);
+    }
+  }
+  RENDER_CACHE.set(key, snapshot);
+}
+
+function invalidateRenderCache(key){
+  if(!key){
+    RENDER_CACHE.clear();
+    return;
+  }
+  RENDER_CACHE.delete(key);
+}
 
 (function(){
   if(typeof window !== 'undefined'){
@@ -234,6 +285,40 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
       popoverState.node = null;
     }
     popoverState.anchor = null;
+  }
+
+  function ensureErrorBanner(root, message, { preserveContent } = {}){
+    if(!root) return;
+    let banner = root.querySelector('[data-cal-error]');
+    if(!banner){
+      banner = document.createElement('div');
+      banner.dataset.calError = '1';
+      banner.className = 'calendar-error-banner';
+      banner.style.background = '#fef2f2';
+      banner.style.border = '1px solid #fecaca';
+      banner.style.color = '#991b1b';
+      banner.style.padding = '12px 16px';
+      banner.style.borderRadius = '6px';
+      banner.style.fontSize = '13px';
+      banner.style.marginBottom = '12px';
+    }
+    banner.textContent = message;
+    if(preserveContent && root.firstChild && root.firstChild !== banner){
+      root.insertBefore(banner, root.firstChild);
+    }else if(!preserveContent){
+      root.innerHTML = '';
+      root.appendChild(banner);
+    }else if(!root.firstChild){
+      root.appendChild(banner);
+    }
+  }
+
+  function clearErrorBanner(root){
+    if(!root) return;
+    const banner = root.querySelector('[data-cal-error]');
+    if(banner){
+      banner.remove();
+    }
   }
 
   function postVisLog(eventName){
@@ -620,500 +705,588 @@ const fromHere = (p) => new URL(p, import.meta.url).href;
 
   async function render(anchor=new Date(), view='month'){
     return withLayoutGuard('calendar_impl.js', async () => {
-    const viewEl = document.getElementById('view-calendar');
-    const root = (viewEl ? viewEl.querySelector('#calendar-root') : null)
-      || document.getElementById('calendar-root')
-      || document.getElementById('calendar');
-    if(!root) return;
-    // Read data deterministically
-    // Build frame
-    const range = rangeForView(anchor, view);
-    const currentView = range.view;
-    const anchorDate = range.anchor;
-    const start = range.start;
-    const end = range.end;
-    const dayCount = range.days;
+      const seq = ++renderSequence;
+      const viewEl = document.getElementById('view-calendar');
+      const root = (viewEl ? viewEl.querySelector('#calendar-root') : null)
+        || document.getElementById('calendar-root')
+        || document.getElementById('calendar');
+      if(!root) return;
 
-    const label = document.getElementById('calendar-label');
-    const labelText = formatRange(anchorDate, currentView, start, end);
-    if(label){
-      label.textContent = `${labelText} • Loading…`;
-      label.dataset.loading = '1';
-    }
+      const range = rangeForView(anchor, view);
+      const currentView = range.view;
+      const anchorDate = range.anchor;
+      const start = range.start;
+      const end = range.end;
+      const dayCount = range.days;
+      const todayStr = new Date().toDateString();
 
-    closeEventPopover();
-    renderSkeleton(root, range, currentView);
-
-    let events = [];
-    try{
-      events = await loadEventsBetween(start, end, { anchor: anchorDate, view: currentView });
-    }catch (err){
-      if(console && console.warn) console.warn('[CAL] provider fallback (empty):', err);
-      events = [];
-    }
-
-    if(label){
-      delete label.dataset.loading;
-      label.textContent = labelText;
-    }
-
-    root.innerHTML = '';
-    root.setAttribute('data-view', currentView);
-    const todayStr = new Date().toDateString();
-
-    const openContactRecord = async (contactId)=>{
-      const targetId = contactId ? String(contactId).trim() : '';
-      if(!targetId){
-        if(typeof window.toast === 'function'){
-          window.toast('Contact unavailable for this event');
-        }
-        return false;
+      const label = document.getElementById('calendar-label');
+      const labelText = formatRange(anchorDate, currentView, start, end);
+      if(label){
+        label.textContent = `${labelText} • Loading…`;
+        label.dataset.loading = '1';
       }
-      let ready = false;
-      try{ ready = await ensureContactModalReady(); }
-      catch (err){
-        if(console && typeof console.warn === 'function'){
-          console.warn('contact modal ensure failed', err);
-        }
-        ready = false;
-      }
-      if(!ready || typeof openContactModal !== 'function'){
-        if(typeof window.toast === 'function'){
-          window.toast('Contact unavailable for this event');
-        }
-        return false;
-      }
-      logCalendarContact();
-      try{ openContactModal(targetId); }
-      catch (err) {
-        if(console && typeof console.warn === 'function'){
-          console.warn('openContactModal failed', err);
-        }
-        return false;
-      }
-      return true;
-    };
 
-    let __calPending = new Set();
-    let __calFlushScheduled = false;
-    function scheduleCalendarFlush(){
-      if(__calFlushScheduled) return;
-      __calFlushScheduled = true;
-      const qmt = (typeof queueMicrotask==='function') ? queueMicrotask : (fn)=>Promise.resolve().then(fn);
-      qmt(() => {
-        __calFlushScheduled = false;
-        if(__calPending.size===0) return;
-        try{
-          if (typeof window.dispatchAppDataChanged === 'function'){
-            window.dispatchAppDataChanged({ scope:'calendar', ids:[...__calPending] });
-          } else {
-            document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'calendar', ids:[...__calPending] }}));
+      const cacheKey = cacheKeyForRange(currentView, start, end);
+      const cachedEvents = getCachedEvents(cacheKey);
+
+      closeEventPopover();
+
+      let usedCached = false;
+
+      const openContactRecord = async (contactId)=>{
+        const targetId = contactId ? String(contactId).trim() : '';
+        if(!targetId){
+          if(typeof window.toast === 'function'){
+            window.toast('Contact unavailable for this event');
           }
-          if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
-            window.RenderGuard.requestRender();
-          }
-        } finally {
-          __calPending.clear();
+          return false;
         }
-      });
-    }
-
-    async function persistEventDate(source, newDate){
-      if(!source || !source.entity || !source.id || !newDate) return false;
-      const scope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
-      if(typeof scope.openDB !== 'function' || typeof scope.dbGet !== 'function' || typeof scope.dbPut !== 'function'){
-        await import(fromHere('./db.js')).catch(()=>null);
-      }
-      const openDB = typeof scope.openDB === 'function' ? scope.openDB : null;
-      const dbGet = typeof scope.dbGet === 'function' ? scope.dbGet : null;
-      const dbPut = typeof scope.dbPut === 'function' ? scope.dbPut : null;
-      if(!openDB || !dbGet || !dbPut) return false;
-      await openDB();
-      const store = source.entity;
-      const rec = await dbGet(store, String(source.id)).catch(()=>null);
-      if(!rec) return false;
-      const field = source.field || (store==='tasks' ? 'due' : store==='deals' ? 'expectedClose' : 'nextFollowUp');
-      const iso = new Date(newDate); iso.setHours(0,0,0,0);
-      const isoStr = iso.toISOString().slice(0,10);
-      rec[field] = isoStr;
-      rec.updatedAt = Date.now();
-      await dbPut(store, rec);
-      __calPending.add(`${store}:${source.id}`);
-      scheduleCalendarFlush();
-      return true;
-    }
-
-    if(currentView === 'day'){
-      const dayEvents = events.filter(e=> ymd(e.date)===ymd(anchorDate));
-      renderDailyView({
-        root,
-        anchor: anchorDate,
-        events: dayEvents,
-        metaFor: (type)=> EVENT_META_MAP.get(type) || null,
-        iconFor: (type)=> getEventIcon(type),
-        openContact: openContactRecord,
-        addTask: createTaskFromEvent,
-        closePopover: closeEventPopover
-      });
-    }else{
-      const grid = document.createElement('div');
-      grid.className = 'calendar-grid';
-      grid.dataset.calendarEnhanced = '1';
-      for(let i=0;i<dayCount;i++){
-        const d = addDays(start,i);
-        const inMonth = d.getMonth()===anchorDate.getMonth();
-
-        const cell = document.createElement('div');
-        cell.className='cal-cell';
-        if(!inMonth && currentView==='month') cell.classList.add('muted');
-        if(d.toDateString()===todayStr) cell.classList.add('today');
-
-        const head = document.createElement('div');
-        head.className='cal-cell-head';
-        head.textContent = d.getDate();
-        head.style.fontSize = '12px';
-        cell.appendChild(head);
-
-        const box = document.createElement('div');
-        box.className='cal-events';
-
-        cell.addEventListener('dragover', (e)=>{ e.preventDefault(); });
-        cell.addEventListener('drop', async (e)=>{
-          e.preventDefault();
-          const data = e.dataTransfer && e.dataTransfer.getData('text/plain');
-          if(!data) return;
-          try{
-            const payload = JSON.parse(data);
-            if(payload && payload.source){
-              await persistEventDate(payload.source, new Date(d));
-            }
-          }catch (_) { }
-        });
-
-        const todays = events.filter(e=> ymd(e.date)===ymd(d) );
-
-        if(currentView==='month'){
-          box.style.maxHeight = '140px';
-          box.style.overflowY = 'auto';
-          box.style.paddingRight = '2px';
+        let ready = false;
+        try{ ready = await ensureContactModalReady(); }
+        catch (err){
+          if(console && typeof console.warn === 'function'){
+            console.warn('contact modal ensure failed', err);
+          }
+          ready = false;
         }
-
-        for(let j=0; j<todays.length; j++){
-          const ev = todays[j];
-          const meta = EVENT_META_MAP.get(ev.type) || {label:ev.type, icon:''};
-          const item = document.createElement('div');
-          item.className = 'ev ev-'+ev.type;
-          item.style.fontSize = '12px';
-          item.style.background = colorForLoan(ev.loanKey) + '1A';
-          item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
-          item.style.position = 'relative';
-          item.dataset.date = String(ev.date?.toISOString?.() || '');
-          item.dataset.eventType = ev.type || '';
-          item.dataset.calendarEnhanced = '1';
-          const contactId = ev.contactId ? String(ev.contactId) : '';
-          if(contactId) item.dataset.contactId = contactId;
-          const canDrag = !!(ev.source && ev.source.entity && ev.source.id);
-          item.draggable = canDrag;
-          if (canDrag) {
-            item.dataset.source = `${ev.source.entity}:${ev.source.id}:${ev.source.field||''}`;
+        if(!ready || typeof openContactModal !== 'function'){
+          if(typeof window.toast === 'function'){
+            window.toast('Contact unavailable for this event');
           }
-
-          const bar = document.createElement('div');
-          bar.className = 'ev-status';
-          bar.style.height = '3px';
-          bar.style.background = colorForStatus(ev.status);
-          bar.style.marginBottom = '2px';
-          item.appendChild(bar);
-
-          if (canDrag){
-            item.addEventListener('dragstart', (e)=>{
-              if(!e.dataTransfer) return;
-              const payload = { type: ev.type, date: ev.date, source: ev.source || null };
-              try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch (_) { }
-            });
-          }
-
-          const openContact = async (evt) => {
-            if(evt){
-              evt.preventDefault();
-              if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
-            }
-            closeEventPopover();
-            await openContactRecord(contactId);
-          };
-
-          item.addEventListener('click', (evt)=>{
-            Promise.resolve(openContact(evt)).catch(()=>{});
-          });
-
-          const icon = document.createElement('span');
-          icon.className = 'ev-icon';
-          const iconKey = meta && meta.iconKey ? meta.iconKey : (ev.type || '');
-          const iconNode = getEventIcon(iconKey);
-          if(iconNode){
-            icon.dataset.icon = iconNode.dataset.iconKey || iconKey;
-            icon.setAttribute('aria-hidden', 'true');
-            icon.appendChild(iconNode);
-          }else{
-            icon.textContent = '•';
-          }
-          item.appendChild(icon);
-          const textWrap = document.createElement('div');
-          textWrap.className = 'ev-text';
-          const title = document.createElement('strong');
-          title.textContent = ev.title || meta.label;
-          textWrap.appendChild(title);
-          if(ev.subtitle){
-            const sub = document.createElement('div');
-            sub.className = 'muted';
-            sub.textContent = ev.subtitle;
-            textWrap.appendChild(sub);
-          } else if(ev.contactName){
-            const sub = document.createElement('div');
-            sub.className = 'muted';
-            sub.textContent = ev.contactName;
-            textWrap.appendChild(sub);
-          }
-          item.appendChild(textWrap);
-          item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
-
-          const menuBtn = document.createElement('button');
-          menuBtn.type = 'button';
-          menuBtn.setAttribute('aria-label', 'Event quick actions');
-          menuBtn.textContent = '⋯';
-          menuBtn.style.position = 'absolute';
-          menuBtn.style.top = '2px';
-          menuBtn.style.right = '4px';
-          menuBtn.style.border = 'none';
-          menuBtn.style.background = 'transparent';
-          menuBtn.style.cursor = 'pointer';
-          menuBtn.style.fontSize = '16px';
-          menuBtn.style.lineHeight = '1';
-          menuBtn.style.padding = '0 4px';
-          menuBtn.style.color = '#555';
-          menuBtn.addEventListener('click', (evt)=>{
-            evt.preventDefault();
-            evt.stopPropagation();
-            if(popoverState.anchor === item){
-              closeEventPopover();
-              return;
-            }
-            closeEventPopover();
-            const pop = document.createElement('div');
-            pop.className = 'calendar-popover';
-            pop.setAttribute('role', 'dialog');
-            pop.style.position = 'absolute';
-            pop.style.minWidth = '220px';
-            pop.style.maxWidth = '260px';
-            pop.style.background = '#fff';
-            pop.style.border = '1px solid rgba(17,24,39,0.1)';
-            pop.style.boxShadow = '0 10px 30px rgba(15,23,42,0.18)';
-            pop.style.borderRadius = '8px';
-            pop.style.padding = '12px';
-            pop.style.fontSize = '12px';
-            pop.style.color = '#111827';
-            pop.style.zIndex = '10000';
-
-            const header = document.createElement('div');
-            header.style.fontWeight = '600';
-            header.style.marginBottom = '4px';
-            header.textContent = ev.title || meta.label || 'Calendar Event';
-            pop.appendChild(header);
-
-            const detail = document.createElement('div');
-            detail.style.marginBottom = '8px';
-            detail.style.color = '#4b5563';
-            const detailParts = [];
-            if(ev.contactName) detailParts.push(ev.contactName);
-            if(ev.subtitle) detailParts.push(ev.subtitle);
-            if(ev.contactStage) detailParts.push(ev.contactStage);
-            detail.textContent = detailParts.filter(Boolean).join(' • ') || meta.label || '';
-            pop.appendChild(detail);
-
-            const actions = document.createElement('div');
-            actions.style.display = 'flex';
-            actions.style.gap = '8px';
-            actions.style.flexWrap = 'wrap';
-            actions.style.alignItems = 'center';
-
-            const openBtn = document.createElement('button');
-            openBtn.type = 'button';
-            openBtn.className = 'btn';
-            openBtn.textContent = 'Open Contact';
-            if(!contactId || typeof window.renderContactModal !== 'function'){
-              openBtn.disabled = true;
-            }
-            openBtn.addEventListener('click', (event)=>{
-              event.preventDefault();
-              event.stopPropagation();
-              Promise.resolve(openContact(event)).catch(()=>{});
-            });
-            actions.appendChild(openBtn);
-
-            const taskBtn = document.createElement('button');
-            taskBtn.type = 'button';
-            taskBtn.className = 'btn brand';
-            taskBtn.textContent = 'Add as Task';
-            if(!contactId){
-              taskBtn.disabled = true;
-            }
-            taskBtn.addEventListener('click', async (event)=>{
-              event.preventDefault();
-              event.stopPropagation();
-              if(taskBtn.disabled) return;
-              taskBtn.disabled = true;
-              try{
-                const result = await createTaskFromEvent(ev);
-                if(!result || result.status !== 'ok'){
-                  taskBtn.disabled = false;
-                  return;
-                }
-                closeEventPopover();
-                if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
-                  try{ window.renderCalendar(); }
-                  catch (_err){}
-                }
-              }catch (err){
-                taskBtn.disabled = false;
-                console && console.warn && console.warn('createTaskFromEvent failed', err);
-              }
-            });
-            actions.appendChild(taskBtn);
-            pop.appendChild(actions);
-
-            const rect = item.getBoundingClientRect();
-            const docEl = document.documentElement || document.body;
-            const top = rect.bottom + (window.scrollY || docEl.scrollTop || 0) + 6;
-            let left = rect.left + (window.scrollX || docEl.scrollLeft || 0);
-            pop.style.top = `${top}px`;
-            pop.style.left = `${Math.max(8, left)}px`;
-
-            document.body.appendChild(pop);
-
-            const adjust = () => {
-              const w = pop.getBoundingClientRect().width;
-              const viewportWidth = window.innerWidth || docEl.clientWidth || 0;
-              if(left + w > viewportWidth - 16){
-                left = Math.max(8, viewportWidth - w - 16);
-                pop.style.left = `${left}px`;
-              }
-            };
-            adjust();
-
-            const onDocClick = (docEvt) => {
-              if(!pop.contains(docEvt.target) && docEvt.target !== menuBtn){
-                closeEventPopover();
-              }
-            };
-            document.addEventListener('click', onDocClick, true);
-            popoverState.detach = () => { document.removeEventListener('click', onDocClick, true); };
-            popoverState.node = pop;
-            popoverState.anchor = item;
-          });
-          item.appendChild(menuBtn);
-
-          box.appendChild(item);
+          return false;
         }
-        cell.appendChild(box);
-        grid.appendChild(cell);
-      }
-      root.appendChild(grid);
-    }
-    legend(events);
-
-    const snapshot = events.map((ev, index) => {
-      const date = new Date(ev.date.getTime());
-      date.setHours(0, 0, 0, 0);
-      const source = ev.source ? {
-        entity: ev.source.entity || '',
-        id: ev.source.id || '',
-        field: ev.source.field || ''
-      } : null;
-      const uidParts = [ev.type || 'event', String(date.getTime())];
-      if (source && source.entity && source.id) {
-        uidParts.push(source.entity, source.id);
-      } else {
-        uidParts.push(String(index));
-      }
-      return {
-        uid: uidParts.join(':'),
-        type: ev.type,
-        title: ev.title,
-        subtitle: ev.subtitle,
-        status: ev.status || '',
-        hasLoan: !!ev.hasLoan,
-        loanKey: ev.loanKey || '',
-        loanLabel: ev.loanLabel || '',
-        date,
-        source,
-        contactId: ev.contactId || '',
-        contactStage: ev.contactStage || '',
-        contactName: ev.contactName || ''
+        logCalendarContact();
+        try{ openContactModal(targetId); }
+        catch (err) {
+          if(console && typeof console.warn === 'function'){
+            console.warn('openContactModal failed', err);
+          }
+          return false;
+        }
+        return true;
       };
-    });
-    const rangeStart = start ? new Date(start.getTime()) : null;
-    const rangeEnd = end ? new Date(end.getTime()) : null;
-    const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
-    calendarApi.visibleEvents = function(){
-      return snapshot.map(ev => ({
-        uid: ev.uid,
-        type: ev.type,
-        title: ev.title,
-        subtitle: ev.subtitle,
-        status: ev.status,
-        hasLoan: ev.hasLoan,
-        loanKey: ev.loanKey,
-        loanLabel: ev.loanLabel,
-        date: new Date(ev.date.getTime()),
-        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
-        contactId: ev.contactId || '',
-        contactStage: ev.contactStage || '',
-        contactName: ev.contactName || ''
-      }));
-    };
-    calendarApi.currentRange = {
-      view: currentView,
-      anchor: new Date(anchorDate.getTime()),
-      start: rangeStart,
-      end: rangeEnd
-    };
 
-    calendarApi.loadRange = async function(rangeStartDate, rangeEndDate){
-      const safeStart = parseDateInput(rangeStartDate) || null;
-      const safeEnd = parseDateInput(rangeEndDate) || null;
-      const baseAnchor = safeStart instanceof Date ? safeStart : anchorDate;
-      let rangeEvents = [];
-      try{
-        const loaded = await loadEventsBetween(safeStart, safeEnd, { anchor: baseAnchor, view: currentView });
-        if(Array.isArray(loaded)) rangeEvents = loaded;
-      }catch (err){
-        if(console && console.warn) console.warn('[CAL] provider fallback (empty):', err);
-        rangeEvents = [];
+      let __calPending = new Set();
+      let __calFlushScheduled = false;
+      function scheduleCalendarFlush(){
+        if(__calFlushScheduled) return;
+        __calFlushScheduled = true;
+        const qmt = (typeof queueMicrotask==='function') ? queueMicrotask : (fn)=>Promise.resolve().then(fn);
+        qmt(() => {
+          __calFlushScheduled = false;
+          if(__calPending.size===0) return;
+          try{
+            if (typeof window.dispatchAppDataChanged === 'function'){
+              window.dispatchAppDataChanged({ scope:'calendar', ids:[...__calPending] });
+            } else {
+              document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'calendar', ids:[...__calPending] }}));
+            }
+            if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
+              window.RenderGuard.requestRender();
+            }
+          } finally {
+            __calPending.clear();
+          }
+        });
       }
-      return rangeEvents.map(ev => ({
-        type: ev.type,
-        title: ev.title,
-        subtitle: ev.subtitle,
-        status: ev.status || '',
-        hasLoan: !!ev.hasLoan,
-        loanKey: ev.loanKey || '',
-        loanLabel: ev.loanLabel || '',
-        date: ev.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev.date) || new Date(),
-        source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
-        contactId: ev.contactId || '',
-        contactStage: ev.contactStage || '',
-        contactName: ev.contactName || ''
-      }));
-    };
 
+      async function persistEventDate(source, newDate){
+        if(!source || !source.entity || !source.id || !newDate) return false;
+        const scope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+        if(typeof scope.openDB !== 'function' || typeof scope.dbGet !== 'function' || typeof scope.dbPut !== 'function'){
+          await import(fromHere('./db.js')).catch(()=>null);
+        }
+        const openDB = typeof scope.openDB === 'function' ? scope.openDB : null;
+        const dbGet = typeof scope.dbGet === 'function' ? scope.dbGet : null;
+        const dbPut = typeof scope.dbPut === 'function' ? scope.dbPut : null;
+        if(!openDB || !dbGet || !dbPut) return false;
+        await openDB();
+        const store = source.entity;
+        const rec = await dbGet(store, String(source.id)).catch(()=>null);
+        if(!rec) return false;
+        const field = source.field || (store==='tasks' ? 'due' : store==='deals' ? 'expectedClose' : 'nextFollowUp');
+        const iso = new Date(newDate); iso.setHours(0,0,0,0);
+        const isoStr = iso.toISOString().slice(0,10);
+        rec[field] = isoStr;
+        rec.updatedAt = Date.now();
+        await dbPut(store, rec);
+        __calPending.add(`${store}:${source.id}`);
+      scheduleCalendarFlush();
+      invalidateRenderCache();
+      return true;
+    }
+
+      const ensureRangeBounds = (baseAnchor, baseView, startHint, endHint) => {
+        const fallback = rangeForView(baseAnchor, baseView);
+        const rangeStart = startHint instanceof Date
+          ? new Date(startHint.getTime())
+          : new Date(fallback.start.getTime());
+        const rangeEnd = endHint instanceof Date
+          ? new Date(endHint.getTime())
+          : new Date(fallback.end.getTime());
+        return { rangeStart, rangeEnd };
+      };
+
+      const fetchEventsForRange = async (baseAnchor, baseView, startHint, endHint) => {
+        const { rangeStart, rangeEnd } = ensureRangeBounds(baseAnchor, baseView, startHint, endHint);
+        try{
+          const data = await loadCalendarData({ start: rangeStart, end: rangeEnd, anchor: baseAnchor, view: baseView });
+          const contacts = Array.isArray(data?.contacts) ? data.contacts : [];
+          const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+          const deals = Array.isArray(data?.deals) ? data.deals : [];
+          let combined = Array.isArray(data?.events) && data.events.length
+            ? normalizeProvidedEvents(data.events, baseAnchor, rangeStart, rangeEnd)
+            : [];
+          if(!combined.length){
+            combined = collectEvents(contacts, tasks, deals, baseAnchor, rangeStart, rangeEnd);
+          }
+          return { events: combined, rangeStart, rangeEnd, error: null };
+        }catch (error){
+          return { events: [], rangeStart, rangeEnd, error };
+        }
+      };
+
+      const updatePublicApi = (eventsList, rangeMeta = {}) => {
+        const safeEvents = Array.isArray(eventsList) ? eventsList : [];
+        const snapshot = safeEvents.map((ev, index) => {
+          const date = ev?.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev?.date) || new Date(anchorDate);
+          date.setHours(0, 0, 0, 0);
+          const source = ev && ev.source ? {
+            entity: ev.source.entity || '',
+            id: ev.source.id || '',
+            field: ev.source.field || ''
+          } : null;
+          const uidParts = [ev?.type || 'event', String(date.getTime())];
+          if (source && source.entity && source.id) {
+            uidParts.push(source.entity, source.id);
+          } else {
+            uidParts.push(String(index));
+          }
+          return {
+            uid: uidParts.join(':'),
+            type: ev?.type,
+            title: ev?.title,
+            subtitle: ev?.subtitle,
+            status: ev?.status || '',
+            hasLoan: !!ev?.hasLoan,
+            loanKey: ev?.loanKey || '',
+            loanLabel: ev?.loanLabel || '',
+            date,
+            source,
+            contactId: ev?.contactId || '',
+            contactStage: ev?.contactStage || '',
+            contactName: ev?.contactName || ''
+          };
+        });
+        const requestedStart = rangeMeta && rangeMeta.rangeStart instanceof Date ? rangeMeta.rangeStart : null;
+        const requestedEnd = rangeMeta && rangeMeta.rangeEnd instanceof Date ? rangeMeta.rangeEnd : null;
+        const rangeStart = requestedStart ? new Date(requestedStart.getTime()) : (start ? new Date(start.getTime()) : null);
+        const rangeEnd = requestedEnd ? new Date(requestedEnd.getTime()) : (end ? new Date(end.getTime()) : null);
+        const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
+        calendarApi.visibleEvents = function(){
+          return snapshot.map(ev => ({
+            uid: ev.uid,
+            type: ev.type,
+            title: ev.title,
+            subtitle: ev.subtitle,
+            status: ev.status,
+            hasLoan: ev.hasLoan,
+            loanKey: ev.loanKey,
+            loanLabel: ev.loanLabel,
+            date: new Date(ev.date.getTime()),
+            source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
+            contactId: ev.contactId || '',
+            contactStage: ev.contactStage || '',
+            contactName: ev.contactName || ''
+          }));
+        };
+        calendarApi.currentRange = {
+          view: currentView,
+          anchor: new Date(anchorDate.getTime()),
+          start: rangeStart,
+          end: rangeEnd
+        };
+
+        calendarApi.loadRange = async function(rangeStartDate, rangeEndDate){
+          const safeStart = parseDateInput(rangeStartDate) || null;
+          const safeEnd = parseDateInput(rangeEndDate) || null;
+          const baseAnchor = safeStart instanceof Date ? safeStart : anchorDate;
+          try{
+            const result = await fetchEventsForRange(
+              baseAnchor,
+              currentView,
+              safeStart || rangeStart,
+              safeEnd || rangeEnd
+            );
+            if(result.error) return [];
+            return result.events.map(ev => ({
+              type: ev.type,
+              title: ev.title,
+              subtitle: ev.subtitle,
+              status: ev.status || '',
+              hasLoan: !!ev.hasLoan,
+              loanKey: ev.loanKey || '',
+              loanLabel: ev.loanLabel || '',
+              date: ev.date instanceof Date ? new Date(ev.date.getTime()) : parseDateInput(ev.date) || new Date(),
+              source: ev.source ? { entity: ev.source.entity, id: ev.source.id, field: ev.source.field } : null,
+              contactId: ev.contactId || '',
+              contactStage: ev.contactStage || '',
+              contactName: ev.contactName || ''
+            }));
+          }catch (_err){
+            return [];
+          }
+        };
+      };
+
+      const renderEvents = (eventsList, rangeMeta = null) => {
+        const safeEvents = Array.isArray(eventsList) ? eventsList : [];
+        clearErrorBanner(root);
+        root.innerHTML = '';
+        root.setAttribute('data-view', currentView);
+
+        if(currentView === 'day'){
+          const dayEvents = safeEvents.filter(e=> ymd(e.date)===ymd(anchorDate));
+          renderDailyView({
+            root,
+            anchor: anchorDate,
+            events: dayEvents,
+            metaFor: (type)=> EVENT_META_MAP.get(type) || null,
+            iconFor: (type)=> getEventIcon(type),
+            openContact: openContactRecord,
+            addTask: createTaskFromEvent,
+            closePopover: closeEventPopover
+          });
+          legend(safeEvents);
+          updatePublicApi(safeEvents);
+          return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'calendar-grid';
+        grid.dataset.calendarEnhanced = '1';
+        for(let i=0;i<dayCount;i++){
+          const d = addDays(start,i);
+          const inMonth = d.getMonth()===anchorDate.getMonth();
+
+          const cell = document.createElement('div');
+          cell.className='cal-cell';
+          if(!inMonth && currentView==='month') cell.classList.add('muted');
+          if(d.toDateString()===todayStr) cell.classList.add('today');
+
+          const head = document.createElement('div');
+          head.className='cal-cell-head';
+          head.textContent = d.getDate();
+          head.style.fontSize = '12px';
+          cell.appendChild(head);
+
+          const box = document.createElement('div');
+          box.className='cal-events';
+
+          cell.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+          cell.addEventListener('drop', async (e)=>{
+            e.preventDefault();
+            const data = e.dataTransfer && e.dataTransfer.getData('text/plain');
+            if(!data) return;
+            try{
+              const payload = JSON.parse(data);
+              if(payload && payload.source){
+                await persistEventDate(payload.source, new Date(d));
+              }
+            }catch (_) { }
+          });
+
+          if(currentView==='month'){
+            box.style.maxHeight = '140px';
+            box.style.overflowY = 'auto';
+            box.style.paddingRight = '2px';
+          }
+
+          const todays = safeEvents.filter(e=> ymd(e.date)===ymd(d) );
+
+          for(let j=0; j<todays.length; j++){
+            const ev = todays[j];
+            const meta = EVENT_META_MAP.get(ev.type) || {label:ev.type, icon:''};
+            const item = document.createElement('div');
+            item.className = 'ev ev-'+ev.type;
+            item.style.fontSize = '12px';
+            item.style.background = colorForLoan(ev.loanKey) + '1A';
+            item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
+            item.style.position = 'relative';
+            item.dataset.date = String(ev.date?.toISOString?.() || '');
+            item.dataset.eventType = ev.type || '';
+            item.dataset.calendarEnhanced = '1';
+            const contactId = ev.contactId ? String(ev.contactId) : '';
+            if(contactId) item.dataset.contactId = contactId;
+            const canDrag = !!(ev.source && ev.source.entity && ev.source.id);
+            item.draggable = canDrag;
+            if (canDrag) {
+              item.dataset.source = `${ev.source.entity}:${ev.source.id}:${ev.source.field||''}`;
+            }
+
+            const bar = document.createElement('div');
+            bar.className = 'ev-status';
+            bar.style.height = '3px';
+            bar.style.background = colorForStatus(ev.status);
+            bar.style.marginBottom = '2px';
+            item.appendChild(bar);
+
+            if (canDrag){
+              item.addEventListener('dragstart', (e)=>{
+                if(!e.dataTransfer) return;
+                const payload = { type: ev.type, date: ev.date, source: ev.source || null };
+                try{ e.dataTransfer.setData('text/plain', JSON.stringify(payload)); }catch (_) { }
+              });
+            }
+
+            const openContact = async (evt) => {
+              if(evt){
+                evt.preventDefault();
+                if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
+              }
+              closeEventPopover();
+              await openContactRecord(contactId);
+            };
+
+            item.addEventListener('click', (evt)=>{
+              Promise.resolve(openContact(evt)).catch(()=>{});
+            });
+
+            const icon = document.createElement('span');
+            icon.className = 'ev-icon';
+            const iconKey = meta && meta.iconKey ? meta.iconKey : (ev.type || '');
+            const iconNode = getEventIcon(iconKey);
+            if(iconNode){
+              icon.dataset.icon = iconNode.dataset.iconKey || iconKey;
+              icon.setAttribute('aria-hidden', 'true');
+              icon.appendChild(iconNode);
+            }else{
+              icon.textContent = '•';
+            }
+            item.appendChild(icon);
+            const textWrap = document.createElement('div');
+            textWrap.className = 'ev-text';
+            const title = document.createElement('strong');
+            title.textContent = ev.title || meta.label;
+            textWrap.appendChild(title);
+            if(ev.subtitle){
+              const sub = document.createElement('div');
+              sub.className = 'muted';
+              sub.textContent = ev.subtitle;
+              textWrap.appendChild(sub);
+            } else if(ev.contactName){
+              const sub = document.createElement('div');
+              sub.className = 'muted';
+              sub.textContent = ev.contactName;
+              textWrap.appendChild(sub);
+            }
+            item.appendChild(textWrap);
+            item.title = `${meta.label}${ev.subtitle ? ' — '+ev.subtitle : ''}`;
+
+            const menuBtn = document.createElement('button');
+            menuBtn.type = 'button';
+            menuBtn.setAttribute('aria-label', 'Event quick actions');
+            menuBtn.textContent = '⋯';
+            menuBtn.style.position = 'absolute';
+            menuBtn.style.top = '2px';
+            menuBtn.style.right = '4px';
+            menuBtn.style.border = 'none';
+            menuBtn.style.background = 'transparent';
+            menuBtn.style.cursor = 'pointer';
+            menuBtn.style.fontSize = '16px';
+            menuBtn.style.lineHeight = '1';
+            menuBtn.style.padding = '0 4px';
+            menuBtn.style.color = '#555';
+            menuBtn.addEventListener('click', (evt)=>{
+              evt.preventDefault();
+              evt.stopPropagation();
+              if(popoverState.anchor === item){
+                closeEventPopover();
+                return;
+              }
+              closeEventPopover();
+              const pop = document.createElement('div');
+              pop.className = 'calendar-popover';
+              pop.setAttribute('role', 'dialog');
+              pop.style.position = 'absolute';
+              pop.style.minWidth = '220px';
+              pop.style.maxWidth = '260px';
+              pop.style.background = '#fff';
+              pop.style.border = '1px solid rgba(17,24,39,0.1)';
+              pop.style.boxShadow = '0 10px 30px rgba(15,23,42,0.18)';
+              pop.style.borderRadius = '8px';
+              pop.style.padding = '12px';
+              pop.style.fontSize = '12px';
+              pop.style.color = '#111827';
+              pop.style.zIndex = '10000';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = '600';
+              header.style.marginBottom = '4px';
+              header.textContent = ev.title || meta.label || 'Calendar Event';
+              pop.appendChild(header);
+
+              const detail = document.createElement('div');
+              detail.style.marginBottom = '8px';
+              detail.style.color = '#4b5563';
+              const detailParts = [];
+              if(ev.contactName) detailParts.push(ev.contactName);
+              if(ev.subtitle) detailParts.push(ev.subtitle);
+              if(ev.contactStage) detailParts.push(ev.contactStage);
+              detail.textContent = detailParts.filter(Boolean).join(' • ') || meta.label || '';
+              pop.appendChild(detail);
+
+              const actions = document.createElement('div');
+              actions.style.display = 'flex';
+              actions.style.gap = '8px';
+              actions.style.flexWrap = 'wrap';
+              actions.style.alignItems = 'center';
+
+              const openBtn = document.createElement('button');
+              openBtn.type = 'button';
+              openBtn.className = 'btn';
+              openBtn.textContent = 'Open Contact';
+              if(!contactId || typeof window.renderContactModal !== 'function'){
+                openBtn.disabled = true;
+              }
+              openBtn.addEventListener('click', (event)=>{
+                event.preventDefault();
+                event.stopPropagation();
+                Promise.resolve(openContact(event)).catch(()=>{});
+              });
+              actions.appendChild(openBtn);
+
+              const taskBtn = document.createElement('button');
+              taskBtn.type = 'button';
+              taskBtn.className = 'btn brand';
+              taskBtn.textContent = 'Add as Task';
+              if(!contactId){
+                taskBtn.disabled = true;
+              }
+              taskBtn.addEventListener('click', async (event)=>{
+                event.preventDefault();
+                event.stopPropagation();
+                if(taskBtn.disabled) return;
+                taskBtn.disabled = true;
+                try{
+                  const result = await createTaskFromEvent(ev);
+                  if(!result || result.status !== 'ok'){
+                    taskBtn.disabled = false;
+                    return;
+                  }
+                  closeEventPopover();
+                  invalidateRenderCache();
+                  if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
+                    try{ window.renderCalendar(); }
+                    catch (_err){}
+                  }
+                }catch (err){
+                  taskBtn.disabled = false;
+                  console && console.warn && console.warn('createTaskFromEvent failed', err);
+                }
+              });
+              actions.appendChild(taskBtn);
+              pop.appendChild(actions);
+
+              const rect = item.getBoundingClientRect();
+              const docEl = document.documentElement || document.body;
+              const top = rect.bottom + (window.scrollY || docEl.scrollTop || 0) + 6;
+              let left = rect.left + (window.scrollX || docEl.scrollLeft || 0);
+              pop.style.top = `${top}px`;
+              pop.style.left = `${Math.max(8, left)}px`;
+
+              document.body.appendChild(pop);
+
+              const adjust = () => {
+                const w = pop.getBoundingClientRect().width;
+                const viewportWidth = window.innerWidth || docEl.clientWidth || 0;
+                if(left + w > viewportWidth - 16){
+                  left = Math.max(8, viewportWidth - w - 16);
+                  pop.style.left = `${left}px`;
+                }
+              };
+              adjust();
+
+              const onDocClick = (docEvt) => {
+                if(!pop.contains(docEvt.target) && docEvt.target !== menuBtn){
+                  closeEventPopover();
+                }
+              };
+              document.addEventListener('click', onDocClick, true);
+              popoverState.detach = () => { document.removeEventListener('click', onDocClick, true); };
+              popoverState.node = pop;
+              popoverState.anchor = item;
+            });
+            item.appendChild(menuBtn);
+
+            box.appendChild(item);
+          }
+          cell.appendChild(box);
+          grid.appendChild(cell);
+        }
+        root.appendChild(grid);
+        legend(safeEvents);
+        const meta = rangeMeta && typeof rangeMeta === 'object' ? rangeMeta : { rangeStart: start, rangeEnd: end };
+        updatePublicApi(safeEvents, meta);
+      };
+
+      const currentRangeMeta = { rangeStart: start, rangeEnd: end };
+
+      if(Array.isArray(cachedEvents)){
+        usedCached = true;
+        renderEvents(cachedEvents, currentRangeMeta);
+        if(label){
+          label.textContent = `${labelText} • Loading…`;
+          label.dataset.loading = '1';
+        }
+      }else{
+        clearErrorBanner(root);
+        renderSkeleton(root, range, currentView);
+      }
+
+      const loadResult = await fetchEventsForRange(anchorDate, currentView, start, end);
+      const events = Array.isArray(loadResult.events) ? loadResult.events : [];
+      const loadError = loadResult.error;
+      const loadedRangeMeta = {
+        rangeStart: loadResult.rangeStart instanceof Date ? loadResult.rangeStart : start,
+        rangeEnd: loadResult.rangeEnd instanceof Date ? loadResult.rangeEnd : end
+      };
+
+      if(renderSequence !== seq) return;
+
+      if(loadError){
+        if(console && typeof console.warn === 'function'){
+          console.warn('[CAL] events load failed', loadError);
+        }
+        if(label){
+          delete label.dataset.loading;
+          label.textContent = labelText;
+        }
+        root.setAttribute('data-view', currentView);
+        ensureErrorBanner(root, 'Could not load calendar data. Please check your connection or try again.', { preserveContent: usedCached });
+        if(!usedCached){
+          legend([]);
+          updatePublicApi([], loadedRangeMeta);
+        }
+        return;
+      }
+
+      renderEvents(events, loadedRangeMeta);
+      if(label){
+        delete label.dataset.loading;
+        label.textContent = labelText;
+      }
+      storeCachedEvents(cacheKey, events);
     });
   }
+
 
   // Expose as stable impl used by calendar.js
   const __test__ = {
     loanPalette: LOAN_PALETTE.map(meta => ({...meta})),
     normalizeLoanType
   };
-  window.__CALENDAR_IMPL__ = { render, collectEvents, normalizeProvidedEvents, __test__ };
+  window.__CALENDAR_IMPL__ = { render, collectEvents, normalizeProvidedEvents, invalidateCache: invalidateRenderCache, __test__ };
 
 })();

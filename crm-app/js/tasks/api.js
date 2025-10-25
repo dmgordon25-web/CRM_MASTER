@@ -173,6 +173,10 @@ export async function createTaskFromEvent(event){
   }catch (err){
     console && console.warn && console.warn('dispatchAppDataChanged failed', err);
   }
+  if(typeof window !== 'undefined' && window.__CALENDAR_IMPL__ && typeof window.__CALENDAR_IMPL__.invalidateCache === 'function'){
+    try{ window.__CALENDAR_IMPL__.invalidateCache(); }
+    catch (_err){}
+  }
   if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
     try{
       document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
