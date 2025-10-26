@@ -911,6 +911,15 @@ function invalidateRenderCache(key){
         root.innerHTML = '';
         root.setAttribute('data-view', currentView);
 
+        const noEvents = safeEvents.length === 0;
+        if(noEvents && currentView !== 'day'){
+          const empty = document.createElement('div');
+          empty.dataset.qa = 'calendar-empty';
+          empty.className = 'calendar-empty muted';
+          empty.textContent = 'No events scheduled.';
+          root.appendChild(empty);
+        }
+
         if(currentView === 'day'){
           const dayEvents = safeEvents.filter(e=> ymd(e.date)===ymd(anchorDate));
           renderDailyView({
@@ -931,12 +940,13 @@ function invalidateRenderCache(key){
         const grid = document.createElement('div');
         grid.className = 'calendar-grid';
         grid.dataset.calendarEnhanced = '1';
+        grid.dataset.qa = 'calendar-month-grid';
         for(let i=0;i<dayCount;i++){
           const d = addDays(start,i);
           const inMonth = d.getMonth()===anchorDate.getMonth();
 
           const cell = document.createElement('div');
-          cell.className='cal-cell';
+          cell.className='cal-cell calendar-cell';
           if(!inMonth && currentView==='month') cell.classList.add('muted');
           if(d.toDateString()===todayStr) cell.classList.add('today');
 
@@ -974,7 +984,8 @@ function invalidateRenderCache(key){
             const ev = todays[j];
             const meta = EVENT_META_MAP.get(ev.type) || {label:ev.type, icon:''};
             const item = document.createElement('div');
-            item.className = 'ev ev-'+ev.type;
+            const baseClass = 'ev ev-'+ev.type;
+            item.className = `${baseClass} calendar-event`;
             item.style.fontSize = '12px';
             item.style.background = colorForLoan(ev.loanKey) + '1A';
             item.style.borderLeft = '4px solid ' + colorForLoan(ev.loanKey);
@@ -1158,6 +1169,12 @@ function invalidateRenderCache(key){
                   if(!result || result.status !== 'ok'){
                     taskBtn.disabled = false;
                     return;
+                  }
+                  const taskRecord = result.task || result.record || null;
+                  const taskId = taskRecord && taskRecord.id ? taskRecord.id : (result.id || null);
+                  if(taskId && typeof window !== 'undefined' && typeof window.__CALENDAR_TASK_TRACKER__ === 'function'){
+                    try{ window.__CALENDAR_TASK_TRACKER__(taskId); }
+                    catch (_err){}
                   }
                   closeEventPopover();
                   invalidateRenderCache();

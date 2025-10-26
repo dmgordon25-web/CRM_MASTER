@@ -56,6 +56,7 @@ const SLOT_DEFS = [
 
 function buildCard(event, metaFor, iconFor, openContact, addTask){
   const card = document.createElement('div');
+  card.classList.add('calendar-event');
   card.style.border = '1px solid #e5e7eb';
   card.style.borderRadius = '8px';
   card.style.padding = '10px';
@@ -146,9 +147,17 @@ function buildCard(event, metaFor, iconFor, openContact, addTask){
       const result = typeof addTask === 'function' ? await addTask(event) : null;
       if(!result || result.status !== 'ok'){
         taskBtn.disabled = false;
-      }else if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
-        try{ window.renderCalendar(); }
-        catch (_err){}
+      }else{
+        const taskRecord = result.task || result.record || null;
+        const taskId = taskRecord && taskRecord.id ? taskRecord.id : (result.id || null);
+        if(taskId && typeof window !== 'undefined' && typeof window.__CALENDAR_TASK_TRACKER__ === 'function'){
+          try{ window.__CALENDAR_TASK_TRACKER__(taskId); }
+          catch (_err){}
+        }
+        if(typeof window !== 'undefined' && typeof window.renderCalendar === 'function'){
+          try{ window.renderCalendar(); }
+          catch (_err){}
+        }
       }
     }catch (err){
       taskBtn.disabled = false;
@@ -189,6 +198,15 @@ export function renderDailyView({ root, anchor, events, metaFor, iconFor, openCo
   }
   ensureLog();
   root.innerHTML = '';
+
+  const totalEvents = Array.isArray(events) ? events.length : 0;
+  if(totalEvents === 0){
+    const empty = document.createElement('div');
+    empty.dataset.qa = 'calendar-empty';
+    empty.className = 'calendar-empty muted';
+    empty.textContent = 'No events scheduled.';
+    root.appendChild(empty);
+  }
 
   const container = document.createElement('div');
   container.dataset.calendarDaily = '1';

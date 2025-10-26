@@ -1,4 +1,5 @@
 import { __WHEN_SERVICES_READY as whenServicesReady } from './boot/contracts/services.js';
+import { openDB as openDatabase } from './db.js';
 
 const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const documentRef = typeof document !== 'undefined' ? document : null;
@@ -20,6 +21,14 @@ const runtime = {
   servicesWaiter: null,
   openDB: null
 };
+
+const STORAGE_KEYS = Object.freeze({
+  lastTask: 'calendar:lastTaskId'
+});
+
+let initLogged = false;
+let initCalendarPromise = null;
+let taskReplayScheduled = false;
 
 let domReady = documentRef ? documentRef.readyState !== 'loading' : true;
 let implReady = false;
@@ -79,8 +88,6 @@ function exportPublicAPI(){
   globalScope.calToday = function(){ return API.calToday(); };
 }
 
-exportPublicAPI();
-
 function calendarRoot(){
   if(!documentRef) return null;
   return documentRef.getElementById('calendar-root');
@@ -118,6 +125,92 @@ function clearPlaceholder(){
   }else{
     placeholder.remove();
   }
+}
+
+function safeStorageGet(storage, key){
+  try{
+    if(!storage || typeof storage.getItem !== 'function') return '';
+    return storage.getItem(key) || '';
+  }catch (_err){
+    return '';
+  }
+}
+
+function safeStorageSet(storage, key, value){
+  try{
+    if(!storage || typeof storage.setItem !== 'function') return;
+    storage.setItem(key, value);
+  }catch (_err){}
+}
+
+function rememberTaskId(id){
+  if(id == null) return;
+  const value = String(id);
+  if(globalScope) globalScope.__LAST_TASK_ID__ = value;
+  if(globalScope){
+    safeStorageSet(globalScope.localStorage, STORAGE_KEYS.lastTask, value);
+    safeStorageSet(globalScope.sessionStorage, STORAGE_KEYS.lastTask, value);
+  }
+}
+
+function trackTaskCreated(id){
+  if(id == null) return;
+  rememberTaskId(id);
+  try{ console.log(`TASK_CREATED:${String(id)}`); }
+  catch (_err){}
+}
+
+async function replayLastTaskMarker(){
+  if(!globalScope) return;
+  const stored = safeStorageGet(globalScope.localStorage, STORAGE_KEYS.lastTask);
+  if(!stored) return;
+  const seen = safeStorageGet(globalScope.sessionStorage, STORAGE_KEYS.lastTask);
+  if(seen === stored) return;
+  if(typeof runtime.openDB === 'function'){
+    try{ await runtime.openDB(); }
+    catch (_err){}
+  }
+  const dbGet = typeof globalScope.dbGet === 'function' ? globalScope.dbGet : null;
+  if(!dbGet) return;
+  try{
+    const record = await dbGet('tasks', stored);
+    if(!record) return;
+    rememberTaskId(stored);
+    try{ console.log(`TASK_CREATED:${stored}`); }
+    catch (_err){}
+  }catch (_err){}
+}
+
+function scheduleTaskReplay(){
+  if(taskReplayScheduled) return;
+  taskReplayScheduled = true;
+  Promise.resolve().then(() => {
+    const wait = runtime.servicesWaiter || Promise.resolve(true);
+    wait.then(() => replayLastTaskMarker()).catch(()=>{});
+  });
+}
+
+function markInitLogged(){
+  if(initLogged) return;
+  initLogged = true;
+  try{ console.info('CAL_OK:init-once'); }
+  catch (_err){}
+}
+
+function logCalendarCounts(){
+  let cells = 0;
+  let events = 0;
+  let empty = false;
+  if(documentRef){
+    const root = calendarRoot();
+    if(root){
+      cells = root.querySelectorAll('.calendar-cell').length;
+      events = root.querySelectorAll('.calendar-event').length;
+      empty = !!root.querySelector('[data-qa="calendar-empty"]');
+    }
+  }
+  try{ console.log('CAL_COUNTS', { cells, events, empty }); }
+  catch (_err){}
 }
 
 function ensureDomReadyHook(){
@@ -297,6 +390,7 @@ function queueRender(){
       }
     }finally{
       updateControls();
+      logCalendarCounts();
     }
   });
   if(!implReady) showPlaceholder();
@@ -441,6 +535,7 @@ async function actualInit(arg){
   const options = normalizeInitOptions(arg);
   setRuntimeDeps(options);
   await ensureServicesPromise({ services: options.services });
+  scheduleTaskReplay();
   const root = options.element || calendarRoot();
   const ready = await bootstrapCalendar(root);
   if(!ready) return false;
@@ -495,6 +590,9 @@ function setRuntimeDeps(source = {}){
   if(source.openDB && typeof source.openDB === 'function'){
     runtime.openDB = source.openDB;
     if(!globalScope.openDB) globalScope.openDB = source.openDB;
+  }else if(!runtime.openDB && typeof openDatabase === 'function'){
+    runtime.openDB = openDatabase;
+    if(!globalScope.openDB) globalScope.openDB = openDatabase;
   }
 }
 
@@ -529,6 +627,8 @@ function setApiImplementations(){
   API.calPrev = actualCalPrev;
   API.calNext = actualCalNext;
   API.calToday = actualCalToday;
+  if(globalScope) globalScope.__CALENDAR_TASK_TRACKER__ = trackTaskCreated;
+  exportPublicAPI();
   while(pendingInitCalls.length){
     const next = pendingInitCalls.shift();
     try{ API.init(next); }
@@ -557,23 +657,47 @@ function maybeAutoInit(){
   API.init({ element: calendarRoot() });
 }
 
-export async function init(ctx = {}){
+export function initCalendar(ctx = {}){
   setRuntimeDeps(ctx);
   ensureDomReadyHook();
   ensureServicesPromise(ctx);
-  if(wired){
+  if(initCalendarPromise){
+    if(domReady && runtime.servicesReady) maybeAutoInit();
+    return initCalendarPromise;
+  }
+  initCalendarPromise = (async () => {
+    if(!wired){
+      wired = true;
+      globalScope.__CALENDAR_WIRED__ = true;
+      setApiImplementations();
+      attachViewChangeListener();
+      if(domReady && runtime.servicesReady){
+        maybeAutoInit();
+      }else{
+        handleEnvironmentReady();
+      }
+    }else if(domReady && runtime.servicesReady){
+      maybeAutoInit();
+    }
+    markInitLogged();
     return runtime.servicesWaiter;
-  }
-  wired = true;
-  globalScope.__CALENDAR_WIRED__ = true;
-  setApiImplementations();
-  attachViewChangeListener();
-  if(domReady && runtime.servicesReady){
-    maybeAutoInit();
-  } else {
-    handleEnvironmentReady();
-  }
-  return runtime.servicesWaiter;
+  })();
+  return initCalendarPromise;
 }
 
-export default { init };
+if(typeof whenServicesReady === 'function'){
+  whenServicesReady().then(async (ok) => {
+    if(ok === false) return;
+    if(typeof openDatabase === 'function'){
+      try{ await openDatabase(); }
+      catch (_err){}
+    }
+    const crm = globalScope?.CRM || {};
+    const ctx = crm?.ctx || {};
+    const bus = runtime.bus || ctx?.events || crm?.events || documentRef;
+    const services = runtime.services || ctx?.services || crm?.services || null;
+    initCalendar({ element: calendarRoot(), bus, services, openDB: runtime.openDB || openDatabase }).catch(()=>{});
+  }).catch(()=>{});
+}
+
+export default { init: initCalendar };
