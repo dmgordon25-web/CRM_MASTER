@@ -178,6 +178,12 @@ function applyVisibilityLock(mount){
   catch (_err){}
   try{ mount.setAttribute('aria-hidden', 'false'); }
   catch (_err){}
+  try{ mount.style.removeProperty('display'); }
+  catch (_err){}
+  if(mount.style && mount.style.display === 'none'){
+    try{ mount.style.display = ''; }
+    catch (_err){}
+  }
   const routeContainer = mount.closest('#view-calendar');
   if(routeContainer){
     try{ routeContainer.classList.remove('hidden'); }
@@ -186,8 +192,16 @@ function applyVisibilityLock(mount){
     catch (_err){}
     try{ routeContainer.setAttribute('aria-hidden', 'false'); }
     catch (_err){}
+    try{ routeContainer.style.removeProperty('display'); }
+    catch (_err){}
+    if(routeContainer.style && routeContainer.style.display === 'none'){
+      try{ routeContainer.style.display = ''; }
+      catch (_err){}
+    }
   }
   try{ grid.setAttribute('aria-hidden', 'false'); }
+  catch (_err){}
+  try{ grid.removeAttribute('hidden'); }
   catch (_err){}
   try{ grid.style.minHeight = '300px'; }
   catch (_err){}
@@ -265,6 +279,7 @@ function buildCalendarGrid(range, events, view, handlers){
   grid.className = `calendar-grid view-${view}`;
   grid.style.display = 'grid';
   grid.style.gap = '8px';
+  grid.style.gridAutoRows = 'minmax(120px, auto)';
   const columns = view === 'day' ? 1 : 7;
   grid.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
   const eventsByDay = new Map();
@@ -286,6 +301,13 @@ function buildCalendarGrid(range, events, view, handlers){
     const cell = DOC.createElement('div');
     cell.className = 'calendar-cell';
     cell.dataset.date = dayKey;
+    cell.style.background = '#fff';
+    cell.style.border = '1px solid rgba(0,0,0,0.1)';
+    cell.style.borderRadius = '6px';
+    cell.style.padding = '8px';
+    cell.style.display = 'flex';
+    cell.style.flexDirection = 'column';
+    cell.style.gap = '6px';
     const header = DOC.createElement('header');
     header.className = 'calendar-cell-header';
     header.textContent = `${cursor.getDate()} ${WEEKDAY_FORMAT.format(cursor)}`;
@@ -322,6 +344,8 @@ function renderCalendar(mount, state, handlers){
   }
   wrapper.appendChild(grid);
   mount.appendChild(wrapper);
+  try{ mount.dataset.view = state.view; }
+  catch (_err){}
   const visible = applyVisibilityLock(mount);
   updateDebug({
     renderCount: state.renderCount,

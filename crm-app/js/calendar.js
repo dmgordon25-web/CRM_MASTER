@@ -14,6 +14,7 @@ let routeEventsBound = false;
 let enterCount = 0;
 let lastRouteActive = false;
 let lastHash = '';
+let lastView = '';
 
 if(typeof GLOBAL.renderCalendar !== 'function'){
   GLOBAL.renderCalendar = function renderCalendar(){
@@ -171,26 +172,36 @@ function ensureController(){
   return controllerPromise;
 }
 
-async function handleRouteChange(){
+async function handleRouteChange(event){
   if(!servicesReady) return;
   await domReady;
   const hash = currentHash();
-  const active = isCalendarRoute(hash);
+  const eventView = event && event.detail && typeof event.detail.view === 'string'
+    ? event.detail.view.trim().toLowerCase()
+    : '';
+  const activeByHash = isCalendarRoute(hash);
+  const activeByEvent = eventView === 'calendar';
+  const active = activeByEvent || activeByHash;
   if(!active){
     lastRouteActive = false;
     lastHash = hash;
+    if(eventView) lastView = eventView;
+    else if(!activeByHash && !activeByEvent) lastView = '';
     return;
   }
   const ctrl = await ensureController();
   if(!ctrl) return;
-  if(!lastRouteActive || hash !== lastHash){
+  const entering = !lastRouteActive
+    || (activeByHash && hash !== lastHash)
+    || (activeByEvent && lastView !== 'calendar');
+  lastRouteActive = true;
+  lastHash = hash;
+  lastView = 'calendar';
+  if(entering){
     enterCount += 1;
-    lastRouteActive = true;
-    lastHash = hash;
     await ctrl.enter(enterCount);
     return;
   }
-  lastHash = hash;
   ctrl.render();
 }
 
