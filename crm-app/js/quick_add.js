@@ -1,5 +1,6 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
+import { openContactEditor, openPartnerEditor } from './ui/quick_create_menu.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -32,12 +33,61 @@ function buildCopy(){
   };
 }
 
+function closeQuickAddOverlay(node){
+  const scope = node || (doc ? doc.querySelector('.qa-overlay') : null);
+  if(!scope) return;
+  const closeBtn = scope.querySelector('.qa-close');
+  if(closeBtn){
+    closeBtn.click();
+    return;
+  }
+  if(scope.parentElement){
+    scope.parentElement.removeChild(scope);
+  }
+}
+
+function ensureQuickAddFullEditor(form, qa, opener, overlay){
+  if(!form || !doc || !qa || typeof opener !== 'function') return;
+  if(form.querySelector(`[data-qa="${qa}"]`)) return;
+  const saveBtn = form.querySelector('.qa-save');
+  const actions = saveBtn ? saveBtn.parentElement : null;
+  if(!actions) return;
+  const button = doc.createElement('button');
+  button.type = 'button';
+  button.dataset.qa = qa;
+  button.textContent = 'Open full editor';
+  button.style.border = 'none';
+  button.style.background = 'transparent';
+  button.style.color = '#1570ef';
+  button.style.cursor = 'pointer';
+  button.style.fontSize = '13px';
+  button.style.padding = '0';
+  button.style.marginRight = 'auto';
+  button.addEventListener('click', (event) => {
+    if(event && typeof event.preventDefault === 'function') event.preventDefault();
+    closeQuickAddOverlay(overlay);
+    opener();
+  });
+  actions.prepend(button);
+}
+
+function ensureQuickAddFullEditors(){
+  if(!doc) return;
+  const overlay = doc.querySelector('.qa-overlay');
+  if(!overlay) return;
+  const contactForm = overlay.querySelector('.qa-form-contact');
+  const partnerForm = overlay.querySelector('.qa-form-partner');
+  ensureQuickAddFullEditor(contactForm, 'open-full-contact-editor', openContactEditor, overlay);
+  ensureQuickAddFullEditor(partnerForm, 'open-full-partner-editor', openPartnerEditor, overlay);
+}
+
 function openQuickAdd(kind = 'contact'){
   const target = kind === 'partner' ? 'partner' : 'contact';
   wireQuickAddUnified({ copy: buildCopy() });
   const api = win && win.QuickAddUnified;
   if(api && typeof api.open === 'function'){
     api.open(target);
+    ensureQuickAddFullEditors();
     return true;
   }
   if(win && typeof win.requestAnimationFrame === 'function'){
@@ -45,6 +95,7 @@ function openQuickAdd(kind = 'contact'){
       const next = win && win.QuickAddUnified;
       if(next && typeof next.open === 'function'){
         next.open(target);
+        ensureQuickAddFullEditors();
       }
     });
   }
