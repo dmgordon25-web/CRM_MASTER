@@ -474,3 +474,25 @@ async function mergePartners(aId, bId, strategy){
   window.mergePartners = mergePartners;
   window.STORES = STORES;
 })();
+
+const __dbScope = typeof globalThis !== 'undefined'
+  ? globalThis
+  : (typeof window !== 'undefined' ? window : {});
+
+export const openDB = (...args) => {
+  const fn = __dbScope && typeof __dbScope.openDB === 'function' ? __dbScope.openDB : null;
+  if(!fn) throw new Error('openDB unavailable');
+  return fn(...args);
+};
+
+export const dbGet = (...args) => {
+  const fn = __dbScope && typeof __dbScope.dbGet === 'function' ? __dbScope.dbGet : null;
+  if(!fn) throw new Error('dbGet unavailable');
+  return fn(...args);
+};
+
+export const dbPut = (...args) => {
+  const fn = __dbScope && typeof __dbScope.dbPut === 'function' ? __dbScope.dbPut : null;
+  if(!fn) throw new Error('dbPut unavailable');
+  return fn(...args);
+};
