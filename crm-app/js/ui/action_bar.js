@@ -1,5 +1,6 @@
 import { openMergeModal } from './merge_modal.js';
 import { bindHeaderQuickAddOnce } from '../quick_add.js';
+import { bindHeaderQuickCreateOnce } from './quick_create_menu.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
@@ -639,6 +640,7 @@ function ensureHeaderQuickAddBinding() {
   try {
     const bus = typeof window !== 'undefined' ? (window.AppBus || window.__APP_BUS__ || null) : null;
     bindHeaderQuickAddOnce(document, bus);
+    bindHeaderQuickCreateOnce(document, bus);
   } catch (err) {
     try {
       console && typeof console.warn === 'function' && console.warn('[action-bar] quick-add bind failed', err);

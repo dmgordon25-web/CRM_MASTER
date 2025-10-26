@@ -1,4 +1,4 @@
-import { bindQuickCreateMenu } from './quick_create_menu.js';
+import { bindQuickCreateMenu, bindHeaderQuickCreateOnce } from './quick_create_menu.js';
 import { getQuickAddMenuOptions } from '../quick_add.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
@@ -206,6 +206,10 @@ function ensureQuickCreateBinding(host) {
     });
     headerState.unbind = typeof unbind === 'function' ? unbind : null;
     headerState.boundHost = host;
+    try {
+      const bus = typeof window !== 'undefined' ? (window.AppBus || window.__APP_BUS__ || null) : null;
+      bindHeaderQuickCreateOnce(host, bus);
+    } catch (_) {}
   } catch (err) {
     headerState.unbind = null;
     if (console && typeof console.warn === 'function') {
