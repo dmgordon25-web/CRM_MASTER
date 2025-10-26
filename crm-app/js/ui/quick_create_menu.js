@@ -1,5 +1,8 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
 
+const MENU_DEFAULT_QA = 'fab-menu';
+const QC_DEBUG_KEY = '__QC_DEBUG__';
+
 const WRAPPER_ID = 'global-new-menu';
 const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';
@@ -34,6 +37,33 @@ const state = {
 
 let bootBeaconEmitted = false;
 let partnerModulePromise = null;
+const headerQuickCreateState = {
+  button: null,
+  bound: false
+};
+
+function getDebugState() {
+  if (typeof window === 'undefined') return null;
+  const host = window;
+  const existing = host[QC_DEBUG_KEY];
+  if (!existing || typeof existing !== 'object') {
+    const next = { bindCount: 0, openCount: 0, createdCount: 0, beaconCount: 0 };
+    host[QC_DEBUG_KEY] = next;
+    return next;
+  }
+  if (typeof existing.bindCount !== 'number' || Number.isNaN(existing.bindCount)) existing.bindCount = 0;
+  if (typeof existing.openCount !== 'number' || Number.isNaN(existing.openCount)) existing.openCount = 0;
+  if (typeof existing.createdCount !== 'number' || Number.isNaN(existing.createdCount)) existing.createdCount = 0;
+  if (typeof existing.beaconCount !== 'number' || Number.isNaN(existing.beaconCount)) existing.beaconCount = 0;
+  return existing;
+}
+
+function incrementDebugCounter(key) {
+  const debug = getDebugState();
+  if (!debug || !(key in debug)) return;
+  const value = Number.isFinite(debug[key]) ? debug[key] : 0;
+  debug[key] = value + 1;
+}
 
 function emitState() {
   if (typeof document === 'undefined') return;
@@ -143,7 +173,15 @@ function ensureMenuElements() {
     menu.style.gap = '4px';
     menu.style.pointerEvents = 'auto';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('data-qa', 'fab-menu');
+    menu.setAttribute('data-qa', MENU_DEFAULT_QA);
+    menu.setAttribute('aria-hidden', 'true');
+  } else {
+    if (!menu.hasAttribute('data-qa')) {
+      menu.setAttribute('data-qa', MENU_DEFAULT_QA);
+    }
+    if (!menu.hasAttribute('aria-hidden')) {
+      menu.setAttribute('aria-hidden', 'true');
+    }
   }
 
   if (menu.parentElement !== wrapper) {
@@ -199,10 +237,12 @@ function getOpener(kind) {
 }
 
 function handleSelection(kind) {
-  closeQuickCreateMenu();
   const item = kind === 'partner' ? 'partner' : kind === 'task' ? 'task' : 'contact';
+  closeQuickCreateMenu();
+  incrementDebugCounter('createdCount');
+  incrementDebugCounter('beaconCount');
   try {
-    console && typeof console.info === 'function' && console.info('[A_BEACON] quick-create:select', { item });
+    console && typeof console.info === 'function' && console.info('[quick-create] select', { item });
   } catch (_) {}
   const opener = getOpener(item);
   callSafely(opener);
@@ -233,6 +273,8 @@ function positionMenu(anchor) {
   wrapper.hidden = false;
   menu.hidden = false;
   menu.classList.remove('hidden');
+  menu.setAttribute('aria-hidden', 'false');
+  menu.setAttribute('data-qa', 'qc-open');
   const previousVisibility = wrapper.style.visibility;
   wrapper.style.visibility = 'hidden';
   wrapper.style.pointerEvents = 'none';
@@ -286,6 +328,8 @@ export function closeQuickCreateMenu() {
   if (menu.classList && typeof menu.classList.add === 'function') {
     menu.classList.add('hidden');
   }
+  menu.setAttribute('aria-hidden', 'true');
+  menu.setAttribute('data-qa', MENU_DEFAULT_QA);
   wrapper.style.left = '';
   wrapper.style.top = '';
   wrapper.style.right = '';
@@ -327,12 +371,18 @@ export function openQuickCreateMenu(options = {}) {
   const normalizedSource = normalizeSource(source);
   const elements = ensureMenuElements();
   if (!elements) return;
+  const wasOpen = state.open;
   state.anchor = anchor;
   state.source = normalizedSource;
   state.origin = typeof origin === 'string' && origin ? origin : normalizedSource;
   state.open = true;
   state.restoreFocus = anchor && typeof anchor.focus === 'function' ? anchor : null;
   positionMenu(anchor);
+  const { menu } = elements;
+  if (menu) {
+    menu.setAttribute('aria-hidden', 'false');
+    menu.setAttribute('data-qa', 'qc-open');
+  }
   if (!state.outsideHandler) {
     state.outsideHandler = (event) => handleOutsideClick(event);
     document.addEventListener('click', state.outsideHandler, true);
@@ -341,9 +391,9 @@ export function openQuickCreateMenu(options = {}) {
     state.keyHandler = (event) => handleKeyDown(event);
     document.addEventListener('keydown', state.keyHandler, true);
   }
-  try {
-    console && typeof console.info === 'function' && console.info('[A_BEACON] quick-create:open', { source: state.origin, context: state.source });
-  } catch (_) {}
+  if (!wasOpen) {
+    incrementDebugCounter('openCount');
+  }
   focusFirstMenuItem();
   emitState();
 }
@@ -597,6 +647,7 @@ export function bindQuickCreateMenu(root, options = {}) {
 
   const binding = createBinding(host, options);
   host[BIND_GUARD_KEY] = binding;
+  incrementDebugCounter('bindCount');
 
   return () => {
     binding.unbind();
@@ -605,4 +656,30 @@ export function bindQuickCreateMenu(root, options = {}) {
       catch (_) { host[BIND_GUARD_KEY] = null; }
     }
   };
+}
+
+export function bindHeaderQuickCreateOnce(root, bus) {
+  void bus;
+  if (typeof document === 'undefined') return null;
+  const scope = root && typeof root.querySelector === 'function' ? root : document;
+  const button = scope ? scope.querySelector('#btn-header-new') : null;
+  if (!button) {
+    if (headerQuickCreateState.button && headerQuickCreateState.button.isConnected === false) {
+      headerQuickCreateState.button = null;
+      headerQuickCreateState.bound = false;
+    }
+    return null;
+  }
+  if (headerQuickCreateState.bound && headerQuickCreateState.button === button && button.isConnected !== false) {
+    if (!button.hasAttribute('data-bound')) {
+      button.setAttribute('data-bound', '1');
+    }
+    return button;
+  }
+  headerQuickCreateState.button = button;
+  headerQuickCreateState.bound = true;
+  if (typeof button.setAttribute === 'function') {
+    button.setAttribute('data-bound', '1');
+  }
+  return button;
 }
