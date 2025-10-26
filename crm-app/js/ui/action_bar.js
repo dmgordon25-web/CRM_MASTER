@@ -1,4 +1,5 @@
 import { openMergeModal } from './merge_modal.js';
+import { bindHeaderQuickAddOnce } from '../quick_add.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
@@ -629,7 +630,20 @@ function markActionbarHost() {
     centerActionBarForRoute({ pulse: false, silent: true });
   }
   ensureActionBarDragHandles(bar);
+  ensureHeaderQuickAddBinding();
   return bar;
+}
+
+function ensureHeaderQuickAddBinding() {
+  if (typeof document === 'undefined') return;
+  try {
+    const bus = typeof window !== 'undefined' ? (window.AppBus || window.__APP_BUS__ || null) : null;
+    bindHeaderQuickAddOnce(document, bus);
+  } catch (err) {
+    try {
+      console && typeof console.warn === 'function' && console.warn('[action-bar] quick-add bind failed', err);
+    } catch (_) {}
+  }
 }
 
 function initializeActionBar() {
@@ -640,6 +654,7 @@ function initializeActionBar() {
   ensureMergeHandler();
   ensureSelectionSubscription();
   syncActionBarVisibility(0, bar);
+  ensureHeaderQuickAddBinding();
 }
 
 function trackLastActionBarClick(event) {
