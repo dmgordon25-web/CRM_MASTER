@@ -4,6 +4,7 @@ import { renderDailyView } from './calendar/daily_view.js';
 import { createTaskFromEvent } from './tasks/api.js';
 import { rangeForView, addDays, ymd, parseDateInput, loadEventsBetween, isWithinRange } from './calendar/index.js';
 import { ensureContactModalReady, openContactModal } from './contacts.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
 
@@ -194,33 +195,85 @@ function invalidateRenderCache(key){
     return document.createElement(tag);
   }
 
+  const VIEWBOX_PATTERN = /^\s*-?\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s*$/;
+  const DEFAULT_VIEWBOX = '0 0 24 24';
+
+  function ensureValidViewBox(node){
+    if(!node || typeof node.setAttribute !== 'function') return;
+    const current = typeof node.getAttribute === 'function' ? node.getAttribute('viewBox') : '';
+    if(!current || !VIEWBOX_PATTERN.test(String(current))){
+      try{ node.setAttribute('viewBox', DEFAULT_VIEWBOX); }
+      catch (_err){}
+    }
+  }
+
   function createEventIconSvg(key, path){
+    if(typeof path !== 'string' || !path.trim()) return null;
     const svg = createSvgNode('svg');
     if(!svg) return null;
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-    svg.dataset.iconKey = key;
-    const segment = createSvgNode('path');
-    if(!segment) return svg;
-    segment.setAttribute('d', path);
-    segment.setAttribute('fill', 'none');
-    segment.setAttribute('stroke', 'currentColor');
-    segment.setAttribute('stroke-width', '1.5');
-    segment.setAttribute('stroke-linecap', 'round');
-    segment.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(segment);
+    try{
+      svg.setAttribute('viewBox', DEFAULT_VIEWBOX);
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+      svg.dataset.iconKey = key;
+      const segment = createSvgNode('path');
+      if(!segment) return svg;
+      segment.setAttribute('d', path);
+      segment.setAttribute('fill', 'none');
+      segment.setAttribute('stroke', 'currentColor');
+      segment.setAttribute('stroke-width', '1.5');
+      segment.setAttribute('stroke-linecap', 'round');
+      segment.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(segment);
+    }catch (_err){
+      return null;
+    }
     return svg;
   }
 
   function getEventIcon(type){
     const key = EVENT_ICON_PATHS[type] ? type : EVENT_ICON_FALLBACK;
     if(!EVENT_ICON_CACHE.has(key)){
-      const path = EVENT_ICON_PATHS[key];
-      EVENT_ICON_CACHE.set(key, path ? createEventIconSvg(key, path) : null);
+      try{
+        const path = EVENT_ICON_PATHS[key];
+        EVENT_ICON_CACHE.set(key, path ? createEventIconSvg(key, path) : null);
+      }catch (_err){
+        EVENT_ICON_CACHE.set(key, null);
+      }
     }
     const base = EVENT_ICON_CACHE.get(key);
-    return base ? base.cloneNode(true) : null;
+    if(!base) return null;
+    try{
+      const clone = base.cloneNode(true);
+      ensureValidViewBox(clone);
+      return clone;
+    }catch (_err){
+      return null;
+    }
+  }
+
+  function safelyInjectIcon(target, iconKey){
+    if(!target) return false;
+    let iconNode = null;
+    try{ iconNode = getEventIcon(iconKey); }
+    catch (_err){ iconNode = null; }
+    if(!iconNode) return false;
+    ensureValidViewBox(iconNode);
+    try{
+      if(iconNode.dataset && iconNode.dataset.iconKey && target.dataset){
+        target.dataset.icon = iconNode.dataset.iconKey;
+      }else if(target.dataset){
+        target.dataset.icon = iconKey;
+      }
+    }catch (_err){}
+    try{ target.setAttribute('aria-hidden', 'true'); }
+    catch (_err){}
+    try{
+      target.appendChild(iconNode);
+      return true;
+    }catch (_err){
+      return false;
+    }
   }
 
   const EVENT_META = [
@@ -657,10 +710,11 @@ function invalidateRenderCache(key){
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';
     grid.dataset.calendarEnhanced = '1';
+    grid.dataset.qa = 'calendar-month-grid';
     for(let i=0;i<range.days;i++){
       const d = addDays(range.start, i);
       const cell = document.createElement('div');
-      cell.className = 'cal-cell';
+      cell.className = 'cal-cell calendar-cell';
       if(currentView === 'month' && d.getMonth() !== range.anchor.getMonth()){
         cell.classList.add('muted');
       }
@@ -734,39 +788,6 @@ function invalidateRenderCache(key){
 
       let usedCached = false;
 
-      const openContactRecord = async (contactId)=>{
-        const targetId = contactId ? String(contactId).trim() : '';
-        if(!targetId){
-          if(typeof window.toast === 'function'){
-            window.toast('Contact unavailable for this event');
-          }
-          return false;
-        }
-        let ready = false;
-        try{ ready = await ensureContactModalReady(); }
-        catch (err){
-          if(console && typeof console.warn === 'function'){
-            console.warn('contact modal ensure failed', err);
-          }
-          ready = false;
-        }
-        if(!ready || typeof openContactModal !== 'function'){
-          if(typeof window.toast === 'function'){
-            window.toast('Contact unavailable for this event');
-          }
-          return false;
-        }
-        logCalendarContact();
-        try{ openContactModal(targetId); }
-        catch (err) {
-          if(console && typeof console.warn === 'function'){
-            console.warn('openContactModal failed', err);
-          }
-          return false;
-        }
-        return true;
-      };
-
       let __calPending = new Set();
       let __calFlushScheduled = false;
       function scheduleCalendarFlush(){
@@ -791,8 +812,7 @@ function invalidateRenderCache(key){
         });
       }
 
-      async function persistEventDate(source, newDate){
-        if(!source || !source.entity || !source.id || !newDate) return false;
+      async function ensureDbAdapters(){
         const scope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
         if(typeof scope.openDB !== 'function' || typeof scope.dbGet !== 'function' || typeof scope.dbPut !== 'function'){
           await import(fromHere('./db.js')).catch(()=>null);
@@ -800,7 +820,15 @@ function invalidateRenderCache(key){
         const openDB = typeof scope.openDB === 'function' ? scope.openDB : null;
         const dbGet = typeof scope.dbGet === 'function' ? scope.dbGet : null;
         const dbPut = typeof scope.dbPut === 'function' ? scope.dbPut : null;
-        if(!openDB || !dbGet || !dbPut) return false;
+        if(!openDB || !dbGet) return null;
+        return { scope, openDB, dbGet, dbPut };
+      }
+
+      async function persistEventDate(source, newDate){
+        if(!source || !source.entity || !source.id || !newDate) return false;
+        const adapters = await ensureDbAdapters();
+        if(!adapters || !adapters.dbPut) return false;
+        const { openDB, dbGet, dbPut } = adapters;
         await openDB();
         const store = source.entity;
         const rec = await dbGet(store, String(source.id)).catch(()=>null);
@@ -851,11 +879,11 @@ function invalidateRenderCache(key){
         });
         const rangeStart = start ? new Date(start.getTime()) : null;
         const rangeEnd = end ? new Date(end.getTime()) : null;
-        const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
-        calendarApi.visibleEvents = function(){
-          return snapshot.map(ev => ({
-            uid: ev.uid,
-            type: ev.type,
+      const calendarApi = window.CalendarAPI = window.CalendarAPI || {};
+      calendarApi.visibleEvents = function(){
+        return snapshot.map(ev => ({
+          uid: ev.uid,
+          type: ev.type,
             title: ev.title,
             subtitle: ev.subtitle,
             status: ev.status,
@@ -901,17 +929,194 @@ function invalidateRenderCache(key){
             contactId: ev.contactId || '',
             contactStage: ev.contactStage || '',
             contactName: ev.contactName || ''
-          }));
-        };
+        }));
+      };
+    };
+
+    function extractPartnerCandidates(event){
+      const unique = new Set();
+      const add = (value) => {
+        if(value == null) return;
+        const str = String(value).trim();
+        if(!str) return;
+        unique.add(str);
+      };
+      if(!event) return [];
+      add(event.partnerId);
+      add(event.partnerID);
+      add(event.partner_id);
+      if(event.partner){
+        add(event.partner.id);
+        add(event.partner.partnerId);
+        add(event.partner.partnerID);
+      }
+      if(event.contact){
+        add(event.contact.partnerId);
+        add(event.contact.partnerID);
+      }
+      const raw = event.raw;
+      if(raw){
+        add(raw.partnerId);
+        add(raw.partnerID);
+        add(raw.partner_id);
+        if(raw.partner){
+          add(raw.partner.id);
+          add(raw.partner.partnerId);
+          add(raw.partner.partnerID);
+        }
+        if(raw.contact){
+          add(raw.contact.partnerId);
+          add(raw.contact.partnerID);
+        }
+      }
+      const source = event.source;
+      if(source){
+        add(source.partnerId);
+        add(source.partnerID);
+        if(source.partner){
+          add(source.partner.id);
+          add(source.partner.partnerId);
+        }
+        const entity = source.entity ? String(source.entity).toLowerCase() : '';
+        if(entity === 'partners') add(source.id);
+      }
+      return Array.from(unique.values());
+    }
+
+    const renderEvents = (eventsList) => {
+      const safeEvents = Array.isArray(eventsList) ? eventsList : [];
+      clearErrorBanner(root);
+      root.innerHTML = '';
+      root.setAttribute('data-view', currentView);
+
+      const contactPartnerHints = new Map();
+      const contactEventLookup = new Map();
+      for(const ev of safeEvents){
+        const contactKey = ev && ev.contactId ? String(ev.contactId).trim() : '';
+        if(contactKey && !contactEventLookup.has(contactKey)){
+          contactEventLookup.set(contactKey, ev);
+        }
+        if(!contactKey) continue;
+        if(contactPartnerHints.has(contactKey)) continue;
+        const candidates = extractPartnerCandidates(ev);
+        for(const candidate of candidates){
+          const normalized = String(candidate || '').trim();
+          if(normalized){
+            contactPartnerHints.set(contactKey, normalized);
+            break;
+          }
+        }
+      }
+
+      async function resolvePartnerIdForEvent(event, fallbackContactId){
+        const contactKey = fallbackContactId
+          ? String(fallbackContactId).trim()
+          : (event && event.contactId ? String(event.contactId).trim() : '');
+        const candidates = extractPartnerCandidates(event);
+        if(contactKey && contactPartnerHints.has(contactKey)){
+          candidates.unshift(contactPartnerHints.get(contactKey));
+        }
+        for(const candidate of candidates){
+          const normalized = String(candidate || '').trim();
+          if(normalized){
+            if(contactKey) contactPartnerHints.set(contactKey, normalized);
+            return normalized;
+          }
+        }
+        if(contactKey && contactPartnerHints.has(contactKey)){
+          const normalized = contactPartnerHints.get(contactKey);
+          if(normalized) return normalized;
+        }
+        if(!contactKey) return '';
+        const adapters = await ensureDbAdapters();
+        if(!adapters) return '';
+        try{
+          await adapters.openDB();
+          const record = await adapters.dbGet('contacts', contactKey);
+          const fallback = record && (record.partnerId || record.partnerID || record.partner_id
+            || (record.partner && (record.partner.id || record.partner.partnerId || record.partner.partnerID)));
+          const normalized = String(fallback || '').trim();
+          if(normalized){
+            contactPartnerHints.set(contactKey, normalized);
+            return normalized;
+          }
+        }catch (_err){}
+        return '';
+      }
+
+      async function openCalendarEditor(event, triggerNode, fallbackContactId){
+        const partnerId = await resolvePartnerIdForEvent(event, fallbackContactId);
+        const normalizedPartnerId = String(partnerId || '').trim();
+        const openers = [];
+        if(typeof openPartnerEditModal === 'function') openers.push(openPartnerEditModal);
+        if(typeof window !== 'undefined'){
+          if(typeof window.openPartnerEditModal === 'function') openers.push(window.openPartnerEditModal);
+          if(typeof window.openPartnerEdit === 'function') openers.push(window.openPartnerEdit);
+        }
+        if(normalizedPartnerId && openers.length){
+          for(const openPartner of openers){
+            try{
+              const result = openPartner(normalizedPartnerId, {
+                trigger: triggerNode || null,
+                allowAutoOpen: true,
+                sourceHint: 'calendar:event-click'
+              });
+              if(result && typeof result.then === 'function'){
+                await result.catch(()=>{});
+              }
+              logCalendarContact();
+              return true;
+            }catch (err){
+              if(console && typeof console.warn === 'function'){
+                console.warn('[CAL] openPartnerEditModal failed', err);
+              }
+            }
+          }
+        }
+        const contactId = fallbackContactId || (event && event.contactId) || '';
+        if(!contactId){
+          if(typeof window !== 'undefined' && typeof window.toast === 'function'){
+            window.toast('Contact unavailable for this event');
+          }
+          return false;
+        }
+        let ready = false;
+        try{ ready = await ensureContactModalReady(); }
+        catch (err){
+          if(console && typeof console.warn === 'function'){
+            console.warn('contact modal ensure failed', err);
+          }
+          ready = false;
+        }
+        if(!ready || typeof openContactModal !== 'function'){
+          if(typeof window !== 'undefined' && typeof window.toast === 'function'){
+            window.toast('Contact unavailable for this event');
+          }
+          return false;
+        }
+        try{
+          logCalendarContact();
+          openContactModal(String(contactId));
+          return true;
+        }catch (err){
+          if(console && typeof console.warn === 'function'){
+            console.warn('openContactModal failed', err);
+          }
+          if(typeof window !== 'undefined' && typeof window.toast === 'function'){
+            window.toast('Contact unavailable for this event');
+          }
+          return false;
+        }
+      }
+
+      const openCalendarEditorByContact = (id) => {
+        const key = String(id || '').trim();
+        if(!key) return Promise.resolve(false);
+        const event = contactEventLookup.get(key) || { contactId: key };
+        return openCalendarEditor(event, null, key);
       };
 
-      const renderEvents = (eventsList) => {
-        const safeEvents = Array.isArray(eventsList) ? eventsList : [];
-        clearErrorBanner(root);
-        root.innerHTML = '';
-        root.setAttribute('data-view', currentView);
-
-        const noEvents = safeEvents.length === 0;
+      const noEvents = safeEvents.length === 0;
         if(noEvents && currentView !== 'day'){
           const empty = document.createElement('div');
           empty.dataset.qa = 'calendar-empty';
@@ -927,8 +1132,14 @@ function invalidateRenderCache(key){
             anchor: anchorDate,
             events: dayEvents,
             metaFor: (type)=> EVENT_META_MAP.get(type) || null,
-            iconFor: (type)=> getEventIcon(type),
-            openContact: openContactRecord,
+            iconFor: (type)=> {
+              let node = null;
+              try{ node = getEventIcon(type); }
+              catch (_err){ node = null; }
+              if(node) ensureValidViewBox(node);
+              return node;
+            },
+            openContact: openCalendarEditorByContact,
             addTask: createTaskFromEvent,
             closePopover: closeEventPopover
           });
@@ -1017,28 +1228,23 @@ function invalidateRenderCache(key){
               });
             }
 
-            const openContact = async (evt) => {
+            const openEventRecord = async (evt) => {
               if(evt){
                 evt.preventDefault();
                 if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
               }
               closeEventPopover();
-              await openContactRecord(contactId);
+              await openCalendarEditor(ev, item, contactId);
             };
 
             item.addEventListener('click', (evt)=>{
-              Promise.resolve(openContact(evt)).catch(()=>{});
+              Promise.resolve(openEventRecord(evt)).catch(()=>{});
             });
 
             const icon = document.createElement('span');
             icon.className = 'ev-icon';
             const iconKey = meta && meta.iconKey ? meta.iconKey : (ev.type || '');
-            const iconNode = getEventIcon(iconKey);
-            if(iconNode){
-              icon.dataset.icon = iconNode.dataset.iconKey || iconKey;
-              icon.setAttribute('aria-hidden', 'true');
-              icon.appendChild(iconNode);
-            }else{
+            if(!safelyInjectIcon(icon, iconKey)){
               icon.textContent = '•';
             }
             item.appendChild(icon);
@@ -1141,14 +1347,18 @@ function invalidateRenderCache(key){
               const openBtn = document.createElement('button');
               openBtn.type = 'button';
               openBtn.className = 'btn';
-              openBtn.textContent = 'Open Contact';
+              openBtn.textContent = 'Open Partner';
               if(!contactId || typeof window.renderContactModal !== 'function'){
+                openBtn.disabled = true;
+              }
+              const hasEditorTarget = !!(contactId || extractPartnerCandidates(ev).length);
+              if(!hasEditorTarget){
                 openBtn.disabled = true;
               }
               openBtn.addEventListener('click', (event)=>{
                 event.preventDefault();
                 event.stopPropagation();
-                Promise.resolve(openContact(event)).catch(()=>{});
+                Promise.resolve(openCalendarEditor(ev, item, contactId)).catch(()=>{});
               });
               actions.appendChild(openBtn);
 

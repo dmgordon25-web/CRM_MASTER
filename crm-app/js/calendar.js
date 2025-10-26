@@ -147,6 +147,7 @@ function rememberTaskId(id){
   if(id == null) return;
   const value = String(id);
   if(globalScope) globalScope.__LAST_TASK_ID__ = value;
+  if(globalScope) globalScope.__CAL_TASK_ID__ = value;
   if(globalScope){
     safeStorageSet(globalScope.localStorage, STORAGE_KEYS.lastTask, value);
     safeStorageSet(globalScope.sessionStorage, STORAGE_KEYS.lastTask, value);
@@ -156,7 +157,11 @@ function rememberTaskId(id){
 function trackTaskCreated(id){
   if(id == null) return;
   rememberTaskId(id);
-  try{ console.log(`TASK_CREATED:${String(id)}`); }
+  const value = String(id);
+  try{
+    console.log('CAL_TASK_CREATED', value);
+  }catch (_err){}
+  try{ console.log(`TASK_CREATED:${value}`); }
   catch (_err){}
 }
 
@@ -175,9 +180,7 @@ async function replayLastTaskMarker(){
   try{
     const record = await dbGet('tasks', stored);
     if(!record) return;
-    rememberTaskId(stored);
-    try{ console.log(`TASK_CREATED:${stored}`); }
-    catch (_err){}
+    trackTaskCreated(stored);
   }catch (_err){}
 }
 
