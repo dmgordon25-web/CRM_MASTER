@@ -32,22 +32,37 @@ const state = {
   outsideHandler: null,
   keyHandler: null,
   openers: defaultOpeners,
-  owner: null
+  owner: null,
+  reposition: {
+    active: false,
+    inFlight: false,
+    frame: null,
+    resizeListener: null,
+    scrollListener: null
+  }
 };
 
 let bootBeaconEmitted = false;
 let partnerModulePromise = null;
 const headerQuickCreateState = {
   button: null,
-  bound: false
+  bound: false,
+  cleanup: null,
+  controller: null
 };
+
+const PASSIVE_LISTENER_OPTIONS = { passive: true };
+
+function getHostWindow() {
+  return typeof window !== 'undefined' ? window : null;
+}
 
 function getDebugState() {
   if (typeof window === 'undefined') return null;
   const host = window;
   const existing = host[QC_DEBUG_KEY];
   if (!existing || typeof existing !== 'object') {
-    const next = { bindCount: 0, openCount: 0, createdCount: 0, beaconCount: 0 };
+    const next = { bindCount: 0, openCount: 0, createdCount: 0, beaconCount: 0, rafFramesWhileOpen: 0 };
     host[QC_DEBUG_KEY] = next;
     return next;
   }
@@ -55,6 +70,9 @@ function getDebugState() {
   if (typeof existing.openCount !== 'number' || Number.isNaN(existing.openCount)) existing.openCount = 0;
   if (typeof existing.createdCount !== 'number' || Number.isNaN(existing.createdCount)) existing.createdCount = 0;
   if (typeof existing.beaconCount !== 'number' || Number.isNaN(existing.beaconCount)) existing.beaconCount = 0;
+  if (typeof existing.rafFramesWhileOpen !== 'number' || Number.isNaN(existing.rafFramesWhileOpen)) {
+    existing.rafFramesWhileOpen = 0;
+  }
   return existing;
 }
 
@@ -63,6 +81,19 @@ function incrementDebugCounter(key) {
   if (!debug || !(key in debug)) return;
   const value = Number.isFinite(debug[key]) ? debug[key] : 0;
   debug[key] = value + 1;
+}
+
+function resetRafDebugCounter() {
+  const debug = getDebugState();
+  if (!debug) return;
+  debug.rafFramesWhileOpen = 0;
+}
+
+function incrementRafDebugCounter() {
+  const debug = getDebugState();
+  if (!debug) return;
+  const value = Number.isFinite(debug.rafFramesWhileOpen) ? debug.rafFramesWhileOpen : 0;
+  debug.rafFramesWhileOpen = value + 1;
 }
 
 function emitState() {
@@ -266,8 +297,9 @@ function handleKeyDown(event) {
 function positionMenu(anchor) {
   const { wrapper, menu } = state;
   if (!wrapper || !menu) return;
-  const anchorRect = anchor && typeof anchor.getBoundingClientRect === 'function'
-    ? anchor.getBoundingClientRect()
+  const anchorNode = anchor && anchor.isConnected !== false ? anchor : null;
+  const anchorRect = anchorNode && typeof anchorNode.getBoundingClientRect === 'function'
+    ? anchorNode.getBoundingClientRect()
     : null;
 
   wrapper.hidden = false;
@@ -320,7 +352,88 @@ function positionMenu(anchor) {
   wrapper.style.pointerEvents = 'auto';
 }
 
+function cancelRepositionFrame() {
+  const { reposition } = state;
+  if (!reposition) return;
+  const win = getHostWindow();
+  if (reposition.frame != null && win && typeof win.cancelAnimationFrame === 'function') {
+    try { win.cancelAnimationFrame(reposition.frame); }
+    catch (_) {}
+  }
+  reposition.frame = null;
+  reposition.inFlight = false;
+}
+
+function scheduleMenuReposition() {
+  const { reposition } = state;
+  if (!reposition || !reposition.active) return;
+  if (reposition.inFlight) return;
+  reposition.inFlight = true;
+  const win = getHostWindow();
+  const run = () => {
+    reposition.frame = null;
+    reposition.inFlight = false;
+    if (!state.open) return;
+    positionMenu(state.anchor);
+    incrementRafDebugCounter();
+  };
+  if (win && typeof win.requestAnimationFrame === 'function') {
+    reposition.frame = win.requestAnimationFrame(() => {
+      try { run(); }
+      catch (_) {}
+    });
+    return;
+  }
+  try { run(); }
+  catch (_) {}
+}
+
+function ensureRepositionListeners() {
+  const { reposition } = state;
+  if (!reposition || reposition.active) return;
+  const win = getHostWindow();
+  if (!win) return;
+  const resizeListener = () => {
+    scheduleMenuReposition();
+  };
+  const scrollListener = () => {
+    scheduleMenuReposition();
+  };
+  try {
+    win.addEventListener('resize', resizeListener, PASSIVE_LISTENER_OPTIONS);
+  } catch (_) {
+    win.addEventListener('resize', resizeListener, false);
+  }
+  try {
+    win.addEventListener('scroll', scrollListener, PASSIVE_LISTENER_OPTIONS);
+  } catch (_) {
+    win.addEventListener('scroll', scrollListener, false);
+  }
+  reposition.resizeListener = resizeListener;
+  reposition.scrollListener = scrollListener;
+  reposition.active = true;
+}
+
+function teardownRepositionListeners() {
+  const { reposition } = state;
+  if (!reposition) return;
+  const win = getHostWindow();
+  if (win && reposition.resizeListener) {
+    try { win.removeEventListener('resize', reposition.resizeListener, PASSIVE_LISTENER_OPTIONS); }
+    catch (_) { win.removeEventListener('resize', reposition.resizeListener, false); }
+  }
+  if (win && reposition.scrollListener) {
+    try { win.removeEventListener('scroll', reposition.scrollListener, PASSIVE_LISTENER_OPTIONS); }
+    catch (_) { win.removeEventListener('scroll', reposition.scrollListener, false); }
+  }
+  reposition.resizeListener = null;
+  reposition.scrollListener = null;
+  reposition.active = false;
+  cancelRepositionFrame();
+}
+
 export function closeQuickCreateMenu() {
+  teardownRepositionListeners();
   const { wrapper, menu, restoreFocus } = state;
   if (!wrapper || !menu || wrapper.hidden) return;
   wrapper.hidden = true;
@@ -334,6 +447,7 @@ export function closeQuickCreateMenu() {
   wrapper.style.top = '';
   wrapper.style.right = '';
   wrapper.style.bottom = '';
+  wrapper.style.pointerEvents = 'none';
   state.open = false;
   state.source = null;
   state.origin = null;
@@ -372,12 +486,16 @@ export function openQuickCreateMenu(options = {}) {
   const elements = ensureMenuElements();
   if (!elements) return;
   const wasOpen = state.open;
-  state.anchor = anchor;
+  const anchorNode = anchor && anchor.isConnected !== false ? anchor : null;
+  state.anchor = anchorNode;
   state.source = normalizedSource;
   state.origin = typeof origin === 'string' && origin ? origin : normalizedSource;
   state.open = true;
-  state.restoreFocus = anchor && typeof anchor.focus === 'function' ? anchor : null;
-  positionMenu(anchor);
+  resetRafDebugCounter();
+  cancelRepositionFrame();
+  state.restoreFocus = anchorNode && typeof anchorNode.focus === 'function' ? anchorNode : null;
+  positionMenu(anchorNode);
+  ensureRepositionListeners();
   const { menu } = elements;
   if (menu) {
     menu.setAttribute('aria-hidden', 'false');
@@ -658,28 +776,133 @@ export function bindQuickCreateMenu(root, options = {}) {
   };
 }
 
+function resetHeaderQuickCreateBinding() {
+  const cleanup = headerQuickCreateState.cleanup;
+  const controller = headerQuickCreateState.controller;
+  headerQuickCreateState.button = null;
+  headerQuickCreateState.bound = false;
+  headerQuickCreateState.cleanup = null;
+  headerQuickCreateState.controller = null;
+  if (typeof cleanup === 'function') {
+    try { cleanup(); }
+    catch (_) {}
+  }
+  if (controller && controller.signal && !controller.signal.aborted) {
+    try { controller.abort(); }
+    catch (_) {}
+  }
+}
+
 export function bindHeaderQuickCreateOnce(root, bus) {
-  void bus;
   if (typeof document === 'undefined') return null;
   const scope = root && typeof root.querySelector === 'function' ? root : document;
-  const button = scope ? scope.querySelector('#btn-header-new') : null;
+  const button = scope ? scope.querySelector(HEADER_TOGGLE_SELECTOR) : null;
   if (!button) {
-    if (headerQuickCreateState.button && headerQuickCreateState.button.isConnected === false) {
-      headerQuickCreateState.button = null;
-      headerQuickCreateState.bound = false;
-    }
+    resetHeaderQuickCreateBinding();
     return null;
   }
-  if (headerQuickCreateState.bound && headerQuickCreateState.button === button && button.isConnected !== false) {
+  if (headerQuickCreateState.button === button && headerQuickCreateState.bound && button.isConnected !== false) {
     if (!button.hasAttribute('data-bound')) {
-      button.setAttribute('data-bound', '1');
+      try { button.setAttribute('data-bound', '1'); }
+      catch (_) {}
     }
     return button;
   }
+
+  resetHeaderQuickCreateBinding();
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const signal = controller ? controller.signal : null;
+  headerQuickCreateState.controller = controller;
+
+  const cleanupTasks = [];
+  const addCleanup = (fn) => {
+    if (typeof fn === 'function') {
+      cleanupTasks.push(fn);
+    }
+  };
+
+  if (bus && typeof bus === 'object') {
+    const eventNames = ['app:navigate', 'app:view:changed', 'route:changed', 'shell:navigate'];
+    eventNames.forEach((eventName) => {
+      if (!eventName) return;
+      if (typeof bus.addEventListener === 'function') {
+        try {
+          bus.addEventListener(eventName, closeQuickCreateMenu, signal ? { signal } : undefined);
+        } catch (_) {
+          try { bus.addEventListener(eventName, closeQuickCreateMenu); }
+          catch (_) {}
+        }
+        addCleanup(() => {
+          if (typeof bus.removeEventListener === 'function') {
+            try { bus.removeEventListener(eventName, closeQuickCreateMenu); }
+            catch (_) {}
+          }
+        });
+        return;
+      }
+      const handler = () => {
+        closeQuickCreateMenu();
+      };
+      if (typeof bus.on === 'function') {
+        try { bus.on(eventName, handler); }
+        catch (_) {}
+        addCleanup(() => {
+          if (typeof bus.off === 'function') {
+            try { bus.off(eventName, handler); }
+            catch (_) {}
+          } else if (typeof bus.removeListener === 'function') {
+            try { bus.removeListener(eventName, handler); }
+            catch (_) {}
+          }
+        });
+        return;
+      }
+      if (typeof bus.addListener === 'function') {
+        try { bus.addListener(eventName, handler); }
+        catch (_) {}
+        addCleanup(() => {
+          if (typeof bus.removeListener === 'function') {
+            try { bus.removeListener(eventName, handler); }
+            catch (_) {}
+          }
+        });
+      }
+    });
+  }
+
+  const runCleanup = () => {
+    while (cleanupTasks.length) {
+      const task = cleanupTasks.pop();
+      try { task(); }
+      catch (_) {}
+    }
+  };
+
+  headerQuickCreateState.cleanup = () => {
+    runCleanup();
+  };
+
+  if (signal && typeof signal.addEventListener === 'function') {
+    try {
+      signal.addEventListener('abort', () => {
+        runCleanup();
+        if (headerQuickCreateState.button === button) {
+          headerQuickCreateState.button = null;
+          headerQuickCreateState.bound = false;
+          headerQuickCreateState.cleanup = null;
+          headerQuickCreateState.controller = null;
+        }
+      }, { once: true });
+    } catch (_) {}
+  }
+
   headerQuickCreateState.button = button;
   headerQuickCreateState.bound = true;
   if (typeof button.setAttribute === 'function') {
-    button.setAttribute('data-bound', '1');
+    try { button.setAttribute('data-bound', '1'); }
+    catch (_) {}
   }
+
   return button;
 }
