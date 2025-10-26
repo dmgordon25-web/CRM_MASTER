@@ -60,25 +60,93 @@ export function getQuickAddMenuOptions(){
   return quickCreateMenuOptions;
 }
 
-function ensureTrigger(){
-  if(!doc || typeof doc.querySelector !== 'function') return;
-  const trigger = doc.querySelector('[data-quick-add]');
-  if(!trigger || trigger.__quickAddUnified) return;
-  trigger.__quickAddUnified = true;
-  trigger.addEventListener('click', (event) => {
+const headerQuickAddState = {
+  cleanup: null,
+  button: null,
+  logged: false
+};
+
+function resetHeaderQuickAddState(){
+  const { cleanup } = headerQuickAddState;
+  if (typeof cleanup === 'function') {
+    try { cleanup(); }
+    catch (_) {}
+  }
+  headerQuickAddState.cleanup = null;
+  headerQuickAddState.button = null;
+}
+
+export function bindHeaderQuickAddOnce(root, bus){
+  void bus;
+  if(!doc || !win) return null;
+  const scope = root && typeof root.querySelector === 'function' ? root : doc;
+  const trigger = scope ? scope.querySelector('[data-quick-add]') : null;
+  if(!trigger){
+    resetHeaderQuickAddState();
+    return null;
+  }
+  if(headerQuickAddState.button === trigger && headerQuickAddState.button.isConnected !== false){
+    return trigger;
+  }
+
+  resetHeaderQuickAddState();
+  wireQuickAddUnified({ copy: buildCopy() });
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const signal = controller ? controller.signal : null;
+  const handler = (event) => {
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
     if(event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
     openQuickAdd('contact');
-  });
-}
+  };
 
-if(doc && win){
-  wireQuickAddUnified({ copy: buildCopy() });
-  ensureTrigger();
-  if(typeof doc.addEventListener === 'function'){
-    doc.addEventListener('DOMContentLoaded', () => {
-      wireQuickAddUnified({ copy: buildCopy() });
-      ensureTrigger();
-    }, { once: true });
+  let usedSignal = false;
+  if(signal && typeof trigger.addEventListener === 'function'){
+    try {
+      trigger.addEventListener('click', handler, { signal });
+      usedSignal = true;
+    } catch (_err) {
+      usedSignal = false;
+    }
   }
+
+  if(!usedSignal){
+    trigger.addEventListener('click', handler, false);
+  }
+
+  headerQuickAddState.cleanup = () => {
+    if(usedSignal){
+      if(controller && !controller.signal.aborted){
+        try { controller.abort(); }
+        catch (_) {}
+      }
+    } else {
+      try { trigger.removeEventListener('click', handler, false); }
+      catch (_) {}
+    }
+  };
+  headerQuickAddState.button = trigger;
+
+  if(trigger && typeof trigger.setAttribute === 'function'){
+    trigger.setAttribute('data-bound', '1');
+  }
+  if(!headerQuickAddState.logged && typeof console !== 'undefined' && typeof console.info === 'function'){
+    console.info('[quick-add] bound-once');
+    headerQuickAddState.logged = true;
+  } else {
+    headerQuickAddState.logged = true;
+  }
+
+  if(usedSignal && signal && typeof signal.addEventListener === 'function'){
+    try {
+      signal.addEventListener('abort', () => {
+        if(headerQuickAddState.button === trigger){
+          headerQuickAddState.button = null;
+          headerQuickAddState.cleanup = null;
+        }
+      }, { once: true });
+    } catch (_err) {}
+  }
+
+  return trigger;
 }
