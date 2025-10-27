@@ -1,5 +1,42 @@
 :root {
-  --body-font-size: 16px;
+  /* Typography */
+  --font-family-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+  --body-font-size: var(--font-size-base);
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.35;
+  --line-height-base: 1.5;
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.02em;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+
+  /* Radius & elevation */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-card-hover: 0 16px 40px rgba(15, 23, 42, 0.14);
+  --card-border: rgba(15, 23, 42, 0.08);
+  --card-padding: var(--space-5);
+
+  /* Palette */
   --text-primary: #1a1a1a;
   --text-muted: #4b5563;
   --surface-background: #f8fafc;
@@ -14,6 +51,35 @@
   --accent-task: #16a34a;
   --accent-milestone: #f97316;
   --accent-other: #475569;
+  --accent-success: #22c55e;
+  --accent-safe: #15803d;
+
+  /* Buttons & chips */
+  --button-font-size: var(--font-size-sm);
+  --button-font-weight: 600;
+  --button-radius: var(--radius-lg);
+  --button-spacing-x: var(--space-4);
+  --button-secondary-bg: #ffffff;
+  --button-secondary-border: rgba(148, 163, 184, 0.55);
+  --button-secondary-text: var(--text-primary);
+  --button-secondary-hover: rgba(148, 163, 184, 0.12);
+  --button-primary-bg: var(--primary);
+  --button-primary-border: color-mix(in srgb, var(--primary) 70%, #1e293b 30%);
+  --button-primary-text: var(--primary-text);
+  --button-ghost-bg: transparent;
+  --button-ghost-border: transparent;
+  --button-ghost-text: var(--text-primary);
+  --button-ghost-hover: rgba(148, 163, 184, 0.14);
+  --chip-bg: rgba(15, 23, 42, 0.06);
+  --chip-border: rgba(15, 23, 42, 0.08);
+  --chip-text: var(--text-primary);
+  --chip-muted: var(--text-muted);
+  --event-chip-bg: rgba(255, 255, 255, 0.95);
+  --event-chip-border: rgba(15, 23, 42, 0.08);
+  --event-chip-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --event-chip-shadow-hover: 0 14px 30px rgba(15, 23, 42, 0.18);
+
+  /* Calendar */
   --calendar-weekend: rgba(148, 163, 184, 0.12);
   --calendar-grid-line: rgba(15, 23, 42, 0.08);
   --calendar-today-ring: rgba(10, 102, 194, 0.65);
