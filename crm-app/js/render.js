@@ -22,10 +22,44 @@ import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leader
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
 import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
+import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
+import { syncTableLayout } from './ui/table_layout.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
   const STAGES_CLIENT = ['approved','cleared-to-close','funded','post-close'];
+  const TABLE_IDS = [
+    'tbl-inprog',
+    'tbl-status-active',
+    'tbl-status-clients',
+    'tbl-status-longshots',
+    'tbl-partners',
+    'tbl-pipeline',
+    'tbl-clients',
+    'tbl-longshots',
+    'tbl-funded',
+    'tbl-ledger-received',
+    'tbl-ledger-projected',
+    'tbl-doc-templates',
+    'tbl-msg-templates'
+  ];
+  const DASHBOARD_BLOCKS = [
+    '#dashboard-focus',
+    '#dashboard-filters',
+    '#dashboard-kpis',
+    '#dashboard-pipeline-overview',
+    '#dashboard-today',
+    '#referral-leaderboard',
+    '#dashboard-stale',
+    '#dashboard-insights',
+    '#goal-progress-card',
+    '#numbers-portfolio-card',
+    '#numbers-referrals-card',
+    '#numbers-momentum-card',
+    '#pipeline-calendar-card'
+  ];
+  const CALENDAR_CARD_SELECTOR = '#view-calendar .calendar-card';
+  let loadingPrimed = false;
 
   function asEl(ref){
     if(!ref) return null;
@@ -40,6 +74,33 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       return;
     }
     el.textContent = value ?? '';
+  }
+  function renderTableBody(table, body, html){
+    if(!body) return;
+    body.innerHTML = html;
+    const host = table || (body.closest ? body.closest('table') : null);
+    if(host){
+      markTableHasData(host);
+      syncTableLayout(host);
+    }
+  }
+  function primeLoadingPlaceholders(){
+    if(loadingPrimed || typeof document === 'undefined') return;
+    loadingPrimed = true;
+    TABLE_IDS.forEach(id => applyTableSkeleton(id));
+    DASHBOARD_BLOCKS.forEach(sel => {
+      const node = document.querySelector(sel);
+      if(node) attachLoadingBlock(node, { lines: 4 });
+    });
+    const calendarCard = document.querySelector(CALENDAR_CARD_SELECTOR);
+    if(calendarCard) attachLoadingBlock(calendarCard, { lines: 6 });
+  }
+  function releaseLoadingPlaceholders(){
+    if(typeof document === 'undefined') return;
+    DASHBOARD_BLOCKS.forEach(sel => {
+      const node = document.querySelector(sel);
+      if(node) detachLoadingBlock(node);
+    });
   }
   function html(el, v){ if(el) el.innerHTML = v; }
   function money(n){ try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0)); }catch (_) { return '$'+(Number(n||0).toFixed(0)); } }
@@ -902,7 +963,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
     const tbPartners = table && table.tBodies && table.tBodies[0] ? table.tBodies[0] : $('#tbl-partners tbody');
     if(!tbPartners) return;
     const favoriteState = ensureFavoriteState();
-    tbPartners.innerHTML = (partners||[]).map(p => {
+    const partnerRows = (partners||[]).map(p => {
       const pid = attr(p.id||'');
       const name = p.name || '—';
       const company = p.company || '';
@@ -929,6 +990,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
         <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
     }).join('');
+    renderTableBody(table, tbPartners, partnerRows);
     $all('#tbl-partners tbody tr').forEach(tr => {
       const name = tr.children[1]?.textContent?.trim().toLowerCase();
       if(name === 'none') tr.style.display = 'none';
@@ -937,6 +999,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
 
   async function renderAll(){
     return withLayoutGuard('render.js', async () => {
+    primeLoadingPlaceholders();
     await openDB();
     const settingsPromise = (window.Settings && typeof window.Settings.get === 'function')
       ? window.Settings.get()
@@ -1499,7 +1562,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
     if(tblPipeline) ensureFavoriteColumn(tblPipeline);
     const tbPipe = tblPipeline && tblPipeline.tBodies && tblPipeline.tBodies[0] ? tblPipeline.tBodies[0] : $('#tbl-pipeline tbody');
     if(tbPipe){
-      tbPipe.innerHTML = pipe.map(c => {
+      const pipelineRows = pipe.map(c => {
         const contactId = String(c.id||'');
         const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
@@ -1538,12 +1601,13 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
       }).join('');
+      renderTableBody(tblPipeline, tbPipe, pipelineRows);
     }
     const tblClients = document.getElementById('tbl-clients');
     if(tblClients) ensureFavoriteColumn(tblClients);
     const tbClients = tblClients && tblClients.tBodies && tblClients.tBodies[0] ? tblClients.tBodies[0] : $('#tbl-clients tbody');
     if(tbClients){
-      tbClients.innerHTML = clientsTbl.map(c => {
+      const clientRows = clientsTbl.map(c => {
         const contactId = String(c.id||'');
         const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
@@ -1583,12 +1647,13 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
       }).join('');
+      renderTableBody(tblClients, tbClients, clientRows);
     }
     const tblLongshots = document.getElementById('tbl-longshots');
     if(tblLongshots) ensureFavoriteColumn(tblLongshots);
     const tbLs = tblLongshots && tblLongshots.tBodies && tblLongshots.tBodies[0] ? tblLongshots.tBodies[0] : $('#tbl-longshots tbody');
     if(tbLs){
-      tbLs.innerHTML = lshot.map(c => {
+      const longshotRows = lshot.map(c => {
         const contactId = String(c.id||'');
         const idAttr = attr(contactId);
         const nameAttr = attr(fullName(c).toLowerCase());
@@ -1625,6 +1690,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
         <td>${safe(loanLabel||'')}</td><td>${amountVal ? money(amountVal) : '—'}</td>
         <td>${safe(c.referredBy||'')}</td><td>${safe(c.lastContact||'')}</td></tr>`;
       }).join('');
+      renderTableBody(tblLongshots, tbLs, longshotRows);
     }
 
     ensureKanbanStageAttributes();
@@ -1634,6 +1700,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
       try{ window.applyFilters(); }
       catch (err) { console && console.warn && console.warn('applyFilters', err); }
     }
+
+    releaseLoadingPlaceholders();
 
     });
   }
