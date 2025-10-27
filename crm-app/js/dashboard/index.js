@@ -1,4 +1,4 @@
-import { makeDraggableGrid } from '../ui/drag_core.js';
+import { makeDraggableGrid, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -22,6 +22,25 @@ const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
 const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
 const DASHBOARD_MIN_COLUMNS = 3;
 const DASHBOARD_MAX_COLUMNS = 4;
+
+const DASHBOARD_WIDTH_OPTIONS = [
+  { key: 'third', label: '⅓' },
+  { key: 'half', label: '½' },
+  { key: 'twoThird', label: '⅔' },
+  { key: 'full', label: 'Full' }
+];
+
+const DASHBOARD_WIDTH_SET = new Set(DASHBOARD_WIDTH_OPTIONS.map(option => option.key));
+const DASHBOARD_DEFAULT_WIDTH = 'third';
+const DASHBOARD_DEFAULT_WIDTHS = {
+  today: 'full',
+  statusStack: 'full',
+  pipeline: 'twoThird',
+  goalProgress: 'twoThird',
+  numbersMomentum: 'twoThird',
+  pipelineCalendar: 'twoThird'
+};
+const TODAY_WIDGET_KEYS = new Set(['today']);
 
 const todayHighlightState = {
   modeObserver: null,
@@ -181,7 +200,8 @@ const dashDnDState = {
   pointerHandlers: null,
   columns: DASHBOARD_MIN_COLUMNS,
   pendingColumns: null,
-  lastAppliedColumns: null
+  lastAppliedColumns: null,
+  widths: new Map()
 };
 
 const pointerTapState = new Map();
@@ -820,6 +840,47 @@ function ensureDashboardDragStyles() {
 .dash-dragging [data-dash-widget] {
   transition: transform 0.18s ease;
 }
+
+.dash-resize-handle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.9);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  opacity: 0.35;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 3;
+}
+
+[data-dash-widget]:hover > .dash-resize-handle,
+.dash-resize-handle:focus-within {
+  opacity: 1;
+}
+
+.dash-resize-option {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(30, 41, 59, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.dash-resize-option:hover,
+.dash-resize-option:focus-visible,
+.dash-resize-option.active {
+  background: rgba(99, 102, 241, 0.18);
+  color: rgba(67, 56, 202, 0.98);
+}
 `;
   const head = doc.head || doc.getElementsByTagName('head')[0];
   if (head) {
@@ -878,14 +939,212 @@ function normalizeColumnCount(value) {
   return result;
 }
 
-function persistDashboardLayoutColumns(columns, options = {}) {
+function normalizeWidthToken(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (DASHBOARD_WIDTH_SET.has(raw)) return raw;
+  const lower = raw.toLowerCase();
+  if (DASHBOARD_WIDTH_SET.has(lower)) return lower;
+  return '';
+}
+
+function normalizeWidthMap(source) {
+  const map = {};
+  if (!source || typeof source !== 'object') return map;
+  Object.keys(source).forEach(key => {
+    const normalizedKey = key == null ? '' : String(key).trim();
+    if (!normalizedKey) return;
+    const normalizedValue = normalizeWidthToken(source[key]);
+    if (!normalizedValue) return;
+    map[normalizedKey] = normalizedValue;
+  });
+  return map;
+}
+
+function spanForWidthToken(token, columns) {
+  const cols = Math.max(1, Number(columns) || DASHBOARD_MIN_COLUMNS);
+  const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
+  let span = 1;
+  switch (normalized) {
+    case 'full':
+      span = cols;
+      break;
+    case 'twoThird':
+      span = Math.max(1, Math.round((cols * 2) / 3));
+      break;
+    case 'half':
+      span = Math.max(1, Math.round(cols / 2));
+      break;
+    case 'third':
+    default:
+      span = Math.max(1, Math.round(cols / 3));
+      break;
+  }
+  if (span > cols) span = cols;
+  if (span < 1) span = 1;
+  return span;
+}
+
+function inferDefaultWidth(key, node) {
+  const normalizedKey = key ? String(key).trim() : '';
+  if (normalizedKey && Object.prototype.hasOwnProperty.call(DASHBOARD_DEFAULT_WIDTHS, normalizedKey)) {
+    return DASHBOARD_DEFAULT_WIDTHS[normalizedKey];
+  }
+  if (node && node.classList) {
+    if (node.classList.contains('status-stack')) return 'full';
+    if (node.classList.contains('span-2')) return 'twoThird';
+  }
+  const id = node && node.id ? String(node.id).trim() : '';
+  if (id === 'dashboard-today') return 'full';
+  if (id === 'dashboard-status-stack') return 'full';
+  return DASHBOARD_DEFAULT_WIDTH;
+}
+
+function getWidthPrefsMap() {
+  if (!prefCache.value) {
+    prefCache.value = defaultPrefs();
+  }
+  if (!prefCache.value.layout || typeof prefCache.value.layout !== 'object') {
+    prefCache.value.layout = { columns: DASHBOARD_MIN_COLUMNS, widths: {} };
+  }
+  const widths = prefCache.value.layout.widths;
+  if (!widths || typeof widths !== 'object') {
+    prefCache.value.layout.widths = {};
+    return prefCache.value.layout.widths;
+  }
+  return widths;
+}
+
+function resolveWidgetWidth(key, node) {
+  const map = getWidthPrefsMap();
+  const normalizedKey = key ? String(key).trim() : '';
+  if (normalizedKey && Object.prototype.hasOwnProperty.call(map, normalizedKey)) {
+    const stored = normalizeWidthToken(map[normalizedKey]);
+    if (stored) {
+      dashDnDState.widths.set(normalizedKey, stored);
+      return stored;
+    }
+  }
+  if (normalizedKey && dashDnDState.widths.has(normalizedKey)) {
+    return dashDnDState.widths.get(normalizedKey);
+  }
+  const fallback = inferDefaultWidth(normalizedKey, node);
+  if (normalizedKey) {
+    dashDnDState.widths.set(normalizedKey, fallback);
+  }
+  return fallback;
+}
+
+function updateResizeHandleState(node, widthKey) {
+  if (!node) return;
+  try {
+    const buttons = node.querySelectorAll(':scope > .dash-resize-handle [data-dash-width]');
+    if (!buttons || !buttons.length) return;
+    buttons.forEach(btn => {
+      const targetKey = btn.getAttribute('data-dash-width') || '';
+      const active = targetKey === widthKey;
+      if (active) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  } catch (_err) {}
+}
+
+function setNodeWidthStyle(node, widthKey, columns) {
+  if (!node) return;
+  const token = normalizeWidthToken(widthKey) || inferDefaultWidth(node && node.dataset ? node.dataset.dashWidget : '', node);
+  const span = spanForWidthToken(token, columns);
+  if (node.style) {
+    node.style.gridColumn = span ? `span ${span}` : '';
+  }
+  if (node.dataset) {
+    node.dataset.dashWidth = token;
+  }
+  updateResizeHandleState(node, token);
+  const key = node && node.dataset ? (node.dataset.dashWidget || node.dataset.widgetId || '') : '';
+  if (key) {
+    dashDnDState.widths.set(key, token);
+  }
+}
+
+function ensureWidgetResizeControl(node) {
+  if (!doc || !node) return null;
+  const existing = node.querySelector(':scope > .dash-resize-handle');
+  if (existing) return existing;
+  const handle = doc.createElement('div');
+  handle.className = 'dash-resize-handle';
+  handle.setAttribute('role', 'group');
+  handle.setAttribute('aria-label', 'Resize widget');
+  DASHBOARD_WIDTH_OPTIONS.forEach(option => {
+    const btn = doc.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dash-resize-option';
+    btn.setAttribute('data-dash-width', option.key);
+    btn.textContent = option.label;
+    btn.addEventListener('click', evt => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      setWidgetWidth(node, option.key, { persist: true });
+    });
+    handle.appendChild(btn);
+  });
+  node.appendChild(handle);
+  return handle;
+}
+
+function applyWidgetWidths(container) {
+  const host = container || dashDnDState.container || getDashboardContainerNode();
+  if (!host) return;
+  const columns = dashDnDState.lastAppliedColumns || dashDnDState.columns || getPreferredLayoutColumns();
+  const nodes = collectWidgetNodes(host);
+  nodes.forEach(node => {
+    if (!node) return;
+    ensureWidgetResizeControl(node);
+    const dataset = node.dataset || {};
+    const key = dataset.dashWidget || dataset.widgetId || node.id || '';
+    const widthKey = resolveWidgetWidth(key, node);
+    setNodeWidthStyle(node, widthKey, columns);
+  });
+}
+
+function setWidgetWidth(node, widthKey, options = {}) {
+  if (!node) return;
+  const dataset = node.dataset || {};
+  const widgetKey = dataset.dashWidget || dataset.widgetId || dataset.widget || dataset.widgetKey || node.id || '';
+  const normalizedKey = widgetKey ? String(widgetKey).trim() : '';
+  const normalizedWidth = normalizeWidthToken(widthKey) || inferDefaultWidth(normalizedKey, node);
+  const columns = dashDnDState.lastAppliedColumns || dashDnDState.columns || getPreferredLayoutColumns();
+  setNodeWidthStyle(node, normalizedWidth, columns);
+  if (!normalizedKey) return;
+  const map = getWidthPrefsMap();
+  if (map[normalizedKey] === normalizedWidth) return;
+  map[normalizedKey] = normalizedWidth;
+  dashDnDState.widths.set(normalizedKey, normalizedWidth);
+  if (options.persist) {
+    bumpDebugResized();
+    persistDashboardLayoutState(columns, { force: true, includeWidths: true, widths: map });
+  }
+}
+
+function persistDashboardLayoutState(columns, options = {}) {
   const normalized = normalizeColumnCount(columns);
   const value = normalized.value;
   const force = !!options.force;
-  if (!force && lastPersistedLayoutColumns === value && !normalized.coerced) return;
+  const widthSource = options.widths || getWidthPrefsMap();
+  const widthMap = normalizeWidthMap(widthSource);
+  const includeWidths = options.includeWidths || Object.keys(widthMap).length > 0;
+  if (!force && !includeWidths && lastPersistedLayoutColumns === value && !normalized.coerced) return;
   lastPersistedLayoutColumns = value;
   if (!win || !win.Settings || typeof win.Settings.save !== 'function') return;
-  const payload = { dashboard: { layout: { columns: value } } };
+  const layoutPayload = { columns: value };
+  if (includeWidths) {
+    layoutPayload.widths = widthMap;
+  }
+  const payload = { dashboard: { layout: layoutPayload } };
   const promise = Promise.resolve(win.Settings.save(payload))
     .catch(err => {
       try {
@@ -896,6 +1155,10 @@ function persistDashboardLayoutColumns(columns, options = {}) {
       if (pendingLayoutPersist === promise) pendingLayoutPersist = null;
     });
   pendingLayoutPersist = promise;
+}
+
+function persistDashboardLayoutColumns(columns, options = {}) {
+  persistDashboardLayoutState(columns, options);
 }
 
 function applyLayoutColumns(columns) {
@@ -918,6 +1181,7 @@ function applyLayoutColumns(columns) {
   if (container.style) {
     container.style.gridTemplateColumns = `repeat(${value}, minmax(0, 1fr))`;
   }
+  applyWidgetWidths(container);
   const gap = resolveGridGap(container);
   if (dashDnDState.controller && typeof dashDnDState.controller.setGrid === 'function') {
     dashDnDState.controller.setGrid({
@@ -1006,6 +1270,23 @@ function collectWidgetNodes(container) {
     }
   });
   return nodes;
+}
+
+function findWidgetNode(container, key) {
+  if (!container || !key) return null;
+  const target = String(key).trim();
+  if (!target) return null;
+  const nodes = collectWidgetNodes(container);
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (!node) continue;
+    const dataset = node.dataset || {};
+    const candidates = [dataset.dashWidget, dataset.widgetId, dataset.widget, dataset.widgetKey, node.id];
+    if (candidates.some(candidate => candidate && String(candidate).trim() === target)) {
+      return node;
+    }
+  }
+  return null;
 }
 
 function registerCanonicalKey(targetMap, key, canonical) {
@@ -1174,6 +1455,29 @@ function tryOpenPartner(partnerId) {
   }
 }
 
+function logDrilldownSuccess(target, fallbackKey) {
+  let key = '';
+  if (target && target.closest) {
+    const widgetNode = target.closest('[data-dash-widget]');
+    if (widgetNode && widgetNode.dataset) {
+      key = widgetNode.dataset.dashWidget || widgetNode.dataset.widgetId || widgetNode.dataset.widget || widgetNode.id || '';
+    }
+  }
+  if (!key && fallbackKey) {
+    key = fallbackKey;
+  }
+  if (!key && target && target.id) {
+    key = resolveWidgetKeyFromId(target.id);
+  }
+  if (!key && target && target.dataset && target.dataset.widgetId) {
+    key = target.dataset.widgetId;
+  }
+  if (!key) return;
+  try {
+    console.log(`DRILLDOWN_OK:${key}`);
+  } catch (_err) {}
+}
+
 function handleDashboardTap(evt, target) {
   if (!target) return false;
   const contactId = target.getAttribute('data-contact-id');
@@ -1181,6 +1485,7 @@ function handleDashboardTap(evt, target) {
     evt.preventDefault();
     evt.stopPropagation();
     tryOpenContact(contactId);
+    logDrilldownSuccess(target);
     return true;
   }
   const partnerId = target.getAttribute('data-partner-id');
@@ -1188,6 +1493,7 @@ function handleDashboardTap(evt, target) {
     evt.preventDefault();
     evt.stopPropagation();
     tryOpenPartner(partnerId);
+    logDrilldownSuccess(target);
     return true;
   }
   return false;
@@ -1199,7 +1505,7 @@ function wireTileTap(container) {
     if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
       if (evt.button != null && evt.button !== 0) return;
     }
-    if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
+    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
     const dataTarget = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
     if (!dataTarget) return;
     pointerTapState.set(evt.pointerId, {
@@ -1229,6 +1535,7 @@ function wireTileTap(container) {
       return;
     }
     if (state.cancelled) return;
+    if (evt.target && evt.target.closest && evt.target.closest('.dash-resize-handle')) return;
     const resolved = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
     const target = resolved || state.dataTarget;
     if (!target) return;
@@ -1247,7 +1554,7 @@ function wireTileTap(container) {
   const onKeyDown = evt => {
     if (evt.repeat) return;
     if (evt.key !== 'Enter' && evt.key !== ' ') return;
-    if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
+    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
     const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
     if (!target) return;
     const handled = handleDashboardTap(evt, target);
@@ -1256,7 +1563,7 @@ function wireTileTap(container) {
     }
   };
   const onClick = evt => {
-    if (evt.target && evt.target.closest && evt.target.closest('.dash-drag-handle')) return;
+    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
     const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
     if (!target) return;
     const skipUntil = target[DASHBOARD_SKIP_CLICK_KEY] || 0;
@@ -1429,23 +1736,26 @@ function defaultPrefs() {
     widgets[CELEBRATIONS_WIDGET_KEY] = false;
   }
   return {
+    mode: 'today',
     widgets,
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
     widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS)),
-    layout: { columns: DASHBOARD_MIN_COLUMNS }
+    layout: { columns: DASHBOARD_MIN_COLUMNS, widths: {} }
   };
 }
 
 function clonePrefs(prefs) {
   const columnSource = prefs.layout && typeof prefs.layout === 'object' ? prefs.layout.columns : DASHBOARD_MIN_COLUMNS;
   const normalizedColumns = normalizeColumnCount(columnSource).value;
+  const widthSource = prefs.layout && typeof prefs.layout === 'object' ? prefs.layout.widths : null;
   return {
+    mode: prefs.mode === 'all' ? 'all' : 'today',
     widgets: Object.assign({}, prefs.widgets),
     kpis: Object.assign({}, prefs.kpis),
     graphs: Object.assign({}, prefs.graphs),
     widgetCards: Object.assign({}, prefs.widgetCards),
-    layout: { columns: normalizedColumns }
+    layout: { columns: normalizedColumns, widths: Object.assign({}, widthSource || {}) }
   };
 }
 
@@ -1497,7 +1807,10 @@ function sanitizePrefs(settings) {
   const normalizedLayout = layoutSource && Object.prototype.hasOwnProperty.call(layoutSource, 'columns')
     ? normalizeColumnCount(layoutSource.columns)
     : normalizeColumnCount(undefined);
+  prefs.mode = dash.mode === 'all' ? 'all' : 'today';
+  const widthSource = layoutSource && typeof layoutSource.widths === 'object' ? layoutSource.widths : null;
   prefs.layout.columns = normalizedLayout.value;
+  prefs.layout.widths = normalizeWidthMap(widthSource);
   lastPersistedLayoutColumns = normalizedLayout.value;
   if (normalizedLayout.coerced) {
     persistDashboardLayoutColumns(normalizedLayout.value, { force: true });
@@ -1592,6 +1905,7 @@ function applyHiddenWidgetPrefs(hiddenList) {
   });
   const base = prefCache.value ? clonePrefs(prefCache.value) : defaultPrefs();
   const next = clonePrefs(base);
+  const previousVisibility = Object.assign({}, base.widgets);
   let changed = false;
   Object.keys(next.widgets).forEach(key => {
     const visible = !hiddenKeys.has(key);
@@ -1601,15 +1915,37 @@ function applyHiddenWidgetPrefs(hiddenList) {
     }
   });
   if (!changed && prefCache.value) return false;
+  const newlyVisible = [];
+  Object.keys(next.widgets).forEach(key => {
+    const prevVisible = previousVisibility[key] !== false;
+    const nextVisible = next.widgets[key] !== false;
+    if (nextVisible && !prevVisible) newlyVisible.push(key);
+  });
   prefCache.value = next;
   prefCache.loading = null;
   applySurfaceVisibility(next);
   maybeHydrateCelebrations(next);
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (container && newlyVisible.length) {
+    newlyVisible.forEach(key => {
+      const node = findWidgetNode(container, key);
+      if (node) {
+        try {
+          container.appendChild(node);
+        } catch (_err) {}
+      }
+    });
+    applyWidgetWidths(container);
+    persistDashboardOrderImmediate();
+  }
   ensureWidgetDnD();
   return true;
 }
 
 function isTodayModeActive() {
+  if (prefCache.value && prefCache.value.mode) {
+    return prefCache.value.mode !== 'all';
+  }
   if (!doc) return false;
   const btn = doc.querySelector(TODAY_MODE_BUTTON_SELECTOR);
   if (!btn || !btn.classList) return false;
@@ -1652,6 +1988,66 @@ function applyTodayPrioritiesHighlight() {
   }
 }
 
+function getDashboardMode() {
+  if (prefCache.value && prefCache.value.mode === 'all') return 'all';
+  return 'today';
+}
+
+function applyModeButtonState(mode) {
+  if (!doc) return;
+  const buttons = doc.querySelectorAll('[data-dashboard-mode]');
+  const activeMode = mode === 'all' ? 'all' : 'today';
+  buttons.forEach(btn => {
+    const btnMode = btn.getAttribute('data-dashboard-mode') === 'all' ? 'all' : 'today';
+    if (btnMode === activeMode) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function persistDashboardMode(mode) {
+  if (!win || !win.Settings || typeof win.Settings.save !== 'function') return;
+  Promise.resolve(win.Settings.save({ dashboard: { mode } }))
+    .catch(err => {
+      try {
+        if (console && console.warn) console.warn('[dashboard] mode save failed', err);
+      } catch (_warnErr) {}
+    });
+}
+
+function setDashboardMode(mode, options = {}) {
+  const normalized = mode === 'all' ? 'all' : 'today';
+  const current = getDashboardMode();
+  if (current === normalized && !options.force) {
+    applyModeButtonState(normalized);
+    applyTodayPrioritiesHighlight();
+    return;
+  }
+  if (!prefCache.value) {
+    prefCache.value = defaultPrefs();
+  }
+  prefCache.value.mode = normalized;
+  applyModeButtonState(normalized);
+  applySurfaceVisibility(prefCache.value);
+  maybeHydrateCelebrations(prefCache.value);
+  ensureWidgetDnD();
+  applyTodayPrioritiesHighlight();
+  if (!options.skipPersist) {
+    persistDashboardMode(normalized);
+  }
+}
+
+function syncModeFromButtons() {
+  if (!doc) return;
+  const activeBtn = doc.querySelector('[data-dashboard-mode].active');
+  const inferred = activeBtn && activeBtn.getAttribute('data-dashboard-mode') === 'all' ? 'all' : 'today';
+  const current = getDashboardMode();
+  if (inferred === current) return;
+  setDashboardMode(inferred, { skipPersist: true });
+}
+
 function ensureTodayModeObserver() {
   const { modeObserver } = todayHighlightState;
   if (!doc || typeof MutationObserver !== 'function') {
@@ -1670,11 +2066,13 @@ function ensureTodayModeObserver() {
   if (todayHighlightState.modeButton === btn && modeObserver) return;
   if (modeObserver) modeObserver.disconnect();
   const observer = new MutationObserver(() => {
+    syncModeFromButtons();
     applyTodayPrioritiesHighlight();
   });
   observer.observe(btn, { attributes: true, attributeFilter: ['class'] });
   todayHighlightState.modeObserver = observer;
   todayHighlightState.modeButton = btn;
+  syncModeFromButtons();
 }
 
 function ensureTodayHostObserver() {
@@ -1714,11 +2112,15 @@ function applySurfaceVisibility(prefs) {
   const cardPrefs = prefs && typeof prefs.widgetCards === 'object' ? prefs.widgetCards : {};
   const handledGraphs = new Set();
   const handledCards = new Set();
+  const mode = prefs && prefs.mode === 'all' ? 'all' : 'today';
+  const restrictToToday = mode === 'today';
+  const visibleKeys = [];
 
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
     const widgetEnabled = widgetPrefs[key] !== false;
     const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
     const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
+    const isTodayWidget = TODAY_WIDGET_KEYS.has(key);
     if (key === CELEBRATIONS_WIDGET_KEY && widgetEnabled && graphEnabled && cardEnabled) {
       ensureCelebrationsWidgetShell();
     }
@@ -1728,35 +2130,40 @@ function applySurfaceVisibility(prefs) {
     } catch (_err) {
       node = null;
     }
-    if(GRAPH_KEYS.has(key)) handledGraphs.add(key);
-    if(WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
-    const show = widgetEnabled && graphEnabled && cardEnabled;
+    if (GRAPH_KEYS.has(key)) handledGraphs.add(key);
+    if (WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
+    const show = widgetEnabled && graphEnabled && cardEnabled && (!restrictToToday || isTodayWidget);
     applyNodeVisibility(node, show);
+    if (show) visibleKeys.push(key);
   });
 
   Object.entries(GRAPH_RESOLVERS).forEach(([key, resolver]) => {
-    if(handledGraphs.has(key)) return;
+    if (handledGraphs.has(key)) return;
     let node = null;
     try {
       node = resolver();
     } catch (_err) {
       node = null;
     }
-    const show = graphPrefs[key] !== false;
+    const show = graphPrefs[key] !== false && (!restrictToToday || TODAY_WIDGET_KEYS.has(key));
     applyNodeVisibility(node, show);
   });
 
   Object.entries(WIDGET_CARD_RESOLVERS).forEach(([key, resolver]) => {
-    if(handledCards.has(key)) return;
+    if (handledCards.has(key)) return;
     let node = null;
     try {
       node = resolver();
     } catch (_err) {
       node = null;
     }
-    const show = cardPrefs[key] !== false;
+    const show = cardPrefs[key] !== false && (!restrictToToday || TODAY_WIDGET_KEYS.has(key));
     applyNodeVisibility(node, show);
   });
+
+  applyWidgetWidths();
+  setDebugSelectedIds(visibleKeys);
+  setDebugTodayMode(restrictToToday);
 }
 
 function applyKpiVisibility(prefs) {
@@ -1808,6 +2215,7 @@ function scheduleApply() {
       ensureDashboardLegend();
       refreshWidgetIdLookup();
       prefs = await getSettingsPrefs();
+      applyModeButtonState(prefs.mode);
       applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
       applyLayoutColumns(prefs.layout && prefs.layout.columns);
@@ -1818,6 +2226,7 @@ function scheduleApply() {
       maybeHydrateCelebrations(prefs);
     } else {
       const fallbackPrefs = prefCache.value || defaultPrefs();
+      applyModeButtonState(fallbackPrefs.mode);
       applyLayoutColumns(fallbackPrefs.layout && fallbackPrefs.layout.columns);
       maybeHydrateCelebrations(fallbackPrefs);
     }
@@ -1863,9 +2272,12 @@ function handleLayoutColumnsChange(evt) {
     prefCache.value = defaultPrefs();
   }
   if (!prefCache.value.layout || typeof prefCache.value.layout !== 'object') {
-    prefCache.value.layout = { columns: value };
+    prefCache.value.layout = { columns: value, widths: {} };
   } else {
     prefCache.value.layout.columns = value;
+    if (!prefCache.value.layout.widths || typeof prefCache.value.layout.widths !== 'object') {
+      prefCache.value.layout.widths = {};
+    }
   }
   applyLayoutColumns(value);
   persistDashboardLayoutColumns(value);

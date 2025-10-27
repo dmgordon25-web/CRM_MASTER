@@ -2,7 +2,16 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
-const DEBUG_DEFAULT = { columns: 0, widgets: [], dragStarts: 0, swaps: 0, dragEnds: 0 };
+const DEBUG_DEFAULT = {
+  columns: 0,
+  widgets: [],
+  dragStarts: 0,
+  swaps: 0,
+  dragEnds: 0,
+  resized: 0,
+  todayMode: false,
+  selectedIds: []
+};
 
 const DRAG_DISTANCE_THRESHOLD = 5;
 
@@ -27,6 +36,9 @@ function ensureDebugState(){
   if(!Number.isFinite(debug.dragStarts)) debug.dragStarts = Number(debug.dragStarts) || 0;
   if(!Number.isFinite(debug.swaps)) debug.swaps = Number(debug.swaps) || 0;
   if(!Number.isFinite(debug.dragEnds)) debug.dragEnds = Number(debug.dragEnds) || 0;
+  if(!Number.isFinite(debug.resized)) debug.resized = Number(debug.resized) || 0;
+  if(typeof debug.todayMode !== 'boolean') debug.todayMode = !!debug.todayMode;
+  if(!Array.isArray(debug.selectedIds)) debug.selectedIds = [];
   return debug;
 }
 
@@ -59,6 +71,26 @@ function bumpDebugCounter(key){
   const prev = Number(debug[key]);
   const next = Number.isFinite(prev) ? prev + 1 : 1;
   debug[key] = next;
+}
+
+export function bumpDebugResized(){
+  bumpDebugCounter('resized');
+}
+
+export function setDebugTodayMode(enabled){
+  const debug = ensureDebugState();
+  if(!debug) return;
+  debug.todayMode = !!enabled;
+}
+
+export function setDebugSelectedIds(ids){
+  const debug = ensureDebugState();
+  if(!debug) return;
+  if(Array.isArray(ids)){
+    debug.selectedIds = ids.map(id => (id == null ? '' : String(id))).filter(Boolean);
+  }else{
+    debug.selectedIds = [];
+  }
 }
 
 function logDebugSummary(state){
