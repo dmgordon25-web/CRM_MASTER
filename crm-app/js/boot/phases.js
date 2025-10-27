@@ -60,7 +60,6 @@ const MIGRATED_PATCH_MODULES = [
   new URL('../patch_2025-10-02_medium_nice.js', import.meta.url).href,
   new URL('../patch_2025-10-03_automation_seed.js', import.meta.url).href,
   new URL('../patch_2025-10-03_calendar_ics_button.js', import.meta.url).href,
-  new URL('../patch_2025-10-03_quick_add_partner.js', import.meta.url).href,
   new URL('../patch_20250923_baseline.js', import.meta.url).href,
   new URL('../patch_20250924_bootstrap_ready.js', import.meta.url).href,
   new URL('../patch_20250926_ctc_actionbar.js', import.meta.url).href
