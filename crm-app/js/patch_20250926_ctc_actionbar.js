@@ -258,6 +258,22 @@ function runPatch(){
       console.warn('[actionbar] missing handler:', name);
     }
 
+    function assignActionLabel(btn, label, qa){
+      if(!btn) return;
+      if(qa) btn.dataset.qa = qa;
+      try{ btn.setAttribute('aria-label', label); }
+      catch (_err) {}
+      btn.title = label;
+      if(btn.dataset && btn.dataset.bulkLabelApplied === label) return;
+      const labelNode = btn.querySelector('[data-role="label"], .btn-label');
+      if(labelNode){
+        labelNode.textContent = label;
+      }else{
+        btn.textContent = label;
+      }
+      if(btn.dataset) btn.dataset.bulkLabelApplied = label;
+    }
+
     function resolveRowId(node){
       if(!node) return null;
       const attrs = ['data-id','data-contact-id','data-partner-id','data-row-id'];
@@ -755,6 +771,8 @@ function runPatch(){
       const bar = actionbar();
       if(!bar) return;
       ensureConvertButton();
+      assignActionLabel(bar.querySelector('[data-act="task"]'), 'Schedule Follow-Up for Selected', 'bulk-followup');
+      assignActionLabel(bar.querySelector('[data-act="bulkLog"]'), 'Log Call for Selected', 'bulk-logcall');
       let count = 0;
       try{
         const raw = typeof SelectionService.count === 'function' ? SelectionService.count() : 0;
@@ -1356,19 +1374,20 @@ function runPatch(){
       wrap.id = 'bulk-task-modal';
       wrap.className = 'modal';
       wrap.innerHTML = `
-        <div class="dlg" style="max-width:520px">
+        <div class="dlg" style="max-width:560px">
           <div class="row" style="align-items:center">
-            <strong>Add Task to Selected</strong>
+            <strong>Schedule Follow-Up for Selected</strong>
             <span class="grow"></span>
             <button class="btn" data-close-task>Close</button>
           </div>
           <div class="muted" id="bt-count" style="margin-top:6px"></div>
           <div class="row" style="gap:12px;margin-top:12px">
-            <label class="grow">Title<br><input id="bt-title" type="text" placeholder="Follow up"/></label>
-            <label>Due<br><input id="bt-due" type="date"/></label>
+            <label class="grow">Follow-Up Title<br><input id="bt-title" type="text" placeholder="Call borrower"/></label>
+            <label>Due Date<br><input id="bt-due" type="date"/></label>
+            <label>Time<br><input id="bt-time" type="time"/></label>
           </div>
           <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
-            <button class="btn brand" id="bt-save" disabled>Save Tasks</button>
+            <button class="btn brand" id="bt-save" disabled>Schedule Follow-Up</button>
           </div>
         </div>`;
       document.body.appendChild(wrap);
@@ -1385,8 +1404,13 @@ function runPatch(){
         });
       }
       const dueInput = wrap.querySelector('#bt-due');
+      const timeInput = wrap.querySelector('#bt-time');
       if(dueInput && !dueInput.value){
         try{ dueInput.value = new Date().toISOString().slice(0,10); }
+        catch (_err) {}
+      }
+      if(timeInput && !timeInput.value){
+        try{ timeInput.value = '09:00'; }
         catch (_err) {}
       }
       return wrap;
@@ -1398,12 +1422,17 @@ function runPatch(){
       const wrap = ensureTaskModal();
       const titleInput = wrap.querySelector('#bt-title');
       const dueInput = wrap.querySelector('#bt-due');
+      const timeInput = wrap.querySelector('#bt-time');
       const saveBtn = wrap.querySelector('#bt-save');
       const countEl = wrap.querySelector('#bt-count');
       if(countEl) countEl.textContent = `${list.length} contact${list.length===1?'':'s'} selected`;
       if(titleInput) titleInput.value = '';
       if(dueInput){
         try{ dueInput.value = new Date().toISOString().slice(0,10); }
+        catch (_err) {}
+      }
+      if(timeInput){
+        try{ timeInput.value = '09:00'; }
         catch (_err) {}
       }
       if(saveBtn){ saveBtn.disabled = true; saveBtn.onclick = null; }
@@ -1419,6 +1448,7 @@ function runPatch(){
         let done = false;
         const cleanup = () => {
           if(titleInput) titleInput.value = '';
+          if(timeInput) timeInput.value = '';
           if(saveBtn) saveBtn.disabled = true;
           wrap.__taskHandlers = null;
         };
@@ -1450,6 +1480,7 @@ function runPatch(){
           evt.preventDefault();
           const title = titleInput ? titleInput.value.trim() : '';
           const due = dueInput ? dueInput.value : '';
+          const time = timeInput ? timeInput.value : '';
           if(!title){ toast('Task title required'); return; }
           try{
             if(typeof window.openDB === 'function') await window.openDB();
@@ -1459,6 +1490,8 @@ function runPatch(){
               contactId: row.id,
               title,
               due: due || '',
+              dueTime: time || '',
+              dueAt: due ? `${due}${time ? 'T'+time : ''}` : '',
               status: 'open',
               createdAt: now,
               updatedAt: now
@@ -1466,8 +1499,9 @@ function runPatch(){
             if(tasks.length && typeof window.dbBulkPut === 'function'){
               await window.dbBulkPut('tasks', tasks);
             }
-            toast(`Added ${tasks.length} task${tasks.length===1?'':'s'}`);
-            finish({ status:'ok', count: tasks.length, detail:{ scope:'tasks', action:'bulk-task', count: tasks.length } });
+            const whenLabel = due ? `${due}${time ? ' @ '+time : ''}` : 'unscheduled';
+            toast(`Scheduled follow-ups for ${tasks.length} contact${tasks.length===1?'':'s'} (${whenLabel})`);
+            finish({ status:'ok', count: tasks.length, detail:{ scope:'tasks', action:'bulk-task', count: tasks.length, due, time } });
           }catch (err) {
             console.warn('bulk task error', err);
             toast('Failed to add tasks');
