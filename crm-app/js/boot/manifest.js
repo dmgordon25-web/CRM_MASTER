@@ -79,6 +79,7 @@ export const PATCHES = [
   './contacts.js',
   './partners.js',
   './partners_modal.js',
+  './partners_detail.js',
   './partners/list.js',
   './partners_merge.js',
   './partners_merge_orchestrator.js',
