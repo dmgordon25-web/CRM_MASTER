@@ -44,7 +44,10 @@ const loadRecords = async () => {
     catch (_err) {}
   }
   const dbGetAll = typeof win.dbGetAll === 'function' ? win.dbGetAll.bind(win) : null;
-  if (!dbGetAll) return { contacts: [], partners: [] };
+  if (!dbGetAll) {
+    const seeds = readSeedDataset(win);
+    return { contacts: seeds.contacts, partners: seeds.partners };
+  }
   try {
     const [contacts, partners] = await Promise.all([
       dbGetAll('contacts').catch(() => []),
