@@ -2,6 +2,8 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
+const DEBUG_DEFAULT = { columns: 0, widgets: [], dragStarts: 0, swaps: 0, dragEnds: 0 };
+
 const DRAG_DISTANCE_THRESHOLD = 5;
 
 function parseSelectors(sel){
@@ -11,6 +13,64 @@ function parseSelectors(sel){
     .split(',')
     .map(part => part.trim())
     .filter(Boolean);
+}
+
+function ensureDebugState(){
+  if(typeof window === 'undefined') return null;
+  const root = window;
+  if(!root.__DND_DEBUG__ || typeof root.__DND_DEBUG__ !== 'object'){
+    root.__DND_DEBUG__ = Object.assign({}, DEBUG_DEFAULT);
+  }
+  const debug = root.__DND_DEBUG__;
+  if(!Number.isFinite(debug.columns)) debug.columns = Number(debug.columns) || 0;
+  if(!Array.isArray(debug.widgets)) debug.widgets = [];
+  if(!Number.isFinite(debug.dragStarts)) debug.dragStarts = Number(debug.dragStarts) || 0;
+  if(!Number.isFinite(debug.swaps)) debug.swaps = Number(debug.swaps) || 0;
+  if(!Number.isFinite(debug.dragEnds)) debug.dragEnds = Number(debug.dragEnds) || 0;
+  return debug;
+}
+
+function updateDebugColumns(count){
+  const debug = ensureDebugState();
+  if(!debug) return;
+  const value = Number(count);
+  if(Number.isFinite(value)){
+    debug.columns = value;
+  }
+}
+
+function updateDebugWidgets(state){
+  const debug = ensureDebugState();
+  if(!debug || !state || !state.container) return;
+  const items = collectItems(state.container, state.itemSelector);
+  if(!items.length){
+    debug.widgets = [];
+    return;
+  }
+  const order = items
+    .map(item => getItemId(state, item))
+    .filter(Boolean);
+  debug.widgets = order;
+}
+
+function bumpDebugCounter(key){
+  const debug = ensureDebugState();
+  if(!debug || !Object.prototype.hasOwnProperty.call(debug, key)) return;
+  const prev = Number(debug[key]);
+  const next = Number.isFinite(prev) ? prev + 1 : 1;
+  debug[key] = next;
+}
+
+function logDebugSummary(state){
+  if(typeof console === 'undefined' || typeof console.log !== 'function') return;
+  if(typeof document === 'undefined') return;
+  const debug = ensureDebugState();
+  const bound = !!(state && state.container && state.container.getAttribute && state.container.getAttribute('data-dnd-bound') === '1');
+  const placeholderGone = !document.querySelector('[data-qa="dnd-placeholder"]');
+  const payload = Object.assign({ bound, placeholderGone }, debug || {});
+  try{
+    console.log('DND_SUMMARY', payload);
+  }catch (_err){}
 }
 
 function readStoredOrder(key){
@@ -212,6 +272,7 @@ function ensurePlaceholder(state, item, rect){
     placeholder = document.createElement(tag);
     placeholder.className = 'dash-drag-placeholder';
     placeholder.setAttribute('aria-hidden', 'true');
+    placeholder.setAttribute('data-qa', 'dnd-placeholder');
     placeholder.style.pointerEvents = 'none';
     placeholder.style.display = 'block';
     placeholder.style.boxSizing = 'border-box';
@@ -336,7 +397,21 @@ function deriveMetrics(state, rect){
     : { left: 0, top: 0, width: colWidth, height: rowHeight };
   const stepX = colWidth + gap;
   const stepY = rowHeight + gap;
-  const columns = Math.max(1, Math.floor((containerRect.width + gap) / (stepX || 1)) || 1);
+  const configuredColumns = Number(grid.columns);
+  let columns = Math.max(1, Math.floor((containerRect.width + gap) / (stepX || 1)) || 1);
+  if(Number.isFinite(configuredColumns) && configuredColumns > 0){
+    columns = Math.max(1, Math.round(configuredColumns));
+  }
+  const maxColumns = Number(grid.maxColumns);
+  if(Number.isFinite(maxColumns) && maxColumns > 0){
+    columns = clamp(columns, 1, Math.max(1, Math.round(maxColumns)));
+  }
+  const minColumns = Number(grid.minColumns);
+  if(Number.isFinite(minColumns) && minColumns > 0){
+    const min = Math.max(1, Math.round(minColumns));
+    if(columns < min) columns = min;
+  }
+  updateDebugColumns(columns);
   return {
     colWidth,
     rowHeight,
@@ -372,6 +447,7 @@ function applyStoredOrder(state, options = {}){
       state.lastOrderSignature = current.join('|');
     }
     state.appliedInitialOrder = true;
+    updateDebugWidgets(state);
     return;
   }
   const signature = order.map(normalizeIdValue).filter(Boolean).join('|');
@@ -381,6 +457,7 @@ function applyStoredOrder(state, options = {}){
     state.lastOrderSignature = applied.join('|');
   }
   state.appliedInitialOrder = true;
+  updateDebugWidgets(state);
 }
 function refreshItemsMeta(state){
   if(!state || !state.container) {
@@ -426,62 +503,57 @@ function movePlaceholder(state, index){
   }else{
     container.appendChild(placeholder);
   }
+  bumpDebugCounter('swaps');
   state.placeholderIndex = clamped;
   state.targetIndex = clamped;
   refreshItemsMeta(state);
 }
 
 function updatePlaceholderForPosition(state, x, y, clientX, clientY){
-  if(Array.isArray(state.itemsMeta) && state.itemsMeta.length){
-    const width = state.itemRect ? state.itemRect.width : 0;
-    const height = state.itemRect ? state.itemRect.height : 0;
-    const pointerLocalX = x + width / 2;
-    const pointerLocalY = y + height / 2;
-    let pointerClientX = typeof clientX === 'number' ? clientX : null;
-    let pointerClientY = typeof clientY === 'number' ? clientY : null;
-    if(pointerClientX == null || pointerClientY == null){
-      const containerRect = state.containerRect || null;
-      if(containerRect){
-        pointerClientX = pointerLocalX + containerRect.left;
-        pointerClientY = pointerLocalY + containerRect.top;
-      }else{
-        pointerClientX = pointerLocalX;
-        pointerClientY = pointerLocalY;
+  const metrics = state.metrics;
+  if(!metrics) return;
+  const containerRect = state.containerRect || (state.container && typeof state.container.getBoundingClientRect === 'function'
+    ? state.container.getBoundingClientRect()
+    : { left: 0, top: 0, width: metrics.colWidth, height: metrics.rowHeight });
+  const pointerClientX = typeof clientX === 'number'
+    ? clientX
+    : (containerRect.left + x + (state.grabOffsetX || 0));
+  const pointerClientY = typeof clientY === 'number'
+    ? clientY
+    : (containerRect.top + y + (state.grabOffsetY || 0));
+  const itemsMeta = Array.isArray(state.itemsMeta) && state.itemsMeta.length ? state.itemsMeta : null;
+  if(itemsMeta){
+    let index = itemsMeta.length;
+    const gapAllowance = Math.max(metrics.gap || 0, 0);
+    for(let i = 0; i < itemsMeta.length; i += 1){
+      const meta = itemsMeta[i];
+      if(!meta || !meta.rect) continue;
+      const topEdge = meta.rect.top;
+      const bottomEdge = meta.rect.bottom;
+      if(pointerClientY < topEdge - gapAllowance / 2){
+        index = meta.order;
+        break;
       }
-    }
-    let target = null;
-    let minDist = Infinity;
-    state.itemsMeta.forEach(meta => {
-      if(!meta) return;
-      const dx = pointerClientX - meta.centerX;
-      const dy = pointerClientY - meta.centerY;
-      const dist = dx * dx + dy * dy;
-      if(dist < minDist){
-        minDist = dist;
-        target = meta;
-      }
-    });
-    let index = state.itemsMeta.length;
-    if(target){
-      const horizontalBias = Math.abs(pointerClientX - target.centerX) > Math.abs(pointerClientY - target.centerY);
-      if(horizontalBias){
-        index = pointerClientX < target.centerX ? target.order : target.order + 1;
-      }else{
-        index = pointerClientY < target.centerY ? target.order : target.order + 1;
+      if(pointerClientY <= bottomEdge + gapAllowance / 2){
+        index = pointerClientX < meta.centerX ? meta.order : meta.order + 1;
+        break;
       }
     }
     movePlaceholder(state, index);
     return;
   }
-  const metrics = state.metrics;
-  if(!metrics) return;
+  const columns = Math.max(1, metrics.columns || 1);
   const stepX = metrics.stepX || 1;
   const stepY = metrics.stepY || 1;
-  const width = state.itemRect ? state.itemRect.width : metrics.colWidth;
-  const height = state.itemRect ? state.itemRect.height : metrics.rowHeight;
-  const col = clamp(Math.round((x + width / 2) / stepX), 0, metrics.columns - 1);
-  const row = Math.max(0, Math.round((y + height / 2) / stepY));
-  const index = row * metrics.columns + col;
+  const localX = pointerClientX - containerRect.left;
+  const localY = pointerClientY - containerRect.top;
+  const totalItems = collectItems(state.container, state.itemSelector).filter(el => el !== state.dragEl).length;
+  const col = clamp(Math.floor((localX + stepX / 2) / stepX), 0, columns - 1);
+  let row = Math.max(0, Math.floor((localY + stepY / 2) / stepY));
+  const maxRow = Math.max(0, Math.ceil(totalItems / columns));
+  if(row > maxRow) row = maxRow;
+  let index = row * columns + col;
+  if(index > totalItems) index = totalItems;
   movePlaceholder(state, index);
 }
 
@@ -497,6 +569,7 @@ function persistCurrentOrder(state){
   if(signature === state.lastOrderSignature) return;
   writeStoredOrder(storageKey, order);
   state.lastOrderSignature = signature;
+  updateDebugWidgets(state);
   if(typeof state.onOrderChange === 'function'){
     try{
       state.onOrderChange(order.slice());
@@ -538,6 +611,10 @@ function finishDrag(state, commit){
   }
   if(commit){
     persistCurrentOrder(state);
+    bumpDebugCounter('dragEnds');
+    logDebugSummary(state);
+  }else{
+    updateDebugWidgets(state);
   }
   state.dragging = false;
   state.pointerId = null;
@@ -602,6 +679,7 @@ function beginGridDrag(state, item, evt){
   state.dragging = true;
   state.dragEl = item;
   state.pointerId = evt.pointerId;
+  bumpDebugCounter('dragStarts');
   state.startOrder = items
     .map(el => getItemId(state, el))
     .filter(Boolean);
@@ -778,6 +856,9 @@ function ensureState(container){
     state.onPointerDown = evt => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
     STATE_MAP.set(container, state);
+    if(container && typeof container.setAttribute === 'function' && !container.getAttribute('data-dnd-bound')){
+      container.setAttribute('data-dnd-bound', '1');
+    }
   }
   return state;
 }
@@ -834,6 +915,10 @@ export function makeDraggableGrid(options = {}){
     },
     reapply(){
       applyStoredOrder(state, { force: true });
+      return controller;
+    },
+    setGrid(gridOptions){
+      state.gridOptions = gridOptions && typeof gridOptions === 'object' ? gridOptions : {};
       return controller;
     }
   };

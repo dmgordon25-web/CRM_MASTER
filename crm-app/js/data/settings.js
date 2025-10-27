@@ -82,6 +82,8 @@ const DASHBOARD_WIDGET_ID_MAP = (() => {
   });
   return map;
 })();
+const DASHBOARD_LAYOUT_MIN_COLUMNS = 3;
+const DASHBOARD_LAYOUT_MAX_COLUMNS = 4;
 
 const DASHBOARD_GRAPH_KEYS = ['goalProgress', 'numbersPortfolio', 'numbersMomentum', 'pipelineCalendar'];
 const DASHBOARD_WIDGET_CARD_KEYS = [
@@ -357,7 +359,8 @@ function shouldValidateGeneral(partial){
       widgets: widgetDefaults,
       graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
       widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
-      kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS)
+      kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS),
+      layout: { columns: DASHBOARD_LAYOUT_MIN_COLUMNS }
     };
     const source = input && typeof input === 'object' ? input : {};
     const widgetsSource = source.widgets && typeof source.widgets === 'object' ? source.widgets : {};
@@ -404,8 +407,17 @@ function shouldValidateGeneral(partial){
     Object.keys(kpis).forEach(key => {
       if(typeof kpiSource[key] === 'boolean') kpis[key] = kpiSource[key];
     });
+    const layoutSource = source.layout && typeof source.layout === 'object' ? source.layout : {};
+    let layoutColumns = defaults.layout.columns;
+    if(Object.prototype.hasOwnProperty.call(layoutSource, 'columns')){
+      const numeric = Number(layoutSource.columns);
+      if(Number.isFinite(numeric)){
+        const rounded = Math.round(numeric);
+        layoutColumns = Math.min(DASHBOARD_LAYOUT_MAX_COLUMNS, Math.max(DASHBOARD_LAYOUT_MIN_COLUMNS, rounded));
+      }
+    }
     const mode = source.mode === 'all' ? 'all' : 'today';
-    return { mode, widgets, graphs, widgetCards, kpis };
+    return { mode, widgets, graphs, widgetCards, kpis, layout: { columns: layoutColumns } };
   }
 
   function normalizeDashboardOrder(input){
@@ -582,6 +594,7 @@ function shouldValidateGeneral(partial){
       merged.graphs = Object.assign({}, current.dashboard.graphs || {}, source.dashboard.graphs || {});
       merged.widgetCards = Object.assign({}, current.dashboard.widgetCards || {}, source.dashboard.widgetCards || {});
       merged.kpis = Object.assign({}, current.dashboard.kpis || {}, source.dashboard.kpis || {});
+      merged.layout = Object.assign({}, current.dashboard.layout || {}, source.dashboard.layout || {});
       next.dashboard = normalizeDashboard(merged);
     }
     if(source.dashboardOrder){
