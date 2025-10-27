@@ -8,15 +8,17 @@ import { attachStatusBanner } from './ui/status_banners.js';
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
 
+const MAX_VISIBLE_EVENTS_MONTH = 3;
+
 const STORAGE_KEYS = Object.freeze({
   lastTask: 'calendar:lastTaskId',
 });
 
 const COLOR_PRESETS = [
-  { key: 'contact', label: 'Contacts', color: '#2563eb' },
-  { key: 'task', label: 'Tasks', color: '#16a34a' },
-  { key: 'milestone', label: 'Milestones', color: '#f97316' },
-  { key: 'other', label: 'Other', color: '#6b7280' },
+  { key: 'contact', label: 'Contacts', token: '--accent-contact', type: 'contact' },
+  { key: 'task', label: 'Tasks', token: '--accent-task', type: 'task' },
+  { key: 'milestone', label: 'Milestones', token: '--accent-milestone', type: 'milestone' },
+  { key: 'other', label: 'Other', token: '--accent-other', type: 'other' },
 ];
 
 const LOAN_PALETTE = Object.freeze([
@@ -394,6 +396,17 @@ function ensureVisible(node){
   return isVisible(node);
 }
 
+function isSameDay(a, b){
+  if(!(a instanceof Date) || !(b instanceof Date)) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function isWeekendDay(date){
+  if(!(date instanceof Date)) return false;
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
 function eventTypeKey(event){
   const type = event && event.type ? String(event.type).toLowerCase() : '';
   if(type) return type;
@@ -403,16 +416,25 @@ function eventTypeKey(event){
   return 'other';
 }
 
-function colorForEvent(event){
+function presetForKey(key){
+  const normalized = typeof key === 'string' ? key.toLowerCase() : '';
+  if(!normalized) return COLOR_PRESETS[COLOR_PRESETS.length - 1];
+  return COLOR_PRESETS.find((item) => normalized.includes(item.key)) || COLOR_PRESETS[COLOR_PRESETS.length - 1];
+}
+
+function presetForEvent(event){
   const key = eventTypeKey(event);
-  const preset = COLOR_PRESETS.find((item) => key.includes(item.key));
-  return preset ? preset.color : COLOR_PRESETS[COLOR_PRESETS.length - 1].color;
+  return presetForKey(key);
+}
+
+function colorForEvent(event){
+  const preset = presetForEvent(event);
+  return `var(${preset.token})`;
 }
 
 function labelForEvent(event){
-  const key = eventTypeKey(event);
-  const preset = COLOR_PRESETS.find((item) => key.includes(item.key));
-  return preset ? preset.label : 'Other';
+  const preset = presetForEvent(event);
+  return preset.label;
 }
 
 function parseHourFromString(value){
@@ -484,6 +506,7 @@ function normalizeEvent(raw, index){
   if(!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
   const id = raw.id || raw.uid || (raw.source && raw.source.id) || `${raw.type || 'event'}:${date.getTime()}:${index}`;
   const type = raw.type ? String(raw.type) : '';
+  const preset = presetForEvent(raw);
   const color = colorForEvent(raw);
   const timeInfo = deriveTimeInfo({ ...raw, date });
   const label = raw.title ? String(raw.title) : 'Calendar Event';
@@ -514,6 +537,8 @@ function normalizeEvent(raw, index){
     hour: timeInfo.hour,
     minute: timeInfo.minute,
     color,
+    accentToken: preset.token,
+    category: preset.type,
     label: labelForEvent(raw),
     source: normalizeSource(raw.source),
   };
@@ -557,55 +582,43 @@ function cloneForApi(event){
 }
 
 function createEventNode(event, handlers){
-  const node = DOC.createElement('div');
-  node.className = 'calendar-event';
+  const node = DOC.createElement('article');
+  node.className = 'event-chip';
   node.dataset.id = event.id;
-  node.dataset.type = event.type || '';
+  const category = (event.category || event.type || 'other').toLowerCase();
+  node.dataset.type = category || 'other';
   node.dataset.label = event.label || '';
   node.tabIndex = 0;
-  node.style.borderLeft = `4px solid ${event.color}`;
-  node.style.borderRadius = '6px';
-  node.style.background = '#fff';
-  node.style.boxShadow = '0 1px 2px rgba(15,23,42,0.08)';
-  node.style.padding = '6px 8px';
-  node.style.display = 'grid';
-  node.style.gap = '4px';
-  if(event.contactId || event.partnerId){
-    node.style.cursor = 'pointer';
-  }
 
   const header = DOC.createElement('div');
-  header.className = 'calendar-event-header';
-  header.style.display = 'flex';
-  header.style.justifyContent = 'space-between';
-  header.style.alignItems = 'center';
+  header.className = 'event-chip-head';
   const title = DOC.createElement('span');
-  title.className = 'calendar-event-title';
+  title.className = 'event-chip-title';
   title.textContent = event.title || 'Calendar Event';
   header.appendChild(title);
   const time = DOC.createElement('span');
-  time.className = 'calendar-event-time muted';
+  time.className = 'event-chip-time';
   time.textContent = event.timeLabel || '';
   header.appendChild(time);
   node.appendChild(header);
 
-  const detail = DOC.createElement('div');
-  detail.className = 'calendar-event-detail muted';
   const detailParts = [];
   if(event.subtitle) detailParts.push(event.subtitle);
   if(event.contactName) detailParts.push(event.contactName);
   if(event.status) detailParts.push(event.status);
-  detail.textContent = detailParts.join(' • ');
-  node.appendChild(detail);
+  if(detailParts.length){
+    const detail = DOC.createElement('div');
+    detail.className = 'event-chip-meta';
+    detail.textContent = detailParts.join(' • ');
+    node.appendChild(detail);
+  }
 
   if(event.contactId && String(event.type || '').toLowerCase() !== 'task'){
     const actions = DOC.createElement('div');
-    actions.className = 'calendar-event-actions';
-    actions.style.display = 'flex';
-    actions.style.gap = '6px';
+    actions.className = 'event-chip-actions';
     const button = DOC.createElement('button');
     button.type = 'button';
-    button.className = 'calendar-event-action';
+    button.className = 'btn ghost';
     button.textContent = 'Add as Task';
     button.addEventListener('click', (evt) => {
       evt.preventDefault();
@@ -632,31 +645,102 @@ function createEventNode(event, handlers){
   return node;
 }
 
+function createOverflowControl(events, cell, handlers){
+  const button = DOC.createElement('button');
+  button.type = 'button';
+  button.className = 'calendar-more';
+  button.textContent = `+${events.length} more`;
+  let popover = null;
+  let removeListeners = () => {};
+
+  const closePopover = () => {
+    if(popover){
+      popover.remove();
+      popover = null;
+    }
+    removeListeners();
+    removeListeners = () => {};
+  };
+
+  const onDocumentClick = (evt) => {
+    if(!popover) return;
+    if(evt.target === button) return;
+    if(popover.contains(evt.target)) return;
+    closePopover();
+  };
+
+  const onKeyDown = (evt) => {
+    if(evt.key === 'Escape'){ closePopover(); button.blur(); }
+  };
+
+  const openPopover = () => {
+    if(popover) return;
+    popover = DOC.createElement('div');
+    popover.className = 'calendar-popover';
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', 'More events for this day');
+    events.forEach((event) => {
+      const node = createEventNode(event, handlers);
+      popover.appendChild(node);
+    });
+    cell.appendChild(popover);
+    const cellRect = cell.getBoundingClientRect();
+    const triggerRect = button.getBoundingClientRect();
+    const top = Math.max(8, triggerRect.bottom - cellRect.top + 4);
+    const preferredLeft = triggerRect.left - cellRect.left - 12;
+    const maxLeft = Math.max(0, cellRect.width - 240);
+    const left = Math.min(Math.max(0, preferredLeft), maxLeft);
+    popover.style.setProperty('--popover-top', `${top}px`);
+    popover.style.setProperty('--popover-left', `${left}px`);
+    popover.dataset.open = '1';
+    removeListeners = () => {
+      if(DOC){
+        DOC.removeEventListener('click', onDocumentClick, true);
+        DOC.removeEventListener('keydown', onKeyDown, true);
+      }
+    };
+    if(DOC){
+      DOC.addEventListener('click', onDocumentClick, true);
+      DOC.addEventListener('keydown', onKeyDown, true);
+    }
+  };
+
+  button.addEventListener('click', (evt) => {
+    evt.preventDefault();
+    evt.stopPropagation();
+    if(popover){
+      closePopover();
+    }else{
+      openPopover();
+    }
+  });
+
+  button.addEventListener('keydown', (evt) => {
+    if(evt.key === 'Enter' || evt.key === ' '){
+      evt.preventDefault();
+      openPopover();
+    }else if(evt.key === 'Escape'){
+      closePopover();
+    }
+  });
+
+  button.addEventListener('blur', () => {
+    if(!DOC) return;
+    if(!cell.contains(DOC.activeElement || null)){
+      closePopover();
+    }
+  });
+
+  return button;
+}
+
 function renderLegend(){
   const container = DOC.createElement('div');
   container.dataset.qa = 'calendar-legend';
-  container.className = 'calendar-legend';
-  container.style.display = 'flex';
-  container.style.flexWrap = 'wrap';
-  container.style.gap = '12px';
   COLOR_PRESETS.forEach((item) => {
-    const entry = DOC.createElement('div');
-    entry.className = 'calendar-legend-item';
-    entry.style.display = 'flex';
-    entry.style.alignItems = 'center';
-    entry.style.gap = '6px';
-    const swatch = DOC.createElement('span');
-    swatch.className = 'calendar-legend-swatch';
-    swatch.style.width = '12px';
-    swatch.style.height = '12px';
-    swatch.style.borderRadius = '999px';
-    swatch.style.background = item.color;
-    swatch.dataset.color = item.color;
-    entry.appendChild(swatch);
-    const label = DOC.createElement('span');
-    label.className = 'calendar-legend-label';
-    label.textContent = item.label;
-    entry.appendChild(label);
+    const entry = DOC.createElement('span');
+    entry.dataset.type = item.type;
+    entry.textContent = item.label;
     container.appendChild(entry);
   });
   return { node: container, count: COLOR_PRESETS.length };
@@ -666,9 +750,6 @@ function renderMonthView(range, events, handlers){
   const grid = DOC.createElement('div');
   grid.className = 'calendar-month-grid';
   grid.dataset.qa = 'calendar-month-grid';
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(7, minmax(0, 1fr))';
-  grid.style.gap = '8px';
   const totalDays = Math.max(28, range.days || 42);
   const eventsByDay = new Map();
   events.forEach((event) => {
@@ -678,6 +759,7 @@ function renderMonthView(range, events, handlers){
   });
   const cells = [];
   const visibleEvents = [];
+  const today = toLocalMidnight(new Date());
   let cursor = range.start instanceof Date ? new Date(range.start.getTime()) : toLocalMidnight(new Date());
   for(let index = 0; index < totalDays; index += 1){
     const key = ymd(cursor);
@@ -685,35 +767,43 @@ function renderMonthView(range, events, handlers){
     const cell = DOC.createElement('div');
     cell.className = 'calendar-cell';
     cell.dataset.date = key;
-    cell.style.background = '#fff';
-    cell.style.border = '1px solid rgba(15,23,42,0.08)';
-    cell.style.borderRadius = '8px';
-    cell.style.padding = '8px';
-    cell.style.display = 'grid';
-    cell.style.gridTemplateRows = 'auto 1fr';
-    cell.style.gap = '6px';
+    if(isSameDay(cursor, today)) cell.classList.add('is-today');
+    if(isWeekendDay(cursor)) cell.classList.add('is-weekend');
+
     const header = DOC.createElement('header');
     header.className = 'calendar-cell-header';
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'baseline';
     const title = DOC.createElement('span');
+    title.className = 'date';
     title.textContent = `${cursor.getDate()}`;
     header.appendChild(title);
     const weekday = DOC.createElement('span');
-    weekday.className = 'muted';
+    weekday.className = 'weekday';
     weekday.textContent = WEEKDAY_FORMAT.format(cursor);
     header.appendChild(weekday);
     cell.appendChild(header);
+
     const list = DOC.createElement('div');
     list.className = 'calendar-cell-events';
-    list.style.display = 'grid';
-    list.style.gap = '6px';
-    dayEvents.forEach((event) => {
-      const node = createEventNode(event, handlers);
-      list.appendChild(node);
+    const overflow = [];
+    dayEvents.forEach((event, eventIndex) => {
       visibleEvents.push(event);
+      if(eventIndex < MAX_VISIBLE_EVENTS_MONTH){
+        const node = createEventNode(event, handlers);
+        list.appendChild(node);
+      }else{
+        overflow.push(event);
+      }
     });
+    if(overflow.length){
+      const overflowButton = createOverflowControl(overflow, cell, handlers);
+      list.appendChild(overflowButton);
+    }
+    if(!dayEvents.length){
+      const empty = DOC.createElement('span');
+      empty.className = 'calendar-empty';
+      empty.textContent = 'No events';
+      list.appendChild(empty);
+    }
     cell.appendChild(list);
     grid.appendChild(cell);
     cells.push(cell);
@@ -742,70 +832,55 @@ function renderWeekView(range, events, handlers){
   const container = DOC.createElement('div');
   container.className = 'calendar-week-grid';
   container.dataset.qa = 'calendar-week-grid';
-  container.style.display = 'grid';
-  container.style.gridTemplateRows = 'auto 1fr';
-  container.style.gap = '8px';
 
   const header = DOC.createElement('div');
   header.className = 'calendar-week-header';
-  header.style.display = 'grid';
-  header.style.gridTemplateColumns = '80px repeat(7, minmax(0, 1fr))';
-  header.style.gap = '4px';
   header.appendChild(DOC.createElement('div'));
+  const today = toLocalMidnight(new Date());
   for(let offset = 0; offset < 7; offset += 1){
     const day = addDays(range.start, offset);
-    const cell = DOC.createElement('div');
-    cell.className = 'calendar-week-header-cell';
-    cell.textContent = `${WEEKDAY_FORMAT.format(day)} ${day.getDate()}`;
-    header.appendChild(cell);
+    const label = DOC.createElement('div');
+    label.textContent = `${WEEKDAY_FORMAT.format(day)} ${day.getDate()}`;
+    if(isSameDay(day, today)) label.classList.add('is-today');
+    header.appendChild(label);
   }
   container.appendChild(header);
 
   const visibleEvents = [];
+  const body = DOC.createElement('div');
+  body.className = 'calendar-week-body';
+
   const allDayRow = DOC.createElement('div');
   allDayRow.className = 'calendar-week-allday';
-  allDayRow.style.display = 'grid';
-  allDayRow.style.gridTemplateColumns = '80px repeat(7, minmax(0, 1fr))';
-  allDayRow.style.gap = '4px';
   const allDayLabel = DOC.createElement('div');
-  allDayLabel.className = 'calendar-time-label muted';
+  allDayLabel.className = 'calendar-time-label';
   allDayLabel.textContent = 'All Day';
   allDayRow.appendChild(allDayLabel);
   for(let offset = 0; offset < 7; offset += 1){
     const day = addDays(range.start, offset);
     const dayKey = ymd(day);
-    const cell = DOC.createElement('div');
-    cell.className = 'calendar-week-cell';
-    cell.dataset.date = dayKey;
-    cell.style.minHeight = '60px';
-    cell.style.border = '1px solid rgba(15,23,42,0.08)';
-    cell.style.borderRadius = '6px';
-    cell.style.padding = '4px';
-    cell.style.display = 'grid';
-    cell.style.gap = '4px';
+    const slot = DOC.createElement('div');
+    slot.className = 'calendar-week-slot';
+    slot.dataset.date = dayKey;
+    if(isWeekendDay(day)) slot.classList.add('is-weekend');
+    if(isSameDay(day, today)) slot.classList.add('is-today');
     events.filter((event) => ymd(event.date) === dayKey && event.hourSlot === 'all-day')
       .forEach((event) => {
-        const node = createEventNode(event, handlers);
-        cell.appendChild(node);
         visibleEvents.push(event);
+        slot.appendChild(createEventNode(event, handlers));
       });
-    allDayRow.appendChild(cell);
+    allDayRow.appendChild(slot);
   }
+  body.appendChild(allDayRow);
 
-  const body = DOC.createElement('div');
-  body.className = 'calendar-week-body';
-  body.style.display = 'grid';
-  body.style.gap = '4px';
+  const hoursWrapper = DOC.createElement('div');
+  hoursWrapper.className = 'calendar-week-hours';
   const hours = buildHourLabels();
   hours.forEach((hour) => {
     const row = DOC.createElement('div');
-    row.className = 'calendar-week-row';
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = '80px repeat(7, minmax(0, 1fr))';
-    row.style.alignItems = 'stretch';
-    row.style.gap = '4px';
+    row.className = 'calendar-week-hour';
     const label = DOC.createElement('div');
-    label.className = 'calendar-time-label muted';
+    label.className = 'calendar-time-label';
     const base = new Date();
     base.setHours(hour, 0, 0, 0);
     label.textContent = TIME_FORMAT.format(base);
@@ -813,27 +888,36 @@ function renderWeekView(range, events, handlers){
     for(let offset = 0; offset < 7; offset += 1){
       const day = addDays(range.start, offset);
       const dayKey = ymd(day);
-      const cell = DOC.createElement('div');
-      cell.className = 'calendar-week-cell';
-      cell.dataset.date = dayKey;
-      cell.style.minHeight = '60px';
-      cell.style.border = '1px solid rgba(15,23,42,0.08)';
-      cell.style.borderRadius = '6px';
-      cell.style.padding = '4px';
-      cell.style.display = 'grid';
-      cell.style.gap = '4px';
+      const slot = DOC.createElement('div');
+      slot.className = 'calendar-week-slot';
+      slot.dataset.date = dayKey;
+      slot.dataset.hour = String(hour);
+      if(isWeekendDay(day)) slot.classList.add('is-weekend');
+      if(isSameDay(day, today)) slot.classList.add('is-today');
       events.filter((event) => ymd(event.date) === dayKey && event.hourSlot === hour)
         .forEach((event) => {
-          const node = createEventNode(event, handlers);
-          cell.appendChild(node);
           visibleEvents.push(event);
+          slot.appendChild(createEventNode(event, handlers));
         });
-      row.appendChild(cell);
+      row.appendChild(slot);
     }
-    body.appendChild(row);
+    hoursWrapper.appendChild(row);
   });
 
-  container.appendChild(allDayRow);
+  const weekStart = toLocalMidnight(range.start);
+  const weekEnd = addDays(weekStart, 6);
+  if(isWithinRange(today, weekStart, weekEnd)){
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const offset = (minutes / (24 * 60)) * 100;
+    const line = DOC.createElement('div');
+    line.className = 'calendar-now-line';
+    line.dataset.qa = 'now-line';
+    line.style.setProperty('--now-line-offset', offset.toFixed(4));
+    hoursWrapper.appendChild(line);
+  }
+
+  body.appendChild(hoursWrapper);
   container.appendChild(body);
 
   return {
@@ -851,64 +935,76 @@ function renderDayView(range, events, handlers){
   const container = DOC.createElement('div');
   container.className = 'calendar-day-grid';
   container.dataset.qa = 'calendar-day-grid';
-  container.style.display = 'grid';
-  container.style.gap = '6px';
   const dayKey = ymd(range.start);
   const dayEvents = events.filter((event) => ymd(event.date) === dayKey);
   const visibleEvents = [];
   const hours = buildHourLabels();
+  const today = toLocalMidnight(new Date());
+  const isToday = isSameDay(range.start, today);
+  const isWeekend = isWeekendDay(range.start);
 
   const allDayRow = DOC.createElement('div');
-  allDayRow.className = 'calendar-day-row';
-  allDayRow.style.display = 'grid';
-  allDayRow.style.gridTemplateColumns = '100px 1fr';
-  allDayRow.style.gap = '6px';
+  allDayRow.className = 'calendar-day-all';
   const allDayLabel = DOC.createElement('div');
-  allDayLabel.className = 'calendar-time-label muted';
+  allDayLabel.className = 'calendar-time-label';
   allDayLabel.textContent = 'All Day';
   allDayRow.appendChild(allDayLabel);
-  const allDayCell = DOC.createElement('div');
-  allDayCell.className = 'calendar-day-cell';
-  allDayCell.style.border = '1px solid rgba(15,23,42,0.08)';
-  allDayCell.style.borderRadius = '6px';
-  allDayCell.style.padding = '6px';
-  allDayCell.style.display = 'grid';
-  allDayCell.style.gap = '6px';
+  const allDaySlot = DOC.createElement('div');
+  allDaySlot.className = 'calendar-day-slot';
+  if(isWeekend) allDaySlot.classList.add('is-weekend');
+  if(isToday) allDaySlot.classList.add('is-today');
   dayEvents.filter((event) => event.hourSlot === 'all-day').forEach((event) => {
-    const node = createEventNode(event, handlers);
-    allDayCell.appendChild(node);
     visibleEvents.push(event);
+    allDaySlot.appendChild(createEventNode(event, handlers));
   });
-  allDayRow.appendChild(allDayCell);
+  if(!allDaySlot.children.length){
+    const empty = DOC.createElement('span');
+    empty.className = 'calendar-empty';
+    empty.textContent = 'No events';
+    allDaySlot.appendChild(empty);
+  }
+  allDayRow.appendChild(allDaySlot);
   container.appendChild(allDayRow);
 
+  const body = DOC.createElement('div');
+  body.className = 'calendar-day-body';
+  const hoursWrapper = DOC.createElement('div');
+  hoursWrapper.className = 'calendar-day-hours';
   hours.forEach((hour) => {
     const row = DOC.createElement('div');
-    row.className = 'calendar-day-row';
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = '100px 1fr';
-    row.style.gap = '6px';
+    row.className = 'calendar-day-hour';
     const label = DOC.createElement('div');
-    label.className = 'calendar-time-label muted';
+    label.className = 'calendar-time-label';
     const base = new Date();
     base.setHours(hour, 0, 0, 0);
     label.textContent = TIME_FORMAT.format(base);
     row.appendChild(label);
-    const cell = DOC.createElement('div');
-    cell.className = 'calendar-day-cell';
-    cell.style.border = '1px solid rgba(15,23,42,0.08)';
-    cell.style.borderRadius = '6px';
-    cell.style.padding = '6px';
-    cell.style.display = 'grid';
-    cell.style.gap = '6px';
+    const slot = DOC.createElement('div');
+    slot.className = 'calendar-day-slot';
+    slot.dataset.hour = String(hour);
+    if(isWeekend) slot.classList.add('is-weekend');
+    if(isToday) slot.classList.add('is-today');
     dayEvents.filter((event) => event.hourSlot === hour).forEach((event) => {
-      const node = createEventNode(event, handlers);
-      cell.appendChild(node);
       visibleEvents.push(event);
+      slot.appendChild(createEventNode(event, handlers));
     });
-    row.appendChild(cell);
-    container.appendChild(row);
+    row.appendChild(slot);
+    hoursWrapper.appendChild(row);
   });
+
+  if(isToday){
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const offset = (minutes / (24 * 60)) * 100;
+    const line = DOC.createElement('div');
+    line.className = 'calendar-now-line';
+    line.dataset.qa = 'now-line';
+    line.style.setProperty('--now-line-offset', offset.toFixed(4));
+    hoursWrapper.appendChild(line);
+  }
+
+  body.appendChild(hoursWrapper);
+  container.appendChild(body);
 
   return {
     node: container,
@@ -925,6 +1021,31 @@ function renderView(range, events, view, handlers){
   if(view === 'week') return renderWeekView(range, events, handlers);
   if(view === 'day') return renderDayView(range, events, handlers);
   return renderMonthView(range, events, handlers);
+}
+
+function publishStyleDiagnostics(){
+  if(typeof window === 'undefined' || !DOC) return;
+  const legendItems = DOC.querySelectorAll('[data-qa="calendar-legend"] [data-type]').length;
+  const todayCell = !!DOC.querySelector('.calendar-cell.is-today');
+  const weekendCells = !!DOC.querySelector('.calendar-cell.is-weekend');
+  const nowLine = !!DOC.querySelector('[data-qa="now-line"]');
+  let tokensOk = false;
+  try{
+    const value = getComputedStyle(DOC.documentElement).getPropertyValue('--accent-contact');
+    tokensOk = !!(value && value.trim().length > 0);
+  }catch (_err){
+    tokensOk = false;
+  }
+  window.__CAL_STYLE__ = {
+    legendItems,
+    today: todayCell,
+    weekends: weekendCells,
+    dayNowLine: nowLine,
+    tokensOk,
+  };
+  if(typeof console !== 'undefined' && console && typeof console.log === 'function'){
+    console.log('CAL_STYLE', window.__CAL_STYLE__);
+  }
 }
 
 function renderSurface(mount, state, handlers){
@@ -1007,6 +1128,8 @@ function renderSurface(mount, state, handlers){
     try{ DOC.dispatchEvent(new CustomEvent('calendar:rendered', { detail })); }
     catch (_err){}
   }
+
+  publishStyleDiagnostics();
 
   return range;
 }
