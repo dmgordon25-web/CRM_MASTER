@@ -33,6 +33,8 @@ let serverClosePromise = null;
 let cleanupPromise = null;
 let cleanupLogged = false;
 let exitScheduled = false;
+const trackedWatchers = new Set();
+const trackedChildren = new Set();
 
 function clearIdleTimer() {
   if (idleTimer) {
@@ -75,6 +77,98 @@ function markSessionClosed(sid) {
   }
   scheduleIdleExit();
 }
+
+function trackWatcher(watcher) {
+  if (!watcher) return watcher;
+  if (typeof watcher.on === 'function') {
+    const cleanup = () => {
+      trackedWatchers.delete(watcher);
+      if (typeof watcher.off === 'function') {
+        try {
+          watcher.off('close', cleanup);
+          watcher.off('error', cleanup);
+        } catch {}
+      }
+    };
+    try { watcher.on('close', cleanup); } catch {}
+    try { watcher.on('error', cleanup); } catch {}
+  }
+  trackedWatchers.add(watcher);
+  return watcher;
+}
+
+function trackChild(child) {
+  if (!child) return child;
+  const cleanup = () => {
+    trackedChildren.delete(child);
+  };
+  try { child.once('exit', cleanup); } catch {}
+  try { child.once('close', cleanup); } catch {}
+  trackedChildren.add(child);
+  return child;
+}
+
+async function shutdownWatchers() {
+  const watchers = Array.from(trackedWatchers);
+  trackedWatchers.clear();
+  await Promise.all(watchers.map((watcher) => new Promise((resolve) => {
+    try {
+      if (watcher) {
+        if (typeof watcher.close === 'function') {
+          watcher.close();
+          resolve();
+          return;
+        }
+        if (typeof watcher.stop === 'function') {
+          Promise.resolve(watcher.stop()).catch(() => {}).finally(resolve);
+          return;
+        }
+      }
+    } catch {}
+    resolve();
+  })));
+}
+
+async function shutdownChildren(signal = 'SIGTERM') {
+  const children = Array.from(trackedChildren);
+  trackedChildren.clear();
+  await Promise.all(children.map((child) => new Promise((resolve) => {
+    if (!child) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch {}
+      resolve();
+    }, 2000);
+    if (typeof timer.unref === 'function') timer.unref();
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    try { child.once('exit', done); } catch {}
+    try { child.once('close', done); } catch {}
+    try {
+      const killed = child.kill(signal);
+      if (!killed) {
+        done();
+      }
+    } catch {
+      done();
+    }
+  })));
+}
+
+try {
+  if (!globalThis.__CRM_DEV_SERVER__) {
+    Object.defineProperty(globalThis, '__CRM_DEV_SERVER__', {
+      value: {},
+      configurable: true
+    });
+  }
+  globalThis.__CRM_DEV_SERVER__.trackWatcher = trackWatcher;
+  globalThis.__CRM_DEV_SERVER__.trackChild = trackChild;
+} catch {}
 
 function drainRequest(req) {
   if (!req || typeof req.resume !== 'function') return;
@@ -565,6 +659,12 @@ function cleanupAll(){
     clearIdleTimer();
     activeSessions.clear();
     try {
+      await shutdownChildren('SIGTERM');
+    } catch {}
+    try {
+      await shutdownWatchers();
+    } catch {}
+    try {
       await closeServer();
     } catch {}
     logClosedOnce();
@@ -644,18 +744,22 @@ async function bindServer() {
 
 function openBrowser(url) {
   try {
-    spawn('cmd.exe', ['/c', 'start', '', url], {
+    const child = spawn('cmd.exe', ['/c', 'start', '', url], {
       stdio: 'ignore',
       detached: true,
       windowsHide: true
     });
+    trackChild(child);
+    if (typeof child.unref === 'function') child.unref();
   } catch {
     try {
-      spawn('explorer.exe', [url], {
+      const child = spawn('explorer.exe', [url], {
         stdio: 'ignore',
         detached: true,
         windowsHide: true
       });
+      trackChild(child);
+      if (typeof child.unref === 'function') child.unref();
     } catch {}
   }
 }
