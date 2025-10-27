@@ -121,6 +121,8 @@ export const PATCHES = [
 
 ];
 
+export const patches = PATCHES;
+
 export const SAFE_MODE = isSafeMode();
 
 export const ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES;
