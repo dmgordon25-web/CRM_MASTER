@@ -78,6 +78,7 @@ export const PATCHES = [
   './doccenter_rules.js',
   './contacts.js',
   './partners.js',
+  './partners_detail.js',
   './partners_modal.js',
   './partners_detail.js',
   './partners/list.js',
@@ -121,6 +122,8 @@ export const PATCHES = [
   './patches/patch_2025-10-23_actionbar_drag.js',
 
 ];
+
+export const patches = PATCHES;
 
 export const SAFE_MODE = isSafeMode();
 
