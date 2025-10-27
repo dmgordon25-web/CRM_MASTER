@@ -342,6 +342,41 @@ const LENS_CONFIGS = Object.values(RAW_LENS_CONFIGS).map((raw) => {
 
 const CONFIG_BY_KEY = new Map(LENS_CONFIGS.map((config) => [config.key, config]));
 
+function isoDateString(date){
+  if(!(date instanceof Date)) return '';
+  const copy = new Date(date.getTime()); copy.setHours(0,0,0,0);
+  try{ return copy.toISOString().slice(0,10); }
+  catch (_err){ return ''; }
+}
+
+function isoDaysFromNow(offset){
+  const now = new Date(); now.setDate(now.getDate() + offset);
+  return isoDateString(now);
+}
+
+function isoMonthRange(){
+  const now = new Date();
+  return {
+    start: isoDateString(new Date(now.getFullYear(), now.getMonth(), 1)),
+    end: isoDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  };
+}
+
+const PRESET_FILTERS = {
+  pipeline: [
+    { key: 'closing-this-month', label: 'Closing This Month', build(){ const { start, end } = isoMonthRange(); return { filters: [ { field:'stage', operator:'contains', value:'close' }, { field:'nextAction', operator:'>=', value:start }, { field:'nextAction', operator:'<=', value:end } ], sort: { field:'nextAction', direction:'asc' } }; } },
+    { key: 'needs-followup', label: 'Needs Follow-Up', build(){ return { filters: [{ field:'nextAction', operator:'<=', value: isoDaysFromNow(0) }], sort: { field:'nextAction', direction:'asc' } }; } },
+    { key: 'new-this-week', label: 'New This Week', build(){ return { filters: [{ field:'createdAt', operator:'>=', value: isoDaysFromNow(-7) }], sort: { field:'createdAt', direction:'desc' } }; } }
+  ],
+  clients: [
+    { key: 'funded-30', label: 'Funded Last 30 Days', build(){ return { filters: [{ field:'fundedDate', operator:'>=', value: isoDaysFromNow(-30) }], sort: { field:'fundedDate', direction:'desc' } }; } }
+  ],
+  partners: [
+    { key: 'top-tier', label: 'Top Tier', build(){ return { filters: [{ field:'tier', operator:'equals', value:'top' }], sort: { field:'lastTouch', direction:'desc' } }; } },
+    { key: 'stale-touch', label: 'Stale Touch', build(){ return { filters: [{ field:'nextTouch', operator:'<=', value: isoDaysFromNow(-14) }], sort: { field:'nextTouch', direction:'asc' } }; } }
+  ]
+};
+
 const state = {
   mount: null,
   root: null,
@@ -576,7 +611,8 @@ function createLensState(config){
     shouldAutoRun: layout.lastActive === config.key,
     pendingRender: false,
     lastError: null,
-    statusBanner: null
+    statusBanner: null,
+    activePreset: ''
   };
 }
 
@@ -604,11 +640,13 @@ function addFilter(lensState, preset){
     operator: preset?.operator || defaultOperatorFor(firstField),
     value: preset?.value || ''
   };
+  clearActivePreset(lensState);
   lensState.filters.push(filter);
   renderFilterRows(lensState);
 }
 
 function clearFilters(lensState){
+  clearActivePreset(lensState);
   lensState.filters = [];
   renderFilterRows(lensState);
 }
@@ -646,6 +684,7 @@ function renderFilterRows(lensState){
       const field = config.fieldsMap.get(filter.field) || null;
       filter.operator = defaultOperatorFor(field);
       filter.value = '';
+      clearActivePreset(lensState);
       renderFilterRows(lensState);
     });
     row.appendChild(fieldSelect);
@@ -663,6 +702,7 @@ function renderFilterRows(lensState){
     });
     operatorSelect.addEventListener('change', () => {
       filter.operator = operatorSelect.value;
+      clearActivePreset(lensState);
     });
     row.appendChild(operatorSelect);
 
@@ -682,6 +722,7 @@ function renderFilterRows(lensState){
     valueInput.value = filter.value || '';
     valueInput.addEventListener('input', () => {
       filter.value = valueInput.value;
+      clearActivePreset(lensState);
     });
     row.appendChild(valueInput);
 
@@ -691,6 +732,7 @@ function renderFilterRows(lensState){
     removeBtn.textContent = 'Remove';
     removeBtn.addEventListener('click', () => {
       lensState.filters = lensState.filters.filter((item) => item.id !== filter.id);
+      clearActivePreset(lensState);
       renderFilterRows(lensState);
     });
     row.appendChild(removeBtn);
@@ -710,6 +752,30 @@ function sanitizeFilters(lensState){
     result.push({ field: field.key, operator: filter.operator, value: rawValue, type: field.type });
   });
   return result;
+}
+
+function evaluatePresetQuery(lensState, preset){
+  if(!preset) return { filters: [] };
+  const config = lensState.config;
+  const query = typeof preset.build === 'function' ? preset.build(lensState) : preset;
+  const filters = Array.isArray(query?.filters)
+    ? query.filters.map((item) => ({
+      field: item?.field || config.filterFields[0]?.key || '',
+      operator: item?.operator || defaultOperatorFor(config.filterFields[0]),
+      value: item?.value ?? ''
+    }))
+    : [];
+  const sort = query?.sort && query.sort.field
+    ? { field: query.sort.field, direction: query.sort.direction === 'desc' ? 'desc' : 'asc' }
+    : null;
+  const limit = query?.limit != null ? Number(query.limit) || null : null;
+  return { filters, sort, limit };
+}
+
+function clearActivePreset(lensState){
+  if(!lensState || !lensState.activePreset) return;
+  lensState.activePreset = '';
+  renderPresetChips(lensState);
 }
 
 function serializeLensState(lensState){
@@ -732,10 +798,55 @@ function assignLensStateFromQuery(lensState, query){
   renderFilterRows(lensState);
   syncSortControls(lensState);
   syncLimitControl(lensState);
+  renderPresetChips(lensState);
 }
 
 function getSortOptions(lensState){
   return lensState.config.sortFields.length ? lensState.config.sortFields : lensState.config.columns.map((col) => ({ key: col.field, label: col.label }));
+}
+
+function renderPresetChips(lensState){
+  const host = lensState?.elements?.presetChips;
+  if(!host) return;
+  const presets = PRESET_FILTERS[lensState.config.key] || [];
+  if(!presets.length){
+    host.innerHTML = '';
+    host.hidden = true;
+    return;
+  }
+  const doc = host.ownerDocument || document;
+  host.hidden = false;
+  host.innerHTML = '';
+  presets.forEach((preset) => {
+    const btn = doc.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip preset-chip';
+    btn.dataset.qa = 'preset-filter'; btn.dataset.presetKey = preset.key;
+    btn.textContent = preset.label;
+    btn.setAttribute('aria-pressed', lensState.activePreset === preset.key ? 'true' : 'false');
+    if(lensState.activePreset === preset.key && btn.classList) btn.classList.add('is-active');
+    btn.addEventListener('click', () => {
+      if(lensState.activePreset === preset.key){
+        runLensQuery(lensState, { reuseBase: false });
+        return;
+      }
+      applyPresetFilters(lensState, preset);
+    });
+    host.appendChild(btn);
+  });
+}
+
+function applyPresetFilters(lensState, preset){
+  if(!lensState || !preset) return;
+  lensState.activePreset = preset.key || '';
+  lensState.savedQueryId = null;
+  const query = evaluatePresetQuery(lensState, preset);
+  assignLensStateFromQuery(lensState, {
+    filters: query.filters,
+    sort: query.sort || lensState.config.defaultSort,
+    limit: query.limit
+  });
+  runLensQuery(lensState, { reuseBase: false });
 }
 
 function syncSortControls(lensState){
@@ -796,6 +907,7 @@ function renderSavedQueryList(lensState){
     nameBtn.textContent = entry.name || 'Unnamed Query';
     nameBtn.addEventListener('click', () => {
       lensState.savedQueryId = entry.id;
+      clearActivePreset(lensState);
       assignLensStateFromQuery(lensState, entry);
       runLensQuery(lensState, { reuseBase: false });
       state.layout.lastActive = lensState.config.key;
@@ -1479,6 +1591,7 @@ function buildWindow(lensState){
   sortField.addEventListener('change', () => {
     const value = sortField.value;
     lensState.sort.field = value || '';
+    clearActivePreset(lensState);
   });
   filterRow.appendChild(sortField);
 
@@ -1492,6 +1605,7 @@ function buildWindow(lensState){
   });
   sortDirection.addEventListener('change', () => {
     lensState.sort.direction = sortDirection.value === 'desc' ? 'desc' : 'asc';
+    clearActivePreset(lensState);
   });
   filterRow.appendChild(sortDirection);
 
@@ -1504,6 +1618,7 @@ function buildWindow(lensState){
   limitInput.addEventListener('input', () => {
     const value = Number(limitInput.value);
     lensState.limit = Number.isFinite(value) && value > 0 ? value : null;
+    clearActivePreset(lensState);
   });
   filterRow.appendChild(limitInput);
 
@@ -1568,6 +1683,12 @@ function buildWindow(lensState){
 
   body.appendChild(searchRow);
 
+  const presetRow = document.createElement('div');
+  presetRow.className = 'preset-chip-row';
+  Object.assign(presetRow.style, { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' });
+  presetRow.hidden = true;
+  body.appendChild(presetRow);
+
   const tableWrap = document.createElement('div');
   tableWrap.className = 'table-wrap';
   tableWrap.style.marginTop = '8px';
@@ -1620,6 +1741,7 @@ function buildWindow(lensState){
     limit: limitInput,
     savedQueries: savedList,
     search: searchInput,
+    presetChips: presetRow,
     status,
     table,
     thead,
@@ -1627,6 +1749,7 @@ function buildWindow(lensState){
   };
 
   lensState.statusBanner = attachStatusBanner(status, { tone: 'muted' });
+  renderPresetChips(lensState);
 
   table.addEventListener('click', (event) => handleRowClick(event, lensState));
 
@@ -1670,6 +1793,7 @@ function syncUI(){
     syncLimitControl(lensState);
     syncSearchControl(lensState);
     renderSavedQueryList(lensState);
+    renderPresetChips(lensState);
     updateCounts(lensState);
     updateStatusMessage(lensState);
     if(!lensState.open){
@@ -1680,6 +1804,16 @@ function syncUI(){
   });
 }
 
+function reportListsSummary(){
+  if(typeof document === 'undefined' || typeof console === 'undefined') return;
+  try{
+    const doc = document;
+    const chips = doc.querySelectorAll('[data-qa="preset-filter"]').length;
+    const bulkActions = ['followup', 'logcall'].every((key) => doc.querySelector(`[data-qa="bulk-${key}"]`));
+    console.log('LISTS_SUMMARY', { chips, bulkActions, emptyBanner: !!doc.querySelector('[data-qa="empty-state"]') });
+  }catch (_err){}
+}
+
 async function setupWorkbench(target){
   const mount = ensureMount(target);
   if(!mount) return;
@@ -1687,6 +1821,7 @@ async function setupWorkbench(target){
   ensureLensStates();
   buildShell();
   syncUI();
+  reportListsSummary();
   subscribeSelection();
   attachDataListener();
   state.ready = true;
@@ -1704,6 +1839,7 @@ async function renderWorkbench(target){
   }
   ensureMount(target);
   syncUI();
+  reportListsSummary();
   state.lensStates.forEach((lensState) => {
     if(lensState.open && lensState.dataLoaded){
       runLensQuery(lensState, { reuseBase: true });

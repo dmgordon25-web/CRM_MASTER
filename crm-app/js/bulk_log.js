@@ -15,21 +15,21 @@
     dlg.innerHTML = `
       <div class="dlg" style="max-width:560px">
         <div class="row" style="align-items:center">
-          <strong>Bulk Log</strong>
+          <strong>Log Call for Selected</strong>
           <span class="grow"></span>
           <button class="btn" id="bl-close">Close</button>
         </div>
         <div class="row" style="gap:12px;margin-top:8px">
-          <label class="grow">Entry<br>
-            <textarea id="bl-text" rows="4" style="width:100%" placeholder="e.g., Called and left voicemail."></textarea>
+          <label class="grow">Call Notes<br>
+            <textarea id="bl-text" rows="4" style="width:100%" placeholder="e.g., Spoke with borrower about next steps."></textarea>
           </label>
         </div>
         <div class="row" style="gap:12px;margin-top:8px">
           <label>Date<br><input id="bl-date" type="date"></label>
-          <label class="grow">Tag (optional)<br><input id="bl-tag" type="text" placeholder="outreach / follow-up"></label>
+          <label class="grow">Tag (optional)<br><input id="bl-tag" type="text" placeholder="call / follow-up"></label>
         </div>
         <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
-          <button class="btn" id="bl-save" disabled>Save to Selected</button>
+          <button class="btn" id="bl-save" disabled>Log Calls</button>
         </div>
         <div class="muted" id="bl-count" style="margin-top:6px"></div>
       </div>`;
