@@ -64,6 +64,9 @@ const rowFrom = (contact, partnerId) => {
   const canonical = canonicalStage(stageKey) || canonicalStage(contact && contact.stage) || '';
   const amount = Number(contact && (contact.loanAmount ?? contact.amount) ?? 0) || 0;
   const lastActivity = toTimestamp(contact && (contact.updatedAt ?? contact.lastContact ?? contact.fundedDate ?? contact.createdAt));
+  const createdAt = toTimestamp(contact && (contact.createdAt ?? contact.created ?? contact.referredAt ?? contact.leadDate));
+  const fundedAt = toTimestamp(contact && (contact.fundedDate ?? contact.fundedAt ?? contact.closeDate ?? contact.closedAt));
+  const closeDurationMs = createdAt != null && fundedAt != null ? Math.max(0, fundedAt - createdAt) : null;
   const role = deriveRole(contact, partnerId);
   const name = deriveName(contact);
   const search = [name, stageLabel, role, contact && contact.loanType, contact && contact.referredBy].filter(Boolean).join(' ').toLowerCase();
@@ -82,6 +85,9 @@ const rowFrom = (contact, partnerId) => {
     roleSort: role.toLowerCase(),
     lastActivity: lastActivity == null ? -Infinity : lastActivity,
     lastActivityLabel: fmt.date(lastActivity),
+    createdAt,
+    fundedAt,
+    closeDurationMs,
     search
   };
 };
@@ -92,11 +98,12 @@ const collectRows = (partnerId, contacts) => {
   return contacts
     .filter((contact) => {
       if (!contact) return false;
-      const buyer = contact.buyerPartnerId != null ? String(contact.buyerPartnerId) : '';
-      const listing = contact.listingPartnerId != null ? String(contact.listingPartnerId) : '';
+      const rawBuyer = contact.buyerPartnerId != null ? String(contact.buyerPartnerId) : '';
+      const rawListing = contact.listingPartnerId != null ? String(contact.listingPartnerId) : '';
+      const buyer = rawBuyer && rawBuyer !== NONE_PARTNER_ID ? rawBuyer : '';
+      const listing = rawListing && rawListing !== NONE_PARTNER_ID ? rawListing : '';
       if (!buyer && !listing) return false;
-      if (buyer === NONE_PARTNER_ID || listing === NONE_PARTNER_ID) return false;
-      return buyer === target || listing === target;
+      return (buyer && buyer === target) || (listing && listing === target);
     })
     .map((contact) => rowFrom(contact, target))
     .filter(Boolean);
@@ -108,8 +115,13 @@ const ensureDom = (root) => {
   if (!panel) return null;
   let section = panel.querySelector('#partner-referral-section');
   if (!section) {
-    const kpiBlocks = [['total', 'Referred Deals'], ['active', 'Active Pipeline'], ['funded', 'Funded Volume'], ['win-rate', 'Win Rate']]
-      .map(([key, label]) => `<div class="summary-metric" data-kpi="${key}"><span class="metric-label">${label}</span><span class="metric-value">—</span></div>`)
+    const kpiBlocks = [
+      ['funded-volume', 'Funded Volume'],
+      ['active', 'Active Pipeline'],
+      ['closed', 'Closed Deals'],
+      ['avg-time', 'Avg. Time to Close']
+    ]
+      .map(([key, label]) => `<div class="summary-metric" data-kpi="${key}" data-qa="partner-kpi"><span class="metric-label">${label}</span><span class="metric-value">—</span></div>`)
       .join('');
     section = document.createElement('section');
     section.id = 'partner-referral-section';
@@ -119,12 +131,12 @@ const ensureDom = (root) => {
       <div class="summary-metrics partner-referral-kpis">${kpiBlocks}</div>
       <div class="referral-controls" data-role="partner-referral-controls">
         <input type="search" data-role="partner-referral-filter" placeholder="Filter referrals" aria-label="Filter referrals">
-        <select data-role="partner-referral-stage" aria-label="Filter by referral status">
-          <option value="all">All statuses</option>
-          <option value="active">Active pipeline</option>
-          <option value="won">Won / Funded</option>
-          <option value="lost">Lost</option>
-        </select>
+        <div class="preset-filters" data-role="partner-referral-chips">
+          <button type="button" class="chip" data-role="partner-referral-chip" data-stage="all" data-qa="preset-filter">All</button>
+          <button type="button" class="chip" data-role="partner-referral-chip" data-stage="active" data-qa="preset-filter">Active</button>
+          <button type="button" class="chip" data-role="partner-referral-chip" data-stage="closed" data-qa="preset-filter">Closed</button>
+          <button type="button" class="chip" data-role="partner-referral-chip" data-stage="lost" data-qa="preset-filter">Lost</button>
+        </div>
       </div>
       <div class="referral-table-wrap">
         <table class="table partner-referral-table">
@@ -148,20 +160,20 @@ const ensureDom = (root) => {
   const dom = {
     section,
     kpis: {
-      total: section.querySelector('[data-kpi="total"] .metric-value'),
+      fundedVolume: section.querySelector('[data-kpi="funded-volume"] .metric-value'),
       active: section.querySelector('[data-kpi="active"] .metric-value'),
-      funded: section.querySelector('[data-kpi="funded"] .metric-value'),
-      winRate: section.querySelector('[data-kpi="win-rate"] .metric-value')
+      closed: section.querySelector('[data-kpi="closed"] .metric-value'),
+      avgTime: section.querySelector('[data-kpi="avg-time"] .metric-value')
     },
     filter: section.querySelector('[data-role="partner-referral-filter"]'),
-    stage: section.querySelector('[data-role="partner-referral-stage"]'),
+    chips: Array.from(section.querySelectorAll('[data-role="partner-referral-chip"]')),
     table: section.querySelector('[data-role="partner-referral-rows"]'),
     empty: section.querySelector('[data-role="partner-referral-empty"]'),
     sortButtons: Array.from(section.querySelectorAll('button[data-sort-key]'))
   };
   if (!section.__partnerReferralWired) {
     if (dom.filter) dom.filter.addEventListener('input', onFilter);
-    if (dom.stage) dom.stage.addEventListener('change', onStageChange);
+    if (dom.chips.length) dom.chips.forEach((chip) => chip.addEventListener('click', onStageClick));
     if (dom.table) dom.table.addEventListener('click', onRowClick);
     dom.sortButtons.forEach((btn) => btn.addEventListener('click', onSortClick));
     section.__partnerReferralWired = true;
@@ -185,26 +197,28 @@ const setLoading = (flag) => {
 
 const metrics = (rows) => {
   const funded = rows.filter((row) => row.canonical === 'won');
-  const lost = rows.filter((row) => row.canonical === 'lost');
   const active = rows.filter((row) => row.canonical !== 'won' && row.canonical !== 'lost');
   const fundedVolume = funded.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const denominator = funded.length + lost.length;
-  return { total: rows.length, active: active.length, funded: fundedVolume, winRate: denominator ? Math.round((funded.length / denominator) * 100) : null };
+  const closedCount = funded.length;
+  const durations = funded.map((row) => row.closeDurationMs).filter((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0);
+  const avgDurationMs = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : null;
+  const avgDurationDays = avgDurationMs == null ? null : Math.round(avgDurationMs / (1000 * 60 * 60 * 24));
+  return { fundedVolume, active: active.length, closed: closedCount, avgTimeDays: avgDurationDays };
 };
 
 const updateKpis = () => {
   if (!state.dom) return;
-  const { total, active, funded, winRate } = metrics(state.rows);
-  if (state.dom.kpis.total) state.dom.kpis.total.textContent = fmt.number(total);
+  const { fundedVolume, active, closed, avgTimeDays } = metrics(state.rows);
+  if (state.dom.kpis.fundedVolume) state.dom.kpis.fundedVolume.textContent = fmt.money(fundedVolume);
   if (state.dom.kpis.active) state.dom.kpis.active.textContent = fmt.number(active);
-  if (state.dom.kpis.funded) state.dom.kpis.funded.textContent = fmt.money(funded);
-  if (state.dom.kpis.winRate) state.dom.kpis.winRate.textContent = winRate == null ? '—' : `${winRate}%`;
+  if (state.dom.kpis.closed) state.dom.kpis.closed.textContent = fmt.number(closed);
+  if (state.dom.kpis.avgTime) state.dom.kpis.avgTime.textContent = avgTimeDays == null ? '—' : `${avgTimeDays}d`;
 };
 
 const filteredRows = () => state.rows.filter((row) => {
   if (state.filter && !row.search.includes(state.filter)) return false;
   if (state.stage === 'active') return row.canonical !== 'won' && row.canonical !== 'lost';
-  if (state.stage === 'won') return row.canonical === 'won';
+  if (state.stage === 'closed' || state.stage === 'won') return row.canonical === 'won';
   if (state.stage === 'lost') return row.canonical === 'lost';
   return true;
 });
@@ -247,10 +261,19 @@ const updateSortIndicators = () => {
   });
 };
 
+function updateFilterChips() {
+  if (!state.dom || !Array.isArray(state.dom.chips)) return;
+  state.dom.chips.forEach((chip) => {
+    if (chip.getAttribute('data-stage') === state.stage) chip.setAttribute('data-active', '1');
+    else chip.removeAttribute('data-active');
+  });
+}
+
 const updateTable = () => {
   if (!state.dom) return;
   const rows = sortedRows(filteredRows());
   updateKpis();
+  updateFilterChips();
   updateSortIndicators();
   if (!state.dom.table) return;
   if (!rows.length) {
@@ -263,7 +286,7 @@ const updateTable = () => {
   }
   state.dom.table.innerHTML = rows.map((row) => {
     const loan = row.amount ? fmt.money(row.amount) : '—';
-    return `<tr data-contact-id="${fmt.text(row.id)}" data-stage="${fmt.text(row.stageKey)}"><td><span class="link">${fmt.text(row.name)}</span></td><td>${fmt.text(row.stageLabel)}</td><td>${fmt.text(loan)}</td><td>${fmt.text(row.role)}</td><td>${fmt.text(row.lastActivityLabel)}</td></tr>`;
+    return `<tr data-contact-id="${fmt.text(row.id)}" data-stage="${fmt.text(row.stageKey)}" data-qa="partner-ref-row"><td><span class="link">${fmt.text(row.name)}</span></td><td>${fmt.text(row.stageLabel)}</td><td>${fmt.text(loan)}</td><td>${fmt.text(row.role)}</td><td>${fmt.text(row.lastActivityLabel)}</td></tr>`;
   }).join('');
   if (state.dom.empty) state.dom.empty.hidden = true;
 };
@@ -294,8 +317,12 @@ const onFilter = (event) => {
   updateTable();
 };
 
-const onStageChange = (event) => {
-  state.stage = String(event && event.target && event.target.value ? event.target.value : 'all');
+const onStageClick = (event) => {
+  const button = event && event.currentTarget ? event.currentTarget : (event && event.target && event.target.closest('[data-role="partner-referral-chip"]'));
+  if (!button) return;
+  event.preventDefault();
+  const stage = button.getAttribute('data-stage') || 'all';
+  state.stage = stage;
   updateTable();
 };
 
@@ -328,7 +355,12 @@ const resetState = () => {
   state.sortDir = 'desc';
   if (state.dom) {
     if (state.dom.filter) state.dom.filter.value = '';
-    if (state.dom.stage) state.dom.stage.value = 'all';
+    if (Array.isArray(state.dom.chips)) {
+      state.dom.chips.forEach((chip) => {
+        if (chip.getAttribute('data-stage') === 'all') chip.setAttribute('data-active', '1');
+        else chip.removeAttribute('data-active');
+      });
+    }
     if (state.dom.table) state.dom.table.innerHTML = '';
     if (state.dom.empty) { state.dom.empty.textContent = 'No referrals recorded for this partner yet.'; state.dom.empty.hidden = true; }
   }
@@ -348,7 +380,12 @@ const handleReady = (event) => {
   state.sortKey = 'updated';
   state.sortDir = 'desc';
   if (state.dom.filter) state.dom.filter.value = '';
-  if (state.dom.stage) state.dom.stage.value = 'all';
+  if (Array.isArray(state.dom.chips)) {
+    state.dom.chips.forEach((chip) => {
+      if (chip.getAttribute('data-stage') === 'all') chip.setAttribute('data-active', '1');
+      else chip.removeAttribute('data-active');
+    });
+  }
   if (!dialog.__partnerReferralCleanup) {
     const cleanup = () => { dialog.__partnerReferralCleanup = null; state.partnerId = ''; resetState(); };
     try { dialog.addEventListener('close', cleanup, { once: true }); }
