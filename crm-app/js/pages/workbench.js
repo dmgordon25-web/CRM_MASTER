@@ -1,6 +1,7 @@
 import { normalizeStatus } from '../pipeline/constants.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
+import { attachStatusBanner } from '../ui/status_banners.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -244,7 +245,7 @@ function buildColumns(columnKeys, source){
 const RAW_LENS_CONFIGS = {
   longshots: {
     key: 'longshots',
-    label: 'Long Shots',
+    label: 'Leads',
     entity: 'contact',
     selectionScope: 'contacts',
     baseFilter: (record) => {
@@ -351,7 +352,9 @@ const state = {
   dataListener: null,
   dataCache: {
     contacts: null,
-    partners: null
+    partners: null,
+    contactsError: null,
+    partnersError: null
   },
   ready: false
 };
@@ -483,6 +486,8 @@ function attachDataListener(){
   const handler = () => {
     state.dataCache.contacts = null;
     state.dataCache.partners = null;
+    state.dataCache.contactsError = null;
+    state.dataCache.partnersError = null;
     state.lensStates.forEach((lensState) => {
       lensState.baseRecords = null;
       lensState.dataLoaded = false;
@@ -505,35 +510,47 @@ function destroyDataListener(){
 }
 
 async function loadContacts(){
-  if(Array.isArray(state.dataCache.contacts)) return state.dataCache.contacts;
+  if(Array.isArray(state.dataCache.contacts) && !state.dataCache.contactsError){
+    return state.dataCache.contacts;
+  }
   if(typeof window.dbGetAll !== 'function'){
     state.dataCache.contacts = [];
+    state.dataCache.contactsError = null;
     return state.dataCache.contacts;
   }
   try{
     const rows = await window.dbGetAll('contacts');
     state.dataCache.contacts = Array.isArray(rows) ? rows.slice() : [];
+    state.dataCache.contactsError = null;
+    return state.dataCache.contacts;
   }catch (err){
-    state.dataCache.contacts = [];
+    state.dataCache.contacts = null;
+    state.dataCache.contactsError = err;
     console && console.warn && console.warn('[workbench] contacts fetch failed', err);
+    throw err;
   }
-  return state.dataCache.contacts;
 }
 
 async function loadPartners(){
-  if(Array.isArray(state.dataCache.partners)) return state.dataCache.partners;
+  if(Array.isArray(state.dataCache.partners) && !state.dataCache.partnersError){
+    return state.dataCache.partners;
+  }
   if(typeof window.dbGetAll !== 'function'){
     state.dataCache.partners = [];
+    state.dataCache.partnersError = null;
     return state.dataCache.partners;
   }
   try{
     const rows = await window.dbGetAll('partners');
     state.dataCache.partners = Array.isArray(rows) ? rows.slice() : [];
+    state.dataCache.partnersError = null;
+    return state.dataCache.partners;
   }catch (err){
-    state.dataCache.partners = [];
+    state.dataCache.partners = null;
+    state.dataCache.partnersError = err;
     console && console.warn && console.warn('[workbench] partners fetch failed', err);
+    throw err;
   }
-  return state.dataCache.partners;
 }
 
 function createLensState(config){
@@ -557,7 +574,9 @@ function createLensState(config){
     tableListener: null,
     savedQueryId: null,
     shouldAutoRun: layout.lastActive === config.key,
-    pendingRender: false
+    pendingRender: false,
+    lastError: null,
+    statusBanner: null
   };
 }
 
@@ -1037,20 +1056,23 @@ function updateCounts(lensState){
 }
 
 function updateStatusMessage(lensState){
-  const { elements, visibleRows } = lensState;
-  if(!elements.status) return;
+  const { visibleRows, statusBanner } = lensState;
+  if(!statusBanner) return;
   if(lensState.loading){
-    elements.status.textContent = 'Loading…';
-    elements.status.classList.remove('muted');
+    statusBanner.showLoading('Loading…');
+    return;
+  }
+  if(lensState.lastError){
+    statusBanner.showError('We couldn’t load this view. Please try again.', {
+      onRetry: () => runLensQuery(lensState, { reuseBase: false })
+    });
     return;
   }
   if(!visibleRows.length){
-    elements.status.textContent = 'No records match these filters. Adjust filters or add records to see them here.';
-    elements.status.classList.remove('muted');
+    statusBanner.showEmpty('No records match these filters. Adjust filters or add records to see them here.');
     return;
   }
-  elements.status.textContent = '';
-  elements.status.classList.add('muted');
+  statusBanner.clear();
 }
 
 function syncSelectionForLens(lensState){
@@ -1090,14 +1112,12 @@ function renderTable(lensState){
   const tbody = elements.tbody;
   if(!tbody) return;
   tbody.innerHTML = '';
+  if(lensState.lastError){
+    updateStatusMessage(lensState);
+    syncSelectionForLens(lensState);
+    return;
+  }
   if(!visibleRows.length){
-    const emptyRow = document.createElement('tr');
-    const cell = document.createElement('td');
-    cell.colSpan = config.columns.length + 1;
-    cell.className = 'muted';
-    cell.textContent = 'Nothing here yet. Adjust filters or add records to populate this table.';
-    emptyRow.appendChild(cell);
-    tbody.appendChild(emptyRow);
     updateStatusMessage(lensState);
     syncSelectionForLens(lensState);
     return;
@@ -1176,6 +1196,7 @@ async function runLensQuery(lensState, options = {}){
   const { config } = lensState;
   const reuseBase = options.reuseBase === true;
   setLoading(lensState, true);
+  lensState.lastError = null;
   try{
     if(!reuseBase){
       await ensureBaseRecords(lensState);
@@ -1191,9 +1212,17 @@ async function runLensQuery(lensState, options = {}){
     applySearch(lensState);
     renderTable(lensState);
     updateCounts(lensState);
-    updateStatusMessage(lensState);
+    lensState.lastError = null;
+  }catch (err){
+    lensState.lastError = err;
+    lensState.rows = [];
+    lensState.visibleRows = [];
+    lensState.dataLoaded = false;
+    renderTable(lensState);
+    updateCounts(lensState);
   }finally{
     setLoading(lensState, false);
+    updateStatusMessage(lensState);
   }
 }
 
@@ -1529,8 +1558,12 @@ function buildWindow(lensState){
   searchRow.appendChild(searchInput);
 
   const status = document.createElement('div');
-  status.className = 'muted';
+  status.className = 'workbench-status muted';
   status.style.marginLeft = 'auto';
+  status.style.display = 'flex';
+  status.style.alignItems = 'center';
+  status.style.gap = '8px';
+  status.style.minHeight = '24px';
   searchRow.appendChild(status);
 
   body.appendChild(searchRow);
@@ -1592,6 +1625,8 @@ function buildWindow(lensState){
     thead,
     tbody
   };
+
+  lensState.statusBanner = attachStatusBanner(status, { tone: 'muted' });
 
   table.addEventListener('click', (event) => handleRowClick(event, lensState));
 

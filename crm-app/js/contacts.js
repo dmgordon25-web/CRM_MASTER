@@ -1508,6 +1508,41 @@ export function ensureContactModalReady(){
   return modalReadyPromise;
 }
 
+function ensureFullContactButton(){
+  if(typeof document === 'undefined') return;
+  const header = document.querySelector('#view-longshots .card > .row');
+  if(!header) return;
+  if(header.querySelector('[data-qa="new-contact-full"]')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn brand';
+  button.dataset.qa = 'new-contact-full';
+  button.textContent = 'Open Full Contact Editor';
+  button.addEventListener('click', (event) => {
+    if(event) event.preventDefault();
+    openContactModal(null, { sourceHint: 'contacts:full-editor', allowAutoOpen: true });
+  });
+  const filters = header.querySelector('#btn-filters-longshots');
+  if(filters && filters.parentNode === header){
+    header.insertBefore(button, filters);
+  }else{
+    const grow = header.querySelector('.grow');
+    if(grow && grow.parentNode === header){
+      header.insertBefore(button, grow.nextSibling);
+    }else{
+      header.appendChild(button);
+    }
+  }
+}
+
+if(typeof document !== 'undefined'){
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensureFullContactButton, { once: true });
+  }else{
+    ensureFullContactButton();
+  }
+}
+
 if(typeof window !== 'undefined' && typeof window.openContactModal !== 'function'){
   window.openContactModal = function(contactId, options){
     return openContactModal(contactId, options);

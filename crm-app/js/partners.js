@@ -667,6 +667,46 @@ function ensurePartnersBoot(ctx){
 
 ensurePartnersBoot();
 
+function ensureFullPartnerButton(){
+  if(typeof document === 'undefined') return;
+  const header = document.querySelector('#view-partners .card > .row');
+  if(!header) return;
+  if(header.querySelector('[data-qa="new-partner-full"]')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn brand';
+  button.dataset.qa = 'new-partner-full';
+  button.textContent = 'Open Full Partner Editor';
+  button.addEventListener('click', (event) => {
+    if(event) event.preventDefault();
+    try{
+      openPartnerEditModal('', { allowAutoOpen: true, sourceHint: 'partners:full-editor' });
+    }catch (err){
+      try{ console && console.warn && console.warn('[partners] full editor launch failed', err); }
+      catch(_warnErr){}
+    }
+  });
+  const filters = header.querySelector('#btn-filters-partners');
+  if(filters && filters.parentNode === header){
+    header.insertBefore(button, filters);
+  }else{
+    const grow = header.querySelector('.grow');
+    if(grow && grow.parentNode === header){
+      header.insertBefore(button, grow.nextSibling);
+    }else{
+      header.appendChild(button);
+    }
+  }
+}
+
+if(typeof document !== 'undefined'){
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensureFullPartnerButton, { once: true });
+  }else{
+    ensureFullPartnerButton();
+  }
+}
+
 // Phase 1 migration scaffold: optional init(ctx)
 export async function init(ctx){
   try {

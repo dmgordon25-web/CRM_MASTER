@@ -30,7 +30,7 @@ export const __esModule = true;
       icon: '🤝'
     },
     longshots: {
-      label: 'Long Shots',
+      label: 'Leads',
       store: 'contacts',
       type: 'contacts',
       icon: '🎯'

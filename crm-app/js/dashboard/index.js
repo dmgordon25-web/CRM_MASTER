@@ -2,6 +2,7 @@ import { makeDraggableGrid, setDebugTodayMode, setDebugSelectedIds, bumpDebugRes
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
+import { attachStatusBanner } from '../ui/status_banners.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -212,7 +213,8 @@ const DASHBOARD_SKIP_CLICK_WINDOW = 350;
 const celebrationsState = {
   node: null,
   list: null,
-  empty: null,
+  statusHost: null,
+  statusBanner: null,
   shouldRender: false,
   hydrated: false,
   hydrating: false,
@@ -222,7 +224,8 @@ const celebrationsState = {
   pendingHydration: false,
   bindingApplied: false,
   dateFormatter: null,
-  items: []
+  items: [],
+  lastError: null
 };
 
 const scheduleIdleTask = (typeof win !== 'undefined' && win && typeof win.requestIdleCallback === 'function')
@@ -237,7 +240,7 @@ function resolveCelebrationsWidget() {
 
 function ensureCelebrationsWidgetShell() {
   if (!doc) return null;
-  let { node, list, empty } = celebrationsState;
+  let { node, list, statusHost } = celebrationsState;
   const container = getDashboardContainerNode();
   if (!container) return (node && node.isConnected) ? node : null;
   const ensureInserted = target => {
@@ -273,19 +276,23 @@ function ensureCelebrationsWidgetShell() {
       head.appendChild(icon);
       head.appendChild(textWrap);
       node.appendChild(head);
+      statusHost = doc.createElement('div');
+      statusHost.className = 'celebrations-status muted';
+      statusHost.dataset.role = 'celebrations-status';
+      statusHost.style.display = 'flex';
+      statusHost.style.alignItems = 'center';
+      statusHost.style.gap = '8px';
+      statusHost.style.minHeight = '24px';
+      node.appendChild(statusHost);
       list = doc.createElement('ul');
       list.className = 'insight-list spotlight';
       list.id = `${CELEBRATIONS_WIDGET_ID}-list`;
       list.dataset.widget = CELEBRATIONS_WIDGET_KEY;
       node.appendChild(list);
-      empty = doc.createElement('div');
-      empty.className = 'empty muted';
-      empty.dataset.role = 'celebrations-empty';
-      empty.textContent = 'No upcoming celebrations in the next 7 days.';
-      node.appendChild(empty);
       celebrationsState.node = node;
       celebrationsState.list = list;
-      celebrationsState.empty = empty;
+      celebrationsState.statusHost = statusHost;
+      celebrationsState.statusBanner = attachStatusBanner(statusHost, { tone: 'muted' });
     } else {
       ensureInserted(node);
     }
@@ -294,9 +301,12 @@ function ensureCelebrationsWidgetShell() {
     list = node ? node.querySelector('ul.insight-list') : null;
     celebrationsState.list = list;
   }
-  if (!empty || !empty.isConnected) {
-    empty = node ? node.querySelector('[data-role="celebrations-empty"]') : null;
-    celebrationsState.empty = empty;
+  if (!statusHost || !statusHost.isConnected) {
+    statusHost = node ? node.querySelector('[data-role="celebrations-status"]') : null;
+    celebrationsState.statusHost = statusHost;
+    celebrationsState.statusBanner = statusHost ? attachStatusBanner(statusHost, { tone: 'muted' }) : null;
+  } else if (!celebrationsState.statusBanner) {
+    celebrationsState.statusBanner = attachStatusBanner(statusHost, { tone: 'muted' });
   }
   if (node) {
     ensureInserted(node);
@@ -348,7 +358,7 @@ function formatCelebrationCountdown(days) {
 
 function renderCelebrationsItems(items) {
   const node = ensureCelebrationsWidgetShell();
-  const { list, empty } = celebrationsState;
+  const { list, statusBanner } = celebrationsState;
   celebrationsState.items = Array.isArray(items) ? items.slice() : [];
   if (!node || !list) return;
   while (list.firstChild) {
@@ -357,17 +367,15 @@ function renderCelebrationsItems(items) {
   if (!items || !items.length) {
     if (list.style) list.style.display = 'none';
     list.hidden = true;
-    if (empty) {
-      if (empty.style) empty.style.display = '';
-      empty.hidden = false;
+    if (statusBanner) {
+      statusBanner.showEmpty('No upcoming celebrations in the next 7 days.');
     }
     return;
   }
   if (list.style) list.style.display = '';
   list.hidden = false;
-  if (empty) {
-    if (empty.style) empty.style.display = 'none';
-    empty.hidden = true;
+  if (statusBanner) {
+    statusBanner.clear();
   }
   const frag = doc.createDocumentFragment();
   items.forEach(item => {
@@ -604,28 +612,51 @@ async function runCelebrationsHydration() {
     return;
   }
   const node = ensureCelebrationsWidgetShell();
-  const { list } = celebrationsState;
+  const { list, statusBanner } = celebrationsState;
   if (!node || !list) return;
   celebrationsState.hydrating = true;
   celebrationsState.pendingHydration = false;
+  if (statusBanner) {
+    statusBanner.showLoading('Loading…');
+  }
   let contacts = [];
   if (win && typeof win.dbGetAll === 'function') {
     try {
       contacts = await win.dbGetAll('contacts');
     } catch (err) {
       contacts = [];
-      try {
-        if (console && console.warn) console.warn('[dashboard] celebrations fetch failed', err);
-      } catch (_warnErr) {}
+      celebrationsState.hydrating = false;
+      celebrationsState.hydrated = false;
+      celebrationsState.lastError = err;
+      if (statusBanner) {
+        statusBanner.showError('We couldn’t load celebrations. Please try again.', {
+          onRetry: () => {
+            celebrationsState.lastError = null;
+            celebrationsState.dirty = true;
+            scheduleCelebrationsHydration();
+          }
+        });
+      }
+      return;
     }
   } else if (typeof window !== 'undefined' && typeof window.dbGetAll === 'function') {
     try {
       contacts = await window.dbGetAll('contacts');
     } catch (err) {
       contacts = [];
-      try {
-        if (console && console.warn) console.warn('[dashboard] celebrations fetch failed', err);
-      } catch (_warnErr) {}
+      celebrationsState.hydrating = false;
+      celebrationsState.hydrated = false;
+      celebrationsState.lastError = err;
+      if (statusBanner) {
+        statusBanner.showError('We couldn’t load celebrations. Please try again.', {
+          onRetry: () => {
+            celebrationsState.lastError = null;
+            celebrationsState.dirty = true;
+            scheduleCelebrationsHydration();
+          }
+        });
+      }
+      return;
     }
   }
   const today = new Date();
@@ -634,10 +665,19 @@ async function runCelebrationsHydration() {
   try {
     items = await computeCelebrationItems(contacts, baseDate);
   } catch (err) {
-    try {
-      if (console && console.warn) console.warn('[dashboard] celebrations compute failed', err);
-    } catch (_warnErr) {}
-    items = [];
+    celebrationsState.hydrating = false;
+    celebrationsState.hydrated = false;
+    celebrationsState.lastError = err;
+    if (statusBanner) {
+      statusBanner.showError('We couldn’t process celebrations. Please try again.', {
+        onRetry: () => {
+          celebrationsState.lastError = null;
+          celebrationsState.dirty = true;
+          scheduleCelebrationsHydration();
+        }
+      });
+    }
+    return;
   }
   if (!celebrationsState.shouldRender) {
     celebrationsState.hydrating = false;
@@ -647,6 +687,7 @@ async function runCelebrationsHydration() {
   celebrationsState.hydrating = false;
   celebrationsState.hydrated = true;
   celebrationsState.dirty = false;
+  celebrationsState.lastError = null;
   renderCelebrationsItems(items);
   if (celebrationsState.pendingHydration || celebrationsState.dirty) {
     celebrationsState.pendingHydration = false;

@@ -29,6 +29,10 @@ let idleTimer = null;
 
 const noop = () => {};
 let requestShutdown = noop;
+let serverClosePromise = null;
+let cleanupPromise = null;
+let cleanupLogged = false;
+let exitScheduled = false;
 
 function clearIdleTimer() {
   if (idleTimer) {
@@ -533,12 +537,73 @@ const server = http.createServer((req, res) => {
   send(res, 404, 'Not Found');
 });
 
-requestShutdown = () => {
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 3000).unref();
-};
+function closeServer(){
+  if(serverClosePromise) return serverClosePromise;
+  serverClosePromise = new Promise((resolve) => {
+    try {
+      if(!server.listening){
+        resolve();
+        return;
+      }
+      server.close(() => resolve());
+    } catch {
+      resolve();
+    }
+  });
+  return serverClosePromise;
+}
+
+function logClosedOnce(){
+  if(cleanupLogged) return;
+  cleanupLogged = true;
+  console.info('DEV_SERVER: closed');
+}
+
+function cleanupAll(){
+  if(cleanupPromise) return cleanupPromise;
+  cleanupPromise = (async () => {
+    clearIdleTimer();
+    activeSessions.clear();
+    try {
+      await closeServer();
+    } catch {}
+    logClosedOnce();
+  })();
+  return cleanupPromise;
+}
+
+function exitProcess(code = 0){
+  if(exitScheduled) return cleanupPromise || Promise.resolve();
+  exitScheduled = true;
+  const fallback = setTimeout(() => {
+    logClosedOnce();
+    process.exit(code);
+  }, 4000);
+  if(typeof fallback.unref === 'function') fallback.unref();
+  cleanupAll().finally(() => {
+    clearTimeout(fallback);
+    process.exit(code);
+  });
+  return cleanupPromise;
+}
+
+requestShutdown = () => exitProcess(0);
 
 console.info('[VIS] shutdown endpoints ready');
+
+['SIGINT', 'SIGTERM'].forEach((sig) => {
+  process.once(sig, () => {
+    exitProcess(0);
+  });
+});
+
+process.once('beforeExit', () => {
+  cleanupAll().catch(() => {});
+});
+
+process.once('exit', () => {
+  logClosedOnce();
+});
 
 function listenOnPort(port) {
   return new Promise((resolve, reject) => {
@@ -619,21 +684,7 @@ async function start() {
     openBrowser(url);
   }
 
-  let shuttingDown = false;
-  const shutdown = () => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    clearIdleTimer();
-    activeSessions.clear();
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 3000).unref();
-  };
-
-  requestShutdown = shutdown;
-
-  ['SIGINT', 'SIGTERM'].forEach((sig) => {
-    process.on(sig, shutdown);
-  });
+  requestShutdown = () => exitProcess(0);
 
   server.on('error', (err) => {
     const message = err && err.message ? err.message : String(err);
