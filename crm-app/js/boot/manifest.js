@@ -80,6 +80,7 @@ export const PATCHES = [
   './partners.js',
   './partners_modal.js',
   './partners/list.js',
+  './partners_detail.js',
   './partners_merge.js',
   './partners_merge_orchestrator.js',
   './dash_range.js',

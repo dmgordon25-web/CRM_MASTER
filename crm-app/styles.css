@@ -1,4 +1,5 @@
 @import url("./css/tokens.css");
+@import url("./css/partners.css");
 
 :root{--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:20px;--shadow-card:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.05);--bg:var(--surface-background);--panel:var(--surface-panel);--ink:var(--text-primary);--muted:var(--text-muted);--brand:var(--primary);--ok:#16a34a;--warn:#f59e0b;--bad:#dc2626;--ring:var(--focus-ring);--fab-safe-bottom:clamp(12px,env(safe-area-inset-bottom) + 16px,32px);--stage-new:#dbeafe;--stage-qualified:#ede9fe;--stage-negotiating:#fef3c7;--stage-ctc:#dcfce7;--stage-won:#bbf7d0;--stage-lost:#fee2e2;--tone-progress-bg:var(--stage-new);--tone-progress-border:#bfdbfe;--tone-progress-text:#1d4ed8;--tone-success-bg:var(--stage-ctc);--tone-success-border:#86efac;--tone-success-text:#166534;--tone-warning-bg:var(--stage-negotiating);--tone-warning-border:#fcd34d;--tone-warning-text:#92400e;--tone-danger-bg:var(--stage-lost);--tone-danger-border:#fca5a5;--tone-danger-text:#b91c1c}
 html,body{height:100%}
