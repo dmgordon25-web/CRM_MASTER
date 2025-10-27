@@ -360,7 +360,7 @@ function shouldValidateGeneral(partial){
       graphs: buildDefaultToggleMap(DASHBOARD_GRAPH_KEYS),
       widgetCards: buildDefaultToggleMap(DASHBOARD_WIDGET_CARD_KEYS),
       kpis: buildDefaultToggleMap(DASHBOARD_KPI_KEYS),
-      layout: { columns: DASHBOARD_LAYOUT_MIN_COLUMNS }
+      layout: { columns: DASHBOARD_LAYOUT_MIN_COLUMNS, widths: {} }
     };
     const source = input && typeof input === 'object' ? input : {};
     const widgetsSource = source.widgets && typeof source.widgets === 'object' ? source.widgets : {};
@@ -416,8 +416,23 @@ function shouldValidateGeneral(partial){
         layoutColumns = Math.min(DASHBOARD_LAYOUT_MAX_COLUMNS, Math.max(DASHBOARD_LAYOUT_MIN_COLUMNS, rounded));
       }
     }
+    const widthSource = layoutSource && typeof layoutSource.widths === 'object' ? layoutSource.widths : {};
+    const widthMap = {};
+    const allowedWidths = ['third','half','twoThird','full'];
+    Object.keys(widthSource).forEach(key => {
+      const normalizedKey = key == null ? '' : String(key).trim();
+      if(!normalizedKey) return;
+      const raw = widthSource[key];
+      const text = typeof raw === 'string' ? raw.trim() : '';
+      if(!text) return;
+      const lower = text.toLowerCase();
+      const match = allowedWidths.includes(text) ? text : (allowedWidths.includes(lower) ? lower : '');
+      if(match) {
+        widthMap[normalizedKey] = match;
+      }
+    });
     const mode = source.mode === 'all' ? 'all' : 'today';
-    return { mode, widgets, graphs, widgetCards, kpis, layout: { columns: layoutColumns } };
+    return { mode, widgets, graphs, widgetCards, kpis, layout: { columns: layoutColumns, widths: widthMap } };
   }
 
   function normalizeDashboardOrder(input){
