@@ -1,4 +1,4 @@
-import { listNotifications, onNotificationsChanged, replaceNotifications } from '../notifications/notifier.js';
+import { listNotifications, onNotificationsChanged, setNotificationsState } from '../notifications/notifier.js';
 import { toastInfo, toastSoftError } from './toast_helpers.js';
 
 if (!window.__WIRED_NOTIF_TAB_COUNT__) {
@@ -20,7 +20,6 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
     const meta = isRecord(item.meta) ? item.meta : {};
     const copy = Object.assign({}, item);
     copy.meta = Object.assign({}, meta);
-    if (copy.meta.read === true) copy.read = true;
     return copy;
   }
 
@@ -44,15 +43,18 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
   }
 
   function isRead(item) {
-    if (!isRecord(item)) return false;
-    if (item.read === true) return true;
-    return item.meta && item.meta.read === true;
+    return isRecord(item) && item.state === 'read';
+  }
+
+  function isArchived(item) {
+    return isRecord(item) && item.state === 'archived';
   }
 
   function unreadCount(list) {
     const source = Array.isArray(list) ? list : latest;
     let count = 0;
     for (let i = 0; i < source.length; i++) {
+      if (isArchived(source[i])) continue;
       if (!isRead(source[i])) count += 1;
     }
     return count;
@@ -113,7 +115,7 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
 
     ensureBadgeDisplayCache();
 
-    const items = Array.isArray(list) ? list : [];
+    const items = Array.isArray(list) ? list.filter(item => !isArchived(item)) : [];
     if (!items.length) {
       renderEmptyState(host);
       return;
@@ -141,23 +143,18 @@ if (!window.__WIRED_NOTIF_TAB_COUNT__) {
 
   function persistReadAll(list) {
     if (!Array.isArray(list) || !list.length) return null;
-    let changed = false;
-    const next = list.map(item => {
-      if (!isRecord(item)) return item;
-      if (isRead(item)) return item;
-      changed = true;
-      const meta = isRecord(item.meta) ? Object.assign({}, item.meta) : {};
-      meta.read = true;
-      return Object.assign({}, item, { read: true, meta });
-    });
-    if (!changed) {
+    const unreadIds = list
+      .filter(item => isRecord(item) && !isRead(item) && !isArchived(item))
+      .map(item => item.id)
+      .filter(Boolean);
+    if (!unreadIds.length) {
       console.info('notifications panel: mark-all read skipped; nothing unread');
       return null;
     }
     try {
-      replaceNotifications(next);
+      const updated = setNotificationsState(unreadIds, 'read');
       persistErrorNotified = false;
-      return next.map(cloneNotification).filter(Boolean);
+      return updated.map(cloneNotification).filter(Boolean);
     } catch (err) {
       const label = 'notifications panel: unable to persist mark-all read';
       if (!persistErrorNotified) {

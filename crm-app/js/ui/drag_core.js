@@ -363,9 +363,9 @@ function updateGridOverlayAppearance(state){
     const stepX = Math.max(1, Math.round(metrics.stepX || metrics.colWidth || 1));
     const stepY = Math.max(1, Math.round(metrics.stepY || metrics.rowHeight || 1));
     const gap = Math.max(0, Math.round(metrics.gap || 0));
-    overlay.style.setProperty('--dash-grid-step-x', `${stepX}px`);
-    overlay.style.setProperty('--dash-grid-step-y', `${stepY}px`);
-    overlay.style.setProperty('--dash-grid-gap', `${gap}px`);
+    overlay.style.setProperty('--dash-grid-step-x', String(stepX) + 'px');
+    overlay.style.setProperty('--dash-grid-step-y', String(stepY) + 'px');
+    overlay.style.setProperty('--dash-grid-gap', String(gap) + 'px');
   }
   return overlay;
 }
@@ -727,7 +727,7 @@ function beginGridDrag(state, item, evt){
   state.originX = evt.clientX;
   state.originY = evt.clientY;
   refreshItemsMeta(state);
-  state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow']);
+  state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow','opacity']);
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
   if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
@@ -760,7 +760,8 @@ function beginGridDrag(state, item, evt){
   item.style.pointerEvents = 'none';
   item.style.zIndex = '50';
   item.style.willChange = 'transform';
-  item.style.boxShadow = '0 18px 36px rgba(15,23,42,0.16)';
+  item.style.boxShadow = '0 22px 44px rgba(15,23,42,0.18)';
+  item.style.opacity = '0.72';
   state.grabOffsetX = evt.clientX - itemRect.left;
   state.grabOffsetY = evt.clientY - itemRect.top;
   state.moveListener = moveEvt => handleGridPointerMove(moveEvt, state);

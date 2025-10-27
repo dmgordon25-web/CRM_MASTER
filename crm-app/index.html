@@ -115,6 +115,10 @@
    <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <h2 style="margin:0;font-size:18px">Dashboard</h2>
     <span class="muted" id="dashboard-mode-caption">Focus on today&#39;s priorities.</span>
+    <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button" aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
+     <span data-mode="view">Edit layout</span>
+     <span data-mode="edit" hidden>Done editing</span>
+    </button>
     <span class="grow"></span>
     <div class="row" role="group" aria-label="Dashboard scope">
      <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
@@ -1304,6 +1308,7 @@
   <section class="card" id="notifications-shell">
    <div class="row" style="align-items:center;gap:12px;margin-bottom:8px">
     <strong>Notifications Center</strong>
+    <span class="help-hint" id="notifications-help" role="button" tabindex="0" aria-label="How notifications behave" title="Unread notifications stay in your bell until you mark them read or archive them. Sent items are tracked automatically.">?</span>
     <span class="badge-pill" id="notifications-count-pill" style="display:none"></span>
     <div class="grow"></div>
     <button class="btn" id="notifications-export" aria-label="Export notifications to CSV" title="Export notifications to CSV">Export CSV</button>

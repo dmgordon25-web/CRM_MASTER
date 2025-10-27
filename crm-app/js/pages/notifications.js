@@ -1,5 +1,9 @@
 import { listNotifications, clearNotifications, removeNotification, onNotificationsChanged } from '../notifications/notifier.js';
 
+function isArchived(item) {
+  return !!(item && typeof item === 'object' && item.state === 'archived');
+}
+
 function onNodeRemoved(node, callback) {
   if (!node || typeof callback !== 'function' || typeof MutationObserver !== 'function') {
     return () => {};
@@ -66,7 +70,8 @@ function createLayout(){
 
 function renderList(listEl){
   const items = listNotifications();
-  if (!Array.isArray(items) || !items.length) {
+  const activeItems = Array.isArray(items) ? items.filter(item => !isArchived(item)) : [];
+  if (!activeItems.length) {
     const empty = document.createElement('div');
     empty.setAttribute('role', 'note');
     empty.textContent = 'No notifications yet. Workflow alerts and reminders will show up here.';
@@ -79,7 +84,7 @@ function renderList(listEl){
   ul.style.padding = '0';
   ul.style.margin = '0';
 
-  items.forEach((item) => {
+  activeItems.forEach((item) => {
     const li = document.createElement('li');
     li.style.padding = '8px 0';
     li.style.borderBottom = '1px solid rgba(0,0,0,0.06)';

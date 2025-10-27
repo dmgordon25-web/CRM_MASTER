@@ -628,6 +628,19 @@
       exportBtn.__wired = true;
       exportBtn.addEventListener('click', ()=>{ exportCurrentQueue(); });
     }
+    const help = document.getElementById('notifications-help');
+    if(help && !help.__wired){
+      help.__wired = true;
+      const explain = () => {
+        const message = 'Unread notifications stay in the bell until you mark them read or archive them. Sent items update automatically.';
+        if(typeof toast === 'function') toast(message);
+        else if(typeof alert === 'function') alert(message);
+      };
+      help.addEventListener('click', (evt)=>{ evt.preventDefault(); explain(); });
+      help.addEventListener('keydown', (evt)=>{
+        if(evt.key === 'Enter' || evt.key === ' '){ evt.preventDefault(); explain(); }
+      });
+    }
     renderNotifications();
   }
 

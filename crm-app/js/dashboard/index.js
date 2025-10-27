@@ -1,4 +1,5 @@
 import { makeDraggableGrid, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
+import { setDashboardLayoutMode, readStoredLayoutMode } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -22,6 +23,7 @@ const DASHBOARD_CONTAINER_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASHBOARD_ITEM_SELECTOR = ':scope > [data-dash-widget]';
 const DASHBOARD_WIDGET_NODE_SELECTOR = 'section.card, section.grid, div.card, section.status-stack';
 const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
+const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
 const DASHBOARD_CLICK_THRESHOLD = 5;
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
@@ -214,6 +216,17 @@ const dashDnDState = {
   resizeSession: null
 };
 
+const layoutToggleState = {
+  button: null,
+  viewLabel: null,
+  editLabel: null,
+  mode: false,
+  wired: false,
+  storageBound: false,
+  bootstrapped: false,
+  modeListenerBound: false
+};
+
 const pointerTapState = new Map();
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
@@ -240,6 +253,132 @@ const celebrationsState = {
 const scheduleIdleTask = (typeof win !== 'undefined' && win && typeof win.requestIdleCallback === 'function')
   ? cb => win.requestIdleCallback(cb)
   : cb => setTimeout(() => cb({ didTimeout: true, timeRemaining: () => 0 }), 0);
+
+function resolveLayoutToggleButton() {
+  if (!doc) return null;
+  const button = doc.querySelector('[data-dashboard-action="layout-toggle"]');
+  return button || null;
+}
+
+function dispatchLayoutModeEvent(enabled) {
+  if (!doc || typeof doc.dispatchEvent !== 'function') return;
+  const CustomEventCtor = typeof CustomEvent === 'function'
+    ? CustomEvent
+    : (win && typeof win.CustomEvent === 'function' ? win.CustomEvent : null);
+  if (!CustomEventCtor) return;
+  try {
+    doc.dispatchEvent(new CustomEventCtor('dashboard:layout-mode', { detail: { enabled: !!enabled, source: 'dashboard-toggle' } }));
+  } catch (_err) {}
+}
+
+function updateLayoutToggleButton(enabled) {
+  const button = layoutToggleState.button || resolveLayoutToggleButton();
+  if (!button) return;
+  const next = !!enabled;
+  button.setAttribute('aria-pressed', next ? 'true' : 'false');
+  if (button.classList) {
+    if (next) {
+      button.classList.add('active');
+    } else {
+      button.classList.remove('active');
+    }
+  }
+  const viewLabel = layoutToggleState.viewLabel && layoutToggleState.viewLabel.isConnected
+    ? layoutToggleState.viewLabel
+    : button.querySelector('[data-mode="view"]');
+  const editLabel = layoutToggleState.editLabel && layoutToggleState.editLabel.isConnected
+    ? layoutToggleState.editLabel
+    : button.querySelector('[data-mode="edit"]');
+  if (viewLabel) {
+    viewLabel.hidden = next;
+    layoutToggleState.viewLabel = viewLabel;
+  }
+  if (editLabel) {
+    editLabel.hidden = !next;
+    layoutToggleState.editLabel = editLabel;
+  }
+  button.dataset.layoutMode = next ? 'edit' : 'view';
+}
+
+function applyLayoutToggleMode(enabled, options = {}) {
+  const next = !!enabled;
+  layoutToggleState.mode = next;
+  updateLayoutToggleButton(next);
+  if (options.commit !== false) {
+    const setOptions = {};
+    if (options.persist === false) setOptions.persist = false;
+    if (options.force) setOptions.force = true;
+    if (options.silent) setOptions.silent = true;
+    setDashboardLayoutMode(next, setOptions);
+  }
+  if (options.dispatch !== false && options.commit !== false) {
+    dispatchLayoutModeEvent(next);
+  }
+}
+
+function handleLayoutToggleClick(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+  applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
+}
+
+function handleLayoutToggleKeydown(evt) {
+  if (!evt) return;
+  const key = evt.key || evt.code || '';
+  if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+  evt.preventDefault();
+  evt.stopPropagation();
+  if (evt.repeat) return;
+  applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
+}
+
+function handleExternalLayoutMode(evt) {
+  if (!evt) return;
+  const detail = evt.detail && typeof evt.detail === 'object' ? evt.detail : {};
+  if (detail.source === 'dashboard-toggle') return;
+  if (!Object.prototype.hasOwnProperty.call(detail, 'enabled')) return;
+  applyLayoutToggleMode(!!detail.enabled, { commit: false });
+}
+
+function handleLayoutToggleStorage(evt) {
+  if (!evt || typeof evt.key !== 'string') return;
+  if (evt.key !== DASHBOARD_LAYOUT_MODE_STORAGE_KEY) return;
+  applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: false });
+}
+
+function ensureLayoutToggle() {
+  const button = resolveLayoutToggleButton();
+  if (!button) {
+    layoutToggleState.button = null;
+    layoutToggleState.viewLabel = null;
+    layoutToggleState.editLabel = null;
+    layoutToggleState.wired = false;
+    return null;
+  }
+  layoutToggleState.button = button;
+  if (!layoutToggleState.bootstrapped) {
+    applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: true, persist: false, force: true, dispatch: false });
+    layoutToggleState.bootstrapped = true;
+  } else {
+    updateLayoutToggleButton(layoutToggleState.mode);
+  }
+  if (!layoutToggleState.wired) {
+    button.addEventListener('click', handleLayoutToggleClick);
+    button.addEventListener('keydown', handleLayoutToggleKeydown);
+    layoutToggleState.wired = true;
+  }
+  if (!layoutToggleState.modeListenerBound && doc) {
+    doc.addEventListener('dashboard:layout-mode', handleExternalLayoutMode);
+    layoutToggleState.modeListenerBound = true;
+  }
+  if (!layoutToggleState.storageBound && win && typeof win.addEventListener === 'function') {
+    win.addEventListener('storage', handleLayoutToggleStorage);
+    layoutToggleState.storageBound = true;
+  }
+  return button;
+}
 
 function resolveCelebrationsWidget() {
   const { node } = celebrationsState;
@@ -1872,6 +2011,9 @@ function ensureWidgetDnD() {
     if (dashDnDState.resizeSession) finishWidgetResize(null, false);
     return;
   }
+  if (typeof ensureLayoutToggle === 'function') {
+    ensureLayoutToggle();
+  }
   dashDnDState.container = container;
   const columns = getPreferredLayoutColumns();
   dashDnDState.columns = columns;
@@ -2507,10 +2649,16 @@ function init() {
   if (!doc) return;
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', () => {
+      if (typeof ensureLayoutToggle === 'function') {
+        ensureLayoutToggle();
+      }
       scheduleApply();
       ensureWidgetDnD();
     }, { once: true });
   } else {
+    if (typeof ensureLayoutToggle === 'function') {
+      ensureLayoutToggle();
+    }
     scheduleApply();
     ensureWidgetDnD();
   }
