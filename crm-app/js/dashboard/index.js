@@ -7,6 +7,12 @@ import { attachStatusBanner } from '../ui/status_banners.js';
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
 
+function setDebugWidths(values) {
+  if (!win || typeof win !== 'object') return;
+  const root = win.__DND_DEBUG__ && typeof win.__DND_DEBUG__ === 'object' ? win.__DND_DEBUG__ : (win.__DND_DEBUG__ = {});
+  root.widths = Array.isArray(values) ? values.map(val => (val == null ? '' : String(val))).filter(Boolean) : [];
+}
+
 const CELEBRATIONS_WIDGET_KEY = 'upcomingCelebrations';
 const CELEBRATIONS_WIDGET_ID = 'dashboard-celebrations';
 const CELEBRATIONS_WIDGET_TITLE = 'Upcoming Birthdays & Anniversaries (7 days)';
@@ -24,14 +30,16 @@ const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
 const DASHBOARD_MIN_COLUMNS = 3;
 const DASHBOARD_MAX_COLUMNS = 4;
 
-const DASHBOARD_WIDTH_OPTIONS = [
-  { key: 'third', label: '⅓' },
-  { key: 'half', label: '½' },
-  { key: 'twoThird', label: '⅔' },
-  { key: 'full', label: 'Full' }
+const DASHBOARD_RESIZE_HANDLES = [
+  { key: 'e', qa: 'resize-e', label: 'Resize from right edge' },
+  { key: 'se', qa: 'resize-se', label: 'Resize from bottom right corner' },
+  { key: 'ne', qa: 'resize-ne', label: 'Resize from top right corner' }
 ];
 
-const DASHBOARD_WIDTH_SET = new Set(DASHBOARD_WIDTH_OPTIONS.map(option => option.key));
+const DASHBOARD_WIDTH_SEQUENCE = ['third', 'half', 'twoThird', 'full'];
+const DASHBOARD_WIDTH_DEBUG_LABELS = { third: '1/3', half: '1/2', twoThird: '2/3', full: '1/1' };
+
+const DASHBOARD_WIDTH_SET = new Set(DASHBOARD_WIDTH_SEQUENCE);
 const DASHBOARD_DEFAULT_WIDTH = 'third';
 const DASHBOARD_DEFAULT_WIDTHS = {
   today: 'full',
@@ -202,7 +210,8 @@ const dashDnDState = {
   columns: DASHBOARD_MIN_COLUMNS,
   pendingColumns: null,
   lastAppliedColumns: null,
-  widths: new Map()
+  widths: new Map(),
+  resizeSession: null
 };
 
 const pointerTapState = new Map();
@@ -810,7 +819,6 @@ function ensureDashboardDragStyles() {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.9));
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -819,7 +827,7 @@ function ensureDashboardDragStyles() {
   line-height: 1;
   cursor: grab;
   z-index: 3;
-  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease;
 }
 
 .dash-drag-handle::before {
@@ -855,7 +863,6 @@ function ensureDashboardDragStyles() {
   border: 2px dashed rgba(148, 163, 184, 0.55);
   border-radius: 18px;
   background-color: rgba(148, 163, 184, 0.12);
-  background-image: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0, rgba(148, 163, 184, 0.18) 4px, transparent 4px, transparent 8px);
   transition: opacity 0.18s ease;
 }
 
@@ -903,24 +910,79 @@ function ensureDashboardDragStyles() {
   opacity: 1;
 }
 
-.dash-resize-option {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: rgba(30, 41, 59, 0.85);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease;
+.dash-gridlines.dragging {
+  display: block;
 }
 
-.dash-resize-option:hover,
-.dash-resize-option:focus-visible,
-.dash-resize-option.active {
-  background: rgba(99, 102, 241, 0.18);
-  color: rgba(67, 56, 202, 0.98);
+.dash-drag-placeholder.dragging,
+.dash-resize-preview.dragging {
+  opacity: 0.85;
+}
+
+.dash-resize-handle {
+  inset: 0;
+  right: auto;
+  bottom: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  display: block;
+  pointer-events: none;
+}
+
+.dash-resize-handle .dash-resize-grip {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(148, 163, 184, 0.6);
+  background: rgba(248, 250, 252, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(30, 41, 59, 0.82);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.dash-resize-handle .dash-resize-grip:focus-visible {
+  outline: 2px solid var(--focus-ring, #2563eb);
+  outline-offset: 2px;
+}
+
+.dash-resize-handle [data-qa="resize-e"] {
+  top: 50%;
+  right: -9px;
+  margin-top: -9px;
+  cursor: ew-resize;
+}
+
+.dash-resize-handle [data-qa="resize-ne"] {
+  top: -9px;
+  right: -9px;
+  cursor: nesw-resize;
+}
+
+.dash-resize-handle [data-qa="resize-se"] {
+  bottom: -9px;
+  right: -9px;
+  cursor: nwse-resize;
+}
+
+.dash-resize-preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 18px;
+  border: 2px dashed rgba(148, 163, 184, 0.45);
+  background-color: rgba(148, 163, 184, 0.12);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+  transition: opacity 0.18s ease;
 }
 `;
   const head = doc.head || doc.getElementsByTagName('head')[0];
@@ -1077,24 +1139,6 @@ function resolveWidgetWidth(key, node) {
   return fallback;
 }
 
-function updateResizeHandleState(node, widthKey) {
-  if (!node) return;
-  try {
-    const buttons = node.querySelectorAll(':scope > .dash-resize-handle [data-dash-width]');
-    if (!buttons || !buttons.length) return;
-    buttons.forEach(btn => {
-      const targetKey = btn.getAttribute('data-dash-width') || '';
-      const active = targetKey === widthKey;
-      if (active) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-  } catch (_err) {}
-}
-
 function setNodeWidthStyle(node, widthKey, columns) {
   if (!node) return;
   const token = normalizeWidthToken(widthKey) || inferDefaultWidth(node && node.dataset ? node.dataset.dashWidget : '', node);
@@ -1105,7 +1149,6 @@ function setNodeWidthStyle(node, widthKey, columns) {
   if (node.dataset) {
     node.dataset.dashWidth = token;
   }
-  updateResizeHandleState(node, token);
   const key = node && node.dataset ? (node.dataset.dashWidget || node.dataset.widgetId || '') : '';
   if (key) {
     dashDnDState.widths.set(key, token);
@@ -1114,26 +1157,27 @@ function setNodeWidthStyle(node, widthKey, columns) {
 
 function ensureWidgetResizeControl(node) {
   if (!doc || !node) return null;
-  const existing = node.querySelector(':scope > .dash-resize-handle');
-  if (existing) return existing;
-  const handle = doc.createElement('div');
-  handle.className = 'dash-resize-handle';
-  handle.setAttribute('role', 'group');
-  handle.setAttribute('aria-label', 'Resize widget');
-  DASHBOARD_WIDTH_OPTIONS.forEach(option => {
-    const btn = doc.createElement('button');
-    btn.type = 'button';
-    btn.className = 'dash-resize-option';
-    btn.setAttribute('data-dash-width', option.key);
-    btn.textContent = option.label;
-    btn.addEventListener('click', evt => {
-      evt.preventDefault();
-      evt.stopPropagation();
-      setWidgetWidth(node, option.key, { persist: true });
-    });
-    handle.appendChild(btn);
+  let handle = node.querySelector(':scope > .dash-resize-handle');
+  if (!handle || !handle.querySelector('.dash-resize-grip')) {
+    if (handle) handle.remove();
+    handle = doc.createElement('div');
+    handle.className = 'dash-resize-handle';
+    handle.setAttribute('aria-label', 'Resize widget width');
+    node.appendChild(handle);
+  }
+  DASHBOARD_RESIZE_HANDLES.forEach(config => {
+    let grip = handle.querySelector(`[data-qa="${config.qa}"]`);
+    if (!grip) {
+      grip = doc.createElement('button');
+      grip.type = 'button';
+      grip.className = 'dash-resize-grip';
+      grip.setAttribute('data-qa', config.qa);
+      grip.setAttribute('aria-label', config.label);
+      grip.addEventListener('pointerdown', evt => beginWidgetResize(node, evt));
+      grip.addEventListener('click', evt => { evt.preventDefault(); evt.stopPropagation(); });
+      handle.appendChild(grip);
+    }
   });
-  node.appendChild(handle);
   return handle;
 }
 
@@ -1150,6 +1194,7 @@ function applyWidgetWidths(container) {
     const widthKey = resolveWidgetWidth(key, node);
     setNodeWidthStyle(node, widthKey, columns);
   });
+  snapshotLayoutWidths(host);
 }
 
 function setWidgetWidth(node, widthKey, options = {}) {
@@ -1160,15 +1205,145 @@ function setWidgetWidth(node, widthKey, options = {}) {
   const normalizedWidth = normalizeWidthToken(widthKey) || inferDefaultWidth(normalizedKey, node);
   const columns = dashDnDState.lastAppliedColumns || dashDnDState.columns || getPreferredLayoutColumns();
   setNodeWidthStyle(node, normalizedWidth, columns);
-  if (!normalizedKey) return;
-  const map = getWidthPrefsMap();
-  if (map[normalizedKey] === normalizedWidth) return;
-  map[normalizedKey] = normalizedWidth;
-  dashDnDState.widths.set(normalizedKey, normalizedWidth);
-  if (options.persist) {
-    bumpDebugResized();
-    persistDashboardLayoutState(columns, { force: true, includeWidths: true, widths: map });
+  if (normalizedKey) {
+    const map = getWidthPrefsMap();
+    if (map[normalizedKey] !== normalizedWidth) {
+      map[normalizedKey] = normalizedWidth;
+      if (options.persist) {
+        bumpDebugResized();
+        persistDashboardLayoutState(columns, { force: true, includeWidths: true, widths: map });
+      }
+    }
   }
+  snapshotLayoutWidths();
+}
+
+function widthPixelsForToken(token, columns, colWidth, gap) {
+  const span = spanForWidthToken(token, columns);
+  return (colWidth * span) + (gap * Math.max(0, span - 1));
+}
+
+function snapshotLayoutWidths(host) {
+  const container = host || dashDnDState.container || getDashboardContainerNode();
+  if (!container) { setDebugWidths([]); return; }
+  const widths = collectWidgetNodes(container).filter(node => node && (!node.getAttribute || node.getAttribute('aria-hidden') !== 'true') && !(node.style && node.style.display === 'none') && (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function' || window.getComputedStyle(node).display !== 'none')).map(node => {
+      const dataset = node.dataset || {}, key = dataset.dashWidget || dataset.widgetId || node.id || '';
+      const token = normalizeWidthToken(dataset.dashWidth) || (key && dashDnDState.widths.get(key)) || inferDefaultWidth(key, node);
+      const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
+      return DASHBOARD_WIDTH_DEBUG_LABELS[normalized] || normalized;
+    });
+  setDebugWidths(widths);
+}
+
+function handleWidgetResizeMove(evt) {
+  const session = dashDnDState.resizeSession;
+  if (!session) return;
+  if (session.pointerId != null && evt.pointerId != null && evt.pointerId !== session.pointerId) return;
+  evt.preventDefault();
+  const width = Math.min(Math.max(session.minWidth, session.startWidth + (evt.clientX - session.startX)), session.maxWidth);
+  const snap = DASHBOARD_WIDTH_SEQUENCE.reduce((acc, option) => {
+    const candidate = widthPixelsForToken(option, session.columns, session.colWidth, session.gap);
+    const delta = Math.abs(candidate - width);
+    return delta < acc.delta ? { token: option, width: candidate, delta } : acc;
+  }, { token: session.startToken || DASHBOARD_DEFAULT_WIDTH, width, delta: Number.POSITIVE_INFINITY });
+  session.pendingToken = snap.token;
+  if (session.placeholder) session.placeholder.style.width = `${Math.max(1, Math.round(snap.width))}px`;
+}
+
+function onResizePointerMove(evt) { handleWidgetResizeMove(evt); }
+function onResizePointerUp(evt) { finishWidgetResize(evt, true); }
+function onResizePointerCancel(evt) { finishWidgetResize(evt, false); }
+
+function finishWidgetResize(evt, commit) {
+  const session = dashDnDState.resizeSession;
+  if (!session) return;
+  if (evt && session.pointerId != null && evt.pointerId != null && evt.pointerId !== session.pointerId && evt.type !== 'pointercancel') {
+    return;
+  }
+  if (evt && evt.preventDefault) evt.preventDefault();
+  if (evt && evt.stopPropagation) evt.stopPropagation();
+  const docTarget = session.node ? (session.node.ownerDocument || doc) : doc;
+  if (docTarget) {
+    docTarget.removeEventListener('pointermove', onResizePointerMove);
+    docTarget.removeEventListener('pointerup', onResizePointerUp);
+    docTarget.removeEventListener('pointercancel', onResizePointerCancel);
+  }
+  try {
+    if (session.node && session.node.releasePointerCapture && session.pointerId != null) session.node.releasePointerCapture(session.pointerId);
+  } catch (_err) {}
+  const placeholder = session.placeholder;
+  if (placeholder) {
+    placeholder.classList.remove('dragging');
+    if (placeholder.parentElement) try { placeholder.remove(); } catch (_err) {}
+  }
+  session.container.classList.remove('dash-resizing', 'dragging');
+  session.node.classList.remove('dash-resize-active');
+  dashDnDState.resizeSession = null;
+  if (commit && session.node && session.pendingToken) {
+    setWidgetWidth(session.node, session.pendingToken, { persist: true });
+  } else {
+    snapshotLayoutWidths();
+  }
+}
+
+function beginWidgetResize(node, evt) {
+  if (!node || !evt) return;
+  if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
+    if (evt.button != null && evt.button !== 0) return;
+  }
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (!container) return;
+  if (dashDnDState.resizeSession) finishWidgetResize(null, false);
+  evt.preventDefault(); evt.stopPropagation();
+  const nodeRect = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+  const containerRect = container.getBoundingClientRect ? container.getBoundingClientRect() : null;
+  if (!nodeRect || !containerRect) return;
+  const columns = dashDnDState.lastAppliedColumns || dashDnDState.columns || getPreferredLayoutColumns();
+  const gap = resolveGridGap(container);
+  const availableWidth = Math.max(1, containerRect.width - gap * Math.max(0, columns - 1));
+  const colWidth = availableWidth / Math.max(1, columns || 1);
+  const dataset = node.dataset || {};
+  const key = dataset.dashWidget || dataset.widgetId || node.id || '';
+  const startToken = normalizeWidthToken(dataset.dashWidth || (key && dashDnDState.widths.get(key))) || inferDefaultWidth(key, node);
+  if (!doc) return;
+  const placeholder = doc.createElement('div');
+  placeholder.className = 'dash-resize-preview';
+  placeholder.setAttribute('aria-hidden', 'true');
+  placeholder.setAttribute('data-qa', 'dnd-placeholder');
+  placeholder.style.pointerEvents = 'none';
+  container.appendChild(placeholder);
+  const style = placeholder.style;
+  style.left = `${nodeRect.left - containerRect.left}px`; style.top = `${nodeRect.top - containerRect.top}px`;
+  style.width = `${Math.max(1, Math.round(nodeRect.width))}px`; style.height = `${Math.max(1, Math.round(nodeRect.height))}px`;
+  placeholder.classList.add('dragging');
+  container.classList.add('dash-resizing', 'dragging');
+  node.classList.add('dash-resize-active');
+  const session = {
+    node,
+    container,
+    pointerId: evt.pointerId,
+    startX: evt.clientX,
+    startWidth: nodeRect.width,
+    columns,
+    gap,
+    colWidth,
+    minWidth: widthPixelsForToken(DASHBOARD_WIDTH_SEQUENCE[0], columns, colWidth, gap),
+    maxWidth: widthPixelsForToken(DASHBOARD_WIDTH_SEQUENCE[DASHBOARD_WIDTH_SEQUENCE.length - 1], columns, colWidth, gap),
+    startToken,
+    pendingToken: startToken,
+    placeholder,
+  };
+  dashDnDState.resizeSession = session;
+  const docTarget = node.ownerDocument || doc;
+  if (docTarget) {
+    docTarget.addEventListener('pointermove', onResizePointerMove);
+    docTarget.addEventListener('pointerup', onResizePointerUp);
+    docTarget.addEventListener('pointercancel', onResizePointerCancel);
+  }
+  try {
+    if (node.setPointerCapture && evt.pointerId != null) node.setPointerCapture(evt.pointerId);
+  } catch (_err) {}
+  handleWidgetResizeMove(evt);
 }
 
 function persistDashboardLayoutState(columns, options = {}) {
@@ -1679,6 +1854,7 @@ function persistDashboardOrderImmediate() {
   const order = readCurrentDashboardOrder();
   if (!order.length) {
     syncStoredDashboardOrder(order);
+    snapshotLayoutWidths();
     return;
   }
   const signature = order.join('|');
@@ -1686,12 +1862,14 @@ function persistDashboardOrderImmediate() {
     persistDashboardOrder(order);
   }
   syncStoredDashboardOrder(order);
+  snapshotLayoutWidths();
 }
 
 function ensureWidgetDnD() {
   const container = getDashboardContainerNode();
   if (!container) {
     celebrationsState.dndReady = false;
+    if (dashDnDState.resizeSession) finishWidgetResize(null, false);
     return;
   }
   dashDnDState.container = container;
