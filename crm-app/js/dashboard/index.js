@@ -20,6 +20,8 @@ const DASHBOARD_CLICK_THRESHOLD = 5;
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
 const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
 const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
+const DASHBOARD_MIN_COLUMNS = 3;
+const DASHBOARD_MAX_COLUMNS = 4;
 
 const todayHighlightState = {
   modeObserver: null,
@@ -169,12 +171,17 @@ const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
 const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
 
 const prefCache = { value: null, loading: null };
+let lastPersistedLayoutColumns = null;
+let pendingLayoutPersist = null;
 
 const dashDnDState = {
   controller: null,
   container: null,
   orderSignature: '',
-  pointerHandlers: null
+  pointerHandlers: null,
+  columns: DASHBOARD_MIN_COLUMNS,
+  pendingColumns: null,
+  lastAppliedColumns: null
 };
 
 const pointerTapState = new Map();
@@ -822,14 +829,16 @@ function ensureDashboardDragStyles() {
 
 function applyDashboardLayoutClasses(container) {
   if (!container || !container.classList) return;
-  if (container.classList.contains('dash-grid-host')) {
-    container.classList.remove('dash-grid-host');
+  const { classList } = container;
+  if (!classList || typeof classList.contains !== 'function') return;
+  if (classList.contains('dash-grid-host') && typeof classList.remove === 'function') {
+    classList.remove('dash-grid-host');
   }
-  if (!container.classList.contains('grid')) {
-    container.classList.add('grid');
+  if (!classList.contains('grid') && typeof classList.add === 'function') {
+    classList.add('grid');
   }
-  if (!container.classList.contains('insights-grid')) {
-    container.classList.add('insights-grid');
+  if (!classList.contains('insights-grid') && typeof classList.add === 'function') {
+    classList.add('insights-grid');
   }
   const header = container.querySelector('#dashboard-header');
   if (header && header.classList && !header.classList.contains('span-full')) {
@@ -854,6 +863,78 @@ function resolveGridGap(container) {
     }
   } catch (_err) {}
   return 12;
+}
+
+function normalizeColumnCount(value) {
+  const result = { value: DASHBOARD_MIN_COLUMNS, coerced: true };
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    const rounded = Math.round(numeric);
+    const clamped = Math.min(DASHBOARD_MAX_COLUMNS, Math.max(DASHBOARD_MIN_COLUMNS, rounded));
+    result.value = clamped;
+    result.coerced = clamped !== rounded;
+    return result;
+  }
+  return result;
+}
+
+function persistDashboardLayoutColumns(columns, options = {}) {
+  const normalized = normalizeColumnCount(columns);
+  const value = normalized.value;
+  const force = !!options.force;
+  if (!force && lastPersistedLayoutColumns === value && !normalized.coerced) return;
+  lastPersistedLayoutColumns = value;
+  if (!win || !win.Settings || typeof win.Settings.save !== 'function') return;
+  const payload = { dashboard: { layout: { columns: value } } };
+  const promise = Promise.resolve(win.Settings.save(payload))
+    .catch(err => {
+      try {
+        if (console && console.warn) console.warn('[dashboard] layout save failed', err);
+      } catch (_warnErr) {}
+    })
+    .finally(() => {
+      if (pendingLayoutPersist === promise) pendingLayoutPersist = null;
+    });
+  pendingLayoutPersist = promise;
+}
+
+function applyLayoutColumns(columns) {
+  const normalized = normalizeColumnCount(columns);
+  const value = normalized.value;
+  dashDnDState.columns = value;
+  if (prefCache.value && prefCache.value.layout && typeof prefCache.value.layout === 'object') {
+    prefCache.value.layout.columns = value;
+  }
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (!container) {
+    dashDnDState.pendingColumns = value;
+    return;
+  }
+  dashDnDState.pendingColumns = null;
+  dashDnDState.lastAppliedColumns = value;
+  if (container.dataset) {
+    container.dataset.dashColumns = String(value);
+  }
+  if (container.style) {
+    container.style.gridTemplateColumns = `repeat(${value}, minmax(0, 1fr))`;
+  }
+  const gap = resolveGridGap(container);
+  if (dashDnDState.controller && typeof dashDnDState.controller.setGrid === 'function') {
+    dashDnDState.controller.setGrid({
+      gap,
+      columns: value,
+      minColumns: DASHBOARD_MIN_COLUMNS,
+      maxColumns: DASHBOARD_MAX_COLUMNS
+    });
+  }
+}
+
+function getPreferredLayoutColumns() {
+  const sourcePrefs = prefCache.value || defaultPrefs();
+  const layoutValue = sourcePrefs.layout && typeof sourcePrefs.layout === 'object'
+    ? sourcePrefs.layout.columns
+    : DASHBOARD_MIN_COLUMNS;
+  return normalizeColumnCount(layoutValue).value;
 }
 
 function slugify(text) {
@@ -1266,6 +1347,9 @@ function ensureWidgetDnD() {
     return;
   }
   dashDnDState.container = container;
+  const columns = getPreferredLayoutColumns();
+  dashDnDState.columns = columns;
+  applyLayoutColumns(columns);
   const nodes = ensureDashboardWidgets(container);
   const hasNodes = Array.isArray(nodes) && nodes.length > 0;
   celebrationsState.dndReady = hasNodes;
@@ -1281,6 +1365,12 @@ function ensureWidgetDnD() {
   if (!dashDnDState.controller) {
     try {
       const gap = resolveGridGap(container);
+      const gridOptions = {
+        gap,
+        columns,
+        minColumns: DASHBOARD_MIN_COLUMNS,
+        maxColumns: DASHBOARD_MAX_COLUMNS
+      };
       dashDnDState.controller = makeDraggableGrid({
         container,
         itemSel: DASHBOARD_ITEM_SELECTOR,
@@ -1288,15 +1378,33 @@ function ensureWidgetDnD() {
         storageKey: DASHBOARD_ORDER_STORAGE_KEY,
         idGetter: el => (el && el.dataset && el.dataset.dashWidget) ? el.dataset.dashWidget : (el && el.id ? String(el.id).trim() : ''),
         onOrderChange: persistDashboardOrder,
-        grid: { gap }
+        grid: gridOptions
       });
+      if (dashDnDState.controller && typeof dashDnDState.controller.setGrid === 'function') {
+        dashDnDState.controller.setGrid(gridOptions);
+      }
+      if (dashDnDState.pendingColumns != null) {
+        applyLayoutColumns(dashDnDState.pendingColumns);
+      }
     } catch (err) {
       try {
         if (console && console.warn) console.warn('[dashboard] drag init failed', err);
       } catch (_warnErr) {}
     }
-  } else if (typeof dashDnDState.controller.refresh === 'function') {
-    dashDnDState.controller.refresh();
+  } else {
+    const gap = resolveGridGap(container);
+    const gridOptions = {
+      gap,
+      columns,
+      minColumns: DASHBOARD_MIN_COLUMNS,
+      maxColumns: DASHBOARD_MAX_COLUMNS
+    };
+    if (typeof dashDnDState.controller.setGrid === 'function') {
+      dashDnDState.controller.setGrid(gridOptions);
+    }
+    if (typeof dashDnDState.controller.refresh === 'function') {
+      dashDnDState.controller.refresh();
+    }
   }
   wireTileTap(container);
   if (celebrationsState.shouldRender) {
@@ -1324,23 +1432,31 @@ function defaultPrefs() {
     widgets,
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
-    widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS))
+    widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS)),
+    layout: { columns: DASHBOARD_MIN_COLUMNS }
   };
 }
 
 function clonePrefs(prefs) {
+  const columnSource = prefs.layout && typeof prefs.layout === 'object' ? prefs.layout.columns : DASHBOARD_MIN_COLUMNS;
+  const normalizedColumns = normalizeColumnCount(columnSource).value;
   return {
     widgets: Object.assign({}, prefs.widgets),
     kpis: Object.assign({}, prefs.kpis),
     graphs: Object.assign({}, prefs.graphs),
-    widgetCards: Object.assign({}, prefs.widgetCards)
+    widgetCards: Object.assign({}, prefs.widgetCards),
+    layout: { columns: normalizedColumns }
   };
 }
 
 function sanitizePrefs(settings) {
   const prefs = defaultPrefs();
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
-  if (!dash || typeof dash !== 'object') return prefs;
+  if (!dash || typeof dash !== 'object') {
+    lastPersistedLayoutColumns = prefs.layout.columns;
+    persistDashboardLayoutColumns(prefs.layout.columns, { force: true });
+    return prefs;
+  }
   const widgetSource = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
   if (widgetSource) {
     Object.keys(prefs.widgets).forEach(key => {
@@ -1376,6 +1492,15 @@ function sanitizePrefs(settings) {
     Object.keys(prefs.widgetCards).forEach(key => {
       if (typeof widgetCardSource[key] === 'boolean') prefs.widgetCards[key] = widgetCardSource[key];
     });
+  }
+  const layoutSource = dash.layout && typeof dash.layout === 'object' ? dash.layout : null;
+  const normalizedLayout = layoutSource && Object.prototype.hasOwnProperty.call(layoutSource, 'columns')
+    ? normalizeColumnCount(layoutSource.columns)
+    : normalizeColumnCount(undefined);
+  prefs.layout.columns = normalizedLayout.value;
+  lastPersistedLayoutColumns = normalizedLayout.value;
+  if (normalizedLayout.coerced) {
+    persistDashboardLayoutColumns(normalizedLayout.value, { force: true });
   }
   return prefs;
 }
@@ -1685,15 +1810,16 @@ function scheduleApply() {
       prefs = await getSettingsPrefs();
       applySurfaceVisibility(prefs);
       applyKpiVisibility(prefs.kpis);
+      applyLayoutColumns(prefs.layout && prefs.layout.columns);
     } catch (err) {
       if (console && console.warn) console.warn('[dashboard] apply prefs failed', err);
     }
     if (prefs) {
       maybeHydrateCelebrations(prefs);
-    } else if (prefCache.value) {
-      maybeHydrateCelebrations(prefCache.value);
     } else {
-      maybeHydrateCelebrations(defaultPrefs());
+      const fallbackPrefs = prefCache.value || defaultPrefs();
+      applyLayoutColumns(fallbackPrefs.layout && fallbackPrefs.layout.columns);
+      maybeHydrateCelebrations(fallbackPrefs);
     }
     refreshTodayHighlightWiring();
     ensureWidgetDnD();
@@ -1721,6 +1847,31 @@ function handleHiddenChange(evt) {
   refreshTodayHighlightWiring();
 }
 
+function handleLayoutColumnsChange(evt) {
+  const detail = evt && typeof evt === 'object' ? evt.detail : null;
+  const raw = detail && Object.prototype.hasOwnProperty.call(detail, 'columns') ? detail.columns : detail;
+  const normalized = normalizeColumnCount(raw);
+  const value = normalized.value;
+  const current = prefCache.value && prefCache.value.layout && typeof prefCache.value.layout === 'object'
+    ? prefCache.value.layout.columns
+    : null;
+  if (current === value) {
+    applyLayoutColumns(value);
+    return;
+  }
+  if (!prefCache.value) {
+    prefCache.value = defaultPrefs();
+  }
+  if (!prefCache.value.layout || typeof prefCache.value.layout !== 'object') {
+    prefCache.value.layout = { columns: value };
+  } else {
+    prefCache.value.layout.columns = value;
+  }
+  applyLayoutColumns(value);
+  persistDashboardLayoutColumns(value);
+  ensureWidgetDnD();
+}
+
 function init() {
   if (!doc) return;
   if (doc.readyState === 'loading') {
@@ -1741,6 +1892,7 @@ function init() {
     win.addEventListener('hashchange', scheduleApply);
   }
   doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
+  doc.addEventListener('dashboard:layout-columns', handleLayoutColumnsChange);
   doc.addEventListener('app:data:changed', evt => {
     const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
     if (scope === 'settings') invalidatePrefs();
