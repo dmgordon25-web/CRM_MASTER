@@ -111,6 +111,26 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
   const PIPELINE_MILESTONES = [
     'Intro Call','Application Sent','Application Submitted','UW in Progress','Conditions Out','Clear to Close','Docs Out','Funded / Post-Close'
   ];
+  const MILESTONE_ACTIONS = {
+    'Intro Call': 'Send App Invite',
+    'Application Sent': 'Confirm Application Receipt',
+    'Application Submitted': 'Review Submission',
+    'UW in Progress': 'Prep Conditions Checklist',
+    'Conditions Out': 'Request Updated Docs',
+    'Clear to Close': 'Schedule Closing Call',
+    'Docs Out': 'Confirm Closing Package',
+    'Funded / Post-Close': 'Request Review'
+  };
+  const slugifyMilestone = (label)=> String(label||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'milestone';
+  const milestoneMeta = (value)=>{
+    const normalized = String(value||'').trim().toLowerCase();
+    let index = PIPELINE_MILESTONES.findIndex(m=> m.toLowerCase() === normalized);
+    if(index < 0) index = 0;
+    const label = PIPELINE_MILESTONES[index] || PIPELINE_MILESTONES[0];
+    const action = MILESTONE_ACTIONS[label] || 'Log Next Step';
+    const slug = slugifyMilestone(label);
+    return { index, label, action, slug };
+  };
 
   function avatarCharToken(ch){
     if(!ch) return '';
@@ -455,6 +475,17 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           </div>
         </aside>
         <div class="modal-main">
+          <section class="milestone-header" data-role="milestone-header">
+            <div class="milestone-header-top">
+              <div class="milestone-progress" role="progressbar" aria-label="Pipeline milestone progress" aria-valuemin="1" aria-valuemax="${PIPELINE_MILESTONES.length}" aria-valuenow="1" data-role="milestone-progress" data-qa="milestone-bar">
+                <div class="milestone-progress-fill" data-role="milestone-progress-fill"></div>
+              </div>
+              <button class="btn ghost compact" type="button" data-role="milestone-next" data-qa="milestone-next">Log Next Step</button>
+            </div>
+            <div class="milestone-badges" role="group" aria-label="Milestone badges">
+              ${PIPELINE_MILESTONES.map((label, idx)=> `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('')}
+            </div>
+          </section>
           <nav class="modal-tabs" id="contact-tabs">
             <button class="btn active" data-panel="profile" type="button">Profile</button>
             <button class="btn" data-panel="loan" type="button">Loan &amp; Property</button>
@@ -560,6 +591,106 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     const summaryNote = $('#c-summary-note', body);
     if(summaryNote && c.pipelineMilestone && /funded/i.test(String(c.pipelineMilestone))){
       summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.';
+    }
+
+    const milestoneSelect = $('#c-milestone', body);
+    const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
+    const milestoneFill = body.querySelector('[data-role="milestone-progress-fill"]');
+    const milestoneBadges = Array.from(body.querySelectorAll('[data-role="milestone-badge"]'));
+    const milestoneActionBtn = body.querySelector('[data-role="milestone-next"]');
+    const updateMilestoneUi = (value)=>{
+      const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''));
+      if(milestoneBar && milestoneFill){
+        const max = PIPELINE_MILESTONES.length;
+        const maxIndex = Math.max(max - 1, 1);
+        const pct = maxIndex ? Math.max(0, Math.min(100, (meta.index / maxIndex) * 100)) : 100;
+        milestoneFill.style.width = `${pct}%`;
+        milestoneBar.setAttribute('aria-valuenow', String(meta.index + 1));
+        milestoneBar.setAttribute('aria-valuetext', meta.label);
+      }
+      milestoneBadges.forEach((btn, idx)=>{
+        const active = idx === meta.index;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      if(milestoneActionBtn) milestoneActionBtn.textContent = meta.action;
+      return meta;
+    };
+    if(milestoneSelect) milestoneSelect.addEventListener('change', ()=> updateMilestoneUi(milestoneSelect.value));
+    milestoneBadges.forEach((btn)=>{
+      if(btn.__wired) return;
+      btn.__wired = true;
+      btn.addEventListener('click', ()=>{
+        const targetLabel = btn.getAttribute('data-milestone') || '';
+        if(milestoneSelect){
+          milestoneSelect.value = targetLabel;
+          milestoneSelect.dispatchEvent(new Event('change', { bubbles:true }));
+        }else{
+          updateMilestoneUi(targetLabel);
+        }
+      });
+    });
+    if(milestoneActionBtn && !milestoneActionBtn.__wired){
+      milestoneActionBtn.__wired = true;
+      milestoneActionBtn.addEventListener('click', async ()=>{
+        const contactId = String($('#c-id', body)?.value || '').trim();
+        if(!contactId){ notify('Save the contact before logging a milestone task.', 'warn'); return; }
+        const meta = updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '');
+        const note = `${meta.action} — ${meta.label}`;
+        const tagValue = `milestone:${meta.slug}`;
+        const payload = { linkedType:'contact', linkedId:contactId, note, tags:[tagValue] };
+        milestoneActionBtn.disabled = true;
+        try{
+          let result = null;
+          const createViaApp = window.App?.tasks?.createMinimal;
+          if(typeof createViaApp === 'function'){
+            result = await createViaApp(payload);
+          }else{
+            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const fn = mod.createMinimalTask || mod.createTask || mod.default;
+            if(typeof fn !== 'function') throw new Error('Task API unavailable');
+            result = await fn(payload);
+          }
+          if(result && result.status === 'error'){
+            throw new Error('Task API returned error');
+          }
+          let taskId = '';
+          if(result && typeof result === 'object'){
+            if(result.task && result.task.id) taskId = String(result.task.id);
+            else if(result.id) taskId = String(result.id);
+          }
+          if(taskId){
+            try{
+              await openDB();
+              const record = await dbGet('tasks', taskId);
+              if(record){
+                const nextTags = Array.isArray(record.tags) ? record.tags.slice(0) : [];
+                if(!nextTags.includes(tagValue)) nextTags.push(tagValue);
+                record.tags = nextTags;
+                if(!record.notes) record.notes = note;
+                if(!record.title) record.title = note;
+                record.updatedAt = Date.now();
+                await dbPut('tasks', record);
+              }
+            }catch(err){ console?.warn?.('milestone task tag update failed', err); }
+          }
+          try{ window.dispatchEvent(new CustomEvent('tasks:changed')); }
+          catch(_err){}
+        }catch(err){
+          console?.warn?.('milestone task create failed', err);
+          notify('Unable to add milestone task.', 'error');
+        }finally{
+          milestoneActionBtn.disabled = false;
+        }
+      });
+    }
+    updateMilestoneUi(c.pipelineMilestone);
+    if(typeof document !== 'undefined' && typeof console !== 'undefined' && typeof console.log === 'function'){
+      console.log('MILESTONE_UI', {
+        hasBar: !!document.querySelector('[data-qa="milestone-bar"]'),
+        badges: document.querySelectorAll('[data-qa="milestone-badge"]').length,
+        nextCta: !!document.querySelector('[data-qa="milestone-next"]')
+      });
     }
 
     const mirrorLast = $('#c-lastname', body);
