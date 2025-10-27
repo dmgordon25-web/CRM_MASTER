@@ -366,7 +366,7 @@ async function main() {
 
     const tabs = [
       ['Dashboard', 'dashboard'],
-      ['Long Shots', 'longshots'],
+      ['Leads', 'longshots'],
       ['Pipeline', 'pipeline'],
       ['Partners', 'partners']
     ];

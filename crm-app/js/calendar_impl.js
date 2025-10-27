@@ -3,6 +3,7 @@ import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalM
 import { createTaskFromEvent } from './tasks/api.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { attachStatusBanner } from './ui/status_banners.js';
 
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
@@ -937,38 +938,33 @@ function renderSurface(mount, state, handlers){
   wrapper.style.display = 'grid';
   wrapper.style.gap = '12px';
 
-  const status = DOC.createElement('div');
-  status.className = 'calendar-status';
-  status.style.display = 'flex';
-  status.style.flexWrap = 'wrap';
-  status.style.gap = '12px';
+  const statusHost = DOC.createElement('div');
+  statusHost.className = 'calendar-status muted';
+  statusHost.style.display = 'flex';
+  statusHost.style.flexWrap = 'wrap';
+  statusHost.style.alignItems = 'center';
+  statusHost.style.gap = '12px';
+  statusHost.style.minHeight = '24px';
+  const statusBanner = attachStatusBanner(statusHost, { tone: 'muted' });
   if(state.loading){
-    const loading = DOC.createElement('div');
-    loading.dataset.qa = 'calendar-loading';
-    loading.className = 'calendar-loading muted';
-    loading.textContent = 'Loading…';
-    status.appendChild(loading);
+    statusBanner.showLoading('Loading…');
+  }else if(state.errorMessage){
+    statusBanner.showError(state.errorMessage || 'We were unable to load calendar events. Please try again.', {
+      onRetry: () => {
+        state.errorMessage = '';
+        if(typeof state.retryRender === 'function'){
+          state.retryRender();
+        }
+      }
+    });
+  }else if(!viewResult.visibleEvents.length){
+    statusBanner.showEmpty('No events scheduled for this period.');
+  }else{
+    statusBanner.clear();
   }
-  if(state.errorMessage){
-    const error = DOC.createElement('div');
-    error.dataset.qa = 'calendar-error';
-    error.className = 'calendar-error';
-    error.textContent = state.errorMessage;
-    status.appendChild(error);
-  }
-  if(status.childNodes.length){
-    wrapper.appendChild(status);
-  }
+  wrapper.appendChild(statusHost);
 
   wrapper.appendChild(legend.node);
-
-  if(!viewResult.visibleEvents.length && !state.loading){
-    const empty = DOC.createElement('div');
-    empty.dataset.qa = 'calendar-empty';
-    empty.className = 'calendar-empty muted';
-    empty.textContent = 'No events scheduled for this period.';
-    wrapper.appendChild(empty);
-  }
 
   wrapper.appendChild(viewResult.node);
 
@@ -1030,6 +1026,7 @@ export function initCalendar({ openDB, bus, services, mount }){
     renderCount: 0,
     entered: 0,
     taskId: loadRememberedTaskId(),
+    retryRender: null,
   };
 
   const debug = ensureDebug();
@@ -1164,6 +1161,8 @@ export function initCalendar({ openDB, bus, services, mount }){
     });
     return rendering;
   }
+
+  state.retryRender = () => scheduleRender();
 
   function setView(next){
     const normalized = next === 'week' || next === 'day' ? next : 'month';

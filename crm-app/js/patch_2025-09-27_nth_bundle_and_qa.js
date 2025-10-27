@@ -926,7 +926,7 @@ function runPatch(){
 
     async function testP12(results){
       const section = 'Phase 1';
-      const name = 'P1.2 Long Shots search';
+      const name = 'P1.2 Leads search';
       try{
         await withDb(async ()=>{
           const base = Date.now();
@@ -942,7 +942,7 @@ function runPatch(){
           }
         });
         const host = document.querySelector('#view-longshots');
-        if(!host) throw new Error('Long Shots view not mounted');
+        if(!host) throw new Error('Leads view not mounted');
         const input = host.querySelector('input[data-table-search="#tbl-longshots"]');
         if(!input) throw new Error('Search input unavailable');
         input.value = 'Unique';

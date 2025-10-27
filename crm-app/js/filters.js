@@ -69,8 +69,8 @@ import { normalizeStatus } from './pipeline/constants.js';
     active:'Active Pipeline',
     clients:'Client Stages',
     partners:'Partners',
-    longshots:'Long Shots',
-    statusLongshots:'Long Shots & Nurture'
+    longshots:'Leads',
+    statusLongshots:'Leads & Nurture'
   };
   const OPS={
     string:[

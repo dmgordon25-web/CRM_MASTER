@@ -46,7 +46,7 @@ Each SOFT probe pairs with a capability canary exercised by the smoke suite:
 - **Selection counter** – read `window.__SEL_COUNT__` and assert DOM badges update after simulated selections.
 - **Kanban handlers** – drag/drop handlers attach without throwing when the board mounts.
 - **Merge dialog** – open/close workflow validates modal wiring and service subscriptions.
-- **Navigation shell** – route transitions (`Dashboard → Long Shots → Pipeline → Partners`) stay error-free.
+- **Navigation shell** – route transitions (`Dashboard → Leads → Pipeline → Partners`) stay error-free.
 - **Calendar bridge** – ensures event hydration and timezone formatting succeed.
 - **Capability registry** – `window.__CAPS__` flips `toast`, `confirm`, `renderAll`, and `selection` booleans as routes change so diagnostics can assert parity between HARD/SOFT promotions.
 

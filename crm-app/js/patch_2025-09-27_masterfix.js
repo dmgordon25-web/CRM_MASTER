@@ -322,7 +322,7 @@ function runPatch(){
       `;
       document.head.appendChild(style);
     }
-    // --- Long Shots search ------------------------------------------------------
+    // --- Leads search ------------------------------------------------------
     let longshotsSearchState = '';
     function noteLongshotsSearchBeacon(state){
       if(longshotsSearchState === state) return;
@@ -485,8 +485,8 @@ function runPatch(){
         }
         input = document.createElement('input');
         input.type = 'search';
-        input.placeholder = 'Search Long Shots';
-        input.setAttribute('aria-label', 'Search Long Shots');
+        input.placeholder = 'Search Leads';
+        input.setAttribute('aria-label', 'Search Leads');
         input.dataset.tableSearch = '#tbl-longshots';
         wrap.appendChild(input);
       }
