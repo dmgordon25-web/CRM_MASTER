@@ -20,7 +20,6 @@
     "./patch_2025-10-02_baseline_ux_cleanup.js",
     "./patch_2025-10-02_medium_nice.js",
     "./patch_2025-10-03_calendar_ics_button.js",
-    "./patch_2025-10-03_quick_add_partner.js",
     "./patch_2025-10-03_automation_seed.js",
     "./contacts_merge.js",
     "./contacts_merge_orchestrator.js",
