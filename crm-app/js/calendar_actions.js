@@ -193,19 +193,44 @@
     });
   }
 
+  const LEGEND_SELECTOR = '[data-qa="calendar-legend"]';
+
   function ensureButtons(){
     bind(SELECTOR_ICS, handleIcs);
     bind(SELECTOR_CSV, handleCsv);
   }
 
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', ensureButtons, { once:true });
-  }else{
-    ensureButtons();
+  function enhanceLegend(){
+    const legend = document.querySelector(LEGEND_SELECTOR);
+    if(!legend) return;
+    if(legend.dataset.calendarLegendBound === '1') return;
+    legend.dataset.calendarLegendBound = '1';
+    legend.setAttribute('role', 'list');
+    legend.setAttribute('aria-label', 'Calendar legend');
+    Array.from(legend.children).forEach((item) => {
+      try{ item.setAttribute('role', 'listitem'); }
+      catch (_err){}
+    });
   }
 
-  document.addEventListener('calendar:exports:ready', ensureButtons);
-  document.addEventListener('app:view:changed', ensureButtons);
+  function handleRendered(){
+    ensureButtons();
+    enhanceLegend();
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureButtons();
+      enhanceLegend();
+    }, { once:true });
+  }else{
+    ensureButtons();
+    enhanceLegend();
+  }
+
+  document.addEventListener('calendar:exports:ready', handleRendered);
+  document.addEventListener('app:view:changed', handleRendered);
+  document.addEventListener('calendar:rendered', handleRendered);
 
   window.CalendarExports = Object.assign(window.CalendarExports || {}, {
     ensureButtons,
