@@ -632,6 +632,7 @@ function finishDrag(state, commit){
   if(state.container && state.containerPositionSet){
     state.container.style.position = state.prevContainerPosition || '';
   }
+  if(state.placeholder && state.placeholder.classList) state.placeholder.classList.remove('dragging');
   if(state.placeholder && state.placeholder.parentElement === state.container){
     state.container.insertBefore(dragEl, state.placeholder);
     state.placeholder.remove();
@@ -663,10 +664,11 @@ function finishDrag(state, commit){
   state.startOrder = null;
   state.startIndex = null;
   if(state.container && state.container.classList){
-    state.container.classList.remove('dash-dragging');
+    state.container.classList.remove('dash-dragging', 'dragging');
   }
   if(state.gridOverlay){
     state.gridOverlay.style.display = 'none';
+    if(state.gridOverlay.classList) state.gridOverlay.classList.remove('dragging');
   }
   removeGridOverlay(state);
   state.itemsMeta = null;
@@ -739,14 +741,14 @@ function beginGridDrag(state, item, evt){
   }
   if(state.container && state.container.classList){
     state.container.classList.add('dash-dragging');
+    state.container.classList.add('dragging');
   }
   const overlay = updateGridOverlayAppearance(state);
-  if(overlay){
-    overlay.style.display = 'block';
-  }
+  if(overlay){ overlay.style.display = 'block'; if(overlay.classList) overlay.classList.add('dragging'); }
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
+  if(placeholder && placeholder.classList) placeholder.classList.add('dragging');
   state.restoreSelection = preventTextSelection(item.ownerDocument);
   item.style.position = 'absolute';
   item.style.left = `${state.elemStartX}px`;
