@@ -68,10 +68,10 @@ const THEMES = {
 
 const navLinks = [
   { id: 'overview', label: 'Overview' },
-  { id: 'dashboard', label: 'Dashboard' },
   { id: 'calendar', label: 'Calendar' },
-  { id: 'pipeline', label: 'Pipeline' },
-  { id: 'contacts', label: 'Contacts' }
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'contacts', label: 'Contacts' },
+  { id: 'insights', label: 'Insights' }
 ];
 
 const calendarEvents = [
@@ -235,46 +235,6 @@ const dashboardCards = [
   }
 ];
 
-const pipelineStages = [
-  {
-    id: 'new',
-    label: 'New',
-    summary: 'Fresh referrals entering the cycle.',
-    deals: [
-      { name: 'Marquez • Single family', amount: '$420K', status: 'Docs requested' },
-      { name: 'Lam / Chang • Condo', amount: '$390K', status: 'Needs appraisal slot' }
-    ]
-  },
-  {
-    id: 'active',
-    label: 'Active',
-    summary: 'In processing and underwriting stages.',
-    deals: [
-      { name: 'Singh • Townhome', amount: '$505K', status: 'Conditions review' },
-      { name: 'Ibarra • Jumbo refi', amount: '$780K', status: 'UW feedback pending' },
-      { name: 'Ridge Homes • 6 lots', amount: '$2.4M', status: 'Builder docs inbound' }
-    ]
-  },
-  {
-    id: 'closing',
-    label: 'Closing',
-    summary: 'Scheduled for clear-to-close & signing.',
-    deals: [
-      { name: 'Okafor • First-time buyer', amount: '$365K', status: 'Waiting homeowner policy' },
-      { name: 'Khan • Construction', amount: '$980K', status: 'CD out • Thu 3:00p' }
-    ]
-  },
-  {
-    id: 'won',
-    label: 'Won',
-    summary: 'Recently funded victories to celebrate.',
-    deals: [
-      { name: 'Harper • VA loan', amount: '$410K', status: 'Funded • 2 days ago' },
-      { name: 'Valdez • Investment', amount: '$640K', status: 'Funded • Yesterday' }
-    ]
-  }
-];
-
 const contacts = [
   {
     id: 'ava-martinez',
@@ -372,56 +332,6 @@ function renderChrome(root) {
           </div>
         </header>
         <main class="lab-surfaces">
-          <section class="panel" id="overview-panel">
-            <header class="panel-head">
-              <h2>Overview</h2>
-              <p class="muted">Quick snapshot across partner activity, timeline, and revenue signals.</p>
-            </header>
-            <div class="panel-body overview-grid">
-              <article class="overview-card">
-                <h3>Engagement pulse</h3>
-                <p class="muted">Follow-ups completed this week</p>
-                <div class="pulse-chart" role="img" aria-label="Follow-up trend">
-                  <svg viewBox="0 0 140 72" preserveAspectRatio="none">
-                    <polyline points="0,55 20,52 40,48 60,44 80,38 100,30 120,24 140,18" />
-                    <polyline class="shadow" points="0,60 20,58 40,55 60,50 80,44 100,36 120,30 140,26" />
-                  </svg>
-                </div>
-                <dl class="overview-stats">
-                  <div><dt>Touch-points</dt><dd>42</dd></div>
-                  <div><dt>Avg response</dt><dd>3.8 hrs</dd></div>
-                  <div><dt>Net sentiment</dt><dd>+12</dd></div>
-                </dl>
-              </article>
-              <article class="overview-card">
-                <h3>Upcoming priorities</h3>
-                <ul class="overview-list">
-                  <li>
-                    <strong>Finalize Ridge Homes release</strong>
-                    <span class="muted">Docs review • Thu 11:00a</span>
-                  </li>
-                  <li>
-                    <strong>Send annual partner survey</strong>
-                    <span class="muted">Marketing automation • Fri</span>
-                  </li>
-                  <li>
-                    <strong>Renew Summit Title collaboration</strong>
-                    <span class="muted">Joint planning session • Mon</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="overview-card">
-                <h3>Revenue runway</h3>
-                <p class="muted">Projected closings this quarter</p>
-                <div class="runway-bars" role="img" aria-label="Projected closings">
-                  <div data-label="Apr"><span style="height:62%"></span></div>
-                  <div data-label="May"><span style="height:78%"></span></div>
-                  <div data-label="Jun"><span style="height:88%"></span></div>
-                </div>
-                <footer class="muted">Momentum trending +9% vs. last quarter.</footer>
-              </article>
-            </div>
-          </section>
           <section class="panel" id="calendar-panel">
             <header class="panel-head">
               <h2>Partner calendar</h2>
@@ -438,15 +348,6 @@ function renderChrome(root) {
             </header>
             <div class="panel-body">
               <div class="grid-stack" id="dashboard-grid"></div>
-            </div>
-          </section>
-          <section class="panel" id="pipeline-panel">
-            <header class="panel-head">
-              <h2>Pipeline lab</h2>
-              <p class="muted">Kanban-style exploration of deal health and collaboration cues.</p>
-            </header>
-            <div class="panel-body">
-              <div class="pipeline-board" id="pipeline-board"></div>
             </div>
           </section>
           <section class="panel" id="contacts-panel">
@@ -479,14 +380,6 @@ function renderChrome(root) {
 
 function setupNavigation(root) {
   const nav = root.querySelector('.nav-links');
-  const targets = {
-    overview: document.getElementById('overview-panel') || root.querySelector('.lab-header'),
-    dashboard: document.getElementById('dashboard-panel'),
-    calendar: document.getElementById('calendar-panel'),
-    pipeline: document.getElementById('pipeline-panel'),
-    contacts: document.getElementById('contacts-panel')
-  };
-
   nav.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-link]');
     if (!button) return;
@@ -494,11 +387,6 @@ function setupNavigation(root) {
       node.removeAttribute('aria-current');
     });
     button.setAttribute('aria-current', 'page');
-
-    const target = targets[button.dataset.link];
-    if (target && typeof target.scrollIntoView === 'function') {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   });
 }
 
@@ -555,40 +443,6 @@ function setupDashboard() {
       noMove: false
     }))
   );
-}
-
-function setupPipeline() {
-  const board = document.getElementById('pipeline-board');
-  const columns = pipelineStages
-    .map((stage) => {
-      const cards = stage.deals
-        .map(
-          (deal) => `
-            <article class="pipeline-card">
-              <header>
-                <strong>${deal.name}</strong>
-                <span class="muted">${deal.amount}</span>
-              </header>
-              <p class="muted">${deal.status}</p>
-              <button type="button" class="pill">Log activity</button>
-            </article>
-          `
-        )
-        .join('');
-
-      return `
-        <section class="pipeline-stage" data-stage="${stage.id}">
-          <header>
-            <h3>${stage.label}</h3>
-            <p class="muted">${stage.summary}</p>
-          </header>
-          <div class="pipeline-stage-body">${cards}</div>
-        </section>
-      `;
-    })
-    .join('');
-
-  board.innerHTML = columns;
 }
 
 function setupContacts() {
@@ -704,7 +558,6 @@ function init() {
     setupThemeSwitcher(root);
     setupCalendar();
     setupDashboard();
-    setupPipeline();
     setupContacts();
   } catch (error) {
     console.error('[UX LAB] boot error', error);
