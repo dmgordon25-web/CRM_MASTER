@@ -78,6 +78,7 @@ export const PATCHES = [
   './doccenter_rules.js',
   './contacts.js',
   './partners.js',
+  './partners_detail.js',
   './partners_modal.js',
   './partners/list.js',
   './partners_merge.js',
