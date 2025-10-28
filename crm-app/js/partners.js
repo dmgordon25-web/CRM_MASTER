@@ -658,6 +658,101 @@ function ensurePartnersBoot(ctx){
 
   ensurePartnerTouchListener();
 
+  const ROW_BIND_ONCE = (typeof window !== 'undefined'
+    ? (window.__ROW_BIND_ONCE__ = window.__ROW_BIND_ONCE__ || {})
+    : {});
+
+  function clearPartnerSelection(table){
+    try { window.Selection?.clear?.('partners:row-open'); }
+    catch (_err){}
+    try { window.SelectionStore?.clear?.('partners'); }
+    catch (_err){}
+    if(!table || typeof table.querySelectorAll !== 'function') return;
+    table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
+      try {
+        if(node.checked) node.checked = false;
+      } catch (_err){}
+    });
+    table.querySelectorAll('[data-selected="1"]').forEach((row) => {
+      try { row.removeAttribute('data-selected'); }
+      catch (_err){}
+    });
+  }
+
+  function ensurePartnerRowGateway(){
+    if(typeof document === 'undefined') return;
+    const state = ROW_BIND_ONCE.partners || (ROW_BIND_ONCE.partners = {});
+    if(!state.globalWatcher){
+      const rebinder = () => ensurePartnerRowGateway();
+      document.addEventListener('app:data:changed', rebinder);
+      document.addEventListener('partners:list:refresh', rebinder);
+      document.addEventListener('app:view:changed', rebinder);
+      if(typeof window !== 'undefined' && window.addEventListener){
+        window.addEventListener('hashchange', rebinder);
+      }
+      state.globalWatcher = rebinder;
+    }
+
+    const table = document.getElementById('tbl-partners');
+    if(!table){
+      if(state.root && state.handler){
+        try { state.root.removeEventListener('click', state.handler); }
+        catch (_err){}
+      }
+      state.root = null;
+      state.bound = false;
+      state.active = false;
+      return;
+    }
+
+    if(state.root === table && state.bound) return;
+    if(state.root && state.handler){
+      try { state.root.removeEventListener('click', state.handler); }
+      catch (_err){}
+    }
+
+    const handler = (event) => {
+      if(!event || event.__crmRowEditorHandled || event.__partnerEditHandled) return;
+      const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="partner-actions"]');
+      if(skip) return;
+      const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
+      if(control) return;
+      const anchor = event.target?.closest?.('a');
+      if(anchor && !anchor.closest('a.partner-name,[data-ui="partner-name"],[data-role="partner-name"]')) return;
+      const row = event.target?.closest?.('tr[data-partner-id],tr[data-id]');
+      if(!row || !table.contains(row)) return;
+      const partnerId = row.getAttribute('data-partner-id') || row.getAttribute('data-id') || '';
+      if(!partnerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.__crmRowEditorHandled = true;
+      event.__partnerEditHandled = true;
+      clearPartnerSelection(table);
+      try {
+        openPartnerEditModal(partnerId, { sourceHint: 'partners:list-row', trigger: row });
+      } catch (err) {
+        try { console && console.warn && console.warn('[partners] row open failed', err); }
+        catch (_warn){}
+      }
+    };
+
+    table.addEventListener('click', handler);
+    state.root = table;
+    state.handler = handler;
+    state.bound = true;
+    state.active = true;
+    state.surface = 'partners';
+  }
+
+  if(typeof document !== 'undefined'){
+    const kick = () => ensurePartnerRowGateway();
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', kick, { once: true });
+    }else{
+      kick();
+    }
+  }
+
   if (ctx && ctx.logger && typeof ctx.logger.log === 'function'){
     ctx.logger.log('[partners] bootstrapped');
   }

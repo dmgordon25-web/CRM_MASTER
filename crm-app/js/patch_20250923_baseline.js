@@ -256,11 +256,16 @@ function runPatch(){
 
   // Name / ✎ → open modals (contacts + partners)
   document.addEventListener('click', (e)=>{
+    if(e && e.__crmRowEditorHandled) return;
     const nameCell = e.target.closest('.contact-name, .cell-edit, .edit-contact, .edit-partner, [data-role="contact-name"], [data-role="edit"], button[title="Edit"]');
     if(!nameCell) return;
     const tr = nameCell.closest('tr'); if(!tr) return;
     let id = directId(nameCell) || directId(tr);
     const entity = detectEntity(nameCell, tr);
+    const rowGate = (typeof window !== 'undefined' && window.__ROW_BIND_ONCE__)
+      ? window.__ROW_BIND_ONCE__[entity === 'partners' ? 'partners' : 'contacts']
+      : null;
+    if(rowGate && rowGate.active) return;
     if(!id){
       id = resolveRowIdFromIndex(tr, entity);
     }

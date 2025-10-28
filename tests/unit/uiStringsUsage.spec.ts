@@ -136,7 +136,7 @@ describe('UI modules consume STR', () => {
     viewShell.querySelector = vi.fn(() => legendHost);
     const { windowStub, doc } = stubGlobals({
       'view-calendar': () => viewShell,
-      'calendar-legend': () => legendHost
+      'cal-legend': () => legendHost
     });
     await import('../../crm-app/js/calendar_impl.js');
     const render = windowStub.__CALENDAR_IMPL__.render as Function;

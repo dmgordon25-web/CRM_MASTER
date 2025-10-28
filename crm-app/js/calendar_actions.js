@@ -193,7 +193,7 @@
     });
   }
 
-  const LEGEND_SELECTOR = '[data-qa="calendar-legend"]';
+  const LEGEND_SELECTOR = '[data-qa="cal-legend"]';
 
   function ensureButtons(){
     bind(SELECTOR_ICS, handleIcs);
