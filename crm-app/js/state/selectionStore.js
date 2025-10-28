@@ -90,8 +90,9 @@ export const SelectionStore = {
   },
   clear(scope) {
     const key = normalizeScope(scope);
-    const next = new Set();
-    SCOPES.set(key, next);
+    const target = ensureScope(key);
+    if (!target.size) return;
+    target.clear();
     notify(key);
   },
   subscribe(fn) {

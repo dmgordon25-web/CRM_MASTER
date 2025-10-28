@@ -21,6 +21,7 @@ const globalWiringState = typeof window !== 'undefined'
 if (!('selectionOff' in globalWiringState)) globalWiringState.selectionOff = null;
 if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0;
 if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = false;
+if (!('mergeReadyCount' in globalWiringState)) globalWiringState.mergeReadyCount = 0;
 if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
 if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
@@ -107,6 +108,17 @@ function requestVisibilityRefresh() {
   scheduleVisibilityRefresh(() => {
     refreshActionBarVisibility();
   });
+}
+
+function applyMergeReadyFlag(count) {
+  if (typeof document === 'undefined') return;
+  const bar = document.getElementById('actionbar');
+  if (!bar) return;
+  const total = Number.isFinite(count) ? count : Number(count || 0);
+  const ready = total >= 2;
+  const nextValue = ready ? '1' : '0';
+  if (bar.getAttribute('data-merge-ready') === nextValue) return;
+  bar.setAttribute('data-merge-ready', nextValue);
 }
 
 function flushPostPaintVisibilityRefresh() {
@@ -329,8 +341,12 @@ function setSelectedCount(count) {
   const numeric = typeof count === 'number' && Number.isFinite(count) ? count : 0;
   const next = numeric > 0 ? Math.max(0, Math.floor(numeric)) : 0;
   const previous = globalWiringState.selectedCount || 0;
+  if (previous !== next) {
+    globalWiringState.selectedCount = next;
+    globalWiringState.mergeReadyCount = next;
+  }
+  applyMergeReadyFlag(next);
   if (previous === next) return;
-  globalWiringState.selectedCount = next;
   handleSelectionTransition(previous, next);
   requestVisibilityRefresh();
 }
@@ -338,6 +354,8 @@ function setSelectedCount(count) {
 function resetActionBarState() {
   globalWiringState.actionsReady = false;
   globalWiringState.selectedCount = 0;
+  globalWiringState.mergeReadyCount = 0;
+  applyMergeReadyFlag(0);
   restoreActionBarDock('silent');
   if (globalWiringState.routeState) {
     globalWiringState.routeState.hasCentered = false;

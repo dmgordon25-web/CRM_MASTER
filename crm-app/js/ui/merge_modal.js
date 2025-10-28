@@ -42,6 +42,15 @@ function dispatchMergeEvent(name, detail) {
   }
 }
 
+function invokeHandler(handler, payload, label = 'handler') {
+  if (typeof handler !== 'function') return;
+  try {
+    handler(payload);
+  } catch (err) {
+    console.warn(`[merge-modal] ${label} failed`, err);
+  }
+}
+
 function isLegacyOptions(value) {
   if (!value || typeof value !== 'object') return false;
   if (Array.isArray(value)) return false;
@@ -106,7 +115,10 @@ function createScreenReaderDescription(text, id) {
 }
 
 function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, onCancel }) {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') {
+    invokeHandler(onCancel, { reason: 'no-dom' }, 'legacy cancel');
+    return null;
+  }
   if (__mergeModalEl && document.body && document.body.contains(__mergeModalEl)) {
     focusFirst(__mergeModalEl);
     return activeModal;
@@ -179,6 +191,9 @@ function openLegacyMergeModal({ kind = 'contacts', recordA, recordB, onConfirm, 
   if (!modal) {
     window[ACTIVE_GUARD] = false;
     console.warn('[merge-modal] failed to create legacy modal');
+    toastError('Unable to open merge dialog.');
+    invokeHandler(onCancel, { reason: 'legacy-mount-failed', kind }, 'legacy cancel');
+    dispatchMergeEvent('merge:closed', { reason: 'legacy-mount-failed', kind });
     return null;
   }
 
@@ -534,7 +549,11 @@ function describeItem(item) {
 }
 
 function renderSelectionModal(items, options = {}) {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') {
+    const cancel = options && typeof options.onCancel === 'function' ? options.onCancel : null;
+    invokeHandler(cancel, { reason: 'no-dom' }, 'selection cancel');
+    return null;
+  }
   if (__mergeModalEl && document.body && document.body.contains(__mergeModalEl)) {
     focusFirst(__mergeModalEl);
     return activeModal;
@@ -929,6 +948,10 @@ export function openMergeModal(items, options = {}) {
   const normalized = normalizeItems(items);
   if (normalized.length < 2) {
     console.info('[merge-modal] at least two items required');
+    toastError('Select at least two records to merge.');
+    const cancel = options && typeof options.onCancel === 'function' ? options.onCancel : null;
+    invokeHandler(cancel, { reason: 'insufficient-items', items: normalized }, 'selection cancel');
+    dispatchMergeEvent('merge:closed', { reason: 'insufficient-items', count: normalized.length });
     return null;
   }
   return renderSelectionModal(normalized, options);
