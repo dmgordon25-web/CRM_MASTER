@@ -350,7 +350,6 @@ const quickActions = [
   { id: 'log-activity', label: 'Log touchpoint', icon: '📝', tone: 'secondary', modal: 'log-activity' },
   { id: 'schedule-event', label: 'Schedule event', icon: '📅', tone: 'secondary', modal: 'schedule-event' }
 ];
-
 const defaultSettings = {
   profile: {
     name: 'Jordan Ellis',
@@ -1699,6 +1698,111 @@ function setupOverview() {
       applyMode(activeMode);
     }
   });
+
+  setActiveSurface('overview');
+}
+
+function renderModeSwitch(host, modes, active) {
+  const buttons = Object.entries(modes)
+    .map(([key, config]) => {
+      const selected = key === active ? " aria-pressed='true'" : " aria-pressed='false'";
+      return `<button type="button" class="chip" data-mode="${key}"${selected}>${config.label}</button>`;
+    })
+    .join('');
+  host.innerHTML = buttons;
+}
+
+function setupOverview() {
+  const summary = document.querySelector('#focus-summary');
+  const switchHost = document.querySelector('#focus-mode-switch');
+  const metricsHost = document.querySelector('#focus-metrics');
+  const trendArea = document.querySelector('#trend-area');
+  const trendLine = document.querySelector('#trend-line');
+  const scoreValue = document.querySelector('#focus-score');
+  const scoreLabel = document.querySelector('#focus-score-label');
+  const dial = document.querySelector('#focus-dial');
+  const dialValue = document.querySelector('#focus-dial-value');
+  const dialLabel = document.querySelector('#focus-dial-label');
+  const timelineHost = document.querySelector('#focus-timeline');
+  const signalsHost = document.querySelector('#signal-cards');
+
+  let activeMode = 'today';
+
+  function renderMetrics(metrics) {
+    metricsHost.innerHTML = metrics
+      .map((metric) => {
+        const toneClass = metric.tone ? ` metric-${metric.tone}` : '';
+        return `
+          <div class="metric${toneClass}">
+            <dt>${metric.label}</dt>
+            <dd>${metric.value}</dd>
+            <span class="muted">${metric.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderTimeline(items) {
+    timelineHost.innerHTML = items
+      .map((item) => {
+        const statusClass = item.status ? ` timeline-${item.status}` : '';
+        return `
+          <li class="timeline-item${statusClass}">
+            <div class="timeline-time">${item.time}</div>
+            <div class="timeline-detail">
+              <strong>${item.title}</strong>
+              <p class="muted">${item.detail}</p>
+            </div>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function renderSignals() {
+    signalsHost.innerHTML = overviewSignals
+      .map((signal) => {
+        const toneClass = signal.tone ? ` signal-${signal.tone}` : '';
+        return `
+          <li class="signal-card${toneClass}">
+            <header>
+              <h5>${signal.title}</h5>
+              <span class="signal-metric">${signal.metric}</span>
+            </header>
+            <p class="muted">${signal.description}</p>
+            <span class="signal-delta">${signal.delta}</span>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = focusModes[modeKey] || focusModes.today;
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderMetrics(mode.metrics);
+    const { area, line } = buildTrend(mode.trend);
+    trendArea.setAttribute('d', area);
+    trendLine.setAttribute('points', line);
+    scoreValue.textContent = `${mode.score}`;
+    scoreLabel.textContent = mode.scoreLabel;
+    dial.style.setProperty('--dial-fill', `${Math.round(mode.capacity * 3.6)}deg`);
+    dialValue.textContent = `${mode.capacity}%`;
+    dialLabel.textContent = mode.capacityLabel;
+    renderTimeline(mode.timeline);
+    renderModeSwitch(switchHost, focusModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  renderSignals();
+  applyMode(activeMode);
 }
 
 function setupThemeSwitcher(root) {
@@ -2112,6 +2216,106 @@ function setupSettings() {
     persistSettings();
     showToast('Automation preferences saved.', 'success');
   });
+}
+
+function setupInsights() {
+  const switchHost = document.querySelector('#insight-mode-switch');
+  const summary = document.querySelector('#insight-summary');
+  const scorecardHost = document.querySelector('#insight-scorecards');
+  const heatmapHost = document.querySelector('#insight-heatmap');
+  const actionsHost = document.querySelector('#insight-actions');
+
+  let activeMode = '30d';
+
+  function renderScorecards(cards) {
+    scorecardHost.innerHTML = cards
+      .map((card) => {
+        const toneClass = card.tone ? ` insight-${card.tone}` : '';
+        return `
+          <div class="insight-score${toneClass}">
+            <span class="muted">${card.label}</span>
+            <strong>${card.value}</strong>
+            <span class="insight-helper">${card.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderHeatmap(heatmap) {
+    const maxValue = Math.max(
+      ...heatmap.rows.flatMap((row) => row.values.map((value) => Number(value) || 0))
+    );
+    const tableRows = heatmap.rows
+      .map((row) => {
+        const cells = row.values
+          .map((value) => {
+            const numeric = Number(value) || 0;
+            const intensity = maxValue === 0 ? 0 : numeric / maxValue;
+            const percent = Math.round(intensity * 100);
+            return `
+              <td class="heat-cell" style="--heat-intensity:${percent};">
+                <span>${numeric}</span>
+              </td>
+            `;
+          })
+          .join('');
+        return `
+          <tr>
+            <th scope="row">${row.label}</th>
+            ${cells}
+          </tr>
+        `;
+      })
+      .join('');
+
+    const headerCells = heatmap.columns.map((column) => `<th scope="col">${column}</th>`).join('');
+
+    heatmapHost.innerHTML = `
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            ${headerCells}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderActions(actions) {
+    actionsHost.innerHTML = actions
+      .map(
+        (action) => `
+          <li>
+            <strong>${action.title}</strong>
+            <p class="muted">${action.detail}</p>
+          </li>
+        `
+      )
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = insightModes[modeKey] || insightModes['30d'];
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderScorecards(mode.scorecards);
+    renderHeatmap(mode.heatmap);
+    renderActions(mode.actions);
+    renderModeSwitch(switchHost, insightModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  applyMode(activeMode);
 }
 
 function init() {
