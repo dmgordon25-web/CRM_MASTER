@@ -12,7 +12,7 @@ function normalizeRoute(value){
   let normalized = raw;
   normalized = normalized.replace(/^view-/, '');
   normalized = normalized.replace(/^#/, '');
-  normalized = normalized.replace(/^\/+/, '');
+  normalized = normalized.replace(/^\/+, '');
   if(!normalized) return '';
   const segment = normalized.split(/[?&#/]/)[0];
   return segment || '';
