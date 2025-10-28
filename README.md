@@ -26,6 +26,7 @@ Additional guardrails:
 - [Boot contracts](docs/CONTRACTS.md)
 - [Testing & verification](docs/TESTING.md)
 - [Changelog policy](docs/CHANGELOG_POLICY.md)
+- [PR artifacts & diff references](docs/PR_ARTIFACTS.md)
 - Archived references live in [`docs/archive/`](docs/archive) with deprecation banners for historical context.
 
 ## Continuous integration
