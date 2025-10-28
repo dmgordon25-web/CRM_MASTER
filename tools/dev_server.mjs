@@ -97,6 +97,7 @@ class ShutdownManager {
     this.server = null;
     this.sockets = new Set();
     this.watchers = new Set();
+    this.intervals = new Set();
     this.childPidMeta = new Map();
     this.shuttingDown = false;
     this.shutdownPromise = null;
@@ -138,6 +139,21 @@ class ShutdownManager {
     return watcher;
   }
 
+  trackInterval(interval) {
+    if (!interval) return interval;
+    this.intervals.add(interval);
+    const clear = () => {
+      this.intervals.delete(interval);
+    };
+    try {
+      if (typeof interval.once === 'function') {
+        interval.once('close', clear);
+        interval.once('error', clear);
+      }
+    } catch {}
+    return interval;
+  }
+
   trackChild(child, options = {}) {
     if (!child || typeof child.pid !== 'number') return child;
     this.trackChildPid(child.pid, options);
@@ -163,6 +179,15 @@ class ShutdownManager {
     this.sockets.clear();
     for (const socket of sockets) {
       try { socket.destroy(); } catch {}
+    }
+  }
+
+  stopIntervals() {
+    if (this.intervals.size === 0) return;
+    const intervals = Array.from(this.intervals);
+    this.intervals.clear();
+    for (const interval of intervals) {
+      try { clearInterval(interval); } catch {}
     }
   }
 
@@ -363,6 +388,7 @@ class ShutdownManager {
       if (typeof this.beforeShutdown === 'function') {
         try { await this.beforeShutdown(); } catch {}
       }
+      try { this.stopIntervals(); } catch {}
       try { await this.stopWatchers(); } catch {}
       try { await this.closeServer(); } catch {}
       this.destroySockets();
@@ -397,8 +423,16 @@ function trackWatcher(watcher) {
   return shutdownManager.trackWatcher(watcher);
 }
 
+function trackInterval(interval) {
+  return shutdownManager.trackInterval(interval);
+}
+
 function trackChild(child, options) {
   return shutdownManager.trackChild(child, options);
+}
+
+function trackChildPid(pid, options) {
+  return shutdownManager.trackChildPid(pid, options);
 }
 
 requestShutdown = () => shutdownManager.shutdown(0);
@@ -411,7 +445,9 @@ try {
     });
   }
   globalThis.__CRM_DEV_SERVER__.trackWatcher = trackWatcher;
+  globalThis.__CRM_DEV_SERVER__.trackInterval = trackInterval;
   globalThis.__CRM_DEV_SERVER__.trackChild = trackChild;
+  globalThis.__CRM_DEV_SERVER__.trackChildPid = trackChildPid;
 } catch {}
 
 function drainRequest(req) {
