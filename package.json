@@ -18,7 +18,9 @@
     "test:boot": "node tools/boot_smoke_test.mjs",
     "dump:fields": "node tools/dump_fields.js",
     "verify:build": "npm run audit:manifest && npm run test:boot",
-    "check:features": "node tools/feature_check.mjs"
+    "check:features": "node tools/feature_check.mjs",
+    "check:s1": "node tools/check_suite_s1.mjs",
+    "sweep:s1": "npm run verify:build && npm run check:s1"
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",

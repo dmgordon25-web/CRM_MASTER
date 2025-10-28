@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 
 const BOOT_STAMP = '<!-- BOOT_STAMP: crm-app-index -->';
@@ -135,16 +136,13 @@ async function runFeatureCheck(origin) {
   }
 }
 
-async function main() {
+async function runDefaultFeatureCheck() {
   let child;
   try {
     child = startDevServer();
     const { origin } = await waitForServer(child);
     const { screenshotPath } = await runFeatureCheck(origin);
     console.log(`[FEATURE_CHECK] cleanup=ok splash=ok avatarPersist=ok screenshot=${screenshotPath}`);
-  } catch (err) {
-    console.error(err && err.stack ? err.stack : String(err));
-    process.exitCode = 1;
   } finally {
     if (child) {
       try {
@@ -157,4 +155,34 @@ async function main() {
   }
 }
 
-await main();
+const CHECKS = {
+  'feature:avatar-persist': runDefaultFeatureCheck
+};
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+export async function hasCheck(name) {
+  return hasOwn(CHECKS, name);
+}
+
+export async function runCheck(name) {
+  if (!(await hasCheck(name))) {
+    throw new Error(`Unknown check: ${name}`);
+  }
+  return CHECKS[name]();
+}
+
+const DEFAULT_CHECK = 'feature:avatar-persist';
+const modulePath = fileURLToPath(import.meta.url);
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
+
+if (invokedPath === modulePath) {
+  try {
+    await runCheck(DEFAULT_CHECK);
+  } catch (err) {
+    console.error(err && err.stack ? err.stack : String(err));
+    process.exitCode = 1;
+  }
+}
