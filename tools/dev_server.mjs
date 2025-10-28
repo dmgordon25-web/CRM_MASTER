@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
@@ -23,18 +24,20 @@ const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
 const DEV_KEY = crypto.randomBytes(16).toString('hex');
 const IDLE_TIMEOUT_MS = 60_000;
+const PID_FILE = path.join(REPO_ROOT, '.devserver.pid');
 
 const activeSessions = new Map();
 let idleTimer = null;
 
 const noop = () => {};
 let requestShutdown = noop;
-let serverClosePromise = null;
-let cleanupPromise = null;
 let cleanupLogged = false;
-let exitScheduled = false;
-const trackedWatchers = new Set();
-const trackedChildren = new Set();
+
+function logClosedOnce() {
+  if (cleanupLogged) return;
+  cleanupLogged = true;
+  console.info('DEV_SERVER: closed');
+}
 
 function clearIdleTimer() {
   if (idleTimer) {
@@ -78,42 +81,93 @@ function markSessionClosed(sid) {
   scheduleIdleExit();
 }
 
-function trackWatcher(watcher) {
-  if (!watcher) return watcher;
-  if (typeof watcher.on === 'function') {
-    const cleanup = () => {
-      trackedWatchers.delete(watcher);
-      if (typeof watcher.off === 'function') {
-        try {
-          watcher.off('close', cleanup);
-          watcher.off('error', cleanup);
-        } catch {}
-      }
-    };
-    try { watcher.on('close', cleanup); } catch {}
-    try { watcher.on('error', cleanup); } catch {}
+class ShutdownManager {
+  constructor({ pidFile, beforeShutdown, afterShutdown } = {}) {
+    this.pidFile = pidFile;
+    this.beforeShutdown = beforeShutdown;
+    this.afterShutdown = afterShutdown;
+    this.server = null;
+    this.sockets = new Set();
+    this.watchers = new Set();
+    this.childPidMeta = new Map();
+    this.shuttingDown = false;
+    this.shutdownPromise = null;
+    this.exitCode = 0;
   }
-  trackedWatchers.add(watcher);
-  return watcher;
-}
 
-function trackChild(child) {
-  if (!child) return child;
-  const cleanup = () => {
-    trackedChildren.delete(child);
-  };
-  try { child.once('exit', cleanup); } catch {}
-  try { child.once('close', cleanup); } catch {}
-  trackedChildren.add(child);
-  return child;
-}
+  setServer(server) {
+    this.server = server;
+    if (!server) {
+      return;
+    }
+    server.keepAliveTimeout = 1000;
+    server.headersTimeout = 1500;
+    server.on('connection', (socket) => {
+      if (!socket) return;
+      this.sockets.add(socket);
+      const remove = () => {
+        this.sockets.delete(socket);
+      };
+      try { socket.on('close', remove); } catch {}
+      try { socket.on('end', remove); } catch {}
+      try { socket.on('error', remove); } catch {}
+    });
+  }
 
-async function shutdownWatchers() {
-  const watchers = Array.from(trackedWatchers);
-  trackedWatchers.clear();
-  await Promise.all(watchers.map((watcher) => new Promise((resolve) => {
-    try {
-      if (watcher) {
+  trackWatcher(watcher) {
+    if (!watcher) return watcher;
+    this.watchers.add(watcher);
+    const remove = () => {
+      this.watchers.delete(watcher);
+    };
+    if (typeof watcher.once === 'function') {
+      try { watcher.once('close', remove); } catch {}
+      try { watcher.once('error', remove); } catch {}
+    } else if (typeof watcher.on === 'function') {
+      try { watcher.on('close', remove); } catch {}
+      try { watcher.on('error', remove); } catch {}
+    }
+    return watcher;
+  }
+
+  trackChild(child, options = {}) {
+    if (!child || typeof child.pid !== 'number') return child;
+    this.trackChildPid(child.pid, options);
+    const cleanup = () => {
+      this.childPidMeta.delete(child.pid);
+    };
+    try { child.once('exit', cleanup); } catch {}
+    try { child.once('close', cleanup); } catch {}
+    return child;
+  }
+
+  trackChildPid(pid, options = {}) {
+    if (!Number.isFinite(pid) || pid <= 0) return pid;
+    const meta = {
+      detached: Boolean(options && options.detached)
+    };
+    this.childPidMeta.set(pid, meta);
+    return pid;
+  }
+
+  destroySockets() {
+    const sockets = Array.from(this.sockets);
+    this.sockets.clear();
+    for (const socket of sockets) {
+      try { socket.destroy(); } catch {}
+    }
+  }
+
+  async stopWatchers() {
+    if (this.watchers.size === 0) return;
+    const watchers = Array.from(this.watchers);
+    this.watchers.clear();
+    await Promise.all(watchers.map((watcher) => new Promise((resolve) => {
+      if (!watcher) {
+        resolve();
+        return;
+      }
+      try {
         if (typeof watcher.close === 'function') {
           watcher.close();
           resolve();
@@ -123,41 +177,200 @@ async function shutdownWatchers() {
           Promise.resolve(watcher.stop()).catch(() => {}).finally(resolve);
           return;
         }
-      }
-    } catch {}
-    resolve();
-  })));
-}
-
-async function shutdownChildren(signal = 'SIGTERM') {
-  const children = Array.from(trackedChildren);
-  trackedChildren.clear();
-  await Promise.all(children.map((child) => new Promise((resolve) => {
-    if (!child) {
+      } catch {}
       resolve();
+    })));
+  }
+
+  async closeServer() {
+    if (!this.server) return;
+    const server = this.server;
+    this.server = null;
+    await new Promise((resolve) => {
+      try {
+        if (!server.listening) {
+          resolve();
+          return;
+        }
+        server.close(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  async stopChildPid(pid, meta) {
+    if (!Number.isFinite(pid) || pid <= 0) return;
+    if (process.platform === 'win32') {
+      await new Promise((resolve) => {
+        try {
+          const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
+            stdio: 'ignore',
+            windowsHide: true
+          });
+          const done = () => resolve();
+          try { killer.once('exit', done); } catch {}
+          try { killer.once('close', done); } catch {}
+          try { killer.once('error', done); } catch {}
+        } catch {
+          resolve();
+        }
+      });
       return;
     }
-    const timer = setTimeout(() => {
-      try { child.kill('SIGKILL'); } catch {}
-      resolve();
-    }, 2000);
-    if (typeof timer.unref === 'function') timer.unref();
-    const done = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    try { child.once('exit', done); } catch {}
-    try { child.once('close', done); } catch {}
     try {
-      const killed = child.kill(signal);
-      if (!killed) {
-        done();
+      if (meta && meta.detached) {
+        process.kill(-pid, 'SIGTERM');
+      } else {
+        process.kill(pid, 'SIGTERM');
       }
-    } catch {
-      done();
+    } catch (error) {
+      if (!error || (error.code !== 'ESRCH' && error.code !== 'EINVAL')) {
+        try { process.kill(pid, 'SIGTERM'); } catch {}
+      }
     }
-  })));
+  }
+
+  async stopChildren() {
+    if (this.childPidMeta.size === 0) return;
+    const entries = Array.from(this.childPidMeta.entries());
+    this.childPidMeta.clear();
+    await Promise.all(entries.map(([pid, meta]) => this.stopChildPid(pid, meta)));
+  }
+
+  removePidFile() {
+    if (!this.pidFile) return;
+    try {
+      fs.unlinkSync(this.pidFile);
+    } catch (error) {
+      if (!error || error.code !== 'ENOENT') {
+        // ignore
+      }
+    }
+  }
+
+  writePidFile() {
+    if (!this.pidFile) return;
+    fs.writeFileSync(this.pidFile, String(process.pid), 'utf8');
+  }
+
+  isPidAlive(pid) {
+    if (!Number.isFinite(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      if (error && error.code === 'EPERM') {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  async killPidTree(pid) {
+    if (process.platform === 'win32') {
+      await this.stopChildPid(pid, {});
+      return;
+    }
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch (error) {
+      if (error && error.code === 'ESRCH') {
+        return;
+      }
+      if (error && error.code === 'EPERM') {
+        try { process.kill(pid, 'SIGTERM'); } catch {}
+        return;
+      }
+      try { process.kill(pid, 'SIGTERM'); } catch {}
+    }
+  }
+
+  async waitForPidDeath(pid, timeoutMs = 5000) {
+    const deadline = Date.now() + timeoutMs;
+    while (this.isPidAlive(pid) && Date.now() < deadline) {
+      await delay(200);
+    }
+  }
+
+  async ensureSingleInstance() {
+    if (!this.pidFile) return;
+    let existingRaw;
+    try {
+      existingRaw = fs.readFileSync(this.pidFile, 'utf8').trim();
+    } catch (error) {
+      if (!error || error.code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+    const existingPid = Number.parseInt(existingRaw, 10);
+    if (!Number.isFinite(existingPid) || existingPid <= 0 || existingPid === process.pid) {
+      this.removePidFile();
+      return;
+    }
+    if (!this.isPidAlive(existingPid)) {
+      this.removePidFile();
+      return;
+    }
+    console.info(`[DEV SERVER] terminating existing instance ${existingPid}`);
+    await this.killPidTree(existingPid);
+    await this.waitForPidDeath(existingPid);
+    this.removePidFile();
+  }
+
+  async shutdown(code = 0, { skipExit = false } = {}) {
+    if (this.shuttingDown) {
+      if (typeof code === 'number' && code > this.exitCode) {
+        this.exitCode = code;
+      }
+      return this.shutdownPromise;
+    }
+    this.exitCode = typeof code === 'number' ? code : 0;
+    this.shuttingDown = true;
+    this.shutdownPromise = (async () => {
+      if (typeof this.beforeShutdown === 'function') {
+        try { await this.beforeShutdown(); } catch {}
+      }
+      try { await this.stopWatchers(); } catch {}
+      try { await this.closeServer(); } catch {}
+      this.destroySockets();
+      try { await this.stopChildren(); } catch {}
+      this.removePidFile();
+      if (typeof this.afterShutdown === 'function') {
+        try { this.afterShutdown(); } catch {}
+      }
+      const fuse = setTimeout(() => process.exit(0), 1500);
+      if (typeof fuse.unref === 'function') fuse.unref();
+      if (!skipExit) {
+        const exitCode = typeof this.exitCode === 'number' ? this.exitCode : 0;
+        setImmediate(() => process.exit(exitCode));
+      }
+    })();
+    return this.shutdownPromise;
+  }
 }
+
+const shutdownManager = new ShutdownManager({
+  pidFile: PID_FILE,
+  beforeShutdown: async () => {
+    clearIdleTimer();
+    activeSessions.clear();
+  },
+  afterShutdown: () => {
+    logClosedOnce();
+  }
+});
+
+function trackWatcher(watcher) {
+  return shutdownManager.trackWatcher(watcher);
+}
+
+function trackChild(child, options) {
+  return shutdownManager.trackChild(child, options);
+}
+
+requestShutdown = () => shutdownManager.shutdown(0);
 
 try {
   if (!globalThis.__CRM_DEV_SERVER__) {
@@ -631,78 +844,39 @@ const server = http.createServer((req, res) => {
   send(res, 404, 'Not Found');
 });
 
-function closeServer(){
-  if(serverClosePromise) return serverClosePromise;
-  serverClosePromise = new Promise((resolve) => {
-    try {
-      if(!server.listening){
-        resolve();
-        return;
-      }
-      server.close(() => resolve());
-    } catch {
-      resolve();
-    }
-  });
-  return serverClosePromise;
-}
-
-function logClosedOnce(){
-  if(cleanupLogged) return;
-  cleanupLogged = true;
-  console.info('DEV_SERVER: closed');
-}
-
-function cleanupAll(){
-  if(cleanupPromise) return cleanupPromise;
-  cleanupPromise = (async () => {
-    clearIdleTimer();
-    activeSessions.clear();
-    try {
-      await shutdownChildren('SIGTERM');
-    } catch {}
-    try {
-      await shutdownWatchers();
-    } catch {}
-    try {
-      await closeServer();
-    } catch {}
-    logClosedOnce();
-  })();
-  return cleanupPromise;
-}
-
-function exitProcess(code = 0){
-  if(exitScheduled) return cleanupPromise || Promise.resolve();
-  exitScheduled = true;
-  const fallback = setTimeout(() => {
-    logClosedOnce();
-    process.exit(code);
-  }, 4000);
-  if(typeof fallback.unref === 'function') fallback.unref();
-  cleanupAll().finally(() => {
-    clearTimeout(fallback);
-    process.exit(code);
-  });
-  return cleanupPromise;
-}
-
-requestShutdown = () => exitProcess(0);
+shutdownManager.setServer(server);
 
 console.info('[VIS] shutdown endpoints ready');
 
-['SIGINT', 'SIGTERM'].forEach((sig) => {
-  process.once(sig, () => {
-    exitProcess(0);
-  });
+['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'].forEach((sig) => {
+  try {
+    process.on(sig, () => {
+      shutdownManager.shutdown(0).catch(() => {});
+    });
+  } catch {}
 });
 
-process.once('beforeExit', () => {
-  cleanupAll().catch(() => {});
+process.on('beforeExit', () => {
+  shutdownManager.shutdown(0, { skipExit: true }).catch(() => {});
 });
 
-process.once('exit', () => {
+process.on('exit', () => {
   logClosedOnce();
+  shutdownManager.removePidFile();
+});
+
+process.on('uncaughtException', (error) => {
+  if (error) {
+    console.error('[DEV SERVER] uncaughtException', error);
+  }
+  shutdownManager.shutdown(1).catch(() => {});
+});
+
+process.on('unhandledRejection', (reason) => {
+  if (reason) {
+    console.error('[DEV SERVER] unhandledRejection', reason);
+  }
+  shutdownManager.shutdown(1).catch(() => {});
 });
 
 function listenOnPort(port) {
@@ -749,7 +923,7 @@ function openBrowser(url) {
       detached: true,
       windowsHide: true
     });
-    trackChild(child);
+    trackChild(child, { detached: true });
     if (typeof child.unref === 'function') child.unref();
   } catch {
     try {
@@ -758,13 +932,14 @@ function openBrowser(url) {
         detached: true,
         windowsHide: true
       });
-      trackChild(child);
+      trackChild(child, { detached: true });
       if (typeof child.unref === 'function') child.unref();
     } catch {}
   }
 }
 
 async function start() {
+  await shutdownManager.ensureSingleInstance();
   const preflight = readIndexInfo();
   if (preflight && preflight.error) {
     const indexPath = path.resolve(preflight.indexPath || APP_INDEX);
@@ -778,6 +953,7 @@ async function start() {
     return;
   }
   const port = await bindServer();
+  shutdownManager.writePidFile();
   const url = `http://127.0.0.1:${port}/`;
   console.info(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
 
@@ -788,8 +964,6 @@ async function start() {
     openBrowser(url);
   }
 
-  requestShutdown = () => exitProcess(0);
-
   server.on('error', (err) => {
     const message = err && err.message ? err.message : String(err);
     console.info(`[DEV SERVER] ${message}`);
@@ -799,5 +973,6 @@ async function start() {
 start().catch((err) => {
   const message = err && err.message ? err.message : String(err);
   console.error(`[DEV SERVER] ${message}`);
+  shutdownManager.removePidFile();
   process.exitCode = 1;
 });
