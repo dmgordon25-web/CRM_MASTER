@@ -4,6 +4,7 @@ import { createTaskFromEvent } from './tasks/api.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachStatusBanner } from './ui/status_banners.js';
+import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
@@ -1067,6 +1068,14 @@ function renderSurface(mount, state, handlers){
   statusHost.style.gap = '12px';
   statusHost.style.minHeight = '24px';
   const statusBanner = attachStatusBanner(statusHost, { tone: 'muted' });
+  const cardHost = mount?.closest?.('.calendar-card') || null;
+  if(cardHost){
+    if(state.loading){
+      attachLoadingBlock(cardHost, { lines: 6 });
+    }else{
+      detachLoadingBlock(cardHost);
+    }
+  }
   if(state.loading){
     statusBanner.showLoading('Loading…');
   }else if(state.errorMessage){
