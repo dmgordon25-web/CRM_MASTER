@@ -15,6 +15,7 @@ let enterCount = 0;
 let lastRouteActive = false;
 let lastHash = '';
 let lastView = '';
+let primed = false;
 
 if(typeof GLOBAL.renderCalendar !== 'function'){
   GLOBAL.renderCalendar = function renderCalendar(){
@@ -157,6 +158,18 @@ function ensureController(){
     const { bus, services } = gatherDependencies();
     try{
       controller = createCalendar({ openDB: openDatabase, bus, services, mount });
+      if(controller && typeof controller.prime === 'function' && !primed){
+        let primedOk = false;
+        try{
+          controller.prime();
+          primedOk = true;
+        }catch (err){
+          if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+            console.warn('calendar prime failed', err);
+          }
+        }
+        primed = primedOk;
+      }
       exposeGlobals();
       return controller;
     }catch (err){

@@ -1163,6 +1163,7 @@ export function initCalendar({ openDB, bus, services, mount }){
     entered: 0,
     retryRender: null,
     safeMode: isSafeModeActive(),
+    primed: false,
   };
 
   const debug = ensureDebug();
@@ -1260,6 +1261,7 @@ export function initCalendar({ openDB, bus, services, mount }){
   function scheduleRender(){
     const range = rangeForView(state.anchor, state.view);
     state.loading = !state.safeMode;
+    state.primed = true;
     state.renderCount += 1;
     renderSurface(mount, state, handlers);
     rendering = rendering.then(() => performRender()).catch((err) => {
@@ -1268,6 +1270,14 @@ export function initCalendar({ openDB, bus, services, mount }){
       }
     });
     return rendering;
+  }
+
+  function prime(){
+    if(state.primed) return;
+    state.loading = true;
+    state.renderCount += 1;
+    state.primed = true;
+    renderSurface(mount, state, handlers);
   }
 
   state.retryRender = () => scheduleRender();
@@ -1330,6 +1340,7 @@ export function initCalendar({ openDB, bus, services, mount }){
   }
 
   return {
+    prime,
     enter,
     render: scheduleRender,
     setView,
