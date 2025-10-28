@@ -2055,7 +2055,7 @@ function buildWindow(lensState){
   }
 
   const table = document.createElement('table');
-  table.className = 'table';
+  table.className = 'table list-table';
   table.classList.add('table-managed');
   table.style.width = '100%';
   table.setAttribute('data-selection-scope', config.selectionScope);
