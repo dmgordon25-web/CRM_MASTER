@@ -842,6 +842,7 @@ export async function openPartnerEditModal(id, options){
   const partnerId = rawPartnerId && !INVALID_PARTNER_ID_TOKENS.has(normalizedToken)
     ? rawPartnerId
     : '';
+  const requestedId = partnerId || '';
 
   const sourceHint = options && typeof options.sourceHint === 'string'
     ? options.sourceHint.trim()
@@ -869,12 +870,27 @@ export async function openPartnerEditModal(id, options){
 
   const existing = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`);
   if(existing && existing.dataset?.open === '1' && existing.dataset.partnerId === partnerId){
+    if(invoker){
+      existing.__partnerInvoker = invoker;
+    }
     focusFirstElement(existing);
     return existing;
   }
 
   if(pendingOpen){
-    return pendingOpen;
+    if((pendingOpen.id || '') === requestedId){
+      return pendingOpen.promise.then(node => {
+        const resolved = node && node.dataset?.partnerId === requestedId
+          ? node
+          : findPartnerModal();
+        const modal = resolved || node;
+        if(modal && invoker){
+          modal.__partnerInvoker = invoker;
+        }
+        return modal;
+      });
+    }
+    return pendingOpen.promise.then(() => openPartnerEditModal(id, options));
   }
 
   const sequence = (async () => {
@@ -888,6 +904,8 @@ export async function openPartnerEditModal(id, options){
 
     if(base.dataset){
       base.dataset.opening = '1';
+      base.dataset.partnerId = requestedId;
+      base.dataset.sourceHint = sourceHint || '';
     }
     base.__partnerInvoker = invoker || base.__partnerInvoker || null;
 
@@ -943,7 +961,7 @@ export async function openPartnerEditModal(id, options){
     return root;
   })();
 
-  pendingOpen = sequence.finally(() => {
+  const tracked = sequence.finally(() => {
     pendingOpen = null;
     if(typeof window !== 'undefined'){
       const existing = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`);
@@ -953,7 +971,8 @@ export async function openPartnerEditModal(id, options){
       }
     }
   });
-  return sequence;
+  pendingOpen = { id: requestedId, promise: tracked };
+  return tracked;
 }
 
 registerModalActions({
