@@ -2318,6 +2318,106 @@ function setupInsights() {
   applyMode(activeMode);
 }
 
+function setupInsights() {
+  const switchHost = document.querySelector('#insight-mode-switch');
+  const summary = document.querySelector('#insight-summary');
+  const scorecardHost = document.querySelector('#insight-scorecards');
+  const heatmapHost = document.querySelector('#insight-heatmap');
+  const actionsHost = document.querySelector('#insight-actions');
+
+  let activeMode = '30d';
+
+  function renderScorecards(cards) {
+    scorecardHost.innerHTML = cards
+      .map((card) => {
+        const toneClass = card.tone ? ` insight-${card.tone}` : '';
+        return `
+          <div class="insight-score${toneClass}">
+            <span class="muted">${card.label}</span>
+            <strong>${card.value}</strong>
+            <span class="insight-helper">${card.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderHeatmap(heatmap) {
+    const maxValue = Math.max(
+      ...heatmap.rows.flatMap((row) => row.values.map((value) => Number(value) || 0))
+    );
+    const tableRows = heatmap.rows
+      .map((row) => {
+        const cells = row.values
+          .map((value) => {
+            const numeric = Number(value) || 0;
+            const intensity = maxValue === 0 ? 0 : numeric / maxValue;
+            const percent = Math.round(intensity * 100);
+            return `
+              <td class="heat-cell" style="--heat-intensity:${percent};">
+                <span>${numeric}</span>
+              </td>
+            `;
+          })
+          .join('');
+        return `
+          <tr>
+            <th scope="row">${row.label}</th>
+            ${cells}
+          </tr>
+        `;
+      })
+      .join('');
+
+    const headerCells = heatmap.columns.map((column) => `<th scope="col">${column}</th>`).join('');
+
+    heatmapHost.innerHTML = `
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            ${headerCells}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderActions(actions) {
+    actionsHost.innerHTML = actions
+      .map(
+        (action) => `
+          <li>
+            <strong>${action.title}</strong>
+            <p class="muted">${action.detail}</p>
+          </li>
+        `
+      )
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = insightModes[modeKey] || insightModes['30d'];
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderScorecards(mode.scorecards);
+    renderHeatmap(mode.heatmap);
+    renderActions(mode.actions);
+    renderModeSwitch(switchHost, insightModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  applyMode(activeMode);
+}
+
 function init() {
   const root = document.getElementById('lab-root');
   applyTheme(document.body.dataset.labTheme || 'sunrise');
