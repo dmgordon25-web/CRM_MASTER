@@ -649,6 +649,66 @@ dialog::backdrop{ background:rgba(0,0,0,.35); }
 .form-footer__end{margin-left:auto}
 .record-modal .modal-footer{padding-top:12px}
 .record-modal form{display:flex;flex-direction:column;height:100%}
+
+/* ==== P1 one-shot hard clamp: list tables & modal ==== */
+
+/* Tables: fixed layout, ellipsis, container never widens the viewport */
+.list-table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
+.list-table th,
+.list-table td { box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Prevent outer containers from forcing horizontal growth */
+.list-wrap, .page-wrap, .content-wrap { max-width: 100%; overflow: hidden; }
+.table-wrap { max-width: 100%; overflow-x: auto; }
+
+/* Standard 7-column lists (checkbox, star, Name, Loan Type, Amount, Referred By, Last Activity) */
+.list-table thead th:nth-child(1),
+.list-table tbody td:nth-child(1) { width: 40px; }
+.list-table thead th:nth-child(2),
+.list-table tbody td:nth-child(2) { width: 48px; }
+
+/* Name is the only flexible column — let it absorb remainder */
+.list-table thead th:nth-child(3),
+.list-table tbody td:nth-child(3) { width: auto; }
+
+/* Tight, readable widths for the remaining columns */
+.list-table thead th:nth-child(4),
+.list-table tbody td:nth-child(4) { width: 140px; }
+.list-table thead th:nth-child(5),
+.list-table tbody td:nth-child(5) { width: 120px; }
+.list-table thead th:nth-child(6),
+.list-table tbody td:nth-child(6) { width: 160px; }
+.list-table thead th:nth-child(7),
+.list-table tbody td:nth-child(7) { width: 180px; }
+
+/* If a list has only 6 columns (no Last Activity), this keeps it tidy */
+.list-table thead th:nth-child(6):last-child,
+.list-table tbody td:nth-child(6):last-child { width: 180px; }
+
+/* Sticky header works inside the same scroll container without duplication */
+.list-table thead th { position: sticky; top: 0; background: inherit; z-index: 1; }
+
+/* Modal shell width: readable on desktop, fluid on smaller screens */
+.record-modal .dlg { width: clamp(960px, 90vw, 1200px); }
+
+/* Scroll inside the body, not the page */
+.record-modal .dlg .modal-body {
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+}
+
+/* Prevent right-side fields from scrunching due to flex/grid min-content */
+.record-modal .dlg .column,
+.record-modal .dlg .grid > * {
+  min-width: 0;
+}
+
+/* Give the right pane a reasonable base width while staying flexible */
+.record-modal .dlg .right,
+.record-modal .dlg .pane-right,
+.record-modal .dlg [data-ui="right-pane"] {
+  flex: 1 1 420px;
+}
 .modal-form-layout{display:flex;gap:16px;align-items:flex-start;min-width:0}
 .modal-summary{flex:0 0 260px;background:linear-gradient(145deg,#eef2ff,#e0f2fe);border-radius:14px;padding:16px;border:1px solid #dbeafe;box-shadow:0 12px 32px rgba(79,70,229,.12);min-width:240px;max-width:320px}
 .modal-summary h4{margin:0 0 6px;font-size:15px}
