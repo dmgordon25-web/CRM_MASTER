@@ -26,6 +26,14 @@ const DEV_KEY = crypto.randomBytes(16).toString('hex');
 const IDLE_TIMEOUT_MS = 60_000;
 const PID_FILE = path.join(REPO_ROOT, '.devserver.pid');
 
+// ---------------------------------------------------------------------------
+// NOTE: The Windows "Start CRM" launchers spin up this file in a hidden
+// PowerShell host. Those shortcuts assume that only one dev server instance
+// can exist at a time: a second launch must detect the running PID and exit
+// cleanly after printing a hint for how to attach to it. Keep the single-
+// instance guard behaviour in sync with the launcher scripts.
+// ---------------------------------------------------------------------------
+
 const activeSessions = new Map();
 let idleTimer = null;
 
@@ -249,9 +257,17 @@ class ShutdownManager {
     }
   }
 
-  writePidFile() {
+  writePidFile(meta = {}) {
     if (!this.pidFile) return;
-    fs.writeFileSync(this.pidFile, String(process.pid), 'utf8');
+    const record = {
+      pid: process.pid,
+      updatedAt: new Date().toISOString()
+    };
+    const candidatePort = Number.parseInt(meta && meta.port, 10);
+    if (Number.isFinite(candidatePort) && candidatePort > 0) {
+      record.port = candidatePort;
+    }
+    fs.writeFileSync(this.pidFile, JSON.stringify(record), 'utf8');
   }
 
   isPidAlive(pid) {
@@ -304,7 +320,16 @@ class ShutdownManager {
       }
       throw error;
     }
-    const existingPid = Number.parseInt(existingRaw, 10);
+    let existingPid = Number.NaN;
+    let existingPort = Number.NaN;
+    try {
+      const parsed = JSON.parse(existingRaw);
+      existingPid = Number.parseInt(parsed && parsed.pid, 10);
+      existingPort = Number.parseInt(parsed && parsed.port, 10);
+    } catch {
+      existingPid = Number.parseInt(existingRaw, 10);
+    }
+
     if (!Number.isFinite(existingPid) || existingPid <= 0 || existingPid === process.pid) {
       this.removePidFile();
       return;
@@ -313,10 +338,16 @@ class ShutdownManager {
       this.removePidFile();
       return;
     }
-    console.info(`[DEV SERVER] terminating existing instance ${existingPid}`);
-    await this.killPidTree(existingPid);
-    await this.waitForPidDeath(existingPid);
-    this.removePidFile();
+    const attachPort = Number.isFinite(existingPort) && existingPort > 0 ? existingPort : null;
+    const attachUrl = attachPort ? `http://127.0.0.1:${attachPort}/` : null;
+    console.info(`[DEV SERVER] existing instance already running (pid ${existingPid}).`);
+    if (attachUrl) {
+      console.info(`[DEV SERVER] attach: ${attachUrl}`);
+    } else {
+      console.info('[DEV SERVER] attach: open the running dev server in your browser.');
+    }
+    console.info('[DEV SERVER] exiting without starting a new instance.');
+    process.exit(0);
   }
 
   async shutdown(code = 0, { skipExit = false } = {}) {
@@ -953,7 +984,7 @@ async function start() {
     return;
   }
   const port = await bindServer();
-  shutdownManager.writePidFile();
+  shutdownManager.writePidFile({ port });
   const url = `http://127.0.0.1:${port}/`;
   console.info(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
 
