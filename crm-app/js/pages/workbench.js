@@ -1,4 +1,5 @@
 import { normalizeStatus } from '../pipeline/constants.js';
+import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
@@ -132,6 +133,39 @@ function contactOwner(record){
     || record?.accountOwner
     || ''
   ).trim();
+}
+
+function renderContactNameLink(record, id, lensKey){
+  const link = document.createElement('a');
+  link.href = '#';
+  link.className = 'status-name-link contact-name';
+  link.setAttribute('data-role', 'contact-name');
+  if(id) link.setAttribute('data-id', id);
+  link.setAttribute('data-entity', 'contact');
+  const label = contactName(record) || '—';
+  link.title = label;
+  const nameText = document.createElement('span');
+  nameText.className = 'name-text';
+  nameText.textContent = label || '—';
+  link.appendChild(nameText);
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(!id) return;
+    const opener = typeof openContactModal === 'function'
+      ? openContactModal
+      : (typeof window !== 'undefined' && typeof window.renderContactModal === 'function'
+        ? window.renderContactModal
+        : null);
+    if(!opener) return;
+    try{
+      opener(id, { sourceHint: `workbench:${lensKey}`, trigger: link });
+    }catch (err){
+      try{ console && console.warn && console.warn('[workbench] contact modal failed', err); }
+      catch (_err){}
+    }
+  });
+  return link;
 }
 
 function contactLoanAmount(record){
@@ -1374,14 +1408,19 @@ function renderTable(lensState){
         td.dataset.wrap = column.isName ? '1' : '0';
       }
       if(column.isName){
-        const link = document.createElement('a');
-        link.href = '#';
-        link.textContent = getDisplayValue(row, column, config) || '—';
-        link.setAttribute('data-role', 'open-record');
-        link.setAttribute('data-entity', config.entity);
-        if(id) link.setAttribute('data-id', id);
-        link.title = link.textContent;
-        td.appendChild(link);
+        if(config.entity === 'contact'){
+          const link = renderContactNameLink(row.record, id, lensState.config.key);
+          td.appendChild(link);
+        }else{
+          const link = document.createElement('a');
+          link.href = '#';
+          link.textContent = getDisplayValue(row, column, config) || '—';
+          link.setAttribute('data-role', 'open-record');
+          link.setAttribute('data-entity', config.entity);
+          if(id) link.setAttribute('data-id', id);
+          link.title = link.textContent;
+          td.appendChild(link);
+        }
       }else{
         td.textContent = getDisplayValue(row, column, config) || '—';
         td.title = td.textContent;
@@ -1872,9 +1911,10 @@ function handleExport(lensState){
 function handleRowClick(event, lensState){
   const target = event.target instanceof Element ? event.target : null;
   if(!target) return;
-  const link = target.closest('[data-role="open-record"]');
+  const link = target.closest('[data-role="open-record"], [data-role="contact-name"]');
   if(!link || !lensState.elements.table.contains(link)) return;
   event.preventDefault();
+  if(link.getAttribute('data-role') === 'contact-name') return;
   const id = link.getAttribute('data-id');
   if(!id) return;
   const entity = link.getAttribute('data-entity');
@@ -1886,11 +1926,17 @@ function handleRowClick(event, lensState){
     }
     return;
   }
-  if(typeof window.renderContactModal === 'function'){
+  const opener = typeof openContactModal === 'function'
+    ? openContactModal
+    : (typeof window !== 'undefined' && typeof window.renderContactModal === 'function'
+      ? window.renderContactModal
+      : null);
+  if(opener){
     try{
-      window.renderContactModal(id, { sourceHint: `workbench:${lensState.config.key}` });
+      opener(id, { sourceHint: `workbench:${lensState.config.key}`, trigger: link });
     }catch (err){
-      console && console.warn && console.warn('[workbench] contact modal failed', err);
+      try{ console && console.warn && console.warn('[workbench] contact modal failed', err); }
+      catch (_err){}
     }
   }
 }
