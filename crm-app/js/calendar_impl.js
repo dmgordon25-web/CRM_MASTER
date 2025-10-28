@@ -1240,8 +1240,8 @@ export function initCalendar({ openDB, bus, services, mount }){
         const loaded = await loadEventsBetween(range.start, range.end, { anchor: state.anchor, view: state.view });
         events = normalizeEvents(loaded);
       }catch (err){
-        if(typeof console !== 'undefined' && console && typeof console.error === 'function'){
-          console.error('calendar load failed', err);
+        if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+          console.warn('[soft] calendar load failed', err);
         }
         errorMessage = 'We were unable to load calendar events. Please try again.';
       }
@@ -1265,8 +1265,8 @@ export function initCalendar({ openDB, bus, services, mount }){
     state.renderCount += 1;
     renderSurface(mount, state, handlers);
     rendering = rendering.then(() => performRender()).catch((err) => {
-      if(typeof console !== 'undefined' && console && typeof console.error === 'function'){
-        console.error('calendar render failed', err);
+      if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+        console.warn('[soft] calendar render failed', err);
       }
     });
     return rendering;

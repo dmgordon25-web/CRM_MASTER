@@ -241,8 +241,8 @@ function emitImportChanged(scope) {
     const detail = { scope: 'import', entity: scope, partial: true };
     if (typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function') {
       window.dispatchAppDataChanged(detail);
-    } else if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
-      console.error('[importer] dispatchAppDataChanged unavailable; import change not broadcast.', detail);
+    } else if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+      console.warn('[soft] [importer] dispatchAppDataChanged unavailable; import change not broadcast.', detail);
     }
   } catch (_err) {}
 }

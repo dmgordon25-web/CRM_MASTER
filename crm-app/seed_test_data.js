@@ -418,8 +418,8 @@
     const detail = { source: 'seed' };
     if(typeof globalScope.dispatchAppDataChanged === 'function'){
       globalScope.dispatchAppDataChanged(detail);
-    }else if(typeof console !== 'undefined' && console && typeof console.error === 'function'){
-      console.error('seedTestData: dispatchAppDataChanged missing; data change event not emitted.', detail);
+    }else if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+      console.warn('[soft] seedTestData: dispatchAppDataChanged missing; data change event not emitted.', detail);
     }
   }
 
