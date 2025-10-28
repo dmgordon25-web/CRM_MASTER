@@ -1,5 +1,7 @@
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
+import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
+import { clearSelectionForSurface } from './services/selection_reset.js';
 import {
   renderStageChip,
   canonicalStage,
@@ -1868,11 +1870,25 @@ const ROW_BIND_ONCE = (typeof window !== 'undefined'
   ? (window.__ROW_BIND_ONCE__ = window.__ROW_BIND_ONCE__ || {})
   : {});
 
+function getContactRowState(){
+  const state = ROW_BIND_ONCE.contacts || (ROW_BIND_ONCE.contacts = {});
+  if(!state.watchers) state.watchers = [];
+  if(!state.surface) state.surface = 'contacts';
+  return state;
+}
+
+const scheduleContactTask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => {
+    try {
+      if(typeof Promise === 'function'){ Promise.resolve().then(() => fn()).catch(() => {}); return; }
+    } catch (_) {}
+    try { fn(); }
+    catch (_) {}
+  };
+
 function clearContactSelection(table){
-  try { window.Selection?.clear?.('contacts:row-open'); }
-  catch (_err){}
-  try { window.SelectionStore?.clear?.('contacts'); }
-  catch (_err){}
+  clearSelectionForSurface('contacts', { reason: 'contacts:row-open' });
   if(!table || typeof table.querySelectorAll !== 'function') return;
   table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
     try {
@@ -1885,38 +1901,27 @@ function clearContactSelection(table){
   });
 }
 
-function ensureContactRowGateway(){
-  if(typeof document === 'undefined') return;
-  const state = ROW_BIND_ONCE.contacts || (ROW_BIND_ONCE.contacts = {});
-  if(!state.globalWatcher){
-    const rebinder = () => ensureContactRowGateway();
-    document.addEventListener('app:data:changed', rebinder);
-    document.addEventListener('contacts:list:refresh', rebinder);
-    document.addEventListener('app:view:changed', rebinder);
-    if(typeof window !== 'undefined' && window.addEventListener){
-      window.addEventListener('hashchange', rebinder);
-    }
-    state.globalWatcher = rebinder;
-  }
-
-  const table = document.getElementById('tbl-longshots');
-  if(!table){
-    if(state.root && state.handler){
-      try { state.root.removeEventListener('click', state.handler); }
-      catch (_err){}
-    }
-    state.root = null;
-    state.bound = false;
-    state.active = false;
-    return;
-  }
-
-  if(state.root === table && state.bound) return;
+function detachContactHandler(state){
   if(state.root && state.handler){
     try { state.root.removeEventListener('click', state.handler); }
     catch (_err){}
   }
+  state.root = null;
+  state.handler = null;
+  state.bound = false;
+}
 
+function bindContactRow(){
+  const state = getContactRowState();
+  if(!state.active) return;
+  if(typeof document === 'undefined') return;
+  const table = document.getElementById('tbl-longshots');
+  if(!table){
+    detachContactHandler(state);
+    return;
+  }
+  if(state.root === table && state.bound) return;
+  detachContactHandler(state);
   const handler = (event) => {
     if(!event || event.__crmRowEditorHandled) return;
     const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
@@ -1941,22 +1946,108 @@ function ensureContactRowGateway(){
       catch (_warn){}
     }
   };
-
   table.addEventListener('click', handler);
   state.root = table;
   state.handler = handler;
   state.bound = true;
-  state.active = true;
   state.surface = 'contacts';
 }
 
-if(typeof document !== 'undefined'){
-  const kick = () => ensureContactRowGateway();
+function scheduleContactBind(){
+  const state = getContactRowState();
+  if(!state.active) return;
+  if(state.pendingBind) return;
+  state.pendingBind = true;
+  scheduleContactTask(() => {
+    state.pendingBind = false;
+    if(!state.active){
+      detachContactHandler(state);
+      return;
+    }
+    bindContactRow();
+  });
+}
+
+function ensureContactDomReady(state){
+  if(typeof document === 'undefined') return;
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', kick, { once: true });
-  }else{
-    kick();
+    if(state.domReadyListener) return;
+    const onReady = () => {
+      state.domReadyListener = null;
+      if(state.active) scheduleContactBind();
+    };
+    try {
+      document.addEventListener('DOMContentLoaded', onReady, { once: true });
+    } catch (_) {
+      document.addEventListener('DOMContentLoaded', onReady);
+    }
+    state.domReadyListener = onReady;
   }
+}
+
+function attachContactWatchers(state){
+  if(state.watchersAttached) return;
+  const doc = typeof document !== 'undefined' ? document : null;
+  const listeners = [];
+  const rebinder = state.rebinder || (state.rebinder = () => scheduleContactBind());
+  const defs = [
+    { target: doc, type: 'app:data:changed' },
+    { target: doc, type: 'contacts:list:refresh' }
+  ];
+  for(const def of defs){
+    const { target, type } = def;
+    if(target && typeof target.addEventListener === 'function'){
+      try {
+        target.addEventListener(type, rebinder);
+        listeners.push({ target, type, listener: rebinder });
+      } catch (_err){}
+    }
+  }
+  state.watchers = listeners;
+  state.watchersAttached = true;
+}
+
+function detachContactWatchers(state){
+  if(!state.watchersAttached) return;
+  for(const entry of state.watchers || []){
+    try { entry.target.removeEventListener(entry.type, entry.listener); }
+    catch (_err){}
+  }
+  state.watchers = [];
+  state.watchersAttached = false;
+}
+
+function mountContactRowGateway(){
+  if(typeof document === 'undefined') return;
+  const state = getContactRowState();
+  if(!state.active){
+    state.active = true;
+    state.surface = 'contacts';
+  }
+  attachContactWatchers(state);
+  ensureContactDomReady(state);
+  scheduleContactBind();
+}
+
+function unmountContactRowGateway(){
+  const state = getContactRowState();
+  state.active = false;
+  if(state.domReadyListener && typeof document !== 'undefined'){
+    try { document.removeEventListener('DOMContentLoaded', state.domReadyListener); }
+    catch (_err){}
+  }
+  state.domReadyListener = null;
+  detachContactWatchers(state);
+  detachContactHandler(state);
+  state.pendingBind = false;
+}
+
+if(typeof window !== 'undefined' || typeof document !== 'undefined'){
+  const state = getContactRowState();
+  state.routeToken = acquireRouteLifecycleToken('contacts', {
+    mount: () => mountContactRowGateway(),
+    unmount: () => unmountContactRowGateway()
+  });
 }
 
 let modalReadyPromise = null;
