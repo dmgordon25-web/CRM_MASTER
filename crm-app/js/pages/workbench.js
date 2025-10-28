@@ -404,6 +404,8 @@ function ensureMount(target){
   const mount = target || document.getElementById('view-workbench');
   if(!mount) return null;
   mount.classList.remove('hidden');
+  mount.style.maxWidth = '100%';
+  mount.style.overflowX = 'hidden';
   if(!mount.getAttribute('data-view')){
     mount.setAttribute('data-view', 'workbench');
   }
@@ -414,6 +416,9 @@ function ensureMount(target){
     root.className = 'card';
     mount.appendChild(root);
   }
+  root.style.maxWidth = '100%';
+  root.style.width = '100%';
+  root.style.overflow = 'hidden';
   state.mount = mount;
   state.root = root;
   return root;
@@ -1223,15 +1228,18 @@ function renderTable(lensState){
   const { elements, config, visibleRows } = lensState;
   const tbody = elements.tbody;
   if(!tbody) return;
+  const layoutManager = ensureTableLayoutManager(lensState);
   tbody.innerHTML = '';
   if(lensState.lastError){
     updateStatusMessage(lensState);
     syncSelectionForLens(lensState);
+    if(layoutManager) layoutManager.scheduleMeasure();
     return;
   }
   if(!visibleRows.length){
     updateStatusMessage(lensState);
     syncSelectionForLens(lensState);
+    if(layoutManager) layoutManager.scheduleMeasure();
     return;
   }
   const frag = document.createDocumentFragment();
@@ -1241,16 +1249,24 @@ function renderTable(lensState){
     if(id) tr.setAttribute('data-id', id);
 
     const selectCell = document.createElement('td');
+    selectCell.setAttribute('data-role', 'select');
+    selectCell.dataset.compact = '1';
+    selectCell.style.textAlign = 'center';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.setAttribute('data-role', 'select');
     checkbox.setAttribute('data-ui', 'row-check');
+    checkbox.setAttribute('aria-label', 'Select row');
     if(id) checkbox.setAttribute('data-id', id);
     selectCell.appendChild(checkbox);
     tr.appendChild(selectCell);
 
     config.columns.forEach((column) => {
       const td = document.createElement('td');
+      if(td.dataset){
+        td.dataset.field = column.field || '';
+        td.dataset.wrap = column.isName ? '1' : '0';
+      }
       if(column.isName){
         const link = document.createElement('a');
         link.href = '#';
@@ -1258,18 +1274,353 @@ function renderTable(lensState){
         link.setAttribute('data-role', 'open-record');
         link.setAttribute('data-entity', config.entity);
         if(id) link.setAttribute('data-id', id);
+        link.title = link.textContent;
         td.appendChild(link);
       }else{
         td.textContent = getDisplayValue(row, column, config) || '—';
+        td.title = td.textContent;
       }
       tr.appendChild(td);
     });
 
+    const gutterCell = document.createElement('td');
+    gutterCell.setAttribute('data-role', 'gutter');
+    gutterCell.setAttribute('aria-hidden', 'true');
+    gutterCell.tabIndex = -1;
+    gutterCell.dataset.compact = '1';
+    tr.appendChild(gutterCell);
+
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
+  if(layoutManager) layoutManager.scheduleMeasure();
   updateStatusMessage(lensState);
   syncSelectionForLens(lensState);
+}
+
+const tableLayoutRaf = typeof requestAnimationFrame === 'function'
+  ? requestAnimationFrame
+  : (fn) => setTimeout(fn, 16);
+const tableLayoutMicrotask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => Promise.resolve().then(fn);
+
+function ensureTableLayoutManager(lensState){
+  if(!lensState || !lensState.elements) return null;
+  const { table, tbody } = lensState.elements;
+  const wrap = lensState.elements.tableWrap || (table ? table.parentElement : null);
+  if(!table || !tbody || !wrap) return null;
+  if(lensState.tableLayoutManager && lensState.tableLayoutManager.table === table){
+    lensState.tableLayoutManager.tbody = tbody;
+    lensState.tableLayoutManager.wrap = wrap;
+    return lensState.tableLayoutManager;
+  }
+  if(lensState.tableLayoutManager){
+    disposeTableLayout(lensState.tableLayoutManager);
+  }
+  const manager = createTableLayoutManager(lensState, wrap, table, tbody);
+  lensState.tableLayoutManager = manager;
+  manager.scheduleMeasure();
+  return manager;
+}
+
+function createTableLayoutManager(lensState, wrap, table, tbody){
+  const manager = {
+    lensState,
+    wrap,
+    table,
+    tbody,
+    colgroup: null,
+    resizeObserver: null,
+    rafId: null,
+    disposed: false,
+    fontsReadyResolved: true,
+    fontsReadyPromise: null,
+    isUpdating: false,
+    needsMeasure: false,
+    lastSnapshot: null,
+    debugLogged: false
+  };
+  const doc = table.ownerDocument || document;
+  let colgroup = table.querySelector('colgroup[data-role="layout"]');
+  if(!colgroup){
+    colgroup = doc.createElement('colgroup');
+    colgroup.setAttribute('data-role', 'layout');
+    table.insertBefore(colgroup, table.firstChild || null);
+  }else if(colgroup !== table.firstElementChild){
+    table.insertBefore(colgroup, table.firstChild || null);
+  }
+  manager.colgroup = colgroup;
+
+  const fontsReady = typeof document !== 'undefined'
+    && document.fonts
+    && typeof document.fonts.ready === 'object'
+      ? document.fonts.ready
+      : null;
+  if(fontsReady && typeof fontsReady.then === 'function'){
+    manager.fontsReadyResolved = false;
+    manager.fontsReadyPromise = fontsReady.catch(() => {});
+    manager.fontsReadyPromise.then(() => {
+      manager.fontsReadyResolved = true;
+      if(!manager.disposed){
+        manager.scheduleMeasure();
+      }
+    });
+  }else{
+    manager.fontsReadyResolved = true;
+    manager.fontsReadyPromise = Promise.resolve();
+  }
+
+  manager.scheduleMeasure = function scheduleMeasure(){
+    if(manager.disposed) return;
+    if(manager.rafId != null) return;
+    manager.rafId = tableLayoutRaf(() => {
+      manager.rafId = null;
+      tableLayoutMicrotask(() => manager.measure());
+    });
+  };
+
+  manager.measure = function measure(){
+    if(manager.disposed) return;
+    if(manager.isUpdating){
+      manager.needsMeasure = true;
+      return;
+    }
+    if(!manager.fontsReadyResolved){
+      manager.needsMeasure = true;
+      return;
+    }
+    manager.isUpdating = true;
+    let pending = manager.needsMeasure;
+    manager.needsMeasure = false;
+    try{
+      const changed = applyTableLayout(manager);
+      if(!changed && manager.needsMeasure){
+        pending = true;
+      }else if(manager.needsMeasure){
+        pending = true;
+      }
+      manager.needsMeasure = false;
+    }finally{
+      manager.isUpdating = false;
+    }
+    if((pending || manager.needsMeasure) && !manager.disposed){
+      manager.needsMeasure = false;
+      manager.scheduleMeasure();
+    }
+  };
+
+  if(typeof ResizeObserver === 'function'){
+    const resizeObserver = new ResizeObserver(() => {
+      manager.scheduleMeasure();
+    });
+    resizeObserver.observe(wrap);
+    manager.resizeObserver = resizeObserver;
+  }
+
+  return manager;
+}
+
+function disposeTableLayout(manager){
+  if(!manager) return;
+  manager.disposed = true;
+  if(manager.resizeObserver){
+    try{ manager.resizeObserver.disconnect(); }
+    catch (_err){}
+    manager.resizeObserver = null;
+  }
+}
+
+function applyTableLayout(manager){
+  const { table, tbody, wrap, colgroup } = manager;
+  if(!table || !tbody || !wrap || !colgroup) return false;
+  const thead = table.tHead;
+  const headerRow = thead && thead.rows && thead.rows[0];
+  if(!headerRow){
+    table.removeAttribute('data-table-layout-ready');
+    table.style.removeProperty('--table-scrollbar-width');
+    ensureColgroupLength(colgroup, 0);
+    manager.lastSnapshot = null;
+    return false;
+  }
+  const headerCells = Array.from(headerRow.cells || []);
+  if(headerCells.length === 0){
+    table.removeAttribute('data-table-layout-ready');
+    table.style.removeProperty('--table-scrollbar-width');
+    ensureColgroupLength(colgroup, 0);
+    manager.lastSnapshot = null;
+    return false;
+  }
+  const dataColumnCount = Math.max(0, headerCells.length - 1);
+  if(dataColumnCount <= 0){
+    table.removeAttribute('data-table-layout-ready');
+    table.style.removeProperty('--table-scrollbar-width');
+    ensureColgroupLength(colgroup, 0);
+    manager.lastSnapshot = null;
+    return false;
+  }
+
+  const firstRow = findFirstVisibleRow(tbody);
+  let widths = [];
+  if(firstRow){
+    const cells = Array.from(firstRow.cells || []);
+    for(let index = 0; index < dataColumnCount; index += 1){
+      const cell = cells[index];
+      const headerCell = headerCells[index];
+      let width = measureCellWidth(cell);
+      const headerWidth = measureCellWidth(headerCell);
+      if(headerWidth > width) width = headerWidth;
+      if(index === 0){
+        width = Math.max(width, 44);
+      }
+      widths.push(Math.max(0, Math.round(width)));
+    }
+  }else if(manager.lastSnapshot && Array.isArray(manager.lastSnapshot.widths)){
+    widths = manager.lastSnapshot.widths.slice(0, dataColumnCount);
+  }else{
+    widths = headerCells.slice(0, dataColumnCount).map((cell, index) => {
+      const width = measureCellWidth(cell);
+      return Math.max(0, Math.round(index === 0 ? Math.max(width, 44) : width));
+    });
+  }
+  while(widths.length < dataColumnCount){
+    widths.push(44);
+  }
+
+  const scrollbarWidth = Math.max(0, wrap.offsetWidth - wrap.clientWidth);
+  const horizontalOverflow = wrap.scrollWidth > wrap.clientWidth + 1;
+  const gutterWidth = horizontalOverflow ? scrollbarWidth : 0;
+  const containerWidth = wrap.clientWidth;
+
+  const newSnapshot = {
+    widths: widths.slice(),
+    gutter: Math.max(0, Math.round(gutterWidth)),
+    scrollbar: Math.max(0, Math.round(scrollbarWidth)),
+    containerWidth: Math.max(0, Math.round(containerWidth)),
+    horizontalOverflow: Boolean(horizontalOverflow),
+    fontsReady: manager.fontsReadyResolved
+  };
+
+  const previous = manager.lastSnapshot;
+  const changed = !previous || snapshotChanged(previous, newSnapshot);
+  if(!changed){
+    return false;
+  }
+
+  ensureColgroupLength(colgroup, dataColumnCount + 1);
+  for(let index = 0; index < dataColumnCount; index += 1){
+    const col = colgroup.children[index];
+    const width = Math.max(0, Math.round(widths[index]));
+    col.style.width = `${width}px`;
+    col.style.minWidth = `${width}px`;
+    col.style.maxWidth = `${width}px`;
+  }
+  const gutterCol = colgroup.children[dataColumnCount];
+  const gutterValue = Math.max(0, newSnapshot.gutter);
+  gutterCol.style.width = `${gutterValue}px`;
+  gutterCol.style.minWidth = `${gutterValue}px`;
+  gutterCol.style.maxWidth = `${gutterValue}px`;
+  gutterCol.style.display = gutterValue ? '' : 'none';
+
+  table.style.setProperty('--table-scrollbar-width', `${Math.max(newSnapshot.gutter, newSnapshot.scrollbar)}px`);
+  table.setAttribute('data-table-layout-ready', '1');
+
+  manager.lastSnapshot = newSnapshot;
+  if(!manager.debugLogged){
+    emitTableDebug(manager, newSnapshot);
+  }
+  return true;
+}
+
+function ensureColgroupLength(colgroup, desired){
+  const doc = colgroup.ownerDocument || document;
+  while(colgroup.children.length < desired){
+    colgroup.appendChild(doc.createElement('col'));
+  }
+  while(colgroup.children.length > desired){
+    const last = colgroup.lastElementChild;
+    if(!last) break;
+    colgroup.removeChild(last);
+  }
+}
+
+function findFirstVisibleRow(tbody){
+  if(!tbody) return null;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  for(const row of rows){
+    if(!row) continue;
+    if(row.hidden || row.getAttribute('hidden') === 'true') continue;
+    if(row.style && row.style.display === 'none') continue;
+    const rect = typeof row.getBoundingClientRect === 'function' ? row.getBoundingClientRect() : null;
+    if(rect && rect.height === 0 && rect.width === 0) continue;
+    return row;
+  }
+  return null;
+}
+
+function measureCellWidth(cell){
+  if(!cell) return 0;
+  try{
+    if(typeof cell.getBoundingClientRect === 'function'){
+      const rect = cell.getBoundingClientRect();
+      if(rect && rect.width) return Math.round(rect.width);
+    }
+  }catch (_err){}
+  if(typeof cell.offsetWidth === 'number' && cell.offsetWidth) return Math.round(cell.offsetWidth);
+  if(typeof cell.clientWidth === 'number' && cell.clientWidth) return Math.round(cell.clientWidth);
+  return 0;
+}
+
+function snapshotChanged(previous, next){
+  if(!previous) return true;
+  if(!previous.widths || previous.widths.length !== next.widths.length) return true;
+  for(let index = 0; index < next.widths.length; index += 1){
+    if(previous.widths[index] !== next.widths[index]) return true;
+  }
+  if(previous.gutter !== next.gutter) return true;
+  if(previous.scrollbar !== next.scrollbar) return true;
+  if(previous.containerWidth !== next.containerWidth) return true;
+  if(previous.horizontalOverflow !== next.horizontalOverflow) return true;
+  return false;
+}
+
+function emitTableDebug(manager, snapshot){
+  if(typeof window === 'undefined'){
+    manager.debugLogged = true;
+    return;
+  }
+  const global = window;
+  const payload = {
+    table: manager.lensState?.config?.key || manager.table?.dataset?.tableLens || '',
+    widths: snapshot.widths.slice(),
+    containerWidth: snapshot.containerWidth,
+    scrollbarWidth: snapshot.scrollbar,
+    gutter: snapshot.gutter,
+    fontsReady: snapshot.fontsReady,
+    horizontalOverflow: snapshot.horizontalOverflow,
+    timestamp: Date.now()
+  };
+  let store = global.__TABLE_DEBUG__;
+  let enabled = false;
+  if(store && typeof store === 'object' && !Array.isArray(store)){
+    enabled = store.enabled === true;
+  }else if(store === true){
+    enabled = true;
+    store = { enabled: true, logs: [] };
+  }else if(store === false){
+    enabled = false;
+    store = { enabled: false, logs: [] };
+  }else{
+    store = { enabled: false, logs: [] };
+  }
+  if(!Array.isArray(store.logs)) store.logs = [];
+  store.logs.push(payload);
+  global.__TABLE_DEBUG__ = store;
+  if(global.__DEV__ || enabled){
+    try{ console.log('__TABLE_DEBUG__', payload); }
+    catch (_err){}
+  }
+  manager.debugLogged = true;
 }
 
 function setLoading(lensState, loading){
@@ -1564,6 +1915,9 @@ function buildWindow(lensState){
   const body = document.createElement('div');
   body.className = 'workbench-window-body';
   body.style.marginTop = '12px';
+  body.style.maxWidth = '100%';
+  body.style.overflowX = 'hidden';
+  body.style.minWidth = '0';
   body.hidden = !lensState.open;
 
   const controls = document.createElement('div');
@@ -1692,15 +2046,31 @@ function buildWindow(lensState){
   const tableWrap = document.createElement('div');
   tableWrap.className = 'table-wrap';
   tableWrap.style.marginTop = '8px';
+  tableWrap.style.maxWidth = '100%';
+  tableWrap.style.overflowX = 'auto';
+  tableWrap.style.overflowY = 'hidden';
+  tableWrap.style.position = 'relative';
+  if(tableWrap.dataset){
+    tableWrap.dataset.tableLens = config.key || '';
+  }
 
   const table = document.createElement('table');
   table.className = 'table';
+  table.classList.add('table-managed');
+  table.style.width = '100%';
   table.setAttribute('data-selection-scope', config.selectionScope);
+  table.setAttribute('data-table-role', config.key ? `workbench-${config.key}` : 'workbench');
+  if(table.dataset){
+    table.dataset.tableLens = config.key || '';
+    table.dataset.tableManaged = '1';
+  }
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
 
   const selectAllTh = document.createElement('th');
+  selectAllTh.setAttribute('data-role', 'select');
+  selectAllTh.dataset.compact = '1';
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
@@ -1711,10 +2081,21 @@ function buildWindow(lensState){
   config.columns.forEach((column) => {
     const th = document.createElement('th');
     th.textContent = column.label;
+    if(th.dataset){
+      th.dataset.field = column.field || '';
+      th.dataset.wrap = column.isName ? '1' : '0';
+    }
     th.style.cursor = 'pointer';
     th.addEventListener('click', () => handleHeaderSort(lensState, column.field));
     headerRow.appendChild(th);
   });
+
+  const gutterTh = document.createElement('th');
+  gutterTh.setAttribute('data-role', 'gutter');
+  gutterTh.setAttribute('aria-hidden', 'true');
+  gutterTh.tabIndex = -1;
+  gutterTh.dataset.compact = '1';
+  headerRow.appendChild(gutterTh);
 
   thead.appendChild(headerRow);
   table.appendChild(thead);
@@ -1743,6 +2124,7 @@ function buildWindow(lensState){
     search: searchInput,
     presetChips: presetRow,
     status,
+    tableWrap,
     table,
     thead,
     tbody
