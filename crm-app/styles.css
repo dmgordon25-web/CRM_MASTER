@@ -206,6 +206,22 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .insight-list.actionable li{border-left:4px solid #f97316;padding-left:12px}
 .insight-list.actionable li.overdue{border-left-color:#dc2626}
 .insight-list.actionable li .insight-meta{display:flex;align-items:center;gap:6px}
+#referral-leaderboard{display:flex;flex-direction:column;gap:12px}
+#referral-leaderboard .leaderboard-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+#referral-leaderboard .leaderboard-controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:12px;color:var(--muted)}
+#referral-leaderboard .leaderboard-controls label{display:flex;align-items:center;gap:6px;font-weight:500}
+#referral-leaderboard .leaderboard-controls select{min-width:120px;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid rgba(148,163,184,.45);background:#fff;color:var(--ink)}
+#referral-leaderboard .leaderboard-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+#referral-leaderboard .leaderboard-item{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
+#referral-leaderboard .leaderboard-item:hover{background:#f8fafc;border-color:rgba(99,102,241,.35);box-shadow:0 10px 18px rgba(15,23,42,.08)}
+#referral-leaderboard .leaderboard-rank{font-weight:600;width:28px;text-align:center;font-variant-numeric:tabular-nums}
+#referral-leaderboard .leaderboard-name{flex:1 1 auto;display:flex;flex-direction:column;gap:6px}
+#referral-leaderboard .leaderboard-name-main{display:flex;align-items:center;gap:8px}
+#referral-leaderboard .leaderboard-tier{font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px}
+#referral-leaderboard .leaderboard-metrics{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+#referral-leaderboard .leaderboard-metric{display:flex;flex-direction:column;min-width:92px}
+#referral-leaderboard .leaderboard-metric .label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+#referral-leaderboard .leaderboard-metric .value{font-weight:600;font-size:13px;color:var(--ink)}
 .pipeline-calendar{display:flex;flex-direction:column;gap:var(--space-3)}
 .pipeline-timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
 .pipeline-timeline li{display:grid;grid-template-columns:minmax(80px,110px) 1fr minmax(64px,auto);gap:var(--space-3);align-items:center;padding:var(--space-2) var(--space-3);border:1px solid #e5e7eb;border-radius:var(--radius-lg);background:#f8fafc}
@@ -238,6 +254,14 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .event-chip button{align-self:flex-start;}
 .event-chip[data-category="meeting"]{--event-chip-bg:color-mix(in srgb,var(--accent-contact) 14%,#fff);--event-chip-border:color-mix(in srgb,var(--accent-contact) 32%,transparent);}
 .event-chip[data-category="call"]{--event-chip-bg:color-mix(in srgb,var(--accent-task) 16%,#fff);--event-chip-border:color-mix(in srgb,var(--accent-task) 34%,transparent);}
+.followup-scheduler{background:var(--surface-elevated,#fff);border:1px solid rgba(148,163,184,.3);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 18px rgba(15,23,42,.06)}
+.followup-scheduler .btn{width:100%}
+.followup-suggestion{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)}
+.followup-suggestion .muted{color:var(--muted)}
+.followup-suggestion .btn{align-self:flex-start;width:auto;min-width:0}
+.followup-scheduler [data-role="followup-status"]{min-height:18px;font-size:12px}
+.milestone-badge.is-disabled{opacity:.45;border-style:dashed;cursor:not-allowed;pointer-events:none}
+select option.is-disabled{color:var(--muted)}
 .event-chip[data-category="deadline"]{--event-chip-bg:color-mix(in srgb,var(--accent-milestone) 18%,#fff);--event-chip-border:color-mix(in srgb,var(--accent-milestone) 36%,transparent);}
 .event-chip[data-category="other"]{--event-chip-bg:color-mix(in srgb,var(--accent-other) 12%,#fff);--event-chip-border:color-mix(in srgb,var(--accent-other) 28%,transparent);}
 .calendar-more{border:none;background:rgba(15,23,42,.06);color:#1f2937;font-weight:600;border-radius:999px;padding:var(--space-1) var(--space-3);font-size:var(--font-size-xs);letter-spacing:var(--letter-spacing-tight);cursor:pointer;align-self:flex-start;transition:background .15s ease,box-shadow .15s ease;}
