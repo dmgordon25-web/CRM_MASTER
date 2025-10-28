@@ -1,6 +1,5 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
-import { createTaskFromEvent } from './tasks/api.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachStatusBanner } from './ui/status_banners.js';
@@ -11,16 +10,22 @@ const DOC = typeof document !== 'undefined' ? document : null;
 
 const MAX_VISIBLE_EVENTS_MONTH = 3;
 
-const STORAGE_KEYS = Object.freeze({
-  lastTask: 'calendar:lastTaskId',
-});
+function isSafeModeActive(){
+  if(GLOBAL && (GLOBAL.__SAFE_MODE__ === true || GLOBAL.__SAFE_MODE__ === 1 || GLOBAL.__SAFE_MODE__ === '1')) return true;
+  if(typeof window !== 'undefined' && window.location && typeof window.location.search === 'string'){
+    return /(?:^|[?&])safe=1(?:&|$)/.test(window.location.search);
+  }
+  return false;
+}
 
-const COLOR_PRESETS = [
-  { key: 'contact', label: 'Contacts', token: '--accent-contact', type: 'contact' },
-  { key: 'task', label: 'Tasks', token: '--accent-task', type: 'task' },
-  { key: 'milestone', label: 'Milestones', token: '--accent-milestone', type: 'milestone' },
-  { key: 'other', label: 'Other', token: '--accent-other', type: 'other' },
-];
+const EVENT_CATEGORIES = Object.freeze([
+  { key: 'meeting', label: 'Meeting', icon: '👥', type: 'contact', accent: '--accent-contact', tokens: ['contact', 'meeting', 'appointment', 'birthday', 'anniversary', 'review'] },
+  { key: 'call', label: 'Call', icon: '📞', type: 'task', accent: '--accent-task', tokens: ['task', 'call', 'follow', 'touch', 'reminder', 'phone'] },
+  { key: 'deadline', label: 'Deadline', icon: '⭐', type: 'milestone', accent: '--accent-milestone', tokens: ['milestone', 'deal', 'closing', 'deadline', 'funded', 'closing-watch'] },
+  { key: 'other', label: 'Other', icon: '📌', type: 'other', accent: '--accent-other', tokens: [] },
+]);
+
+const DEFAULT_EVENT_CATEGORY = EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1];
 
 const LOAN_PALETTE = Object.freeze([
   { key: 'fha', label: 'FHA', css: 'loan-purchase' },
@@ -245,48 +250,8 @@ function ensureCalendarHelpers(){
 
 ensureCalendarHelpers();
 
-function safeStorageGet(storage, key){
-  try{
-    if(!storage || typeof storage.getItem !== 'function') return '';
-    return storage.getItem(key) || '';
-  }catch (_err){
-    return '';
-  }
-}
-
-function safeStorageSet(storage, key, value){
-  try{
-    if(!storage || typeof storage.setItem !== 'function') return;
-    storage.setItem(key, value);
-  }catch (_err){}
-}
-
-function rememberTaskId(id){
-  if(!id) return;
-  const value = String(id);
-  if(GLOBAL){
-    GLOBAL.__CAL_TASK_ID__ = value;
-    GLOBAL.__LAST_TASK_ID__ = value;
-  }
-  if(typeof window !== 'undefined'){
-    safeStorageSet(window.localStorage, STORAGE_KEYS.lastTask, value);
-    safeStorageSet(window.sessionStorage, STORAGE_KEYS.lastTask, value);
-  }
-}
-
-function loadRememberedTaskId(){
-  if(GLOBAL && typeof GLOBAL.__CAL_TASK_ID__ === 'string' && GLOBAL.__CAL_TASK_ID__){
-    return GLOBAL.__CAL_TASK_ID__;
-  }
-  if(typeof window === 'undefined') return '';
-  const fromLocal = safeStorageGet(window.localStorage, STORAGE_KEYS.lastTask);
-  const fromSession = safeStorageGet(window.sessionStorage, STORAGE_KEYS.lastTask);
-  return fromLocal || fromSession || '';
-}
-
 function ensureDebug(){
   if(GLOBAL.__CAL_DEBUG__ && typeof GLOBAL.__CAL_DEBUG__ === 'object') return GLOBAL.__CAL_DEBUG__;
-  const lastTaskId = loadRememberedTaskId();
   GLOBAL.__CAL_DEBUG__ = {
     enteredCount: 0,
     renderCount: 0,
@@ -295,7 +260,6 @@ function ensureDebug(){
     day: { slots: 0, events: 0 },
     legendItems: 0,
     visible: false,
-    taskId: lastTaskId || '',
   };
   return GLOBAL.__CAL_DEBUG__;
 }
@@ -417,25 +381,38 @@ function eventTypeKey(event){
   return 'other';
 }
 
-function presetForKey(key){
-  const normalized = typeof key === 'string' ? key.toLowerCase() : '';
-  if(!normalized) return COLOR_PRESETS[COLOR_PRESETS.length - 1];
-  return COLOR_PRESETS.find((item) => normalized.includes(item.key)) || COLOR_PRESETS[COLOR_PRESETS.length - 1];
-}
-
-function presetForEvent(event){
-  const key = eventTypeKey(event);
-  return presetForKey(key);
+function metaForEvent(event){
+  const parts = [];
+  const typeKey = eventTypeKey(event);
+  if(typeKey) parts.push(typeKey);
+  const source = event && typeof event.source === 'object' ? event.source : null;
+  if(source){
+    if(source.entity) parts.push(String(source.entity));
+    if(source.field) parts.push(String(source.field));
+  }
+  if(event && typeof event === 'object'){
+    if(event.label) parts.push(String(event.label));
+    if(event.title) parts.push(String(event.title));
+    if(event.status) parts.push(String(event.status));
+    if(event.subtitle) parts.push(String(event.subtitle));
+  }
+  const haystack = parts.map((value) => String(value).toLowerCase()).join(' ');
+  for(const meta of EVENT_CATEGORIES){
+    if(meta.tokens.length && meta.tokens.some((token) => haystack.includes(token))){
+      return meta;
+    }
+  }
+  return EVENT_CATEGORIES.find((meta) => meta.tokens.length === 0) || DEFAULT_EVENT_CATEGORY;
 }
 
 function colorForEvent(event){
-  const preset = presetForEvent(event);
-  return `var(${preset.token})`;
+  const meta = metaForEvent(event);
+  return `var(${meta.accent})`;
 }
 
 function labelForEvent(event){
-  const preset = presetForEvent(event);
-  return preset.label;
+  const meta = metaForEvent(event);
+  return meta.label;
 }
 
 function parseHourFromString(value){
@@ -507,8 +484,8 @@ function normalizeEvent(raw, index){
   if(!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
   const id = raw.id || raw.uid || (raw.source && raw.source.id) || `${raw.type || 'event'}:${date.getTime()}:${index}`;
   const type = raw.type ? String(raw.type) : '';
-  const preset = presetForEvent(raw);
-  const color = colorForEvent(raw);
+  const meta = metaForEvent(raw);
+  const color = `var(${meta.accent})`;
   const timeInfo = deriveTimeInfo({ ...raw, date });
   const label = raw.title ? String(raw.title) : 'Calendar Event';
   const subtitle = raw.subtitle ? String(raw.subtitle) : '';
@@ -538,8 +515,11 @@ function normalizeEvent(raw, index){
     hour: timeInfo.hour,
     minute: timeInfo.minute,
     color,
-    accentToken: preset.token,
-    category: preset.type,
+    accentToken: meta.accent,
+    category: meta.type,
+    categoryKey: meta.key,
+    categoryLabel: meta.label,
+    icon: meta.icon,
     label: labelForEvent(raw),
     source: normalizeSource(raw.source),
   };
@@ -586,17 +566,28 @@ function createEventNode(event, handlers){
   const node = DOC.createElement('article');
   node.className = 'event-chip';
   node.dataset.id = event.id;
-  const category = (event.category || event.type || 'other').toLowerCase();
-  node.dataset.type = category || 'other';
+  node.dataset.qa = 'cal-event';
+  const toneType = (event.category || event.type || 'other').toLowerCase();
+  node.dataset.type = toneType || 'other';
+  if(event.categoryKey) node.dataset.category = event.categoryKey;
   node.dataset.label = event.label || '';
   node.tabIndex = 0;
 
+  const meta = event.categoryLabel ? { label: event.categoryLabel, icon: event.icon } : metaForEvent(event);
   const header = DOC.createElement('div');
   header.className = 'event-chip-head';
+  const labelWrap = DOC.createElement('span');
+  labelWrap.className = 'event-chip-label';
+  const icon = DOC.createElement('span');
+  icon.className = 'cal-event-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = (event.icon || meta.icon || '').trim() || '•';
   const title = DOC.createElement('span');
   title.className = 'event-chip-title';
   title.textContent = event.title || 'Calendar Event';
-  header.appendChild(title);
+  labelWrap.appendChild(icon);
+  labelWrap.appendChild(title);
+  header.appendChild(labelWrap);
   const time = DOC.createElement('span');
   time.className = 'event-chip-time';
   time.textContent = event.timeLabel || '';
@@ -614,20 +605,13 @@ function createEventNode(event, handlers){
     node.appendChild(detail);
   }
 
-  if(event.contactId && String(event.type || '').toLowerCase() !== 'task'){
-    const actions = DOC.createElement('div');
-    actions.className = 'event-chip-actions';
-    const button = DOC.createElement('button');
-    button.type = 'button';
-    button.className = 'btn ghost';
-    button.textContent = 'Add as Task';
-    button.addEventListener('click', (evt) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-      handlers.onAddTask(event);
-    });
-    actions.appendChild(button);
-    node.appendChild(actions);
+  if(event.date instanceof Date){
+    const typeLabel = (event.categoryLabel || meta.label || 'Event').trim();
+    const dateLabel = DAY_FORMAT.format(event.date);
+    const baseTitle = event.title || 'Calendar Event';
+    node.setAttribute('aria-label', `${typeLabel}: ${baseTitle} on ${dateLabel}`);
+  }else{
+    node.setAttribute('aria-label', event.title || 'Calendar Event');
   }
 
   const open = () => handlers.onOpen(event);
@@ -737,21 +721,32 @@ function createOverflowControl(events, cell, handlers){
 
 function renderLegend(){
   const container = DOC.createElement('div');
-  container.dataset.qa = 'calendar-legend';
-  COLOR_PRESETS.forEach((item) => {
+  container.dataset.qa = 'cal-legend';
+  container.setAttribute('data-qa', 'cal-legend');
+  EVENT_CATEGORIES.forEach((item) => {
     const entry = DOC.createElement('span');
+    entry.dataset.qa = 'cal-legend-item';
     entry.dataset.type = item.type;
-    entry.textContent = item.label;
+    entry.dataset.category = item.key;
+    const icon = DOC.createElement('span');
+    icon.className = 'cal-legend-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = item.icon;
+    const label = DOC.createElement('span');
+    label.className = 'cal-legend-label';
+    label.textContent = item.label;
+    entry.appendChild(icon);
+    entry.appendChild(label);
     container.appendChild(entry);
   });
-  return { node: container, count: COLOR_PRESETS.length };
+  return { node: container, count: EVENT_CATEGORIES.length };
 }
 
 function renderMonthView(range, events, handlers){
   const grid = DOC.createElement('div');
   grid.className = 'calendar-month-grid';
   grid.dataset.qa = 'calendar-month-grid';
-  const totalDays = Math.max(28, range.days || 42);
+  const totalDays = 42;
   const eventsByDay = new Map();
   events.forEach((event) => {
     const key = ymd(event.date);
@@ -762,14 +757,23 @@ function renderMonthView(range, events, handlers){
   const visibleEvents = [];
   const today = toLocalMidnight(new Date());
   let cursor = range.start instanceof Date ? new Date(range.start.getTime()) : toLocalMidnight(new Date());
+  const anchorDate = range.anchor instanceof Date
+    ? new Date(range.anchor.getTime())
+    : (range.start instanceof Date ? new Date(range.start.getFullYear(), range.start.getMonth(), 1) : new Date(cursor.getTime()));
+  const anchorMonth = anchorDate.getMonth();
+  const anchorYear = anchorDate.getFullYear();
   for(let index = 0; index < totalDays; index += 1){
     const key = ymd(cursor);
     const dayEvents = eventsByDay.get(key) || [];
     const cell = DOC.createElement('div');
     cell.className = 'calendar-cell';
+    cell.dataset.qa = 'cal-cell';
     cell.dataset.date = key;
     if(isSameDay(cursor, today)) cell.classList.add('is-today');
     if(isWeekendDay(cursor)) cell.classList.add('is-weekend');
+    if(!(cursor.getMonth() === anchorMonth && cursor.getFullYear() === anchorYear)){
+      cell.classList.add('is-outside');
+    }
 
     const header = DOC.createElement('header');
     header.className = 'calendar-cell-header';
@@ -1026,7 +1030,7 @@ function renderView(range, events, view, handlers){
 
 function publishStyleDiagnostics(){
   if(typeof window === 'undefined' || !DOC) return;
-  const legendItems = DOC.querySelectorAll('[data-qa="calendar-legend"] [data-type]').length;
+  const legendItems = DOC.querySelectorAll('[data-qa="cal-legend"] [data-type]').length;
   const todayCell = !!DOC.querySelector('.calendar-cell.is-today');
   const weekendCells = !!DOC.querySelector('.calendar-cell.is-weekend');
   const nowLine = !!DOC.querySelector('[data-qa="now-line"]');
@@ -1076,6 +1080,7 @@ function renderSurface(mount, state, handlers){
       detachLoadingBlock(cardHost);
     }
   }
+  const emptyCopy = state.view === 'month' ? 'No events this month.' : 'No events scheduled for this period.';
   if(state.loading){
     statusBanner.showLoading('Loading…');
   }else if(state.errorMessage){
@@ -1088,7 +1093,7 @@ function renderSurface(mount, state, handlers){
       }
     });
   }else if(!viewResult.visibleEvents.length){
-    statusBanner.showEmpty('No events scheduled for this period.');
+    statusBanner.showEmpty(emptyCopy);
   }else{
     statusBanner.clear();
   }
@@ -1110,7 +1115,6 @@ function renderSurface(mount, state, handlers){
   debug.renderCount = state.renderCount;
   debug.legendItems = legend.count;
   debug.visible = visible;
-  debug.taskId = state.taskId || loadRememberedTaskId() || '';
   debug.month = viewResult.metrics.month;
   debug.week = viewResult.metrics.week;
   debug.day = viewResult.metrics.day;
@@ -1157,20 +1161,11 @@ export function initCalendar({ openDB, bus, services, mount }){
     errorMessage: '',
     renderCount: 0,
     entered: 0,
-    taskId: loadRememberedTaskId(),
     retryRender: null,
+    safeMode: isSafeModeActive(),
   };
 
   const debug = ensureDebug();
-  debug.taskId = state.taskId || '';
-
-  if(state.taskId && typeof console !== 'undefined' && console && typeof console.log === 'function'){
-    console.log(`TASK_CREATED:${state.taskId}`);
-  }
-
-  if(GLOBAL && typeof GLOBAL.__CALENDAR_TASK_TRACKER__ !== 'function'){
-    GLOBAL.__CALENDAR_TASK_TRACKER__ = rememberTaskId;
-  }
 
   let controlsBound = false;
   let rendering = Promise.resolve();
@@ -1191,29 +1186,6 @@ export function initCalendar({ openDB, bus, services, mount }){
         try{ openPartnerEditModal(partnerId, { sourceHint: 'calendar:event' }); }
         catch (_err){}
       }
-    },
-    async onAddTask(event){
-      let outcome = null;
-      try{
-        outcome = await createTaskFromEvent(event);
-      }catch (err){
-        if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
-          console.warn('calendar task create failed', err);
-        }
-        return;
-      }
-      if(!outcome || outcome.status !== 'ok') return;
-      const record = outcome.task || outcome.record || {};
-      const id = record.id || outcome.id || '';
-      if(id){
-        rememberTaskId(id);
-        state.taskId = String(id);
-        updateDebug({ taskId: state.taskId });
-        if(typeof console !== 'undefined' && console && typeof console.log === 'function'){
-          console.log(`TASK_CREATED:${state.taskId}`);
-        }
-      }
-      scheduleRender();
     },
   };
 
@@ -1260,21 +1232,25 @@ export function initCalendar({ openDB, bus, services, mount }){
     let range = rangeForView(state.anchor, state.view);
     let events = null;
     let errorMessage = '';
-    try{
-      const loaded = await loadEventsBetween(range.start, range.end, { anchor: state.anchor, view: state.view });
-      events = normalizeEvents(loaded);
-    }catch (err){
-      if(typeof console !== 'undefined' && console && typeof console.error === 'function'){
-        console.error('calendar load failed', err);
+    if(state.safeMode){
+      events = [];
+    }else{
+      try{
+        const loaded = await loadEventsBetween(range.start, range.end, { anchor: state.anchor, view: state.view });
+        events = normalizeEvents(loaded);
+      }catch (err){
+        if(typeof console !== 'undefined' && console && typeof console.error === 'function'){
+          console.error('calendar load failed', err);
+        }
+        errorMessage = 'We were unable to load calendar events. Please try again.';
       }
-      errorMessage = 'We were unable to load calendar events. Please try again.';
     }
     if(events){
       state.events = events;
     }else if(!state.events.length){
       state.events = [];
     }
-    state.errorMessage = errorMessage;
+    state.errorMessage = state.safeMode ? '' : errorMessage;
     state.loading = false;
     state.renderCount += 1;
     range = renderSurface(mount, state, handlers);
@@ -1283,7 +1259,7 @@ export function initCalendar({ openDB, bus, services, mount }){
 
   function scheduleRender(){
     const range = rangeForView(state.anchor, state.view);
-    state.loading = true;
+    state.loading = !state.safeMode;
     state.renderCount += 1;
     renderSurface(mount, state, handlers);
     rendering = rendering.then(() => performRender()).catch((err) => {

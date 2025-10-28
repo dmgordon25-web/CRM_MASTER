@@ -1605,6 +1605,101 @@ export function openContactModal(contactId, options){
   return null;
 }
 
+const ROW_BIND_ONCE = (typeof window !== 'undefined'
+  ? (window.__ROW_BIND_ONCE__ = window.__ROW_BIND_ONCE__ || {})
+  : {});
+
+function clearContactSelection(table){
+  try { window.Selection?.clear?.('contacts:row-open'); }
+  catch (_err){}
+  try { window.SelectionStore?.clear?.('contacts'); }
+  catch (_err){}
+  if(!table || typeof table.querySelectorAll !== 'function') return;
+  table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
+    try {
+      if(node.checked) node.checked = false;
+    } catch (_err){}
+  });
+  table.querySelectorAll('[data-selected="1"]').forEach((row) => {
+    try { row.removeAttribute('data-selected'); }
+    catch (_err){}
+  });
+}
+
+function ensureContactRowGateway(){
+  if(typeof document === 'undefined') return;
+  const state = ROW_BIND_ONCE.contacts || (ROW_BIND_ONCE.contacts = {});
+  if(!state.globalWatcher){
+    const rebinder = () => ensureContactRowGateway();
+    document.addEventListener('app:data:changed', rebinder);
+    document.addEventListener('contacts:list:refresh', rebinder);
+    document.addEventListener('app:view:changed', rebinder);
+    if(typeof window !== 'undefined' && window.addEventListener){
+      window.addEventListener('hashchange', rebinder);
+    }
+    state.globalWatcher = rebinder;
+  }
+
+  const table = document.getElementById('tbl-longshots');
+  if(!table){
+    if(state.root && state.handler){
+      try { state.root.removeEventListener('click', state.handler); }
+      catch (_err){}
+    }
+    state.root = null;
+    state.bound = false;
+    state.active = false;
+    return;
+  }
+
+  if(state.root === table && state.bound) return;
+  if(state.root && state.handler){
+    try { state.root.removeEventListener('click', state.handler); }
+    catch (_err){}
+  }
+
+  const handler = (event) => {
+    if(!event || event.__crmRowEditorHandled) return;
+    const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
+    if(skip) return;
+    const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
+    if(control) return;
+    const anchor = event.target?.closest?.('a');
+    if(anchor && !anchor.closest('[data-role="contact-name"],.contact-name')) return;
+    const row = event.target?.closest?.('tr[data-contact-id],tr[data-id]');
+    if(!row || !table.contains(row)) return;
+    const id = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
+    if(!id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.__crmRowEditorHandled = true;
+    event.__contactEditHandled = true;
+    clearContactSelection(table);
+    try {
+      openContactModal(id, { sourceHint: 'contacts:list-row', trigger: row });
+    } catch (err) {
+      try { console && console.warn && console.warn('[contacts] row open failed', err); }
+      catch (_warn){}
+    }
+  };
+
+  table.addEventListener('click', handler);
+  state.root = table;
+  state.handler = handler;
+  state.bound = true;
+  state.active = true;
+  state.surface = 'contacts';
+}
+
+if(typeof document !== 'undefined'){
+  const kick = () => ensureContactRowGateway();
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', kick, { once: true });
+  }else{
+    kick();
+  }
+}
+
 let modalReadyPromise = null;
 export function ensureContactModalReady(){
   if(typeof window === 'undefined') return Promise.resolve(false);

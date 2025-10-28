@@ -173,6 +173,7 @@ function ensureCanonicalNameCapture(root){
   if(root.__partnerCanonicalCapture) return;
 
   const handler = (event) => {
+    if(event && event.__crmRowEditorHandled) return;
     const rawTarget = event?.target;
     let target = null;
     if(rawTarget && typeof rawTarget === 'object'){
