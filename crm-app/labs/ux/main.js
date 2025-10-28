@@ -1,13 +1,11 @@
 const dayjs = window.dayjs;
-const fullCalendarGlobal = window.FullCalendar || {};
-const Calendar = fullCalendarGlobal.Calendar || null;
+const { Calendar } = window.FullCalendar;
 const dayGridPlugin =
-  (fullCalendarGlobal.DayGrid &&
-    (fullCalendarGlobal.DayGrid.default || fullCalendarGlobal.DayGrid)) ||
+  (window.FullCalendar.DayGrid && (window.FullCalendar.DayGrid.default || window.FullCalendar.DayGrid)) ||
   null;
 const interactionPlugin =
-  (fullCalendarGlobal.Interaction &&
-    (fullCalendarGlobal.Interaction.default || fullCalendarGlobal.Interaction)) ||
+  (window.FullCalendar.Interaction &&
+    (window.FullCalendar.Interaction.default || window.FullCalendar.Interaction)) ||
   null;
 const GridStack = window.GridStack;
 const labEvents = typeof EventTarget === 'function' ? new EventTarget() : document.createElement('div');
@@ -352,7 +350,6 @@ const quickActions = [
   { id: 'log-activity', label: 'Log touchpoint', icon: '📝', tone: 'secondary', modal: 'log-activity' },
   { id: 'schedule-event', label: 'Schedule event', icon: '📅', tone: 'secondary', modal: 'schedule-event' }
 ];
-
 const defaultSettings = {
   profile: {
     name: 'Jordan Ellis',
@@ -1111,6 +1108,8 @@ function setupModalSystem() {
     const formData = new FormData(modalState.form);
     config.onSubmit(formData, modalState.context || {});
   });
+  stack.appendChild(toast);
+  stack.scrollTop = stack.scrollHeight;
 }
 
 function openModal(key, context = {}) {
@@ -1205,7 +1204,7 @@ function renderChrome(root) {
         <footer class="nav-footer">
           <p>Build ${dayjs().format('MMM DD, YYYY')}</p>
           <span class="nav-pill">Experimental</span>
-          <a class="nav-back" href="#">← Back to CRM settings</a>
+          <a class="nav-back" href="../../index.html#settings">← Back to CRM settings</a>
         </footer>
       </aside>
       <div class="lab-main">
@@ -1483,27 +1482,6 @@ function renderChrome(root) {
   `;
 }
 
-function applyBackLink(root) {
-  const anchor = root.querySelector('.nav-back');
-  if (!anchor) return;
-  const fallback = new URL('../../index.html', window.location.href);
-  fallback.hash = 'settings';
-  const { referrer } = document;
-  const { location } = window;
-  try {
-    if (referrer) {
-      const refUrl = new URL(referrer);
-      if (refUrl.origin === location.origin) {
-        anchor.href = refUrl.href;
-        return;
-      }
-    }
-  } catch (error) {
-    console.warn('[UX LAB] Unable to read referrer for back link', error);
-  }
-  anchor.href = fallback.href;
-}
-
 function applyTheme(themeKey) {
   const theme = THEMES[themeKey] || THEMES.sunrise;
   document.body.dataset.labTheme = themeKey;
@@ -1722,6 +1700,111 @@ function setupOverview() {
       applyMode(activeMode);
     }
   });
+
+  setActiveSurface('overview');
+}
+
+function renderModeSwitch(host, modes, active) {
+  const buttons = Object.entries(modes)
+    .map(([key, config]) => {
+      const selected = key === active ? " aria-pressed='true'" : " aria-pressed='false'";
+      return `<button type="button" class="chip" data-mode="${key}"${selected}>${config.label}</button>`;
+    })
+    .join('');
+  host.innerHTML = buttons;
+}
+
+function setupOverview() {
+  const summary = document.querySelector('#focus-summary');
+  const switchHost = document.querySelector('#focus-mode-switch');
+  const metricsHost = document.querySelector('#focus-metrics');
+  const trendArea = document.querySelector('#trend-area');
+  const trendLine = document.querySelector('#trend-line');
+  const scoreValue = document.querySelector('#focus-score');
+  const scoreLabel = document.querySelector('#focus-score-label');
+  const dial = document.querySelector('#focus-dial');
+  const dialValue = document.querySelector('#focus-dial-value');
+  const dialLabel = document.querySelector('#focus-dial-label');
+  const timelineHost = document.querySelector('#focus-timeline');
+  const signalsHost = document.querySelector('#signal-cards');
+
+  let activeMode = 'today';
+
+  function renderMetrics(metrics) {
+    metricsHost.innerHTML = metrics
+      .map((metric) => {
+        const toneClass = metric.tone ? ` metric-${metric.tone}` : '';
+        return `
+          <div class="metric${toneClass}">
+            <dt>${metric.label}</dt>
+            <dd>${metric.value}</dd>
+            <span class="muted">${metric.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderTimeline(items) {
+    timelineHost.innerHTML = items
+      .map((item) => {
+        const statusClass = item.status ? ` timeline-${item.status}` : '';
+        return `
+          <li class="timeline-item${statusClass}">
+            <div class="timeline-time">${item.time}</div>
+            <div class="timeline-detail">
+              <strong>${item.title}</strong>
+              <p class="muted">${item.detail}</p>
+            </div>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function renderSignals() {
+    signalsHost.innerHTML = overviewSignals
+      .map((signal) => {
+        const toneClass = signal.tone ? ` signal-${signal.tone}` : '';
+        return `
+          <li class="signal-card${toneClass}">
+            <header>
+              <h5>${signal.title}</h5>
+              <span class="signal-metric">${signal.metric}</span>
+            </header>
+            <p class="muted">${signal.description}</p>
+            <span class="signal-delta">${signal.delta}</span>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = focusModes[modeKey] || focusModes.today;
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderMetrics(mode.metrics);
+    const { area, line } = buildTrend(mode.trend);
+    trendArea.setAttribute('d', area);
+    trendLine.setAttribute('points', line);
+    scoreValue.textContent = `${mode.score}`;
+    scoreLabel.textContent = mode.scoreLabel;
+    dial.style.setProperty('--dial-fill', `${Math.round(mode.capacity * 3.6)}deg`);
+    dialValue.textContent = `${mode.capacity}%`;
+    dialLabel.textContent = mode.capacityLabel;
+    renderTimeline(mode.timeline);
+    renderModeSwitch(switchHost, focusModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  renderSignals();
+  applyMode(activeMode);
 }
 
 function setupThemeSwitcher(root) {
@@ -1739,40 +1822,22 @@ function setupThemeSwitcher(root) {
 
 function setupCalendar() {
   const calendarElement = document.querySelector('#lab-calendar');
-  if (!calendarElement) {
-    return;
-  }
-  if (!Calendar || !dayGridPlugin) {
-    calendarElement.innerHTML =
-      '<p class="muted empty-state">Calendar module unavailable. Refresh to retry loading the schedule.</p>';
-    return;
-  }
-  const pluginList = [dayGridPlugin];
-  if (interactionPlugin) {
-    pluginList.push(interactionPlugin);
-  }
-  try {
-    const calendar = new Calendar(calendarElement, {
-      plugins: pluginList,
-      initialView: 'dayGridMonth',
-      height: 'auto',
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: ''
-      },
-      events: calendarEvents,
-      displayEventEnd: true,
-      nowIndicator: true,
-      aspectRatio: 1.5
-    });
-    calendar.render();
-    calendarInstance = calendar;
-  } catch (error) {
-    console.error('[UX LAB] Unable to start calendar', error);
-    calendarElement.innerHTML =
-      '<p class="muted empty-state">Calendar failed to load. Please reload the Lab to try again.</p>';
-  }
+  const calendar = new Calendar(calendarElement, {
+    plugins: [dayGridPlugin, interactionPlugin],
+    initialView: 'dayGridMonth',
+    height: 'auto',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: ''
+    },
+    events: calendarEvents,
+    displayEventEnd: true,
+    nowIndicator: true,
+    aspectRatio: 1.5
+  });
+  calendar.render();
+  calendarInstance = calendar;
 }
 
 function setupDashboard() {
@@ -1822,6 +1887,76 @@ function setupDashboard() {
     console.error('[UX LAB] Unable to initialise dashboard grid', error);
     renderStatic('Interactive grid failed to load — displaying static cards instead.');
   }
+}
+
+function setupPipeline() {
+  const board = document.getElementById('pipeline-board');
+  const metricsHost = document.getElementById('pipeline-metrics');
+
+  function renderBoard() {
+    board.innerHTML = labState.pipeline
+      .map((stage) => {
+        const cards = stage.deals
+          .map(
+            (deal) => `
+              <article class="pipeline-card" data-deal="${deal.id}" data-stage="${stage.id}">
+                <header>
+                  <strong>${deal.name}</strong>
+                  <span class="muted">${formatCurrency(deal.amount)}</span>
+                </header>
+                <p class="muted">${escapeHtml(deal.status)}</p>
+                <button type="button" class="pill" data-pipeline-edit="${deal.id}">Advance</button>
+              </article>
+            `
+          )
+          .join('');
+
+        return `
+          <section class="pipeline-stage" data-stage="${stage.id}">
+            <header>
+              <h3>${stage.label}</h3>
+              <p class="muted">${stage.summary}</p>
+            </header>
+            <div class="pipeline-stage-body">${cards}</div>
+          </section>
+        `;
+      })
+      .join('');
+  }
+
+  function renderMetrics() {
+    const allDeals = labState.pipeline.flatMap((stage) => stage.deals.map((deal) => ({ ...deal, stage: stage.id })));
+    const activeCount = allDeals.filter((deal) => deal.stage !== 'won').length;
+    const wonVolume = allDeals
+      .filter((deal) => deal.stage === 'won')
+      .reduce((sum, deal) => sum + Number(deal.amount || 0), 0);
+    const attentionCount = allDeals.filter((deal) => /pending|waiting|needs/i.test(deal.status)).length;
+
+    metricsHost.innerHTML = `
+      <li><span class="metric-label">Active deals</span><strong>${formatNumber(activeCount)}</strong></li>
+      <li><span class="metric-label">Won volume</span><strong>${formatCurrency(wonVolume)}</strong></li>
+      <li><span class="metric-label">Follow-ups flagged</span><strong>${formatNumber(attentionCount)}</strong></li>
+    `;
+  }
+
+  board.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-pipeline-edit]');
+    if (!button) return;
+    const dealId = button.dataset.pipelineEdit;
+    const stage = button.closest('.pipeline-card')?.dataset.stage;
+    const deal = labState.pipeline
+      .flatMap((stageEntry) => stageEntry.deals.map((item) => ({ ...item, stage: stageEntry.id })))
+      .find((entry) => entry.id === dealId);
+    openModal('pipeline-update', { dealId, stageId: stage, status: deal?.status || '' });
+  });
+
+  renderBoard();
+  renderMetrics();
+
+  labEvents.addEventListener('pipeline:changed', () => {
+    renderBoard();
+    renderMetrics();
+  });
 }
 
 function setupPipeline() {
@@ -1975,6 +2110,18 @@ function setupContacts() {
           <span class="muted">Phone</span>
           <strong>${escapeHtml(contact.phone || '—')}</strong>
         </div>
+        <div>
+          <span class="muted">Email</span>
+          <strong>${escapeHtml(contact.email || '—')}</strong>
+        </div>
+        <div>
+          <span class="muted">Phone</span>
+          <strong>${escapeHtml(contact.phone || '—')}</strong>
+        </div>
+      </section>
+      <section class="drawer-actions">
+        <button type="button" class="btn-primary" data-drawer-edit="${contact.id}">Edit profile</button>
+        <button type="button" class="btn-ghost" data-drawer-schedule="${contact.id}">Schedule follow-up</button>
       </section>
       <section class="drawer-actions">
         <button type="button" class="btn-primary" data-drawer-edit="${contact.id}">Edit profile</button>
@@ -2179,6 +2326,206 @@ function setupSettings() {
     persistSettings();
     showToast('Automation preferences saved.', 'success');
   });
+}
+
+function setupInsights() {
+  const switchHost = document.querySelector('#insight-mode-switch');
+  const summary = document.querySelector('#insight-summary');
+  const scorecardHost = document.querySelector('#insight-scorecards');
+  const heatmapHost = document.querySelector('#insight-heatmap');
+  const actionsHost = document.querySelector('#insight-actions');
+
+  let activeMode = '30d';
+
+  function renderScorecards(cards) {
+    scorecardHost.innerHTML = cards
+      .map((card) => {
+        const toneClass = card.tone ? ` insight-${card.tone}` : '';
+        return `
+          <div class="insight-score${toneClass}">
+            <span class="muted">${card.label}</span>
+            <strong>${card.value}</strong>
+            <span class="insight-helper">${card.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderHeatmap(heatmap) {
+    const maxValue = Math.max(
+      ...heatmap.rows.flatMap((row) => row.values.map((value) => Number(value) || 0))
+    );
+    const tableRows = heatmap.rows
+      .map((row) => {
+        const cells = row.values
+          .map((value) => {
+            const numeric = Number(value) || 0;
+            const intensity = maxValue === 0 ? 0 : numeric / maxValue;
+            const percent = Math.round(intensity * 100);
+            return `
+              <td class="heat-cell" style="--heat-intensity:${percent};">
+                <span>${numeric}</span>
+              </td>
+            `;
+          })
+          .join('');
+        return `
+          <tr>
+            <th scope="row">${row.label}</th>
+            ${cells}
+          </tr>
+        `;
+      })
+      .join('');
+
+    const headerCells = heatmap.columns.map((column) => `<th scope="col">${column}</th>`).join('');
+
+    heatmapHost.innerHTML = `
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            ${headerCells}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderActions(actions) {
+    actionsHost.innerHTML = actions
+      .map(
+        (action) => `
+          <li>
+            <strong>${action.title}</strong>
+            <p class="muted">${action.detail}</p>
+          </li>
+        `
+      )
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = insightModes[modeKey] || insightModes['30d'];
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderScorecards(mode.scorecards);
+    renderHeatmap(mode.heatmap);
+    renderActions(mode.actions);
+    renderModeSwitch(switchHost, insightModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  applyMode(activeMode);
+}
+
+function setupInsights() {
+  const switchHost = document.querySelector('#insight-mode-switch');
+  const summary = document.querySelector('#insight-summary');
+  const scorecardHost = document.querySelector('#insight-scorecards');
+  const heatmapHost = document.querySelector('#insight-heatmap');
+  const actionsHost = document.querySelector('#insight-actions');
+
+  let activeMode = '30d';
+
+  function renderScorecards(cards) {
+    scorecardHost.innerHTML = cards
+      .map((card) => {
+        const toneClass = card.tone ? ` insight-${card.tone}` : '';
+        return `
+          <div class="insight-score${toneClass}">
+            <span class="muted">${card.label}</span>
+            <strong>${card.value}</strong>
+            <span class="insight-helper">${card.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderHeatmap(heatmap) {
+    const maxValue = Math.max(
+      ...heatmap.rows.flatMap((row) => row.values.map((value) => Number(value) || 0))
+    );
+    const tableRows = heatmap.rows
+      .map((row) => {
+        const cells = row.values
+          .map((value) => {
+            const numeric = Number(value) || 0;
+            const intensity = maxValue === 0 ? 0 : numeric / maxValue;
+            const percent = Math.round(intensity * 100);
+            return `
+              <td class="heat-cell" style="--heat-intensity:${percent};">
+                <span>${numeric}</span>
+              </td>
+            `;
+          })
+          .join('');
+        return `
+          <tr>
+            <th scope="row">${row.label}</th>
+            ${cells}
+          </tr>
+        `;
+      })
+      .join('');
+
+    const headerCells = heatmap.columns.map((column) => `<th scope="col">${column}</th>`).join('');
+
+    heatmapHost.innerHTML = `
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            ${headerCells}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderActions(actions) {
+    actionsHost.innerHTML = actions
+      .map(
+        (action) => `
+          <li>
+            <strong>${action.title}</strong>
+            <p class="muted">${action.detail}</p>
+          </li>
+        `
+      )
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = insightModes[modeKey] || insightModes['30d'];
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderScorecards(mode.scorecards);
+    renderHeatmap(mode.heatmap);
+    renderActions(mode.actions);
+    renderModeSwitch(switchHost, insightModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  applyMode(activeMode);
 }
 
 function init() {
