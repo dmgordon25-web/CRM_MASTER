@@ -742,32 +742,32 @@ table.list-table tbody td:nth-child(6):last-child { width: 180px; }
 /* ===== FINAL: editor modal — wide, readable, no scrunch ===== */
 
 /* Make the dialog wide on desktop but fluid if screen is smaller */
-.record-modal .dlg { width: clamp(1120px, 94vw, 1440px); }
-
-/* Layout the inside as three columns:
-   [left summary][center content/tabs][right form pane] */
-.record-modal .dlg .modal-body {
-  display: grid;
-  grid-template-columns: 320px 1fr minmax(460px, 560px);
-  gap: 16px;
-  align-items: start;
-  max-height: calc(100vh - 160px);
-  overflow: auto;
+.record-modal .dlg {
+  width: clamp(960px, 92vw, 1120px);
+  max-width: 1120px;
 }
 
-/* Allow children to actually shrink instead of forcing overflow */
-.record-modal .dlg .modal-body > * { min-width: 0; }
+/* Let the scroll container live on the body so summary + tabs stay aligned */
+.record-modal .dialog-scroll {
+  overflow: visible;
+  padding-right: 0;
+  margin-right: 0;
+}
 
-/* Right-side inputs MUST stay readable — guarantee a base width */
-.record-modal .dlg .modal-body > :nth-child(3) { min-width: 460px; }
+.record-modal .modal-body {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  padding-right: 16px;
+  margin-right: -16px;
+}
 
-/* Defuse nested flex/grid min-content quirks inside the right pane */
+/* Layout summary + main as a grid; keep children from forcing overflow */
 .record-modal .dlg .column,
 .record-modal .dlg .grid > *,
 .record-modal .dlg [data-ui="right-pane"],
 .record-modal .dlg [class*="form"] { min-width: 0; }
-.modal-form-layout{display:flex;gap:16px;align-items:flex-start;min-width:0}
-.modal-summary{flex:0 0 260px;background:linear-gradient(145deg,#eef2ff,#e0f2fe);border-radius:14px;padding:16px;border:1px solid #dbeafe;box-shadow:0 12px 32px rgba(79,70,229,.12);min-width:240px;max-width:320px}
+.modal-form-layout{display:grid;gap:16px;align-items:flex-start;min-width:0;grid-template-columns:minmax(0,1fr)}
+.modal-summary{background:linear-gradient(145deg,#eef2ff,#e0f2fe);border-radius:14px;padding:16px;border:1px solid #dbeafe;box-shadow:0 12px 32px rgba(79,70,229,.12);min-width:0;width:100%;max-width:320px}
 .modal-summary h4{margin:0 0 6px;font-size:15px}
 .modal-summary .summary-name{font-size:20px;font-weight:700;margin-bottom:4px;letter-spacing:.3px;display:flex;align-items:center;gap:10px}
 .modal-summary .summary-meta{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
@@ -869,9 +869,16 @@ table.list-table tbody td:nth-child(6):last-child { width: 180px; }
 .doc-missing{font-size:12px;color:#475569}
 .doc-missing.warn{color:#b91c1c;font-weight:600}
 
+@media (min-width:1024px){
+  /* At desktop widths, lock into a 2-column layout */
+  .modal-form-layout{grid-template-columns:minmax(280px,320px) minmax(0,1fr)}
+}
+
+@media (max-width:1023px){
+  .modal-summary{max-width:100%}
+}
+
 @media (max-width:1080px){
-  .modal-form-layout{flex-direction:column}
-  .modal-summary{width:100%}
   .field-grid.cols-3{grid-template-columns:repeat(2,minmax(0,1fr))}
   .summary-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
