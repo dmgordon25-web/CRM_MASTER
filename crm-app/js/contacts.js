@@ -7,7 +7,14 @@ import {
   toneForStage,
   toneForStatus,
   toneClassName,
-  TONE_CLASSNAMES
+  TONE_CLASSNAMES,
+  PIPELINE_MILESTONES,
+  normalizeStatusForStage,
+  allowedStatusesForStage,
+  normalizeMilestoneForStatus,
+  milestoneRangeForStatus,
+  canonicalStatusKey,
+  milestoneIndex
 } from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
@@ -38,6 +45,9 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     }
   };
 
+  const noop = ()=>{};
+  let refreshFollowUpSuggestion = noop;
+
   const removeToneClasses = (node)=>{
     if(!node || !node.classList) return;
     TONE_CLASSNAMES.forEach((cls)=> node.classList.remove(cls));
@@ -53,6 +63,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
   };
 
   const STAGES = [
+    {value:'long-shot', label:'Long Shot'},
     {value:'application', label:'Application'},
     {value:'preapproved', label:'Pre-Approved'},
     {value:'processing', label:'Processing'},
@@ -65,8 +76,9 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     {value:'lost', label:'Lost'},
     {value:'denied', label:'Denied'}
   ];
-  const STAGE_FLOW = ['application','processing','underwriting','approved','cleared-to-close','funded','post-close'];
+  const STAGE_FLOW = ['long-shot','application','preapproved','processing','underwriting','approved','cleared-to-close','funded','post-close'];
   const STAGE_AUTOMATIONS = {
+    'long-shot': 'Captures brand-new leads, tags referral sources, and schedules nurture cadences automatically.',
     application: 'Creates welcome tasks, kicks off the doc checklist, and schedules a first follow-up reminder.',
     preapproved: 'Confirms credit docs, arms borrowers with next steps, and keeps partners in the loop.',
     processing: 'Alerts processing teammates, syncs missing documents, and tightens the follow-up cadence.',
@@ -79,6 +91,23 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     lost: 'Documents outcome, schedules re-engagement, and captures learnings for the team.',
     denied: 'Captures denial reasons, assigns compliance follow-ups, and plans credit repair touchpoints.'
   };
+  const DAY_MS = 86400000;
+  const FOLLOW_UP_RULES = Object.freeze({
+    'long-shot': { days: 2, note: 'Confirm intro call and set nurture cadence.' },
+    application: { days: 2, note: 'Check application progress and document needs.' },
+    preapproved: { days: 3, note: 'Review readiness and partner alignment.' },
+    processing: { days: 2, note: 'Sync processing status and borrower expectations.' },
+    underwriting: { days: 1, note: 'Track underwriting conditions and prep responses.' },
+    approved: { days: 1, note: 'Coordinate closing logistics and next milestones.' },
+    'cleared-to-close': { days: 1, note: 'Confirm closing details and celebration plan.' },
+    funded: { days: 30, note: 'Launch post-close nurture touch.' },
+    'post-close': { days: 45, note: 'Plan gifting and review outreach.' },
+    nurture: { days: 14, note: 'Send value touch to stay top-of-mind.' },
+    paused: { days: 14, note: 'Revisit paused file for status check.' },
+    lost: { days: 60, note: 'Schedule re-engagement touchpoint.' },
+    denied: { days: 45, note: 'Offer credit roadmap follow-up.' },
+    default: { days: 3, note: 'Maintain steady follow-up cadence.' }
+  });
   const STATUSES = [
     {value:'inprogress', label:'In Progress'},
     {value:'active', label:'Active'},
@@ -108,9 +137,6 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     {value:'clear-to-close', label:'Clear to Close'},
     {value:'post-closing', label:'Post-Closing'}
   ];
-  const PIPELINE_MILESTONES = [
-    'Intro Call','Application Sent','Application Submitted','UW in Progress','Conditions Out','Clear to Close','Docs Out','Funded / Post-Close'
-  ];
   const MILESTONE_ACTIONS = {
     'Intro Call': 'Send App Invite',
     'Application Sent': 'Confirm Application Receipt',
@@ -122,9 +148,9 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     'Funded / Post-Close': 'Request Review'
   };
   const slugifyMilestone = (label)=> String(label||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'milestone';
-  const milestoneMeta = (value)=>{
-    const normalized = String(value||'').trim().toLowerCase();
-    let index = PIPELINE_MILESTONES.findIndex(m=> m.toLowerCase() === normalized);
+  const milestoneMeta = (value, status)=>{
+    const normalized = normalizeMilestoneForStatus(value, status || 'inprogress');
+    let index = milestoneIndex(normalized);
     if(index < 0) index = 0;
     const label = PIPELINE_MILESTONES[index] || PIPELINE_MILESTONES[0];
     const action = MILESTONE_ACTIONS[label] || 'Log Next Step';
@@ -469,6 +495,10 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
               <span class="metric-label">Lead Source</span>
               <span class="metric-value" id="c-summary-source">${escape(c.leadSource||'Set Source')}</span>
             </div>
+            <div class="summary-metric">
+              <span class="metric-label">Referred By</span>
+              <span class="metric-value" id="c-summary-referral">${escape(c.referredBy||'Log Referral')}</span>
+            </div>
           </div>
           <div class="modal-note" id="c-summary-note">
             Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
@@ -598,8 +628,16 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     const milestoneFill = body.querySelector('[data-role="milestone-progress-fill"]');
     const milestoneBadges = Array.from(body.querySelectorAll('[data-role="milestone-badge"]'));
     const milestoneActionBtn = body.querySelector('[data-role="milestone-next"]');
-    const updateMilestoneUi = (value)=>{
-      const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''));
+    function allowedMilestoneIndex(statusVal, idx){
+      const range = milestoneRangeForStatus(statusVal || 'inprogress');
+      return idx >= range.min && idx <= range.max;
+    }
+    function updateMilestoneUi(value, statusOverride){
+      const statusValue = statusOverride || (statusSelect ? statusSelect.value : 'inprogress');
+      const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''), statusValue);
+      if(milestoneSelect && milestoneSelect.value !== meta.label){
+        milestoneSelect.value = meta.label;
+      }
       if(milestoneBar && milestoneFill){
         const max = PIPELINE_MILESTONES.length;
         const maxIndex = Math.max(max - 1, 1);
@@ -609,18 +647,42 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
         milestoneBar.setAttribute('aria-valuetext', meta.label);
       }
       milestoneBadges.forEach((btn, idx)=>{
+        const allowed = allowedMilestoneIndex(statusValue, idx);
+        btn.disabled = !allowed;
+        btn.classList.toggle('is-disabled', !allowed);
+        btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
         const active = idx === meta.index;
         btn.classList.toggle('is-active', active);
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
       if(milestoneActionBtn) milestoneActionBtn.textContent = meta.action;
       return meta;
-    };
+    }
+    function applyStatusGuard(stageVal){
+      const allowed = new Set(allowedStatusesForStage(stageVal));
+      if(statusSelect){
+        Array.from(statusSelect.options).forEach(opt => {
+          const key = canonicalStatusKey(opt.value);
+          const permitted = allowed.has(key);
+          opt.disabled = !permitted;
+          opt.classList.toggle('is-disabled', !permitted);
+          opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
+        });
+        const normalized = normalizeStatusForStage(stageVal, statusSelect.value);
+        if(statusSelect.value !== normalized){
+          statusSelect.value = normalized;
+        }
+      }
+      const currentStatus = statusSelect ? statusSelect.value : 'inprogress';
+      updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', currentStatus);
+      refreshFollowUpSuggestion();
+    }
     if(milestoneSelect) milestoneSelect.addEventListener('change', ()=> updateMilestoneUi(milestoneSelect.value));
     milestoneBadges.forEach((btn)=>{
       if(btn.__wired) return;
       btn.__wired = true;
       btn.addEventListener('click', ()=>{
+        if(btn.disabled) return;
         const targetLabel = btn.getAttribute('data-milestone') || '';
         if(milestoneSelect){
           milestoneSelect.value = targetLabel;
@@ -635,7 +697,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       milestoneActionBtn.addEventListener('click', async ()=>{
         const contactId = String($('#c-id', body)?.value || '').trim();
         if(!contactId){ notify('Save the contact before logging a milestone task.', 'warn'); return; }
-        const meta = updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '');
+        const meta = updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', statusSelect ? statusSelect.value : '');
         const note = `${meta.action} — ${meta.label}`;
         const tagValue = `milestone:${meta.slug}`;
         const payload = { linkedType:'contact', linkedId:contactId, note, tags:[tagValue] };
@@ -714,6 +776,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     }
 
     const stageSelect = $('#c-stage', body);
+    const statusSelect = $('#c-status', body);
     const stageRange = $('#contact-stage-range', body);
     const stageProgress = $('#contact-stage-progress', body);
     const stageMarks = Array.from(body.querySelectorAll('.stage-slider-mark'));
@@ -758,19 +821,36 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       stageRange.addEventListener('input', onStageDrag);
       stageRange.addEventListener('change', onStageDrag);
     }
+    if(statusSelect){
+      statusSelect.addEventListener('change', ()=>{
+        const stageVal = stageSelect ? stageSelect.value : 'application';
+        const normalized = normalizeStatusForStage(stageVal, statusSelect.value);
+        if(statusSelect.value !== normalized){
+          statusSelect.value = normalized;
+        }
+        updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', normalized);
+        refreshFollowUpSuggestion();
+      });
+    }
     if(stageSelect){
-      stageSelect.addEventListener('change', ()=> syncStageSlider(stageSelect.value));
+      stageSelect.addEventListener('change', ()=>{
+        const nextStage = stageSelect.value;
+        syncStageSlider(nextStage);
+        applyStatusGuard(nextStage);
+      });
     }
 
     const updateSummary = ()=>{
       const amountVal = Number($('#c-amount',body)?.value||0);
       const program = $('#c-loanType',body)?.value||'';
       const source = $('#c-source',body)?.value || '';
+      const referralVal = $('#c-ref',body)?.value || '';
       const next = $('#c-nexttouch',body)?.value || $('#c-timeline',body)?.value || 'TBD';
       const amountEl = $('#c-summary-amount',body);
       const programEl = $('#c-summary-program',body);
       const sourceEl = $('#c-summary-source',body);
       const touchEl = $('#c-summary-touch',body);
+      const referralEl = $('#c-summary-referral',body);
       const summaryName = body.querySelector('.summary-name');
       const summaryNote = $('#c-summary-note',body);
       const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
@@ -782,6 +862,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       if(amountEl){ amountEl.textContent = amountVal>0 ? fmtCurrency.format(amountVal) : 'TBD'; }
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
+      if(referralEl){ referralEl.textContent = referralVal || 'Log Referral'; }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
       if(summaryName){
         const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
@@ -820,6 +901,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
+        else if(stageVal==='long-shot'){ summaryNote.textContent = 'Prioritize quick outreach, log lead intel, and enroll in nurture campaigns.'; }
         else if(stageVal==='funded'){ summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }
         else if(stageVal==='nurture'){ summaryNote.textContent = 'Set light-touch cadences, send value content, and track partner intel.'; }
         else if(stageVal==='lost' || stageVal==='denied'){ summaryNote.textContent = 'Capture the outcome, log lessons learned, and schedule a re-engagement plan.'; }
@@ -833,7 +915,9 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       el.addEventListener('change', updateSummary);
       el.addEventListener('input', updateSummary);
     });
-    syncStageSlider(c.stage||'application');
+    const initialStage = c.stage||'application';
+    syncStageSlider(initialStage);
+    applyStatusGuard(initialStage);
     updateSummary();
 
     const ensureReferredByButton = ()=>{
@@ -1092,19 +1176,39 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           secondaryEmail: $('#c-email2',body).value.trim(),
           secondaryPhone: $('#c-phone2',body).value.trim()
         });
+        u.status = normalizeStatusForStage(u.stage, u.status);
+        u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
+        const prevCanon = canonicalStage(prevStage);
         if(typeof window.updateContactStage === 'function'){
-          window.updateContactStage(u, u.stage, prevStage);
+          const maybeResult = window.updateContactStage(u, u.stage, prevStage);
+          if(maybeResult && typeof maybeResult.then === 'function'){
+            await maybeResult;
+          }
         }else{
-          const canonFn = typeof window.canonicalizeStage === 'function' ? window.canonicalizeStage : (val)=> String(val||'').toLowerCase();
-          const prevCanon = canonFn(prevStage);
+          const canonFn = typeof window.canonicalizeStage === 'function'
+            ? window.canonicalizeStage
+            : (val)=> String(val||'').toLowerCase();
+          const prevFallback = canonFn(prevStage);
           const nextCanon = canonFn(u.stage);
           u.stage = nextCanon;
-          if(!u.stageEnteredAt || prevCanon !== nextCanon){
+          if(!u.stageEnteredAt || prevFallback !== nextCanon){
             u.stageEnteredAt = new Date().toISOString();
           }
         }
         if(!u.stageEnteredAt){
           u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
+        }
+        const nextCanon = canonicalStage(u.stage);
+        if(nextCanon !== prevCanon){
+          try{
+            console && console.info && console.info('[contacts] stage transition persisted', {
+              id: u.id,
+              from: prevCanon || null,
+              to: nextCanon || null,
+              status: u.status,
+              milestone: u.pipelineMilestone
+            });
+          }catch(_err){}
         }
         await openDB();
         await dbPut('contacts', u);
@@ -1179,6 +1283,23 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       actionBtn.setAttribute('aria-haspopup', 'true');
       actionBtn.setAttribute('aria-expanded', 'false');
 
+      const suggestWrap = document.createElement('div');
+      suggestWrap.className = 'followup-suggestion';
+      suggestWrap.style.display = 'flex';
+      suggestWrap.style.flexDirection = 'column';
+      suggestWrap.style.gap = '4px';
+      const suggestMeta = document.createElement('div');
+      suggestMeta.dataset.role = 'followup-suggestion-meta';
+      suggestMeta.className = 'muted';
+      suggestMeta.style.fontSize = '12px';
+      suggestMeta.style.lineHeight = '1.4';
+      const suggestBtn = document.createElement('button');
+      suggestBtn.type = 'button';
+      suggestBtn.className = 'btn brand';
+      suggestBtn.textContent = 'Schedule Next Follow-up';
+      suggestWrap.appendChild(suggestMeta);
+      suggestWrap.appendChild(suggestBtn);
+
       const prompt = document.createElement('div');
       prompt.dataset.role = 'contact-followup-prompt';
       prompt.hidden = true;
@@ -1252,6 +1373,70 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
         }
       };
 
+      let currentSuggestion = null;
+      function computeFollowUpSuggestion(){
+        const stageVal = stageSelect ? stageSelect.value : (c.stage || 'application');
+        const statusVal = statusSelect ? statusSelect.value : (c.status || 'inprogress');
+        const rule = FOLLOW_UP_RULES[stageVal] || FOLLOW_UP_RULES[statusVal] || FOLLOW_UP_RULES.default;
+        const baseDays = Number.isFinite(rule?.days) ? rule.days : FOLLOW_UP_RULES.default.days;
+        const stageLabel = findLabel(STAGES, stageVal) || stageVal;
+        const lastField = $('#c-lastcontact', body);
+        const nextField = $('#c-nexttouch', body);
+        const rawLast = String(lastField?.value || c.lastContact || c.updatedAt || c.createdAt || '').trim();
+        const rawNext = String(nextField?.value || '').trim();
+        let lastTouchDate = rawLast ? new Date(rawLast) : null;
+        if(lastTouchDate && Number.isNaN(lastTouchDate.getTime())) lastTouchDate = null;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let dueDate = null;
+        if(lastTouchDate){
+          const base = new Date(lastTouchDate);
+          base.setHours(0,0,0,0);
+          dueDate = new Date(base);
+          dueDate.setDate(base.getDate() + baseDays);
+          if(dueDate < today) dueDate = new Date(today);
+        }else if(rawNext){
+          const parsedNext = new Date(rawNext);
+          if(!Number.isNaN(parsedNext.getTime())) dueDate = parsedNext;
+        }
+        if(!dueDate){
+          dueDate = new Date(today);
+          dueDate.setDate(today.getDate() + baseDays);
+        }
+        const isoDue = dueDate.toISOString().slice(0,10);
+        let daysSince = null;
+        if(lastTouchDate){
+          const base = new Date(lastTouchDate);
+          base.setHours(0,0,0,0);
+          daysSince = Math.floor((today - base)/DAY_MS);
+        }
+        const summaryParts = [stageLabel];
+        if(daysSince != null && Number.isFinite(daysSince)) summaryParts.push(`${daysSince}d since touch`);
+        else summaryParts.push('No recorded touch');
+        const summary = `${summaryParts.join(' • ')} → ${isoDue}`;
+        const noteDetail = rule?.note || `${stageLabel} follow-up`;
+        const taskNote = `${stageLabel} follow-up — ${noteDetail}`;
+        return { due: isoDue, summary, description: noteDetail, note: taskNote, stage: stageVal, status: statusVal };
+      }
+      function refreshSuggestion(){
+        currentSuggestion = computeFollowUpSuggestion();
+        if(suggestBtn){
+          const ready = !!(currentSuggestion && currentSuggestion.due);
+          suggestBtn.disabled = !ready;
+        }
+        if(!suggestMeta) return;
+        if(currentSuggestion && currentSuggestion.due){
+          const message = currentSuggestion.description
+            ? `${currentSuggestion.summary} (${currentSuggestion.description})`
+            : currentSuggestion.summary;
+          suggestMeta.textContent = message;
+        }else{
+          suggestMeta.textContent = 'Set stage and touchpoints to generate the next follow-up.';
+        }
+      }
+
+      refreshFollowUpSuggestion = refreshSuggestion;
+
       const closePrompt = ()=>{
         prompt.hidden = true;
         prompt.style.display = 'none';
@@ -1313,6 +1498,12 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
               window.dispatchEvent(new CustomEvent('tasks:changed'));
             }catch(_err){}
           }, 0);
+          const nextField = $('#c-nexttouch', body);
+          if(nextField){
+            nextField.value = due;
+            nextField.dispatchEvent(new Event('change', { bubbles:true }));
+          }
+          refreshSuggestion();
           setStatus('Follow-up scheduled.', 'success');
           noteInput.value = '';
           submitting = false;
@@ -1330,11 +1521,66 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
         });
       };
 
+      const handleQuickSchedule = ()=>{
+        if(submitting) return;
+        const linkedId = String($('#c-id', body)?.value || c.id || '').trim();
+        if(!linkedId){ setStatus('Save the contact before scheduling a follow-up.', 'error'); return; }
+        if(!currentSuggestion || !currentSuggestion.due){ setStatus('Unable to compute next follow-up suggestion.', 'error'); return; }
+        submitting = true;
+        confirmBtn.disabled = true;
+        cancelBtn.disabled = true;
+        actionBtn.disabled = true;
+        suggestBtn.disabled = true;
+        setStatus('Scheduling next follow-up…');
+        const payload = { linkedType:'contact', linkedId, due: currentSuggestion.due, note: currentSuggestion.note };
+        Promise.resolve().then(async () => {
+          const createViaApp = window.App?.tasks?.createMinimal;
+          if(typeof createViaApp === 'function'){
+            await createViaApp(payload);
+          }else{
+            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const fn = mod.createMinimalTask || mod.createTask || mod.default;
+            if(typeof fn !== 'function') throw new Error('Task API unavailable');
+            await fn(payload);
+          }
+        }).then(() => {
+          const nextField = $('#c-nexttouch', body);
+          if(nextField){
+            nextField.value = currentSuggestion.due;
+            nextField.dispatchEvent(new Event('change', { bubbles:true }));
+          }
+          setStatus(`Scheduled for ${currentSuggestion.due}.`, 'success');
+          submitting = false;
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+          actionBtn.disabled = false;
+          suggestBtn.disabled = false;
+          refreshSuggestion();
+          setTimeout(() => {
+            try{ window.dispatchEvent(new CustomEvent('tasks:changed')); }
+            catch(_err){}
+          }, 0);
+        }).catch(err => {
+          console.warn?.('[followup]', err);
+          submitting = false;
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+          actionBtn.disabled = false;
+          suggestBtn.disabled = false;
+          setStatus('Unable to schedule follow-up. Try again.', 'error');
+        });
+      };
+
       actionBtn.addEventListener('click', (event)=>{
         event.preventDefault();
         setStatus('');
         if(prompt.hidden){ openPrompt(); }
         else { closePrompt(); }
+      }, { signal });
+      suggestBtn.addEventListener('click', (event)=>{
+        event.preventDefault();
+        setStatus('');
+        handleQuickSchedule();
       }, { signal });
 
       confirmBtn.addEventListener('click', (event)=>{
@@ -1355,22 +1601,35 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
         }
       }, { signal });
 
+      const lastTouchField = $('#c-lastcontact', body);
+      const nextTouchField = $('#c-nexttouch', body);
+      [lastTouchField, nextTouchField].forEach(field => {
+        if(!field || typeof field.addEventListener !== 'function') return;
+        const update = ()=> refreshSuggestion();
+        field.addEventListener('input', update, { signal });
+        field.addEventListener('change', update, { signal });
+      });
+
       signal.addEventListener('abort', ()=>{
         if(host.parentElement){ host.remove(); }
         if(dlg.__contactFollowUpAbort === controller){
           dlg.__contactFollowUpAbort = null;
+        }
+        if(refreshFollowUpSuggestion === refreshSuggestion){
+          refreshFollowUpSuggestion = noop;
         }
       });
 
       try{ dlg.addEventListener('close', ()=> controller.abort(), { once: true }); }
       catch(_err){ dlg.addEventListener('close', ()=> controller.abort(), { once: true }); }
 
-      host.append(actionBtn, prompt, status);
+      host.append(suggestWrap, actionBtn, prompt, status);
       if(start.firstChild){
         start.insertBefore(host, start.firstChild);
       }else{
         start.appendChild(host);
       }
+      refreshSuggestion();
     };
 
     const installTouchLogging = ()=>{

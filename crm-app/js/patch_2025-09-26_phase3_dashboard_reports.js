@@ -121,6 +121,10 @@ function runPatch(){
       if(!value) return [];
       return [[value.toLowerCase(), key], [value, key]];
     }));
+    const LEADERBOARD_SORT_STORAGE_KEY = 'referral.leaderboard.sort';
+    const LEADERBOARD_FILTER_STORAGE_KEY = 'referral.leaderboard.filter';
+    const LEADERBOARD_SORT_OPTIONS = new Set(['volume','active','conversion']);
+    const LEADERBOARD_FILTER_OPTIONS = new Set(['all','active','funded']);
 
     function readStoredDashboardMode(){
       if(typeof localStorage === 'undefined') return null;
@@ -192,6 +196,36 @@ function runPatch(){
       }catch (_err) {}
     }
 
+    function readStoredLeaderboardPref(key){
+      if(typeof localStorage === 'undefined') return '';
+      try{
+        return localStorage.getItem(key) || '';
+      }catch(_err){
+        return '';
+      }
+    }
+
+    function writeStoredLeaderboardPref(key, value){
+      if(typeof localStorage === 'undefined') return;
+      try{
+        if(value){
+          localStorage.setItem(key, value);
+        }else{
+          localStorage.removeItem(key);
+        }
+      }catch(_err){}
+    }
+
+    function sanitizeLeaderboardSort(value){
+      const key = String(value||'').toLowerCase();
+      return LEADERBOARD_SORT_OPTIONS.has(key) ? key : 'volume';
+    }
+
+    function sanitizeLeaderboardFilter(value){
+      const key = String(value||'').toLowerCase();
+      return LEADERBOARD_FILTER_OPTIONS.has(key) ? key : 'all';
+    }
+
     const state = {
       contacts: [],
       partners: [],
@@ -199,6 +233,10 @@ function runPatch(){
       contactMap: new Map(),
       partnerMap: new Map(),
       filters: {stage:'all', loanType:'all', partner:'all'},
+      leaderboardPrefs: {
+        sort: sanitizeLeaderboardSort(readStoredLeaderboardPref(LEADERBOARD_SORT_STORAGE_KEY)),
+        filter: sanitizeLeaderboardFilter(readStoredLeaderboardPref(LEADERBOARD_FILTER_STORAGE_KEY))
+      },
       reportView: 'stage',
       reportData: {},
       dataLoaded: false,
@@ -207,7 +245,8 @@ function runPatch(){
       pendingRender: null,
       dashboard: JSON.parse(JSON.stringify(DASHBOARD_WIDGET_DEFAULTS)),
       dashboardLoaded: false,
-      dashboardPromise: null
+      dashboardPromise: null,
+      lastAggregates: null
     };
     state.dashboard.order = normalizeWidgetOrder(state.dashboard.order);
 
@@ -845,6 +884,7 @@ function runPatch(){
       const pipelineCounts = Object.fromEntries(LANE_ORDER.map(stage => [stage, 0]));
       const ytdFunded = [];
       const staleDeals = [];
+      const partnerStats = new Map();
 
       contacts.forEach(contact => {
         if(!contact) return;
@@ -863,6 +903,25 @@ function runPatch(){
               staleDeals.push({contact, days});
             }
           }
+        }
+        const partnerIds = Array.isArray(contact.partners) ? contact.partners : [];
+        if(partnerIds.length){
+          const isActive = PIPELINE_LANES.includes(lane);
+          const isLost = contact.lane === 'lost' || contact.lane === 'denied';
+          const isFundedYtd = contact.fundedTs && contact.fundedTs >= yearStart;
+          const amount = Number(contact.loanAmount||0) || 0;
+          partnerIds.forEach(pid => {
+            if(!pid || pid === PARTNER_NONE_ID) return;
+            const stat = partnerStats.get(pid) || { id: pid, total: 0, active: 0, funded: 0, lost: 0, volume: 0 };
+            stat.total += 1;
+            if(isActive) stat.active += 1;
+            if(isLost) stat.lost += 1;
+            if(isFundedYtd){
+              stat.funded += 1;
+              stat.volume += amount;
+            }
+            partnerStats.set(pid, stat);
+          });
         }
       });
 
@@ -909,31 +968,20 @@ function runPatch(){
 
       const referralsYtd = ytdFunded.filter(contact => contact.partners.length > 0).length;
 
-      const leaderboardMap = new Map();
-      ytdFunded.forEach(contact => {
-        contact.partners.forEach(pid => {
-          if(!pid || pid === PARTNER_NONE_ID) return;
-          const stat = leaderboardMap.get(pid) || {count:0, volume:0, contacts:[]};
-          stat.count += 1;
-          stat.volume += Number(contact.loanAmount||0) || 0;
-          stat.contacts.push(contact);
-          leaderboardMap.set(pid, stat);
-        });
-      });
-      const leaderboard = Array.from(leaderboardMap.entries()).map(([pid, stat]) => {
-        const partner = state.partnerMap.get(pid) || {name:'Partner', tier:'', company:''};
+      const leaderboard = Array.from(partnerStats.values()).map(stat => {
+        const partner = state.partnerMap.get(stat.id) || {name:'Partner', tier:'', company:''};
         return {
-          id: pid,
+          id: stat.id,
           name: partner.name || partner.company || 'Partner',
           tier: partner.tier || '',
           volume: stat.volume,
-          count: stat.contacts.length,
-          fundedCount: stat.count
+          fundedCount: stat.funded,
+          activeCount: stat.active,
+          totalCount: stat.total,
+          lostCount: stat.lost,
+          conversion: stat.total ? stat.funded / stat.total : 0
         };
-      }).sort((a,b)=>{
-        if(b.volume !== a.volume) return b.volume - a.volume;
-        return b.fundedCount - a.fundedCount;
-      }).slice(0,5);
+      });
 
       staleDeals.sort((a,b)=> b.days - a.days);
 
@@ -1184,27 +1232,189 @@ function runPatch(){
     function renderLeaderboard(data){
       const host = document.getElementById('referral-leaderboard');
       if(!host) return;
-      const items = data.leaderboard.length ? data.leaderboard.map((row, idx) => {
-        const volume = formatMoney(row.volume);
-        const tier = row.tier ? `<span class="badge-pill">${row.tier}</span>` : '';
-        return `<div class="leaderboard-item" data-partner-id="${row.id}" style="display:flex;align-items:center;gap:12px;padding:8px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer">
-          <span class="leaderboard-rank" style="font-weight:600;width:24px;text-align:center">${idx+1}</span>
-          <div class="leaderboard-name" style="flex:1 1 auto">
-            <div><strong>${row.name}</strong></div>
-            <div class="muted" style="font-size:12px">${row.fundedCount} funded • ${volume}</div>
-          </div>
-          <div class="leaderboard-meta" style="display:flex;gap:8px;align-items:center">${tier}</div>
-        </div>`;
-      }).join('') : '<p class="muted">No funded referrals in the selected range.</p>';
-      host.innerHTML = `
-        <div>
-          <div class="row" style="align-items:center;gap:8px;margin-bottom:8px">
-            <strong>Referral Leaderboard</strong>
-            <span class="muted">Top partners by funded volume YTD.</span>
-          </div>
-          <div class="leaderboard-list" style="display:flex;flex-direction:column;gap:8px">${items}</div>
-        </div>
-      `;
+      const dataset = data && Array.isArray(data.leaderboard)
+        ? data.leaderboard
+        : (state.lastAggregates && Array.isArray(state.lastAggregates.leaderboard) ? state.lastAggregates.leaderboard : []);
+      const percentFmt = new Intl.NumberFormat('en-US',{style:'percent',maximumFractionDigits:0});
+      const prefs = state.leaderboardPrefs || {};
+      const sort = sanitizeLeaderboardSort(prefs.sort);
+      const filter = sanitizeLeaderboardFilter(prefs.filter);
+      state.leaderboardPrefs = { sort, filter };
+      const filtered = dataset.filter(row => {
+        if(filter === 'active') return Number(row.activeCount||0) > 0;
+        if(filter === 'funded') return Number(row.fundedCount||0) > 0;
+        return true;
+      });
+      const sorted = filtered.slice().sort((a,b) => {
+        const aName = String(a.name||'').toLowerCase();
+        const bName = String(b.name||'').toLowerCase();
+        const aVolume = Number(a.volume||0);
+        const bVolume = Number(b.volume||0);
+        const aFunded = Number(a.fundedCount||0);
+        const bFunded = Number(b.fundedCount||0);
+        if(sort === 'active'){
+          const aActive = Number(a.activeCount||0);
+          const bActive = Number(b.activeCount||0);
+          if(bActive !== aActive) return bActive - aActive;
+          if(bVolume !== aVolume) return bVolume - aVolume;
+          return aName.localeCompare(bName, undefined, { sensitivity:'base', numeric:true });
+        }
+        if(sort === 'conversion'){
+          const aConv = Number(a.conversion||0);
+          const bConv = Number(b.conversion||0);
+          if(bConv !== aConv) return bConv - aConv;
+          if(bFunded !== aFunded) return bFunded - aFunded;
+          return aName.localeCompare(bName, undefined, { sensitivity:'base', numeric:true });
+        }
+        if(bVolume !== aVolume) return bVolume - aVolume;
+        if(bFunded !== aFunded) return bFunded - aFunded;
+        return aName.localeCompare(bName, undefined, { sensitivity:'base', numeric:true });
+      });
+      const limited = sorted.slice(0, 10);
+      host.innerHTML = '';
+      const head = document.createElement('div');
+      head.className = 'leaderboard-head';
+      const title = document.createElement('strong');
+      title.textContent = 'Referral Leaderboard';
+      const caption = document.createElement('span');
+      caption.className = 'muted';
+      const sortLabel = { volume:'Funded volume YTD', active:'Active pipeline count', conversion:'Conversion rate' }[sort] || 'Funded volume YTD';
+      const filterLabel = { all:'All partners', active:'Partners with active pipeline', funded:'Partners with funded deals YTD' }[filter] || 'All partners';
+      caption.textContent = `${filterLabel} • Sorted by ${sortLabel}`;
+      head.append(title, caption);
+      const controls = document.createElement('div');
+      controls.className = 'leaderboard-controls';
+      const sortLabelEl = document.createElement('label');
+      sortLabelEl.append('Sort by ');
+      const sortSelect = document.createElement('select');
+      sortSelect.setAttribute('data-role', 'leaderboard-sort');
+      [
+        { value:'volume', label:'Funded volume' },
+        { value:'active', label:'Active pipeline' },
+        { value:'conversion', label:'Conversion rate' }
+      ].forEach(optionMeta => {
+        const option = document.createElement('option');
+        option.value = optionMeta.value;
+        option.textContent = optionMeta.label;
+        if(optionMeta.value === sort) option.selected = true;
+        sortSelect.appendChild(option);
+      });
+      sortLabelEl.appendChild(sortSelect);
+      const filterLabelEl = document.createElement('label');
+      filterLabelEl.append('Show ');
+      const filterSelect = document.createElement('select');
+      filterSelect.setAttribute('data-role', 'leaderboard-filter');
+      [
+        { value:'all', label:'All partners' },
+        { value:'active', label:'Active pipeline' },
+        { value:'funded', label:'Funded YTD' }
+      ].forEach(optionMeta => {
+        const option = document.createElement('option');
+        option.value = optionMeta.value;
+        option.textContent = optionMeta.label;
+        if(optionMeta.value === filter) option.selected = true;
+        filterSelect.appendChild(option);
+      });
+      filterLabelEl.appendChild(filterSelect);
+      controls.append(sortLabelEl, filterLabelEl);
+      host.append(head, controls);
+      if(!limited.length){
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = filter === 'all'
+          ? 'No funded referrals yet.'
+          : 'No partners match the selected filters.';
+        host.appendChild(empty);
+      }else{
+        const list = document.createElement('ol');
+        list.className = 'leaderboard-list';
+        limited.forEach((row, idx) => {
+          const item = document.createElement('li');
+          item.className = 'leaderboard-item';
+          item.setAttribute('data-partner-id', row.id);
+          const rank = document.createElement('span');
+          rank.className = 'leaderboard-rank';
+          rank.textContent = String(idx + 1);
+          const nameWrap = document.createElement('div');
+          nameWrap.className = 'leaderboard-name';
+          const nameRow = document.createElement('div');
+          nameRow.className = 'leaderboard-name-main';
+          const nameStrong = document.createElement('strong');
+          nameStrong.textContent = row.name || 'Partner';
+          nameRow.appendChild(nameStrong);
+          if(row.tier){
+            const tier = document.createElement('span');
+            tier.className = 'leaderboard-tier badge-pill';
+            tier.textContent = row.tier;
+            nameRow.appendChild(tier);
+          }
+          nameWrap.appendChild(nameRow);
+          const sub = document.createElement('div');
+          sub.className = 'muted';
+          const fundedCount = Number(row.fundedCount||0).toLocaleString();
+          const activeCount = Number(row.activeCount||0).toLocaleString();
+          const totalCount = Number(row.totalCount||0).toLocaleString();
+          sub.textContent = `${fundedCount} funded • ${activeCount} active • ${totalCount} referrals`;
+          nameWrap.appendChild(sub);
+          const metrics = document.createElement('div');
+          metrics.className = 'leaderboard-metrics';
+          const volumeMetric = document.createElement('div');
+          volumeMetric.className = 'leaderboard-metric';
+          const volumeLabel = document.createElement('span');
+          volumeLabel.className = 'label';
+          volumeLabel.textContent = 'Volume';
+          const volumeValue = document.createElement('span');
+          volumeValue.className = 'value';
+          volumeValue.textContent = formatMoney(row.volume || 0);
+          volumeMetric.append(volumeLabel, volumeValue);
+          const activeMetric = document.createElement('div');
+          activeMetric.className = 'leaderboard-metric';
+          const activeLabel = document.createElement('span');
+          activeLabel.className = 'label';
+          activeLabel.textContent = 'Active';
+          const activeValue = document.createElement('span');
+          activeValue.className = 'value';
+          activeValue.textContent = Number(row.activeCount||0).toLocaleString();
+          activeMetric.append(activeLabel, activeValue);
+          const conversionMetric = document.createElement('div');
+          conversionMetric.className = 'leaderboard-metric';
+          const conversionLabel = document.createElement('span');
+          conversionLabel.className = 'label';
+          conversionLabel.textContent = 'Conversion';
+          const conversionValue = document.createElement('span');
+          conversionValue.className = 'value';
+          conversionValue.textContent = percentFmt.format(Number(row.conversion||0));
+          conversionMetric.append(conversionLabel, conversionValue);
+          metrics.append(volumeMetric, activeMetric, conversionMetric);
+          item.append(rank, nameWrap, metrics);
+          list.appendChild(item);
+        });
+        host.appendChild(list);
+      }
+      if(!host.__leaderboardPrefHandler){
+        host.addEventListener('change', event => {
+          const sortSelectEl = event.target && event.target.closest('[data-role="leaderboard-sort"]');
+          if(sortSelectEl){
+            const value = sanitizeLeaderboardSort(sortSelectEl.value);
+            if(state.leaderboardPrefs.sort !== value){
+              state.leaderboardPrefs.sort = value;
+              writeStoredLeaderboardPref(LEADERBOARD_SORT_STORAGE_KEY, value);
+              renderLeaderboard(state.lastAggregates);
+            }
+            return;
+          }
+          const filterSelectEl = event.target && event.target.closest('[data-role="leaderboard-filter"]');
+          if(filterSelectEl){
+            const value = sanitizeLeaderboardFilter(filterSelectEl.value);
+            if(state.leaderboardPrefs.filter !== value){
+              state.leaderboardPrefs.filter = value;
+              writeStoredLeaderboardPref(LEADERBOARD_FILTER_STORAGE_KEY, value);
+              renderLeaderboard(state.lastAggregates);
+            }
+          }
+        });
+        host.__leaderboardPrefHandler = true;
+      }
     }
 
     function renderStaleDeals(data){
@@ -1251,6 +1461,7 @@ function runPatch(){
       const sections = options && options.sections instanceof Set ? options.sections : null;
       const all = !sections || sections.size === 0;
       const aggregates = buildDashboardAggregates();
+      state.lastAggregates = aggregates;
       updateDashboardModeControls();
 
       const showFocus = state.dashboard.mode === 'today';

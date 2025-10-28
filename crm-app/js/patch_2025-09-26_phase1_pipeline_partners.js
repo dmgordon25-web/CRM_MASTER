@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase1_pipeline_partners.js — Phase 1 pipeline lanes + partner core
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
+import { normalizeStatusForStage, normalizeMilestoneForStatus, toneForStatus, toneClassName, canonicalStatusKey } from './pipeline/constants.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
@@ -39,9 +40,43 @@ function runPatch(){
     const PARTNER_NONE_ID = '00000000-0000-none-partner-000000000000';
     const DAY_MS = 86400000;
     const currencyFmt = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+    const LEADERBOARD_SORT_STORAGE_KEY = 'referral.leaderboard.sort';
+    const LEADERBOARD_FILTER_STORAGE_KEY = 'referral.leaderboard.filter';
+    const LEADERBOARD_SORT_OPTIONS = new Set(['volume','active','conversion']);
+    const LEADERBOARD_FILTER_OPTIONS = new Set(['all','active','funded']);
     const cssEscape = (window.CSS && typeof window.CSS.escape === 'function') ? window.CSS.escape.bind(window.CSS) : function(value){
       return String(value==null?'':value).replace(/[^a-zA-Z0-9_\-]/g, ch => '\\'+ch);
     };
+
+    function readStoredLeaderboardPref(key){
+      if(typeof localStorage === 'undefined') return '';
+      try{
+        return localStorage.getItem(key) || '';
+      }catch(_err){
+        return '';
+      }
+    }
+
+    function writeStoredLeaderboardPref(key, value){
+      if(typeof localStorage === 'undefined') return;
+      try{
+        if(value){
+          localStorage.setItem(key, value);
+        }else{
+          localStorage.removeItem(key);
+        }
+      }catch(_err){}
+    }
+
+    function sanitizeLeaderboardSort(value){
+      const key = String(value||'').toLowerCase();
+      return LEADERBOARD_SORT_OPTIONS.has(key) ? key : 'volume';
+    }
+
+    function sanitizeLeaderboardFilter(value){
+      const key = String(value||'').toLowerCase();
+      return LEADERBOARD_FILTER_OPTIONS.has(key) ? key : 'all';
+    }
 
     window.PARTNER_NONE_ID = PARTNER_NONE_ID;
     if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = PARTNER_NONE_ID;
@@ -50,7 +85,11 @@ function runPatch(){
       contacts: new Map(),
       partners: new Map(),
       lanes: new Map(),
-      contactLane: new Map()
+      contactLane: new Map(),
+      leaderboardPrefs: {
+        sort: sanitizeLeaderboardSort(readStoredLeaderboardPref(LEADERBOARD_SORT_STORAGE_KEY)),
+        filter: sanitizeLeaderboardFilter(readStoredLeaderboardPref(LEADERBOARD_FILTER_STORAGE_KEY))
+      }
     };
     const pendingStageRecords = new Map();
     let refreshBusy = false;
@@ -173,15 +212,28 @@ function runPatch(){
       .kanban-card.age-14{box-shadow:0 0 0 2px rgba(249,115,22,.5)}
       .kanban-card.age-21{box-shadow:0 0 0 2px rgba(239,68,68,.55)}
       .kanban-card .kanban-age-pill{margin-left:auto;font-size:12px;border-radius:999px;background:#0f172a;color:#fff;padding:2px 8px}
+      .kanban-card .kanban-card-meta{display:flex;flex-wrap:wrap;gap:6px}
+      .kanban-chip.milestone{background:var(--tone-bg,#eef2ff);border-color:var(--tone-border,#c7d2fe);color:var(--tone-text,#1d4ed8);text-transform:uppercase;font-size:9px;letter-spacing:.4px;font-weight:700}
+      .kanban-chip.milestone[data-tone="warning"],.kanban-chip.milestone.tone-warning{background:var(--tone-bg,#fef9c3);border-color:var(--tone-border,#fcd34d);color:var(--tone-text,#92400e)}
+      .kanban-chip.milestone[data-tone="success"],.kanban-chip.milestone.tone-success{background:var(--tone-bg,#dcfce7);border-color:var(--tone-border,#86efac);color:var(--tone-text,#166534)}
+      .kanban-chip.milestone[data-tone="danger"],.kanban-chip.milestone.tone-danger{background:var(--tone-bg,#fee2e2);border-color:var(--tone-border,#fca5a5);color:var(--tone-text,#b91c1c)}
+      .kanban-chip.referral{background:#ecfeff;border-color:#bae6fd;color:#0e7490;text-transform:none}
       #referral-leaderboard{display:flex;flex-direction:column;gap:12px}
       #referral-leaderboard .leaderboard-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-      #referral-leaderboard .leaderboard-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-      #referral-leaderboard .leaderboard-item{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer}
-      #referral-leaderboard .leaderboard-item:hover{background:#f8fafc}
-      #referral-leaderboard .leaderboard-rank{font-weight:600;width:20px;text-align:center}
-      #referral-leaderboard .leaderboard-name{flex:1 1 auto}
-      #referral-leaderboard .leaderboard-count{width:56px;text-align:right;font-variant-numeric:tabular-nums}
-      #referral-leaderboard .leaderboard-volume{width:120px;text-align:right;font-variant-numeric:tabular-nums}
+      #referral-leaderboard .leaderboard-controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:12px;color:var(--muted,#64748b)}
+      #referral-leaderboard .leaderboard-controls label{display:flex;align-items:center;gap:6px;font-weight:500}
+      #referral-leaderboard .leaderboard-controls select{min-width:120px;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid rgba(148,163,184,.45);background:#fff;color:var(--ink,#0f172a)}
+      #referral-leaderboard .leaderboard-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+      #referral-leaderboard .leaderboard-item{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
+      #referral-leaderboard .leaderboard-item:hover{background:#f8fafc;border-color:rgba(99,102,241,.35);box-shadow:0 10px 18px rgba(15,23,42,.08)}
+      #referral-leaderboard .leaderboard-rank{font-weight:600;width:28px;text-align:center;font-variant-numeric:tabular-nums}
+      #referral-leaderboard .leaderboard-name{flex:1 1 auto;display:flex;flex-direction:column;gap:6px}
+      #referral-leaderboard .leaderboard-name-main{display:flex;align-items:center;gap:8px}
+      #referral-leaderboard .leaderboard-tier{font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px}
+      #referral-leaderboard .leaderboard-metrics{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+      #referral-leaderboard .leaderboard-metric{display:flex;flex-direction:column;min-width:92px}
+      #referral-leaderboard .leaderboard-metric .label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted,#64748b)}
+      #referral-leaderboard .leaderboard-metric .value{font-weight:600;font-size:13px;color:var(--ink,#0f172a)}
       #partner-delete-guard::backdrop{background:rgba(15,23,42,.3)}
       #partner-delete-guard .guard-shell{min-width:360px;max-width:480px}
       #partner-delete-guard .guard-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
@@ -247,6 +299,9 @@ function runPatch(){
         buyerPartnerId: record.buyerPartnerId ? String(record.buyerPartnerId) : PARTNER_NONE_ID,
         listingPartnerId: record.listingPartnerId ? String(record.listingPartnerId) : PARTNER_NONE_ID
       });
+      const normalizedStatus = normalizeStatusForStage(stageKey, record.status);
+      contact.status = normalizedStatus;
+      contact.pipelineMilestone = normalizeMilestoneForStatus(record.pipelineMilestone, normalizedStatus);
       contact.stageEnteredAt = hydrateStageMap(record.stageEnteredAt, stageKey, now);
       const order = Number(record.stageOrder);
       contact.stageOrder = Number.isFinite(order) ? order : null;
@@ -273,6 +328,9 @@ function runPatch(){
         const ts = record.stageEnteredAt[canonical];
         result.stageEnteredAt[canonical] = typeof ts === 'number' ? ts : Date.parse(ts) || now;
       }
+      const normalizedStatus = normalizeStatusForStage(canonical, record.status);
+      result.status = normalizedStatus;
+      result.pipelineMilestone = normalizeMilestoneForStatus(record.pipelineMilestone, normalizedStatus);
       const lossReason = options && options.lossReason;
       if(lossReason && (canonical === 'lost' || canonical === 'denied')){
         result.lossReason = lossReason;
@@ -520,13 +578,32 @@ function runPatch(){
       const metaRow = document.createElement('div');
       metaRow.className = 'kanban-card-meta';
       const chips = [];
+      const statusKey = canonicalStatusKey(contact.status || '');
+      if(statusKey){ card.dataset.status = statusKey; }
+      else delete card.dataset.status;
+      const milestoneLabel = normalizeMilestoneForStatus(contact.pipelineMilestone, statusKey);
+      if(milestoneLabel){
+        const tone = toneForStatus(statusKey);
+        const toneClass = toneClassName(tone);
+        const classes = ['kanban-chip','milestone'];
+        if(toneClass) classes.push(toneClass);
+        const toneAttr = tone ? ` data-tone="${safe(tone)}"` : '';
+        chips.push(`<span class="${classes.join(' ')}" data-role="milestone-chip" data-status="${safe(statusKey || 'inprogress')}"${toneAttr}>${safe(milestoneLabel)}</span>`);
+        card.dataset.milestone = milestoneLabel;
+      }else{
+        delete card.dataset.milestone;
+      }
+      const referralSource = String(contact.referredBy||'').trim();
+      if(referralSource){
+        chips.push(`<span class="kanban-chip referral">Referred by ${safe(referralSource)}</span>`);
+      }
       const buyer = partnerName(contact.buyerPartnerId);
-      if(buyer && buyer.toLowerCase()!=='none') chips.push(`Buyer: ${buyer}`);
+      if(buyer && buyer.toLowerCase()!=='none') chips.push(`<span class="kanban-chip partner">Buyer: ${safe(buyer)}</span>`);
       const listing = partnerName(contact.listingPartnerId);
-      if(listing && listing.toLowerCase()!=='none' && listing!==buyer) chips.push(`Listing: ${listing}`);
-      if(contact.leadSource) chips.push(contact.leadSource);
+      if(listing && listing.toLowerCase()!=='none' && listing!==buyer) chips.push(`<span class="kanban-chip partner">Listing: ${safe(listing)}</span>`);
+      if(contact.leadSource) chips.push(`<span class="kanban-chip source">${safe(contact.leadSource)}</span>`);
       if(chips.length){
-        metaRow.innerHTML = chips.map(text=>`<span class="kanban-chip">${safe(text)}</span>`).join('');
+        metaRow.innerHTML = chips.join('');
         card.appendChild(metaRow);
       }
 
@@ -912,6 +989,8 @@ function runPatch(){
       orderLookup.forEach((_, key)=> mutationIds.add(key));
       if(stageChanged) mutationIds.add(safeId);
       const changedRecords = new Map();
+      let statusAfter = null;
+      let milestoneAfter = null;
       const now = Date.now();
       for(const cid of mutationIds){
         let record = state.contacts.has(cid) ? Object.assign({}, state.contacts.get(cid)) : await wrap(store.get(cid));
@@ -932,6 +1011,8 @@ function runPatch(){
           if(updated){
             Object.assign(record, updated);
             changed = true;
+            statusAfter = updated.status;
+            milestoneAfter = updated.pipelineMilestone;
           }
         }else if(!stageChanged && cid === safeId && positions[nextLane] != null){
           record.updatedAt = now;
@@ -959,7 +1040,9 @@ function runPatch(){
         contactId: safeId,
         from: prevStage!=null ? canonicalizeStage(prevStage) : undefined,
         to: canonicalizeStage(nextStage),
-        stage: canonicalizeStage(nextStage)
+        stage: canonicalizeStage(nextStage),
+        status: statusAfter || normalizeStatusForStage(nextStage, state.contacts.get(safeId)?.status),
+        milestone: milestoneAfter || normalizeMilestoneForStatus(state.contacts.get(safeId)?.pipelineMilestone, statusAfter || state.contacts.get(safeId)?.status)
       } : null;
       const detail = { source:'kanban-dnd', count: Math.max(changedRecords.size, stageChanged ? 1 : 0) };
       if(stageDetail) Object.assign(detail, stageDetail);
@@ -968,6 +1051,25 @@ function runPatch(){
           .map(entry => entry ? Object.assign({}, entry) : entry)
           .filter(Boolean);
         if(extra.length) detail.actions = extra;
+      }
+      if(stageChanged){
+        try{
+          console && console.info && console.info('[pipeline] stage transition persisted', {
+            id: safeId,
+            from: prevStage!=null ? canonicalizeStage(prevStage) : null,
+            to: canonicalizeStage(nextStage),
+            status: stageDetail?.status,
+            milestone: stageDetail?.milestone
+          });
+        }catch(_err){}
+        if(Array.isArray(automations) && automations.length){
+          try{
+            console && console.info && console.info('[pipeline] stage automations triggered', {
+              id: safeId,
+              automations
+            });
+          }catch(_err){}
+        }
       }
       return {
         records: changedRecords,
@@ -1153,12 +1255,12 @@ function runPatch(){
       if(host && !host.__phase1Leaderboard){
         host.__phase1Leaderboard = true;
         host.addEventListener('click', evt => {
-          const row = evt.target && evt.target.closest('[data-partner]');
+          const row = evt.target && evt.target.closest('[data-partner-id]');
           if(!row) return;
           evt.preventDefault();
           if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
           if(typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
-          const id = row.getAttribute('data-partner');
+          const id = row.getAttribute('data-partner-id');
           if(!id) return;
           try{
             const result = openPartnerEditCanonical(id, { trigger: row, sourceHint: 'pipeline:leaderboard-click' });
@@ -1180,44 +1282,236 @@ function runPatch(){
     function renderLeaderboard(){
       const host = ensureLeaderboard();
       if(!host) return;
-      const start = new Date(new Date().getFullYear(),0,1).getTime();
-      const totals = new Map();
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(),0,1).getTime();
+      const percentFmt = new Intl.NumberFormat('en-US',{style:'percent',maximumFractionDigits:0});
+      const prefs = state.leaderboardPrefs || {};
+      const sort = sanitizeLeaderboardSort(prefs.sort);
+      const filter = sanitizeLeaderboardFilter(prefs.filter);
+      state.leaderboardPrefs = { sort, filter };
+      const stats = new Map();
       state.contacts.forEach(contact => {
         if(!contact) return;
-        const funded = contact.fundedDate ? Date.parse(contact.fundedDate) : NaN;
-        if(Number.isNaN(funded) || funded < start) return;
-        const amount = Number(contact.loanAmount||0);
-        const ids = new Set();
-        if(contact.buyerPartnerId) ids.add(String(contact.buyerPartnerId));
-        if(contact.listingPartnerId) ids.add(String(contact.listingPartnerId));
-        ids.forEach(id => {
-          if(!id || id===PARTNER_NONE_ID) return;
-          const entry = totals.get(id) || {count:0, volume:0};
-          entry.count += 1;
-          entry.volume += amount;
-          totals.set(id, entry);
+        const partnerIds = new Set();
+        [contact.buyerPartnerId, contact.listingPartnerId, contact.partnerId, contact.referralPartnerId].forEach(val => {
+          if(val == null) return;
+          const key = String(val);
+          if(!key || key === PARTNER_NONE_ID) return;
+          partnerIds.add(key);
+        });
+        if(Array.isArray(contact.partnerIds)){
+          contact.partnerIds.forEach(val => {
+            if(val == null) return;
+            const key = String(val);
+            if(!key || key === PARTNER_NONE_ID) return;
+            partnerIds.add(key);
+          });
+        }
+        if(!partnerIds.size) return;
+        const lane = laneKeyFromStage(contact.stage);
+        const normalizedStage = lane || canonicalizeStage(contact.stage);
+        const isActive = normalizedStage
+          && normalizedStage !== 'funded'
+          && normalizedStage !== 'lost'
+          && normalizedStage !== 'denied'
+          && normalizedStage !== 'post-close'
+          && normalizedStage !== 'nurture'
+          && normalizedStage !== 'paused';
+        const amount = Number(contact.loanAmount||0) || 0;
+        const fundedTs = contact.fundedDate ? Date.parse(contact.fundedDate) : NaN;
+        const isFundedYtd = !Number.isNaN(fundedTs) && fundedTs >= yearStart;
+        const isLost = normalizedStage === 'lost' || normalizedStage === 'denied';
+        partnerIds.forEach(pid => {
+          let stat = stats.get(pid);
+          if(!stat){
+            stat = { id: pid, total: 0, active: 0, funded: 0, lost: 0, volume: 0 };
+            stats.set(pid, stat);
+          }
+          stat.total += 1;
+          if(isActive) stat.active += 1;
+          if(isLost) stat.lost += 1;
+          if(isFundedYtd){
+            stat.funded += 1;
+            stat.volume += amount;
+          }
         });
       });
-      const rows = Array.from(totals.entries()).map(([id, stats])=>({id, stats})).sort((a,b)=>{
-        if(b.stats.volume !== a.stats.volume) return b.stats.volume - a.stats.volume;
-        return b.stats.count - a.stats.count;
-      }).slice(0,5);
-      if(!rows.length){
-        host.innerHTML = '<div class="leaderboard-head"><strong>Referral Leaderboard</strong></div><div class="muted">No funded referrals yet.</div>';
-        return;
-      }
-      host.innerHTML = '<div class="leaderboard-head"><strong>Referral Leaderboard</strong><span class="muted">Top partners by funded volume YTD</span></div>';
-      const list = document.createElement('ol');
-      list.className = 'leaderboard-list';
-      rows.forEach((row, idx) => {
-        const li = document.createElement('li');
-        li.className = 'leaderboard-item';
-        li.setAttribute('data-partner', row.id);
-        const partner = state.partners.get(row.id) || {};
-        li.innerHTML = `<span class="leaderboard-rank">${idx+1}</span><span class="leaderboard-name">${safe(partner.name || partner.company || 'Partner')}</span><span class="leaderboard-count">${row.stats.count}</span><span class="leaderboard-volume">${currencyFmt.format(row.stats.volume)}</span>`;
-        list.appendChild(li);
+      const rows = Array.from(stats.values()).map(stat => {
+        const partner = state.partners.get(stat.id) || {};
+        return {
+          id: stat.id,
+          name: partner.name || partner.company || 'Partner',
+          tier: partner.tier || '',
+          volume: stat.volume,
+          fundedCount: stat.funded,
+          activeCount: stat.active,
+          totalCount: stat.total,
+          lostCount: stat.lost,
+          conversion: stat.total ? stat.funded / stat.total : 0
+        };
       });
-      host.appendChild(list);
+      const filtered = rows.filter(row => {
+        if(filter === 'active') return row.activeCount > 0;
+        if(filter === 'funded') return row.fundedCount > 0;
+        return true;
+      });
+      const sorted = filtered.slice().sort((a,b) => {
+        if(sort === 'active'){
+          if(b.activeCount !== a.activeCount) return b.activeCount - a.activeCount;
+          if(b.volume !== a.volume) return b.volume - a.volume;
+          return a.name.localeCompare(b.name, undefined, { sensitivity:'base', numeric:true });
+        }
+        if(sort === 'conversion'){
+          if(b.conversion !== a.conversion) return b.conversion - a.conversion;
+          if(b.fundedCount !== a.fundedCount) return b.fundedCount - a.fundedCount;
+          return a.name.localeCompare(b.name, undefined, { sensitivity:'base', numeric:true });
+        }
+        if(b.volume !== a.volume) return b.volume - a.volume;
+        if(b.fundedCount !== a.fundedCount) return b.fundedCount - a.fundedCount;
+        return a.name.localeCompare(b.name, undefined, { sensitivity:'base', numeric:true });
+      });
+      const limited = sorted.slice(0, 10);
+      host.innerHTML = '';
+      const head = document.createElement('div');
+      head.className = 'leaderboard-head';
+      const title = document.createElement('strong');
+      title.textContent = 'Referral Leaderboard';
+      const caption = document.createElement('span');
+      caption.className = 'muted';
+      const sortLabel = { volume:'Funded volume YTD', active:'Active pipeline count', conversion:'Conversion rate' }[sort] || 'Funded volume YTD';
+      const filterLabel = { all:'All partners', active:'Partners with active pipeline', funded:'Partners with funded deals YTD' }[filter] || 'All partners';
+      caption.textContent = `${filterLabel} • Sorted by ${sortLabel}`;
+      head.append(title, caption);
+      const controls = document.createElement('div');
+      controls.className = 'leaderboard-controls';
+      const sortLabelEl = document.createElement('label');
+      sortLabelEl.append('Sort by ');
+      const sortSelect = document.createElement('select');
+      sortSelect.setAttribute('data-role', 'leaderboard-sort');
+      [
+        { value:'volume', label:'Funded volume' },
+        { value:'active', label:'Active pipeline' },
+        { value:'conversion', label:'Conversion rate' }
+      ].forEach(optionMeta => {
+        const option = document.createElement('option');
+        option.value = optionMeta.value;
+        option.textContent = optionMeta.label;
+        if(optionMeta.value === sort) option.selected = true;
+        sortSelect.appendChild(option);
+      });
+      sortLabelEl.appendChild(sortSelect);
+      const filterLabelEl = document.createElement('label');
+      filterLabelEl.append('Show ');
+      const filterSelect = document.createElement('select');
+      filterSelect.setAttribute('data-role', 'leaderboard-filter');
+      [
+        { value:'all', label:'All partners' },
+        { value:'active', label:'Active pipeline' },
+        { value:'funded', label:'Funded YTD' }
+      ].forEach(optionMeta => {
+        const option = document.createElement('option');
+        option.value = optionMeta.value;
+        option.textContent = optionMeta.label;
+        if(optionMeta.value === filter) option.selected = true;
+        filterSelect.appendChild(option);
+      });
+      filterLabelEl.appendChild(filterSelect);
+      controls.append(sortLabelEl, filterLabelEl);
+      host.append(head, controls);
+      if(!limited.length){
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = filter === 'all'
+          ? 'No funded referrals yet.'
+          : 'No partners match the selected filters.';
+        host.appendChild(empty);
+      }else{
+        const list = document.createElement('ol');
+        list.className = 'leaderboard-list';
+        limited.forEach((row, idx) => {
+          const item = document.createElement('li');
+          item.className = 'leaderboard-item';
+          item.setAttribute('data-partner-id', row.id);
+          const rank = document.createElement('span');
+          rank.className = 'leaderboard-rank';
+          rank.textContent = String(idx + 1);
+          const nameWrap = document.createElement('div');
+          nameWrap.className = 'leaderboard-name';
+          const nameRow = document.createElement('div');
+          nameRow.className = 'leaderboard-name-main';
+          const nameStrong = document.createElement('strong');
+          nameStrong.textContent = row.name;
+          nameRow.appendChild(nameStrong);
+          if(row.tier){
+            const tier = document.createElement('span');
+            tier.className = 'leaderboard-tier badge-pill';
+            tier.textContent = row.tier;
+            nameRow.appendChild(tier);
+          }
+          nameWrap.appendChild(nameRow);
+          const sub = document.createElement('div');
+          sub.className = 'muted';
+          sub.textContent = `${row.fundedCount.toLocaleString()} funded • ${row.activeCount.toLocaleString()} active • ${row.totalCount.toLocaleString()} referrals`;
+          nameWrap.appendChild(sub);
+          const metrics = document.createElement('div');
+          metrics.className = 'leaderboard-metrics';
+          const volumeMetric = document.createElement('div');
+          volumeMetric.className = 'leaderboard-metric';
+          const volumeLabel = document.createElement('span');
+          volumeLabel.className = 'label';
+          volumeLabel.textContent = 'Volume';
+          const volumeValue = document.createElement('span');
+          volumeValue.className = 'value';
+          volumeValue.textContent = currencyFmt.format(row.volume || 0);
+          volumeMetric.append(volumeLabel, volumeValue);
+          const activeMetric = document.createElement('div');
+          activeMetric.className = 'leaderboard-metric';
+          const activeLabel = document.createElement('span');
+          activeLabel.className = 'label';
+          activeLabel.textContent = 'Active';
+          const activeValue = document.createElement('span');
+          activeValue.className = 'value';
+          activeValue.textContent = row.activeCount.toLocaleString();
+          activeMetric.append(activeLabel, activeValue);
+          const conversionMetric = document.createElement('div');
+          conversionMetric.className = 'leaderboard-metric';
+          const conversionLabel = document.createElement('span');
+          conversionLabel.className = 'label';
+          conversionLabel.textContent = 'Conversion';
+          const conversionValue = document.createElement('span');
+          conversionValue.className = 'value';
+          conversionValue.textContent = percentFmt.format(row.conversion || 0);
+          conversionMetric.append(conversionLabel, conversionValue);
+          metrics.append(volumeMetric, activeMetric, conversionMetric);
+          item.append(rank, nameWrap, metrics);
+          list.appendChild(item);
+        });
+        host.appendChild(list);
+      }
+      if(!host.__leaderboardPrefHandler){
+        host.addEventListener('change', event => {
+          const sortSelectEl = event.target && event.target.closest('[data-role="leaderboard-sort"]');
+          if(sortSelectEl){
+            const value = sanitizeLeaderboardSort(sortSelectEl.value);
+            if(state.leaderboardPrefs.sort !== value){
+              state.leaderboardPrefs.sort = value;
+              writeStoredLeaderboardPref(LEADERBOARD_SORT_STORAGE_KEY, value);
+              renderLeaderboard();
+            }
+            return;
+          }
+          const filterSelectEl = event.target && event.target.closest('[data-role="leaderboard-filter"]');
+          if(filterSelectEl){
+            const value = sanitizeLeaderboardFilter(filterSelectEl.value);
+            if(state.leaderboardPrefs.filter !== value){
+              state.leaderboardPrefs.filter = value;
+              writeStoredLeaderboardPref(LEADERBOARD_FILTER_STORAGE_KEY, value);
+              renderLeaderboard();
+            }
+          }
+        });
+        host.__leaderboardPrefHandler = true;
+      }
     }
 
     async function reassignContacts(fromId, toId){
@@ -1433,28 +1727,21 @@ function runPatch(){
 
     const updateContactStageOriginal = window.updateContactStage;
     window.updateContactStage = function(target, stage, previous, options){
-      const opts = options && typeof options === 'object' ? options : null;
       const canonical = canonicalizeStage(stage);
       const prevStage = previous!=null ? canonicalizeStage(previous) : null;
       const now = Date.now();
+      const opts = options && typeof options === 'object' ? Object.assign({}, options) : {};
       function apply(record){
         if(!record || typeof record!=='object') return record;
-        const result = Object.assign({}, record);
-        const prior = prevStage!=null ? prevStage : canonicalizeStage(result.stage);
-        result.stage = canonical;
-        result.stageEnteredAt = hydrateStageMap(result.stageEnteredAt, canonical, now);
-        if(prior===canonical && record.stageEnteredAt && record.stageEnteredAt[canonical]){
-          const ts = record.stageEnteredAt[canonical];
-          result.stageEnteredAt[canonical] = typeof ts === 'number' ? ts : Date.parse(ts) || now;
-        }
-        if(opts && opts.lossReason && (canonical==='lost' || canonical==='denied')) result.lossReason = opts.lossReason;
-        else if(canonical!=='lost' && canonical!=='denied' && result.lossReason) delete result.lossReason;
-        result.updatedAt = now;
-        return result;
+        const applied = applyStageTransition(record, canonical, prevStage, { now, lossReason: opts.lossReason });
+        return applied ? Object.assign({}, applied) : null;
       }
       if(target && typeof target === 'object'){
         const applied = apply(target);
-        Object.assign(target, applied);
+        if(applied){
+          Object.assign(target, applied);
+          return target;
+        }
         return target;
       }
       const id = String(target);
@@ -1467,9 +1754,10 @@ function runPatch(){
         const existing = await dbGet('contacts', id);
         if(!existing) return null;
         const updated = apply(existing);
+        if(!updated) return existing;
         await dbPut('contacts', updated);
         pendingStageRecords.set(id, updated);
-        emitChange({action:'stage', contactId:id, stage:canonical});
+        emitChange({action:'stage', contactId:id, stage:canonical, status: updated.status, milestone: updated.pipelineMilestone});
         if(window.Toast && typeof window.Toast.show === 'function'){
           const stageMessage = canonical === 'processing' ? 'Moved to Processing' : 'Updated';
           window.Toast.show(stageMessage);
