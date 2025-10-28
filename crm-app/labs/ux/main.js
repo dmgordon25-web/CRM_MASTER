@@ -697,7 +697,8 @@ function buildTrend(points, width = 320, height = 120) {
   return { area: areaPath, line: linePoints };
 }
 
-function setupNavigation(root) {
+function setupNavigation(root, options = {}) {
+  const { onSurfaceActivated } = options;
   const nav = root.querySelector('.nav-links');
   const surfaces = Array.from(root.querySelectorAll('.panel[data-surface]'));
   const surfaceMap = new Map(surfaces.map((surface) => [surface.dataset.surface, surface]));
@@ -718,6 +719,10 @@ function setupNavigation(root) {
         node.removeAttribute('aria-current');
       }
     });
+
+    if (typeof onSurfaceActivated === 'function') {
+      onSurfaceActivated(id);
+    }
   }
 
   nav.addEventListener('click', (event) => {
@@ -1095,12 +1100,24 @@ function init() {
   const root = document.getElementById('lab-root');
   applyTheme(document.body.dataset.labTheme || 'sunrise');
   renderChrome(root);
+  const deferredSurfaces = new Map([
+    ['calendar', setupCalendar],
+    ['dashboard', setupDashboard]
+  ]);
+
+  function initializeSurface(surfaceId) {
+    const initializer = deferredSurfaces.get(surfaceId);
+    if (!initializer) return;
+    initializer();
+    deferredSurfaces.delete(surfaceId);
+  }
+
   try {
-    setupNavigation(root);
+    setupNavigation(root, {
+      onSurfaceActivated: initializeSurface
+    });
     setupThemeSwitcher(root);
     setupOverview();
-    setupCalendar();
-    setupDashboard();
     setupContacts();
     setupInsights();
   } catch (error) {
