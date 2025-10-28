@@ -1,12 +1,15 @@
 const dayjs = window.dayjs;
 const { Calendar } = window.FullCalendar;
 const dayGridPlugin =
-  (window.FullCalendar.DayGrid && (window.FullCalendar.DayGrid.default || window.FullCalendar.DayGrid)) || null;
+  (window.FullCalendar.DayGrid && (window.FullCalendar.DayGrid.default || window.FullCalendar.DayGrid)) ||
+  null;
 const interactionPlugin =
   (window.FullCalendar.Interaction &&
     (window.FullCalendar.Interaction.default || window.FullCalendar.Interaction)) ||
   null;
 const GridStack = window.GridStack;
+const labEvents = typeof EventTarget === 'function' ? new EventTarget() : document.createElement('div');
+
 console.debug('[UX LAB] vendors loaded', {
   calendar: Boolean(Calendar),
   dayGrid: Boolean(dayGridPlugin),
@@ -14,6 +17,13 @@ console.debug('[UX LAB] vendors loaded', {
   gridstack: Boolean(GridStack),
   dayjs: typeof dayjs === 'function'
 });
+
+function cloneDeep(value) {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
 
 const THEMES = {
   sunrise: {
@@ -71,10 +81,12 @@ const THEMES = {
 
 const navLinks = [
   { id: 'overview', label: 'Overview' },
+  { id: 'pipeline', label: 'Pipeline' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'contacts', label: 'Contacts' },
-  { id: 'insights', label: 'Insights' }
+  { id: 'contacts', label: 'Partners' },
+  { id: 'insights', label: 'Insights' },
+  { id: 'settings', label: 'Settings' }
 ];
 
 const focusModes = {
@@ -93,24 +105,28 @@ const focusModes = {
     capacityLabel: 'Team capacity in use',
     timeline: [
       {
+        id: 'ava-coffee',
         title: 'Coffee with Ava Martinez',
         time: '09:30',
         detail: 'Deliver co-branded handouts + rate scenarios.',
         status: 'confirmed'
       },
       {
+        id: 'ridge-walkthrough',
         title: 'Builder walkthrough — Ridge Homes',
         time: '11:00',
         detail: 'Finalize signage proofs before onsite review.',
         status: 'attention'
       },
       {
+        id: 'coastline-sync',
         title: 'Campaign sync — Coastline Advisors',
         time: '13:00',
         detail: 'Align nurture cadence with email drop.',
         status: 'in-progress'
       },
       {
+        id: 'referral-follow-up',
         title: 'Referral follow-ups',
         time: '15:00',
         detail: 'Send amortization breakdowns for 2 buyers.',
@@ -133,24 +149,28 @@ const focusModes = {
     capacityLabel: 'Capacity planned',
     timeline: [
       {
+        id: 'roundtable',
         title: 'Host builder roundtable',
         time: 'Tue',
         detail: 'Share instant approvals roadmap + service updates.',
         status: 'confirmed'
       },
       {
+        id: 'nurture-drip',
         title: 'Launch nurture drip v3',
         time: 'Wed',
         detail: 'Target advisors that opened last campaign.',
         status: 'queued'
       },
       {
+        id: 'health-review',
         title: 'Partner health review',
         time: 'Thu',
         detail: 'Scorecard for top 20 partners.',
         status: 'in-progress'
       },
       {
+        id: 'asset-drop',
         title: 'Co-marketing asset drop',
         time: 'Fri',
         detail: 'Deliver landing page templates to Ridge Homes.',
@@ -173,24 +193,28 @@ const focusModes = {
     capacityLabel: 'Growth levers funded',
     timeline: [
       {
+        id: 'learning-hub',
         title: 'Launch co-branded learning hub',
         time: 'Week 2',
         detail: 'Curated playlists + rate explainer modules.',
         status: 'in-progress'
       },
       {
+        id: 'summit-keynote',
         title: 'Mortgage summit keynote',
         time: 'Week 5',
         detail: 'Feature partner success metrics + pipeline story.',
         status: 'confirmed'
       },
       {
+        id: 'api-onboarding',
         title: 'API onboarding window',
         time: 'Week 7',
         detail: 'Lakeview CU + 2 credit unions testing integrations.',
         status: 'attention'
       },
       {
+        id: 'playbook-refresh',
         title: 'Quarterly playbook refresh',
         time: 'Week 11',
         detail: 'Roll updated nurture + referral templates.',
@@ -227,31 +251,265 @@ const overviewSignals = [
   }
 ];
 
+const pipelineStages = [
+  {
+    id: 'new',
+    label: 'New',
+    summary: 'Fresh referrals entering the cycle.',
+    deals: [
+      { id: 'marquez', name: 'Marquez • Single family', amount: 420000, status: 'Docs requested' },
+      { id: 'lam-chang', name: 'Lam / Chang • Condo', amount: 390000, status: 'Needs appraisal slot' }
+    ]
+  },
+  {
+    id: 'active',
+    label: 'Active',
+    summary: 'In processing and underwriting stages.',
+    deals: [
+      { id: 'singh', name: 'Singh • Townhome', amount: 505000, status: 'Conditions review' },
+      { id: 'ibarra', name: 'Ibarra • Jumbo refi', amount: 780000, status: 'UW feedback pending' },
+      { id: 'ridge-homes', name: 'Ridge Homes • 6 lots', amount: 2400000, status: 'Builder docs inbound' }
+    ]
+  },
+  {
+    id: 'closing',
+    label: 'Closing',
+    summary: 'Scheduled for clear-to-close & signing.',
+    deals: [
+      { id: 'okafor', name: 'Okafor • First-time buyer', amount: 365000, status: 'Waiting homeowner policy' },
+      { id: 'khan', name: 'Khan • Construction', amount: 980000, status: 'CD out • Thu 3:00p' }
+    ]
+  },
+  {
+    id: 'won',
+    label: 'Won',
+    summary: 'Recently funded victories to celebrate.',
+    deals: [
+      { id: 'harper', name: 'Harper • VA loan', amount: 410000, status: 'Funded • 2 days ago' },
+      { id: 'valdez', name: 'Valdez • Investment', amount: 640000, status: 'Funded • Yesterday' }
+    ]
+  }
+];
+
+const initialContacts = [
+  {
+    id: 'ava-martinez',
+    name: 'Ava Martinez',
+    role: 'Realtor — Sunset Realty',
+    segment: 'VIP',
+    status: 'Hot lead',
+    lastInteraction: 'Met for coffee (Today)',
+    tags: ['Top referrer', 'Monthly newsletter'],
+    email: 'ava@sunsetrealty.com',
+    phone: '(415) 555-0134',
+    notes:
+      'Ava is co-hosting a homebuyer workshop. Needs co-branded handouts and new rate scenarios for two buyers.'
+  },
+  {
+    id: 'clay-parker',
+    name: 'Clay Parker',
+    role: 'Builder — Ridge Homes',
+    segment: 'Builder',
+    status: 'In contract',
+    lastInteraction: 'Onsite walkthrough (Tomorrow)',
+    tags: ['Co-marketing', 'Digital toolkit'],
+    email: 'clay@ridgehomes.com',
+    phone: '(206) 555-0193',
+    notes: 'Confirm signage proofs before Thursday. Interested in pilot for instant approvals dashboard.'
+  },
+  {
+    id: 'jamila-harris',
+    name: 'Jamila Harris',
+    role: 'Financial Planner — Pivotal Finance',
+    segment: 'Advisor',
+    status: 'Nurture',
+    lastInteraction: 'Shared rate update (2d ago)',
+    tags: ['Quarterly briefing'],
+    email: 'jamila@pivotalfinance.com',
+    phone: '(312) 555-0171',
+    notes: 'Prefers concise check-ins. Exploring home-equity webinar collaboration next quarter.'
+  },
+  {
+    id: 'noah-lin',
+    name: 'Noah Lin',
+    role: 'Credit Union — Lakeview CU',
+    segment: 'Lender partner',
+    status: 'Exploring',
+    lastInteraction: 'Demo request (Yesterday)',
+    tags: ['Co-branded ads', 'Automation'],
+    email: 'noah@lakeviewcu.org',
+    phone: '(702) 555-0154',
+    notes: 'Needs onboarding timeline for API access. Considering dedicated marketing assets for branches.'
+  }
+];
+
+const segments = ['All', 'VIP', 'Builder', 'Advisor', 'Lender partner'];
+
+const quickActions = [
+  { id: 'new-partner', label: 'New partner', icon: '🤝', tone: 'primary', modal: 'new-partner' },
+  { id: 'log-activity', label: 'Log touchpoint', icon: '📝', tone: 'secondary', modal: 'log-activity' },
+  { id: 'schedule-event', label: 'Schedule event', icon: '📅', tone: 'secondary', modal: 'schedule-event' }
+];
+const defaultSettings = {
+  profile: {
+    name: 'Jordan Ellis',
+    email: 'jordan@skyline.loans',
+    phone: '(555) 010-2210',
+    digest: '08:30'
+  },
+  workspace: {
+    focus: 'today',
+    digestChannel: 'Morning briefing email',
+    autopilot: true
+  },
+  goals: {
+    funded: 12,
+    volume: 4200000
+  },
+  automations: [
+    {
+      id: 'welcome-kit',
+      name: 'Welcome kit follow-up',
+      description: 'Send onboarding kit + checklist when a partner is created.',
+      enabled: true
+    },
+    {
+      id: 'rate-watch',
+      name: 'Rate watch nudges',
+      description: 'Alert VIP partners when rates drop by more than 0.25%.',
+      enabled: true
+    },
+    {
+      id: 'weekly-digest',
+      name: 'Weekly digest',
+      description: 'Summarize pipeline moves + upcoming events each Friday afternoon.',
+      enabled: false
+    }
+  ]
+};
+
+const SETTINGS_KEY = 'ux-lab-settings-v2';
+
+function loadSettings() {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) {
+      return cloneDeep(defaultSettings);
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      profile: { ...defaultSettings.profile, ...(parsed.profile || {}) },
+      workspace: { ...defaultSettings.workspace, ...(parsed.workspace || {}) },
+      goals: { ...defaultSettings.goals, ...(parsed.goals || {}) },
+      automations: Array.isArray(parsed.automations)
+        ? parsed.automations.map((entry) => ({ ...entry }))
+        : cloneDeep(defaultSettings.automations)
+    };
+  } catch (error) {
+    console.warn('[UX LAB] Unable to read settings from storage', error);
+    return cloneDeep(defaultSettings);
+  }
+}
+
+const labState = {
+  contacts: cloneDeep(initialContacts),
+  pipeline: cloneDeep(pipelineStages),
+  settings: loadSettings()
+};
+
+let calendarInstance = null;
+
+function persistSettings() {
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(labState.settings));
+  } catch (error) {
+    console.warn('[UX LAB] Unable to persist settings', error);
+  }
+}
+
+function formatCurrency(value) {
+  const number = Number(value) || 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  }).format(number);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('en-US').format(Number(value) || 0);
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+}
+
+function applyWorkspacePreferences() {
+  const { workspace } = labState.settings;
+  document.body.dataset.labFocus = workspace.focus;
+  document.body.dataset.labAutopilot = workspace.autopilot ? 'on' : 'off';
+  labEvents.dispatchEvent(
+    new CustomEvent('settings:applied', {
+      detail: { workspace }
+    })
+  );
+}
+
+function moveDeal(dealId, targetStageId, status) {
+  let movedDeal = null;
+  labState.pipeline.forEach((stage) => {
+    const index = stage.deals.findIndex((deal) => deal.id === dealId);
+    if (index !== -1) {
+      movedDeal = { ...stage.deals[index] };
+      stage.deals.splice(index, 1);
+    }
+  });
+  if (!movedDeal) {
+    return false;
+  }
+  const targetStage = labState.pipeline.find((stage) => stage.id === targetStageId);
+  if (!targetStage) {
+    return false;
+  }
+  movedDeal.status = status || movedDeal.status;
+  targetStage.deals.unshift(movedDeal);
+  return true;
+}
+
 const calendarEvents = [
   {
+    id: 'event-ava',
     title: 'Coffee with Ava',
     start: dayjs().hour(9).minute(30).format('YYYY-MM-DDTHH:mm:00'),
     display: 'background',
     backgroundColor: 'rgba(56, 189, 248, 0.28)'
   },
   {
+    id: 'event-walkthrough',
     title: 'Builder walkthrough',
     start: dayjs().add(1, 'day').hour(11).format('YYYY-MM-DDTHH:mm:00'),
     end: dayjs().add(1, 'day').hour(12).format('YYYY-MM-DDTHH:mm:00'),
     color: '#2563eb'
   },
   {
+    id: 'event-lunch',
     title: 'Partner lunch — Ridge Homes',
     start: dayjs().add(3, 'day').hour(12).format('YYYY-MM-DDTHH:mm:00'),
     color: '#f97316'
   },
   {
+    id: 'event-workshop',
     title: 'Homebuyer workshop',
     start: dayjs().add(5, 'day').format('YYYY-MM-DD'),
     end: dayjs().add(6, 'day').format('YYYY-MM-DD'),
     color: '#0f766e'
   },
   {
+    id: 'event-referrals',
     title: 'Referral follow-ups',
     start: dayjs().subtract(2, 'day').format('YYYY-MM-DD'),
     color: '#e11d48'
@@ -388,55 +646,6 @@ const dashboardCards = [
   }
 ];
 
-const contacts = [
-  {
-    id: 'ava-martinez',
-    name: 'Ava Martinez',
-    role: 'Realtor — Sunset Realty',
-    segment: 'VIP',
-    status: 'Hot lead',
-    lastInteraction: 'Met for coffee (Today)',
-    tags: ['Top referrer', 'Monthly newsletter'],
-    notes:
-      'Ava is co-hosting a homebuyer workshop. Needs co-branded handouts and new rate scenarios for two buyers.'
-  },
-  {
-    id: 'clay-parker',
-    name: 'Clay Parker',
-    role: 'Builder — Ridge Homes',
-    segment: 'Builder',
-    status: 'In contract',
-    lastInteraction: 'Onsite walkthrough (Tomorrow)',
-    tags: ['Co-marketing', 'Digital toolkit'],
-    notes:
-      'Confirm signage proofs before Thursday. Interested in pilot for instant approvals dashboard.'
-  },
-  {
-    id: 'jamila-harris',
-    name: 'Jamila Harris',
-    role: 'Financial Planner — Pivotal Finance',
-    segment: 'Advisor',
-    status: 'Nurture',
-    lastInteraction: 'Shared rate update (2d ago)',
-    tags: ['Quarterly briefing'],
-    notes:
-      'Prefers concise check-ins. Exploring home-equity webinar collaboration next quarter.'
-  },
-  {
-    id: 'noah-lin',
-    name: 'Noah Lin',
-    role: 'Credit Union — Lakeview CU',
-    segment: 'Lender partner',
-    status: 'Exploring',
-    lastInteraction: 'Demo request (Yesterday)',
-    tags: ['Co-branded ads', 'Automation'],
-    notes:
-      'Needs onboarding timeline for API access. Considering dedicated marketing assets for branches.'
-  }
-];
-
-const segments = ['All', 'VIP', 'Builder', 'Advisor', 'Lender partner'];
-
 const insightModes = {
   '30d': {
     label: 'Last 30 days',
@@ -504,13 +713,449 @@ const insightModes = {
   }
 };
 
-function applyTheme(themeKey) {
-  const theme = THEMES[themeKey] || THEMES.sunrise;
-  document.body.dataset.labTheme = themeKey;
-  Object.entries(theme).forEach(([token, value]) => {
-    if (token === 'name') return;
-    document.body.style.setProperty(`--lab-${token}`, value);
+const modalDefinitions = {
+  'new-partner': {
+    title: 'Create partner profile',
+    description: 'Capture relationship essentials and drop them into the workspace.',
+    submitLabel: 'Add partner',
+    fields: () => [
+      { type: 'text', name: 'name', label: 'Partner name', required: true, placeholder: 'Summit Realty' },
+      {
+        type: 'text',
+        name: 'role',
+        label: 'Role / organization',
+        required: true,
+        placeholder: 'Realtor — Summit Realty'
+      },
+      {
+        type: 'select',
+        name: 'segment',
+        label: 'Segment',
+        required: true,
+        options: segments
+          .filter((segment) => segment !== 'All')
+          .map((segment) => ({ value: segment, label: segment }))
+      },
+      { type: 'email', name: 'email', label: 'Email', placeholder: 'partner@example.com' },
+      { type: 'tel', name: 'phone', label: 'Phone', placeholder: '(555) 555-0110' },
+      {
+        type: 'textarea',
+        name: 'notes',
+        label: 'Notes',
+        rows: 3,
+        placeholder: 'Key priorities, follow-up context'
+      }
+    ],
+    onSubmit: (formData) => {
+      const name = String(formData.get('name') || '').trim();
+      if (!name) return;
+      const id = slugify(name) || `partner-${Date.now()}`;
+      const segment = formData.get('segment') || 'VIP';
+      const partner = {
+        id,
+        name,
+        role: String(formData.get('role') || 'Partner'),
+        segment,
+        status: 'New partner',
+        lastInteraction: `Created ${dayjs().format('MMM D')}`,
+        tags: ['New', segment],
+        email: String(formData.get('email') || ''),
+        phone: String(formData.get('phone') || ''),
+        notes: String(formData.get('notes') || '—')
+      };
+      labState.contacts.unshift(partner);
+      if (!segments.includes(segment)) {
+        segments.push(segment);
+      }
+      focusModes.today.timeline.unshift({
+        id: `welcome-${id}`,
+        title: `Welcome ${partner.name}`,
+        time: dayjs().format('HH:mm'),
+        detail: 'Kickoff touch scheduled from the action bar.',
+        status: 'queued'
+      });
+      if (focusModes.today.timeline.length > 6) {
+        focusModes.today.timeline.length = 6;
+      }
+      labEvents.dispatchEvent(
+        new CustomEvent('contacts:changed', { detail: { type: 'added', contact: partner } })
+      );
+      labEvents.dispatchEvent(new CustomEvent('overview:refresh'));
+      showToast('Partner added to roster.', 'success');
+      closeModal();
+    }
+  },
+  'log-activity': {
+    title: 'Log partner touchpoint',
+    description: 'Document a call, meeting, or task so automations can follow up.',
+    submitLabel: 'Log activity',
+    fields: () => [
+      {
+        type: 'select',
+        name: 'contact',
+        label: 'Partner',
+        required: true,
+        options: labState.contacts.map((contact) => ({ value: contact.id, label: contact.name }))
+      },
+      {
+        type: 'select',
+        name: 'activity',
+        label: 'Activity type',
+        required: true,
+        options: [
+          { value: 'Call', label: 'Call' },
+          { value: 'Meeting', label: 'Meeting' },
+          { value: 'Email', label: 'Email' },
+          { value: 'Review', label: 'File review' }
+        ]
+      },
+      {
+        type: 'textarea',
+        name: 'notes',
+        label: 'Outcome notes',
+        rows: 3,
+        placeholder: 'Summarize commitments or blockers.'
+      }
+    ],
+    onSubmit: (formData) => {
+      const contactId = formData.get('contact');
+      const contact = labState.contacts.find((entry) => entry.id === contactId);
+      if (!contact) return;
+      const activity = String(formData.get('activity') || 'Touchpoint');
+      const notes = String(formData.get('notes') || '').trim();
+      contact.lastInteraction = `${activity} logged (${dayjs().format('MMM D')})`;
+      if (notes) {
+        contact.notes = `${notes}\n\n${contact.notes}`;
+      }
+      focusModes.today.timeline.unshift({
+        id: `activity-${contactId}-${Date.now()}`,
+        title: `${activity} — ${contact.name}`,
+        time: dayjs().format('HH:mm'),
+        detail: notes || 'Captured from mission control.',
+        status: 'in-progress'
+      });
+      if (focusModes.today.timeline.length > 6) {
+        focusModes.today.timeline.length = 6;
+      }
+      labEvents.dispatchEvent(
+        new CustomEvent('contacts:changed', { detail: { type: 'updated', contact } })
+      );
+      labEvents.dispatchEvent(new CustomEvent('overview:refresh'));
+      showToast('Activity logged for the partner.', 'success');
+      closeModal();
+    }
+  },
+  'schedule-event': {
+    title: 'Schedule partner event',
+    description: 'Reserve time on the shared calendar and sync with your digest.',
+    submitLabel: 'Add to calendar',
+    fields: () => [
+      { type: 'text', name: 'title', label: 'Event title', required: true, placeholder: 'Lunch with Ridge Homes' },
+      { type: 'date', name: 'date', label: 'Date', required: true, value: dayjs().format('YYYY-MM-DD') },
+      { type: 'time', name: 'time', label: 'Start time', required: true, value: '10:00' },
+      {
+        type: 'select',
+        name: 'duration',
+        label: 'Duration',
+        required: true,
+        options: [
+          { value: '30', label: '30 minutes' },
+          { value: '45', label: '45 minutes' },
+          { value: '60', label: '60 minutes' }
+        ],
+        value: '60'
+      },
+      {
+        type: 'select',
+        name: 'contact',
+        label: 'Partner (optional)',
+        options: [{ value: '', label: 'General' }].concat(
+          labState.contacts.map((contact) => ({ value: contact.id, label: contact.name }))
+        )
+      }
+    ],
+    onSubmit: (formData) => {
+      const title = String(formData.get('title') || '').trim();
+      if (!title) return;
+      const date = String(formData.get('date') || dayjs().format('YYYY-MM-DD'));
+      const startTime = String(formData.get('time') || '10:00');
+      const duration = Number(formData.get('duration') || 60);
+      const start = dayjs(`${date}T${startTime}`);
+      const end = start.add(duration, 'minute');
+      const event = {
+        id: `event-${Date.now()}`,
+        title,
+        start: start.format(),
+        end: end.format(),
+        color: '#0ea5e9'
+      };
+      calendarEvents.push(event);
+      if (calendarInstance) {
+        calendarInstance.addEvent(event);
+      }
+      const contactId = formData.get('contact');
+      const contact = labState.contacts.find((entry) => entry.id === contactId);
+      if (contact) {
+        contact.lastInteraction = `Event scheduled (${dayjs().format('MMM D')})`;
+        labEvents.dispatchEvent(
+          new CustomEvent('contacts:changed', { detail: { type: 'updated', contact } })
+        );
+      }
+      focusModes.today.timeline.unshift({
+        id: `event-${event.id}`,
+        title: title,
+        time: start.format('MMM D'),
+        detail: 'Added via scheduling flow.',
+        status: 'confirmed'
+      });
+      if (focusModes.today.timeline.length > 6) {
+        focusModes.today.timeline.length = 6;
+      }
+      labEvents.dispatchEvent(new CustomEvent('overview:refresh'));
+      showToast('Event added to the lab calendar.', 'success');
+      closeModal();
+    }
+  },
+  'pipeline-update': {
+    title: 'Update deal stage',
+    description: 'Shift the file to the right lane and capture the latest status.',
+    submitLabel: 'Update pipeline',
+    fields: (context) => [
+      {
+        type: 'select',
+        name: 'stage',
+        label: 'Stage',
+        required: true,
+        options: labState.pipeline.map((stage) => ({ value: stage.id, label: stage.label })),
+        value: context?.stageId || 'active'
+      },
+      {
+        type: 'textarea',
+        name: 'status',
+        label: 'Status note',
+        rows: 2,
+        required: true,
+        value: context?.status || ''
+      }
+    ],
+    onSubmit: (formData, context) => {
+      const stage = formData.get('stage');
+      const status = String(formData.get('status') || '');
+      if (!stage || !context?.dealId) return;
+      const success = moveDeal(context.dealId, stage, status);
+      if (!success) return;
+      labEvents.dispatchEvent(
+        new CustomEvent('pipeline:changed', {
+          detail: { dealId: context.dealId, stage }
+        })
+      );
+      showToast('Pipeline updated.', 'success');
+      closeModal();
+    }
+  },
+  'edit-contact': {
+    title: 'Edit partner profile',
+    description: 'Update status, contact channels, and relationship notes.',
+    submitLabel: 'Save changes',
+    fields: (context) => {
+      const contact = labState.contacts.find((entry) => entry.id === context?.contactId);
+      return [
+        {
+          type: 'text',
+          name: 'name',
+          label: 'Name',
+          required: true,
+          value: contact?.name || ''
+        },
+        {
+          type: 'text',
+          name: 'role',
+          label: 'Role / organization',
+          required: true,
+          value: contact?.role || ''
+        },
+        {
+          type: 'select',
+          name: 'segment',
+          label: 'Segment',
+          required: true,
+          options: segments
+            .filter((segment) => segment !== 'All')
+            .map((segment) => ({ value: segment, label: segment })),
+          value: contact?.segment || 'VIP'
+        },
+        {
+          type: 'text',
+          name: 'status',
+          label: 'Status',
+          required: true,
+          value: contact?.status || ''
+        },
+        { type: 'email', name: 'email', label: 'Email', value: contact?.email || '' },
+        { type: 'tel', name: 'phone', label: 'Phone', value: contact?.phone || '' },
+        { type: 'textarea', name: 'notes', label: 'Notes', rows: 3, value: contact?.notes || '' }
+      ];
+    },
+    onSubmit: (formData, context) => {
+      const contact = labState.contacts.find((entry) => entry.id === context?.contactId);
+      if (!contact) return;
+      contact.name = String(formData.get('name') || contact.name);
+      contact.role = String(formData.get('role') || contact.role);
+      contact.segment = String(formData.get('segment') || contact.segment);
+      contact.status = String(formData.get('status') || contact.status);
+      contact.email = String(formData.get('email') || contact.email);
+      contact.phone = String(formData.get('phone') || contact.phone);
+      contact.notes = String(formData.get('notes') || contact.notes);
+      if (!segments.includes(contact.segment)) {
+        segments.push(contact.segment);
+      }
+      labEvents.dispatchEvent(
+        new CustomEvent('contacts:changed', { detail: { type: 'updated', contact } })
+      );
+      showToast('Partner profile updated.', 'success');
+      closeModal();
+    }
+  }
+};
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const modalState = {
+  host: null,
+  form: null,
+  title: null,
+  description: null,
+  close: null,
+  key: null,
+  context: null
+};
+
+function renderField(field) {
+  const { type, name, label, required, placeholder, rows, options, value } = field;
+  const id = `modal-${name}`;
+  const requirement = required ? ' required' : '';
+  const fieldLabel = label ? `<label for="${id}">${escapeHtml(label)}</label>` : '';
+  const baseAttrs = `id="${id}" name="${name}"${requirement}`;
+
+  switch (type) {
+    case 'textarea':
+      return `
+        <div class="modal-field">
+          ${fieldLabel}
+          <textarea ${baseAttrs} rows="${rows || 3}" placeholder="${escapeHtml(placeholder || '')}">${escapeHtml(
+        value || ''
+      )}</textarea>
+        </div>
+      `;
+    case 'select':
+      if (!Array.isArray(options)) {
+        return '';
+      }
+      const renderedOptions = options
+        .map((option) => {
+          const selected = value != null && String(option.value) === String(value) ? ' selected' : '';
+          return `<option value="${escapeHtml(option.value)}"${selected}>${escapeHtml(option.label)}</option>`;
+        })
+        .join('');
+      return `
+        <div class="modal-field">
+          ${fieldLabel}
+          <select ${baseAttrs}>${renderedOptions}</select>
+        </div>
+      `;
+    default:
+      return `
+        <div class="modal-field">
+          ${fieldLabel}
+          <input ${baseAttrs} type="${type}" value="${escapeHtml(value || '')}" placeholder="${escapeHtml(
+        placeholder || ''
+      )}" />
+        </div>
+      `;
+  }
+}
+
+function renderFields(fields) {
+  return fields.map((field) => renderField(field)).join('');
+}
+
+function setupModalSystem() {
+  modalState.host = document.getElementById('lab-modal');
+  modalState.form = modalState.host.querySelector('#modal-form');
+  modalState.title = modalState.host.querySelector('#modal-title');
+  modalState.description = modalState.host.querySelector('#modal-description');
+  modalState.close = modalState.host.querySelector('[data-modal-close]');
+
+  modalState.close.addEventListener('click', () => {
+    closeModal();
   });
+  modalState.host.addEventListener('click', (event) => {
+    if (event.target === modalState.host) {
+      closeModal();
+    }
+  });
+  modalState.form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const config = modalDefinitions[modalState.key];
+    if (!config) return;
+    const formData = new FormData(modalState.form);
+    config.onSubmit(formData, modalState.context || {});
+  });
+}
+
+function openModal(key, context = {}) {
+  const config = modalDefinitions[key];
+  if (!config || !modalState.host) return;
+  modalState.key = key;
+  modalState.context = context;
+  modalState.title.textContent = config.title;
+  modalState.description.textContent = config.description || '';
+  const fieldsFactory = typeof config.fields === 'function' ? config.fields : () => config.fields || [];
+  const fields = fieldsFactory(context) || [];
+  modalState.form.innerHTML = `${renderFields(fields)}
+    <div class="modal-actions">
+      <button type="submit" class="btn-primary">${escapeHtml(config.submitLabel || 'Save')}</button>
+      <button type="button" class="btn-ghost" data-modal-cancel>Cancel</button>
+    </div>`;
+  const cancelButton = modalState.form.querySelector('[data-modal-cancel]');
+  cancelButton.addEventListener('click', () => {
+    closeModal();
+  });
+  modalState.host.removeAttribute('aria-hidden');
+  modalState.host.classList.add('open');
+  const firstInput = modalState.form.querySelector('input, select, textarea');
+  if (firstInput) {
+    firstInput.focus();
+  }
+}
+
+function closeModal() {
+  if (!modalState.host) return;
+  modalState.host.setAttribute('aria-hidden', 'true');
+  modalState.host.classList.remove('open');
+  modalState.form.innerHTML = '';
+  modalState.key = null;
+  modalState.context = null;
+}
+
+function showToast(message, tone = 'default') {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) return;
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${tone}`;
+  toast.innerHTML = `<span>${escapeHtml(message)}</span><button type="button" aria-label="Dismiss">×</button>`;
+  toast.querySelector('button').addEventListener('click', () => {
+    toast.remove();
+  });
+  stack.appendChild(toast);
+  stack.scrollTop = stack.scrollHeight;
 }
 
 function renderChrome(root) {
@@ -520,6 +1165,28 @@ function renderChrome(root) {
       return `<button type="button" class="nav-link" data-link="${link.id}"${selected}>${link.label}</button>`;
     })
     .join('');
+
+  const automationList = labState.settings.automations
+    .map((automation) => {
+      const checked = automation.enabled ? ' checked' : '';
+      return `
+        <label class="automation-toggle">
+          <input type="checkbox" data-automation="${automation.id}"${checked} />
+          <div>
+            <strong>${escapeHtml(automation.name)}</strong>
+            <p class="muted">${escapeHtml(automation.description)}</p>
+          </div>
+        </label>
+      `;
+    })
+    .join('');
+
+  const goalFunded = formatNumber(labState.settings.goals.funded);
+  const goalVolume = formatCurrency(labState.settings.goals.volume);
+  const digestChannel = escapeHtml(labState.settings.workspace.digestChannel);
+  const autopilotLabel = labState.settings.workspace.autopilot
+    ? 'Autopilot nudges on'
+    : 'Autopilot paused';
 
   root.innerHTML = `
     <div class="lab-app">
@@ -535,22 +1202,29 @@ function renderChrome(root) {
         <footer class="nav-footer">
           <p>Build ${dayjs().format('MMM DD, YYYY')}</p>
           <span class="nav-pill">Experimental</span>
-          <a class="nav-back" href="../index.html#settings">← Back to CRM settings</a>
+          <a class="nav-back" href="../../index.html#settings">← Back to CRM settings</a>
         </footer>
       </aside>
       <div class="lab-main">
         <header class="lab-header">
-          <div>
-            <h1>Experience Lab</h1>
-            <p class="muted">Exploring responsive layouts, motion, and partner-centric workflows.</p>
+          <div class="header-top">
+            <div>
+              <h1>Experience Lab</h1>
+              <p class="muted">Exploring responsive layouts, motion, and partner-centric workflows.</p>
+              <div class="header-meta">
+                <span class="meta-chip" id="workspace-digest">${digestChannel}</span>
+                <span class="meta-chip" id="workspace-autopilot">${escapeHtml(autopilotLabel)}</span>
+              </div>
+            </div>
+            <div class="header-controls">
+              <label class="theme-switcher">
+                <span>Theme</span>
+                <select id="theme-picker" class="theme-select" aria-label="Theme picker"></select>
+              </label>
+              <div class="pulse-pill" role="status">Live prototype</div>
+            </div>
           </div>
-          <div class="header-controls">
-            <label class="theme-switcher">
-              <span>Theme</span>
-              <select id="theme-picker" class="theme-select" aria-label="Theme picker"></select>
-            </label>
-            <div class="pulse-pill" role="status">Live prototype</div>
-          </div>
+          <div class="action-bar" id="action-bar" role="toolbar" aria-label="Primary lab actions"></div>
         </header>
         <main class="lab-surfaces">
           <section class="panel" id="overview-panel" data-surface="overview">
@@ -567,6 +1241,18 @@ function renderChrome(root) {
                   </div>
                   <div class="mode-switch" id="focus-mode-switch" role="tablist" aria-label="Focus horizon"></div>
                   <dl class="hero-metrics" id="focus-metrics"></dl>
+                  <div class="hero-footnotes">
+                    <div class="footnote-block">
+                      <span class="muted label">Monthly goals</span>
+                      <strong id="goal-funded-target">${goalFunded} funded</strong>
+                      <span class="muted" id="goal-volume-target">${goalVolume} volume</span>
+                    </div>
+                    <div class="footnote-block">
+                      <span class="muted label">Daily digest</span>
+                      <strong id="goal-digest-channel">${digestChannel}</strong>
+                      <span class="muted" id="goal-autopilot-label">${escapeHtml(autopilotLabel)}</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="hero-visual">
                   <div class="trend-shell">
@@ -608,6 +1294,27 @@ function renderChrome(root) {
               </div>
             </div>
           </section>
+          <section class="panel" id="pipeline-panel" data-surface="pipeline">
+            <header class="panel-head">
+              <h2>Pipeline storyboard</h2>
+              <p class="muted">Track deals moving from new referral to funded celebration.</p>
+            </header>
+            <div class="panel-body pipeline-body">
+              <div class="pipeline-board" id="pipeline-board"></div>
+              <aside class="pipeline-digest">
+                <h3>Daily brief</h3>
+                <ul class="pipeline-metrics" id="pipeline-metrics"></ul>
+                <div class="pipeline-playbooks">
+                  <h4>Automation snippets</h4>
+                  <ul>
+                    <li>Stage alerts notify assigned LOs and assistants.</li>
+                    <li>Escalations auto-create partner tasks when aging beyond SLA.</li>
+                    <li>Won files trigger thank-you notes + testimonial requests.</li>
+                  </ul>
+                </div>
+              </aside>
+            </div>
+          </section>
           <section class="panel" id="calendar-panel" data-surface="calendar">
             <header class="panel-head">
               <h2>Partner calendar</h2>
@@ -632,7 +1339,13 @@ function renderChrome(root) {
               <p class="muted">Filter by relationship segment to focus the outreach plan.</p>
             </header>
             <div class="panel-body">
-              <div class="chip-row" id="contact-filters" role="group" aria-label="Filter partners by segment"></div>
+              <div class="contacts-toolbar">
+                <div class="chip-row" id="contact-filters" role="group" aria-label="Filter partners by segment"></div>
+                <div class="contact-search">
+                  <label for="contact-search-input" class="muted">Search</label>
+                  <input id="contact-search-input" type="search" placeholder="Find partner" />
+                </div>
+              </div>
               <div class="contact-list" id="contact-list"></div>
             </div>
           </section>
@@ -662,6 +1375,80 @@ function renderChrome(root) {
               </div>
             </div>
           </section>
+          <section class="panel" id="settings-panel" data-surface="settings">
+            <header class="panel-head">
+              <h2>Settings & automations</h2>
+              <p class="muted">Tune workflow preferences, goals, and proactive nudges.</p>
+            </header>
+            <div class="panel-body settings-body">
+              <form id="profile-settings" class="settings-card">
+                <h3>Profile & digest</h3>
+                <div class="settings-grid">
+                  <label>
+                    <span>Display name</span>
+                    <input type="text" name="name" value="${escapeHtml(labState.settings.profile.name)}" required />
+                  </label>
+                  <label>
+                    <span>Email</span>
+                    <input type="email" name="email" value="${escapeHtml(labState.settings.profile.email)}" required />
+                  </label>
+                  <label>
+                    <span>Phone</span>
+                    <input type="tel" name="phone" value="${escapeHtml(labState.settings.profile.phone)}" />
+                  </label>
+                  <label>
+                    <span>Digest send time</span>
+                    <input type="time" name="digest" value="${escapeHtml(labState.settings.profile.digest)}" required />
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn-primary">Save profile</button>
+                </div>
+              </form>
+              <form id="goal-settings" class="settings-card">
+                <h3>Goals</h3>
+                <div class="settings-grid">
+                  <label>
+                    <span>Funded loans target</span>
+                    <input type="number" min="0" name="funded" value="${escapeHtml(String(
+    labState.settings.goals.funded
+  ))}" required />
+                  </label>
+                  <label>
+                    <span>Loan volume target</span>
+                    <input type="number" min="0" step="10000" name="volume" value="${escapeHtml(String(
+    labState.settings.goals.volume
+  ))}" required />
+                  </label>
+                  <label>
+                    <span>Focus mode preference</span>
+                    <select name="focus">
+                      <option value="today"${labState.settings.workspace.focus === 'today' ? ' selected' : ''}>Today</option>
+                      <option value="week"${labState.settings.workspace.focus === 'week' ? ' selected' : ''}>This week</option>
+                      <option value="quarter"${labState.settings.workspace.focus === 'quarter' ? ' selected' : ''}>Quarter</option>
+                    </select>
+                  </label>
+                  <label class="toggle">
+                    <input type="checkbox" name="autopilot"${labState.settings.workspace.autopilot ? ' checked' : ''} />
+                    <span>Enable autopilot nudges</span>
+                  </label>
+                  <label>
+                    <span>Digest channel</span>
+                    <input type="text" name="digestChannel" value="${escapeHtml(
+                      labState.settings.workspace.digestChannel
+                    )}" />
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn-primary">Save goals</button>
+                </div>
+              </form>
+              <section class="settings-card">
+                <h3>Automations</h3>
+                <div class="automation-list" id="automation-list">${automationList}</div>
+              </section>
+            </div>
+          </section>
         </main>
       </div>
     </div>
@@ -677,7 +1464,29 @@ function renderChrome(root) {
         <div class="drawer-body" id="drawer-body"></div>
       </div>
     </div>
+    <div class="lab-modal" id="lab-modal" aria-hidden="true">
+      <div class="modal-surface" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal-head">
+          <div>
+            <h3 id="modal-title"></h3>
+            <p class="muted" id="modal-description"></p>
+          </div>
+          <button type="button" class="btn-close" data-modal-close aria-label="Close modal">×</button>
+        </header>
+        <form id="modal-form" class="modal-body"></form>
+      </div>
+    </div>
+    <div class="toast-stack" id="toast-stack" aria-live="assertive" aria-atomic="true"></div>
   `;
+}
+
+function applyTheme(themeKey) {
+  const theme = THEMES[themeKey] || THEMES.sunrise;
+  document.body.dataset.labTheme = themeKey;
+  Object.entries(theme).forEach(([token, value]) => {
+    if (token === 'name') return;
+    document.body.style.setProperty(`--lab-${token}`, value);
+  });
 }
 
 function buildTrend(points, width = 320, height = 120) {
@@ -724,6 +1533,170 @@ function setupNavigation(root) {
     const button = event.target.closest('button[data-link]');
     if (!button) return;
     setActiveSurface(button.dataset.link);
+  });
+
+  setActiveSurface('overview');
+}
+
+function renderModeSwitch(host, modes, active) {
+  const buttons = Object.entries(modes)
+    .map(([key, config]) => {
+      const selected = key === active ? " aria-pressed='true'" : " aria-pressed='false'";
+      return `<button type="button" class="chip" data-mode="${key}"${selected}>${config.label}</button>`;
+    })
+    .join('');
+  host.innerHTML = buttons;
+}
+
+function setupActionBar() {
+  const host = document.getElementById('action-bar');
+  if (!host) return;
+  host.innerHTML = quickActions
+    .map(
+      (action) => `
+        <button type="button" class="action-button action-${action.tone}" data-action="${action.id}">
+          <span class="action-icon" aria-hidden="true">${action.icon}</span>
+          <span>${action.label}</span>
+        </button>
+      `
+    )
+    .join('');
+
+  host.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    const action = quickActions.find((entry) => entry.id === button.dataset.action);
+    if (!action) return;
+    openModal(action.modal);
+  });
+
+  labEvents.addEventListener('settings:applied', (event) => {
+    if (!event.detail?.workspace) return;
+    const autopilot = event.detail.workspace.autopilot;
+    host.dataset.autopilot = autopilot ? 'on' : 'off';
+  });
+}
+
+function setupOverview() {
+  const summary = document.querySelector('#focus-summary');
+  const switchHost = document.querySelector('#focus-mode-switch');
+  const metricsHost = document.querySelector('#focus-metrics');
+  const trendArea = document.querySelector('#trend-area');
+  const trendLine = document.querySelector('#trend-line');
+  const scoreValue = document.querySelector('#focus-score');
+  const scoreLabel = document.querySelector('#focus-score-label');
+  const dial = document.querySelector('#focus-dial');
+  const dialValue = document.querySelector('#focus-dial-value');
+  const dialLabel = document.querySelector('#focus-dial-label');
+  const timelineHost = document.querySelector('#focus-timeline');
+  const signalsHost = document.querySelector('#signal-cards');
+  const goalFunded = document.querySelector('#goal-funded-target');
+  const goalVolume = document.querySelector('#goal-volume-target');
+  const digestChannel = document.querySelector('#goal-digest-channel');
+  const autopilotLabel = document.querySelector('#goal-autopilot-label');
+  const digestChip = document.querySelector('#workspace-digest');
+  const autopilotChip = document.querySelector('#workspace-autopilot');
+
+  let activeMode = labState.settings.workspace.focus in focusModes ? labState.settings.workspace.focus : 'today';
+
+  function renderMetrics(metrics) {
+    metricsHost.innerHTML = metrics
+      .map((metric) => {
+        const toneClass = metric.tone ? ` metric-${metric.tone}` : '';
+        return `
+          <div class="metric${toneClass}">
+            <dt>${metric.label}</dt>
+            <dd>${metric.value}</dd>
+            <span class="muted">${metric.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderTimeline(items) {
+    timelineHost.innerHTML = items
+      .map((item) => {
+        const statusClass = item.status ? ` timeline-${item.status}` : '';
+        return `
+          <li class="timeline-item${statusClass}">
+            <div class="timeline-time">${item.time}</div>
+            <div class="timeline-detail">
+              <strong>${item.title}</strong>
+              <p class="muted">${item.detail}</p>
+            </div>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function renderSignals() {
+    signalsHost.innerHTML = overviewSignals
+      .map((signal) => {
+        const toneClass = signal.tone ? ` signal-${signal.tone}` : '';
+        return `
+          <li class="signal-card${toneClass}">
+            <header>
+              <h5>${signal.title}</h5>
+              <span class="signal-metric">${signal.metric}</span>
+            </header>
+            <p class="muted">${signal.description}</p>
+            <span class="signal-delta">${signal.delta}</span>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = focusModes[modeKey] || focusModes.today;
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderMetrics(mode.metrics);
+    const { area, line } = buildTrend(mode.trend);
+    trendArea.setAttribute('d', area);
+    trendLine.setAttribute('points', line);
+    scoreValue.textContent = `${mode.score}`;
+    scoreLabel.textContent = mode.scoreLabel;
+    dial.style.setProperty('--dial-fill', `${Math.round(mode.capacity * 3.6)}deg`);
+    dialValue.textContent = `${mode.capacity}%`;
+    dialLabel.textContent = mode.capacityLabel;
+    renderTimeline(mode.timeline);
+    renderModeSwitch(switchHost, focusModes, activeMode);
+  }
+
+  function refreshSettings() {
+    const { goals, workspace } = labState.settings;
+    goalFunded.textContent = `${formatNumber(goals.funded)} funded`;
+    goalVolume.textContent = `${formatCurrency(goals.volume)} volume`;
+    digestChannel.textContent = workspace.digestChannel;
+    autopilotLabel.textContent = workspace.autopilot ? 'Autopilot nudges on' : 'Autopilot paused';
+    digestChip.textContent = workspace.digestChannel;
+    autopilotChip.textContent = workspace.autopilot ? 'Autopilot nudges on' : 'Autopilot paused';
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  renderSignals();
+  refreshSettings();
+  applyMode(activeMode);
+
+  labEvents.addEventListener('overview:refresh', () => {
+    applyMode(activeMode);
+  });
+
+  labEvents.addEventListener('settings:applied', () => {
+    refreshSettings();
+    if (labState.settings.workspace.focus !== activeMode) {
+      applyMode(labState.settings.workspace.focus);
+    } else {
+      applyMode(activeMode);
+    }
   });
 
   setActiveSurface('overview');
@@ -838,7 +1811,7 @@ function setupThemeSwitcher(root) {
     .map(([key, theme]) => `<option value="${key}">${theme.name}</option>`)
     .join('');
   select.innerHTML = options;
-  select.value = document.body.dataset.labTheme;
+  select.value = document.body.dataset.labTheme || 'sunrise';
   select.addEventListener('change', (event) => {
     const themeKey = event.target.value;
     applyTheme(themeKey);
@@ -862,6 +1835,7 @@ function setupCalendar() {
     aspectRatio: 1.5
   });
   calendar.render();
+  calendarInstance = calendar;
 }
 
 function setupDashboard() {
@@ -887,9 +1861,80 @@ function setupDashboard() {
   );
 }
 
+function setupPipeline() {
+  const board = document.getElementById('pipeline-board');
+  const metricsHost = document.getElementById('pipeline-metrics');
+
+  function renderBoard() {
+    board.innerHTML = labState.pipeline
+      .map((stage) => {
+        const cards = stage.deals
+          .map(
+            (deal) => `
+              <article class="pipeline-card" data-deal="${deal.id}" data-stage="${stage.id}">
+                <header>
+                  <strong>${deal.name}</strong>
+                  <span class="muted">${formatCurrency(deal.amount)}</span>
+                </header>
+                <p class="muted">${escapeHtml(deal.status)}</p>
+                <button type="button" class="pill" data-pipeline-edit="${deal.id}">Advance</button>
+              </article>
+            `
+          )
+          .join('');
+
+        return `
+          <section class="pipeline-stage" data-stage="${stage.id}">
+            <header>
+              <h3>${stage.label}</h3>
+              <p class="muted">${stage.summary}</p>
+            </header>
+            <div class="pipeline-stage-body">${cards}</div>
+          </section>
+        `;
+      })
+      .join('');
+  }
+
+  function renderMetrics() {
+    const allDeals = labState.pipeline.flatMap((stage) => stage.deals.map((deal) => ({ ...deal, stage: stage.id })));
+    const activeCount = allDeals.filter((deal) => deal.stage !== 'won').length;
+    const wonVolume = allDeals
+      .filter((deal) => deal.stage === 'won')
+      .reduce((sum, deal) => sum + Number(deal.amount || 0), 0);
+    const attentionCount = allDeals.filter((deal) => /pending|waiting|needs/i.test(deal.status)).length;
+
+    metricsHost.innerHTML = `
+      <li><span class="metric-label">Active deals</span><strong>${formatNumber(activeCount)}</strong></li>
+      <li><span class="metric-label">Won volume</span><strong>${formatCurrency(wonVolume)}</strong></li>
+      <li><span class="metric-label">Follow-ups flagged</span><strong>${formatNumber(attentionCount)}</strong></li>
+    `;
+  }
+
+  board.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-pipeline-edit]');
+    if (!button) return;
+    const dealId = button.dataset.pipelineEdit;
+    const stage = button.closest('.pipeline-card')?.dataset.stage;
+    const deal = labState.pipeline
+      .flatMap((stageEntry) => stageEntry.deals.map((item) => ({ ...item, stage: stageEntry.id })))
+      .find((entry) => entry.id === dealId);
+    openModal('pipeline-update', { dealId, stageId: stage, status: deal?.status || '' });
+  });
+
+  renderBoard();
+  renderMetrics();
+
+  labEvents.addEventListener('pipeline:changed', () => {
+    renderBoard();
+    renderMetrics();
+  });
+}
+
 function setupContacts() {
   const filterHost = document.querySelector('#contact-filters');
   const listHost = document.querySelector('#contact-list');
+  const searchInput = document.querySelector('#contact-search-input');
   const drawer = document.querySelector('#contact-drawer');
   const drawerTitle = drawer.querySelector('#drawer-title');
   const drawerSub = drawer.querySelector('.drawer-sub');
@@ -897,6 +1942,7 @@ function setupContacts() {
   const drawerClose = drawer.querySelector('#drawer-close');
 
   let activeFilter = 'All';
+  let searchTerm = '';
 
   function renderFilters() {
     filterHost.innerHTML = segments
@@ -908,8 +1954,14 @@ function setupContacts() {
   }
 
   function renderList() {
-    const rows = contacts
+    const normalizedSearch = searchTerm.toLowerCase();
+    const rows = labState.contacts
       .filter((contact) => activeFilter === 'All' || contact.segment === activeFilter)
+      .filter((contact) =>
+        !normalizedSearch ||
+        contact.name.toLowerCase().includes(normalizedSearch) ||
+        contact.role.toLowerCase().includes(normalizedSearch)
+      )
       .map(
         (contact) => `
           <article class="contact-card" data-contact="${contact.id}">
@@ -930,28 +1982,40 @@ function setupContacts() {
       )
       .join('');
 
-    listHost.innerHTML = rows;
+    listHost.innerHTML = rows || '<p class="muted empty-state">No partners match the current filters.</p>';
   }
 
   function openDrawer(contactId) {
-    const contact = contacts.find((entry) => entry.id === contactId);
+    const contact = labState.contacts.find((entry) => entry.id === contactId);
     if (!contact) return;
     drawerTitle.textContent = contact.name;
     drawerSub.textContent = `${contact.role} • ${contact.segment}`;
     drawerBody.innerHTML = `
       <section>
         <h4>Next steps</h4>
-        <p>${contact.notes}</p>
+        <p>${escapeHtml(contact.notes)}</p>
       </section>
       <section class="drawer-meta">
         <div>
           <span class="muted">Status</span>
-          <strong>${contact.status}</strong>
+          <strong>${escapeHtml(contact.status)}</strong>
         </div>
         <div>
           <span class="muted">Last interaction</span>
-          <strong>${contact.lastInteraction}</strong>
+          <strong>${escapeHtml(contact.lastInteraction)}</strong>
         </div>
+        <div>
+          <span class="muted">Email</span>
+          <strong>${escapeHtml(contact.email || '—')}</strong>
+        </div>
+        <div>
+          <span class="muted">Phone</span>
+          <strong>${escapeHtml(contact.phone || '—')}</strong>
+        </div>
+      </section>
+      <section class="drawer-actions">
+        <button type="button" class="btn-primary" data-drawer-edit="${contact.id}">Edit profile</button>
+        <button type="button" class="btn-ghost" data-drawer-schedule="${contact.id}">Schedule follow-up</button>
       </section>
     `;
     drawer.classList.add('open');
@@ -977,9 +2041,24 @@ function setupContacts() {
     openDrawer(card.dataset.contact);
   });
 
+  searchInput.addEventListener('input', (event) => {
+    searchTerm = event.target.value || '';
+    renderList();
+  });
+
   drawer.addEventListener('click', (event) => {
     if (event.target === drawer) {
       closeDrawer();
+    }
+  });
+
+  drawerBody.addEventListener('click', (event) => {
+    const editButton = event.target.closest('[data-drawer-edit]');
+    const scheduleButton = event.target.closest('[data-drawer-schedule]');
+    if (editButton) {
+      openModal('edit-contact', { contactId: editButton.dataset.drawerEdit });
+    } else if (scheduleButton) {
+      openModal('schedule-event', { contactId: scheduleButton.dataset.drawerSchedule });
     }
   });
 
@@ -989,6 +2068,154 @@ function setupContacts() {
 
   renderFilters();
   renderList();
+
+  labEvents.addEventListener('contacts:changed', () => {
+    renderFilters();
+    renderList();
+  });
+}
+
+function setupInsights() {
+  const switchHost = document.querySelector('#insight-mode-switch');
+  const summary = document.querySelector('#insight-summary');
+  const scorecardHost = document.querySelector('#insight-scorecards');
+  const heatmapHost = document.querySelector('#insight-heatmap');
+  const actionsHost = document.querySelector('#insight-actions');
+
+  let activeMode = '30d';
+
+  function renderScorecards(cards) {
+    scorecardHost.innerHTML = cards
+      .map((card) => {
+        const toneClass = card.tone ? ` insight-${card.tone}` : '';
+        return `
+          <div class="insight-score${toneClass}">
+            <span class="muted">${card.label}</span>
+            <strong>${card.value}</strong>
+            <span class="insight-helper">${card.helper}</span>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function renderHeatmap(heatmap) {
+    const maxValue = Math.max(
+      ...heatmap.rows.flatMap((row) => row.values.map((value) => Number(value) || 0))
+    );
+    const tableRows = heatmap.rows
+      .map((row) => {
+        const cells = row.values
+          .map((value) => {
+            const numeric = Number(value) || 0;
+            const intensity = maxValue === 0 ? 0 : numeric / maxValue;
+            const percent = Math.round(intensity * 100);
+            return `
+              <td class="heat-cell" style="--heat-intensity:${percent};">
+                <span>${numeric}</span>
+              </td>
+            `;
+          })
+          .join('');
+        return `
+          <tr>
+            <th scope="row">${row.label}</th>
+            ${cells}
+          </tr>
+        `;
+      })
+      .join('');
+
+    const headerCells = heatmap.columns.map((column) => `<th scope="col">${column}</th>`).join('');
+
+    heatmapHost.innerHTML = `
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            ${headerCells}
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderActions(actions) {
+    actionsHost.innerHTML = actions
+      .map(
+        (action) => `
+          <li>
+            <strong>${action.title}</strong>
+            <p class="muted">${action.detail}</p>
+          </li>
+        `
+      )
+      .join('');
+  }
+
+  function applyMode(modeKey) {
+    const mode = insightModes[modeKey] || insightModes['30d'];
+    activeMode = modeKey;
+    summary.textContent = mode.summary;
+    renderScorecards(mode.scorecards);
+    renderHeatmap(mode.heatmap);
+    renderActions(mode.actions);
+    renderModeSwitch(switchHost, insightModes, activeMode);
+  }
+
+  switchHost.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-mode]');
+    if (!button) return;
+    applyMode(button.dataset.mode);
+  });
+
+  applyMode(activeMode);
+}
+
+function setupSettings() {
+  const profileForm = document.getElementById('profile-settings');
+  const goalForm = document.getElementById('goal-settings');
+  const automationList = document.getElementById('automation-list');
+
+  profileForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(profileForm);
+    labState.settings.profile.name = String(data.get('name') || labState.settings.profile.name);
+    labState.settings.profile.email = String(data.get('email') || labState.settings.profile.email);
+    labState.settings.profile.phone = String(data.get('phone') || labState.settings.profile.phone);
+    labState.settings.profile.digest = String(data.get('digest') || labState.settings.profile.digest);
+    persistSettings();
+    applyWorkspacePreferences();
+    showToast('Profile preferences saved.', 'success');
+  });
+
+  goalForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(goalForm);
+    labState.settings.goals.funded = Number(data.get('funded') || labState.settings.goals.funded);
+    labState.settings.goals.volume = Number(data.get('volume') || labState.settings.goals.volume);
+    labState.settings.workspace.focus = String(data.get('focus') || labState.settings.workspace.focus);
+    labState.settings.workspace.autopilot = data.get('autopilot') === 'on';
+    labState.settings.workspace.digestChannel = String(
+      data.get('digestChannel') || labState.settings.workspace.digestChannel
+    );
+    persistSettings();
+    applyWorkspacePreferences();
+    showToast('Goal targets updated.', 'success');
+  });
+
+  automationList.addEventListener('change', (event) => {
+    const toggle = event.target.closest('input[data-automation]');
+    if (!toggle) return;
+    const automation = labState.settings.automations.find((entry) => entry.id === toggle.dataset.automation);
+    if (!automation) return;
+    automation.enabled = toggle.checked;
+    persistSettings();
+    showToast('Automation preferences saved.', 'success');
+  });
 }
 
 function setupInsights() {
@@ -1096,13 +2323,18 @@ function init() {
   applyTheme(document.body.dataset.labTheme || 'sunrise');
   renderChrome(root);
   try {
+    setupModalSystem();
     setupNavigation(root);
     setupThemeSwitcher(root);
+    setupActionBar();
     setupOverview();
     setupCalendar();
     setupDashboard();
+    setupPipeline();
     setupContacts();
     setupInsights();
+    setupSettings();
+    applyWorkspacePreferences();
   } catch (error) {
     console.error('[UX LAB] boot error', error);
     throw error;
@@ -1110,3 +2342,4 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
