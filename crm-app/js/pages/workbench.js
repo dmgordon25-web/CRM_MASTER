@@ -9,7 +9,8 @@ const LONGSHOT_STATUSES = new Set(['prospect', 'longshot', 'nurture', 'paused'])
 
 const STORAGE_KEYS = {
   layout: 'workbench:layout',
-  queries: 'workbench:queries'
+  queries: 'workbench:queries',
+  drafts: 'workbench:lens-drafts'
 };
 
 const DEFAULT_LAYOUT = {
@@ -383,6 +384,7 @@ const state = {
   layout: null,
   savedQueries: [],
   lensStates: new Map(),
+  lensDrafts: new Map(),
   selectionUnsubscribe: null,
   dataListener: null,
   dataCache: {
@@ -504,6 +506,109 @@ async function persistSavedQueries(){
   }
 }
 
+async function loadLensDrafts(){
+  state.lensDrafts = new Map();
+  if(typeof window.openDB === 'function'){
+    try{ await window.openDB(); }
+    catch (_err){}
+  }
+  if(typeof window.dbSettingsGet !== 'function') return state.lensDrafts;
+  try{
+    const record = await window.dbSettingsGet(STORAGE_KEYS.drafts);
+    const entries = Array.isArray(record?.entries) ? record.entries : [];
+    entries.forEach((entry) => {
+      if(!entry || typeof entry !== 'object') return;
+      const lensKey = typeof entry.lens === 'string' ? entry.lens : typeof entry.key === 'string' ? entry.key : '';
+      if(!lensKey) return;
+      const config = CONFIG_BY_KEY.get(lensKey);
+      if(!config) return;
+      const filters = Array.isArray(entry.filters)
+        ? entry.filters.map((filter) => {
+          const field = typeof filter?.field === 'string' ? filter.field : '';
+          if(!field || !config.fieldsMap.has(field)) return null;
+          const rawValue = filter?.value;
+          if(rawValue == null || rawValue === '') return null;
+          const operator = typeof filter?.operator === 'string' ? filter.operator : defaultOperatorFor(config.fieldsMap.get(field));
+          return { field, operator, value: rawValue };
+        }).filter(Boolean)
+        : [];
+      let sort = null;
+      if(entry.sort && typeof entry.sort === 'object'){
+        const sortField = typeof entry.sort.field === 'string' ? entry.sort.field : '';
+        if(sortField && config.fieldsMap.has(sortField)){
+          sort = { field: sortField, direction: entry.sort.direction === 'desc' ? 'desc' : 'asc' };
+        }
+      }
+      const limit = entry.limit != null ? (Number(entry.limit) || null) : null;
+      if(filters.length || sort || limit != null){
+        state.lensDrafts.set(lensKey, { filters, sort, limit });
+      }
+    });
+  }catch (err){
+    state.lensDrafts = new Map();
+    console && console.warn && console.warn('[workbench] failed to load lens drafts', err);
+  }
+  return state.lensDrafts;
+}
+
+let lensDraftSaveTimer = null;
+
+function scheduleLensDraftSave(){
+  if(lensDraftSaveTimer){
+    clearTimeout(lensDraftSaveTimer);
+    lensDraftSaveTimer = null;
+  }
+  lensDraftSaveTimer = setTimeout(async () => {
+    lensDraftSaveTimer = null;
+    if(typeof window.dbSettingsPut !== 'function') return;
+    const entries = Array.from(state.lensDrafts.entries()).map(([lens, draft]) => {
+      const filters = Array.isArray(draft?.filters)
+        ? draft.filters.map((filter) => ({ field: filter.field, operator: filter.operator, value: filter.value }))
+        : [];
+      const sort = draft?.sort && draft.sort.field
+        ? { field: draft.sort.field, direction: draft.sort.direction === 'desc' ? 'desc' : 'asc' }
+        : null;
+      const limit = draft?.limit != null ? (Number(draft.limit) || null) : null;
+      return {
+        lens,
+        filters,
+        sort,
+        limit,
+        updatedAt: Date.now()
+      };
+    }).filter((entry) => entry.filters.length || (entry.sort && entry.sort.field) || entry.limit != null);
+    try{
+      await window.dbSettingsPut({
+        id: STORAGE_KEYS.drafts,
+        entries,
+        updatedAt: Date.now()
+      });
+    }catch (err){
+      console && console.warn && console.warn('[workbench] failed to persist lens drafts', err);
+    }
+  }, 200);
+}
+
+function persistLensDraft(lensState){
+  if(!lensState || !lensState.config) return;
+  const { config } = lensState;
+  const payload = serializeLensState(lensState);
+  const filters = Array.isArray(payload.filters)
+    ? payload.filters.map((filter) => ({ field: filter.field, operator: filter.operator, value: filter.value }))
+    : [];
+  const sort = payload.sort && payload.sort.field
+    ? { field: payload.sort.field, direction: payload.sort.direction === 'desc' ? 'desc' : 'asc' }
+    : null;
+  const limit = payload.limit != null ? (Number(payload.limit) || null) : null;
+  if(!filters.length && !sort && limit == null){
+    state.lensDrafts.delete(config.key);
+    scheduleLensDraftSave();
+    return;
+  }
+  state.lensDrafts.set(config.key, { filters, sort, limit });
+  scheduleLensDraftSave();
+}
+
 function getSelectionStore(){
   return window.SelectionStore || null;
 }
@@ -617,7 +722,8 @@ function createLensState(config){
     pendingRender: false,
     lastError: null,
     statusBanner: null,
-    activePreset: ''
+    activePreset: '',
+    restoredDraft: false
   };
 }
 
@@ -1676,6 +1782,7 @@ async function runLensQuery(lensState, options = {}){
     renderTable(lensState);
     updateCounts(lensState);
     lensState.lastError = null;
+    persistLensDraft(lensState);
   }catch (err){
     lensState.lastError = err;
     lensState.rows = [];
@@ -1809,6 +1916,27 @@ function handleSelectAllChange(event, lensState){
   }else{
     store.clear(scope);
   }
+  syncSelectionForLens(lensState);
+}
+
+function handleRowCheckboxChange(event, lensState){
+  const input = event.target;
+  if(!(input instanceof HTMLInputElement)) return;
+  if(input.getAttribute('data-role') !== 'select') return;
+  if(input.getAttribute('data-ui') !== 'row-check') return;
+  const id = input.getAttribute('data-id');
+  if(!id) return;
+  const store = getSelectionStore();
+  if(!store) return;
+  const scope = lensState.config.selectionScope;
+  const current = store.get(scope);
+  const next = current instanceof Set ? new Set(current) : new Set(Array.from(current || []));
+  if(input.checked){
+    next.add(id);
+  }else{
+    next.delete(id);
+  }
+  store.set(next, scope);
   syncSelectionForLens(lensState);
 }
 
@@ -2134,6 +2262,7 @@ function buildWindow(lensState){
   renderPresetChips(lensState);
 
   table.addEventListener('click', (event) => handleRowClick(event, lensState));
+  table.addEventListener('change', (event) => handleRowCheckboxChange(event, lensState));
 
   return section;
 }
@@ -2168,6 +2297,18 @@ function buildShell(){
   });
 }
 
+function restoreLensDrafts(){
+  state.lensStates.forEach((lensState) => {
+    if(!lensState || lensState.restoredDraft) return;
+    const draft = state.lensDrafts.get(lensState.config.key);
+    lensState.restoredDraft = true;
+    if(!draft) return;
+    lensState.savedQueryId = null;
+    lensState.activePreset = '';
+    assignLensStateFromQuery(lensState, draft);
+  });
+}
+
 function syncUI(){
   state.lensStates.forEach((lensState) => {
     renderFilterRows(lensState);
@@ -2199,9 +2340,10 @@ function reportListsSummary(){
 async function setupWorkbench(target){
   const mount = ensureMount(target);
   if(!mount) return;
-  await Promise.all([loadLayout(), loadSavedQueries()]);
+  await Promise.all([loadLayout(), loadSavedQueries(), loadLensDrafts()]);
   ensureLensStates();
   buildShell();
+  restoreLensDrafts();
   syncUI();
   reportListsSummary();
   subscribeSelection();
