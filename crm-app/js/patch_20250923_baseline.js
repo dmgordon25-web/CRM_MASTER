@@ -1,4 +1,5 @@
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { clearSelectionForSurface } from './services/selection_reset.js';
 
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -270,6 +271,9 @@ function runPatch(){
       id = resolveRowIdFromIndex(tr, entity);
     }
     if(!id) return;
+    const scope = entity === 'partners' ? 'partners' : 'contacts';
+    try { clearSelectionForSurface(scope, { reason: `${scope}:row-open` }); }
+    catch (_err){}
     e.preventDefault();
     if(entity === 'partners'){
       e.__partnerEditHandled = true;

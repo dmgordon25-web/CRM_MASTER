@@ -4,6 +4,8 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { toastError, toastSuccess } from './ui/toast_helpers.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
+import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
+import { clearSelectionForSurface } from './services/selection_reset.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
 
@@ -662,11 +664,25 @@ function ensurePartnersBoot(ctx){
     ? (window.__ROW_BIND_ONCE__ = window.__ROW_BIND_ONCE__ || {})
     : {});
 
+  function getPartnerRowState(){
+    const state = ROW_BIND_ONCE.partners || (ROW_BIND_ONCE.partners = {});
+    if(!state.watchers) state.watchers = [];
+    if(!state.surface) state.surface = 'partners';
+    return state;
+  }
+
+  const schedulePartnerTask = typeof queueMicrotask === 'function'
+    ? queueMicrotask
+    : (fn) => {
+      try {
+        if(typeof Promise === 'function'){ Promise.resolve().then(() => fn()).catch(() => {}); return; }
+      } catch (_) {}
+      try { fn(); }
+      catch (_) {}
+    };
+
   function clearPartnerSelection(table){
-    try { window.Selection?.clear?.('partners:row-open'); }
-    catch (_err){}
-    try { window.SelectionStore?.clear?.('partners'); }
-    catch (_err){}
+    clearSelectionForSurface('partners', { reason: 'partners:row-open' });
     if(!table || typeof table.querySelectorAll !== 'function') return;
     table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
       try {
@@ -679,38 +695,27 @@ function ensurePartnersBoot(ctx){
     });
   }
 
-  function ensurePartnerRowGateway(){
-    if(typeof document === 'undefined') return;
-    const state = ROW_BIND_ONCE.partners || (ROW_BIND_ONCE.partners = {});
-    if(!state.globalWatcher){
-      const rebinder = () => ensurePartnerRowGateway();
-      document.addEventListener('app:data:changed', rebinder);
-      document.addEventListener('partners:list:refresh', rebinder);
-      document.addEventListener('app:view:changed', rebinder);
-      if(typeof window !== 'undefined' && window.addEventListener){
-        window.addEventListener('hashchange', rebinder);
-      }
-      state.globalWatcher = rebinder;
-    }
-
-    const table = document.getElementById('tbl-partners');
-    if(!table){
-      if(state.root && state.handler){
-        try { state.root.removeEventListener('click', state.handler); }
-        catch (_err){}
-      }
-      state.root = null;
-      state.bound = false;
-      state.active = false;
-      return;
-    }
-
-    if(state.root === table && state.bound) return;
+  function detachPartnerHandler(state){
     if(state.root && state.handler){
       try { state.root.removeEventListener('click', state.handler); }
       catch (_err){}
     }
+    state.root = null;
+    state.handler = null;
+    state.bound = false;
+  }
 
+  function bindPartnerRow(){
+    const state = getPartnerRowState();
+    if(!state.active) return;
+    if(typeof document === 'undefined') return;
+    const table = document.getElementById('tbl-partners');
+    if(!table){
+      detachPartnerHandler(state);
+      return;
+    }
+    if(state.root === table && state.bound) return;
+    detachPartnerHandler(state);
     const handler = (event) => {
       if(!event || event.__crmRowEditorHandled || event.__partnerEditHandled) return;
       const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="partner-actions"]');
@@ -735,22 +740,108 @@ function ensurePartnersBoot(ctx){
         catch (_warn){}
       }
     };
-
     table.addEventListener('click', handler);
     state.root = table;
     state.handler = handler;
     state.bound = true;
-    state.active = true;
     state.surface = 'partners';
   }
 
-  if(typeof document !== 'undefined'){
-    const kick = () => ensurePartnerRowGateway();
+  function schedulePartnerBind(){
+    const state = getPartnerRowState();
+    if(!state.active) return;
+    if(state.pendingBind) return;
+    state.pendingBind = true;
+    schedulePartnerTask(() => {
+      state.pendingBind = false;
+      if(!state.active){
+        detachPartnerHandler(state);
+        return;
+      }
+      bindPartnerRow();
+    });
+  }
+
+  function ensurePartnerDomReady(state){
+    if(typeof document === 'undefined') return;
     if(document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', kick, { once: true });
-    }else{
-      kick();
+      if(state.domReadyListener) return;
+      const onReady = () => {
+        state.domReadyListener = null;
+        if(state.active) schedulePartnerBind();
+      };
+      try {
+        document.addEventListener('DOMContentLoaded', onReady, { once: true });
+      } catch (_) {
+        document.addEventListener('DOMContentLoaded', onReady);
+      }
+      state.domReadyListener = onReady;
     }
+  }
+
+  function attachPartnerWatchers(state){
+    if(state.watchersAttached) return;
+    const doc = typeof document !== 'undefined' ? document : null;
+    const listeners = [];
+    const rebinder = state.rebinder || (state.rebinder = () => schedulePartnerBind());
+    const defs = [
+      { target: doc, type: 'app:data:changed' },
+      { target: doc, type: 'partners:list:refresh' }
+    ];
+    for(const def of defs){
+      const { target, type } = def;
+      if(target && typeof target.addEventListener === 'function'){
+        try {
+          target.addEventListener(type, rebinder);
+          listeners.push({ target, type, listener: rebinder });
+        } catch (_err){}
+      }
+    }
+    state.watchers = listeners;
+    state.watchersAttached = true;
+  }
+
+  function detachPartnerWatchers(state){
+    if(!state.watchersAttached) return;
+    for(const entry of state.watchers || []){
+      try { entry.target.removeEventListener(entry.type, entry.listener); }
+      catch (_err){}
+    }
+    state.watchers = [];
+    state.watchersAttached = false;
+  }
+
+  function mountPartnerRowGateway(){
+    if(typeof document === 'undefined') return;
+    const state = getPartnerRowState();
+    if(!state.active){
+      state.active = true;
+      state.surface = 'partners';
+    }
+    attachPartnerWatchers(state);
+    ensurePartnerDomReady(state);
+    schedulePartnerBind();
+  }
+
+  function unmountPartnerRowGateway(){
+    const state = getPartnerRowState();
+    state.active = false;
+    if(state.domReadyListener && typeof document !== 'undefined'){
+      try { document.removeEventListener('DOMContentLoaded', state.domReadyListener); }
+      catch (_err){}
+    }
+    state.domReadyListener = null;
+    detachPartnerWatchers(state);
+    detachPartnerHandler(state);
+    state.pendingBind = false;
+  }
+
+  if(typeof window !== 'undefined' || typeof document !== 'undefined'){
+    const state = getPartnerRowState();
+    state.routeToken = acquireRouteLifecycleToken('partners', {
+      mount: () => mountPartnerRowGateway(),
+      unmount: () => unmountPartnerRowGateway()
+    });
   }
 
   if (ctx && ctx.logger && typeof ctx.logger.log === 'function'){
