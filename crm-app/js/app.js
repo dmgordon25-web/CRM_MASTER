@@ -828,7 +828,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function updateActionBarGuards(count){
     const bar = document.getElementById('actionbar');
     if(!bar) return;
-    const total = Number(count) || 0;
+    const totalRaw = Number(count);
+    const total = Number.isFinite(totalRaw) ? totalRaw : 0;
+    const mergeReadyAttr = total >= 2 ? '1' : '0';
+    if(bar.getAttribute('data-merge-ready') !== mergeReadyAttr){
+      bar.setAttribute('data-merge-ready', mergeReadyAttr);
+    }
     const apply = typeof window.applyActionBarGuards === 'function'
       ? window.applyActionBarGuards
       : null;
@@ -876,10 +881,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function handleSelectionSnapshot(snapshot){
     if(!snapshot || typeof snapshot.scope !== 'string') return;
     const ids = snapshot.ids instanceof Set
-      ? snapshot.ids
+      ? new Set(Array.from(snapshot.ids, value => String(value)))
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
     syncSelectionCheckboxes(snapshot.scope, ids);
-    updateActionBarGuards(ids.size);
+    const rawCount = Number(snapshot.count);
+    const derivedCount = Number.isFinite(rawCount) ? rawCount : ids.size;
+    updateActionBarGuards(derivedCount);
   }
 
   function clearAllSelectionScopes(){

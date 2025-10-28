@@ -89,20 +89,14 @@ describe('SelectionStore', () => {
     });
   });
 
-  it('dispatches when clear is invoked on an already empty scope', async () => {
+  it('does not dispatch when clear is invoked on an already empty scope', async () => {
     const { SelectionStore, dispatchSpy } = await loadStore();
     const cb = vi.fn();
     SelectionStore.subscribe(cb);
 
     SelectionStore.clear('contacts');
 
-    expect(cb).toHaveBeenCalledTimes(1);
-    expect(dispatchSpy).toHaveBeenCalledTimes(1);
-    expect(dispatchSpy.mock.calls[0][0].type).toBe('app:data:changed');
-    expect(dispatchSpy.mock.calls[0][0].detail).toEqual({
-      scope: 'selection',
-      selectionScope: 'contacts',
-      ids: []
-    });
+    expect(cb).not.toHaveBeenCalled();
+    expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });
