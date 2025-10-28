@@ -5,7 +5,7 @@ import { attachStatusBanner } from '../ui/status_banners.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
-const LONGSHOT_STATUSES = new Set(['prospect', 'longshot', 'nurture', 'paused']);
+const LONGSHOT_STATUSES = new Set(['prospect', 'longshot', 'long shot', 'long-shot', 'nurture', 'paused']);
 
 const STORAGE_KEYS = {
   layout: 'workbench:layout',
@@ -1223,15 +1223,18 @@ function renderTable(lensState){
   const { elements, config, visibleRows } = lensState;
   const tbody = elements.tbody;
   if(!tbody) return;
+  const layout = ensureTableLayout(lensState);
   tbody.innerHTML = '';
   if(lensState.lastError){
     updateStatusMessage(lensState);
     syncSelectionForLens(lensState);
+    layout && layout.clear();
     return;
   }
   if(!visibleRows.length){
     updateStatusMessage(lensState);
     syncSelectionForLens(lensState);
+    layout && layout.clear();
     return;
   }
   const frag = document.createDocumentFragment();
@@ -1241,6 +1244,7 @@ function renderTable(lensState){
     if(id) tr.setAttribute('data-id', id);
 
     const selectCell = document.createElement('td');
+    selectCell.setAttribute('data-role', 'select-cell');
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.setAttribute('data-role', 'select');
@@ -1265,11 +1269,256 @@ function renderTable(lensState){
       tr.appendChild(td);
     });
 
+    const gutterCell = document.createElement('td');
+    gutterCell.setAttribute('data-role', 'table-gutter');
+    gutterCell.setAttribute('aria-hidden', 'true');
+    tr.appendChild(gutterCell);
+
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
   updateStatusMessage(lensState);
   syncSelectionForLens(lensState);
+  layout && layout.sync();
+}
+
+function ensureTableLayout(lensState){
+  if(!lensState) return null;
+  if(lensState.tableLayout && lensState.tableLayout.destroyed){
+    lensState.tableLayout = null;
+  }
+  if(!lensState.tableLayout){
+    lensState.tableLayout = createTableLayoutController(lensState);
+  }
+  return lensState.tableLayout || null;
+}
+
+function createTableLayoutController(lensState){
+  const elements = lensState?.elements;
+  if(!elements) return null;
+  const table = elements.table;
+  const tableWrap = elements.tableWrap || table?.parentElement || null;
+  const colgroup = elements.colgroup || table?.querySelector('colgroup') || null;
+  if(!table || !tableWrap || !colgroup) return null;
+  const colElements = Array.from(colgroup.children || []);
+  if(!colElements.length) return null;
+  const hasGutter = colElements[colElements.length - 1]?.getAttribute?.('data-role') === 'table-gutter';
+  let destroyed = false;
+  let measuring = false;
+  let scheduled = false;
+  let pending = false;
+  let debugLogged = false;
+  let rafId = null;
+
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null;
+  const cancelRaf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : null;
+
+  const clearWidths = () => {
+    colElements.forEach((col) => {
+      col.style.width = '';
+      col.removeAttribute('data-width');
+    });
+    if(hasGutter){
+      const gutterCol = colElements[colElements.length - 1];
+      if(gutterCol) gutterCol.style.width = '0px';
+    }
+    table.style.tableLayout = '';
+    table.classList.remove('is-measured');
+  };
+
+  const schedule = () => {
+    if(destroyed || scheduled) return;
+    scheduled = true;
+    const run = () => {
+      scheduled = false;
+      Promise.resolve().then(measure).catch(() => {});
+    };
+    if(raf){
+      rafId = raf(run);
+    }else{
+      run();
+    }
+  };
+
+  const measure = async () => {
+    if(destroyed){
+      scheduled = false;
+      pending = false;
+      return;
+    }
+    if(measuring){
+      pending = true;
+      return;
+    }
+    measuring = true;
+    const doc = table.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    let fontsReady = !doc?.fonts;
+    if(doc?.fonts?.ready && typeof doc.fonts.ready.then === 'function'){
+      try{
+        await doc.fonts.ready;
+        fontsReady = doc.fonts.status === 'loaded';
+      }catch (_err){
+        fontsReady = false;
+      }
+    }
+    if(!isElementReady(tableWrap)){
+      clearWidths();
+      measuring = false;
+      pending = false;
+      return;
+    }
+    const headerRow = table.tHead?.rows?.[0] || null;
+    const firstBodyRow = table.tBodies?.[0]?.querySelector('tr:not([hidden])') || null;
+    if(!headerRow || !firstBodyRow){
+      clearWidths();
+      measuring = false;
+      pending = false;
+      return;
+    }
+    const headerCells = Array.from(headerRow.cells || []);
+    const bodyCells = Array.from(firstBodyRow.cells || []);
+    if(!headerCells.length || !bodyCells.length){
+      clearWidths();
+      measuring = false;
+      pending = false;
+      return;
+    }
+    const lastHeader = headerCells[headerCells.length - 1];
+    if(lastHeader?.getAttribute?.('data-role') === 'table-gutter') headerCells.pop();
+    const lastBody = bodyCells[bodyCells.length - 1];
+    if(lastBody?.getAttribute?.('data-role') === 'table-gutter') bodyCells.pop();
+    const effectiveCols = hasGutter ? colElements.slice(0, -1) : colElements.slice();
+    const count = Math.min(effectiveCols.length, headerCells.length, bodyCells.length);
+    if(!count){
+      clearWidths();
+      measuring = false;
+      pending = false;
+      return;
+    }
+    const measured = [];
+    for(let index = 0; index < count; index += 1){
+      const bodyCell = bodyCells[index];
+      const headerCell = headerCells[index];
+      const bodyWidth = Math.ceil(measureCellWidth(bodyCell));
+      const headerWidth = Math.ceil(measureCellWidth(headerCell));
+      const width = Math.max(bodyWidth, headerWidth, 0);
+      const col = effectiveCols[index];
+      const nextWidth = `${width}px`;
+      if(col.style.width !== nextWidth){
+        col.style.width = nextWidth;
+      }
+      if(col.getAttribute('data-width') !== String(width)){
+        col.setAttribute('data-width', String(width));
+      }
+      measured.push(width);
+    }
+    const scrollbarWidth = Math.max(0, Math.round(tableWrap.offsetWidth - tableWrap.clientWidth));
+    if(hasGutter){
+      const gutterCol = colElements[colElements.length - 1];
+      const gutterWidth = scrollbarWidth;
+      const gutterValue = gutterWidth > 0 ? `${gutterWidth}px` : '0px';
+      if(gutterCol.style.width !== gutterValue){
+        gutterCol.style.width = gutterValue;
+      }
+      if(gutterWidth > 0){
+        if(gutterCol.getAttribute('data-width') !== String(gutterWidth)){
+          gutterCol.setAttribute('data-width', String(gutterWidth));
+        }
+      }else if(gutterCol.hasAttribute('data-width')){
+        gutterCol.removeAttribute('data-width');
+      }
+    }else if(measured.length){
+      const adjusted = measured[measured.length - 1] + scrollbarWidth;
+      measured[measured.length - 1] = adjusted;
+      const targetCol = effectiveCols[effectiveCols.length - 1];
+      const adjustedValue = `${adjusted}px`;
+      if(targetCol.style.width !== adjustedValue){
+        targetCol.style.width = adjustedValue;
+      }
+      if(targetCol.getAttribute('data-width') !== String(adjusted)){
+        targetCol.setAttribute('data-width', String(adjusted));
+      }
+    }
+    table.style.tableLayout = 'fixed';
+    table.classList.add('is-measured');
+    if(!debugLogged){
+      maybeLogTableDebug(lensState, {
+        widths: measured.map((val) => Math.round(val)),
+        container: Math.round(tableWrap.clientWidth),
+        scrollbar: Math.max(0, scrollbarWidth),
+        fontsReady: Boolean(fontsReady)
+      });
+      debugLogged = true;
+    }
+    measuring = false;
+    if(pending){
+      pending = false;
+      schedule();
+    }
+  };
+
+  const observer = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => schedule())
+    : null;
+  if(observer){
+    try{ observer.observe(tableWrap); }
+    catch (_err){ observer.disconnect(); }
+  }
+
+  return {
+    sync(){ schedule(); },
+    clear(){ clearWidths(); },
+    destroy(){
+      destroyed = true;
+      if(observer) observer.disconnect();
+      if(cancelRaf && rafId != null){
+        cancelRaf(rafId);
+        rafId = null;
+      }
+    },
+    get destroyed(){ return destroyed; }
+  };
+}
+
+function measureCellWidth(cell){
+  if(!cell) return 0;
+  const rect = cell.getBoundingClientRect?.();
+  if(rect && rect.width) return rect.width;
+  const width = cell.offsetWidth || cell.clientWidth;
+  return width || 0;
+}
+
+function isElementReady(node){
+  if(!node || !node.isConnected) return false;
+  const rects = node.getClientRects?.();
+  if(rects && rects.length) return true;
+  return node.offsetWidth > 0 && node.offsetHeight > 0;
+}
+
+function maybeLogTableDebug(lensState, details){
+  if(typeof window === 'undefined') return;
+  const token = window.__TABLE_DEBUG__;
+  const devEnabled = window.__DEV__ === true || Boolean(token);
+  if(!devEnabled) return;
+  const payload = Object.assign({ lens: lensState?.config?.key || '' }, details || {});
+  try{
+    if(typeof token === 'function'){
+      token(payload);
+    }else{
+      if(!Array.isArray(window.__TABLE_DEBUG__)){
+        window.__TABLE_DEBUG__ = [];
+      }
+      window.__TABLE_DEBUG__.push(payload);
+      if(window.__DEV__ === true || token === true){
+        console.info('__TABLE_DEBUG__', payload);
+      }
+    }
+  }catch (_err){
+    if(window.__DEV__ === true){
+      try{ console.info('__TABLE_DEBUG__', payload); }
+      catch(__err){}
+    }
+  }
 }
 
 function setLoading(lensState, loading){
@@ -1697,10 +1946,26 @@ function buildWindow(lensState){
   table.className = 'table';
   table.setAttribute('data-selection-scope', config.selectionScope);
 
+  const colgroup = document.createElement('colgroup');
+  const selectCol = document.createElement('col');
+  selectCol.setAttribute('data-role', 'select-column');
+  colgroup.appendChild(selectCol);
+  config.columns.forEach((column) => {
+    const col = document.createElement('col');
+    if(column.field) col.setAttribute('data-field', column.field);
+    colgroup.appendChild(col);
+  });
+  const gutterCol = document.createElement('col');
+  gutterCol.setAttribute('data-role', 'table-gutter');
+  gutterCol.style.width = '0px';
+  colgroup.appendChild(gutterCol);
+  table.appendChild(colgroup);
+
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
 
   const selectAllTh = document.createElement('th');
+  selectAllTh.setAttribute('data-role', 'select-column');
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
@@ -1712,9 +1977,15 @@ function buildWindow(lensState){
     const th = document.createElement('th');
     th.textContent = column.label;
     th.style.cursor = 'pointer';
+    th.setAttribute('data-role', 'data-column');
     th.addEventListener('click', () => handleHeaderSort(lensState, column.field));
     headerRow.appendChild(th);
   });
+
+  const gutterTh = document.createElement('th');
+  gutterTh.setAttribute('data-role', 'table-gutter');
+  gutterTh.setAttribute('aria-hidden', 'true');
+  headerRow.appendChild(gutterTh);
 
   thead.appendChild(headerRow);
   table.appendChild(thead);
@@ -1745,13 +2016,17 @@ function buildWindow(lensState){
     status,
     table,
     thead,
-    tbody
+    tbody,
+    tableWrap,
+    colgroup
   };
 
   lensState.statusBanner = attachStatusBanner(status, { tone: 'muted' });
   renderPresetChips(lensState);
 
   table.addEventListener('click', (event) => handleRowClick(event, lensState));
+
+  ensureTableLayout(lensState);
 
   return section;
 }
