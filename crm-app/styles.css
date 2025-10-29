@@ -349,6 +349,18 @@ th,td{text-align:left;padding:10px;border-bottom:1px solid #e5e7eb}
 .table-managed[data-table-layout-ready="1"] thead tr::after{content:"";position:absolute;top:0;right:0;bottom:0;width:var(--table-scrollbar-width,0px);background:inherit;pointer-events:none}
 thead th{position:sticky;top:0;background:#fbfdff;z-index:2}
 tr:hover td{background:#fafafa}
+.portfolio-table{table-layout:fixed;width:100%;border-collapse:separate;border-spacing:0}
+.portfolio-table th,.portfolio-table td{padding:10px 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.portfolio-table thead th{background:inherit;border-bottom:1px solid #e2e8f0}
+.portfolio-table tbody td{border-bottom:1px solid #f1f5f9}
+.portfolio-table tbody tr:last-child td{border-bottom:none}
+.portfolio-table col.portfolio-col-name{width:clamp(220px,28%,320px)}
+.portfolio-table col.portfolio-col-type{width:clamp(140px,18%,200px)}
+.portfolio-table col.portfolio-col-amount{width:clamp(120px,14%,160px)}
+.portfolio-table col.portfolio-col-date{width:clamp(150px,20%,220px)}
+.portfolio-table col.portfolio-col-partner{width:clamp(180px,20%,260px)}
+.portfolio-table th:nth-child(3),.portfolio-table td:nth-child(3){text-align:right;font-variant-numeric:tabular-nums}
+.portfolio-table-wrap{max-width:100%;overflow-x:auto}
 .table-scroll-host{scrollbar-gutter:stable both-edges}
 #view-workbench{max-width:100%;overflow-x:hidden}
 #workbench-root{max-width:100%;width:100%;overflow:hidden}
