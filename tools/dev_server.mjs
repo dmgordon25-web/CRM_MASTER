@@ -36,10 +36,66 @@ const PID_FILE = path.join(REPO_ROOT, '.devserver.pid');
 
 const activeSessions = new Map();
 let idleTimer = null;
+const trackedTimeouts = [];
+const registeredProcessListeners = [];
 
 const noop = () => {};
 let requestShutdown = noop;
 let cleanupLogged = false;
+
+function trackTimeoutHandle(handle) {
+  if (!handle) return handle;
+  if (!trackedTimeouts.includes(handle)) {
+    trackedTimeouts.push(handle);
+  }
+  return handle;
+}
+
+function untrackTimeoutHandle(handle, { cancel = true } = {}) {
+  if (!handle) return;
+  const index = trackedTimeouts.indexOf(handle);
+  if (index !== -1) {
+    trackedTimeouts.splice(index, 1);
+  }
+  if (cancel) {
+    try { clearTimeout(handle); } catch {}
+  }
+}
+
+function clearTrackedTimeoutHandles() {
+  if (trackedTimeouts.length === 0) return;
+  while (trackedTimeouts.length > 0) {
+    const handle = trackedTimeouts.pop();
+    try { clearTimeout(handle); } catch {}
+  }
+}
+
+function registerProcessListener(event, listener, { keepDuringCleanup = false } = {}) {
+  if (!event || typeof listener !== 'function') return listener;
+  try {
+    process.on(event, listener);
+    registeredProcessListeners.push([event, listener, keepDuringCleanup]);
+  } catch {}
+  return listener;
+}
+
+function removeRegisteredProcessListeners() {
+  if (registeredProcessListeners.length === 0) return;
+  for (let i = registeredProcessListeners.length - 1; i >= 0; i -= 1) {
+    const [event, listener, keepDuringCleanup] = registeredProcessListeners[i];
+    if (keepDuringCleanup) {
+      continue;
+    }
+    registeredProcessListeners.splice(i, 1);
+    try {
+      if (typeof process.off === 'function') {
+        process.off(event, listener);
+      } else {
+        process.removeListener(event, listener);
+      }
+    } catch {}
+  }
+}
 
 function logClosedOnce() {
   if (cleanupLogged) return;
@@ -49,7 +105,7 @@ function logClosedOnce() {
 
 function clearIdleTimer() {
   if (idleTimer) {
-    clearTimeout(idleTimer);
+    untrackTimeoutHandle(idleTimer);
     idleTimer = null;
   }
 }
@@ -62,16 +118,21 @@ function scheduleIdleExit() {
   if (idleTimer) {
     return;
   }
-  idleTimer = setTimeout(() => {
-    idleTimer = null;
+  const timeout = setTimeout(() => {
+    untrackTimeoutHandle(timeout, { cancel: false });
+    if (idleTimer === timeout) {
+      idleTimer = null;
+    }
     if (activeSessions.size === 0) {
       console.info('[SERVER_EXIT] idle drain');
       requestShutdown();
     }
   }, IDLE_TIMEOUT_MS);
-  if (typeof idleTimer.unref === 'function') {
-    idleTimer.unref();
+  trackTimeoutHandle(timeout);
+  if (typeof timeout.unref === 'function') {
+    timeout.unref();
   }
+  idleTimer = timeout;
 }
 
 function markSessionActive(sid) {
@@ -96,8 +157,8 @@ class ShutdownManager {
     this.afterShutdown = afterShutdown;
     this.server = null;
     this.sockets = new Set();
-    this.watchers = new Set();
-    this.intervals = new Set();
+    this.watchers = [];
+    this.intervals = [];
     this.childPidMeta = new Map();
     this.shuttingDown = false;
     this.shutdownPromise = null;
@@ -125,9 +186,14 @@ class ShutdownManager {
 
   trackWatcher(watcher) {
     if (!watcher) return watcher;
-    this.watchers.add(watcher);
+    if (!this.watchers.includes(watcher)) {
+      this.watchers.push(watcher);
+    }
     const remove = () => {
-      this.watchers.delete(watcher);
+      const index = this.watchers.indexOf(watcher);
+      if (index !== -1) {
+        this.watchers.splice(index, 1);
+      }
     };
     if (typeof watcher.once === 'function') {
       try { watcher.once('close', remove); } catch {}
@@ -141,9 +207,14 @@ class ShutdownManager {
 
   trackInterval(interval) {
     if (!interval) return interval;
-    this.intervals.add(interval);
+    if (!this.intervals.includes(interval)) {
+      this.intervals.push(interval);
+    }
     const clear = () => {
-      this.intervals.delete(interval);
+      const index = this.intervals.indexOf(interval);
+      if (index !== -1) {
+        this.intervals.splice(index, 1);
+      }
     };
     try {
       if (typeof interval.once === 'function') {
@@ -183,18 +254,16 @@ class ShutdownManager {
   }
 
   stopIntervals() {
-    if (this.intervals.size === 0) return;
-    const intervals = Array.from(this.intervals);
-    this.intervals.clear();
+    if (this.intervals.length === 0) return;
+    const intervals = this.intervals.splice(0, this.intervals.length);
     for (const interval of intervals) {
       try { clearInterval(interval); } catch {}
     }
   }
 
   async stopWatchers() {
-    if (this.watchers.size === 0) return;
-    const watchers = Array.from(this.watchers);
-    this.watchers.clear();
+    if (this.watchers.length === 0) return;
+    const watchers = this.watchers.splice(0, this.watchers.length);
     await Promise.all(watchers.map((watcher) => new Promise((resolve) => {
       if (!watcher) {
         resolve();
@@ -385,23 +454,28 @@ class ShutdownManager {
     this.exitCode = typeof code === 'number' ? code : 0;
     this.shuttingDown = true;
     this.shutdownPromise = (async () => {
-      if (typeof this.beforeShutdown === 'function') {
-        try { await this.beforeShutdown(); } catch {}
-      }
-      try { this.stopIntervals(); } catch {}
-      try { await this.stopWatchers(); } catch {}
-      try { await this.closeServer(); } catch {}
-      this.destroySockets();
-      try { await this.stopChildren(); } catch {}
-      this.removePidFile();
-      if (typeof this.afterShutdown === 'function') {
-        try { this.afterShutdown(); } catch {}
-      }
-      const fuse = setTimeout(() => process.exit(0), 1500);
-      if (typeof fuse.unref === 'function') fuse.unref();
-      if (!skipExit) {
-        const exitCode = typeof this.exitCode === 'number' ? this.exitCode : 0;
-        setImmediate(() => process.exit(exitCode));
+      try {
+        if (typeof this.beforeShutdown === 'function') {
+          try { await this.beforeShutdown(); } catch {}
+        }
+        try { this.stopIntervals(); } catch {}
+        try { await this.stopWatchers(); } catch {}
+        try { clearTrackedTimeoutHandles(); } catch {}
+        try { await this.closeServer(); } catch {}
+        this.destroySockets();
+        try { await this.stopChildren(); } catch {}
+      } finally {
+        try { removeRegisteredProcessListeners(); } catch {}
+        try { this.removePidFile(); } catch {}
+        if (typeof this.afterShutdown === 'function') {
+          try { this.afterShutdown(); } catch {}
+        }
+        const fuse = setTimeout(() => process.exit(0), 1500);
+        if (typeof fuse.unref === 'function') fuse.unref();
+        if (!skipExit) {
+          const exitCode = typeof this.exitCode === 'number' ? this.exitCode : 0;
+          setImmediate(() => process.exit(exitCode));
+        }
       }
     })();
     return this.shutdownPromise;
@@ -916,30 +990,27 @@ shutdownManager.setServer(server);
 console.info('[VIS] shutdown endpoints ready');
 
 ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'].forEach((sig) => {
-  try {
-    process.on(sig, () => {
-      shutdownManager.shutdown(0).catch(() => {});
-    });
-  } catch {}
+  registerProcessListener(sig, () => {
+    shutdownManager.shutdown(0).catch(() => {});
+  });
 });
 
-process.on('beforeExit', () => {
+registerProcessListener('beforeExit', () => {
   shutdownManager.shutdown(0, { skipExit: true }).catch(() => {});
 });
 
-process.on('exit', () => {
+registerProcessListener('exit', () => {
   logClosedOnce();
-  shutdownManager.removePidFile();
-});
+}, { keepDuringCleanup: true });
 
-process.on('uncaughtException', (error) => {
+registerProcessListener('uncaughtException', (error) => {
   if (error) {
     console.error('[DEV SERVER] uncaughtException', error);
   }
   shutdownManager.shutdown(1).catch(() => {});
 });
 
-process.on('unhandledRejection', (reason) => {
+registerProcessListener('unhandledRejection', (reason) => {
   if (reason) {
     console.error('[DEV SERVER] unhandledRejection', reason);
   }
