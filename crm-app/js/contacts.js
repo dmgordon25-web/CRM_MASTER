@@ -15,7 +15,9 @@ import {
   normalizeStatusForStage,
   allowedStatusesForStage,
   normalizeMilestoneForStatus,
-  milestoneRangeForStatus,
+  allowedMilestonesForStatus,
+  allowedStatusesForMilestone,
+  normalizeStatusForMilestone,
   canonicalStatusKey,
   milestoneIndex
 } from './pipeline/constants.js';
@@ -831,15 +833,63 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     const milestoneFill = body.querySelector('[data-role="milestone-progress-fill"]');
     const milestoneBadges = Array.from(body.querySelectorAll('[data-role="milestone-badge"]'));
     const milestoneActionBtn = body.querySelector('[data-role="milestone-next"]');
+    let statusMilestoneHintEl = null;
     function allowedMilestoneIndex(statusVal, idx){
-      const range = milestoneRangeForStatus(statusVal || 'inprogress');
-      return idx >= range.min && idx <= range.max;
+      const allowedLabels = allowedMilestonesForStatus(statusVal || 'inprogress');
+      if(!Array.isArray(allowedLabels) || !allowedLabels.length) return true;
+      const allowedSet = new Set(allowedLabels
+        .map((label)=> milestoneIndex(label))
+        .filter((value)=> Number.isInteger(value) && value >= 0));
+      if(!allowedSet.size) return true;
+      return allowedSet.has(idx);
+    }
+    function ensureStatusMilestoneHint(){
+      if(statusMilestoneHintEl && statusMilestoneHintEl.isConnected) return statusMilestoneHintEl;
+      const host = (milestoneSelect && milestoneSelect.closest('label')) || (statusSelect && statusSelect.closest('label'));
+      if(!host) return null;
+      const note = document.createElement('p');
+      note.className = 'muted status-milestone-hint';
+      note.dataset.role = 'status-milestone-hint';
+      note.hidden = true;
+      note.style.margin = '4px 0 0';
+      const parent = host.parentElement;
+      if(parent){
+        parent.insertBefore(note, host.nextSibling);
+        statusMilestoneHintEl = note;
+      }
+      return statusMilestoneHintEl;
+    }
+    function showStatusMilestoneHint(message){
+      const el = ensureStatusMilestoneHint();
+      if(!el) return;
+      const text = String(message || '').trim();
+      if(!text){
+        el.textContent = '';
+        el.hidden = true;
+        return;
+      }
+      el.textContent = text;
+      el.hidden = false;
     }
     function updateMilestoneUi(value, statusOverride){
       const statusValue = statusOverride || (statusSelect ? statusSelect.value : 'inprogress');
       const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''), statusValue);
       if(milestoneSelect && milestoneSelect.value !== meta.label){
         milestoneSelect.value = meta.label;
+      }
+      if(milestoneSelect){
+        const allowedLabels = allowedMilestonesForStatus(statusValue);
+        const allowedSet = new Set(allowedLabels
+          .map((label)=> milestoneIndex(label))
+          .filter((idx)=> Number.isInteger(idx) && idx >= 0));
+        const guard = allowedSet.size ? allowedSet : null;
+        Array.from(milestoneSelect.options).forEach((opt)=>{
+          const idx = milestoneIndex(opt.value);
+          const permitted = guard ? guard.has(idx) : true;
+          opt.disabled = !permitted;
+          opt.classList.toggle('is-disabled', !permitted);
+          opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
+        });
       }
       if(milestoneBar && milestoneFill){
         const max = PIPELINE_MILESTONES.length;
@@ -861,26 +911,104 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       if(milestoneActionBtn) milestoneActionBtn.textContent = meta.action;
       return meta;
     }
+    function syncStatusMilestone(source){
+      const stageVal = stageSelect ? stageSelect.value : 'application';
+      let statusVal = statusSelect ? statusSelect.value : 'inprogress';
+      let milestoneVal = milestoneSelect ? milestoneSelect.value : '';
+      let statusChanged = false;
+      let milestoneChanged = false;
+      for(let guard=0; guard<5; guard+=1){
+        const normalizedStatus = normalizeStatusForStage(stageVal, statusVal);
+        if(normalizedStatus !== statusVal){
+          statusVal = normalizedStatus;
+          statusChanged = true;
+          continue;
+        }
+        const normalizedMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+        if(normalizedMilestone !== milestoneVal){
+          milestoneVal = normalizedMilestone;
+          milestoneChanged = true;
+          continue;
+        }
+        const statusForMilestone = normalizeStatusForMilestone(milestoneVal, statusVal, { stage: stageVal, preferredStatus: statusVal });
+        if(statusForMilestone && statusForMilestone !== statusVal){
+          statusVal = statusForMilestone;
+          statusChanged = true;
+          continue;
+        }
+        break;
+      }
+      const finalMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+      if(finalMilestone !== milestoneVal){
+        milestoneVal = finalMilestone;
+        milestoneChanged = true;
+      }
+      const stageNormalized = normalizeStatusForStage(stageVal, statusVal);
+      if(stageNormalized !== statusVal){
+        statusVal = stageNormalized;
+        statusChanged = true;
+        const finalCheckMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+        if(finalCheckMilestone !== milestoneVal){
+          milestoneVal = finalCheckMilestone;
+          milestoneChanged = true;
+        }
+      }
+      if(statusSelect && statusSelect.value !== statusVal){
+        statusSelect.value = statusVal;
+      }
+      if(milestoneSelect && milestoneSelect.value !== milestoneVal){
+        milestoneSelect.value = milestoneVal;
+      }
+      return {
+        changedStatus: statusChanged,
+        changedMilestone: milestoneChanged,
+        finalStatus: statusVal,
+        finalMilestone: milestoneVal,
+        source
+      };
+    }
+    function handlePairingResult(result){
+      if(!result) return;
+      if(result.source === 'stage' || result.source === 'init'){
+        showStatusMilestoneHint('');
+        return;
+      }
+      const statusLabel = findLabel(STATUSES, result.finalStatus) || result.finalStatus;
+      if(result.source === 'status' && result.changedMilestone){
+        showStatusMilestoneHint(`Milestone adjusted to ${result.finalMilestone} for ${statusLabel} status.`);
+        return;
+      }
+      if(result.source === 'milestone' && result.changedStatus){
+        showStatusMilestoneHint(`Status adjusted to ${statusLabel} to match ${result.finalMilestone} milestone.`);
+        return;
+      }
+      if(result.changedMilestone){
+        showStatusMilestoneHint(`Milestone aligned to ${result.finalMilestone} for ${statusLabel} status.`);
+        return;
+      }
+      showStatusMilestoneHint('');
+    }
     function applyStatusGuard(stageVal){
-      const allowed = new Set(allowedStatusesForStage(stageVal));
+      const stageAllowed = new Set(allowedStatusesForStage(stageVal));
+      const milestoneAllowed = new Set(allowedStatusesForMilestone(milestoneSelect ? milestoneSelect.value : ''));
       if(statusSelect){
         Array.from(statusSelect.options).forEach(opt => {
           const key = canonicalStatusKey(opt.value);
-          const permitted = allowed.has(key);
+          let permitted = stageAllowed.has(key);
+          if(permitted && milestoneAllowed.size) permitted = milestoneAllowed.has(key);
           opt.disabled = !permitted;
           opt.classList.toggle('is-disabled', !permitted);
           opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
         });
-        const normalized = normalizeStatusForStage(stageVal, statusSelect.value);
-        if(statusSelect.value !== normalized){
-          statusSelect.value = normalized;
-        }
       }
-      const currentStatus = statusSelect ? statusSelect.value : 'inprogress';
-      updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', currentStatus);
-      refreshFollowUpSuggestion();
     }
-    if(milestoneSelect) milestoneSelect.addEventListener('change', ()=> updateMilestoneUi(milestoneSelect.value));
+    if(milestoneSelect) milestoneSelect.addEventListener('change', ()=>{
+      const result = syncStatusMilestone('milestone');
+      applyStatusGuard(stageSelect ? stageSelect.value : 'application');
+      updateMilestoneUi(result.finalMilestone, result.finalStatus);
+      refreshFollowUpSuggestion();
+      handlePairingResult(result);
+    });
     milestoneBadges.forEach((btn)=>{
       if(btn.__wired) return;
       btn.__wired = true;
@@ -949,7 +1077,6 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
         }
       });
     }
-    updateMilestoneUi(c.pipelineMilestone);
     if(typeof document !== 'undefined' && typeof console !== 'undefined' && typeof console.log === 'function'){
       console.log('MILESTONE_UI', {
         hasBar: !!document.querySelector('[data-qa="milestone-bar"]'),
@@ -1026,20 +1153,22 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     }
     if(statusSelect){
       statusSelect.addEventListener('change', ()=>{
-        const stageVal = stageSelect ? stageSelect.value : 'application';
-        const normalized = normalizeStatusForStage(stageVal, statusSelect.value);
-        if(statusSelect.value !== normalized){
-          statusSelect.value = normalized;
-        }
-        updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', normalized);
+        const result = syncStatusMilestone('status');
+        applyStatusGuard(stageSelect ? stageSelect.value : 'application');
+        updateMilestoneUi(result.finalMilestone, result.finalStatus);
         refreshFollowUpSuggestion();
+        handlePairingResult(result);
       });
     }
     if(stageSelect){
       stageSelect.addEventListener('change', ()=>{
         const nextStage = stageSelect.value;
         syncStageSlider(nextStage);
+        const result = syncStatusMilestone('stage');
         applyStatusGuard(nextStage);
+        updateMilestoneUi(result.finalMilestone, result.finalStatus);
+        refreshFollowUpSuggestion();
+        handlePairingResult(result);
       });
     }
 
@@ -1120,7 +1249,11 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     });
     const initialStage = c.stage||'application';
     syncStageSlider(initialStage);
+    const initialPairing = syncStatusMilestone('init');
     applyStatusGuard(initialStage);
+    updateMilestoneUi(initialPairing.finalMilestone, initialPairing.finalStatus);
+    refreshFollowUpSuggestion();
+    handlePairingResult(initialPairing);
     updateSummary();
 
     const ensureReferredByButton = ()=>{
