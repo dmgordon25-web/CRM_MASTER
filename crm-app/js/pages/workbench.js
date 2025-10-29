@@ -1948,7 +1948,7 @@ function handleExport(lensState){
     csvLines.push(values.join(','));
   });
   const filename = `${lensState.config.key}-workbench-${new Date().toISOString().slice(0,10)}.csv`;
-  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\ufeff', csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
