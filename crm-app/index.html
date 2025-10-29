@@ -125,15 +125,15 @@
      <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
     </div>
    </div>
-   <section class="card" id="dashboard-focus"></section>
-   <section class="card" id="dashboard-filters"></section>
-   <section class="card" id="dashboard-kpis"></section>
-   <section class="card" id="dashboard-pipeline-overview"></section>
-   <section class="card" id="dashboard-today"></section>
-   <section class="card" id="referral-leaderboard"></section>
-   <section class="card" id="dashboard-stale"></section>
+   <section class="card" id="dashboard-focus" data-widget-id="focus"></section>
+   <section class="card" id="dashboard-filters" data-widget-id="filters"></section>
+   <section class="card" id="dashboard-kpis" data-widget-id="kpis"></section>
+   <section class="card" id="dashboard-pipeline-overview" data-widget-id="pipeline"></section>
+   <section class="card" id="dashboard-today" data-widget-id="today"></section>
+   <section class="card" id="referral-leaderboard" data-widget-id="leaderboard"></section>
+   <section class="card" id="dashboard-stale" data-widget-id="stale"></section>
    <section class="grid insights-grid" id="dashboard-insights">
-     <div class="card insight-card span-2" id="goal-progress-card">
+    <div class="card insight-card span-2" id="goal-progress-card" data-widget-id="goalProgress">
       <div class="insight-head">
        <div class="insight-icon goals">🎯</div>
        <div>
@@ -162,7 +162,7 @@
       <div class="goal-footnote muted" id="goal-progress-footnote">Targets reset each calendar month.</div>
      </div>
     </div>
-    <div class="card insight-card numbers-card" id="numbers-portfolio-card">
+    <div class="card insight-card numbers-card" id="numbers-portfolio-card" data-widget-id="numbersPortfolio">
      <div class="insight-head numbers-card-head">
       <div class="insight-icon numbers-portfolio-icon">📊</div>
       <div>
@@ -177,7 +177,7 @@
       </div>
      </div>
     </div>
-    <div class="card insight-card numbers-card" id="numbers-referrals-card">
+    <div class="card insight-card numbers-card" id="numbers-referrals-card" data-widget-id="numbersReferrals">
      <div class="insight-head numbers-card-head">
       <div class="insight-icon numbers-referrals-icon">🏆</div>
       <div>
@@ -190,7 +190,7 @@
       </ol>
      </div>
     </div>
-    <div class="card insight-card numbers-card span-2" id="numbers-momentum-card">
+    <div class="card insight-card numbers-card span-2" id="numbers-momentum-card" data-widget-id="numbersMomentum">
      <div class="insight-head numbers-card-head">
       <div class="insight-icon numbers-momentum-icon">📈</div>
       <div>
@@ -205,7 +205,7 @@
       </div>
      </div>
     </div>
-     <div class="card insight-card span-2" id="pipeline-calendar-card">
+     <div class="card insight-card span-2" id="pipeline-calendar-card" data-widget-id="pipelineCalendar">
      <div class="insight-head">
       <div class="insight-icon calendar">🗓️</div>
       <div>
@@ -220,7 +220,7 @@
       <div class="empty muted">Upcoming milestones will appear here once scheduled.</div>
      </div>
     </div>
-     <div class="card insight-card" id="priority-actions-card">
+     <div class="card insight-card" id="priority-actions-card" data-widget-id="priorityActions">
       <div class="insight-head">
        <div class="insight-icon tasks">⚡</div>
       <div>
@@ -234,7 +234,7 @@
      <ul class="insight-list actionable" id="needs-attn">
      </ul>
     </div>
-     <div class="card insight-card" id="milestones-card">
+     <div class="card insight-card" id="milestones-card" data-widget-id="milestones">
       <div class="insight-head">
        <div class="insight-icon timeline">📌</div>
       <div>
@@ -248,7 +248,7 @@
      <ul class="insight-list timeline" id="upcoming">
      </ul>
     </div>
-     <div class="card insight-card" id="doc-pulse-card">
+     <div class="card insight-card" id="doc-pulse-card" data-widget-id="docPulse">
       <div class="insight-head">
        <div class="insight-icon docs">📂</div>
        <div>
@@ -261,7 +261,7 @@
      </div>
     </section>
    <section class="grid opportunities-grid" id="dashboard-opportunities" style="margin-top:12px">
-     <div class="card insight-card" id="rel-opps-card">
+     <div class="card insight-card" id="rel-opps-card" data-widget-id="relationshipOpportunities">
       <div class="insight-head">
        <div class="insight-icon relationships">📞</div>
        <div>
@@ -276,7 +276,7 @@
        —
       </ul>
      </div>
-     <div class="card insight-card" id="nurture-card">
+     <div class="card insight-card" id="nurture-card" data-widget-id="clientCareRadar">
       <div class="insight-head">
        <div class="insight-icon nurture">💙</div>
        <div>
@@ -291,7 +291,7 @@
        —
       </ul>
      </div>
-     <div class="card insight-card" id="closing-watch-card">
+     <div class="card insight-card" id="closing-watch-card" data-widget-id="closingWatch">
       <div class="insight-head">
        <div class="insight-icon closing">🛎️</div>
        <div>
@@ -306,7 +306,7 @@
       —
      </ul>
     </div>
-     <div class="card insight-card" id="favorites-card" data-has-favorites="0">
+     <div class="card insight-card" id="favorites-card" data-has-favorites="0" data-widget-id="favorites">
       <div class="insight-head">
        <div class="insight-icon favorites">⭐</div>
        <div>
@@ -320,12 +320,12 @@
       <div class="empty muted" data-role="favorites-empty">Star a contact or partner to pin them here.</div>
      </div>
     </section>
-    <section class="card" id="doc-center-card">
+    <section class="card" id="doc-center-card" data-widget-id="docCenter">
      <p class="widget-summary muted">Manage document checklists and outstanding requests.</p>
      <div class="doc-center" id="doc-center">
      </div>
     </section>
-    <section class="card status-stack" id="dashboard-status-stack">
+    <section class="card status-stack" id="dashboard-status-stack" data-widget-id="statusStack">
      <details class="status-panel" data-panel="inprogress" open="">
       <summary>
        <div class="status-summary">
