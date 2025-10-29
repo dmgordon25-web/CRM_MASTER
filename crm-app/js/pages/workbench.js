@@ -1332,6 +1332,46 @@ function updateStatusMessage(lensState){
   statusBanner.clear();
 }
 
+function isLensRowVisible(row){
+  if(!row) return false;
+  if(row.hidden) return false;
+  if(row.getAttribute && row.getAttribute('aria-hidden') === 'true') return false;
+  const classList = row.classList;
+  if(classList){
+    if(classList.contains('hidden') || classList.contains('is-hidden') || classList.contains('pipeline-filter-hide')){
+      return false;
+    }
+  }
+  if(row.style){
+    if(row.style.display === 'none' || row.style.visibility === 'hidden') return false;
+  }
+  if(typeof row.offsetParent !== 'undefined' && row.offsetParent === null){
+    if(typeof row.getClientRects === 'function'){
+      const rects = row.getClientRects();
+      if(!rects.length) return false;
+      const rect = rects[0];
+      if(rect && rect.width === 0 && rect.height === 0) return false;
+    }else{
+      return false;
+    }
+  }
+  return true;
+}
+
+function gatherLensRowData(table){
+  if(!table) return [];
+  return Array.from(table.querySelectorAll('tbody tr[data-id]')).map(row => {
+    const id = row.getAttribute('data-id');
+    const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
+    return {
+      row,
+      id: id ? String(id) : null,
+      checkbox,
+      visible: isLensRowVisible(row)
+    };
+  });
+}
+
 function syncSelectionForLens(lensState){
   const { elements, config } = lensState;
   const table = elements.table;
@@ -1340,15 +1380,14 @@ function syncSelectionForLens(lensState){
   const store = getSelectionStore();
   const selected = store ? store.get(scope) : new Set();
   const ids = selected instanceof Set ? selected : new Set(Array.from(selected || []));
-  table.querySelectorAll('tbody tr[data-id]').forEach((row) => {
-    const id = row.getAttribute('data-id');
+  const rowData = gatherLensRowData(table);
+  rowData.forEach(({ row, id, checkbox }) => {
     const active = id && ids.has(id);
     if(active){
       row.setAttribute('data-selected', '1');
     }else{
       row.removeAttribute('data-selected');
     }
-    const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
     if(checkbox){
       checkbox.checked = active;
       checkbox.setAttribute('aria-checked', active ? 'true' : 'false');
@@ -1356,11 +1395,17 @@ function syncSelectionForLens(lensState){
   });
   const header = table.querySelector('thead input[data-role="select-all"]');
   if(header){
-    const rowBoxes = Array.from(table.querySelectorAll('tbody [data-role="select"]'));
-    const total = rowBoxes.length;
-    const checkedCount = rowBoxes.filter((box) => box.checked).length;
-    header.indeterminate = checkedCount > 0 && checkedCount < total;
-    header.checked = total > 0 && checkedCount === total;
+    const visibleBoxes = rowData.filter(entry => entry.visible && entry.checkbox);
+    const total = visibleBoxes.length;
+    const checkedCount = visibleBoxes.filter(entry => entry.checkbox.checked).length;
+    const shouldIndeterminate = total > 0 && checkedCount > 0 && checkedCount < total;
+    const shouldChecked = total > 0 && checkedCount === total;
+    header.indeterminate = shouldIndeterminate;
+    header.checked = shouldChecked;
+    if(!total){
+      header.indeterminate = false;
+      header.checked = false;
+    }
   }
 }
 
@@ -1949,19 +1994,25 @@ function handleSelectAllChange(event, lensState){
   const scope = lensState.config.selectionScope;
   const store = getSelectionStore();
   if(!store) return;
-  const ids = new Set();
-  table.querySelectorAll('tbody tr[data-id]').forEach((row) => {
-    const id = row.getAttribute('data-id');
-    if(!id) return;
-    if(checkbox.checked){
-      ids.add(id);
-    }
-  });
-  if(checkbox.checked){
-    store.set(Array.from(ids), scope);
-  }else{
-    store.clear(scope);
+  checkbox.indeterminate = false;
+  const rowData = gatherLensRowData(table);
+  const visibleIds = rowData.filter(entry => entry.visible && entry.id).map(entry => entry.id);
+  if(!visibleIds.length){
+    checkbox.indeterminate = false;
+    checkbox.checked = false;
+    syncSelectionForLens(lensState);
+    return;
   }
+  const current = store.get(scope);
+  const next = current instanceof Set
+    ? new Set(current)
+    : new Set(Array.from(current || [], value => String(value)));
+  if(checkbox.checked){
+    visibleIds.forEach(id => next.add(id));
+  }else{
+    visibleIds.forEach(id => next.delete(id));
+  }
+  store.set(next, scope);
   syncSelectionForLens(lensState);
 }
 
@@ -2248,6 +2299,7 @@ function buildWindow(lensState){
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
+  selectAll.setAttribute('aria-label', 'Select all visible rows');
   selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
   selectAllTh.appendChild(selectAll);
   headerRow.appendChild(selectAllTh);
