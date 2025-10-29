@@ -1430,12 +1430,14 @@ function renderTable(lensState){
   const frag = document.createDocumentFragment();
   visibleRows.forEach((row) => {
     const tr = document.createElement('tr');
+    tr.classList.add('status-row');
     const id = row.id || toId(row.record?.id);
     if(id) tr.setAttribute('data-id', id);
 
     const selectCell = document.createElement('td');
     selectCell.setAttribute('data-role', 'select');
     selectCell.dataset.compact = '1';
+    selectCell.dataset.column = 'select';
     selectCell.style.textAlign = 'center';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -1451,6 +1453,10 @@ function renderTable(lensState){
       if(td.dataset){
         td.dataset.field = column.field || '';
         td.dataset.wrap = column.isName ? '1' : '0';
+        td.dataset.column = column.isName ? 'name' : (column.field || '');
+      }
+      if(column.type === 'number'){
+        td.classList.add('numeric');
       }
       if(column.isName){
         if(config.entity === 'contact'){
@@ -1478,6 +1484,7 @@ function renderTable(lensState){
     gutterCell.setAttribute('aria-hidden', 'true');
     gutterCell.tabIndex = -1;
     gutterCell.dataset.compact = '1';
+    gutterCell.dataset.column = 'gutter';
     tr.appendChild(gutterCell);
 
     frag.appendChild(tr);
@@ -2292,10 +2299,12 @@ function buildWindow(lensState){
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
+  headerRow.classList.add('status-row');
 
   const selectAllTh = document.createElement('th');
   selectAllTh.setAttribute('data-role', 'select');
   selectAllTh.dataset.compact = '1';
+  selectAllTh.dataset.column = 'select';
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
@@ -2310,6 +2319,10 @@ function buildWindow(lensState){
     if(th.dataset){
       th.dataset.field = column.field || '';
       th.dataset.wrap = column.isName ? '1' : '0';
+      th.dataset.column = column.isName ? 'name' : (column.field || '');
+    }
+    if(column.type === 'number'){
+      th.classList.add('numeric');
     }
     th.style.cursor = 'pointer';
     th.addEventListener('click', () => handleHeaderSort(lensState, column.field));
@@ -2321,6 +2334,7 @@ function buildWindow(lensState){
   gutterTh.setAttribute('aria-hidden', 'true');
   gutterTh.tabIndex = -1;
   gutterTh.dataset.compact = '1';
+  gutterTh.dataset.column = 'gutter';
   headerRow.appendChild(gutterTh);
 
   thead.appendChild(headerRow);
