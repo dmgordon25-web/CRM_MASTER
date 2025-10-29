@@ -325,10 +325,25 @@ async function runNotificationsToggleCheck() {
   }
 }
 
+async function runCalendarDndCheck() {
+  const vitestPath = path.join(process.cwd(), 'node_modules', 'vitest', 'vitest.mjs');
+  const child = spawn(process.execPath, [vitestPath, 'run', 'tests/unit/calendar_dnd.spec.ts'], {
+    env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'test' },
+    stdio: 'inherit'
+  });
+  const [code, signal] = await once(child, 'exit');
+  if(code !== 0){
+    const reason = signal ? `signal=${signal}` : `code=${code}`;
+    throw new Error(`calendar:dnd check failed (${reason})`);
+  }
+  console.log('[CHECK] calendar:dnd ok');
+}
+
 const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
-  'notifications:toggle-3x': runNotificationsToggleCheck
+  'notifications:toggle-3x': runNotificationsToggleCheck,
+  'calendar:dnd': runCalendarDndCheck
 };
 
 function hasOwn(object, key) {
