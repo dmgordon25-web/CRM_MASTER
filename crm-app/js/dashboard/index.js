@@ -1,5 +1,5 @@
 import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
-import { setDashboardLayoutMode, readStoredLayoutMode } from '../ui/dashboard_layout.js';
+import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -233,6 +233,11 @@ const layoutToggleState = {
   modeListenerBound: false
 };
 
+const layoutResetState = {
+  button: null,
+  pending: false
+};
+
 const pointerTapState = new Map();
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
@@ -410,6 +415,34 @@ function resolveLayoutToggleButton() {
   return button || null;
 }
 
+function resolveLayoutResetButton() {
+  if (!doc) return null;
+  const button = doc.querySelector('[data-dashboard-action="layout-reset"]');
+  return button || null;
+}
+
+function ensureLayoutResetButton() {
+  const button = resolveLayoutResetButton();
+  layoutResetState.button = button;
+  if (!button) return null;
+  if (!button.__wired) {
+    button.__wired = true;
+    button.addEventListener('click', handleLayoutResetClick);
+  }
+  if (layoutResetState.pending) {
+    button.disabled = true;
+    button.dataset.loading = 'true';
+  } else {
+    button.disabled = false;
+    if (button.dataset && Object.prototype.hasOwnProperty.call(button.dataset, 'loading')) {
+      delete button.dataset.loading;
+    } else {
+      button.removeAttribute('data-loading');
+    }
+  }
+  return button;
+}
+
 function dispatchLayoutModeEvent(enabled) {
   if (!doc || typeof doc.dispatchEvent !== 'function') return;
   const CustomEventCtor = typeof CustomEvent === 'function'
@@ -474,6 +507,27 @@ function handleLayoutToggleClick(evt) {
   applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
 }
 
+async function handleLayoutResetClick(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+  if (layoutResetState.pending) return;
+  layoutResetState.pending = true;
+  ensureLayoutResetButton();
+  try {
+    await resetLayout({ reason: 'toolbar-reset' });
+  } catch (err) {
+    try {
+      if (console && console.warn) console.warn('[dashboard] layout reset failed', err);
+    } catch (_warnErr) {}
+  } finally {
+    layoutResetState.pending = false;
+    ensureLayoutResetButton();
+    ensureLayoutToggle();
+  }
+}
+
 function handleLayoutToggleKeydown(evt) {
   if (!evt) return;
   const key = evt.key || evt.code || '';
@@ -508,6 +562,7 @@ function ensureLayoutToggle() {
     return null;
   }
   layoutToggleState.button = button;
+  ensureLayoutResetButton();
   if (!layoutToggleState.bootstrapped) {
     applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: true, persist: false, force: true, dispatch: false });
     layoutToggleState.bootstrapped = true;

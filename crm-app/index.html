@@ -23,6 +23,7 @@
    THE CRM Tool — Modular v1 (Unified v0905 R5 baseline)
   </title>
  <link href="styles.css" rel="stylesheet"/>
+ <link href="styles/dashboard.css" rel="stylesheet"/>
  <link href="styles/loaders.css" rel="stylesheet"/>
 </head>
 <body>
@@ -119,6 +120,10 @@
     <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button" aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
      <span data-mode="view">Edit layout</span>
      <span data-mode="edit" hidden>Done editing</span>
+    </button>
+    <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button" title="Restore default dashboard layout">
+     <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
+     <span>Reset layout</span>
     </button>
     <span class="grow"></span>
     <div class="row" role="group" aria-label="Dashboard scope">
