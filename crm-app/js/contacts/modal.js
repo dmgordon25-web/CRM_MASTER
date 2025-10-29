@@ -77,27 +77,95 @@ function findHandler(candidates){
   return null;
 }
 
-function resolveEmailHandler(){
-  return findHandler([
-    ()=> window?.CRM?.channels?.email?.compose,
-    ()=> window?.CRM?.actions?.email?.compose,
-    ()=> window?.CRM?.email?.compose,
-    ()=> window?.composeEmail,
-    ()=> window?.openCompose,
-    ()=> window?.openEmailComposer,
-    ()=> window?.emailComposer?.open
-  ]);
+const CHANNEL_CONFIG = {
+  email: {
+    label: 'Email',
+    resolverKey: 'resolveEmailHandler',
+    candidates: [
+      ()=> window?.CRM?.channels?.email?.compose,
+      ()=> window?.CRM?.actions?.email?.compose,
+      ()=> window?.CRM?.email?.compose,
+      ()=> window?.composeEmail,
+      ()=> window?.openCompose,
+      ()=> window?.openEmailComposer,
+      ()=> window?.emailComposer?.open
+    ]
+  },
+  sms: {
+    label: 'SMS',
+    resolverKey: 'resolveSmsHandler',
+    candidates: [
+      ()=> window?.CRM?.channels?.sms?.compose,
+      ()=> window?.CRM?.actions?.sms?.compose,
+      ()=> window?.CRM?.sms?.compose,
+      ()=> window?.composeSms,
+      ()=> window?.openSms,
+      ()=> window?.openTextComposer
+    ]
+  }
+};
+
+const missingChannelWarnings = new Set();
+
+function resolveChannel(kind, context){
+  const config = CHANNEL_CONFIG[kind];
+  if(!config) return { handler:null, source:'none', reason:'handler-missing' };
+  const crm = typeof window !== 'undefined' ? window.CRM : null;
+  const resolver = crm && typeof crm === 'object' ? crm[config.resolverKey] : null;
+  let reason = null;
+  if(typeof resolver === 'function'){
+    try{
+      const resolved = resolver(context);
+      if(typeof resolved === 'function'){
+        return { handler: resolved, source:'resolver', reason:null };
+      }
+      if(resolved && typeof resolved.handler === 'function'){
+        return { handler: resolved.handler, source:'resolver', reason:null };
+      }
+      reason = 'resolver-returned-null';
+    }catch(err){
+      try{ console && console.warn && console.warn(`${config.resolverKey} failed`, err); }
+      catch(_){ }
+      reason = 'resolver-error';
+    }
+  }else if(crm){
+    reason = 'resolver-missing';
+  }
+  const fallback = findHandler(config.candidates);
+  if(fallback){
+    return { handler: fallback, source:'fallback', reason };
+  }
+  return { handler: null, source: 'none', reason: reason || 'handler-missing' };
 }
 
-function resolveSmsHandler(){
-  return findHandler([
-    ()=> window?.CRM?.channels?.sms?.compose,
-    ()=> window?.CRM?.actions?.sms?.compose,
-    ()=> window?.CRM?.sms?.compose,
-    ()=> window?.composeSms,
-    ()=> window?.openSms,
-    ()=> window?.openTextComposer
-  ]);
+function showMissingChannelToast(kind, reason, options){
+  const config = CHANNEL_CONFIG[kind];
+  const label = config ? config.label : (kind || 'Channel');
+  const key = `${kind}:${reason || 'unknown'}:${options?.fallback ? 'fallback' : 'primary'}`;
+  if(missingChannelWarnings.has(key)) return;
+  missingChannelWarnings.add(key);
+  let message;
+  switch(reason){
+    case 'resolver-missing':
+      message = `${label} integration is not installed. Ask your administrator to enable it in Settings → Integrations.`;
+      break;
+    case 'resolver-returned-null':
+      message = `${label} integration returned no handler. Verify the communications adapter configuration in Settings → Integrations.`;
+      break;
+    case 'resolver-error':
+      message = `${label} integration failed to load. Check the console for errors and reinstall the adapter.`;
+      break;
+    case 'handler-error':
+      message = `${label} action failed to launch. Confirm the communications adapter is working in Settings → Integrations.`;
+      break;
+    default:
+      message = `${label} channel is not configured. Configure it under Settings → Integrations.`;
+      break;
+  }
+  if(options?.fallback){
+    message += ' Using the built-in fallback for now.';
+  }
+  toast('info', message);
 }
 
 function triggerChannel(handler, payload){
@@ -349,9 +417,15 @@ function wireDialog(dialog, config, detail){
     entry.emailButton.__wired = true;
     entry.emailButton.addEventListener('click', ()=>{
       const context = contextFor();
-      const handler = resolveEmailHandler();
-      if(handler && triggerChannel(handler, context)) return;
-      toast('info', 'Email channel not configured');
+      const resolution = resolveChannel('email', context);
+      if(resolution.handler && triggerChannel(resolution.handler, context)){
+        if(resolution.source === 'fallback' && resolution.reason){
+          showMissingChannelToast('email', resolution.reason, { fallback: true });
+        }
+        return;
+      }
+      const reason = resolution.reason || (resolution.handler ? 'handler-error' : 'handler-missing');
+      showMissingChannelToast('email', reason, { fallback: resolution.source === 'fallback' });
     });
   }
 
@@ -359,9 +433,15 @@ function wireDialog(dialog, config, detail){
     entry.smsButton.__wired = true;
     entry.smsButton.addEventListener('click', ()=>{
       const context = contextFor();
-      const handler = resolveSmsHandler();
-      if(handler && triggerChannel(handler, context)) return;
-      toast('info', 'SMS channel not configured');
+      const resolution = resolveChannel('sms', context);
+      if(resolution.handler && triggerChannel(resolution.handler, context)){
+        if(resolution.source === 'fallback' && resolution.reason){
+          showMissingChannelToast('sms', resolution.reason, { fallback: true });
+        }
+        return;
+      }
+      const reason = resolution.reason || (resolution.handler ? 'handler-error' : 'handler-missing');
+      showMissingChannelToast('sms', reason, { fallback: resolution.source === 'fallback' });
     });
   }
 
