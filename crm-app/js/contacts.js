@@ -25,6 +25,7 @@ import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpe
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -207,7 +208,6 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     lost: 'Documents outcome, schedules re-engagement, and captures learnings for the team.',
     denied: 'Captures denial reasons, assigns compliance follow-ups, and plans credit repair touchpoints.'
   };
-  const DAY_MS = 86400000;
   const FOLLOW_UP_RULES = Object.freeze({
     'long-shot': { days: 2, note: 'Confirm intro call and set nurture cadence.' },
     application: { days: 2, note: 'Check application progress and document needs.' },
@@ -1830,55 +1830,67 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       };
 
       let currentSuggestion = null;
+      let lastAppliedSuggestionDue = '';
       function computeFollowUpSuggestion(){
         const stageVal = stageSelect ? stageSelect.value : (c.stage || 'application');
         const statusVal = statusSelect ? statusSelect.value : (c.status || 'inprogress');
         const rule = FOLLOW_UP_RULES[stageVal] || FOLLOW_UP_RULES[statusVal] || FOLLOW_UP_RULES.default;
-        const baseDays = Number.isFinite(rule?.days) ? rule.days : FOLLOW_UP_RULES.default.days;
+        const fallbackDays = Number.isFinite(rule?.days) ? rule.days : FOLLOW_UP_RULES.default.days;
         const stageLabel = findLabel(STAGES, stageVal) || stageVal;
         const lastField = $('#c-lastcontact', body);
         const nextField = $('#c-nexttouch', body);
         const rawLast = String(lastField?.value || c.lastContact || c.updatedAt || c.createdAt || '').trim();
         const rawNext = String(nextField?.value || '').trim();
-        let lastTouchDate = rawLast ? new Date(rawLast) : null;
-        if(lastTouchDate && Number.isNaN(lastTouchDate.getTime())) lastTouchDate = null;
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        let dueDate = null;
-        if(lastTouchDate){
-          const base = new Date(lastTouchDate);
-          base.setHours(0,0,0,0);
-          dueDate = new Date(base);
-          dueDate.setDate(base.getDate() + baseDays);
-          if(dueDate < today) dueDate = new Date(today);
-        }else if(rawNext){
-          const parsedNext = new Date(rawNext);
-          if(!Number.isNaN(parsedNext.getTime())) dueDate = parsedNext;
+        const suggestion = suggestFollowUpSchedule({
+          stage: stageVal,
+          lastActivity: rawLast,
+          existingDue: rawNext,
+          fallbackDays
+        });
+        if(!suggestion || !suggestion.isoDue){
+          return null;
         }
-        if(!dueDate){
-          dueDate = new Date(today);
-          dueDate.setDate(today.getDate() + baseDays);
-        }
-        const isoDue = dueDate.toISOString().slice(0,10);
-        let daysSince = null;
-        if(lastTouchDate){
-          const base = new Date(lastTouchDate);
-          base.setHours(0,0,0,0);
-          daysSince = Math.floor((today - base)/DAY_MS);
-        }
-        const summaryParts = [stageLabel];
-        if(daysSince != null && Number.isFinite(daysSince)) summaryParts.push(`${daysSince}d since touch`);
-        else summaryParts.push('No recorded touch');
-        const summary = `${summaryParts.join(' • ')} → ${isoDue}`;
+        const cadenceSummary = describeFollowUpCadence({ stageLabel, suggestion });
+        const summary = cadenceSummary
+          ? `${cadenceSummary} → ${suggestion.isoDue}`
+          : `${stageLabel} → ${suggestion.isoDue}`;
         const noteDetail = rule?.note || `${stageLabel} follow-up`;
         const taskNote = `${stageLabel} follow-up — ${noteDetail}`;
-        return { due: isoDue, summary, description: noteDetail, note: taskNote, stage: stageVal, status: statusVal };
+        return {
+          due: suggestion.isoDue,
+          summary,
+          description: noteDetail,
+          note: taskNote,
+          stage: stageVal,
+          status: statusVal,
+          offsetDays: suggestion.offsetDays,
+          daysSince: suggestion.daysSinceLastActivity
+        };
+      }
+      function applySuggestedDate(force = false){
+        if(!dateInput || !currentSuggestion || !currentSuggestion.due) return;
+        const desired = currentSuggestion.due;
+        if(force){
+          dateInput.value = desired;
+          lastAppliedSuggestionDue = desired;
+          return;
+        }
+        const currentValue = String(dateInput.value || '').trim();
+        if(!currentValue || currentValue === lastAppliedSuggestionDue){
+          dateInput.value = desired;
+          lastAppliedSuggestionDue = desired;
+        }
       }
       function refreshSuggestion(){
         currentSuggestion = computeFollowUpSuggestion();
         if(suggestBtn){
           const ready = !!(currentSuggestion && currentSuggestion.due);
           suggestBtn.disabled = !ready;
+        }
+        if(currentSuggestion && currentSuggestion.due){
+          applySuggestedDate();
+        }else{
+          lastAppliedSuggestionDue = '';
         }
         if(!suggestMeta) return;
         if(currentSuggestion && currentSuggestion.due){
@@ -1902,13 +1914,7 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
         prompt.hidden = false;
         prompt.style.display = 'flex';
         actionBtn.setAttribute('aria-expanded', 'true');
-        if(!dateInput.value){
-          try{
-            const today = new Date();
-            const iso = today.toISOString().slice(0,10);
-            dateInput.value = iso;
-          }catch(_err){}
-        }
+        applySuggestedDate(true);
         try{ dateInput.focus({ preventScroll: true }); }
         catch(_err){ dateInput.focus?.(); }
       };
