@@ -706,6 +706,15 @@ table.list-table thead th { position: sticky; top: 0; background: inherit; z-ind
 /* Kill any decorative left rail/gutter stealing pixels */
 table.list-table tr::before { content: none !important; }
 
+table.list-table th:first-child,
+table.list-table td:first-child,
+table.list-table td[data-column="select"] {
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
 /* Column widths (7-col default: [check][star][Name][Loan Type][Amount][Referred By][Last Activity]) */
 table.list-table thead th:nth-child(1),
 table.list-table tbody td:nth-child(1) { width: 36px; }
@@ -835,7 +844,10 @@ table.list-table tbody td:nth-child(6):last-child { width: 180px; }
 .summary-actions{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
 .summary-actions .btn{padding:6px 10px;font-size:12px}
 .summary-actions .favorite-toggle{font-size:20px}
-.favorite-cell{width:36px;min-width:36px;text-align:center}
+.favorite-cell,
+th.favorite-col{width:36px;min-width:36px;text-align:center;padding:0;vertical-align:middle}
+.favorite-cell .favorite-toggle{margin:0 auto;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;line-height:1}
+th.favorite-col > span{display:inline-flex;align-items:center;justify-content:center;width:100%;font-size:18px;line-height:1;color:#cbd5f5}
 .favorite-toggle{appearance:none;border:none;background:transparent;font-size:18px;line-height:1;color:#cbd5f5;cursor:pointer;transition:color .2s ease,transform .2s ease}
 .favorite-toggle:hover,.favorite-toggle:focus-visible{color:#f59e0b;transform:translateY(-1px)}
 .favorite-toggle.is-active{color:#f59e0b}
