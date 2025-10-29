@@ -545,6 +545,9 @@ export function isQuickCreateMenuOpen(source) {
 }
 
 function defaultOpenContactEditor() {
+  if (typeof window.openContactModal === 'function') {
+    return callSafely(window.openContactModal, null, { allowAutoOpen: true, sourceHint: 'quick-create:menu' });
+  }
   if (typeof window.renderContactModal === 'function') {
     return callSafely(window.renderContactModal, null);
   }
