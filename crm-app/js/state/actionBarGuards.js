@@ -1,11 +1,5 @@
 const STYLE_ID = 'ab-inline-style';
-
-function injectActionBarStyle() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = `
+const ACTION_BAR_STYLE_TEXT = `
       #actionbar{
         position:fixed; left:50%; transform:translateX(-50%);
         bottom:16px; z-index:9999;
@@ -18,6 +12,31 @@ function injectActionBarStyle() {
       #actionbar .btn.disabled{ opacity:.45; pointer-events:none; }
       #actionbar .btn.active{ outline:2px solid rgba(255,255,255,.35); transform:translateY(-1px); }
     `;
+
+function hasActionBarStyle() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  const bar = document.getElementById('actionbar');
+  if (!bar) return false;
+  try {
+    const styles = window.getComputedStyle(bar);
+    if (!styles) return false;
+    const positioned = styles.position === 'fixed';
+    const anchored = styles.bottom === '16px';
+    const rounded = styles.borderRadius === '12px';
+    if (positioned && anchored && rounded) {
+      return true;
+    }
+  } catch (_err) {}
+  return false;
+}
+
+function injectActionBarStyle() {
+  if (typeof document === 'undefined') return;
+  if (hasActionBarStyle()) return;
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = ACTION_BAR_STYLE_TEXT;
   document.head.appendChild(style);
 }
 
