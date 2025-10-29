@@ -22,6 +22,7 @@ import {
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
@@ -2073,6 +2074,49 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
 let pendingContactOpen = null;
 
+const CALENDAR_INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
+const INVALID_PARTNER_ID_TOKENS = new Set(['', 'null', 'undefined']);
+
+function normalizeCalendarContactId(value){
+  if(value == null) return '';
+  const raw = String(value).trim();
+  if(!raw) return '';
+  const token = raw.toLowerCase();
+  return CALENDAR_INVALID_CONTACT_ID_TOKENS.has(token) ? '' : raw;
+}
+
+function normalizePartnerId(value){
+  if(value == null) return '';
+  const raw = String(value).trim();
+  if(!raw) return '';
+  const token = raw.toLowerCase();
+  return INVALID_PARTNER_ID_TOKENS.has(token) ? '' : raw;
+}
+
+function detectSafeMode(override){
+  if(typeof override === 'boolean') return override;
+  if(typeof window === 'undefined') return false;
+  try{
+    if(window.__SAFE_MODE__ === true || window.__SAFE_MODE__ === 1 || window.__SAFE_MODE__ === '1') return true;
+  }catch(_err){}
+  try{
+    const search = window.location && typeof window.location.search === 'string'
+      ? window.location.search
+      : '';
+    if(search && /(?:^|[?&])safe=1(?:&|$)/.test(search)) return true;
+  }catch(_err){}
+  return false;
+}
+
+function resolveCalendarInvoker(options){
+  if(!options) return null;
+  if(options instanceof HTMLElement) return options;
+  if(options.trigger instanceof HTMLElement) return options.trigger;
+  if(options.currentTarget instanceof HTMLElement) return options.currentTarget;
+  if(options.target instanceof HTMLElement) return options.target;
+  return null;
+}
+
 export async function openContactModal(contactId, options){
   const opener = (typeof window !== 'undefined' && typeof window.renderContactModal === 'function')
     ? window.renderContactModal
@@ -2144,6 +2188,71 @@ export async function openContactModal(contactId, options){
 
   pendingContactOpen = { id: normalizedId, promise: sequence.finally(() => { pendingContactOpen = null; }) };
   return pendingContactOpen.promise;
+}
+
+export async function openCalendarEntityEditor(eventLike, options){
+  const base = eventLike && typeof eventLike === 'object' ? eventLike : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const safeMode = detectSafeMode(opts.safeMode ?? base.safeMode);
+  if(safeMode){
+    toastInfo('Calendar editing is disabled in Safe Mode.');
+    return { opened: false, reason: 'safe-mode' };
+  }
+
+  const sourceHint = typeof opts.sourceHint === 'string' && opts.sourceHint.trim()
+    ? opts.sourceHint.trim()
+    : 'calendar:event';
+  const contactId = normalizeCalendarContactId(
+    opts.contactId ?? base.contactId ?? (base.contact && base.contact.id) ?? ''
+  );
+  const partnerId = normalizePartnerId(
+    opts.partnerId ?? base.partnerId ?? (base.partner && base.partner.id) ?? ''
+  );
+  const allowAutoOpen = opts.allowAutoOpen === true;
+  const trigger = resolveCalendarInvoker(opts) || resolveCalendarInvoker(base);
+
+  if(contactId){
+    try{
+      const result = await openContactModal(contactId, { sourceHint, trigger, allowAutoOpen });
+      if(result){
+        return { opened: true, kind: 'contact', contactId, result };
+      }
+      return { opened: false, kind: 'contact', contactId, reason: 'no-result' };
+    }catch (err){
+      try{ console && console.warn && console.warn('calendar contact open failed', err); }
+      catch(_warn){}
+      toastWarn('Unable to open contact');
+      return { opened: false, reason: 'contact-error', error: err };
+    }
+  }
+
+  if(partnerId){
+    const partnerOptions = { sourceHint, trigger };
+    let partnerOpener = null;
+    if(typeof openPartnerEditModal === 'function'){
+      partnerOpener = openPartnerEditModal;
+    }else if(typeof window !== 'undefined' && typeof window.openPartnerEditModal === 'function'){
+      partnerOpener = window.openPartnerEditModal;
+    }
+    if(!partnerOpener){
+      try{ console && console.warn && console.warn('partner editor unavailable for calendar event', { partnerId }); }
+      catch(_warn){}
+      toastWarn('Partner editor unavailable');
+      return { opened: false, reason: 'partner-missing' };
+    }
+    try{
+      const result = await Promise.resolve(partnerOpener(partnerId, partnerOptions));
+      return { opened: true, kind: 'partner', partnerId, result };
+    }catch (err){
+      try{ console && console.warn && console.warn('calendar partner open failed', err); }
+      catch(_warn){}
+      toastWarn('Unable to open partner');
+      return { opened: false, reason: 'partner-error', error: err };
+    }
+  }
+
+  toastWarn('No linked record to open');
+  return { opened: false, reason: 'no-entity' };
 }
 
 const ROW_BIND_ONCE = (typeof window !== 'undefined'
