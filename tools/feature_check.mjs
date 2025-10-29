@@ -136,6 +136,40 @@ async function runFeatureCheck(origin) {
   }
 }
 
+async function runActionbarStyleDedupeCheck() {
+  const projectRoot = process.cwd();
+  const guardPath = path.join(projectRoot, 'crm-app', 'js', 'state', 'actionBarGuards.js');
+  const uiPath = path.join(projectRoot, 'crm-app', 'js', 'ui', 'action_bar.js');
+  const cssPath = path.join(projectRoot, 'crm-app', 'css', 'app.css');
+
+  const [guardSource, uiSource, cssSource] = await Promise.all([
+    fs.readFile(guardPath, 'utf8'),
+    fs.readFile(uiPath, 'utf8'),
+    fs.readFile(cssPath, 'utf8')
+  ]);
+
+  if (!/const\s+STYLE_ID\s*=\s*['"]ab-inline-style['"]/.test(guardSource)) {
+    throw new Error('Missing STYLE_ID guard in actionBarGuards');
+  }
+
+  if (!/document\.getElementById\(\s*STYLE_ID\s*\)/.test(guardSource)) {
+    throw new Error('actionBarGuards does not skip existing inline style');
+  }
+
+  const guardPattern = /if\s*\(\s*document\.getElementById\(\s*['"]ab-inline-style['"]\s*\)\s*\)\s*return\s*;/;
+  if (!guardPattern.test(uiSource)) {
+    throw new Error('action_bar.js missing inline style dedupe guard');
+  }
+
+  const hasBaseRule = /#actionbar\s*\{[^}]+position\s*:\s*fixed/i.test(cssSource);
+  const hasActionsRule = /#actionbar\s*\.actionbar-actions\s*\{[^}]+display\s*:\s*flex/i.test(cssSource);
+  if (!hasBaseRule || !hasActionsRule) {
+    throw new Error('app.css missing action bar style rules');
+  }
+
+  console.log('[CHECK] actionbar:style-dedupe ok');
+}
+
 async function runDefaultFeatureCheck() {
   let child;
   try {
@@ -646,6 +680,7 @@ async function runPipelineStatusMilestoneCheck() {
 
 const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
+  'actionbar:style-dedupe': runActionbarStyleDedupeCheck,
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
   'notifications:toggle-3x': runNotificationsToggleCheck,
   'comms:missing-handler': runCommsMissingHandlerCheck,
