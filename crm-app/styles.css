@@ -464,10 +464,10 @@ dialog::backdrop{background:#0004}
 .sort-btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:8px}
 table.list-table th .sort-btn[data-type="number"]{justify-content:flex-end;width:100%}
 table.list-table td.numeric{text-align:right;font-variant-numeric:tabular-nums}
-.status-name-link{color:#4f46e5;text-decoration:underline;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.status-name-link{color:#4f46e5;text-decoration:underline;font-weight:600;display:inline-flex;align-items:center;gap:8px;max-width:100%;min-width:0}
 .status-name-link:hover{text-decoration:none}
 .partner-name{display:inline-flex;align-items:center;gap:8px}
-.status-name-link .name-text,.partner-name .name-text{white-space:nowrap}
+.status-name-link .name-text,.partner-name .name-text{white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 
 .commission-table{min-height:64px}
 .empty-row td{text-align:center;color:var(--muted);padding:18px 12px}
@@ -706,6 +706,32 @@ table.list-table thead th { position: sticky; top: 0; background: inherit; z-ind
 /* Kill any decorative left rail/gutter stealing pixels */
 table.list-table tr::before { content: none !important; }
 
+table.list-table td.contact-name,
+table.list-table td[data-column="name"] {
+  min-width: 0;
+}
+
+table.list-table td.contact-name .status-name-link,
+table.list-table td[data-column="name"] .status-name-link {
+  max-width: 100%;
+  min-width: 0;
+}
+
+table.list-table td.contact-name .name-text,
+table.list-table td[data-column="name"] .name-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+table.list-table td.favorite-cell,
+table.list-table td[data-column="favorite"] {
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+}
+
 table.list-table th:first-child,
 table.list-table td:first-child,
 table.list-table td[data-column="select"] {
@@ -752,6 +778,101 @@ table.list-table tbody td:nth-child(6):last-child { width: 180px; }
 /* Ultra-narrow fallback: allow horizontal scroll rather than misalignment */
 @media (max-width: 1100px) {
   .table-wrap { overflow-x: auto; }
+}
+
+table.list-table th[data-column="select"],
+table.list-table td[data-column="select"] {
+  width: 44px;
+  min-width: 44px;
+}
+
+table.list-table th[data-column="favorite"],
+table.list-table td[data-column="favorite"] {
+  width: 40px;
+  min-width: 40px;
+}
+
+table.list-table th[data-column="name"],
+table.list-table td[data-column="name"] {
+  width: clamp(220px, 32vw, 420px);
+  max-width: 440px;
+}
+
+table.list-table th[data-column="loanType"],
+table.list-table td[data-column="loanType"] {
+  width: clamp(140px, 26vw, 220px);
+}
+
+table.list-table th[data-column="loanAmount"],
+table.list-table td[data-column="loanAmount"] {
+  width: 120px;
+  min-width: 120px;
+}
+
+table.list-table th[data-column="referred"],
+table.list-table td[data-column="referred"],
+table.list-table th[data-column="owner"],
+table.list-table td[data-column="owner"] {
+  width: clamp(150px, 28vw, 240px);
+}
+
+table.list-table th[data-column="last"],
+table.list-table td[data-column="last"],
+table.list-table th[data-column="lastTouch"],
+table.list-table td[data-column="lastTouch"],
+table.list-table th[data-column="updatedAt"],
+table.list-table td[data-column="updatedAt"],
+table.list-table th[data-column="nextTouch"],
+table.list-table td[data-column="nextTouch"],
+table.list-table th[data-column="nextAction"],
+table.list-table td[data-column="nextAction"] {
+  width: clamp(140px, 22vw, 200px);
+}
+
+#tbl-longshots th:nth-child(1),
+#tbl-longshots td:nth-child(1) {
+  width: 44px;
+  min-width: 44px;
+}
+
+#tbl-longshots th:nth-child(2),
+#tbl-longshots td:nth-child(2) {
+  width: 40px;
+  min-width: 40px;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+}
+
+#tbl-longshots th:nth-child(3),
+#tbl-longshots td:nth-child(3) {
+  width: clamp(220px, 32vw, 420px);
+  max-width: 440px;
+}
+
+#tbl-longshots td:nth-child(3) {
+  min-width: 180px;
+}
+
+#tbl-longshots th:nth-child(4),
+#tbl-longshots td:nth-child(4) {
+  width: 120px;
+  min-width: 120px;
+}
+
+#tbl-longshots th:nth-child(5),
+#tbl-longshots td:nth-child(5) {
+  width: clamp(150px, 28vw, 220px);
+}
+
+#tbl-longshots th:nth-child(6),
+#tbl-longshots td:nth-child(6) {
+  width: clamp(140px, 24vw, 200px);
+}
+
+#tbl-longshots th:nth-child(7),
+#tbl-longshots td:nth-child(7) {
+  width: clamp(140px, 22vw, 200px);
 }
 
 /* ===== FINAL: editor modal — wide, readable, no scrunch ===== */

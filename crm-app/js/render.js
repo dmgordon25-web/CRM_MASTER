@@ -1430,8 +1430,10 @@ import { syncTableLayout } from './ui/table_layout.js';
       if(c && c.last) nameParts.push(c.last);
       const avatarSource = nameParts.length ? nameParts.join(' ') : (c && c.name) || '';
       const avatar = renderAvatar(avatarSource);
-      const displayName = safe(fullName(c));
-      return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-id="${attr(c.id||'')}">${avatar}<span class="name-text">${displayName}</span></a>`;
+      const full = fullName(c);
+      const displayName = safe(full);
+      const titleAttr = attr(full || '');
+      return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-id="${attr(c.id||'')}" title="${titleAttr}">${avatar}<span class="name-text">${displayName}</span></a>`;
     };
 
     const relOpportunities = inpr.map(c=>{
@@ -1828,14 +1830,18 @@ import { syncTableLayout } from './ui/table_layout.js';
           if(partner && partner.company) refTokens.push(partner.company);
         });
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
-        const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
+        const favoriteCell = `<td class="favorite-cell" data-column="favorite">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
         const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+        const referredLabel = safe(c.referredBy||'');
+        const referredTitle = attr(c.referredBy||'');
+        const lastLabel = safe(c.lastContact||'');
+        const lastTitle = attr(c.lastContact||'');
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
+        <td data-column="select" data-role="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
         ${favoriteCell}
-        <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
-        <td>${safe(loanLabel||'')}</td><td>${amountVal ? money(amountVal) : '—'}</td>
-        <td>${safe(c.referredBy||'')}</td><td>${safe(c.lastContact||'')}</td></tr>`;
+        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
+        <td data-column="loanType">${safe(loanLabel||'')}</td><td class="numeric" data-column="loanAmount">${amountVal ? money(amountVal) : '—'}</td>
+        <td data-column="referred" title="${referredTitle}">${referredLabel}</td><td data-column="last" title="${lastTitle}">${lastLabel || '—'}</td></tr>`;
       }).join('');
       renderTableBody(tblLongshots, tbLs, longshotRows);
     }

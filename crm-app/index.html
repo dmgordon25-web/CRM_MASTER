@@ -898,22 +898,22 @@
     <table class="table list-table" data-selection-scope="pipeline" id="tbl-longshots">
      <thead>
       <tr>
-       <th style="width:28px">
+       <th data-column="select">
         <input aria-label="Select all visible rows" data-role="select-all" id="ls-all" type="checkbox"/>
         </th>
-        <th>
+        <th data-column="name">
          Name
         </th>
-        <th>
+        <th data-column="loanType">
          Loan Type
         </th>
-        <th>
+        <th class="numeric" data-column="loanAmount">
          Amount
         </th>
-        <th>
+        <th data-column="referred">
          Referred By
         </th>
-        <th>
+        <th data-column="last">
          Last Activity
         </th>
        </tr>
