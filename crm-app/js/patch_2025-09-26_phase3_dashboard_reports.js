@@ -1,6 +1,7 @@
 // patch_2025-09-26_phase3_dashboard_reports.js — Phase 3 dashboard + reports
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
@@ -249,6 +250,38 @@ function runPatch(){
       lastAggregates: null
     };
     state.dashboard.order = normalizeWidgetOrder(state.dashboard.order);
+
+    const dashboardLoadingCounts = new WeakMap();
+
+    function beginLoadingForHost(host, options = {}){
+      if(!host || typeof host !== 'object') return () => {};
+      const previous = dashboardLoadingCounts.get(host) || 0;
+      if(previous === 0){
+        try{ attachLoadingBlock(host, options); }
+        catch (_err){}
+      }
+      dashboardLoadingCounts.set(host, previous + 1);
+      let released = false;
+      return () => {
+        if(released) return;
+        released = true;
+        const current = dashboardLoadingCounts.get(host) || 0;
+        const next = Math.max(0, current - 1);
+        if(next === 0){
+          dashboardLoadingCounts.delete(host);
+          try{ detachLoadingBlock(host); }
+          catch (_err){}
+        }else{
+          dashboardLoadingCounts.set(host, next);
+        }
+      };
+    }
+
+    function beginDashboardLoading(hostOverride){
+      const host = hostOverride || getDashboardContainer();
+      if(!host) return () => {};
+      return beginLoadingForHost(host, { lines: 6 });
+    }
 
     const widgetDnD = {
       container: null,
@@ -1456,67 +1489,72 @@ function runPatch(){
     }
 
     async function renderDashboard(options){
-      await loadData(options && options.forceReload);
-      await loadDashboardSettings(options && options.forceReload);
-      const sections = options && options.sections instanceof Set ? options.sections : null;
-      const all = !sections || sections.size === 0;
-      const aggregates = buildDashboardAggregates();
-      state.lastAggregates = aggregates;
-      updateDashboardModeControls();
+      const releaseLoading = beginDashboardLoading();
+      try {
+        await loadData(options && options.forceReload);
+        await loadDashboardSettings(options && options.forceReload);
+        const sections = options && options.sections instanceof Set ? options.sections : null;
+        const all = !sections || sections.size === 0;
+        const aggregates = buildDashboardAggregates();
+        state.lastAggregates = aggregates;
+        updateDashboardModeControls();
 
-      const showFocus = state.dashboard.mode === 'today';
-      const focusNeedsRender = showFocus && (all || (sections && (sections.has('today') || sections.has('focus'))));
-      if(focusNeedsRender){
-        renderDashboardFocus(aggregates);
+        const showFocus = state.dashboard.mode === 'today';
+        const focusNeedsRender = showFocus && (all || (sections && (sections.has('today') || sections.has('focus'))));
+        if(focusNeedsRender){
+          renderDashboardFocus(aggregates);
+        }
+        toggleSectionVisibility('dashboard-focus', showFocus);
+
+        const widgetVisible = key => state.dashboard.mode === 'all' && state.dashboard.widgets[key] !== false;
+        const shouldRenderWidget = key => {
+          if(!widgetVisible(key)) return false;
+          if(all) return true;
+          return sections ? sections.has(key) : true;
+        };
+
+        if(shouldRenderWidget('filters')){
+          renderFilters();
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.filters, widgetVisible('filters'));
+
+        if(shouldRenderWidget('kpis')){
+          renderKpis(aggregates);
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.kpis, widgetVisible('kpis'));
+
+        if(shouldRenderWidget('pipeline')){
+          renderPipelineOverview(aggregates);
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.pipeline, widgetVisible('pipeline'));
+
+        if(shouldRenderWidget('today')){
+          renderTodayPanel(aggregates);
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.today, widgetVisible('today'));
+
+        if(shouldRenderWidget('leaderboard')){
+          renderLeaderboard(aggregates);
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.leaderboard, widgetVisible('leaderboard'));
+
+        if(shouldRenderWidget('stale')){
+          renderStaleDeals(aggregates);
+        }
+        toggleSectionVisibility(WIDGET_SECTION_IDS.stale, widgetVisible('stale'));
+
+        const insightWidgetKeys = ['goalProgress','numbersPortfolio','numbersReferrals','numbersMomentum','pipelineCalendar','priorityActions','milestones','docPulse'];
+        const opportunityWidgetKeys = ['relationshipOpportunities','clientCareRadar','closingWatch'];
+        const showInsights = state.dashboard.mode === 'all' && insightWidgetKeys.some(widgetVisible);
+        const showOpportunities = state.dashboard.mode === 'all' && opportunityWidgetKeys.some(widgetVisible);
+        toggleSectionVisibility('dashboard-insights', showInsights);
+        toggleSectionVisibility('dashboard-opportunities', showOpportunities);
+
+        applyWidgetOrderToDom(state.dashboard.order);
+        ensureWidgetDnDWired();
+      } finally {
+        releaseLoading();
       }
-      toggleSectionVisibility('dashboard-focus', showFocus);
-
-      const widgetVisible = key => state.dashboard.mode === 'all' && state.dashboard.widgets[key] !== false;
-      const shouldRenderWidget = key => {
-        if(!widgetVisible(key)) return false;
-        if(all) return true;
-        return sections ? sections.has(key) : true;
-      };
-
-      if(shouldRenderWidget('filters')){
-        renderFilters();
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.filters, widgetVisible('filters'));
-
-      if(shouldRenderWidget('kpis')){
-        renderKpis(aggregates);
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.kpis, widgetVisible('kpis'));
-
-      if(shouldRenderWidget('pipeline')){
-        renderPipelineOverview(aggregates);
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.pipeline, widgetVisible('pipeline'));
-
-      if(shouldRenderWidget('today')){
-        renderTodayPanel(aggregates);
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.today, widgetVisible('today'));
-
-      if(shouldRenderWidget('leaderboard')){
-        renderLeaderboard(aggregates);
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.leaderboard, widgetVisible('leaderboard'));
-
-      if(shouldRenderWidget('stale')){
-        renderStaleDeals(aggregates);
-      }
-      toggleSectionVisibility(WIDGET_SECTION_IDS.stale, widgetVisible('stale'));
-
-      const insightWidgetKeys = ['goalProgress','numbersPortfolio','numbersReferrals','numbersMomentum','pipelineCalendar','priorityActions','milestones','docPulse'];
-      const opportunityWidgetKeys = ['relationshipOpportunities','clientCareRadar','closingWatch'];
-      const showInsights = state.dashboard.mode === 'all' && insightWidgetKeys.some(widgetVisible);
-      const showOpportunities = state.dashboard.mode === 'all' && opportunityWidgetKeys.some(widgetVisible);
-      toggleSectionVisibility('dashboard-insights', showInsights);
-      toggleSectionVisibility('dashboard-opportunities', showOpportunities);
-
-      applyWidgetOrderToDom(state.dashboard.order);
-      ensureWidgetDnDWired();
     }
 
     function canonicalLossReason(reason){
@@ -1745,14 +1783,19 @@ function runPatch(){
     async function renderReports(){
       const root = ensureReportsShell();
       if(!root) return;
-      await loadData();
-      const data = computeReports();
-      ['stage','partner','past-clients','fallout'].forEach(key => renderReportTable(root, key, data));
-      const buttons = root.querySelectorAll('[data-report-tab]');
-      buttons.forEach(btn => {
-        const key = btn.getAttribute('data-report-tab');
-        btn.classList.toggle('brand', state.reportView === key);
-      });
+      const releaseLoading = beginDashboardLoading(root);
+      try {
+        await loadData();
+        const data = computeReports();
+        ['stage','partner','past-clients','fallout'].forEach(key => renderReportTable(root, key, data));
+        const buttons = root.querySelectorAll('[data-report-tab]');
+        buttons.forEach(btn => {
+          const key = btn.getAttribute('data-report-tab');
+          btn.classList.toggle('brand', state.reportView === key);
+        });
+      } finally {
+        releaseLoading();
+      }
     }
 
     function csvEscape(value){
@@ -1806,8 +1849,13 @@ function runPatch(){
       Promise.resolve().then(async ()=>{
         const payload = state.pendingRender;
         state.pendingRender = null;
-        await renderDashboard({forceReload: payload.forceReload, sections: payload.sections});
-        if(payload.includeReports) await renderReports();
+        const releaseLoading = beginDashboardLoading();
+        try {
+          await renderDashboard({forceReload: payload.forceReload, sections: payload.sections});
+          if(payload.includeReports) await renderReports();
+        } finally {
+          releaseLoading();
+        }
       });
     }
 

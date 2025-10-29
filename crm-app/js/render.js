@@ -60,6 +60,66 @@ import { syncTableLayout } from './ui/table_layout.js';
   ];
   const CALENDAR_CARD_SELECTOR = '#view-calendar .calendar-card';
   let loadingPrimed = false;
+  const hostLoadingCounts = new WeakMap();
+  const pendingLoadingReleases = [];
+
+  function acquireLoadingForHost(host, options = {}){
+    if(!host || typeof host !== 'object') return () => {};
+    const previous = hostLoadingCounts.get(host) || 0;
+    if(previous === 0){
+      try{ attachLoadingBlock(host, options); }
+      catch (_err){}
+    }
+    hostLoadingCounts.set(host, previous + 1);
+    let released = false;
+    return () => {
+      if(released) return;
+      released = true;
+      const current = hostLoadingCounts.get(host) || 0;
+      const next = Math.max(0, current - 1);
+      if(next === 0){
+        hostLoadingCounts.delete(host);
+        try{ detachLoadingBlock(host); }
+        catch (_err){}
+      }else{
+        hostLoadingCounts.set(host, next);
+      }
+    };
+  }
+
+  function rememberLoadingRelease(release){
+    if(typeof release === 'function') pendingLoadingReleases.push(release);
+  }
+
+  function releasePendingLoading(){
+    while(pendingLoadingReleases.length){
+      const release = pendingLoadingReleases.pop();
+      try{ release(); }
+      catch (_err){}
+    }
+  }
+
+  function findListLoadingHost(table){
+    if(!table || typeof table !== 'object') return null;
+    let host = null;
+    if(typeof table.closest === 'function'){
+      const selectors = ['[data-loading-host]', '.card', '.table-card', '.status-table-wrap'];
+      for(const selector of selectors){
+        const candidate = table.closest(selector);
+        if(candidate && candidate !== table){
+          host = candidate;
+          break;
+        }
+      }
+    }
+    if(!host){
+      const parent = table.parentElement;
+      if(parent && parent !== table && parent !== document.body && parent !== document.documentElement){
+        host = parent;
+      }
+    }
+    return host || null;
+  }
 
   function asEl(ref){
     if(!ref) return null;
@@ -87,20 +147,24 @@ import { syncTableLayout } from './ui/table_layout.js';
   function primeLoadingPlaceholders(){
     if(loadingPrimed || typeof document === 'undefined') return;
     loadingPrimed = true;
-    TABLE_IDS.forEach(id => applyTableSkeleton(id));
+    TABLE_IDS.forEach(id => {
+      const table = applyTableSkeleton(id);
+      if(!table) return;
+      const host = findListLoadingHost(table);
+      if(!host) return;
+      rememberLoadingRelease(acquireLoadingForHost(host, { lines: 6 }));
+    });
     DASHBOARD_BLOCKS.forEach(sel => {
       const node = document.querySelector(sel);
-      if(node) attachLoadingBlock(node, { lines: 4 });
+      if(!node) return;
+      rememberLoadingRelease(acquireLoadingForHost(node, { lines: 4 }));
     });
     const calendarCard = document.querySelector(CALENDAR_CARD_SELECTOR);
-    if(calendarCard) attachLoadingBlock(calendarCard, { lines: 6 });
+    if(calendarCard) rememberLoadingRelease(acquireLoadingForHost(calendarCard, { lines: 6 }));
   }
   function releaseLoadingPlaceholders(){
     if(typeof document === 'undefined') return;
-    DASHBOARD_BLOCKS.forEach(sel => {
-      const node = document.querySelector(sel);
-      if(node) detachLoadingBlock(node);
-    });
+    releasePendingLoading();
   }
   function html(el, v){ if(el) el.innerHTML = v; }
   function money(n){ try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0)); }catch (_) { return '$'+(Number(n||0).toFixed(0)); } }
@@ -1078,32 +1142,33 @@ import { syncTableLayout } from './ui/table_layout.js';
 
   async function renderAll(){
     return withLayoutGuard('render.js', async () => {
-    primeLoadingPlaceholders();
-    await openDB();
-    const settingsPromise = (window.Settings && typeof window.Settings.get === 'function')
-      ? window.Settings.get()
-      : dbGetAll('settings');
-    const [contacts, partners, tasks, rawSettings, documents] = await Promise.all([
-      dbGetAll('contacts'),
-      dbGetAll('partners'),
-      dbGetAll('tasks'),
-      settingsPromise,
-      dbGetAll('documents')
-    ]);
-    const partnerNameMap = new Map((partners||[]).map(p=>[String(p.id), p.name || p.company || '']));
-    const partnerIndex = buildPartnerIndex(partners||[]);
-    const contactIndex = buildContactIndex(contacts||[], partnerNameMap);
-    window.__RECORD_INDEX__ = { contacts: contactIndex, partners: partnerIndex };
-    const nameLookup = {};
-    contactIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
-    partnerIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
-    window.__NAME_ID_MAP__ = nameLookup;
-    const favoritesSnapshot = extractFavoritesSnapshot(rawSettings) || { contacts: [], partners: [] };
-    applyFavoriteSnapshot(favoritesSnapshot);
-    const favoriteState = ensureFavoriteState();
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const contactById = new Map((contacts||[]).map(c=>[String(c.id), c]));
+      primeLoadingPlaceholders();
+      try {
+        await openDB();
+        const settingsPromise = (window.Settings && typeof window.Settings.get === 'function')
+          ? window.Settings.get()
+          : dbGetAll('settings');
+        const [contacts, partners, tasks, rawSettings, documents] = await Promise.all([
+          dbGetAll('contacts'),
+          dbGetAll('partners'),
+          dbGetAll('tasks'),
+          settingsPromise,
+          dbGetAll('documents')
+        ]);
+        const partnerNameMap = new Map((partners||[]).map(p=>[String(p.id), p.name || p.company || '']));
+        const partnerIndex = buildPartnerIndex(partners||[]);
+        const contactIndex = buildContactIndex(contacts||[], partnerNameMap);
+        window.__RECORD_INDEX__ = { contacts: contactIndex, partners: partnerIndex };
+        const nameLookup = {};
+        contactIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
+        partnerIndex.byName.forEach((val, key)=>{ if(typeof val === 'string' && val) nameLookup[key] = val; });
+        window.__NAME_ID_MAP__ = nameLookup;
+        const favoritesSnapshot = extractFavoritesSnapshot(rawSettings) || { contacts: [], partners: [] };
+        applyFavoriteSnapshot(favoritesSnapshot);
+        const favoriteState = ensureFavoriteState();
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const contactById = new Map((contacts||[]).map(c=>[String(c.id), c]));
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const nextMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
@@ -1780,22 +1845,31 @@ import { syncTableLayout } from './ui/table_layout.js';
       catch (err) { console && console.warn && console.warn('applyFilters', err); }
     }
 
-    releaseLoadingPlaceholders();
+      } finally {
+        releaseLoadingPlaceholders();
+      }
 
     });
   }
 
   window.renderAll = renderAll;
   window.renderPartners = async function(){
-    await openDB();
-    const [partners, contacts] = await Promise.all([
-      dbGetAll('partners'),
-      dbGetAll('contacts')
-    ]);
-    renderPartnersTable(partners, contacts);
-    if(typeof window.applyFilters==='function'){
-      try{ window.applyFilters(); }
-      catch (err) { console && console.warn && console.warn('applyFilters', err); }
+    const table = typeof document !== 'undefined' ? document.getElementById('tbl-partners') : null;
+    const host = table ? findListLoadingHost(table) : null;
+    const releaseLoading = acquireLoadingForHost(host, { lines: 6 });
+    try {
+      await openDB();
+      const [partners, contacts] = await Promise.all([
+        dbGetAll('partners'),
+        dbGetAll('contacts')
+      ]);
+      renderPartnersTable(partners, contacts);
+      if(typeof window.applyFilters==='function'){
+        try{ window.applyFilters(); }
+        catch (err) { console && console.warn && console.warn('applyFilters', err); }
+      }
+    } finally {
+      releaseLoading();
     }
   };
 })();
