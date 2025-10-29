@@ -1,3 +1,5 @@
+import { canonicalStatusKey, normalizeMilestoneForStatus, normalizeStatusForStage } from './pipeline/constants.js';
+
 // patch_2025-09-26_phase2_automations.js — Phase 2 automations engine + timeline
 let __wired = false;
 function domReady(){ if(['complete','interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true})); }
@@ -292,10 +294,11 @@ function runPatch(){
       return {record:contact, changed};
     };
 
-    async function ensureContactRecord(id){
+    async function ensureContactRecord(id, options){
       if(!id && id!==0) return null;
       const key = String(id);
-      if(state.contacts.has(key)) return state.contacts.get(key);
+      const opts = options && typeof options === 'object' ? options : {};
+      if(state.contacts.has(key) && !opts.force) return state.contacts.get(key);
       if(typeof openDB !== 'function' || typeof dbGet !== 'function') return null;
       await openDB();
       const record = await dbGet('contacts', key);
@@ -984,6 +987,32 @@ function runPatch(){
       });
     }
 
+    function bridgeStatusChange(detail){
+      if(!detail) return;
+      if(detail.source === 'automations') return;
+      const id = detail.contactId || detail.id;
+      if(!id) return;
+      const fromStatus = detail.from != null ? canonicalStatusKey(detail.from) : (detail.statusBefore != null ? canonicalStatusKey(detail.statusBefore) : null);
+      const toStatus = canonicalStatusKey(detail.to || detail.status);
+      const cached = state.contacts.get(String(id));
+      const cachedStatus = cached ? canonicalStatusKey(cached.status) : null;
+      const rawMilestone = detail.milestone != null ? detail.milestone : (cached ? cached.pipelineMilestone : null);
+      const statusForRange = toStatus || cachedStatus || 'inprogress';
+      const targetMilestone = normalizeMilestoneForStatus(rawMilestone, statusForRange);
+      if(cachedStatus === toStatus){
+        const cachedMilestone = normalizeMilestoneForStatus(cached ? cached.pipelineMilestone : rawMilestone, statusForRange);
+        if(cachedMilestone === targetMilestone) return;
+      }
+      document.dispatchEvent(new CustomEvent('status:changed', { detail: {
+        id: String(id),
+        contactId: String(id),
+        from: fromStatus || null,
+        to: toStatus || null,
+        status: toStatus || null,
+        milestone: targetMilestone
+      }}));
+    }
+
     async function handleStageChanged(detail, options){
       if(!detail || !detail.id) return;
       const contact = await ensureContactRecord(detail.id);
@@ -1031,6 +1060,50 @@ function runPatch(){
         }
         upsertContact(contact);
       }, options);
+    }
+
+    async function handleStatusChanged(detail, options){
+      if(!detail || !detail.id) return;
+      const opts = options && typeof options === 'object' ? options : {};
+      const contact = await ensureContactRecord(detail.id, { force:true });
+      if(!contact) return;
+      const stageKey = canonicalStage(contact.stage);
+      const prevStatus = detail.from != null ? canonicalStatusKey(detail.from) : canonicalStatusKey(detail.statusBefore ?? contact.status);
+      const requestedStatus = detail.to || detail.status || contact.status;
+      const normalizedStatus = normalizeStatusForStage(stageKey, requestedStatus);
+      const finalStatus = canonicalStatusKey(normalizedStatus || requestedStatus || 'inprogress') || 'inprogress';
+      const normalizedMilestone = normalizeMilestoneForStatus(detail.milestone || contact.pipelineMilestone, finalStatus);
+      const baseDetail = {
+        action:'status',
+        contactId:String(contact.id),
+        id:String(contact.id),
+        from: prevStatus || null,
+        to: finalStatus,
+        status: finalStatus,
+        milestone: normalizedMilestone
+      };
+      await withChangeScope(baseDetail, async ()=>{
+        let mutated = false;
+        if(contact.status !== finalStatus){
+          contact.status = finalStatus;
+          mutated = true;
+        }
+        if(contact.pipelineMilestone !== normalizedMilestone){
+          contact.pipelineMilestone = normalizedMilestone;
+          mutated = true;
+        }
+        if(mutated){
+          contact.updatedAt = Date.now();
+          if(typeof dbPut === 'function'){
+            try{
+              await openDB();
+              await dbPut('contacts', contact);
+            }catch (err) { console && console.warn && console.warn('status change persist', err); }
+          }
+          recordChange({ action:'contact', contactId:String(contact.id), fields:['status','pipelineMilestone'] });
+        }
+        upsertContact(contact);
+      }, opts);
     }
 
     async function runStageAutomationsQuiet(input){
@@ -1147,6 +1220,12 @@ function runPatch(){
       Promise.resolve().then(()=> handleStageChanged(detail));
     });
 
+    document.addEventListener('status:changed', (evt)=>{
+      const detail = evt && evt.detail;
+      if(detail && detail.quiet) return;
+      Promise.resolve().then(()=> handleStatusChanged(detail));
+    });
+
     document.addEventListener('contact:created', (evt)=>{
       Promise.resolve().then(()=> handleContactCreated(evt.detail));
     });
@@ -1166,6 +1245,22 @@ function runPatch(){
         if(payload.to == null && detail.to != null) payload.to = detail.to;
         if(payload.stage == null && detail.stage != null) payload.stage = detail.stage;
         bridgeStageChange(payload);
+      }
+      const statusDetail = pickAction(detail, 'status');
+      if(statusDetail){
+        const payload = Object.assign({}, statusDetail);
+        if(payload.contactId == null) payload.contactId = detail.contactId || detail.id || payload.id;
+        if(payload.id == null) payload.id = payload.contactId;
+        if(payload.status == null && detail.status != null) payload.status = detail.status;
+        if(payload.to == null && payload.status != null) payload.to = payload.status;
+        if(payload.from == null){
+          if(detail.from != null) payload.from = detail.from;
+          else if(detail.statusBefore != null) payload.from = detail.statusBefore;
+          else if(payload.statusBefore != null) payload.from = payload.statusBefore;
+        }
+        if(payload.statusBefore == null && detail.statusBefore != null) payload.statusBefore = detail.statusBefore;
+        if(payload.milestone == null && detail.milestone != null) payload.milestone = detail.milestone;
+        bridgeStatusChange(payload);
       }
       const historyDetail = pickAction(detail, 'history');
       if(historyDetail){

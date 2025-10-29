@@ -1147,6 +1147,8 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       const opts = options && typeof options === 'object' ? options : {};
       const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
       const prevStage = c.stage;
+      const prevStatusKey = canonicalStatusKey(c.status || '');
+      const prevMilestoneNormalized = normalizeMilestoneForStatus(c.pipelineMilestone, prevStatusKey || c.status || 'inprogress');
       setBusy(true);
       try{
         const u = Object.assign({}, c, {
@@ -1180,6 +1182,9 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
         });
         u.status = normalizeStatusForStage(u.stage, u.status);
         u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
+        const nextStatusKey = canonicalStatusKey(u.status || '');
+        const statusChanged = prevStatusKey !== nextStatusKey;
+        const milestoneChanged = prevMilestoneNormalized !== u.pipelineMilestone;
         const prevCanon = canonicalStage(prevStage);
         if(typeof window.updateContactStage === 'function'){
           const maybeResult = window.updateContactStage(u, u.stage, prevStage);
@@ -1223,6 +1228,26 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
           }
         }
         Object.assign(c, u);
+        if((statusChanged || milestoneChanged) && u.id != null){
+          const statusDetail = {
+            source:'contact:modal',
+            action:'status',
+            contactId:String(u.id||''),
+            id:String(u.id||''),
+            status: nextStatusKey,
+            to: nextStatusKey,
+            milestone: u.pipelineMilestone
+          };
+          if(prevStatusKey){
+            statusDetail.statusBefore = prevStatusKey;
+            if(statusChanged) statusDetail.from = prevStatusKey;
+          }
+          if(typeof window.dispatchAppDataChanged === 'function'){
+            window.dispatchAppDataChanged(statusDetail);
+          }else{
+            document.dispatchEvent(new CustomEvent('app:data:changed',{detail:statusDetail}));
+          }
+        }
         try{
           if(typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
           if(typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();

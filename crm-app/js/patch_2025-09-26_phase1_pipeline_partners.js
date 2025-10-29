@@ -634,6 +634,27 @@ function runPatch(){
 
     function emitChange(detail){
       const payload = Object.assign({source:'phase1:pipeline'}, detail||{});
+      const contactId = payload.contactId || payload.id;
+      const statusKey = payload.status ? canonicalStatusKey(payload.status) : (detail && detail.status ? canonicalStatusKey(detail.status) : '');
+      const statusBefore = detail && detail.statusBefore != null ? canonicalStatusKey(detail.statusBefore) : (payload.statusBefore != null ? canonicalStatusKey(payload.statusBefore) : '');
+      if(statusKey) payload.status = statusKey;
+      if(statusBefore) payload.statusBefore = statusBefore;
+      const milestoneHint = payload.milestone || detail?.milestone || '';
+      const shouldEmitStatus = !!statusKey && (statusBefore !== statusKey || Boolean(milestoneHint));
+      if(shouldEmitStatus){
+        const statusEntry = {
+          action:'status',
+          contactId: contactId != null ? String(contactId) : undefined,
+          id: contactId != null ? String(contactId) : undefined,
+          status: statusKey,
+          to: statusKey
+        };
+        if(statusBefore) statusEntry.from = statusBefore;
+        if(milestoneHint) statusEntry.milestone = milestoneHint;
+        const actions = Array.isArray(payload.actions) ? payload.actions.slice() : [];
+        if(!actions.some(entry => entry && entry.action === 'status')) actions.push(statusEntry);
+        payload.actions = actions;
+      }
       const stageHint = payload.stage || payload.to || payload.from || payload.lane;
       if(stageHint){
         const laneKey = laneKeyFromStage(stageHint);
@@ -737,6 +758,13 @@ function runPatch(){
             const record = await loadContact(key);
             if(record) integrateContact(record);
           }
+          handled = true;
+          break;
+        }
+        if(merged.action === 'status' && merged.contactId){
+          const key = String(merged.contactId);
+          const record = await loadContact(key);
+          if(record) integrateContact(record);
           handled = true;
           break;
         }
@@ -989,6 +1017,7 @@ function runPatch(){
       orderLookup.forEach((_, key)=> mutationIds.add(key));
       if(stageChanged) mutationIds.add(safeId);
       const changedRecords = new Map();
+      let statusBefore = null;
       let statusAfter = null;
       let milestoneAfter = null;
       const now = Date.now();
@@ -1007,6 +1036,7 @@ function runPatch(){
           }
         });
         if(stageChanged && cid === safeId){
+          statusBefore = canonicalStatusKey(record.status || '');
           const updated = applyStageTransition(record, nextStage, prevStage, { now, lossReason });
           if(updated){
             Object.assign(record, updated);
@@ -1125,6 +1155,7 @@ function runPatch(){
         document.dispatchEvent(new CustomEvent('stage:changed',{detail:{id, from: fromStage, to: toStage, quiet:true}}));
       }
       if(result.dispatchDetail){
+        if(statusBefore && !result.dispatchDetail.statusBefore) result.dispatchDetail.statusBefore = statusBefore;
         if(typeof window.dispatchAppDataChanged === 'function') window.dispatchAppDataChanged(result.dispatchDetail);
         else document.dispatchEvent(new CustomEvent('app:data:changed',{detail:result.dispatchDetail}));
       }
@@ -1691,11 +1722,15 @@ function runPatch(){
     function normalizeContact(record){
       if(!record || typeof record!=='object') return record;
       const copy = Object.assign({}, record);
-      copy.stage = canonicalizeStage(copy.stage);
+      const stageKey = canonicalizeStage(copy.stage);
+      copy.stage = stageKey;
       copy.buyerPartnerId = copy.buyerPartnerId ? String(copy.buyerPartnerId) : PARTNER_NONE_ID;
       copy.listingPartnerId = copy.listingPartnerId ? String(copy.listingPartnerId) : PARTNER_NONE_ID;
       if(copy.lossReason && copy.stage!=='lost' && copy.stage!=='denied') delete copy.lossReason;
-      copy.stageEnteredAt = hydrateStageMap(copy.stageEnteredAt, copy.stage, Date.now());
+      const normalizedStatus = normalizeStatusForStage(stageKey, copy.status);
+      copy.status = normalizedStatus;
+      copy.pipelineMilestone = normalizeMilestoneForStatus(copy.pipelineMilestone, normalizedStatus);
+      copy.stageEnteredAt = hydrateStageMap(copy.stageEnteredAt, stageKey, Date.now());
       const order = Number(copy.stageOrder);
       copy.stageOrder = Number.isFinite(order) ? order : null;
       if(copy.stageChangedAt!=null){
@@ -1753,11 +1788,19 @@ function runPatch(){
         await openDB();
         const existing = await dbGet('contacts', id);
         if(!existing) return null;
+        const statusBefore = canonicalStatusKey(existing.status || '');
         const updated = apply(existing);
         if(!updated) return existing;
         await dbPut('contacts', updated);
         pendingStageRecords.set(id, updated);
-        emitChange({action:'stage', contactId:id, stage:canonical, status: updated.status, milestone: updated.pipelineMilestone});
+        emitChange({
+          action:'stage',
+          contactId:id,
+          stage:canonical,
+          status: updated.status,
+          statusBefore,
+          milestone: updated.pipelineMilestone
+        });
         if(window.Toast && typeof window.Toast.show === 'function'){
           const stageMessage = canonical === 'processing' ? 'Moved to Processing' : 'Updated';
           window.Toast.show(stageMessage);

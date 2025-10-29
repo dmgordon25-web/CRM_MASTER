@@ -339,11 +339,49 @@ async function runCalendarDndCheck() {
   console.log('[CHECK] calendar:dnd ok');
 }
 
+async function runPipelineStatusMilestoneCheck() {
+  const moduleUrl = new URL('../crm-app/js/pipeline/constants.js', import.meta.url);
+  const constants = await import(moduleUrl.href);
+  const statuses = Array.isArray(constants.PIPELINE_STATUS_KEYS) ? constants.PIPELINE_STATUS_KEYS : [];
+  const milestones = Array.isArray(constants.PIPELINE_MILESTONES) ? constants.PIPELINE_MILESTONES : [];
+  if(!statuses.length || !milestones.length){
+    throw new Error('pipeline constants unavailable');
+  }
+  const errors = [];
+  for(const status of statuses){
+    const range = constants.milestoneRangeForStatus(status);
+    const min = Number.isFinite(range?.min) ? range.min : 0;
+    const max = Number.isFinite(range?.max) ? range.max : milestones.length - 1;
+    const belowIndex = Math.max(0, min - 1);
+    const aboveIndex = Math.min(milestones.length - 1, max + 1);
+    const samples = [
+      { label: milestones[belowIndex], guard: (idx) => idx >= min },
+      { label: milestones[aboveIndex], guard: (idx) => idx <= max },
+      { label: 'Not a real milestone', guard: (idx) => idx >= min && idx <= max }
+    ];
+    for(const sample of samples){
+      if(!sample.label) continue;
+      const normalized = constants.normalizeMilestoneForStatus(sample.label, status);
+      const idx = typeof constants.milestoneIndex === 'function'
+        ? constants.milestoneIndex(normalized)
+        : milestones.indexOf(normalized);
+      if(idx < 0 || !sample.guard(idx)){
+        errors.push(`status ${status} normalized ${JSON.stringify(sample.label)} to out-of-range milestone ${normalized}`);
+      }
+    }
+  }
+  if(errors.length){
+    throw new Error(`[pipeline:status-milestone] ${errors.join('; ')}`);
+  }
+  console.log('[CHECK] pipeline:status-milestone ok');
+}
+
 const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
   'notifications:toggle-3x': runNotificationsToggleCheck,
-  'calendar:dnd': runCalendarDndCheck
+  'calendar:dnd': runCalendarDndCheck,
+  'pipeline:status-milestone': runPipelineStatusMilestoneCheck
 };
 
 function hasOwn(object, key) {
