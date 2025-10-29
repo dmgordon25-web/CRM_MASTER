@@ -14,7 +14,8 @@ const STYLE_ID = 'dash-layout-mode-style';
 const DASHBOARD_ROOT_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASH_LAYOUT_PREFIX = 'dash:layout';
 const RESET_STORAGE_KEYS = [ORDER_STORAGE_KEY, HIDDEN_STORAGE_KEY, MODE_STORAGE_KEY, ...LEGACY_ORDER_KEYS, ...LEGACY_HIDDEN_KEYS, ...LEGACY_MODE_KEYS];
-const RESET_OPTIONAL_KEYS = [LEGACY_WIDGET_ORDER_KEY];
+const DASHBOARD_ORDER_CACHE_KEY = 'crm:dashboard:widget-order';
+const RESET_OPTIONAL_KEYS = [LEGACY_WIDGET_ORDER_KEY, DASHBOARD_ORDER_CACHE_KEY];
 
 const DASHBOARD_WIDGETS = [
   { id: 'dashboard-focus', key: 'focus', label: 'Focus Summary' },
@@ -76,6 +77,16 @@ DASHBOARD_WIDGETS.forEach(widget => {
   ID_TO_KEY.set(id, key);
   ID_TO_KEY.set(id.toLowerCase(), key);
 });
+
+const DEFAULT_LAYOUT_COLUMNS = 3;
+const DEFAULT_LAYOUT_MODE = 'today';
+const CANONICAL_WIDGET_IDS = DASHBOARD_WIDGETS
+  .map(widget => normalizeId(widget.id))
+  .filter(Boolean);
+const CANONICAL_HIDDEN_IDS = DASHBOARD_WIDGETS
+  .filter(widget => widget && widget.defaultEnabled === false)
+  .map(widget => normalizeId(widget.id))
+  .filter(Boolean);
 
 const state = {
   wired: false,
@@ -283,6 +294,17 @@ function clearDashLayoutStorage(){
     catch (_err2){}
   });
   return removed;
+}
+
+function buildCanonicalWidgetPrefs(){
+  const prefs = {};
+  DASHBOARD_WIDGETS.forEach(widget => {
+    if(!widget || typeof widget !== 'object') return;
+    const key = widget.key == null ? '' : String(widget.key).trim();
+    if(!key) return;
+    prefs[key] = widget.defaultEnabled !== false;
+  });
+  return prefs;
 }
 
 function persistHiddenToSettings(hiddenSet){
@@ -845,6 +867,54 @@ export function resetDashboardLayoutState(options = {}){
     requestDashboardLayoutPass({ reason });
   }
   return { removedKeys };
+}
+
+export async function resetLayout(options = {}){
+  const reason = options.reason || 'layout-reset';
+  const wasEditing = !!state.layoutMode;
+  const removedKeys = clearDashLayoutStorage();
+  const hiddenSet = new Set(CANONICAL_HIDDEN_IDS);
+  applyDashboardHidden(hiddenSet, { persist: false, skipSettings: true });
+  const container = ensureContainer();
+  if(container){
+    prepareWidgets(container);
+    if(CANONICAL_WIDGET_IDS.length){
+      applyGridOrder(container, CANONICAL_WIDGET_IDS, ITEM_SELECTOR, getWidgetId);
+    }
+    applyVisibility(container);
+  }
+  state.orderSignature = computeOrderSignature(CANONICAL_WIDGET_IDS);
+  updateLayoutModeAttr();
+  ensureDrag();
+  if(state.drag && typeof state.drag.refresh === 'function'){
+    try{ state.drag.refresh(); }
+    catch (_err){}
+  }
+  try{ postLog('dash-layout-reset', { reason }); }
+  catch (_err){}
+  let settingsResult = null;
+  if(window && window.Settings && typeof window.Settings.save === 'function'){
+    const widgetPrefs = buildCanonicalWidgetPrefs();
+    const payload = {
+      dashboard: {
+        mode: DEFAULT_LAYOUT_MODE,
+        widgets: widgetPrefs,
+        layout: { columns: DEFAULT_LAYOUT_COLUMNS, widths: {} }
+      },
+      dashboardOrder: convertIdsToKeys(CANONICAL_WIDGET_IDS)
+    };
+    try{
+      settingsResult = await window.Settings.save(payload, { silent: true });
+    }catch (err){
+      if(console && console.warn) console.warn('[dashboard-layout] settings reset failed', err);
+    }
+  }
+  if(state.layoutMode !== wasEditing){
+    setDashboardLayoutMode(wasEditing, { persist: false, force: true, silent: true });
+  }else{
+    updateLayoutModeAttr();
+  }
+  return { removedKeys, settingsResult };
 }
 
 async function syncDashboardPrefsFromSettings(reason){
