@@ -2,6 +2,16 @@ const FLAG_MAP = new WeakMap();
 const STATE_MAP = new WeakMap();
 let GLOBAL_LISTENER_COUNT = 0;
 
+function detachFlag(container, key){
+  if(!container) return;
+  const flags = FLAG_MAP.get(container);
+  if(!flags) return;
+  flags.delete(key);
+  if(!flags.size){
+    FLAG_MAP.delete(container);
+  }
+}
+
 const DEBUG_DEFAULT = {
   columns: 0,
   widgets: [],
@@ -914,6 +924,63 @@ export function attachOnce(el, type, fn, flagKey){
   return true;
 }
 
+function destroyContainerState(container, state){
+  if(!container || !state) return false;
+  cancelDrag(state, false);
+  if(state.placeholder && state.placeholder.parentNode){
+    try{ state.placeholder.remove(); }
+    catch(_err){
+      try{ state.placeholder.parentNode.removeChild(state.placeholder); }
+      catch(_err2){}
+    }
+  }
+  state.placeholder = null;
+  state.placeholderIndex = -1;
+  state.targetIndex = 0;
+  state.itemsMeta = null;
+  state.metrics = null;
+  state.containerRect = null;
+  state.itemRect = null;
+  state.prevStyles = null;
+  state.pendingDrag = null;
+  if(state.gridOverlay){
+    try{ state.gridOverlay.remove(); }
+    catch(_err){
+      try{ state.gridOverlay.parentNode && state.gridOverlay.parentNode.removeChild(state.gridOverlay); }
+      catch(_err2){}
+    }
+    state.gridOverlay = null;
+  }
+  if(typeof container.removeEventListener === 'function' && state.onPointerDown){
+    try{ container.removeEventListener('pointerdown', state.onPointerDown); }
+    catch(_err){}
+    detachFlag(container, 'drag-core:pointerdown');
+    if(GLOBAL_LISTENER_COUNT > 0) GLOBAL_LISTENER_COUNT -= 1;
+  }
+  if(container.classList){
+    container.classList.remove('dash-dragging', 'dragging');
+  }
+  if(typeof container.removeAttribute === 'function'){
+    try{
+      if(container.getAttribute && container.getAttribute('data-dnd-bound') === '1'){
+        container.removeAttribute('data-dnd-bound');
+      }
+    }catch(_err){}
+  }
+  state.onPointerDown = null;
+  state.container = null;
+  state.enabled = false;
+  STATE_MAP.delete(container);
+  return true;
+}
+
+export function destroyDraggable(container){
+  if(!container) return false;
+  const state = STATE_MAP.get(container);
+  if(!state) return false;
+  return destroyContainerState(container, state);
+}
+
 export function makeDraggableGrid(options = {}){
   const container = options.container;
   if(!container) return null;
@@ -955,6 +1022,9 @@ export function makeDraggableGrid(options = {}){
     setGrid(gridOptions){
       state.gridOptions = gridOptions && typeof gridOptions === 'object' ? gridOptions : {};
       return controller;
+    },
+    destroy(){
+      return destroyDraggable(container);
     }
   };
   return controller;
@@ -970,5 +1040,7 @@ export function listenerCount(){
 
 makeDraggableGrid.listenerCount = listenerCount;
 makeDraggableList.listenerCount = listenerCount;
+makeDraggableGrid.destroy = destroyDraggable;
+makeDraggableList.destroy = destroyDraggable;
 
 export default makeDraggableGrid;

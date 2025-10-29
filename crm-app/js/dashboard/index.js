@@ -1,4 +1,4 @@
-import { makeDraggableGrid, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
+import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
 import { setDashboardLayoutMode, readStoredLayoutMode } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
@@ -209,11 +209,16 @@ const dashDnDState = {
   container: null,
   orderSignature: '',
   pointerHandlers: null,
+  active: false,
   columns: DASHBOARD_MIN_COLUMNS,
   pendingColumns: null,
   lastAppliedColumns: null,
   widths: new Map(),
-  resizeSession: null
+  resizeSession: null,
+  hostObserver: null,
+  hostObserverTarget: null,
+  hostNode: null,
+  lastTeardownReason: ''
 };
 
 const layoutToggleState = {
@@ -231,6 +236,137 @@ const pointerTapState = new Map();
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
 const DASHBOARD_SKIP_CLICK_WINDOW = 350;
+
+function exposeDashboardDnDHandlers() {
+  if (!win || typeof win !== 'object') return;
+  const api = {
+    ensure: ensureWidgetDnD,
+    teardown: reason => teardownWidgetDnD(reason || 'manual'),
+    destroy: reason => teardownWidgetDnD(reason || 'manual'),
+    destroyDraggable,
+    listenerCount,
+    cleanupPointerHandlers: () => cleanupPointerHandlersFor(dashDnDState.container),
+    observeHost: () => observeDashboardHost(dashDnDState.container),
+    get container() {
+      return dashDnDState.container;
+    },
+    get controller() {
+      return dashDnDState.controller;
+    },
+    get pointerHandlers() {
+      return dashDnDState.pointerHandlers;
+    },
+    get active() {
+      return !!dashDnDState.active;
+    },
+    get lastReason() {
+      return dashDnDState.lastTeardownReason || '';
+    },
+    state: dashDnDState
+  };
+  try {
+    win.__DASH_DND_HANDLERS__ = api;
+  } catch (_err) {}
+}
+
+function cleanupPointerHandlersFor(container) {
+  const handlers = dashDnDState.pointerHandlers;
+  const target = container && typeof container.removeEventListener === 'function'
+    ? container
+    : (dashDnDState.container && typeof dashDnDState.container.removeEventListener === 'function'
+      ? dashDnDState.container
+      : null);
+  if (target && handlers) {
+    try { target.removeEventListener('pointerdown', handlers.onPointerDown); } catch (_err) {}
+    try { target.removeEventListener('pointermove', handlers.onPointerMove); } catch (_err) {}
+    try { target.removeEventListener('pointerup', handlers.onPointerUp); } catch (_err) {}
+    try { target.removeEventListener('pointercancel', handlers.onPointerCancel); } catch (_err) {}
+    try { target.removeEventListener('keydown', handlers.onKeyDown); } catch (_err) {}
+    try { target.removeEventListener('click', handlers.onClick); } catch (_err) {}
+  }
+  dashDnDState.pointerHandlers = null;
+  pointerTapState.clear();
+  exposeDashboardDnDHandlers();
+}
+
+function disconnectDashboardHostObserver() {
+  if (dashDnDState.hostObserver) {
+    try { dashDnDState.hostObserver.disconnect(); } catch (_err) {}
+  }
+  dashDnDState.hostObserver = null;
+  dashDnDState.hostObserverTarget = null;
+  dashDnDState.hostNode = null;
+}
+
+function observeDashboardHost(container) {
+  if (!container) {
+    disconnectDashboardHostObserver();
+    return;
+  }
+  if (dashDnDState.hostNode === container && dashDnDState.hostObserver) return;
+  const Observer = (win && win.MutationObserver) || (typeof MutationObserver !== 'undefined' ? MutationObserver : null);
+  if (typeof Observer !== 'function') return;
+  disconnectDashboardHostObserver();
+  const observer = new Observer(() => {
+    if (dashDnDState.container !== container) return;
+    const connected = typeof container.isConnected === 'boolean'
+      ? container.isConnected
+      : (doc ? doc.contains(container) : true);
+    if (!connected) {
+      teardownWidgetDnD('host-removed');
+    }
+  });
+  try {
+    const parent = container.parentNode;
+    if (parent) {
+      observer.observe(parent, { childList: true });
+    }
+    const rootTarget = (doc && doc.body) || (doc && doc.documentElement) || (container.ownerDocument && container.ownerDocument.body) || parent;
+    if (rootTarget) {
+      observer.observe(rootTarget, { childList: true, subtree: true });
+    }
+    dashDnDState.hostObserver = observer;
+    dashDnDState.hostObserverTarget = parent || rootTarget || null;
+    dashDnDState.hostNode = container;
+  } catch (_err) {
+    try { observer.disconnect(); } catch (_err2) {}
+  }
+}
+
+function teardownWidgetDnD(reason) {
+  const container = dashDnDState.container;
+  if (dashDnDState.resizeSession) {
+    finishWidgetResize(null, false);
+  }
+  cleanupPointerHandlersFor(container);
+  const controller = dashDnDState.controller;
+  if (controller && typeof controller.destroy === 'function') {
+    try { controller.destroy(); } catch (_err) {}
+  }
+  if (container) {
+    try { destroyDraggable(container); } catch (_err) {}
+  }
+  dashDnDState.controller = null;
+  dashDnDState.container = null;
+  dashDnDState.active = false;
+  dashDnDState.lastTeardownReason = reason || '';
+  disconnectDashboardHostObserver();
+  celebrationsState.dndReady = false;
+  exposeDashboardDnDHandlers();
+}
+
+function handleDashboardAppNavigate(evt) {
+  const detail = evt && typeof evt === 'object' ? evt.detail : null;
+  const nextView = detail && typeof detail.view === 'string' ? detail.view : '';
+  if (nextView === 'dashboard') {
+    ensureWidgetDnD();
+    return;
+  }
+  if (!dashDnDState.container && !dashDnDState.pointerHandlers && !dashDnDState.controller) return;
+  teardownWidgetDnD('app:navigate');
+}
+
+exposeDashboardDnDHandlers();
 
 const celebrationsState = {
   node: null,
@@ -1942,6 +2078,7 @@ function wireTileTap(container) {
   container.addEventListener('keydown', onKeyDown);
   container.addEventListener('click', onClick);
   dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onKeyDown, onClick };
+  exposeDashboardDnDHandlers();
 }
 
 function persistDashboardOrder(orderLike) {
@@ -2008,23 +2145,31 @@ function ensureWidgetDnD() {
   const container = getDashboardContainerNode();
   if (!container) {
     celebrationsState.dndReady = false;
-    if (dashDnDState.resizeSession) finishWidgetResize(null, false);
+    teardownWidgetDnD('missing-container');
     return;
+  }
+  if (dashDnDState.container && dashDnDState.container !== container) {
+    teardownWidgetDnD('container-replaced');
   }
   if (typeof ensureLayoutToggle === 'function') {
     ensureLayoutToggle();
   }
   dashDnDState.container = container;
+  dashDnDState.lastTeardownReason = '';
   const columns = getPreferredLayoutColumns();
   dashDnDState.columns = columns;
   applyLayoutColumns(columns);
   const nodes = ensureDashboardWidgets(container);
   const hasNodes = Array.isArray(nodes) && nodes.length > 0;
   celebrationsState.dndReady = hasNodes;
+  dashDnDState.active = hasNodes;
+  observeDashboardHost(container);
   if (!hasNodes) {
     if (dashDnDState.controller && typeof dashDnDState.controller.disable === 'function') {
       dashDnDState.controller.disable();
     }
+    cleanupPointerHandlersFor(container);
+    exposeDashboardDnDHandlers();
     return;
   }
   if (dashDnDState.controller && typeof dashDnDState.controller.enable === 'function') {
@@ -2075,6 +2220,7 @@ function ensureWidgetDnD() {
     }
   }
   wireTileTap(container);
+  exposeDashboardDnDHandlers();
   if (celebrationsState.shouldRender) {
     if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
       celebrationsState.pendingHydration = false;
@@ -2670,6 +2816,7 @@ function init() {
   if (win) {
     win.addEventListener('hashchange', scheduleApply);
   }
+  doc.addEventListener('app:navigate', handleDashboardAppNavigate);
   doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
   doc.addEventListener('dashboard:layout-columns', handleLayoutColumnsChange);
   doc.addEventListener('app:data:changed', evt => {
