@@ -1185,8 +1185,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     renderPipelineFilterTag(stage);
   }
 
-  function setPipelineStageFilter(stage){
+  function setPipelineStageFilter(stage, options = {}){
     const normalized = normalizePipelineStage(stage);
+    const force = options && options.force === true;
+    if(!force && normalized === currentPipelineStageFilter){
+      return;
+    }
     currentPipelineStageFilter = normalized;
     if(activeView === 'pipeline'){
       applyPipelineStageFilterToDom(normalized);
@@ -1194,7 +1198,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function clearPipelineStageFilter(){
-    setPipelineStageFilter(null);
+    setPipelineStageFilter(null, { force: true });
     try {
       const baseHash = '#/pipeline';
       if(typeof window !== 'undefined' && window.location){
@@ -1230,15 +1234,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   }
 
-  function applyPipelineStageFilterFromHash(){
+  function applyPipelineStageFilterFromHash(options){
     const stage = parsePipelineStageFromHash();
-    setPipelineStageFilter(stage);
+    setPipelineStageFilter(stage, options);
   }
 
   function handlePipelineFilterEvent(evt){
     const detail = evt && evt.detail ? evt.detail : {};
     if(Object.prototype.hasOwnProperty.call(detail, 'stage')){
-      setPipelineStageFilter(detail.stage);
+      setPipelineStageFilter(detail.stage, { force: true });
     }else if(activeView === 'pipeline'){
       applyPipelineStageFilterToDom(currentPipelineStageFilter);
     }
@@ -1246,12 +1250,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function handlePipelineHashChange(){
     if(activeView !== 'pipeline') return;
-    applyPipelineStageFilterFromHash();
+    applyPipelineStageFilterFromHash({ force: true });
   }
 
   function reapplyPipelineFilterIfActive(){
     if(activeView !== 'pipeline') return;
-    applyPipelineStageFilterToDom(currentPipelineStageFilter);
+    applyPipelineStageFilterFromHash({ force: true });
   }
 
   window.addEventListener('pipeline:applyFilter', handlePipelineFilterEvent);
@@ -1262,7 +1266,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
   if(typeof document !== 'undefined'){
     document.addEventListener('app:data:changed', () => {
-      if(activeView === 'pipeline') applyPipelineStageFilterToDom(currentPipelineStageFilter);
+      if(activeView === 'pipeline') applyPipelineStageFilterFromHash({ force: true });
     });
   }
 
@@ -1370,7 +1374,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       root = document.getElementById('view-' + normalized) || null;
     }
     if(normalized === 'pipeline'){
-      applyPipelineStageFilterFromHash();
+      applyPipelineStageFilterFromHash({ force: true });
     }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
