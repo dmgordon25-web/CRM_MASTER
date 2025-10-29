@@ -237,9 +237,98 @@ async function runDashboardPersistenceResetCheck() {
   }
 }
 
+async function runNotificationsToggleCheck() {
+  let child;
+  let browser;
+  try {
+    child = startDevServer();
+    const { origin } = await waitForServer(child);
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+    await page.waitForFunction(() => {
+      return !!(window.Notifier && typeof window.Notifier.replace === 'function');
+    }, { timeout: 15000 });
+
+    const beforeOrder = await page.evaluate(() => {
+      try { window.localStorage?.clear(); }
+      catch (_) {}
+      const seed = [
+        { id: 'notif-toggle-1', ts: Date.now(), type: 'info', title: 'Toggle Check One', state: 'unread', meta: {} },
+        { id: 'notif-toggle-2', ts: Date.now() + 1, type: 'info', title: 'Toggle Check Two', state: 'unread', meta: {} }
+      ];
+      window.Notifier.replace(seed);
+      const current = window.Notifier.list({ includeArchived: true }) || [];
+      return current.map(item => item && item.id ? String(item.id) : '');
+    });
+
+    await page.click('#notif-bell');
+    await page.waitForSelector('[data-qa="notif-mark-all-read"]', { timeout: 5000 });
+    const toggleSelector = '[data-qa="notif-mark-all-read"]';
+    await page.click(toggleSelector);
+    await page.click(toggleSelector);
+    await page.click(toggleSelector);
+
+    await page.waitForFunction(() => {
+      const list = window.Notifier?.list?.({ includeArchived: true });
+      if (!Array.isArray(list) || !list.length) return false;
+      return list.every(item => item && item.state === 'read');
+    }, { timeout: 5000 });
+
+    const result = await page.evaluate(() => {
+      const list = window.Notifier?.list?.({ includeArchived: true }) || [];
+      const stored = window.localStorage?.getItem('notifications:queue') || '';
+      return {
+        count: list.length,
+        unread: list.filter(item => item && item.state !== 'read').length,
+        order: list.map(item => item && item.id ? String(item.id) : ''),
+        stored
+      };
+    });
+
+    if (result.count !== beforeOrder.length) {
+      throw new Error('Notification count changed after toggles');
+    }
+    if (result.unread !== 0) {
+      throw new Error('Unread notifications remain after toggles');
+    }
+    if (JSON.stringify(result.order) !== JSON.stringify(beforeOrder)) {
+      throw new Error('Notification order changed after toggles');
+    }
+
+    let parsed = [];
+    try {
+      parsed = JSON.parse(result.stored || '[]');
+    } catch (_) {
+      parsed = [];
+    }
+    if (!Array.isArray(parsed) || parsed.length !== beforeOrder.length) {
+      throw new Error('Persisted notification queue malformed after toggles');
+    }
+    const unreadPersisted = parsed.some(item => item && item.state !== 'read');
+    if (unreadPersisted) {
+      throw new Error('Persisted queue contains unread entries after toggles');
+    }
+
+    console.log('[CHECK] notifications:toggle-3x ok');
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    if (child) {
+      try { child.kill('SIGTERM'); }
+      catch (_) {}
+      try { await once(child, 'exit'); }
+      catch (_) {}
+    }
+  }
+}
+
 const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
-  'dashboard:persistence-reset': runDashboardPersistenceResetCheck
+  'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
+  'notifications:toggle-3x': runNotificationsToggleCheck
 };
 
 function hasOwn(object, key) {
