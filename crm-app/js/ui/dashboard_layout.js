@@ -20,10 +20,11 @@ const DASHBOARD_WIDGETS = [
   { id: 'dashboard-focus', key: 'focus', label: 'Focus Summary' },
   { id: 'dashboard-filters', key: 'filters', label: 'Filters' },
   { id: 'dashboard-kpis', key: 'kpis', label: 'KPIs' },
-  { id: 'dashboard-pipeline-overview', key: 'pipeline', label: 'Pipeline Overview' },
+  { id: 'dashboard-pipeline-overview', key: 'pipeline', label: 'Pipeline Overview', defaultEnabled: false },
   { id: 'dashboard-today', key: 'today', label: "Today's Work" },
-  { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard' },
-  { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals' },
+  { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard', defaultEnabled: false },
+  { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals', defaultEnabled: false },
+  { id: 'favorites-card', key: 'favorites', label: 'Favorites' },
   { id: 'goal-progress-card', key: 'goalProgress', label: 'Production Goals' },
   { id: 'numbers-portfolio-card', key: 'numbersPortfolio', label: 'Partner Portfolio' },
   { id: 'numbers-referrals-card', key: 'numbersReferrals', label: 'Referral Leaders' },
@@ -35,6 +36,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities' },
   { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar' },
   { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist' },
+  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)', defaultEnabled: false },
   { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' },
   { id: 'dashboard-status-stack', key: 'statusStack', label: 'Status Panels' }
 ];
