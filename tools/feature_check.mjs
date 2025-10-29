@@ -325,6 +325,114 @@ async function runNotificationsToggleCheck() {
   }
 }
 
+async function runPartnersReferralSortCheck() {
+  let child;
+  let browser;
+  try {
+    child = startDevServer();
+    const { origin } = await waitForServer(child);
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+
+    await page.evaluate(async () => {
+      if (typeof window.openDB !== 'function') {
+        throw new Error('openDB not available');
+      }
+      await window.openDB();
+      if (typeof window.dbClear === 'function') {
+        await window.dbClear('partners');
+        await window.dbClear('contacts');
+      }
+      const partners = [
+        { id: 'p-alpha', name: 'Alpha Realty', company: 'Alpha Co', email: 'alpha@example.com', phone: '555-1001', tier: 'Core' },
+        { id: 'p-beta', name: 'Beta Homes', company: 'Beta Collective', email: 'beta@example.com', phone: '555-1002', tier: 'Preferred' },
+        { id: 'p-gamma', name: 'Gamma Group', company: 'Gamma Group', email: 'gamma@example.com', phone: '555-1003', tier: 'Developing' }
+      ];
+      for (const partner of partners) {
+        if (typeof window.dbPut === 'function') {
+          await window.dbPut('partners', partner);
+        }
+      }
+      const contacts = [
+        { id: 'c-1', first: 'Avery', last: 'Funded', stage: 'Funded', status: 'client', loanAmount: 510000, buyerPartnerId: 'p-alpha' },
+        { id: 'c-2', first: 'Bailey', last: 'Active', stage: 'Processing', status: 'inprogress', loanAmount: 260000, buyerPartnerId: 'p-alpha' },
+        { id: 'c-3', first: 'Cameron', last: 'Funded', stage: 'Funded', status: 'client', loanAmount: 330000, buyerPartnerId: 'p-beta' },
+        { id: 'c-4', first: 'Dakota', last: 'Lost', stage: 'Lost', status: 'lost', loanAmount: 190000, buyerPartnerId: 'p-beta' },
+        { id: 'c-5', first: 'Emerson', last: 'Prospect', stage: 'Processing', status: 'inprogress', loanAmount: 420000, buyerPartnerId: 'p-gamma' }
+      ];
+      for (const contact of contacts) {
+        if (typeof window.dbPut === 'function') {
+          await window.dbPut('contacts', contact);
+        }
+      }
+      if (typeof window.renderPartners === 'function') {
+        await window.renderPartners();
+      }
+    });
+
+    const partnersUrl = new URL('#/partners', origin).toString();
+    await page.goto(partnersUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+    await page.waitForSelector('#tbl-partners tbody tr[data-partner-id]', { timeout: 5000 });
+
+    const rowCount = await page.$$eval('#tbl-partners tbody tr[data-partner-id]', (rows) => rows.length);
+    if (rowCount < 3) {
+      throw new Error('partners table did not render seeded rows');
+    }
+
+    await page.click('#tbl-partners thead button[data-key="volume"]');
+
+    await page.waitForFunction(() => {
+      const rows = Array.from(document.querySelectorAll('#tbl-partners tbody tr[data-partner-id]'));
+      if (rows.length < 2) return false;
+      const first = Number(rows[0].dataset.volume || 0);
+      const second = Number(rows[1].dataset.volume || 0);
+      return first >= second;
+    }, { timeout: 5000 });
+
+    const audit = await page.$$eval('#tbl-partners tbody tr[data-partner-id]', (rows) => rows.map((row) => ({
+      name: row.querySelector('[data-column="name"] .name-text')?.textContent?.trim() || '',
+      volume: Number(row.dataset.volume || 0),
+      volumeText: row.querySelector('[data-column="volume"]')?.textContent?.trim() || '',
+      conversionText: row.querySelector('[data-column="conversion"]')?.textContent?.trim() || ''
+    })));
+
+    if (!audit.length) {
+      throw new Error('no rows available for audit');
+    }
+
+    const firstVolume = audit[0].volume;
+    const lastVolume = audit[audit.length - 1].volume;
+    if (firstVolume < lastVolume) {
+      throw new Error('volume sort did not produce descending order');
+    }
+
+    const hasCurrency = audit.some((entry) => entry.volume > 0 && /^\$[0-9,.]+$/.test(entry.volumeText));
+    if (!hasCurrency) {
+      throw new Error('volume column missing currency formatting');
+    }
+
+    const hasPercent = audit.some((entry) => entry.volume > 0 && /%$/.test(entry.conversionText));
+    if (!hasPercent) {
+      throw new Error('conversion column missing percent formatting');
+    }
+
+    console.log('[CHECK] partners:referral-sort ok');
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    if (child) {
+      try { child.kill('SIGTERM'); }
+      catch (_) {}
+      try { await once(child, 'exit'); }
+      catch (_) {}
+    }
+  }
+}
+
 async function runCalendarDndCheck() {
   const vitestPath = path.join(process.cwd(), 'node_modules', 'vitest', 'vitest.mjs');
   const child = spawn(process.execPath, [vitestPath, 'run', 'tests/unit/calendar_dnd.spec.ts'], {
@@ -380,6 +488,7 @@ const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
   'notifications:toggle-3x': runNotificationsToggleCheck,
+  'partners:referral-sort': runPartnersReferralSortCheck,
   'calendar:dnd': runCalendarDndCheck,
   'pipeline:status-milestone': runPipelineStatusMilestoneCheck
 };

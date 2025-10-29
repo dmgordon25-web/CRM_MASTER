@@ -104,6 +104,21 @@ import { syncTableLayout } from './ui/table_layout.js';
   }
   function html(el, v){ if(el) el.innerHTML = v; }
   function money(n){ try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n||0)); }catch (_) { return '$'+(Number(n||0).toFixed(0)); } }
+  function percentValue(n){
+    try{
+      return new Intl.NumberFormat(undefined,{ style:'percent', maximumFractionDigits:0 }).format(Number(n||0));
+    }catch (_){
+      const numeric = Number(n||0);
+      if(!Number.isFinite(numeric)) return '0%';
+      return `${Math.round(numeric*100)}%`;
+    }
+  }
+  function integer(n){
+    const numeric = Number(n||0);
+    if(!Number.isFinite(numeric)) return '0';
+    try{ return numeric.toLocaleString(); }
+    catch (_){ return String(Math.round(numeric)); }
+  }
   function fullName(c){ return [c.first,c.last].filter(Boolean).join(' ') || c.name || '—'; }
   function safe(v){ return String(v==null?'':v).replace(/[&<>]/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch])); }
   function attr(v){ return String(v==null?'':v).replace(/[&<>"']/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch])); }
@@ -289,6 +304,7 @@ import { syncTableLayout } from './ui/table_layout.js';
   }
   const $ = (sel, root=document) => root.querySelector(sel);
   const $all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
 
   function ensureFavoriteColumn(table){
     if(!table || !table.tHead || !table.tHead.rows || !table.tHead.rows[0]) return;
@@ -957,12 +973,51 @@ import { syncTableLayout } from './ui/table_layout.js';
 
   ensureFavoriteToggleHandlers();
 
-  function renderPartnersTable(partners){
+  function buildPartnerValueStats(contacts){
+    const stats = new Map();
+    if(!Array.isArray(contacts)) return stats;
+    contacts.forEach(contact => {
+      if(!contact) return;
+      const ids = new Set();
+      [contact.buyerPartnerId, contact.listingPartnerId, contact.partnerId, contact.referralPartnerId]
+        .forEach(raw => {
+          if(raw == null) return;
+          const id = String(raw);
+          if(!id || id === NONE_PARTNER_ID) return;
+          ids.add(id);
+        });
+      if(!ids.size) return;
+      const stageValue = contact.stage || contact.status || '';
+      const stageKey = stageKeyFromLabel(stageValue);
+      const canonical = canonicalStage(stageKey) || canonicalStage(stageValue) || '';
+      const amount = Number(contact.loanAmount ?? contact.amount ?? 0) || 0;
+      ids.forEach(id => {
+        let entry = stats.get(id);
+        if(!entry){
+          entry = { total:0, funded:0, active:0, lost:0, volume:0 };
+          stats.set(id, entry);
+        }
+        entry.total += 1;
+        if(canonical === 'won'){
+          entry.funded += 1;
+          entry.volume += amount;
+        }else if(canonical === 'lost'){
+          entry.lost += 1;
+        }else{
+          entry.active += 1;
+        }
+      });
+    });
+    return stats;
+  }
+
+  function renderPartnersTable(partners, contacts){
     const table = document.getElementById('tbl-partners');
     if(table) ensureFavoriteColumn(table);
     const tbPartners = table && table.tBodies && table.tBodies[0] ? table.tBodies[0] : $('#tbl-partners tbody');
     if(!tbPartners) return;
     const favoriteState = ensureFavoriteState();
+    const metrics = buildPartnerValueStats(contacts||[]);
     const partnerRows = (partners||[]).map(p => {
       const pid = attr(p.id||'');
       const name = p.name || '—';
@@ -982,19 +1037,43 @@ import { syncTableLayout } from './ui/table_layout.js';
       const companyKey = attr(String(company||'').toLowerCase());
       const phoneKey = attr(String(phone||'').toLowerCase());
       const tierKey = attr(String(tier||'').toLowerCase());
-      const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('partner', p.id, isFavorite)}</td>`;
+      const stat = metrics.get(String(p.id||'')) || { total:0, funded:0, active:0, lost:0, volume:0 };
+      const totalReferrals = Number(stat.total || 0);
+      const fundedCount = Number(stat.funded || 0);
+      const activeCount = Number(stat.active || 0);
+      const volumeAmount = Number(stat.volume || 0);
+      const conversionRate = totalReferrals > 0 ? fundedCount / totalReferrals : 0;
+      const referralsLabel = integer(totalReferrals);
+      const fundedLabel = integer(fundedCount);
+      const activeLabel = integer(activeCount);
+      const volumeLabel = money(volumeAmount);
+      const conversionLabel = totalReferrals > 0 ? percentValue(conversionRate) : '—';
+      const favoriteCell = `<td class="favorite-cell" data-column="favorite">${renderFavoriteToggle('partner', p.id, isFavorite)}</td>`;
       const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
-      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}"${favoriteAttr}>
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
+      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}" data-referrals="${attr(String(totalReferrals))}" data-funded="${attr(String(fundedCount))}" data-active="${attr(String(activeCount))}" data-volume="${attr(String(volumeAmount))}" data-conversion="${attr(String(conversionRate))}"${favoriteAttr}>
+        <td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
         ${favoriteCell}
-        <td class="cell-edit" data-partner-id="${pid}"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
-        <td>${safe(company)}</td><td>${safe(email)}</td><td>${safe(phone)}</td><td>${safe(tier)}</td></tr>`;
+        <td class="cell-edit" data-partner-id="${pid}" data-column="name"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
+        <td data-column="company">${safe(company)}</td>
+        <td data-column="tier">${safe(tier)}</td>
+        <td class="numeric" data-column="referrals">${referralsLabel}</td>
+        <td class="numeric" data-column="funded">${fundedLabel}</td>
+        <td class="numeric" data-column="active">${activeLabel}</td>
+        <td class="numeric" data-column="volume">${volumeLabel}</td>
+        <td class="numeric" data-column="conversion">${conversionLabel}</td>
+        <td data-column="email">${safe(email)}</td>
+        <td data-column="phone">${safe(phone)}</td></tr>`;
     }).join('');
     renderTableBody(table, tbPartners, partnerRows);
     $all('#tbl-partners tbody tr').forEach(tr => {
-      const name = tr.children[1]?.textContent?.trim().toLowerCase();
-      if(name === 'none') tr.style.display = 'none';
+      const nameCell = tr.querySelector('[data-column="name"] .name-text');
+      const normalized = nameCell ? nameCell.textContent.trim().toLowerCase() : '';
+      if(normalized === 'none') tr.style.display = 'none';
     });
+    if(typeof window.ensureSortable === 'function'){
+      try{ window.ensureSortable('tbl-partners'); }
+      catch (_err){}
+    }
   }
 
   async function renderAll(){
@@ -1694,7 +1773,7 @@ import { syncTableLayout } from './ui/table_layout.js';
     }
 
     ensureKanbanStageAttributes();
-    renderPartnersTable(partners);
+    renderPartnersTable(partners, contacts);
 
     if(typeof window.applyFilters==='function'){
       try{ window.applyFilters(); }
@@ -1709,8 +1788,11 @@ import { syncTableLayout } from './ui/table_layout.js';
   window.renderAll = renderAll;
   window.renderPartners = async function(){
     await openDB();
-    const partners = await dbGetAll('partners');
-    renderPartnersTable(partners);
+    const [partners, contacts] = await Promise.all([
+      dbGetAll('partners'),
+      dbGetAll('contacts')
+    ]);
+    renderPartnersTable(partners, contacts);
     if(typeof window.applyFilters==='function'){
       try{ window.applyFilters(); }
       catch (err) { console && console.warn && console.warn('applyFilters', err); }
