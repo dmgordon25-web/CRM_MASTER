@@ -4,6 +4,7 @@ import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachStatusBanner } from './ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
+import { toastWarn } from './ui/toast_helpers.js';
 
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
@@ -1721,8 +1722,12 @@ export function initCalendar({ openDB, bus, services, mount }){
       const contactId = event.contactId ? String(event.contactId) : '';
       if(contactId){
         dispatchThroughBus(bus, 'calendar:event:open', { event, partnerId, contactId });
-        try{ openContactModal(contactId, { sourceHint: 'calendar:event' }); }
-        catch (_err){}
+        Promise.resolve(openContactModal(contactId, { sourceHint: 'calendar:event' }))
+          .catch((err) => {
+            try{ console && console.warn && console.warn('calendar contact open failed', err); }
+            catch(_warn){}
+            toastWarn('Unable to open contact');
+          });
         return;
       }
       if(partnerId){

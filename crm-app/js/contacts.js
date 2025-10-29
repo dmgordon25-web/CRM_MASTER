@@ -1,3 +1,4 @@
+import { ensureSingletonModal } from './ui/modal_singleton.js';
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
@@ -46,6 +47,113 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       catch(__err){}
     }
   };
+
+  const CONTACT_MODAL_KEY = 'contact-edit';
+  const INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
+
+  const normalizeContactId = (value)=>{
+    if(value == null) return '';
+    const raw = String(value).trim();
+    if(!raw) return '';
+    const token = raw.toLowerCase();
+    return INVALID_CONTACT_ID_TOKENS.has(token) ? '' : raw;
+  };
+
+  const resolveInvoker = (options)=>{
+    if(!options) return null;
+    if(options instanceof HTMLElement) return options;
+    if(options.trigger instanceof HTMLElement) return options.trigger;
+    if(options.currentTarget instanceof HTMLElement) return options.currentTarget;
+    if(options.target instanceof HTMLElement) return options.target;
+    return null;
+  };
+
+  function disableBodyScroll(){
+    if(typeof document === 'undefined') return ()=>{};
+    const body = document.body;
+    if(!body) return ()=>{};
+    const previousOverflow = body.style.overflow;
+    const previousPadding = body.style.paddingRight;
+    let appliedPadding = false;
+    try{
+      const scrollBarGap = window.innerWidth - document.documentElement.clientWidth;
+      if(scrollBarGap > 0){
+        body.style.paddingRight = `${scrollBarGap}px`;
+        appliedPadding = true;
+      }
+    }catch(_err){}
+    body.style.overflow = 'hidden';
+    body.dataset.contactModalScroll = '1';
+    return ()=>{
+      if(!body.dataset || body.dataset.contactModalScroll !== '1') return;
+      delete body.dataset.contactModalScroll;
+      body.style.overflow = previousOverflow;
+      if(appliedPadding){
+        body.style.paddingRight = previousPadding;
+      }
+    };
+  }
+
+  function generateContactId(seed){
+    const normalized = normalizeContactId(seed);
+    if(normalized) return normalized;
+    try{
+      if(typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function'){
+        return window.crypto.randomUUID();
+      }
+    }catch(_err){}
+    try{
+      if(typeof window !== 'undefined' && typeof window.uuid === 'function'){
+        return window.uuid();
+      }
+    }catch(_err){}
+    return `contact-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  }
+
+  function createContactDraft(seed){
+    const id = generateContactId(seed);
+    return {
+      id,
+      first:'',
+      last:'',
+      email:'',
+      phone:'',
+      address:'',
+      city:'',
+      state:'',
+      zip:'',
+      stage:'application',
+      stageEnteredAt:new Date().toISOString(),
+      status:'inprogress',
+      loanAmount:'',
+      rate:'',
+      fundedDate:'',
+      buyerPartnerId:null,
+      listingPartnerId:null,
+      lastContact:'',
+      referredBy:'',
+      notes:'',
+      contactType:'Borrower',
+      priority:'Warm',
+      leadSource:'',
+      communicationPreference:'Phone',
+      closingTimeline:'Ready Now',
+      loanPurpose:'Purchase',
+      loanProgram:'Conventional',
+      loanType:'Conventional',
+      propertyType:'Single-Family',
+      occupancy:'Primary Residence',
+      creditRange:'Unknown',
+      employmentType:'W-2',
+      docStage:'application-started',
+      pipelineMilestone:'Intro Call',
+      preApprovalExpires:'',
+      nextFollowUp:'',
+      secondaryEmail:'',
+      secondaryPhone:'',
+      missingDocs:''
+    };
+  }
 
   const noop = ()=>{};
   let refreshFollowUpSuggestion = noop;
@@ -309,24 +417,68 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
   function ensureModal(){
     let dlg = document.getElementById('contact-modal');
+    const tagModal = (node)=>{
+      if(!node) return node;
+      try{ node.setAttribute('data-modal-key', CONTACT_MODAL_KEY); }
+      catch(_err){}
+      if(node.dataset){
+        node.dataset.modalKey = CONTACT_MODAL_KEY;
+        if(!node.dataset.ui) node.dataset.ui = 'contact-modal';
+      }
+      if(!node.getAttribute('data-ui')){
+        try{ node.setAttribute('data-ui', 'contact-modal'); }
+        catch(_err){}
+      }
+      return node;
+    };
     if(!dlg){
       dlg = document.createElement('dialog');
       dlg.id = 'contact-modal';
       dlg.classList.add('record-modal');
       dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
+      tagModal(dlg);
       document.body.appendChild(dlg);
+    }else{
+      tagModal(dlg);
+      if(!dlg.parentNode && typeof document !== 'undefined' && document.body){
+        document.body.appendChild(dlg);
+      }
     }
     if(!dlg.__wired){
       dlg.__wired = true;
       const markClosed = ()=>{
-        try{ dlg.removeAttribute('open'); }catch (_){ }
-        try{ dlg.style.display='none'; }catch (_){ }
+        try{ dlg.removeAttribute('open'); }
+        catch (_){ }
+        try{ dlg.style.display='none'; }
+        catch (_){ }
+        if(dlg.dataset){
+          dlg.dataset.open = '0';
+          dlg.dataset.opening = '0';
+          dlg.dataset.sourceHint = '';
+          dlg.dataset.contactId = '';
+        }
+        try{ dlg.removeAttribute('data-source-hint'); }
+        catch(_err){}
+        if(typeof dlg.__contactScrollRestore === 'function'){
+          try{ dlg.__contactScrollRestore(); }
+          catch(_err){}
+          dlg.__contactScrollRestore = null;
+        }
+        const invoker = dlg.__contactInvoker;
+        dlg.__contactInvoker = null;
+        if(invoker && typeof invoker.focus === 'function'){
+          try{ invoker.focus({ preventScroll: true }); }
+          catch(_err){
+            try{ invoker.focus(); }
+            catch(__err){}
+          }
+        }
       };
       dlg.addEventListener('click', (e)=>{
         if(e.target.matches('[data-close]')){
           e.preventDefault();
           try{ dlg.close(); }
-          catch (_){ markClosed(); }
+          catch (_){ }
           markClosed();
         }
       });
@@ -336,9 +488,31 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     return dlg;
   }
 
-  window.renderContactModal = async function(contactId){
-    const dlg = ensureModal();
-    if(dlg.hasAttribute('open')){ try{ dlg.close(); }catch (_) {} }
+  window.renderContactModal = async function(contactId, rawOptions){
+    const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
+    const requestedId = normalizeContactId(options.contactId || contactId);
+    const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
+    const invoker = options.invoker instanceof HTMLElement
+      ? options.invoker
+      : resolveInvoker(options);
+
+    let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureModal());
+    base = base instanceof Promise ? await base : base;
+    if(!base) return null;
+
+    const dlg = base;
+    dlg.__contactInvoker = invoker || dlg.__contactInvoker || null;
+
+    if(dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function'){
+      try{ dlg.__contactScrollRestore(); }
+      catch(_err){}
+    }
+    dlg.__contactScrollRestore = disableBodyScroll();
+
+    if(dlg.hasAttribute('open')){
+      try{ dlg.close(); }
+      catch (_err){}
+    }
     dlg.style.display='block';
     let opened = false;
     if(typeof dlg.showModal === 'function'){
@@ -351,6 +525,18 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     }
     try{ dlg.setAttribute('open',''); }
     catch (_){ }
+
+    if(dlg.dataset){
+      dlg.dataset.open = '0';
+      dlg.dataset.opening = '1';
+      dlg.dataset.sourceHint = sourceHint || '';
+    }
+    if(sourceHint){
+      dlg.setAttribute('data-source-hint', sourceHint);
+    }else{
+      try{ dlg.removeAttribute('data-source-hint'); }
+      catch(_err){}
+    }
 
     const ensureModalAddButton = ()=>{
       const bodyHost = dlg.querySelector('.modal-body');
@@ -421,18 +607,32 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
     };
 
     await openDB();
+    let contactRecord = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
+      ? options.prefetchedRecord
+      : null;
+    if(!contactRecord && requestedId){
+      try{
+        contactRecord = await dbGet('contacts', requestedId);
+      }catch(err){
+        try{ console && console.warn && console.warn('contact load failed', err); }
+        catch(_warn){}
+        contactRecord = null;
+      }
+    }
+    if(requestedId && !contactRecord){
+      toastWarn('Contact not found');
+      closeDialog();
+      return null;
+    }
     const [contacts, partners] = await Promise.all([dbGetAll('contacts'), dbGetAll('partners')]);
-    const c = contacts.find(x=> String(x.id)===String(contactId)) || {
-      id: (window.uuid?uuid():String(Date.now())),
-      first:'', last:'', email:'', phone:'', address:'', city:'', state:'', zip:'',
-      stage:'application', stageEnteredAt:new Date().toISOString(), status:'inprogress', loanAmount:'', rate:'', fundedDate:'',
-      buyerPartnerId:null, listingPartnerId:null, lastContact:'', referredBy:'', notes:'',
-      contactType:'Borrower', priority:'Warm', leadSource:'', communicationPreference:'Phone',
-      closingTimeline:'Ready Now', loanPurpose:'Purchase', loanProgram:'Conventional', loanType:'Conventional',
-      propertyType:'Single-Family', occupancy:'Primary Residence', creditRange:'Unknown', employmentType:'W-2',
-      docStage:'application-started', pipelineMilestone:'Intro Call', preApprovalExpires:'', nextFollowUp:'',
-      secondaryEmail:'', secondaryPhone:'', missingDocs:''
-    };
+    const draft = createContactDraft(contactRecord?.id || requestedId);
+    const c = Object.assign(draft, contactRecord || {});
+    if(!c.stageEnteredAt){
+      c.stageEnteredAt = new Date().toISOString();
+    }
+    if(dlg.dataset){
+      dlg.dataset.contactId = String(c.id || '');
+    }
     const opts = partners.map(p=>{
       const id = escape(String(p.id));
       const name = escape(p.name||'—');
@@ -1845,7 +2045,13 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
       }
     }
     document.dispatchEvent(new CustomEvent('contact:modal:ready',{detail:{dialog:dlg, body}}));
-    try{ dlg.showModal(); }catch (_) { dlg.setAttribute('open',''); }
+    if(dlg.dataset){
+      dlg.dataset.open = '1';
+      dlg.dataset.opening = '0';
+    }
+    try{ dlg.showModal(); }
+    catch (_){ dlg.setAttribute('open',''); }
+    return dlg;
   };
 
   if(typeof window !== 'undefined' && typeof window.renderContactModal === 'function'){
@@ -1865,30 +2071,79 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 
 })();
 
-export function openContactModal(contactId, options){
-  const fn = (typeof window !== 'undefined' && typeof window.renderContactModal === 'function')
+let pendingContactOpen = null;
+
+export async function openContactModal(contactId, options){
+  const opener = (typeof window !== 'undefined' && typeof window.renderContactModal === 'function')
     ? window.renderContactModal
     : null;
-  if(!fn){
-    try{
-      console && console.warn && console.warn('renderContactModal unavailable', { contactId });
-    }catch(_err){}
+  if(!opener){
+    try{ console && console.warn && console.warn('renderContactModal unavailable', { contactId }); }
+    catch(_err){}
+    toastWarn('Contact editor unavailable');
     return null;
   }
-  try{
-    const result = fn(contactId, options);
-    if(result && typeof result.catch === 'function'){
-      result.catch(err => {
-        try{ console && console.warn && console.warn('openContactModal failed', err); }
-        catch(__err){}
-      });
-    }
-    return result;
-  }catch (err){
-    try{ console && console.warn && console.warn('openContactModal failed', err); }
-    catch(_err){}
+
+  const opts = options && typeof options === 'object' ? options : {};
+  const normalizedId = normalizeContactId(opts.contactId || contactId);
+  const allowAutoOpen = opts.allowAutoOpen === true;
+  const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
+  const invoker = resolveInvoker(opts);
+
+  if(!normalizedId && !allowAutoOpen){
+    toastWarn('Select a contact to open');
+    return null;
   }
-  return null;
+
+  const existing = typeof document !== 'undefined'
+    ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
+    : null;
+  if(existing && existing.dataset?.open === '1'){
+    const currentId = existing.dataset?.contactId
+      || existing.querySelector?.('#c-id')?.value?.trim()
+      || '';
+    if(!normalizedId || currentId === normalizedId){
+      if(invoker){ existing.__contactInvoker = invoker; }
+      const focusTarget = existing.querySelector?.('.dlg') || existing;
+      if(focusTarget && typeof focusTarget.focus === 'function'){
+        try{ focusTarget.focus({ preventScroll: true }); }
+        catch(_err){
+          try{ focusTarget.focus(); }
+          catch(__err){}
+        }
+      }
+      return existing;
+    }
+  }
+
+  if(pendingContactOpen){
+    if(pendingContactOpen.id === normalizedId){
+      return pendingContactOpen.promise;
+    }
+    return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
+  }
+
+  const mergedOptions = Object.assign({}, opts, {
+    contactId: normalizedId,
+    allowAutoOpen,
+    sourceHint,
+    invoker
+  });
+
+  const sequence = (async () => {
+    try{
+      const result = await opener(normalizedId || null, mergedOptions);
+      return result || null;
+    }catch (err){
+      try{ console && console.warn && console.warn('openContactModal failed', err); }
+      catch(_err){}
+      toastWarn('Unable to open contact');
+      return null;
+    }
+  })();
+
+  pendingContactOpen = { id: normalizedId, promise: sequence.finally(() => { pendingContactOpen = null; }) };
+  return pendingContactOpen.promise;
 }
 
 const ROW_BIND_ONCE = (typeof window !== 'undefined'
