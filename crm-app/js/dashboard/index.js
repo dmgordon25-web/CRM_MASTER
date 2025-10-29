@@ -4,6 +4,7 @@ import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
+import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -913,82 +914,100 @@ async function runCelebrationsHydration() {
   if (!node || !list) return;
   celebrationsState.hydrating = true;
   celebrationsState.pendingHydration = false;
+  let releaseLoadingBlock = null;
+  if (node) {
+    try {
+      attachLoadingBlock(node, { lines: 4, reserve: 'widget', minHeight: 220, message: 'Loading…', size: 'sm' });
+      releaseLoadingBlock = () => {
+        try { detachLoadingBlock(node); }
+        catch (_err) {}
+      };
+    } catch (_err) {
+      releaseLoadingBlock = null;
+    }
+  }
   if (statusBanner) {
     statusBanner.showLoading('Loading…');
   }
   let contacts = [];
-  if (win && typeof win.dbGetAll === 'function') {
-    try {
-      contacts = await win.dbGetAll('contacts');
-    } catch (err) {
-      contacts = [];
-      celebrationsState.hydrating = false;
-      celebrationsState.hydrated = false;
-      celebrationsState.lastError = err;
-      if (statusBanner) {
-        statusBanner.showError('We couldn’t load celebrations. Please try again.', {
-          onRetry: () => {
-            celebrationsState.lastError = null;
-            celebrationsState.dirty = true;
-            scheduleCelebrationsHydration();
-          }
-        });
-      }
-      return;
-    }
-  } else if (typeof window !== 'undefined' && typeof window.dbGetAll === 'function') {
-    try {
-      contacts = await window.dbGetAll('contacts');
-    } catch (err) {
-      contacts = [];
-      celebrationsState.hydrating = false;
-      celebrationsState.hydrated = false;
-      celebrationsState.lastError = err;
-      if (statusBanner) {
-        statusBanner.showError('We couldn’t load celebrations. Please try again.', {
-          onRetry: () => {
-            celebrationsState.lastError = null;
-            celebrationsState.dirty = true;
-            scheduleCelebrationsHydration();
-          }
-        });
-      }
-      return;
-    }
-  }
-  const today = new Date();
-  const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  let items = [];
   try {
-    items = await computeCelebrationItems(contacts, baseDate);
-  } catch (err) {
-    celebrationsState.hydrating = false;
-    celebrationsState.hydrated = false;
-    celebrationsState.lastError = err;
-    if (statusBanner) {
-      statusBanner.showError('We couldn’t process celebrations. Please try again.', {
-        onRetry: () => {
-          celebrationsState.lastError = null;
-          celebrationsState.dirty = true;
-          scheduleCelebrationsHydration();
+    if (win && typeof win.dbGetAll === 'function') {
+      try {
+        contacts = await win.dbGetAll('contacts');
+      } catch (err) {
+        contacts = [];
+        celebrationsState.hydrating = false;
+        celebrationsState.hydrated = false;
+        celebrationsState.lastError = err;
+        if (statusBanner) {
+          statusBanner.showError('We couldn’t load celebrations. Please try again.', {
+            onRetry: () => {
+              celebrationsState.lastError = null;
+              celebrationsState.dirty = true;
+              scheduleCelebrationsHydration();
+            }
+          });
         }
-      });
+        return;
+      }
+    } else if (typeof window !== 'undefined' && typeof window.dbGetAll === 'function') {
+      try {
+        contacts = await window.dbGetAll('contacts');
+      } catch (err) {
+        contacts = [];
+        celebrationsState.hydrating = false;
+        celebrationsState.hydrated = false;
+        celebrationsState.lastError = err;
+        if (statusBanner) {
+          statusBanner.showError('We couldn’t load celebrations. Please try again.', {
+            onRetry: () => {
+              celebrationsState.lastError = null;
+              celebrationsState.dirty = true;
+              scheduleCelebrationsHydration();
+            }
+          });
+        }
+        return;
+      }
     }
-    return;
-  }
-  if (!celebrationsState.shouldRender) {
+    const today = new Date();
+    const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let items = [];
+    try {
+      items = await computeCelebrationItems(contacts, baseDate);
+    } catch (err) {
+      celebrationsState.hydrating = false;
+      celebrationsState.hydrated = false;
+      celebrationsState.lastError = err;
+      if (statusBanner) {
+        statusBanner.showError('We couldn’t process celebrations. Please try again.', {
+          onRetry: () => {
+            celebrationsState.lastError = null;
+            celebrationsState.dirty = true;
+            scheduleCelebrationsHydration();
+          }
+        });
+      }
+      return;
+    }
+    if (!celebrationsState.shouldRender) {
+      celebrationsState.hydrating = false;
+      celebrationsState.items = items;
+      return;
+    }
     celebrationsState.hydrating = false;
-    celebrationsState.items = items;
-    return;
-  }
-  celebrationsState.hydrating = false;
-  celebrationsState.hydrated = true;
-  celebrationsState.dirty = false;
-  celebrationsState.lastError = null;
-  renderCelebrationsItems(items);
-  if (celebrationsState.pendingHydration || celebrationsState.dirty) {
-    celebrationsState.pendingHydration = false;
-    scheduleCelebrationsHydration();
+    celebrationsState.hydrated = true;
+    celebrationsState.dirty = false;
+    celebrationsState.lastError = null;
+    renderCelebrationsItems(items);
+    if (celebrationsState.pendingHydration || celebrationsState.dirty) {
+      celebrationsState.pendingHydration = false;
+      scheduleCelebrationsHydration();
+    }
+  } finally {
+    if (releaseLoadingBlock) {
+      releaseLoadingBlock();
+    }
   }
 }
 

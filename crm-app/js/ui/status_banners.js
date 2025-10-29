@@ -1,3 +1,5 @@
+import { createInlineLoader } from '../../components/Loaders/InlineLoader.js';
+
 const NOOP_MANAGER = {
   clear(){},
   showLoading(){},
@@ -60,10 +62,17 @@ export function attachStatusBanner(host, options = {}){
       }
     },
     showLoading(message = 'Loading…'){
-      const banner = root.ownerDocument ? root.ownerDocument.createElement('div') : document.createElement('div');
+      const doc = root.ownerDocument || document;
+      const banner = doc.createElement('div');
       banner.dataset.qa = 'loading';
       banner.className = 'status-banner status-banner-loading';
-      assignMessage(banner, message);
+      const loader = createInlineLoader({ document: doc, message, size: 'sm' });
+      if(loader){
+        loader.classList.add('status-banner-loader');
+        banner.appendChild(loader);
+      }else{
+        assignMessage(banner, message);
+      }
       if(root.classList){
         root.classList.add('is-loading');
       }

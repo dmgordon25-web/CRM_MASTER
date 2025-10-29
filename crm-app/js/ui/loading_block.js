@@ -1,3 +1,5 @@
+import { createInlineLoader } from '../../components/Loaders/InlineLoader.js';
+
 const DEFAULT_LINE_WIDTHS = [82, 64, 78, 58, 72];
 const DEFAULT_ROWS = 6;
 
@@ -9,6 +11,7 @@ function resolveNode(target){
 }
 
 function applyLineWidths(block, lines, widths){
+  if(!Number.isFinite(lines) || lines <= 0) return;
   for(let index = 0; index < lines; index += 1){
     const line = document.createElement('div');
     line.className = 'loading-line';
@@ -29,19 +32,79 @@ export function attachLoadingBlock(target, options = {}){
   if(typeof document === 'undefined') return null;
   const node = resolveNode(target);
   if(!node) return null;
-  if(node.__loadingBlock && node.__loadingBlock.block){
+  const prevState = node.__loadingBlock;
+  const doc = node.ownerDocument || document;
+  const hasReserveOption = Object.prototype.hasOwnProperty.call(options, 'reserve');
+  const hasMinHeightOption = Object.prototype.hasOwnProperty.call(options, 'minHeight');
+  const messageProvided = Object.prototype.hasOwnProperty.call(options, 'message');
+
+  if(prevState && prevState.block){
+    prevState.count = (prevState.count || 1) + 1;
+    if(messageProvided && typeof prevState.setMessage === 'function'){
+      prevState.setMessage(options.message);
+    }
+    if(hasReserveOption){
+      applyReserveOption(node, prevState, options.reserve);
+    }
+    if(hasMinHeightOption){
+      applyMinHeightOption(node, prevState, options.minHeight);
+    }
     node.classList.add('loading-host', 'is-loading');
-    return node.__loadingBlock.block;
+    node.setAttribute('aria-busy', 'true');
+    return prevState.block;
   }
-  const block = document.createElement('div');
+
+  const block = doc.createElement('div');
   block.className = 'loading-block';
   block.setAttribute('aria-hidden', 'true');
-  const lines = Number.isFinite(options.lines) ? Math.max(1, Math.floor(options.lines)) : DEFAULT_LINE_WIDTHS.length;
+
+  const loader = createInlineLoader({
+    message: messageProvided ? options.message : undefined,
+    size: options.size || 'md',
+    announce: false,
+  });
+  if(loader){
+    loader.classList.add('loading-block__loader');
+    block.appendChild(loader);
+  }
+
+  const lines = Number.isFinite(options.lines)
+    ? Math.max(0, Math.floor(options.lines))
+    : DEFAULT_LINE_WIDTHS.length;
   const widths = Array.isArray(options.widths) ? options.widths : null;
   applyLineWidths(block, lines, widths);
+
   node.classList.add('loading-host', 'is-loading');
+  node.setAttribute('aria-busy', 'true');
   node.insertBefore(block, node.firstChild || null);
-  node.__loadingBlock = { block };
+
+  const dataset = node && node.dataset ? node.dataset : null;
+  const hadReserve = dataset ? Object.prototype.hasOwnProperty.call(dataset, 'loadingReserve') : false;
+  const previousReserve = hadReserve ? dataset.loadingReserve : null;
+  const style = node && node.style ? node.style : null;
+  const previousMinHeight = style ? style.getPropertyValue('--loading-block-min-height') : '';
+
+  const state = {
+    block,
+    count: 1,
+    loader,
+    setMessage: loader && typeof loader.__setMessage === 'function' ? loader.__setMessage : null,
+    hadReserve,
+    previousReserve,
+    activeReserve: '',
+    hadMinHeight: Boolean(previousMinHeight && previousMinHeight.trim()),
+    previousMinHeight,
+    activeMinHeight: '',
+  };
+
+  if(hasReserveOption){
+    applyReserveOption(node, state, options.reserve);
+  }
+  if(hasMinHeightOption){
+    applyMinHeightOption(node, state, options.minHeight);
+  }
+
+  node.__loadingBlock = state;
   return block;
 }
 
@@ -51,15 +114,77 @@ export function detachLoadingBlock(target){
   if(!node) return;
   node.classList.remove('is-loading');
   const state = node.__loadingBlock;
-  if(state && state.block && state.block.parentNode === node){
+  if(!state) return;
+  const nextCount = Math.max(0, (state.count || 1) - 1);
+  state.count = nextCount;
+  if(nextCount > 0){
+    return;
+  }
+  if(state.block && state.block.parentNode === node){
     node.removeChild(state.block);
   }
-  if(state){
-    delete node.__loadingBlock;
+  const dataset = node && node.dataset ? node.dataset : null;
+  if(dataset){
+    if(state.hadReserve){
+      if(state.previousReserve != null && String(state.previousReserve).trim()){
+        dataset.loadingReserve = state.previousReserve;
+      }else{
+        delete dataset.loadingReserve;
+      }
+    }else{
+      delete dataset.loadingReserve;
+    }
   }
+  const style = node && node.style ? node.style : null;
+  if(style){
+    if(state.hadMinHeight && state.previousMinHeight && state.previousMinHeight.trim()){
+      style.setProperty('--loading-block-min-height', state.previousMinHeight);
+    }else{
+      style.removeProperty('--loading-block-min-height');
+    }
+  }
+  delete node.__loadingBlock;
+  node.removeAttribute('aria-busy');
   if(node.classList.contains('loading-host') && !node.querySelector(':scope > .loading-block')){
     node.classList.remove('loading-host');
   }
+}
+
+function applyReserveOption(node, state, reserve){
+  if(!state || !node) return;
+  const dataset = node && node.dataset ? node.dataset : null;
+  if(!dataset) return;
+  if(reserve && typeof reserve === 'string'){
+    dataset.loadingReserve = reserve;
+    state.activeReserve = reserve;
+  }else{
+    if(state.hadReserve){
+      if(state.previousReserve != null && String(state.previousReserve).trim()){
+        dataset.loadingReserve = state.previousReserve;
+      }else{
+        delete dataset.loadingReserve;
+      }
+    }else{
+      delete dataset.loadingReserve;
+    }
+    state.activeReserve = '';
+  }
+}
+
+function applyMinHeightOption(node, state, minHeight){
+  if(!state || !node || !node.style) return;
+  if(minHeight == null){
+    if(state.hadMinHeight && state.previousMinHeight && state.previousMinHeight.trim()){
+      node.style.setProperty('--loading-block-min-height', state.previousMinHeight);
+    }else{
+      node.style.removeProperty('--loading-block-min-height');
+    }
+    state.activeMinHeight = '';
+    return;
+  }
+  const value = typeof minHeight === 'number' ? `${minHeight}px` : String(minHeight);
+  node.style.setProperty('--loading-block-min-height', value);
+  state.activeMinHeight = value;
 }
 
 function pickColumnWidths(count){
