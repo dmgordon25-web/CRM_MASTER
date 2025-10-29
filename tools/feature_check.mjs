@@ -325,6 +325,116 @@ async function runNotificationsToggleCheck() {
   }
 }
 
+async function runCommsMissingHandlerCheck() {
+  let child;
+  let browser;
+  try {
+    child = startDevServer();
+    const { origin } = await waitForServer(child);
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+
+    await page.evaluate(() => {
+      window.__TOAST_LOG__ = [];
+      const record = (msg) => {
+        if(!Array.isArray(window.__TOAST_LOG__)){
+          window.__TOAST_LOG__ = [];
+        }
+        window.__TOAST_LOG__.push(String(msg ?? ''));
+      };
+      const patchToastApi = (api) => {
+        if(!api || typeof api !== 'object') return;
+        for(const key of ['info', 'show', 'success', 'warning']){
+          const original = api[key];
+          api[key] = function patchedToast(){
+            record(arguments[0]);
+            if(typeof original === 'function'){
+              try{ return original.apply(this, arguments); }
+              catch(_err){ }
+            }
+            return undefined;
+          };
+        }
+      };
+      if(!window.Toast){
+        window.Toast = {};
+      }
+      patchToastApi(window.Toast);
+      const originalToast = window.toast;
+      window.toast = function patchedToast(msg){
+        record(msg);
+        if(typeof originalToast === 'function'){
+          try{ return originalToast.apply(this, arguments); }
+          catch(_err){ }
+        }
+        return undefined;
+      };
+    });
+
+    const meta = await page.evaluate(async () => {
+      try {
+        await window.openDB();
+        const list = await window.dbGetAll('contacts');
+        const first = Array.isArray(list) ? list[0] : null;
+        if(!first || !first.id){
+          return { error: 'no contact records' };
+        }
+        await window.renderContactModal(first.id);
+        return { id: first.id };
+      } catch (err) {
+        return { error: err && err.message ? err.message : String(err) };
+      }
+    });
+    if(meta.error){
+      throw new Error(`Unable to open contact modal: ${meta.error}`);
+    }
+
+    await page.waitForSelector('[data-qa="modal-action-email"]', { timeout: 10000 });
+    await page.evaluate(() => {
+      if(window.CRM && typeof window.CRM === 'object'){
+        try{ delete window.CRM.resolveEmailHandler; }
+        catch(_err){ }
+        try{ delete window.CRM.resolveSmsHandler; }
+        catch(_err){ }
+      }
+    });
+
+    await page.click('[data-qa="modal-action-email"]');
+    await page.waitForFunction(() => Array.isArray(window.__TOAST_LOG__) && window.__TOAST_LOG__.length >= 1, { timeout: 5000 });
+
+    await page.click('[data-qa="modal-action-sms"]');
+    await page.waitForFunction(() => Array.isArray(window.__TOAST_LOG__) && window.__TOAST_LOG__.length >= 2, { timeout: 5000 });
+
+    const messages = await page.evaluate(() => Array.isArray(window.__TOAST_LOG__) ? window.__TOAST_LOG__.slice() : []);
+    if(messages.length < 2){
+      throw new Error('Toast log did not capture both messages');
+    }
+    const emailMessage = messages[0] || '';
+    const smsMessage = messages[1] || '';
+    const actionableRe = /Settings\s*→\s*Integrations/;
+    if(!/Email/i.test(emailMessage) || !actionableRe.test(emailMessage)){
+      throw new Error(`Email toast not actionable: ${emailMessage}`);
+    }
+    if(!/SMS/i.test(smsMessage) || !actionableRe.test(smsMessage)){
+      throw new Error(`SMS toast not actionable: ${smsMessage}`);
+    }
+
+    console.log('[CHECK] comms:missing-handler ok');
+  } finally {
+    if(browser){
+      await browser.close().catch(() => {});
+    }
+    if(child){
+      try { child.kill('SIGTERM'); }
+      catch(_err){ }
+      try { await once(child, 'exit'); }
+      catch(_err){ }
+    }
+  }
+}
+
 async function runPartnersReferralSortCheck() {
   let child;
   let browser;
@@ -488,6 +598,7 @@ const CHECKS = {
   'feature:avatar-persist': runDefaultFeatureCheck,
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
   'notifications:toggle-3x': runNotificationsToggleCheck,
+  'comms:missing-handler': runCommsMissingHandlerCheck,
   'partners:referral-sort': runPartnersReferralSortCheck,
   'calendar:dnd': runCalendarDndCheck,
   'pipeline:status-milestone': runPipelineStatusMilestoneCheck
