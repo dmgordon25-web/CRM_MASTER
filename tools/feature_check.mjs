@@ -435,6 +435,56 @@ async function runCommsMissingHandlerCheck() {
   }
 }
 
+async function runCommsAdapterFlagCheck() {
+  let child;
+  let browser;
+  try {
+    child = startDevServer();
+    const { origin } = await waitForServer(child);
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.__SPLASH_HIDDEN__, { timeout: 15000 });
+
+    const state = await page.evaluate(() => {
+      const keys = ['comms.adapter', 'commsAdapter', 'comms_adapter'];
+      const extract = (flags) => {
+        if (!flags || typeof flags !== 'object') return null;
+        for (const key of keys) {
+          if (Object.prototype.hasOwnProperty.call(flags, key)) {
+            return flags[key];
+          }
+        }
+        return null;
+      };
+      const ctxValue = extract(window?.CRM?.ctx?.featureFlags);
+      const legacyValue = extract(window.__FEATURES__);
+      const hasResolver = typeof window?.CRM?.resolveEmailHandler === 'function'
+        || typeof window?.CRM?.resolveSmsHandler === 'function';
+      return { ctxValue, legacyValue, hasResolver };
+    });
+
+    if (state.ctxValue || state.legacyValue) {
+      throw new Error('comms adapter flag should default to disabled');
+    }
+    if (state.hasResolver) {
+      throw new Error('comms adapter resolvers should be absent when flag is disabled');
+    }
+
+    console.log('[CHECK] comms:adapter-flag ok');
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    if (child) {
+      try { child.kill('SIGTERM'); }
+      catch (_) {}
+      try { await once(child, 'exit'); }
+      catch (_) {}
+    }
+  }
+}
+
 async function runPartnersReferralSortCheck() {
   let child;
   let browser;
@@ -599,6 +649,7 @@ const CHECKS = {
   'dashboard:persistence-reset': runDashboardPersistenceResetCheck,
   'notifications:toggle-3x': runNotificationsToggleCheck,
   'comms:missing-handler': runCommsMissingHandlerCheck,
+  'comms:adapter-flag': runCommsAdapterFlagCheck,
   'partners:referral-sort': runPartnersReferralSortCheck,
   'calendar:dnd': runCalendarDndCheck,
   'pipeline:status-milestone': runPipelineStatusMilestoneCheck
