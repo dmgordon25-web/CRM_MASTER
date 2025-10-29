@@ -1129,35 +1129,44 @@
      </div>
      <section class="card" id="reports-root"></section>
      <div class="card" style="margin-top:12px">
-     <h3>
-      Funded Deals in Range
-     </h3>
-     <div class="table-search">
-      <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals" type="search"/>
-     </div>
-     <table class="table" id="tbl-funded">
-       <thead>
-        <tr>
-         <th>
-          Name
-         </th>
-         <th>
-          Loan Type
-         </th>
-         <th>
-          Amount
-         </th>
-         <th>
-          Funded Date
-         </th>
-         <th>
-          Partner
-         </th>
-        </tr>
-       </thead>
-       <tbody>
-       </tbody>
-      </table>
+      <h3>
+       Funded Deals in Range
+      </h3>
+      <div class="table-search">
+       <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals" type="search"/>
+      </div>
+      <div class="table-wrap portfolio-table-wrap">
+       <table class="table portfolio-table" id="tbl-funded">
+        <colgroup>
+         <col class="portfolio-col-name"/>
+         <col class="portfolio-col-type"/>
+         <col class="portfolio-col-amount"/>
+         <col class="portfolio-col-date"/>
+         <col class="portfolio-col-partner"/>
+        </colgroup>
+        <thead>
+         <tr>
+          <th>
+           Name
+          </th>
+          <th>
+           Loan Type
+          </th>
+          <th>
+           Amount
+          </th>
+          <th>
+           Funded Date
+          </th>
+          <th>
+           Partner
+          </th>
+         </tr>
+        </thead>
+        <tbody>
+        </tbody>
+       </table>
+      </div>
      </div>
     </section>
     <section class="card" id="commissions-summary-card" style="margin-top:12px">
