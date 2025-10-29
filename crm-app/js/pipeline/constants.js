@@ -61,6 +61,7 @@ export const STAGE_ALIASES = Object.assign(
     'Long Shot': 'new',
     'Long-Shot': 'new',
     LongShot: 'new',
+    'long-shot': 'new',
     'long shot': 'new',
     longshot: 'new',
     lead: 'new',
@@ -87,6 +88,9 @@ export const STAGE_ALIASES = Object.assign(
     'Pre-Application': 'qualified',
     'Preapproval': 'qualified',
     'Pre-Approval': 'qualified',
+    'Docs Gathering': 'negotiating',
+    'Doc Gathering': 'negotiating',
+    'Docs-Gathering': 'negotiating',
     'Processing': 'negotiating',
     processing: 'negotiating',
     'Underwriting': 'negotiating',
@@ -110,6 +114,10 @@ export const STAGE_ALIASES = Object.assign(
     clients: 'won',
     closed: 'won',
     'Closed Won': 'won',
+    'post-close': 'won',
+    'Post Funded': 'won',
+    'Post-Funded': 'won',
+    'post-funded': 'won',
     won: 'won',
     // Lost / denied
     lost: 'lost',
@@ -122,6 +130,30 @@ export const STAGE_ALIASES = Object.assign(
     'Closed Lost': 'lost'
   }
 );
+
+export const DEFAULT_STAGE_FOLLOW_UP_DAYS = 3;
+
+export const STAGE_FOLLOW_UP_CADENCE_DAYS = Object.freeze({
+  qualified: 3, // Application
+  negotiating: 2, // Docs Gathering / Processing / Underwriting
+  clear_to_close: 1, // Cleared to Close
+  won: 14 // Post-Funded / Funded
+});
+
+export function followUpCadenceDaysForStage(stage) {
+  const raw = stage == null ? '' : String(stage).trim();
+  if (!raw) return DEFAULT_STAGE_FOLLOW_UP_DAYS;
+  const key = stageKeyFromLabel(raw);
+  const normalizedKey = key || raw.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(STAGE_FOLLOW_UP_CADENCE_DAYS, normalizedKey)) {
+    return STAGE_FOLLOW_UP_CADENCE_DAYS[normalizedKey];
+  }
+  const fallbackKey = raw.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(STAGE_FOLLOW_UP_CADENCE_DAYS, fallbackKey)) {
+    return STAGE_FOLLOW_UP_CADENCE_DAYS[fallbackKey];
+  }
+  return null;
+}
 
 export const PIPELINE_MILESTONES = Object.freeze([
   'Intro Call',
