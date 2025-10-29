@@ -325,6 +325,87 @@ const STATUS_MILESTONE_RULES = Object.freeze({
   default: { min: 0, max: PIPELINE_MILESTONES.length - 1, fallback: PIPELINE_MILESTONES[0] }
 });
 
+const STATUS_ALLOWED_MILESTONE_CACHE = new Map();
+const MILESTONE_ALLOWED_STATUS_CACHE = new Map();
+let STATUS_MILESTONE_CACHE_INITIALIZED = false;
+
+function buildStatusMilestoneCaches() {
+  if (STATUS_MILESTONE_CACHE_INITIALIZED) return;
+  STATUS_MILESTONE_CACHE_INITIALIZED = true;
+  STATUS_ALLOWED_MILESTONE_CACHE.clear();
+  MILESTONE_ALLOWED_STATUS_CACHE.clear();
+
+  const statusUniverse = new Set([
+    ...PIPELINE_STATUS_KEYS,
+    ...Object.keys(STATUS_MILESTONE_RULES)
+  ]);
+
+  statusUniverse.forEach((rawStatus) => {
+    const key = canonicalStatusKey(rawStatus);
+    if (!key) return;
+    const range = rangeForStatus(key);
+    const indices = new Set();
+    for (let idx = range.min; idx <= range.max; idx += 1) {
+      if (idx >= 0 && idx < PIPELINE_MILESTONES.length) indices.add(idx);
+    }
+    if (range.fallbackIndex >= 0 && range.fallbackIndex < PIPELINE_MILESTONES.length) {
+      indices.add(range.fallbackIndex);
+    }
+    if (!indices.size) {
+      for (let idx = 0; idx < PIPELINE_MILESTONES.length; idx += 1) indices.add(idx);
+    }
+    STATUS_ALLOWED_MILESTONE_CACHE.set(key, indices);
+    indices.forEach((idx) => {
+      const allowed = MILESTONE_ALLOWED_STATUS_CACHE.get(idx);
+      if (allowed) {
+        allowed.add(key);
+      } else {
+        MILESTONE_ALLOWED_STATUS_CACHE.set(idx, new Set([key]));
+      }
+    });
+  });
+
+  for (let idx = 0; idx < PIPELINE_MILESTONES.length; idx += 1) {
+    if (!MILESTONE_ALLOWED_STATUS_CACHE.has(idx)) {
+      MILESTONE_ALLOWED_STATUS_CACHE.set(idx, new Set(PIPELINE_STATUS_KEYS));
+    }
+  }
+}
+
+function statusAllowedMilestoneIndices(status) {
+  buildStatusMilestoneCaches();
+  const key = canonicalStatusKey(status);
+  const indices = STATUS_ALLOWED_MILESTONE_CACHE.get(key);
+  if (indices && indices.size) return Array.from(indices).sort((a, b) => a - b);
+  return PIPELINE_MILESTONES.map((_, idx) => idx);
+}
+
+function milestoneAllowedStatusKeys(milestone) {
+  buildStatusMilestoneCaches();
+  const idx = milestoneIndex(milestone);
+  if (idx < 0) return PIPELINE_STATUS_KEYS.slice();
+  const allowed = MILESTONE_ALLOWED_STATUS_CACHE.get(idx);
+  if (allowed && allowed.size) return Array.from(allowed);
+  return PIPELINE_STATUS_KEYS.slice();
+}
+
+function nearestAllowedMilestoneIndex(targetIndex, allowedIndices, fallbackIndex) {
+  const list = Array.isArray(allowedIndices) && allowedIndices.length ? allowedIndices : PIPELINE_MILESTONES.map((_, idx) => idx);
+  if (!list.length) return Math.max(0, Math.min(PIPELINE_MILESTONES.length - 1, fallbackIndex || 0));
+  if (targetIndex == null || Number.isNaN(targetIndex)) return list[0];
+  let best = list[0];
+  let bestDiff = Math.abs(best - targetIndex);
+  for (let i = 1; i < list.length; i += 1) {
+    const candidate = list[i];
+    const diff = Math.abs(candidate - targetIndex);
+    if (diff < bestDiff) {
+      best = candidate;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
 function rangeForStatus(status) {
   const key = canonicalStatusKey(status);
   const rule = STATUS_MILESTONE_RULES[key] || STATUS_MILESTONE_RULES.default;
@@ -342,11 +423,93 @@ export function milestoneRangeForStatus(status) {
 
 export function normalizeMilestoneForStatus(milestone, status) {
   const range = rangeForStatus(status);
+  const allowedIndices = statusAllowedMilestoneIndices(status);
+  const fallbackIndex = allowedIndices.includes(range.fallbackIndex)
+    ? range.fallbackIndex
+    : allowedIndices[0] ?? range.fallbackIndex;
   let idx = milestoneIndex(milestone);
-  if (idx < 0) idx = range.fallbackIndex;
+  if (idx < 0) {
+    idx = fallbackIndex;
+  } else if (!allowedIndices.includes(idx)) {
+    idx = nearestAllowedMilestoneIndex(idx, allowedIndices, fallbackIndex);
+  }
   if (idx < range.min) idx = range.min;
   if (idx > range.max) idx = range.max;
-  return PIPELINE_MILESTONES[idx] || PIPELINE_MILESTONES[range.fallbackIndex] || PIPELINE_MILESTONES[0];
+  const resolved = PIPELINE_MILESTONES[idx];
+  if (resolved) return resolved;
+  const fallback = PIPELINE_MILESTONES[fallbackIndex];
+  if (fallback) return fallback;
+  return PIPELINE_MILESTONES[0];
+}
+
+export function allowedMilestonesForStatus(status) {
+  const indices = statusAllowedMilestoneIndices(status);
+  return indices
+    .map((idx) => PIPELINE_MILESTONES[idx])
+    .filter((label, pos, arr) => typeof label === 'string' && label && arr.indexOf(label) === pos);
+}
+
+function sortStatuses(statuses) {
+  const order = new Map(PIPELINE_STATUS_KEYS.map((key, index) => [key, index]));
+  return statuses
+    .map((key) => canonicalStatusKey(key))
+    .filter((key) => key && (PIPELINE_STATUS_KEYS.includes(key) || STATUS_MILESTONE_RULES[key]))
+    .filter((key, index, list) => list.indexOf(key) === index)
+    .sort((a, b) => {
+      const aOrder = order.has(a) ? order.get(a) : Number.POSITIVE_INFINITY;
+      const bOrder = order.has(b) ? order.get(b) : Number.POSITIVE_INFINITY;
+      if (aOrder === bOrder) return a.localeCompare(b);
+      return aOrder - bOrder;
+    });
+}
+
+export function allowedStatusesForMilestone(milestone) {
+  const allowed = milestoneAllowedStatusKeys(milestone);
+  return sortStatuses(allowed);
+}
+
+export function normalizeStatusForMilestone(milestone, status, options = {}) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const stageStatuses = opts.stage != null ? new Set(allowedStatusesForStage(opts.stage)) : null;
+  const milestoneStatuses = new Set(allowedStatusesForMilestone(milestone));
+  const preferred = sortStatuses([
+    status,
+    opts.preferredStatus
+  ]);
+  const candidates = [];
+  preferred.forEach((key) => {
+    if (key && !candidates.includes(key)) candidates.push(key);
+  });
+  sortStatuses(Array.from(milestoneStatuses)).forEach((key) => {
+    if (!candidates.includes(key)) candidates.push(key);
+  });
+  if (stageStatuses && stageStatuses.size) {
+    sortStatuses(Array.from(stageStatuses)).forEach((key) => {
+      if (!candidates.includes(key)) candidates.push(key);
+    });
+  }
+  if (!candidates.includes('inprogress')) candidates.push('inprogress');
+
+  for (const candidate of candidates) {
+    const key = canonicalStatusKey(candidate);
+    if (!key) continue;
+    if (milestoneStatuses.size && !milestoneStatuses.has(key)) continue;
+    if (stageStatuses && stageStatuses.size && !stageStatuses.has(key)) continue;
+    if (!PIPELINE_STATUS_KEYS.includes(key)) continue;
+    return key;
+  }
+
+  if (stageStatuses && stageStatuses.size) {
+    const [first] = stageStatuses;
+    if (first) return canonicalStatusKey(first) || 'inprogress';
+  }
+  if (milestoneStatuses.size) {
+    const [first] = milestoneStatuses;
+    if (first) return canonicalStatusKey(first) || 'inprogress';
+  }
+  const fallback = canonicalStatusKey(status);
+  if (fallback && PIPELINE_STATUS_KEYS.includes(fallback)) return fallback;
+  return 'inprogress';
 }
 
 const STATUS_LOOKUP = new Map();

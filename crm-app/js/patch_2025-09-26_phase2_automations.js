@@ -83,7 +83,12 @@ function runPatch(){
       queueLoaded: false,
       processing: false,
       openTimelines: new Map(),
-      modalState: new Map()
+      modalState: new Map(),
+      seenKeys: new Set(),
+      transitionLocks: {
+        stage: new Map(),
+        status: new Map()
+      }
     };
 
     const changeScopes = [];
@@ -340,6 +345,10 @@ function runPatch(){
       try{ record = await dbGet('meta', QUEUE_META_ID); }
       catch (err) { console && console.warn && console.warn('load queue', err); }
       const items = Array.isArray(record && record.items) ? record.items : [];
+      const seenRaw = Array.isArray(record && record.seenKeys)
+        ? record.seenKeys
+        : (Array.isArray(record && record.seen) ? record.seen : []);
+      state.seenKeys = new Set((seenRaw || []).map((key)=> String(key || '')));
       state.queue.clear();
       for(const item of items){
         if(!item || !item.id) continue;
@@ -351,6 +360,10 @@ function runPatch(){
         if(normalized.completedAt) normalized.completedAt = Number(normalized.completedAt);
         if(normalized.canceledAt) normalized.canceledAt = Number(normalized.canceledAt);
         normalized.payload = normalized.payload && typeof normalized.payload === 'object' ? normalized.payload : {};
+        normalized.meta = normalized.meta && typeof normalized.meta === 'object' ? normalized.meta : {};
+        if(normalized.meta.dedupeKey){
+          state.seenKeys.add(String(normalized.meta.dedupeKey));
+        }
         normalized.label = normalized.label || normalized.type || 'Automation';
         state.queue.set(String(normalized.id), normalized);
       }
@@ -364,7 +377,7 @@ function runPatch(){
       const ordered = Array.from(state.queue.values()).sort((a,b)=>{
         return (a.runAt||0) - (b.runAt||0) || (a.createdAt||0) - (b.createdAt||0);
       });
-      const payload = { id: QUEUE_META_ID, items: ordered };
+      const payload = { id: QUEUE_META_ID, items: ordered, seenKeys: Array.from(state.seenKeys) };
       try{ await dbPut('meta', payload); }
       catch (err) { console && console.warn && console.warn('persist queue', err); }
     }
@@ -388,6 +401,10 @@ function runPatch(){
         const runAt = typeof runAtRaw === 'number' ? runAtRaw : Date.parse(runAtRaw);
         const ts = Number.isNaN(runAt) ? now : runAt;
         const typeKey = def.type;
+        const meta = def.meta && typeof def.meta === 'object' ? Object.assign({}, def.meta) : {};
+        const dedupeCandidate = def.dedupeKey || meta.dedupeKey || (meta.transitionKey ? `${contactId}:${typeKey}:${meta.transitionKey}` : null);
+        const dedupeKey = dedupeCandidate ? String(dedupeCandidate) : null;
+        if(dedupeKey && state.seenKeys.has(dedupeKey)) continue;
         const id = `${contactId}:${typeKey}:${ts}`;
         if(state.queue.has(id)) continue;
         const item = {
@@ -399,8 +416,12 @@ function runPatch(){
           status: 'queued',
           createdAt: now,
           label: def.label || typeKey,
-          meta: def.meta && typeof def.meta === 'object' ? def.meta : {}
+          meta
         };
+        if(dedupeKey){
+          item.meta.dedupeKey = dedupeKey;
+          state.seenKeys.add(dedupeKey);
+        }
         state.queue.set(id, item);
         added++;
       }
@@ -831,8 +852,17 @@ function runPatch(){
       await persistQueue();
     }
 
-    async function queueNewLead(contact){
+    async function queueNewLead(contact, options = {}){
       if(!contact || contact.pbNewLead === false) return;
+      const opts = options && typeof options === 'object' ? options : {};
+      const transitionKey = opts.transitionKey ? String(opts.transitionKey) : null;
+      const seed = opts.dedupeKey ? String(opts.dedupeKey) : (transitionKey ? `${contact.id}:newLead:${transitionKey}` : null);
+      const dedupeForType = (suffix)=>{
+        if(seed) return `${seed}:${suffix}`;
+        if(transitionKey) return `${contact.id}:${suffix}:${transitionKey}`;
+        return null;
+      };
+      const baseMeta = transitionKey ? { transitionKey } : {};
       const email = (contact.email || '').trim();
       const items = [];
       if(email){
@@ -845,7 +875,9 @@ function runPatch(){
             to: email,
             subject: template.subject,
             body: template.body
-          }
+          },
+          dedupeKey: dedupeForType('email'),
+          meta: Object.assign({}, baseMeta)
         });
       }
       const task = newLeadFollowupTask(contact);
@@ -856,14 +888,25 @@ function runPatch(){
         payload:{
           title: task.title,
           due: task.due
-        }
+        },
+        dedupeKey: dedupeForType('task'),
+        meta: Object.assign({}, baseMeta)
       });
       await enqueueItems(contact, items);
     }
 
-    async function queueStageMilestone(contact, stage){
+    async function queueStageMilestone(contact, stage, options = {}){
       if(!contact || contact.pbMilestones === false) return;
       const canonical = canonicalStage(stage || contact.stage);
+      const opts = options && typeof options === 'object' ? options : {};
+      const transitionKey = opts.transitionKey ? String(opts.transitionKey) : null;
+      const seed = opts.dedupeKey ? String(opts.dedupeKey) : (transitionKey ? `${contact.id}:${canonical || 'stage'}:${transitionKey}` : null);
+      const dedupeForType = (suffix)=>{
+        if(seed) return `${seed}:${suffix}`;
+        if(transitionKey) return `${contact.id}:${suffix}:${canonical || 'stage'}:${transitionKey}`;
+        return null;
+      };
+      const baseMeta = Object.assign({}, transitionKey ? { transitionKey } : {}, canonical ? { stage: canonical } : {});
       const items = [];
       const email = (contact.email || '').trim();
       const template = milestoneEmailTemplate(contact, canonical);
@@ -876,7 +919,9 @@ function runPatch(){
             to: email,
             subject: template.subject,
             body: template.body
-          }
+          },
+          dedupeKey: dedupeForType(`email:${canonical}`),
+          meta: Object.assign({}, baseMeta)
         });
       }
       const partnerIds = [contact.buyerPartnerId, contact.listingPartnerId]
@@ -898,7 +943,9 @@ function runPatch(){
             to: emailAddr,
             subject: tpl.subject,
             body: tpl.body
-          }
+          },
+          dedupeKey: dedupeForType(`partner:${partnerId}`),
+          meta: Object.assign({}, baseMeta, { partnerId })
         });
       }
       if(items.length){ await enqueueItems(contact, items); }
@@ -906,13 +953,26 @@ function runPatch(){
       await logHistory(contact.id, `Stage changed to ${label}`, 'stage');
     }
 
-    async function queuePostClose(contact){
+    async function queuePostClose(contact, options = {}){
       if(!contact || contact.pbPostClose === false) return;
       const fundedDate = contact.fundedDate || contact.closingDate;
       if(!fundedDate) return;
       const templates = postCloseTaskTemplates(contact, fundedDate);
       if(!templates.length) return;
-      await enqueueItems(contact, templates);
+      const opts = options && typeof options === 'object' ? options : {};
+      const transitionKey = opts.transitionKey ? String(opts.transitionKey) : null;
+      const seed = opts.dedupeKey ? String(opts.dedupeKey) : (transitionKey ? `${contact.id}:postClose:${transitionKey}` : null);
+      const dedupeForType = (suffix)=>{
+        if(seed) return `${seed}:${suffix}`;
+        if(transitionKey) return `${contact.id}:${suffix}:postClose:${transitionKey}`;
+        return null;
+      };
+      const baseMeta = transitionKey ? { transitionKey } : {};
+      const defs = templates.map((entry)=> Object.assign({}, entry, {
+        dedupeKey: dedupeForType(entry.type || entry.label || 'task'),
+        meta: Object.assign({}, baseMeta)
+      }));
+      await enqueueItems(contact, defs);
     }
 
     async function syncDocChecklist(contact){
@@ -983,7 +1043,11 @@ function runPatch(){
         const nextStage = canonicalStage(stage || contact.stage);
         if(prevStage === nextStage) return;
         upsertContact(contact);
-        document.dispatchEvent(new CustomEvent('stage:changed', {detail:{id:String(id), from:prevStage, to:nextStage}}));
+        const mapKey = String(id);
+        const knownTransition = detail && detail.transitionKey ? String(detail.transitionKey) : state.transitionLocks.stage.get(mapKey);
+        const transitionKey = knownTransition || `${mapKey}:${Date.now()}`;
+        state.transitionLocks.stage.set(mapKey, transitionKey);
+        document.dispatchEvent(new CustomEvent('stage:changed', {detail:{id:mapKey, from:prevStage, to:nextStage, transitionKey, isNew:detail && detail.isNew}}));
       });
     }
 
@@ -1003,13 +1067,18 @@ function runPatch(){
         const cachedMilestone = normalizeMilestoneForStatus(cached ? cached.pipelineMilestone : rawMilestone, statusForRange);
         if(cachedMilestone === targetMilestone) return;
       }
+      const mapKey = String(id);
+      const knownTransition = detail && detail.transitionKey ? String(detail.transitionKey) : state.transitionLocks.status.get(mapKey);
+      const transitionKey = knownTransition || `${mapKey}:${Date.now()}:${toStatus || 'status'}`;
+      state.transitionLocks.status.set(mapKey, transitionKey);
       document.dispatchEvent(new CustomEvent('status:changed', { detail: {
         id: String(id),
         contactId: String(id),
         from: fromStatus || null,
         to: toStatus || null,
         status: toStatus || null,
-        milestone: targetMilestone
+        milestone: targetMilestone,
+        transitionKey
       }}));
     }
 
@@ -1020,6 +1089,11 @@ function runPatch(){
       const toStage = canonicalStage(detail.to || contact.stage);
       const fromStage = detail.from ? canonicalStage(detail.from) : null;
       const skipDocSync = !!(detail && detail.isNew);
+      const mapKey = String(contact.id);
+      const knownTransition = detail && detail.transitionKey ? String(detail.transitionKey) : state.transitionLocks.stage.get(mapKey);
+      const transitionKey = knownTransition || `${mapKey}:${Date.now()}`;
+      state.transitionLocks.stage.set(mapKey, transitionKey);
+      const queueContext = { transitionKey };
       const baseDetail = {
         action:'stage',
         contactId:String(contact.id),
@@ -1033,13 +1107,13 @@ function runPatch(){
         upsertContact(contact);
         if(contact.pbMilestones !== false && ['application','underwriting','cleared-to-close','ctc','funded'].includes(toStage)){
           const stageKey = toStage==='ctc' ? 'cleared-to-close' : toStage;
-          await queueStageMilestone(contact, stageKey);
+          await queueStageMilestone(contact, stageKey, queueContext);
         }
         if(contact.pbPostClose !== false && toStage === 'funded' && contact.fundedDate){
-          await queuePostClose(contact);
+          await queuePostClose(contact, queueContext);
         }
         if(contact.pbNewLead !== false && (toStage === 'long-shot' || toStage === 'lead' || toStage === 'preapproved')){
-          if(!(detail && detail.isNew)) await queueNewLead(contact);
+          if(!(detail && detail.isNew)) await queueNewLead(contact, queueContext);
         }
         if(!skipDocSync){
           try{
@@ -1073,6 +1147,10 @@ function runPatch(){
       const normalizedStatus = normalizeStatusForStage(stageKey, requestedStatus);
       const finalStatus = canonicalStatusKey(normalizedStatus || requestedStatus || 'inprogress') || 'inprogress';
       const normalizedMilestone = normalizeMilestoneForStatus(detail.milestone || contact.pipelineMilestone, finalStatus);
+      const mapKey = String(contact.id);
+      const knownTransition = detail && detail.transitionKey ? String(detail.transitionKey) : state.transitionLocks.status.get(mapKey);
+      const transitionKey = knownTransition || `${mapKey}:${Date.now()}:${finalStatus}`;
+      state.transitionLocks.status.set(mapKey, transitionKey);
       const baseDetail = {
         action:'status',
         contactId:String(contact.id),
@@ -1103,7 +1181,7 @@ function runPatch(){
           recordChange({ action:'contact', contactId:String(contact.id), fields:['status','pipelineMilestone'] });
         }
         upsertContact(contact);
-      }, opts);
+      }, Object.assign({}, opts, { transitionKey }));
     }
 
     async function runStageAutomationsQuiet(input){
@@ -1134,7 +1212,7 @@ function runPatch(){
         created:true
       };
       await withChangeScope(baseDetail, async ()=>{
-        await queueNewLead(contact);
+        await queueNewLead(contact, { dedupeKey: `contact:create:${contact.id}` });
         try{
           const docResult = await syncDocChecklist(contact);
           if(docResult && docResult.created){
@@ -1200,7 +1278,8 @@ function runPatch(){
         const hadFundedDate = !!(prevRecord && prevRecord.fundedDate);
         const hasFundedDate = !!contact.fundedDate;
         if(!hadFundedDate && hasFundedDate && contact.pbPostClose !== false){
-          try{ await queuePostClose(contact); }
+          const transitionKey = `${id}:postClose:${contact.fundedDate || Date.now()}`;
+          try{ await queuePostClose(contact, { transitionKey, dedupeKey: transitionKey }); }
           catch (err) { console && console.warn && console.warn('queue post-close (funded date)', err); }
         }
       }
@@ -1210,7 +1289,10 @@ function runPatch(){
         document.dispatchEvent(new CustomEvent('contact:created',{detail:{id}}));
       }
       if(prevStage != null && prevStage !== newStage){
-        document.dispatchEvent(new CustomEvent('stage:changed',{detail:{id, from:prevStage, to:newStage, isNew}}));
+        const mapKey = String(id);
+        const transitionKey = `${mapKey}:${Date.now()}`;
+        state.transitionLocks.stage.set(mapKey, transitionKey);
+        document.dispatchEvent(new CustomEvent('stage:changed',{detail:{id, from:prevStage, to:newStage, isNew, transitionKey}}));
       }
     });
 
