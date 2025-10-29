@@ -9,6 +9,7 @@ const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== '
 const DOC = typeof document !== 'undefined' ? document : null;
 
 const MAX_VISIBLE_EVENTS_MONTH = 3;
+const DRAG_DISTANCE_THRESHOLD = 4;
 
 function isSafeModeActive(){
   if(GLOBAL && (GLOBAL.__SAFE_MODE__ === true || GLOBAL.__SAFE_MODE__ === 1 || GLOBAL.__SAFE_MODE__ === '1')) return true;
@@ -478,6 +479,75 @@ function normalizeSource(source){
   };
 }
 
+function isTruthyFlag(value){
+  if(value === true || value === 1) return true;
+  if(value === false || value === 0) return false;
+  if(typeof value === 'string'){
+    const text = value.trim().toLowerCase();
+    if(!text) return false;
+    if(text === 'true' || text === '1' || text === 'yes' || text === 'y') return true;
+    if(text === 'false' || text === '0' || text === 'no' || text === 'n') return false;
+  }
+  return false;
+}
+
+function isExplicitFalse(value){
+  if(value === false || value === 0) return true;
+  if(typeof value === 'string'){
+    const text = value.trim().toLowerCase();
+    if(text === 'false' || text === '0' || text === 'no' || text === 'n') return true;
+  }
+  return false;
+}
+
+function toRawEventCandidate(event){
+  if(!event || typeof event !== 'object') return null;
+  const raw = event.raw && typeof event.raw === 'object' ? event.raw : null;
+  return raw || event;
+}
+
+function isUserEventCandidate(raw){
+  if(!raw || typeof raw !== 'object') return false;
+  if(isTruthyFlag(raw.userEvent) || isTruthyFlag(raw.isUserEvent) || isTruthyFlag(raw.userCreated)) return true;
+  const type = raw.type ? String(raw.type).toLowerCase() : '';
+  const kind = raw.kind ? String(raw.kind).toLowerCase() : '';
+  const category = raw.category ? String(raw.category).toLowerCase() : '';
+  const sourceEntity = raw.source && typeof raw.source === 'object'
+    ? String(raw.source.entity || '').toLowerCase()
+    : '';
+  if(type === 'user' || type === 'user-event' || type === 'custom' || type === 'custom-event') return true;
+  if(kind === 'user' || kind === 'user-event') return true;
+  if(category === 'user' || category === 'custom') return true;
+  if(sourceEntity === 'user' || sourceEntity === 'user-event' || sourceEntity === 'custom-event') return true;
+  return false;
+}
+
+function isEventFixed(raw){
+  if(!raw || typeof raw !== 'object') return false;
+  if(
+    isTruthyFlag(raw.fixed)
+    || isTruthyFlag(raw.isFixed)
+    || isTruthyFlag(raw.locked)
+    || isTruthyFlag(raw.readOnly)
+    || isTruthyFlag(raw.immutable)
+    || isTruthyFlag(raw.preventDrag)
+    || isTruthyFlag(raw.preventMove)
+  ){
+    return true;
+  }
+  if(
+    raw.canMove === false
+    || raw.canDrag === false
+    || raw.movable === false
+    || raw.draggable === false
+    || raw.allowMove === false
+    || raw.allowDrag === false
+  ){
+    return true;
+  }
+  return false;
+}
+
 function normalizeEvent(raw, index){
   if(!raw) return null;
   const date = raw.date instanceof Date ? new Date(raw.date.getTime()) : parseDateInput(raw.date || raw.anchor || raw.startDate || raw.dueDate);
@@ -496,6 +566,10 @@ function normalizeEvent(raw, index){
   const contactName = raw.contactName ? String(raw.contactName) : '';
   const loanKey = raw.loanKey ? String(raw.loanKey) : '';
   const loanLabel = raw.loanLabel ? String(raw.loanLabel) : '';
+  const rawSource = toRawEventCandidate(raw);
+  const userEvent = isUserEventCandidate(rawSource) || isUserEventCandidate(raw);
+  const fixed = isEventFixed(rawSource) || isEventFixed(raw);
+  const draggable = !!(userEvent && !fixed && !isExplicitFalse(rawSource && rawSource.draggable) && !isExplicitFalse(raw.draggable));
   return {
     id: String(id),
     type,
@@ -522,21 +596,33 @@ function normalizeEvent(raw, index){
     icon: meta.icon,
     label: labelForEvent(raw),
     source: normalizeSource(raw.source),
+    raw: rawSource || null,
+    userEvent,
+    fixed,
+    draggable,
   };
+}
+
+function compareNormalizedEvents(a, b){
+  const timeDiff = a.date.getTime() - b.date.getTime();
+  if(timeDiff !== 0) return timeDiff;
+  if(a.hourSlot === 'all-day' && b.hourSlot !== 'all-day') return -1;
+  if(a.hourSlot !== 'all-day' && b.hourSlot === 'all-day') return 1;
+  if(typeof a.hour === 'number' && typeof b.hour === 'number' && a.hour !== b.hour) return a.hour - b.hour;
+  return a.title.localeCompare(b.title);
 }
 
 function normalizeEvents(list){
   return (Array.isArray(list) ? list : [])
     .map((item, index) => normalizeEvent(item, index))
     .filter(Boolean)
-    .sort((a, b) => {
-      const timeDiff = a.date.getTime() - b.date.getTime();
-      if(timeDiff !== 0) return timeDiff;
-      if(a.hourSlot === 'all-day' && b.hourSlot !== 'all-day') return -1;
-      if(a.hourSlot !== 'all-day' && b.hourSlot === 'all-day') return 1;
-      if(typeof a.hour === 'number' && typeof b.hour === 'number' && a.hour !== b.hour) return a.hour - b.hour;
-      return a.title.localeCompare(b.title);
-    });
+    .sort(compareNormalizedEvents);
+}
+
+function sortNormalizedEvents(list){
+  return (Array.isArray(list) ? list.slice() : [])
+    .filter(Boolean)
+    .sort(compareNormalizedEvents);
 }
 
 function cloneForApi(event){
@@ -559,7 +645,166 @@ function cloneForApi(event){
     timeLabel: event.timeLabel,
     allDay: event.allDay,
     color: event.color,
+    userEvent: !!event.userEvent,
+    fixed: !!event.fixed,
+    draggable: !!event.draggable,
   };
+}
+
+function cloneNormalizedEvent(event){
+  if(!event) return null;
+  return {
+    ...event,
+    date: event.date instanceof Date ? new Date(event.date.getTime()) : null,
+    source: event.source ? { ...event.source } : null,
+    raw: event.raw && typeof event.raw === 'object' ? { ...event.raw } : event.raw,
+  };
+}
+
+function createEventSnapshot(event){
+  if(!event) return null;
+  const date = event.date instanceof Date ? new Date(event.date.getTime()) : null;
+  const hour = typeof event.hour === 'number' ? event.hour : null;
+  const minute = typeof event.minute === 'number' ? event.minute : 0;
+  return {
+    date,
+    hourSlot: event.hourSlot,
+    hour,
+    minute,
+    allDay: !!event.allDay,
+  };
+}
+
+function snapshotsEqual(a, b){
+  if(!a || !b) return false;
+  if(!(a.date instanceof Date) || !(b.date instanceof Date)) return false;
+  if(a.date.getTime() !== b.date.getTime()) return false;
+  if(a.hourSlot !== b.hourSlot) return false;
+  if(a.hourSlot === 'all-day' || b.hourSlot === 'all-day') return true;
+  if(typeof a.hour === 'number' && typeof b.hour === 'number' && a.hour !== b.hour) return false;
+  if(typeof a.minute === 'number' && typeof b.minute === 'number' && a.minute !== b.minute) return false;
+  return true;
+}
+
+function buildEventDropUpdate(event, target){
+  if(!event || !target || !(target.date instanceof Date)) return null;
+  const nextDate = new Date(target.date.getTime());
+  let hourSlot = 'all-day';
+  let hour = null;
+  let minute = 0;
+  let allDay = true;
+  if(typeof target.hour === 'number' && Number.isFinite(target.hour)){
+    hourSlot = target.hour;
+    hour = target.hour;
+    minute = Number.isFinite(event.minute) ? event.minute : 0;
+    allDay = false;
+  }else if(event.hourSlot !== 'all-day' && typeof event.hour === 'number' && Number.isFinite(event.hour)){
+    hourSlot = event.hourSlot;
+    hour = event.hour;
+    minute = Number.isFinite(event.minute) ? event.minute : 0;
+    allDay = false;
+  }
+  if(allDay){
+    nextDate.setHours(0, 0, 0, 0);
+  }else{
+    nextDate.setHours(hour, minute, 0, 0);
+  }
+  const timeLabel = allDay ? 'All Day' : TIME_FORMAT.format(nextDate);
+  const raw = event.raw && typeof event.raw === 'object'
+    ? { ...event.raw, date: new Date(nextDate.getTime()) }
+    : event.raw;
+  return {
+    ...event,
+    date: nextDate,
+    hourSlot: allDay ? 'all-day' : hourSlot,
+    hour: allDay ? null : hour,
+    minute: allDay ? 0 : minute,
+    allDay,
+    timeLabel,
+    raw,
+  };
+}
+
+function selectEventPersistenceHandler(event, api){
+  const handlers = [];
+  const raw = event && typeof event.raw === 'object' ? event.raw : null;
+  if(raw){
+    const rawKeys = ['onReschedule', 'onMove', 'persist', 'save', 'update', 'updateDate', 'commit', 'handleMove'];
+    rawKeys.forEach((key) => {
+      const fn = raw[key];
+      if(typeof fn === 'function'){
+        handlers.push(fn.bind(raw));
+      }
+    });
+  }
+  const apiObject = api && typeof api === 'object' ? api : null;
+  if(apiObject){
+    const apiKeys = ['persistEventDate', 'updateEventDate', 'rescheduleEvent', 'moveEvent', 'saveEvent', 'updateEvent'];
+    apiKeys.forEach((key) => {
+      const fn = apiObject[key];
+      if(typeof fn === 'function'){
+        handlers.push(fn.bind(apiObject));
+      }
+    });
+  }
+  return handlers[0] || null;
+}
+
+async function invokePersistenceHandler(handler, payload){
+  if(typeof handler !== 'function') return undefined;
+  try{
+    let result;
+    if(handler.length >= 2){
+      result = handler(payload.date, payload);
+    }else{
+      result = handler(payload);
+    }
+    return await Promise.resolve(result);
+  }catch (err){
+    throw err;
+  }
+}
+
+async function persistEventDate(event, previous, next, options = {}){
+  const api = options.api ?? (GLOBAL && GLOBAL.CalendarAPI ? GLOBAL.CalendarAPI : null);
+  const handler = selectEventPersistenceHandler(event, api);
+  if(!handler){
+    return { ok: false, reason: 'no-handler' };
+  }
+  const previousSnapshot = previous ? {
+    date: previous.date instanceof Date ? new Date(previous.date.getTime()) : null,
+    hourSlot: previous.hourSlot,
+    hour: typeof previous.hour === 'number' ? previous.hour : null,
+    minute: typeof previous.minute === 'number' ? previous.minute : 0,
+    allDay: !!previous.allDay,
+  } : null;
+  const nextDate = next && next.date instanceof Date ? new Date(next.date.getTime()) : (event.date instanceof Date ? new Date(event.date.getTime()) : null);
+  const nextSnapshot = next ? {
+    date: nextDate,
+    hourSlot: next.hourSlot,
+    hour: typeof next.hour === 'number' ? next.hour : null,
+    minute: typeof next.minute === 'number' ? next.minute : 0,
+    allDay: !!next.allDay,
+  } : { date: nextDate, hourSlot: event.hourSlot, hour: event.hour, minute: event.minute, allDay: event.allDay };
+  const payload = {
+    id: event ? event.id : '',
+    event,
+    previous: previousSnapshot,
+    next: nextSnapshot,
+    date: nextDate,
+    iso: nextDate instanceof Date ? nextDate.toISOString() : '',
+    source: event && event.source ? { ...event.source } : null,
+    raw: event ? event.raw || null : null,
+  };
+  try{
+    const result = await invokePersistenceHandler(handler, payload);
+    if(result && typeof result === 'object' && Object.prototype.hasOwnProperty.call(result, 'ok')){
+      return { ok: !!result.ok, result };
+    }
+    return { ok: true, result };
+  }catch (error){
+    return { ok: false, error };
+  }
 }
 
 function createEventNode(event, handlers){
@@ -626,6 +871,15 @@ function createEventNode(event, handlers){
       open();
     }
   });
+
+  if(event.draggable){
+    try{ node.classList.add('is-draggable'); }
+    catch (_err){}
+    if(handlers && typeof handlers.bindEventDrag === 'function'){
+      try{ handlers.bindEventDrag(node, event); }
+      catch (_err){}
+    }
+  }
 
   return node;
 }
@@ -718,6 +972,21 @@ function createOverflowControl(events, cell, handlers){
 
   return button;
 }
+
+function ensureTestHooks(){
+  if(!GLOBAL || !GLOBAL.__CALENDAR_IMPL__ || !GLOBAL.__CALENDAR_IMPL__.__test__) return;
+  const testApi = GLOBAL.__CALENDAR_IMPL__.__test__;
+  if(typeof testApi.normalizeEvent !== 'function'){
+    testApi.normalizeEvent = (value, index = 0) => normalizeEvent(value, index);
+  }
+  testApi.createEventNode = (event, handlers = { onOpen(){}, bindEventDrag(){} }) => createEventNode(event, handlers);
+  testApi.persistEventDate = (event, previous, next, options) => persistEventDate(event, previous, next, options);
+  testApi.sortEvents = (list) => sortNormalizedEvents(list);
+  testApi.cloneEvent = (event) => cloneNormalizedEvent(event);
+  testApi.createEventSnapshot = (event) => createEventSnapshot(event);
+}
+
+ensureTestHooks();
 
 function renderLegend(){
   const container = DOC.createElement('div');
@@ -956,6 +1225,7 @@ function renderDayView(range, events, handlers){
   allDayRow.appendChild(allDayLabel);
   const allDaySlot = DOC.createElement('div');
   allDaySlot.className = 'calendar-day-slot';
+  allDaySlot.dataset.date = dayKey;
   if(isWeekend) allDaySlot.classList.add('is-weekend');
   if(isToday) allDaySlot.classList.add('is-today');
   dayEvents.filter((event) => event.hourSlot === 'all-day').forEach((event) => {
@@ -987,6 +1257,7 @@ function renderDayView(range, events, handlers){
     const slot = DOC.createElement('div');
     slot.className = 'calendar-day-slot';
     slot.dataset.hour = String(hour);
+    slot.dataset.date = dayKey;
     if(isWeekend) slot.classList.add('is-weekend');
     if(isToday) slot.classList.add('is-today');
     dayEvents.filter((event) => event.hourSlot === hour).forEach((event) => {
@@ -1171,6 +1442,278 @@ export function initCalendar({ openDB, bus, services, mount }){
   let controlsBound = false;
   let rendering = Promise.resolve();
 
+  const dragState = {
+    pointerId: null,
+    node: null,
+    event: null,
+    startX: 0,
+    startY: 0,
+    active: false,
+    ghost: null,
+    dropTarget: null,
+    preventClick: false,
+    restoreSelection: null,
+    originalEvent: null,
+    previousSnapshot: null,
+  };
+
+  function disableBodySelection(){
+    if(!DOC || !DOC.body) return () => {};
+    const body = DOC.body;
+    const prev = body.style.userSelect;
+    body.style.userSelect = 'none';
+    return () => {
+      try{ body.style.userSelect = prev; }
+      catch (_err){}
+    };
+  }
+
+  function clearDropTarget(){
+    if(dragState.dropTarget && dragState.dropTarget.element){
+      try{ dragState.dropTarget.element.classList.remove('calendar-drop-target'); }
+      catch (_err){}
+    }
+    dragState.dropTarget = null;
+  }
+
+  function setDropTarget(target){
+    if(target && dragState.dropTarget && target.element === dragState.dropTarget.element){
+      dragState.dropTarget = target;
+      return;
+    }
+    clearDropTarget();
+    if(target && target.element){
+      try{ target.element.classList.add('calendar-drop-target'); }
+      catch (_err){}
+      dragState.dropTarget = target;
+    }
+  }
+
+  function positionDragGhost(ghost, x, y){
+    if(!ghost || !ghost.style) return;
+    const offsetX = 12;
+    const offsetY = 12;
+    ghost.style.transform = `translate(${Math.round(x + offsetX)}px, ${Math.round(y + offsetY)}px)`;
+  }
+
+  function createDragGhost(node, event){
+    if(!DOC || !DOC.body) return null;
+    const ghost = DOC.createElement('div');
+    ghost.className = 'calendar-drag-ghost';
+    let labelText = event && event.title ? String(event.title) : 'Calendar Event';
+    if(node && typeof node.querySelector === 'function'){
+      const titleNode = node.querySelector('.event-chip-title');
+      if(titleNode && titleNode.textContent){
+        labelText = titleNode.textContent;
+      }
+    }
+    ghost.textContent = labelText;
+    if(node && typeof node.getBoundingClientRect === 'function'){
+      try{
+        const rect = node.getBoundingClientRect();
+        if(rect && Number.isFinite(rect.width)){
+          ghost.style.width = `${Math.max(40, Math.round(rect.width))}px`;
+        }
+      }catch (_err){}
+    }
+    DOC.body.appendChild(ghost);
+    positionDragGhost(ghost, dragState.startX, dragState.startY);
+    return ghost;
+  }
+
+  function findDropTarget(clientX, clientY){
+    if(!DOC || typeof DOC.elementFromPoint !== 'function') return null;
+    let node = DOC.elementFromPoint(clientX, clientY);
+    while(node){
+      if(node.dataset && node.dataset.date){
+        const parsedDate = parseDateInput(node.dataset.date);
+        if(parsedDate){
+          const info = { element: node, date: parsedDate };
+          if(node.dataset.hour != null){
+            const parsedHour = Number(node.dataset.hour);
+            if(Number.isFinite(parsedHour)) info.hour = parsedHour;
+          }
+          return info;
+        }
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function revertEventState(originalEvent){
+    if(!originalEvent) return;
+    const replacement = cloneNormalizedEvent(originalEvent);
+    const updated = state.events.map((item) => (item.id === replacement.id ? replacement : item));
+    state.events = sortNormalizedEvents(updated);
+    state.renderCount += 1;
+    state.loading = false;
+    renderSurface(mount, state, handlers);
+  }
+
+  function applyEventDrop(event, target, originalClone, previousSnapshot){
+    const currentEvent = event;
+    if(!currentEvent) return;
+    const updatedEvent = buildEventDropUpdate(currentEvent, target);
+    if(!updatedEvent) return;
+    const prevSnapshot = previousSnapshot || createEventSnapshot(originalClone || currentEvent);
+    const nextSnapshot = createEventSnapshot(updatedEvent);
+    if(prevSnapshot && nextSnapshot && snapshotsEqual(prevSnapshot, nextSnapshot)){
+      return;
+    }
+    const baseline = originalClone ? cloneNormalizedEvent(originalClone) : cloneNormalizedEvent(currentEvent);
+    const updatedList = state.events.map((item) => (item.id === updatedEvent.id ? updatedEvent : item));
+    state.events = sortNormalizedEvents(updatedList);
+    state.renderCount += 1;
+    state.loading = false;
+    renderSurface(mount, state, handlers);
+    persistEventDate(updatedEvent, prevSnapshot, nextSnapshot).then((result) => {
+      if(result && result.ok){
+        dispatchThroughBus(bus, 'calendar:event:moved', {
+          event: cloneForApi(updatedEvent),
+          previous: prevSnapshot,
+          next: nextSnapshot,
+        });
+      }else{
+        revertEventState(baseline);
+        const reason = result && (result.error || result.reason);
+        if(reason && typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+          console.warn('[soft] calendar event move failed', reason);
+        }
+      }
+    }).catch((error) => {
+      revertEventState(baseline);
+      if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+        console.warn('[soft] calendar event move failed', error);
+      }
+    });
+  }
+
+  function cleanupDrag(){
+    DOC.removeEventListener('pointermove', onDragMove);
+    DOC.removeEventListener('pointerup', onDragUp);
+    DOC.removeEventListener('pointercancel', onDragCancel);
+    clearDropTarget();
+    if(dragState.ghost && dragState.ghost.remove){
+      try{ dragState.ghost.remove(); }
+      catch (_err){}
+    }
+    if(dragState.node){
+      try{ dragState.node.classList.remove('is-dragging'); }
+      catch (_err){}
+      if(dragState.preventClick){
+        const suppress = (evt) => { evt.preventDefault(); evt.stopImmediatePropagation(); };
+        try{ dragState.node.addEventListener('click', suppress, { capture: true, once: true }); }
+        catch (_err){}
+      }
+      if(dragState.pointerId != null && dragState.node.releasePointerCapture){
+        try{ dragState.node.releasePointerCapture(dragState.pointerId); }
+        catch (_err){}
+      }
+    }
+    if(dragState.restoreSelection){
+      try{ dragState.restoreSelection(); }
+      catch (_err){}
+    }
+    dragState.pointerId = null;
+    dragState.node = null;
+    dragState.event = null;
+    dragState.startX = 0;
+    dragState.startY = 0;
+    dragState.active = false;
+    dragState.ghost = null;
+    dragState.dropTarget = null;
+    dragState.preventClick = false;
+    dragState.restoreSelection = null;
+    dragState.originalEvent = null;
+    dragState.previousSnapshot = null;
+  }
+
+  function onDragMove(evt){
+    if(evt.pointerId !== dragState.pointerId) return;
+    const dx = evt.clientX - dragState.startX;
+    const dy = evt.clientY - dragState.startY;
+    if(!dragState.active){
+      const distance = Math.sqrt((dx * dx) + (dy * dy));
+      if(distance < DRAG_DISTANCE_THRESHOLD) return;
+      dragState.active = true;
+      dragState.preventClick = true;
+      if(dragState.node){
+        try{ dragState.node.classList.add('is-dragging'); }
+        catch (_err){}
+      }
+      dragState.ghost = createDragGhost(dragState.node, dragState.event);
+    }
+    if(dragState.ghost){
+      positionDragGhost(dragState.ghost, evt.clientX, evt.clientY);
+    }
+    setDropTarget(findDropTarget(evt.clientX, evt.clientY));
+    if(dragState.active){
+      evt.preventDefault();
+    }
+  }
+
+  function finishDrag(commit){
+    const target = commit ? dragState.dropTarget : null;
+    const activeEvent = dragState.event ? cloneNormalizedEvent(dragState.event) : null;
+    const originalClone = dragState.originalEvent ? cloneNormalizedEvent(dragState.originalEvent) : null;
+    const previousSnapshot = dragState.previousSnapshot ? {
+      ...dragState.previousSnapshot,
+      date: dragState.previousSnapshot.date instanceof Date ? new Date(dragState.previousSnapshot.date.getTime()) : null,
+    } : null;
+    cleanupDrag();
+    if(!commit || !target || !activeEvent){
+      return;
+    }
+    applyEventDrop(activeEvent, target, originalClone, previousSnapshot);
+  }
+
+  function onDragUp(evt){
+    if(evt.pointerId !== dragState.pointerId) return;
+    finishDrag(true);
+  }
+
+  function onDragCancel(evt){
+    if(evt.pointerId !== dragState.pointerId) return;
+    finishDrag(false);
+  }
+
+  function beginEventDrag(evt, node, event){
+    if(!event || !event.draggable) return;
+    if(event.fixed) return;
+    if(evt.button != null && evt.button !== 0 && evt.pointerType !== 'touch' && evt.pointerType !== 'pen') return;
+    if(evt.pointerType === 'mouse' && evt.button !== 0) return;
+    if(dragState.pointerId !== null) return;
+    dragState.pointerId = evt.pointerId;
+    dragState.node = node;
+    dragState.event = event;
+    dragState.startX = evt.clientX;
+    dragState.startY = evt.clientY;
+    dragState.active = false;
+    dragState.ghost = null;
+    dragState.dropTarget = null;
+    dragState.preventClick = false;
+    dragState.restoreSelection = disableBodySelection();
+    dragState.originalEvent = cloneNormalizedEvent(event);
+    dragState.previousSnapshot = createEventSnapshot(event);
+    DOC.addEventListener('pointermove', onDragMove, { passive: false });
+    DOC.addEventListener('pointerup', onDragUp, { passive: false });
+    DOC.addEventListener('pointercancel', onDragCancel, { passive: false });
+    if(node && node.setPointerCapture){
+      try{ node.setPointerCapture(evt.pointerId); }
+      catch (_err){}
+    }
+  }
+
+  function bindDrag(node, event){
+    if(!node || !event || !event.draggable) return;
+    const onPointerDown = (evt) => {
+      if(state.safeMode) return;
+      beginEventDrag(evt, node, event);
+    };
+    node.addEventListener('pointerdown', onPointerDown);
+  }
+
   const handlers = {
     onOpen(event){
       if(!event) return;
@@ -1187,6 +1730,9 @@ export function initCalendar({ openDB, bus, services, mount }){
         try{ openPartnerEditModal(partnerId, { sourceHint: 'calendar:event' }); }
         catch (_err){}
       }
+    },
+    bindEventDrag(node, event){
+      bindDrag(node, event);
     },
   };
 
