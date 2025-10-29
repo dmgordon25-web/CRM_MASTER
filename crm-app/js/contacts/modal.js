@@ -1,3 +1,5 @@
+import { ensureCommsAdapter, isCommsAdapterEnabled } from '../services/comms_adapter.js';
+
 const STYLE_ID = 'modal-inline-actions-style';
 
 function ensureStyles(){
@@ -111,7 +113,11 @@ function resolveChannel(kind, context){
   const config = CHANNEL_CONFIG[kind];
   if(!config) return { handler:null, source:'none', reason:'handler-missing' };
   const crm = typeof window !== 'undefined' ? window.CRM : null;
-  const resolver = crm && typeof crm === 'object' ? crm[config.resolverKey] : null;
+  const adapterEnabled = isCommsAdapterEnabled();
+  if(adapterEnabled){
+    ensureCommsAdapter();
+  }
+  const resolver = adapterEnabled && crm && typeof crm === 'object' ? crm[config.resolverKey] : null;
   let reason = null;
   if(typeof resolver === 'function'){
     try{
