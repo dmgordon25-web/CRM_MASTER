@@ -155,8 +155,91 @@ async function runDefaultFeatureCheck() {
   }
 }
 
+function createMemoryStorage() {
+  const store = new Map();
+  return {
+    get length() {
+      return store.size;
+    },
+    key(index) {
+      if (!Number.isInteger(index) || index < 0 || index >= store.size) return null;
+      return Array.from(store.keys())[index] ?? null;
+    },
+    getItem(key) {
+      if (key == null) return null;
+      const value = store.get(String(key));
+      return value === undefined ? null : value;
+    },
+    setItem(key, value) {
+      store.set(String(key), String(value));
+    },
+    removeItem(key) {
+      store.delete(String(key));
+    },
+    clear() {
+      store.clear();
+    }
+  };
+}
+
+async function loadDashboardLayoutModule() {
+  const modulePath = new URL('../crm-app/js/ui/dashboard_layout.js', import.meta.url);
+  const cacheBuster = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return import(`${modulePath.href}?t=${cacheBuster}`);
+}
+
+async function runDashboardPersistenceResetCheck() {
+  globalThis.localStorage = createMemoryStorage();
+  globalThis.window = undefined;
+  globalThis.document = undefined;
+  try {
+    const loadModule = () => loadDashboardLayoutModule();
+    const first = await loadModule();
+    first.setDashboardLayoutMode(true);
+    if (globalThis.localStorage.getItem('dash:layoutMode:v1') !== '1') {
+      throw new Error('layout mode did not persist to storage');
+    }
+    first.applyDashboardHidden(new Set(['goal-progress-card']));
+    const hiddenRaw = globalThis.localStorage.getItem('dash:layout:hidden:v1');
+    if (!hiddenRaw || !hiddenRaw.includes('goal-progress-card')) {
+      throw new Error('hidden ids did not persist to storage');
+    }
+    const second = await loadModule();
+    if (!second.readStoredLayoutMode()) {
+      throw new Error('stored layout mode not restored');
+    }
+    const hiddenIds = second.readStoredHiddenIds();
+    if (!Array.isArray(hiddenIds) || hiddenIds.indexOf('goal-progress-card') === -1) {
+      throw new Error('stored hidden ids missing expected value');
+    }
+    const result = second.resetDashboardLayoutState({ skipLayoutPass: true });
+    if (!result || !Array.isArray(result.removedKeys)) {
+      throw new Error('reset did not report removed keys');
+    }
+    if (globalThis.localStorage.getItem('dash:layoutMode:v1') !== null) {
+      throw new Error('layout mode key not cleared');
+    }
+    if (globalThis.localStorage.getItem('dash:layout:hidden:v1') !== null) {
+      throw new Error('hidden key not cleared');
+    }
+    const third = await loadModule();
+    if (third.readStoredLayoutMode()) {
+      throw new Error('layout mode persisted after reset');
+    }
+    if (third.readStoredHiddenIds().length !== 0) {
+      throw new Error('hidden ids persisted after reset');
+    }
+    console.log('[CHECK] dashboard:persistence-reset ok');
+  } finally {
+    delete globalThis.localStorage;
+    delete globalThis.window;
+    delete globalThis.document;
+  }
+}
+
 const CHECKS = {
-  'feature:avatar-persist': runDefaultFeatureCheck
+  'feature:avatar-persist': runDefaultFeatureCheck,
+  'dashboard:persistence-reset': runDashboardPersistenceResetCheck
 };
 
 function hasOwn(object, key) {
@@ -179,8 +262,16 @@ const modulePath = fileURLToPath(import.meta.url);
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
 
 if (invokedPath === modulePath) {
+  const args = process.argv.slice(2);
+  let checkName = DEFAULT_CHECK;
+  const flagIndex = args.indexOf('--check');
+  if (flagIndex !== -1 && args[flagIndex + 1]) {
+    checkName = args[flagIndex + 1];
+  } else if (args.length > 0) {
+    checkName = args[0];
+  }
   try {
-    await runCheck(DEFAULT_CHECK);
+    await runCheck(checkName);
   } catch (err) {
     console.error(err && err.stack ? err.stack : String(err));
     process.exitCode = 1;

@@ -236,6 +236,15 @@ const pointerTapState = new Map();
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
 const DASHBOARD_SKIP_CLICK_WINDOW = 350;
+const POINTER_HANDLER_KEYS = ['onPointerDown', 'onPointerMove', 'onPointerUp', 'onPointerCancel', 'onKeyDown', 'onClick'];
+
+function countPointerHandlers() {
+  const handlers = dashDnDState.pointerHandlers;
+  if (!handlers || typeof handlers !== 'object') return 0;
+  return POINTER_HANDLER_KEYS.reduce((count, key) => {
+    return count + (typeof handlers[key] === 'function' ? 1 : 0);
+  }, 0);
+}
 
 function exposeDashboardDnDHandlers() {
   if (!win || typeof win !== 'object') return;
@@ -245,6 +254,7 @@ function exposeDashboardDnDHandlers() {
     destroy: reason => teardownWidgetDnD(reason || 'manual'),
     destroyDraggable,
     listenerCount,
+    handlerCount: () => countPointerHandlers(),
     cleanupPointerHandlers: () => cleanupPointerHandlersFor(dashDnDState.container),
     observeHost: () => observeDashboardHost(dashDnDState.container),
     get container() {
@@ -261,6 +271,9 @@ function exposeDashboardDnDHandlers() {
     },
     get lastReason() {
       return dashDnDState.lastTeardownReason || '';
+    },
+    get pointerHandlerCount() {
+      return countPointerHandlers();
     },
     state: dashDnDState
   };
