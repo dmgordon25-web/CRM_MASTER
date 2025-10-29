@@ -316,8 +316,8 @@ function ensurePlaceholder(state, item, rect){
     placeholder.setAttribute('aria-hidden', 'true');
     placeholder.setAttribute('data-qa', 'dnd-placeholder');
     placeholder.style.pointerEvents = 'none';
-    placeholder.style.display = 'block';
     placeholder.style.boxSizing = 'border-box';
+    placeholder.dataset.dndPlaceholder = '1';
     state.placeholder = placeholder;
   }
   if(rect){
@@ -332,7 +332,21 @@ function ensurePlaceholder(state, item, rect){
         placeholder.style.borderRadius = style.borderRadius;
       }catch (_err){}
     }
+    placeholder.style.minHeight = `${height}px`;
   }
+  const span = Math.max(1, state.placeholderSpan || 1);
+  if(state.placeholderGridColumn){
+    placeholder.style.gridColumn = state.placeholderGridColumn;
+  }else if(span > 1){
+    placeholder.style.gridColumn = `span ${span}`;
+  }else{
+    placeholder.style.gridColumn = '';
+  }
+  placeholder.style.gridColumnStart = state.placeholderGridColumnStart || '';
+  placeholder.style.gridColumnEnd = state.placeholderGridColumnEnd || '';
+  placeholder.style.gridRow = state.placeholderGridRow || '';
+  placeholder.style.gridRowStart = state.placeholderGridRowStart || '';
+  placeholder.style.gridRowEnd = state.placeholderGridRowEnd || '';
   return placeholder;
 }
 
@@ -347,7 +361,6 @@ function ensureGridOverlay(state){
   overlay.style.inset = '0';
   overlay.style.pointerEvents = 'none';
   overlay.style.zIndex = '0';
-  overlay.style.display = 'none';
   try{
     container.insertBefore(overlay, container.firstChild || null);
   }catch (_err){
@@ -368,8 +381,9 @@ function updateGridOverlayAppearance(state){
       }
     }catch (_err){}
   }
-  const metrics = state && state.metrics ? state.metrics : null;
+  const metrics = state && state.metrics ? state.metrics : (state && state.overlayMetrics ? state.overlayMetrics : deriveMetrics(state));
   if(metrics){
+    state.overlayMetrics = metrics;
     const stepX = Math.max(1, Math.round(metrics.stepX || metrics.colWidth || 1));
     const stepY = Math.max(1, Math.round(metrics.stepY || metrics.rowHeight || 1));
     const gap = Math.max(0, Math.round(metrics.gap || 0));
@@ -380,10 +394,53 @@ function updateGridOverlayAppearance(state){
   return overlay;
 }
 
-function removeGridOverlay(state){
-  if(state.gridOverlay){
-    state.gridOverlay.style.display = 'none';
+function syncOverlayVisibility(state){
+  if(!state || !state.container) return null;
+  const shouldShow = !!(state.dragging || state.editModeActive);
+  if(!shouldShow && !state.gridOverlay){
+    if(state.container.classList) state.container.classList.remove('dash-gridlines-visible');
+    return null;
   }
+  const overlay = ensureGridOverlay(state);
+  if(!overlay) return null;
+  const metrics = state.dragging ? state.metrics : (state.overlayMetrics || deriveMetrics(state));
+  if(metrics){
+    state.overlayMetrics = metrics;
+    const stepX = Math.max(1, Math.round(metrics.stepX || metrics.colWidth || 1));
+    const stepY = Math.max(1, Math.round(metrics.stepY || metrics.rowHeight || 1));
+    const gap = Math.max(0, Math.round(metrics.gap || 0));
+    overlay.style.setProperty('--dash-grid-step-x', String(stepX) + 'px');
+    overlay.style.setProperty('--dash-grid-step-y', String(stepY) + 'px');
+    overlay.style.setProperty('--dash-grid-gap', String(gap) + 'px');
+  }
+  if(overlay.classList){
+    if(state.dragging){
+      overlay.classList.add('dragging');
+    }else{
+      overlay.classList.remove('dragging');
+    }
+  }
+  if(state.container && state.container.classList){
+    if(shouldShow){
+      state.container.classList.add('dash-gridlines-visible');
+    }else{
+      state.container.classList.remove('dash-gridlines-visible');
+    }
+  }
+  return overlay;
+}
+
+function applyEditModeState(state, requested){
+  if(!state) return;
+  const desired = !!requested;
+  state.editModeRequested = desired;
+  const active = !!(state.enabled && desired);
+  if(state.editModeActive === active){
+    if(!state.dragging) syncOverlayVisibility(state);
+    return;
+  }
+  state.editModeActive = active;
+  if(!state.dragging) syncOverlayVisibility(state);
 }
 
 export function applyOrder(container, orderIds, itemSelector, idGetter){
@@ -490,6 +547,7 @@ function applyStoredOrder(state, options = {}){
     }
     state.appliedInitialOrder = true;
     updateDebugWidgets(state);
+    syncOverlayVisibility(state);
     return;
   }
   const signature = order.map(normalizeIdValue).filter(Boolean).join('|');
@@ -500,6 +558,7 @@ function applyStoredOrder(state, options = {}){
   }
   state.appliedInitialOrder = true;
   updateDebugWidgets(state);
+  syncOverlayVisibility(state);
 }
 function refreshItemsMeta(state){
   if(!state || !state.container) {
@@ -531,13 +590,32 @@ function refreshItemsMeta(state){
   return state.itemsMeta;
 }
 
+function clampIndexForSpan(index, columns, span, totalItems){
+  const safeColumns = Math.max(1, Number(columns) || 1);
+  const safeSpan = Math.max(1, Number(span) || 1);
+  let target = Math.max(0, Math.min(index, totalItems));
+  if(target >= totalItems) return totalItems;
+  const maxStart = Math.max(0, safeColumns - safeSpan);
+  const rowStart = Math.floor(target / safeColumns) * safeColumns;
+  const colOffset = target - rowStart;
+  if(colOffset > maxStart){
+    target = rowStart + maxStart;
+    if(target > totalItems) target = totalItems;
+  }
+  return target;
+}
+
 function movePlaceholder(state, index){
   const placeholder = state.placeholder;
   const container = state.container;
   if(!placeholder || !container) return;
   const items = collectItems(container, state.itemSelector).filter(el => el !== state.dragEl);
   const total = items.length;
-  const clamped = clamp(index, 0, total);
+  let clamped = clamp(index, 0, total);
+  const metrics = state.metrics || state.overlayMetrics || null;
+  if(metrics){
+    clamped = clampIndexForSpan(clamped, metrics.columns, state.placeholderSpan, total);
+  }
   if(state.placeholderIndex === clamped) return;
   const beforeNode = clamped >= total ? null : items[clamped];
   if(beforeNode){
@@ -552,7 +630,7 @@ function movePlaceholder(state, index){
 }
 
 function updatePlaceholderForPosition(state, x, y, clientX, clientY){
-  const metrics = state.metrics;
+  const metrics = state.metrics || deriveMetrics(state);
   if(!metrics) return;
   const containerRect = state.containerRect || (state.container && typeof state.container.getBoundingClientRect === 'function'
     ? state.container.getBoundingClientRect()
@@ -564,6 +642,8 @@ function updatePlaceholderForPosition(state, x, y, clientX, clientY){
     ? clientY
     : (containerRect.top + y + (state.grabOffsetY || 0));
   const itemsMeta = Array.isArray(state.itemsMeta) && state.itemsMeta.length ? state.itemsMeta : null;
+  const columns = Math.max(1, metrics.columns || 1);
+  const span = Math.max(1, state.placeholderSpan || 1);
   if(itemsMeta){
     let index = itemsMeta.length;
     const gapAllowance = Math.max(metrics.gap || 0, 0);
@@ -581,10 +661,9 @@ function updatePlaceholderForPosition(state, x, y, clientX, clientY){
         break;
       }
     }
-    movePlaceholder(state, index);
+    movePlaceholder(state, clampIndexForSpan(index, columns, span, itemsMeta.length));
     return;
   }
-  const columns = Math.max(1, metrics.columns || 1);
   const stepX = metrics.stepX || 1;
   const stepY = metrics.stepY || 1;
   const localX = pointerClientX - containerRect.left;
@@ -596,6 +675,7 @@ function updatePlaceholderForPosition(state, x, y, clientX, clientY){
   if(row > maxRow) row = maxRow;
   let index = row * columns + col;
   if(index > totalItems) index = totalItems;
+  index = clampIndexForSpan(index, columns, span, totalItems);
   movePlaceholder(state, index);
 }
 
@@ -639,6 +719,7 @@ function finishDrag(state, commit){
   }
   dragEl.style.transform = '';
   restoreStyles(dragEl, state.prevStyles);
+  if(dragEl.classList) dragEl.classList.remove('dash-drag-ghost');
   if(state.container && state.containerPositionSet){
     state.container.style.position = state.prevContainerPosition || '';
   }
@@ -649,6 +730,13 @@ function finishDrag(state, commit){
   }
   state.placeholder = null;
   state.placeholderIndex = -1;
+  state.placeholderSpan = 1;
+  state.placeholderGridColumn = '';
+  state.placeholderGridColumnStart = '';
+  state.placeholderGridColumnEnd = '';
+  state.placeholderGridRow = '';
+  state.placeholderGridRowStart = '';
+  state.placeholderGridRowEnd = '';
   if(!commit && Array.isArray(state.startOrder) && state.startOrder.length){
     reorderFromOrder(state, state.startOrder, state.startOrder.join('|'));
   }
@@ -666,6 +754,7 @@ function finishDrag(state, commit){
   state.upListener = null;
   state.restoreSelection = null;
   state.prevStyles = null;
+  state.overlayMetrics = state.metrics || state.overlayMetrics || null;
   state.metrics = null;
   state.containerRect = null;
   state.itemRect = null;
@@ -676,11 +765,7 @@ function finishDrag(state, commit){
   if(state.container && state.container.classList){
     state.container.classList.remove('dash-dragging', 'dragging');
   }
-  if(state.gridOverlay){
-    state.gridOverlay.style.display = 'none';
-    if(state.gridOverlay.classList) state.gridOverlay.classList.remove('dragging');
-  }
-  removeGridOverlay(state);
+  syncOverlayVisibility(state);
   state.itemsMeta = null;
 }
 
@@ -731,13 +816,47 @@ function beginGridDrag(state, item, evt){
   state.targetIndex = state.startIndex;
   state.itemRect = itemRect;
   state.metrics = deriveMetrics(state, itemRect);
+  state.overlayMetrics = state.metrics;
   state.containerRect = state.metrics.containerRect;
   state.elemStartX = itemRect.left - state.containerRect.left;
   state.elemStartY = itemRect.top - state.containerRect.top;
   state.originX = evt.clientX;
   state.originY = evt.clientY;
   refreshItemsMeta(state);
-  state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow','opacity']);
+  state.prevStyles = rememberStyles(item, ['position','left','top','width','height','margin','transition','pointerEvents','zIndex','willChange','boxShadow','opacity','gridColumn','gridColumnStart','gridColumnEnd','gridRow','gridRowStart','gridRowEnd']);
+  let computedStyle = null;
+  if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
+    try{
+      computedStyle = window.getComputedStyle(item);
+    }catch (_err){
+      computedStyle = null;
+    }
+  }
+  let spanMatch = null;
+  if(state.prevStyles.gridColumn){
+    spanMatch = state.prevStyles.gridColumn.match(/span\s+(\d+)/i);
+  }
+  if(!spanMatch && computedStyle && typeof computedStyle.gridColumnEnd === 'string'){
+    spanMatch = computedStyle.gridColumnEnd.match(/span\s+(\d+)/i);
+  }
+  if(!spanMatch && computedStyle && typeof computedStyle.gridColumn === 'string'){
+    spanMatch = computedStyle.gridColumn.match(/span\s+(\d+)/i);
+  }
+  let placeholderSpan = spanMatch ? Number.parseInt(spanMatch[1], 10) : NaN;
+  if(!Number.isFinite(placeholderSpan) || placeholderSpan <= 0){
+    const metrics = state.metrics;
+    const stepX = metrics ? (metrics.stepX || metrics.colWidth || 1) : 1;
+    const gap = metrics ? (metrics.gap || 0) : 0;
+    placeholderSpan = Math.max(1, Math.round((itemRect.width + gap) / Math.max(1, stepX)));
+  }
+  const maxColumns = state.metrics && state.metrics.columns ? Math.max(1, state.metrics.columns) : placeholderSpan;
+  state.placeholderSpan = clamp(placeholderSpan, 1, maxColumns);
+  state.placeholderGridColumn = state.prevStyles.gridColumn || (state.placeholderSpan > 1 ? `span ${state.placeholderSpan}` : '');
+  state.placeholderGridColumnStart = state.prevStyles.gridColumnStart || '';
+  state.placeholderGridColumnEnd = state.prevStyles.gridColumnEnd || '';
+  state.placeholderGridRow = state.prevStyles.gridRow || '';
+  state.placeholderGridRowStart = state.prevStyles.gridRowStart || '';
+  state.placeholderGridRowEnd = state.prevStyles.gridRowEnd || '';
   state.prevContainerPosition = container.style.position || '';
   state.containerPositionSet = false;
   if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
@@ -753,8 +872,7 @@ function beginGridDrag(state, item, evt){
     state.container.classList.add('dash-dragging');
     state.container.classList.add('dragging');
   }
-  const overlay = updateGridOverlayAppearance(state);
-  if(overlay){ overlay.style.display = 'block'; if(overlay.classList) overlay.classList.add('dragging'); }
+  syncOverlayVisibility(state);
   const placeholder = ensurePlaceholder(state, item, itemRect);
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
@@ -772,6 +890,7 @@ function beginGridDrag(state, item, evt){
   item.style.willChange = 'transform';
   item.style.boxShadow = '0 22px 44px rgba(15,23,42,0.18)';
   item.style.opacity = '0.72';
+  if(item.classList) item.classList.add('dash-drag-ghost');
   state.grabOffsetX = evt.clientX - itemRect.left;
   state.grabOffsetY = evt.clientY - itemRect.top;
   state.moveListener = moveEvt => handleGridPointerMove(moveEvt, state);
@@ -893,10 +1012,20 @@ function ensureState(container){
       upListener: null,
       restoreSelection: null,
       gridOverlay: null,
+      overlayMetrics: null,
+      editModeRequested: false,
+      editModeActive: false,
       itemsMeta: null,
       appliedInitialOrder: false,
       lastOrderSignature: null,
-      pendingDrag: null
+      pendingDrag: null,
+      placeholderSpan: 1,
+      placeholderGridColumn: '',
+      placeholderGridColumnStart: '',
+      placeholderGridColumnEnd: '',
+      placeholderGridRow: '',
+      placeholderGridRowStart: '',
+      placeholderGridRowEnd: ''
     };
     state.onPointerDown = evt => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
@@ -943,6 +1072,16 @@ function destroyContainerState(container, state){
   state.itemRect = null;
   state.prevStyles = null;
   state.pendingDrag = null;
+  state.placeholderSpan = 1;
+  state.placeholderGridColumn = '';
+  state.placeholderGridColumnStart = '';
+  state.placeholderGridColumnEnd = '';
+  state.placeholderGridRow = '';
+  state.placeholderGridRowStart = '';
+  state.placeholderGridRowEnd = '';
+  state.overlayMetrics = null;
+  state.editModeRequested = false;
+  state.editModeActive = false;
   if(state.gridOverlay){
     try{ state.gridOverlay.remove(); }
     catch(_err){
@@ -958,7 +1097,7 @@ function destroyContainerState(container, state){
     if(GLOBAL_LISTENER_COUNT > 0) GLOBAL_LISTENER_COUNT -= 1;
   }
   if(container.classList){
-    container.classList.remove('dash-dragging', 'dragging');
+    container.classList.remove('dash-dragging', 'dragging', 'dash-gridlines-visible');
   }
   if(typeof container.removeAttribute === 'function'){
     try{
@@ -996,16 +1135,21 @@ export function makeDraggableGrid(options = {}){
   state.idGetter = wrapIdGetter(options.idGetter);
   state.onOrderChange = typeof options.onOrderChange === 'function' ? options.onOrderChange : null;
   state.enabled = options.enabled === undefined ? true : !!options.enabled;
+  state.editModeRequested = state.enabled;
+  state.editModeActive = false;
   applyStoredOrder(state, { force: true });
+  applyEditModeState(state, state.editModeRequested);
   const controller = {
     enable(){
       state.enabled = true;
+      applyEditModeState(state, state.editModeRequested);
       return controller;
     },
     disable(){
       if(state.dragging) cancelDrag(state, false);
       else clearPendingDrag(state);
       state.enabled = false;
+      applyEditModeState(state, state.editModeRequested);
       return controller;
     },
     isEnabled(){
@@ -1013,14 +1157,22 @@ export function makeDraggableGrid(options = {}){
     },
     refresh(){
       applyStoredOrder(state, { force: true });
+      syncOverlayVisibility(state);
       return controller;
     },
     reapply(){
       applyStoredOrder(state, { force: true });
+      syncOverlayVisibility(state);
+      return controller;
+    },
+    setEditMode(enabled){
+      applyEditModeState(state, enabled);
       return controller;
     },
     setGrid(gridOptions){
       state.gridOptions = gridOptions && typeof gridOptions === 'object' ? gridOptions : {};
+      state.overlayMetrics = null;
+      syncOverlayVisibility(state);
       return controller;
     },
     destroy(){

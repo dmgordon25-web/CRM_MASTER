@@ -1107,7 +1107,7 @@ function ensureDashboardDragStyles() {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.9));
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   color: rgba(51, 65, 85, 0.88);
@@ -1115,7 +1115,9 @@ function ensureDashboardDragStyles() {
   line-height: 1;
   cursor: grab;
   z-index: 3;
-  transition: transform 0.18s ease;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
 }
 
 .dash-drag-handle::before {
@@ -1140,6 +1142,12 @@ function ensureDashboardDragStyles() {
 .dash-drag-handle:focus-visible {
   outline: 2px solid var(--focus-ring, #2563eb);
   outline-offset: 2px;
+}
+
+[data-dash-layout-mode="on"] .dash-drag-handle {
+  display: inline-flex;
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .dash-dragging .dash-drag-handle {
@@ -1181,24 +1189,33 @@ function ensureDashboardDragStyles() {
   position: absolute;
   right: 12px;
   bottom: 12px;
-  display: inline-flex;
+  display: none;
   gap: 4px;
   padding: 4px 6px;
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   background: rgba(248, 250, 252, 0.9);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
-  opacity: 0.35;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.18s ease, transform 0.18s ease;
   z-index: 3;
 }
 
-[data-dash-widget]:hover > .dash-resize-handle,
-.dash-resize-handle:focus-within {
+[data-dash-layout-mode="on"] [data-dash-widget]:hover > .dash-resize-handle,
+[data-dash-layout-mode="on"] .dash-resize-handle:focus-within {
   opacity: 1;
 }
 
 .dash-gridlines.dragging {
+  display: block;
+}
+
+main[data-ui="dashboard-root"].dash-gridlines-visible {
+  position: relative;
+}
+
+main[data-ui="dashboard-root"].dash-gridlines-visible > .dash-gridlines {
   display: block;
 }
 
@@ -1207,7 +1224,7 @@ function ensureDashboardDragStyles() {
   opacity: 0.85;
 }
 
-.dash-resize-handle {
+[data-dash-layout-mode="on"] .dash-resize-handle {
   inset: 0;
   right: auto;
   bottom: auto;
@@ -1215,7 +1232,7 @@ function ensureDashboardDragStyles() {
   border: none;
   background: transparent;
   box-shadow: none;
-  opacity: 1;
+  opacity: 0.35;
   display: block;
   pointer-events: none;
 }

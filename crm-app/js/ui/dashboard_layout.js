@@ -672,8 +672,8 @@ function handleOrderChange(orderIds){
 function ensureDrag(){
   const container = ensureContainer();
   if(!container) return null;
+  const metrics = computeGridMetrics(container);
   if(!state.drag){
-    const metrics = computeGridMetrics(container);
     state.drag = makeDraggableGrid({
       container,
       itemSel: ITEM_SELECTOR,
@@ -684,6 +684,12 @@ function ensureDrag(){
       enabled: state.layoutMode,
       onOrderChange: handleOrderChange
     });
+    if(state.drag && typeof state.drag.setGrid === 'function'){
+      state.drag.setGrid(metrics);
+    }
+    if(state.drag && typeof state.drag.setEditMode === 'function'){
+      state.drag.setEditMode(state.layoutMode);
+    }
     if(!state.readyLogged){
       state.readyLogged = true;
       try{ console.info('[VIS] dash drag ready (direct)'); }
@@ -693,6 +699,12 @@ function ensureDrag(){
   }else{
     if(state.layoutMode) state.drag.enable();
     else state.drag.disable();
+    if(state.drag && typeof state.drag.setGrid === 'function'){
+      state.drag.setGrid(metrics);
+    }
+    if(state.drag && typeof state.drag.setEditMode === 'function'){
+      state.drag.setEditMode(state.layoutMode);
+    }
     state.drag.refresh();
   }
   return state.drag;
@@ -747,9 +759,13 @@ export function setDashboardLayoutMode(enabled, options = {}){
   if(options.persist !== false){
     writeLayoutModeFlag(next);
   }
+  ensureDrag();
   if(state.drag){
     if(next) state.drag.enable();
     else state.drag.disable();
+    if(typeof state.drag.setEditMode === 'function'){
+      state.drag.setEditMode(next);
+    }
   }
   updateLayoutModeAttr();
   if(!options.silent){
