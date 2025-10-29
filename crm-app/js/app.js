@@ -6,6 +6,7 @@ import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
+import { isFeatureEnabled } from './settings/flags.js';
 
 // app.js
 export function goto(hash){
@@ -33,6 +34,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   if(!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
   const fromHere = (p) => new URL(p, import.meta.url).href;
+
+  const notificationsEnabled = isFeatureEnabled('notificationsMVP');
 
   window.CRM = window.CRM || {};
 
@@ -330,40 +333,6 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
       try { window.RenderGuard.registerHook(() => maybeLoad()); } catch (_) {}
     }
-  })();
-
-  (function wireNotifications(){
-    if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
-
-    // Lazy-load service at boot (non-blocking)
-    try { import(fromHere('./notifications/notifier.js')); } catch (_) { }
-
-    // Simple router to notifications page
-    async function goNotifications(evt){
-      evt && evt.preventDefault && evt.preventDefault();
-      const mod = await import(fromHere('./pages/notifications.js'));
-      try { activate('notifications'); }
-      catch (_) {
-        const view = document.getElementById('view-notifications');
-        if (view && typeof view.classList?.remove === 'function') {
-          view.classList.remove('hidden');
-        }
-      }
-      (mod.initNotifications || mod.renderNotifications || (()=>{}))();
-      history.replaceState(null, '', '#notifications');
-    }
-
-    // Delegate clicks without touching HTML
-    document.addEventListener('click', (evt) => {
-      const a = evt.target.closest('[data-nav="notifications"], a[href="#notifications"], button[data-page="notifications"], button[data-nav="notifications"]');
-      if (a) goNotifications(evt);
-    });
-
-    // Hash route
-    if (typeof location !== 'undefined' && location.hash === '#notifications') goNotifications();
-
-    // Badge: attach to a likely nav control labeled "Notifications" if no explicit data-nav exists
-    import(fromHere('./notifications/notifier.js')).catch(()=>{});
   })();
 
   const automationScheduler = typeof queueMicrotask === 'function'
@@ -934,7 +903,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     box.innerHTML = `<div><strong>Contacts:</strong><ul>${list(rec.contacts||{})}</ul></div><div style="margin-top:8px"><strong>Partners:</strong><ul>${list(rec.partners||{})}</ul></div>`;
   }
 
-  const SELECTION_SCOPES = ['contacts','partners','pipeline'];
+  const SELECTION_SCOPES = notificationsEnabled
+    ? ['contacts', 'partners', 'pipeline', 'notifications']
+    : ['contacts', 'partners', 'pipeline'];
 
   function getSelectionStore(){
     return window.SelectionStore || null;
@@ -1194,6 +1165,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     pipeline: '#/pipeline',
     partners: '#/partners'
   };
+  if (notificationsEnabled) {
+    VIEW_HASH.notifications = '#/notifications';
+  }
   const HASH_TO_VIEW = new Map();
   Object.entries(VIEW_HASH).forEach(([view, hash]) => {
     const canonical = String(hash || '').toLowerCase();
@@ -1205,6 +1179,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   HASH_TO_VIEW.set('#longshots', 'longshots');
   HASH_TO_VIEW.set('#/long-shots', 'longshots');
   HASH_TO_VIEW.set('#long-shots', 'longshots');
+  if (notificationsEnabled) {
+    HASH_TO_VIEW.set('#/notifications', 'notifications');
+    HASH_TO_VIEW.set('#notifications', 'notifications');
+  }
 
   const VIEW_LIFECYCLE = {
     dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
@@ -1306,6 +1284,32 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       }
     }
   };
+  if (notificationsEnabled) {
+    VIEW_LIFECYCLE.notifications = {
+      id: 'view-notifications',
+      ui: 'notifications-view',
+      mount(root){
+        if(!root) return;
+        const mountPoint = root.querySelector('#notifications-shell') || root;
+        import(fromHere('./pages/notifications.js'))
+          .then((mod) => {
+            try {
+              const render = mod.initNotifications || mod.renderNotifications || (() => {});
+              render(mountPoint);
+            } catch (err) {
+              if (isDebug && console && console.warn) {
+                console.warn('[soft][notifications] render failed', err);
+              }
+            }
+          })
+          .catch((err) => {
+            if (isDebug && console && console.warn) {
+              console.warn('[soft][notifications] mount import failed', err);
+            }
+          });
+      }
+    };
+  }
 
   let activeView = null;
   let suppressHashUpdate = false;

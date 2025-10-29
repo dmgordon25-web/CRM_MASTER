@@ -98,7 +98,7 @@
      <button class="btn" data-nav="partners">
       Partners
      </button>
-     <button class="btn" data-nav="notifications">
+     <button class="btn" data-nav="notifications" data-feature="notificationsMVP" data-feature-mode="remove">
       Notifications
      </button>
      <button class="btn nav-split" data-nav="calendar">
@@ -1335,19 +1335,7 @@
   <section class="card" id="workbench-root"></section>
  </main>
  <main class="hidden" id="view-notifications">
-  <section class="card" id="notifications-shell">
-   <div class="row" style="align-items:center;gap:12px;margin-bottom:8px">
-    <strong>Notifications Center</strong>
-    <span class="help-hint" id="notifications-help" role="button" tabindex="0" aria-label="How notifications behave" title="Unread notifications stay in your bell until you mark them read or archive them. Sent items are tracked automatically.">?</span>
-    <span class="badge-pill" id="notifications-count-pill" style="display:none"></span>
-    <div class="grow"></div>
-    <button class="btn" id="notifications-export" aria-label="Export notifications to CSV" title="Export notifications to CSV">Export CSV</button>
-   </div>
-   <div class="muted" id="notifications-subhead">Queued notifications respect daily throttles per contact/event.</div>
-   <div id="notif-filters" class="row" style="gap:12px;margin:12px 0;align-items:flex-end"></div>
-   <div id="notif-bulkbar" class="row" style="gap:12px;margin:12px 0;align-items:center"></div>
-   <div id="notif-center-list"></div>
-  </section>
+  <section id="notifications-shell"></section>
  </main>
    <!-- PRINT SUITE (Phase 8) -->
    <main class="hidden" id="view-print">
