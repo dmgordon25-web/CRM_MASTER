@@ -59,6 +59,9 @@ import { syncTableLayout } from './ui/table_layout.js';
     '#pipeline-calendar-card'
   ];
   const CALENDAR_CARD_SELECTOR = '#view-calendar .calendar-card';
+  const TABLE_LOADING_OPTIONS = Object.freeze({ lines: 6, reserve: 'table', minHeight: 280 });
+  const DASHBOARD_LOADING_OPTIONS = Object.freeze({ lines: 4, reserve: 'widget', minHeight: 220 });
+  const CALENDAR_LOADING_OPTIONS = Object.freeze({ lines: 0, reserve: 'calendar', minHeight: 320 });
   let loadingPrimed = false;
   const hostLoadingCounts = new WeakMap();
   const pendingLoadingReleases = [];
@@ -152,15 +155,15 @@ import { syncTableLayout } from './ui/table_layout.js';
       if(!table) return;
       const host = findListLoadingHost(table);
       if(!host) return;
-      rememberLoadingRelease(acquireLoadingForHost(host, { lines: 6 }));
+      rememberLoadingRelease(acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS)));
     });
     DASHBOARD_BLOCKS.forEach(sel => {
       const node = document.querySelector(sel);
       if(!node) return;
-      rememberLoadingRelease(acquireLoadingForHost(node, { lines: 4 }));
+      rememberLoadingRelease(acquireLoadingForHost(node, Object.assign({}, DASHBOARD_LOADING_OPTIONS)));
     });
     const calendarCard = document.querySelector(CALENDAR_CARD_SELECTOR);
-    if(calendarCard) rememberLoadingRelease(acquireLoadingForHost(calendarCard, { lines: 6 }));
+    if(calendarCard) rememberLoadingRelease(acquireLoadingForHost(calendarCard, Object.assign({}, CALENDAR_LOADING_OPTIONS)));
   }
   function releaseLoadingPlaceholders(){
     if(typeof document === 'undefined') return;
@@ -1856,7 +1859,7 @@ import { syncTableLayout } from './ui/table_layout.js';
   window.renderPartners = async function(){
     const table = typeof document !== 'undefined' ? document.getElementById('tbl-partners') : null;
     const host = table ? findListLoadingHost(table) : null;
-    const releaseLoading = acquireLoadingForHost(host, { lines: 6 });
+    const releaseLoading = acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS));
     try {
       await openDB();
       const [partners, contacts] = await Promise.all([

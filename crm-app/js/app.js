@@ -4,6 +4,8 @@ import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
+import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
+import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 
 // app.js
 export function goto(hash){
@@ -33,6 +35,148 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+
+  const bootSplash = createBootSplashController();
+  const listLoadingController = createListLoadingController();
+
+  function createBootSplashController(){
+    const doc = typeof document === 'undefined' ? null : document;
+    let splash = null;
+    let ensured = false;
+    let hidden = false;
+
+    const resolve = () => {
+      if(!doc) return null;
+      if(splash && splash.isConnected) return splash;
+      splash = doc.getElementById('boot-splash');
+      return splash;
+    };
+
+    const ensure = () => {
+      const node = resolve();
+      if(!node || ensured) return;
+      if(node.classList && !node.classList.contains('boot-splash')){
+        node.classList.add('boot-splash');
+      }
+      node.setAttribute('role', 'status');
+      node.setAttribute('aria-live', 'polite');
+      node.removeAttribute('aria-hidden');
+      if(node.style && node.style.cssText){
+        node.removeAttribute('style');
+      }
+      const loader = createInlineLoader({ document: doc, message: 'Loading CRM…', size: 'lg', inline: false });
+      if(loader){
+        loader.classList.add('boot-splash-loader');
+        node.textContent = '';
+        node.appendChild(loader);
+      }else{
+        node.textContent = 'Loading CRM…';
+      }
+      ensured = true;
+    };
+
+    const hide = () => {
+      const node = resolve();
+      if(!node || hidden) return;
+      hidden = true;
+      node.classList.add('is-hidden');
+      node.setAttribute('aria-hidden', 'true');
+    };
+
+    return { ensure, hide };
+  }
+
+  function createListLoadingController(){
+    const doc = typeof document === 'undefined' ? null : document;
+    const TABLE_IDS = [
+      'tbl-inprog',
+      'tbl-status-active',
+      'tbl-status-clients',
+      'tbl-status-longshots',
+      'tbl-partners',
+      'tbl-pipeline',
+      'tbl-clients',
+      'tbl-doc-templates',
+      'tbl-msg-templates',
+      'tbl-longshots',
+      'tbl-funded',
+      'tbl-ledger-received',
+      'tbl-ledger-projected',
+    ];
+    const DEFAULT_OPTIONS = Object.freeze({ lines: 6, reserve: 'table', minHeight: 280 });
+    let depth = 0;
+    let activeReleases = [];
+
+    const findHost = (table) => {
+      if(!table) return null;
+      if(typeof table.closest === 'function'){
+        const selectors = ['[data-loading-host]', '.card', '.table-card', '.status-table-wrap'];
+        for(const selector of selectors){
+          const candidate = table.closest(selector);
+          if(candidate && candidate !== table) return candidate;
+        }
+      }
+      const parent = table.parentElement;
+      if(parent && parent !== table){
+        if(!doc) return parent;
+        if(parent !== doc.body && parent !== doc.documentElement){
+          return parent;
+        }
+      }
+      return null;
+    };
+
+    const collectHosts = () => {
+      if(!doc) return [];
+      const hosts = new Set();
+      TABLE_IDS.forEach(id => {
+        const table = doc.getElementById(id);
+        if(!table) return;
+        const host = findHost(table);
+        if(host) hosts.add(host);
+      });
+      return Array.from(hosts);
+    };
+
+    return {
+      begin(){
+        if(!doc) return () => {};
+        depth += 1;
+        if(depth === 1){
+          const hosts = collectHosts();
+          activeReleases = hosts
+            .map(host => {
+              try{
+                attachLoadingBlock(host, Object.assign({}, DEFAULT_OPTIONS));
+                return () => detachLoadingBlock(host);
+              }catch (_err){
+                return null;
+              }
+            })
+            .filter(fn => typeof fn === 'function');
+          if(doc.body && hosts.length){
+            doc.body.dataset.listLoading = '1';
+          }
+        }
+        let released = false;
+        return () => {
+          if(released) return;
+          released = true;
+          if(depth > 0) depth -= 1;
+          if(depth === 0){
+            activeReleases.reverse().forEach(fn => {
+              try{ fn(); }
+              catch (_err){}
+            });
+            activeReleases = [];
+            if(doc && doc.body){
+              delete doc.body.dataset.listLoading;
+            }
+          }
+        };
+      }
+    };
+  }
 
   function onDomReady(fn){
     if(typeof document === 'undefined' || typeof fn !== 'function') return;
@@ -114,6 +258,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     ensurePartnerModalClosed();
     ensureActionBarHidden();
     ensureDefaultRoute();
+    bootSplash.ensure();
   });
 
   try {
@@ -462,23 +607,46 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   };
 
   function appRender(){
-    if(typeof window.renderAll !== 'function'){
+    const hasRenderAll = typeof window.renderAll === 'function';
+    if(!hasRenderAll){
       if(!window.__RENDER_ALL_MISSING_LOGGED__ && console && typeof console.warn === 'function'){
         window.__RENDER_ALL_MISSING_LOGGED__ = true;
         console.warn('[soft] renderAll missing — module load failed or not executed');
       }
+      bootSplash.hide();
       return;
     }
     if(window.__RENDER_ALL_MISSING_LOGGED__){
       window.__RENDER_ALL_MISSING_LOGGED__ = false;
     }
+    bootSplash.ensure();
+    let releaseListLoading = null;
+    if(listLoadingController && typeof listLoadingController.begin === 'function'){
+      try { releaseListLoading = listLoadingController.begin(); }
+      catch (_err) { releaseListLoading = null; }
+    }
+    const release = () => {
+      if(!releaseListLoading) return;
+      try { releaseListLoading(); }
+      catch (_err) {}
+      releaseListLoading = null;
+    };
     try{
       const result = window.renderAll();
       if(result && typeof result.then === 'function'){
-        result.catch(err => console.warn('[soft] [app] renderAll failed', err));
+        result.catch(err => console.warn('[soft] [app] renderAll failed', err))
+          .finally(() => {
+            bootSplash.hide();
+            release();
+          });
+        return;
       }
+      bootSplash.hide();
+      release();
     }catch (err) {
       console.warn('[soft] [app] renderAll failed', err);
+      bootSplash.hide();
+      release();
     }
   }
 

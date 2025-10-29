@@ -1347,7 +1347,7 @@ function renderSurface(mount, state, handlers){
   const cardHost = mount?.closest?.('.calendar-card') || null;
   if(cardHost){
     if(state.loading){
-      attachLoadingBlock(cardHost, { lines: 6 });
+      attachLoadingBlock(cardHost, { lines: 0, reserve: 'calendar', minHeight: 320, message: 'Loading…' });
     }else{
       detachLoadingBlock(cardHost);
     }
