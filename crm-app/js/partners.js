@@ -1,13 +1,288 @@
 // partners.js — partner modal wiring & selection helpers
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { ensureSingletonModal } from './ui/modal_singleton.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { toastError, toastSuccess } from './ui/toast_helpers.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
+import { REFERRAL_ROLLUP_RANGES, computeReferralRollup } from './reports/referrals.js';
+import { openContactModal } from './contacts.js';
 
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
+const referralRollupState = {
+  initialized: false,
+  root: null,
+  range: '90d',
+  contacts: [],
+  partnersById: new Map(),
+  deals: [],
+  rangeSelect: null,
+  countBtn: null,
+  volumeBtn: null,
+  empty: null,
+  listenersBound: false
+};
+
+function formatNumber(value){
+  const n = Number(value || 0);
+  if(!Number.isFinite(n)) return '0';
+  try{ return n.toLocaleString(); }
+  catch(_err){ return String(n); }
+}
+
+function formatMoney(value){
+  const n = Number(value || 0);
+  if(!Number.isFinite(n) || n === 0) return '$0';
+  try{ return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n); }
+  catch(_err){ return `$${Math.round(n)}`; }
+}
+
+function formatDate(value){
+  if(value == null) return '—';
+  try{ return new Date(value).toISOString().slice(0, 10); }
+  catch(_err){ return '—'; }
+}
+
+function partnerDisplayName(record, fallbackId){
+  if(!record){
+    return fallbackId ? `Partner ${fallbackId}` : '';
+  }
+  const preferred = String(record.name || '').trim();
+  if(preferred) return preferred;
+  const company = String(record.company || '').trim();
+  if(company) return company;
+  const email = String(record.email || '').trim();
+  if(email) return email;
+  const phone = String(record.phone || '').trim();
+  if(phone) return phone;
+  return fallbackId ? `Partner ${fallbackId}` : '';
+}
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case '\'': return '&#39;';
+      default: return ch;
+    }
+  });
+}
+
+function ensureReferralRollupCard(){
+  if(typeof document === 'undefined') return;
+  const card = document.querySelector('#view-partners .card');
+  if(!card) return;
+  let host = card.querySelector('#partner-referral-rollup');
+  const rangeOptions = REFERRAL_ROLLUP_RANGES
+    .map(range => `<option value="${escapeHtml(range.key)}"${range.key === referralRollupState.range ? ' selected' : ''}>${escapeHtml(range.label)}</option>`)
+    .join('');
+  if(!host){
+    host = document.createElement('section');
+    host.id = 'partner-referral-rollup';
+    host.className = 'partner-referral-rollup';
+    host.innerHTML = `
+      <div class="row" style="align-items:center;gap:12px;margin-bottom:6px">
+        <h4 style="margin:0;font-size:16px">Referral Performance</h4>
+        <span class="grow"></span>
+        <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:12px">
+          Range
+          <select data-role="referral-range">${rangeOptions}</select>
+        </label>
+      </div>
+      <div class="summary-metrics partner-referral-rollup-metrics">
+        <button type="button" class="summary-metric" data-role="rollup-count">
+          <span class="metric-label">Funded Referrals</span>
+          <span class="metric-value">0</span>
+        </button>
+        <button type="button" class="summary-metric" data-role="rollup-volume">
+          <span class="metric-label">Funded Volume</span>
+          <span class="metric-value">$0</span>
+        </button>
+      </div>
+      <div class="muted fine-print" data-role="rollup-empty" hidden>No funded referrals in this range.</div>`;
+    const anchor = card.querySelector('.row.query-save-row');
+    if(anchor && anchor.parentNode === card){
+      card.insertBefore(host, anchor);
+    }else{
+      card.insertBefore(host, card.firstChild || null);
+    }
+  }
+  referralRollupState.root = host;
+  referralRollupState.rangeSelect = host.querySelector('[data-role="referral-range"]');
+  referralRollupState.countBtn = host.querySelector('[data-role="rollup-count"]');
+  referralRollupState.volumeBtn = host.querySelector('[data-role="rollup-volume"]');
+  referralRollupState.empty = host.querySelector('[data-role="rollup-empty"]');
+  if(referralRollupState.rangeSelect){
+    referralRollupState.rangeSelect.value = referralRollupState.range;
+    if(!referralRollupState.rangeSelect.__wired){
+      referralRollupState.rangeSelect.__wired = true;
+      referralRollupState.rangeSelect.addEventListener('change', ()=>{
+        referralRollupState.range = referralRollupState.rangeSelect.value || referralRollupState.range;
+        updateReferralRollup({ reload: false });
+      });
+    }
+  }
+  const openModal = (event)=>{
+    if(event) event.preventDefault();
+    openReferralRollupModal();
+  };
+  if(referralRollupState.countBtn && !referralRollupState.countBtn.__wired){
+    referralRollupState.countBtn.__wired = true;
+    referralRollupState.countBtn.addEventListener('click', openModal);
+  }
+  if(referralRollupState.volumeBtn && !referralRollupState.volumeBtn.__wired){
+    referralRollupState.volumeBtn.__wired = true;
+    referralRollupState.volumeBtn.addEventListener('click', openModal);
+  }
+  referralRollupState.initialized = true;
+}
+
+async function loadReferralSourceData(){
+  try{
+    if(typeof openDB === 'function'){
+      await openDB();
+    }
+    const [contacts, partners] = await Promise.all([
+      typeof dbGetAll === 'function' ? dbGetAll('contacts') : Promise.resolve([]),
+      typeof dbGetAll === 'function' ? dbGetAll('partners') : Promise.resolve([])
+    ]);
+    referralRollupState.contacts = Array.isArray(contacts) ? contacts : [];
+    const partnerEntries = Array.isArray(partners) ? partners.map(partner => [String(partner.id), partner]) : [];
+    referralRollupState.partnersById = new Map(partnerEntries);
+  }catch (err){
+    console && console.warn && console.warn('[partners] referral rollup load failed', err);
+  }
+}
+
+async function updateReferralRollup(options = {}){
+  const opts = options && typeof options === 'object' ? options : {};
+  ensureReferralRollupCard();
+  if(!referralRollupState.root) return;
+  if(opts.reload || !Array.isArray(referralRollupState.contacts) || !referralRollupState.contacts.length){
+    await loadReferralSourceData();
+  }
+  const rangeKey = referralRollupState.rangeSelect ? referralRollupState.rangeSelect.value : referralRollupState.range;
+  referralRollupState.range = rangeKey || referralRollupState.range;
+  const rollup = computeReferralRollup(referralRollupState.contacts, referralRollupState.range, Date.now());
+  referralRollupState.deals = rollup.deals.map(deal => {
+    const partner = referralRollupState.partnersById.get(deal.partnerId);
+    const partnerName = deal.partnerName || partnerDisplayName(partner, deal.partnerId);
+    return Object.assign({}, deal, {
+      partnerName,
+      fundedDateLabel: deal.fundedDateLabel || (deal.fundedAt != null ? formatDate(deal.fundedAt) : ''),
+      contactName: deal.contactName
+    });
+  });
+  const fundedCount = rollup.fundedCount || 0;
+  const fundedVolume = rollup.fundedVolume || 0;
+  if(referralRollupState.countBtn){
+    const valueNode = referralRollupState.countBtn.querySelector('.metric-value');
+    if(valueNode) valueNode.textContent = formatNumber(fundedCount);
+  }
+  if(referralRollupState.volumeBtn){
+    const valueNode = referralRollupState.volumeBtn.querySelector('.metric-value');
+    if(valueNode) valueNode.textContent = formatMoney(fundedVolume);
+  }
+  if(referralRollupState.empty){
+    referralRollupState.empty.hidden = fundedCount > 0;
+  }
+}
+
+function bindReferralRollupListeners(){
+  if(referralRollupState.listenersBound || typeof document === 'undefined') return;
+  const handler = (event)=>{
+    const detail = event && event.detail ? event.detail : {};
+    const scope = typeof detail.scope === 'string' ? detail.scope : '';
+    if(scope && scope !== 'contacts' && scope !== 'partners') return;
+    updateReferralRollup({ reload: true });
+  };
+  document.addEventListener('app:data:changed', handler, { passive: true });
+  referralRollupState.listenersBound = true;
+}
+
+async function openReferralRollupModal(){
+  ensureReferralRollupCard();
+  if(!referralRollupState.initialized){
+    await updateReferralRollup({ reload: true });
+  }
+  const rangeMeta = REFERRAL_ROLLUP_RANGES.find(range => range.key === referralRollupState.range) || REFERRAL_ROLLUP_RANGES[0];
+  let root = ensureSingletonModal('partner-referral-rollup-drill', () => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'referral-rollup-modal';
+    dialog.innerHTML = `
+      <div class="dlg referral-rollup-shell">
+        <div class="modal-header" style="display:flex;align-items:center;gap:12px">
+          <h3 class="grow" data-role="rollup-heading">Funded Referrals</h3>
+          <button type="button" class="btn ghost" data-role="close">Close</button>
+        </div>
+        <div class="dialog-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Contact</th>
+                <th>Partner</th>
+                <th>Stage</th>
+                <th>Loan Amount</th>
+                <th>Funded</th>
+              </tr>
+            </thead>
+            <tbody data-role="rollup-body"></tbody>
+          </table>
+          <div class="muted empty" data-role="rollup-empty" hidden>No funded referrals in this range.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(dialog);
+    try{ dialog.showModal(); }
+    catch(_err){ dialog.setAttribute('open', 'open'); }
+    const closeBtn = dialog.querySelector('[data-role="close"]');
+    if(closeBtn){
+      closeBtn.addEventListener('click', (event)=>{
+        event.preventDefault();
+        try{ dialog.close(); }
+        catch(_err){ dialog.removeAttribute('open'); }
+      });
+    }
+    dialog.addEventListener('close', ()=>{
+      try{ dialog.remove(); }
+      catch(_err){}
+    }, { once: true });
+    dialog.addEventListener('click', (event)=>{
+      const row = event.target?.closest?.('tr[data-contact-id]');
+      if(!row) return;
+      event.preventDefault();
+      const contactId = row.getAttribute('data-contact-id') || '';
+      if(!contactId) return;
+      openContactModal(contactId, { sourceHint: 'partners:referral-rollup', trigger: row });
+    });
+    return dialog;
+  });
+  root = await Promise.resolve(root);
+  if(!root) return;
+  const heading = root.querySelector('[data-role="rollup-heading"]');
+  if(heading) heading.textContent = `Funded Referrals — ${rangeMeta.label}`;
+  const tbody = root.querySelector('[data-role="rollup-body"]');
+  const empty = root.querySelector('[data-role="rollup-empty"]');
+  if(!tbody) return;
+  if(!referralRollupState.deals.length){
+    tbody.innerHTML = '';
+    if(empty) empty.hidden = false;
+    return;
+  }
+  const rows = referralRollupState.deals.map(deal => {
+    const stageLabel = String(deal.stage || '').trim() || 'Funded';
+    const amountLabel = formatMoney(deal.loanAmount);
+    const fundedLabel = deal.fundedDateLabel || (deal.fundedAt != null ? formatDate(deal.fundedAt) : '—');
+    return `<tr data-contact-id="${escapeHtml(deal.id)}"><td>${escapeHtml(deal.contactName)}</td><td>${escapeHtml(deal.partnerName || '')}</td><td>${escapeHtml(stageLabel)}</td><td>${escapeHtml(amountLabel)}</td><td>${escapeHtml(fundedLabel)}</td></tr>`;
+  }).join('');
+  tbody.innerHTML = rows;
+  if(empty) empty.hidden = true;
+}
 
 function ensurePartnersBoot(ctx){
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -819,9 +1094,25 @@ function ensurePartnersBoot(ctx){
       state.surface = 'partners';
     }
     attachPartnerWatchers(state);
-    ensurePartnerDomReady(state);
-    schedulePartnerBind();
+  ensurePartnerDomReady(state);
+  schedulePartnerBind();
+
+  bindReferralRollupListeners();
+  if (typeof document !== 'undefined'){
+    const onReady = () => {
+      ensureReferralRollupCard();
+      updateReferralRollup({ reload: true });
+    };
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', onReady, { once: true });
+    }else{
+      onReady();
+    }
+  }else{
+    ensureReferralRollupCard();
+    updateReferralRollup({ reload: true });
   }
+}
 
   function unmountPartnerRowGateway(){
     const state = getPartnerRowState();

@@ -53,6 +53,7 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 
   const CONTACT_MODAL_KEY = 'contact-edit';
   const INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
+  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
 
   const normalizeContactId = (value)=>{
     if(value == null) return '';
@@ -133,6 +134,8 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       fundedDate:'',
       buyerPartnerId:null,
       listingPartnerId:null,
+      referralPartnerId:'',
+      referralPartnerName:'',
       lastContact:'',
       referredBy:'',
       notes:'',
@@ -636,12 +639,49 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     if(dlg.dataset){
       dlg.dataset.contactId = String(c.id || '');
     }
-    const opts = partners.map(p=>{
-      const id = escape(String(p.id));
+    const partnerMap = new Map();
+    const partnerIds = new Set();
+    const partnerOptions = partners.map(p=>{
+      const rawId = String(p.id);
+      const id = escape(rawId);
       const name = escape(p.name||'—');
       const company = p.company ? ` — ${escape(p.company)}` : '';
+      partnerMap.set(rawId, p);
+      partnerIds.add(rawId);
       return `<option value="${id}">${name}${company}</option>`;
-    }).join('');
+    });
+    const ensurePartnerOption = (rawId, label)=>{
+      const id = String(rawId||'').trim();
+      if(!id || partnerIds.has(id) || id === NONE_PARTNER_ID) return;
+      partnerOptions.push(`<option value="${escape(id)}">${escape(label||`Partner ${id}`)}</option>`);
+      partnerIds.add(id);
+    };
+    const normalizedReferralPartnerId = c.referralPartnerId ? String(c.referralPartnerId).trim() : '';
+    const referralPartnerId = normalizedReferralPartnerId && normalizedReferralPartnerId !== NONE_PARTNER_ID
+      ? normalizedReferralPartnerId
+      : '';
+    const referralPartnerName = String(c.referralPartnerName || '').trim();
+    if(referralPartnerId && !partnerIds.has(referralPartnerId)){
+      ensurePartnerOption(referralPartnerId, referralPartnerName || `Partner ${referralPartnerId}`);
+    }
+    const opts = partnerOptions.join('');
+    const partnerLabelFor = (id)=>{
+      const key = String(id||'').trim();
+      if(!key || key === NONE_PARTNER_ID) return '';
+      const record = partnerMap.get(key);
+      if(record){
+        const preferred = String(record.name || '').trim();
+        if(preferred) return preferred;
+        const company = String(record.company || '').trim();
+        if(company) return company;
+        const email = String(record.email || '').trim();
+        if(email) return email;
+        const phone = String(record.phone || '').trim();
+        if(phone) return phone;
+      }
+      return '';
+    };
+    const referralPartnerLabel = partnerLabelFor(referralPartnerId) || referralPartnerName;
     const body = dlg.querySelector('#contact-modal-body');
     const stageLabel = findLabel(STAGES, c.stage) || 'Application';
     const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
@@ -669,6 +709,7 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
     if(isFavoriteContact) summaryClasses.push('is-favorite');
     const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
     const summaryIdAttr = escape(c.id || '');
+    const referralSummaryMarkup = `<button type="button" class="btn-link more" data-role="referral-partner-summary"${referralPartnerId ? ` data-partner-id="${escape(referralPartnerId)}"` : ''}>${escape(referralPartnerLabel || 'Assign Referral Partner')}</button>`;
     body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id||'')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last||'')}">
@@ -701,8 +742,8 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
               <span class="metric-value" id="c-summary-source">${escape(c.leadSource||'Set Source')}</span>
             </div>
             <div class="summary-metric">
-              <span class="metric-label">Referred By</span>
-              <span class="metric-value" id="c-summary-referral">${escape(c.referredBy||'Log Referral')}</span>
+              <span class="metric-label">Referral Partner</span>
+              <span class="metric-value" id="c-summary-referral">${referralSummaryMarkup}</span>
             </div>
           </div>
           <div class="modal-note" id="c-summary-note">
@@ -794,6 +835,7 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
               <div class="field-grid cols-2">
                   <label data-advanced="relationships">Buyer Partner<select id="c-buyer"><option value="">Select partner</option>${opts}</select></label>
                   <label data-advanced="relationships">Listing Partner<select id="c-listing"><option value="">Select partner</option>${opts}</select></label>
+                  <label data-advanced="relationships">Referral Partner<select id="c-referral-partner"><option value="">Select partner</option>${opts}</select></label>
                   <label data-advanced="relationships">Referred By<select id="c-ref"><option value="">Select source</option>${optionList(LEAD_SOURCES, c.referredBy||c.leadSource||'')}</select></label>
                   <label data-advanced="relationships">Last Contact<input id="c-lastcontact" type="date" value="${escape((c.lastContact||'').slice(0,10))}"></label>
                   <label data-advanced="relationships">Next Follow-Up<input id="c-nexttouch" type="date" value="${escape((c.nextFollowUp||'').slice(0,10))}"></label>
@@ -820,8 +862,31 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       </div>`;
     const buyerSel = $('#c-buyer', body);
     const listingSel = $('#c-listing', body);
+    const referralPartnerSel = $('#c-referral-partner', body);
     if(buyerSel) buyerSel.value = c.buyerPartnerId ? String(c.buyerPartnerId) : '';
     if(listingSel) listingSel.value = c.listingPartnerId ? String(c.listingPartnerId) : '';
+    if(referralPartnerSel) referralPartnerSel.value = referralPartnerId || '';
+    const referralSummaryBtn = body.querySelector('[data-role="referral-partner-summary"]');
+    if(referralSummaryBtn && !referralSummaryBtn.__wired){
+      referralSummaryBtn.__wired = true;
+      referralSummaryBtn.addEventListener('click', (event)=>{
+        event.preventDefault();
+        const partnerId = referralSummaryBtn.dataset.partnerId ? referralSummaryBtn.dataset.partnerId.trim() : '';
+        if(partnerId){
+          try{
+            openPartnerEditModal(partnerId, { sourceHint: 'contact:referral-summary', trigger: referralSummaryBtn });
+          }catch (err){
+            try{ console && console.warn && console.warn('referral partner open failed', err); }
+            catch(_warn){}
+          }
+          return;
+        }
+        if(referralPartnerSel){
+          try{ referralPartnerSel.focus({ preventScroll: true }); }
+          catch(_err){ referralPartnerSel.focus?.(); }
+        }
+      });
+    }
 
     const summaryNote = $('#c-summary-note', body);
     if(summaryNote && c.pipelineMilestone && /funded/i.test(String(c.pipelineMilestone))){
@@ -1177,12 +1242,14 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       const program = $('#c-loanType',body)?.value||'';
       const source = $('#c-source',body)?.value || '';
       const referralVal = $('#c-ref',body)?.value || '';
+      const referralPartnerSelect = $('#c-referral-partner', body);
+      const referralSummaryHost = $('#c-summary-referral', body);
+      const referralSummaryBtn = referralSummaryHost?.querySelector('[data-role="referral-partner-summary"]');
       const next = $('#c-nexttouch',body)?.value || $('#c-timeline',body)?.value || 'TBD';
       const amountEl = $('#c-summary-amount',body);
       const programEl = $('#c-summary-program',body);
       const sourceEl = $('#c-summary-source',body);
       const touchEl = $('#c-summary-touch',body);
-      const referralEl = $('#c-summary-referral',body);
       const summaryName = body.querySelector('.summary-name');
       const summaryNote = $('#c-summary-note',body);
       const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
@@ -1194,7 +1261,22 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       if(amountEl){ amountEl.textContent = amountVal>0 ? fmtCurrency.format(amountVal) : 'TBD'; }
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
-      if(referralEl){ referralEl.textContent = referralVal || 'Log Referral'; }
+      if(referralSummaryBtn){
+        const selectedPartnerId = referralPartnerSelect ? String(referralPartnerSelect.value || '').trim() : '';
+        let partnerText = partnerLabelFor(selectedPartnerId);
+        if(!partnerText && selectedPartnerId && referralPartnerSelect && referralPartnerSelect.selectedOptions && referralPartnerSelect.selectedOptions[0]){
+          partnerText = referralPartnerSelect.selectedOptions[0].textContent?.trim() || '';
+        }
+        if(!partnerText && selectedPartnerId){
+          partnerText = referralPartnerName && selectedPartnerId === referralPartnerId ? referralPartnerName : '';
+        }
+        referralSummaryBtn.textContent = partnerText || 'Assign Referral Partner';
+        if(selectedPartnerId){
+          referralSummaryBtn.dataset.partnerId = selectedPartnerId;
+        }else{
+          delete referralSummaryBtn.dataset.partnerId;
+        }
+      }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
       if(summaryName){
         const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
@@ -1485,6 +1567,17 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
       const prevMilestoneNormalized = normalizeMilestoneForStatus(c.pipelineMilestone, prevStatusKey || c.status || 'inprogress');
       setBusy(true);
       try{
+        const referralPartnerSelectSave = $('#c-referral-partner',body);
+        const rawReferralPartnerIdSave = referralPartnerSelectSave ? String(referralPartnerSelectSave.value || '').trim() : '';
+        const cleanReferralPartnerId = rawReferralPartnerIdSave && rawReferralPartnerIdSave !== NONE_PARTNER_ID ? rawReferralPartnerIdSave : '';
+        const referralPartnerOption = referralPartnerSelectSave && referralPartnerSelectSave.selectedOptions && referralPartnerSelectSave.selectedOptions[0]
+          ? referralPartnerSelectSave.selectedOptions[0]
+          : null;
+        const computedReferralPartnerName = cleanReferralPartnerId
+          ? (partnerLabelFor(cleanReferralPartnerId)
+            || (referralPartnerOption && referralPartnerOption.textContent ? referralPartnerOption.textContent.trim() : '')
+            || (cleanReferralPartnerId === referralPartnerId ? referralPartnerName : ''))
+          : '';
         const u = Object.assign({}, c, {
           first: $('#c-first',body).value.trim(), last: $('#c-last',body).value.trim(),
           email: $('#c-email',body).value.trim(), phone: $('#c-phone',body).value.trim(),
@@ -1494,6 +1587,8 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
           loanAmount: Number($('#c-amount',body).value||0), rate: Number($('#c-rate',body).value||0),
           fundedDate: $('#c-funded',body).value || '', buyerPartnerId: $('#c-buyer',body).value||null,
           listingPartnerId: $('#c-listing',body).value||null, lastContact: $('#c-lastcontact',body).value||'',
+          referralPartnerId: cleanReferralPartnerId || null,
+          referralPartnerName: cleanReferralPartnerId ? computedReferralPartnerName : '',
           referredBy: $('#c-ref',body).value||'', notes: $('#c-notes',body).value||'', updatedAt: Date.now(),
           contactType: $('#c-type',body).value,
           priority: $('#c-priority',body).value,
