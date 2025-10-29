@@ -12,6 +12,9 @@ const GROUP_WIDGET_SELECTOR = '#dashboard-insights > .card, #dashboard-insights 
 const HANDLE_SELECTOR = '[data-ui="card-title"], .insight-head, .row > strong:first-child, header, h2, h3, h4';
 const STYLE_ID = 'dash-layout-mode-style';
 const DASHBOARD_ROOT_SELECTOR = 'main[data-ui="dashboard-root"]';
+const DASH_LAYOUT_PREFIX = 'dash:layout';
+const RESET_STORAGE_KEYS = [ORDER_STORAGE_KEY, HIDDEN_STORAGE_KEY, MODE_STORAGE_KEY, ...LEGACY_ORDER_KEYS, ...LEGACY_HIDDEN_KEYS, ...LEGACY_MODE_KEYS];
+const RESET_OPTIONAL_KEYS = [LEGACY_WIDGET_ORDER_KEY];
 
 const DASHBOARD_WIDGETS = [
   { id: 'dashboard-focus', key: 'focus', label: 'Focus Summary' },
@@ -242,6 +245,42 @@ function computeHiddenSignature(hiddenSet){
 function computeOrderSignature(orderIds){
   const keys = convertIdsToKeys(orderIds);
   return keys.join('|');
+}
+
+function collectDashLayoutKeys(){
+  const keys = new Set(RESET_STORAGE_KEYS.concat(RESET_OPTIONAL_KEYS));
+  if(typeof localStorage === 'undefined'){
+    return Array.from(keys);
+  }
+  try{
+    for(let index = 0; index < localStorage.length; index += 1){
+      const key = localStorage.key(index);
+      if(typeof key === 'string' && key.startsWith(DASH_LAYOUT_PREFIX)){
+        keys.add(key);
+      }
+    }
+  }catch (_err){}
+  return Array.from(keys);
+}
+
+function clearDashLayoutStorage(){
+  if(typeof localStorage === 'undefined') return [];
+  const removed = [];
+  const seen = new Set();
+  const keys = collectDashLayoutKeys();
+  keys.forEach(key => {
+    if(!key || seen.has(key)) return;
+    seen.add(key);
+    try{
+      const existing = localStorage.getItem(key);
+      if(existing !== null){
+        removed.push(key);
+      }
+    }catch (_err){}
+    try{ localStorage.removeItem(key); }
+    catch (_err2){}
+  });
+  return removed;
 }
 
 function persistHiddenToSettings(hiddenSet){
@@ -773,6 +812,21 @@ export function requestDashboardLayoutPass(input){
     lateApply(reason);
   }
   scheduleLatePass(reason);
+}
+
+export function resetDashboardLayoutState(options = {}){
+  const removedKeys = clearDashLayoutStorage();
+  setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
+  state.hidden = new Set();
+  state.hiddenSignature = null;
+  state.orderSignature = null;
+  state.suppressOrderPersist = false;
+  applyDashboardHidden([], { persist: false, skipSettings: true });
+  if(options.skipLayoutPass !== true){
+    const reason = options.reason || 'layout-reset';
+    requestDashboardLayoutPass({ reason });
+  }
+  return { removedKeys };
 }
 
 async function syncDashboardPrefsFromSettings(reason){

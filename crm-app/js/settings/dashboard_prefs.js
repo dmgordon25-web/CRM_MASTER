@@ -4,7 +4,9 @@ import initDashboardLayout, {
   readStoredLayoutMode,
   readStoredHiddenIds,
   getDashboardWidgets,
-  requestDashboardLayoutPass
+  requestDashboardLayoutPass,
+  getDashboardListenerCount,
+  resetDashboardLayoutState
 } from '../ui/dashboard_layout.js';
 
 const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card, :scope > div.card, :scope > section.grid > .card, :scope > section.grid > section.card';
@@ -60,6 +62,40 @@ function dispatchHiddenChange(hiddenSet){
     const detail = { hidden: Array.from(hiddenSet).map(String) };
     document?.dispatchEvent?.(new CustomEvent('dashboard:hidden-change', { detail }));
   }catch (_err){}
+}
+
+function readPointerHandlerCount(){
+  if(typeof window === 'undefined' || !window.__DASH_DND_HANDLERS__) return 0;
+  const api = window.__DASH_DND_HANDLERS__;
+  try{
+    if(typeof api.handlerCount === 'function'){
+      return api.handlerCount();
+    }
+    if(typeof api.pointerHandlerCount === 'function'){
+      return api.pointerHandlerCount();
+    }
+    if(typeof api.pointerHandlerCount === 'number'){
+      return api.pointerHandlerCount;
+    }
+    if(api.pointerHandlers && typeof api.pointerHandlers === 'object'){
+      return Object.values(api.pointerHandlers).filter(fn => typeof fn === 'function').length;
+    }
+  }catch (_err){}
+  return 0;
+}
+
+function formatHandlerCountSummary(){
+  const dragListeners = getDashboardListenerCount();
+  const pointerHandlers = readPointerHandlerCount();
+  if(pointerHandlers > 0){
+    return `Drag listeners: ${dragListeners} (pointer handlers: ${pointerHandlers})`;
+  }
+  return `Drag listeners: ${dragListeners}`;
+}
+
+function updateHandlerCountNode(node){
+  if(!node) return;
+  node.textContent = formatHandlerCountSummary();
 }
 
 function ensureCard(panel){
@@ -244,6 +280,48 @@ function render(){
       requestDashboardLayoutPass({ reason: 'prefs-hidden' });
     });
   }
+  const resetHeader = document.createElement('h4');
+  resetHeader.textContent = 'Reset layout';
+  card.appendChild(resetHeader);
+  const resetCopy = document.createElement('p');
+  resetCopy.className = 'muted fine-print';
+  resetCopy.textContent = 'Clear stored dashboard layout preferences for this browser.';
+  card.appendChild(resetCopy);
+  const resetButton = document.createElement('button');
+  resetButton.type = 'button';
+  resetButton.className = 'button outline';
+  resetButton.setAttribute('data-role', 'reset-layout');
+  resetButton.textContent = 'Reset layout state';
+  card.appendChild(resetButton);
+  const handlerNote = document.createElement('p');
+  handlerNote.className = 'muted fine-print';
+  handlerNote.setAttribute('data-role', 'layout-handler-count');
+  card.appendChild(handlerNote);
+  if(!resetButton.__wired){
+    resetButton.__wired = true;
+    resetButton.addEventListener('click', evt => {
+      evt.preventDefault();
+      if(resetButton.disabled) return;
+      resetButton.disabled = true;
+      try{
+        resetDashboardLayoutState({ reason: 'prefs-reset', skipLayoutPass: true });
+        refreshState();
+        renderWidgetList(list);
+        list.querySelectorAll('input[data-widget-id]').forEach(input => {
+          const id = input.getAttribute('data-widget-id');
+          input.checked = !prefsState.hidden.has(id);
+        });
+        layoutInput.checked = prefsState.layoutMode;
+        dispatchLayoutMode(prefsState.layoutMode);
+        dispatchHiddenChange(prefsState.hidden);
+        requestDashboardLayoutPass({ reason: 'prefs-reset' });
+      }finally{
+        resetButton.disabled = false;
+        updateHandlerCountNode(handlerNote);
+      }
+    });
+  }
+  updateHandlerCountNode(handlerNote);
   list.querySelectorAll('input[data-widget-id]').forEach(input => {
     const id = input.getAttribute('data-widget-id');
     input.checked = !prefsState.hidden.has(id);
