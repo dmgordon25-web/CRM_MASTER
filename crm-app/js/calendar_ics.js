@@ -31,7 +31,7 @@
     const title = esc(ev.title || "Event");
     const desc  = esc(ev.desc || "");
     if (ev.allDay){
-      // All-day uses VALUE=DATE; DTEND is exclusive next day
+      // All-day uses VALUE=DATE (local midnight in local TZ); DTEND is exclusive next day
       const s = fmtAllDay(new Date(ev.start));
       const eDate = new Date(ev.start); eDate.setDate(eDate.getDate()+1);
       const e = fmtAllDay(eDate);

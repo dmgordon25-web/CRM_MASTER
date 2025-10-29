@@ -1,4 +1,6 @@
 /* P6c: Calendar export wiring (idempotent) */
+import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
+
 (function(){
   if (window.__CAL_EXPORTS_V2__) return;
   window.__CAL_EXPORTS_V2__ = true;
@@ -6,6 +8,7 @@
   const SELECTOR_ICS = '[data-ui="calendar-export-ics"]';
   const SELECTOR_CSV = '[data-ui="calendar-export-csv"]';
   const CSV_HEADER = ['Date','Type','Title','Details','Loan','Status','Source'];
+  const CSV_BOM = '\ufeff';
 
   function safeEvents(){
     const api = window.CalendarAPI;
@@ -154,32 +157,42 @@
         describeSource(ev.source)
       ].map(esc).join(','));
     }
-    const csv = rows.join('\r\n');
+    const csv = `${CSV_BOM}${rows.join('\r\n')}`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     triggerDownload(blob, 'calendar-export.csv');
   }
 
   function handleIcs(){
-    const events = safeEvents();
-    const payload = buildIcsPayload(events);
-    const build = window.CRM_ICS && typeof window.CRM_ICS.buildICS === 'function'
-      ? window.CRM_ICS.buildICS.bind(window.CRM_ICS)
-      : null;
-    const download = window.CRM_ICS && typeof window.CRM_ICS.downloadICS === 'function'
-      ? window.CRM_ICS.downloadICS.bind(window.CRM_ICS)
-      : null;
-    if (build && download){
-      const ics = build(payload);
-      download('calendar-export.ics', ics);
-      return;
+    try {
+      const events = safeEvents();
+      const payload = buildIcsPayload(events);
+      const build = window.CRM_ICS && typeof window.CRM_ICS.buildICS === 'function'
+        ? window.CRM_ICS.buildICS.bind(window.CRM_ICS)
+        : null;
+      const download = window.CRM_ICS && typeof window.CRM_ICS.downloadICS === 'function'
+        ? window.CRM_ICS.downloadICS.bind(window.CRM_ICS)
+        : null;
+      if (build && download){
+        const ics = build(payload);
+        download('calendar-export.ics', ics);
+      } else {
+        const icsText = buildFallbackIcs(payload);
+        triggerDownload(new Blob([icsText], { type: 'text/calendar;charset=utf-8' }), 'calendar-export.ics');
+      }
+      toastSuccess('Calendar ICS exported');
+    } catch (err) {
+      toastSoftError('[soft] calendar export ics failed', err, 'Unable to export calendar ICS.');
     }
-    const icsText = buildFallbackIcs(payload);
-    triggerDownload(new Blob([icsText], { type: 'text/calendar;charset=utf-8' }), 'calendar-export.ics');
   }
 
   function handleCsv(){
-    const events = safeEvents();
-    downloadCsv(events);
+    try {
+      const events = safeEvents();
+      downloadCsv(events);
+      toastSuccess('Calendar CSV exported');
+    } catch (err) {
+      toastSoftError('[soft] calendar export csv failed', err, 'Unable to export calendar CSV.');
+    }
   }
 
   function bind(selector, handler){
