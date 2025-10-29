@@ -9,6 +9,7 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
   const SELECTOR_CSV = '[data-ui="calendar-export-csv"]';
   const CSV_HEADER = ['Date','Type','Title','Details','Loan','Status','Source'];
   const CSV_BOM = '\ufeff';
+  const TASK_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   function safeEvents(){
     const api = window.CalendarAPI;
@@ -231,6 +232,36 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
     enhanceLegend();
   }
 
+  function shouldToastTaskMove(detail){
+    if(!detail || typeof detail !== 'object') return false;
+    const event = detail.event && typeof detail.event === 'object' ? detail.event : null;
+    if(!event) return false;
+    const type = event.type ? String(event.type).toLowerCase() : '';
+    if(type === 'task') return true;
+    const source = event.source && typeof event.source === 'object' ? event.source : null;
+    if(source && source.entity && String(source.entity).toLowerCase() === 'task') return true;
+    return false;
+  }
+
+  function eventMoveDate(detail){
+    if(detail && detail.next && detail.next.date instanceof Date){
+      return detail.next.date;
+    }
+    const event = detail && detail.event && detail.event.date instanceof Date ? detail.event.date : null;
+    if(event) return event;
+    return null;
+  }
+
+  function handleEventMoved(evt){
+    const detail = evt && typeof evt === 'object' ? evt.detail || evt : null;
+    if(!shouldToastTaskMove(detail)) return;
+    const movedDate = eventMoveDate(detail);
+    if(!(movedDate instanceof Date) || Number.isNaN(movedDate.getTime())) return;
+    const title = detail.event && detail.event.title ? String(detail.event.title) : 'Task';
+    const formatted = TASK_DATE_FORMAT.format(movedDate);
+    toastSuccess(`${title} rescheduled to ${formatted}`);
+  }
+
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', () => {
       ensureButtons();
@@ -244,6 +275,7 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
   document.addEventListener('calendar:exports:ready', handleRendered);
   document.addEventListener('app:view:changed', handleRendered);
   document.addEventListener('calendar:rendered', handleRendered);
+  document.addEventListener('calendar:event:moved', handleEventMoved);
 
   window.CalendarExports = Object.assign(window.CalendarExports || {}, {
     ensureButtons,

@@ -1,7 +1,6 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
-import { openContactModal } from './contacts.js';
-import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { openCalendarEntityEditor } from './contacts.js';
 import { attachStatusBanner } from './ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import { toastWarn } from './ui/toast_helpers.js';
@@ -516,6 +515,7 @@ function isUserEventCandidate(raw){
   const sourceEntity = raw.source && typeof raw.source === 'object'
     ? String(raw.source.entity || '').toLowerCase()
     : '';
+  if(type === 'task' || kind === 'task' || category === 'task' || sourceEntity === 'task') return true;
   if(type === 'user' || type === 'user-event' || type === 'custom' || type === 'custom-event') return true;
   if(kind === 'user' || kind === 'user-event') return true;
   if(category === 'user' || category === 'custom') return true;
@@ -1720,21 +1720,26 @@ export function initCalendar({ openDB, bus, services, mount }){
       if(!event) return;
       const partnerId = event.partnerId ? String(event.partnerId) : '';
       const contactId = event.contactId ? String(event.contactId) : '';
-      if(contactId){
-        dispatchThroughBus(bus, 'calendar:event:open', { event, partnerId, contactId });
-        Promise.resolve(openContactModal(contactId, { sourceHint: 'calendar:event' }))
-          .catch((err) => {
-            try{ console && console.warn && console.warn('calendar contact open failed', err); }
-            catch(_warn){}
-            toastWarn('Unable to open contact');
+      Promise.resolve(openCalendarEntityEditor(event, {
+        contactId,
+        partnerId,
+        safeMode: state.safeMode,
+        sourceHint: 'calendar:event',
+      })).then((result) => {
+        if(result && result.opened){
+          dispatchThroughBus(bus, 'calendar:event:open', {
+            event,
+            partnerId,
+            contactId,
+            kind: result.kind || '',
           });
-        return;
-      }
-      if(partnerId){
-        dispatchThroughBus(bus, 'calendar:event:open', { event, partnerId, contactId });
-        try{ openPartnerEditModal(partnerId, { sourceHint: 'calendar:event' }); }
-        catch (_err){}
-      }
+        }
+      }).catch((err) => {
+        if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+          console.warn('calendar event open failed', err);
+        }
+        toastWarn('Unable to open calendar item');
+      });
     },
     bindEventDrag(node, event){
       bindDrag(node, event);
