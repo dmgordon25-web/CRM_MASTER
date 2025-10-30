@@ -1,6 +1,7 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
-import { openContactEditor, openPartnerEditor } from './ui/quick_create_menu.js';
+import { normalizeNewContactPrefill, openContactEditor } from './contacts.js';
+import { openPartnerEditor } from './ui/quick_create_menu.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -46,6 +47,36 @@ function closeQuickAddOverlay(node){
   }
 }
 
+function collectQuickAddContactPayload(form){
+  if(!form || typeof form.querySelector !== 'function') return null;
+  const read = (name) => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if(!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value.trim() : String(value || '').trim();
+  };
+  const firstName = read('firstName');
+  const lastName = read('lastName');
+  const email = read('email');
+  const phone = read('phone');
+  let idSource = '';
+  const idInput = form.querySelector('input[name="id"], input[name="contactId"], input[name="contact-id"]');
+  if(idInput){
+    const raw = idInput.value;
+    idSource = typeof raw === 'string' ? raw.trim() : String(raw || '').trim();
+  }
+  const name = `${firstName} ${lastName}`.trim();
+  return {
+    id: idSource,
+    __isNew: true,
+    name: name || '',
+    firstName,
+    lastName,
+    email,
+    phone
+  };
+}
+
 function ensureQuickAddFullEditor(form, qa, opener, overlay){
   if(!form || !doc || !qa || typeof opener !== 'function') return;
   if(form.querySelector(`[data-qa="${qa}"]`)) return;
@@ -63,10 +94,30 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
   button.style.fontSize = '13px';
   button.style.padding = '0';
   button.style.marginRight = 'auto';
-  button.addEventListener('click', (event) => {
+  button.addEventListener('click', async (event) => {
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
+    let payloadSent = false;
+    if(qa === 'open-full-contact-editor'){
+      const payload = collectQuickAddContactPayload(form) || {};
+      const model = normalizeNewContactPrefill(payload);
+      closeQuickAddOverlay(overlay);
+      payloadSent = true;
+      try {
+        await Promise.resolve(opener(model));
+      } catch (err) {
+        try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
+        catch (_) {}
+      }
+      return;
+    }
     closeQuickAddOverlay(overlay);
-    opener();
+    if(!payloadSent){
+      try { opener(); }
+      catch (err) {
+        try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
+        catch (_) {}
+      }
+    }
   });
   actions.prepend(button);
 }
