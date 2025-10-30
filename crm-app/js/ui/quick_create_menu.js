@@ -544,12 +544,16 @@ export function isQuickCreateMenuOpen(source) {
   return state.source === source;
 }
 
-function defaultOpenContactEditor() {
+function defaultOpenContactEditor(prefill) {
+  const options = { allowAutoOpen: true, sourceHint: 'quick-create:menu' };
+  if (prefill && typeof prefill === 'object') {
+    options.prefetchedRecord = prefill;
+  }
   if (typeof window.openContactModal === 'function') {
-    return callSafely(window.openContactModal, null, { allowAutoOpen: true, sourceHint: 'quick-create:menu' });
+    return callSafely(window.openContactModal, null, options);
   }
   if (typeof window.renderContactModal === 'function') {
-    return callSafely(window.renderContactModal, null);
+    return callSafely(window.renderContactModal, null, options);
   }
   if (typeof window.openNewContact === 'function') {
     return callSafely(window.openNewContact);
@@ -608,8 +612,8 @@ function defaultOpenTaskEditor() {
   return null;
 }
 
-export function openContactEditor() {
-  return defaultOpenContactEditor();
+export function openContactEditor(prefill) {
+  return defaultOpenContactEditor(prefill);
 }
 
 export function openPartnerEditor() {

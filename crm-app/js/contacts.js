@@ -162,6 +162,56 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
     };
   }
 
+  function safeTrim(value){
+    if(value == null) return '';
+    if(typeof value === 'string') return value.trim();
+    try { return String(value).trim(); }
+    catch (_err) { return ''; }
+  }
+
+  function ensureTimestamp(value, fallback){
+    const num = Number(value);
+    if(Number.isFinite(num) && num > 0) return num;
+    return fallback;
+  }
+
+  function normalizeNewContactPrefill(raw){
+    if(!raw || typeof raw !== 'object') return null;
+    const now = Date.now();
+    const base = Object.assign({}, raw);
+    const normalizedId = normalizeContactId(base.id || base.contactId || base.tempId);
+    base.id = normalizedId || `tmp-${now}`;
+    const firstName = safeTrim(base.firstName ?? base.first);
+    const lastName = safeTrim(base.lastName ?? base.last);
+    const name = safeTrim(base.name || `${firstName} ${lastName}`.trim());
+    const email = safeTrim(base.email ?? base.primaryEmail ?? base.workEmail);
+    const phone = safeTrim(base.phone ?? base.primaryPhone ?? base.mobile);
+    base.firstName = firstName;
+    base.lastName = lastName;
+    if(!base.first) base.first = firstName;
+    if(!base.last) base.last = lastName;
+    base.name = name;
+    base.email = email;
+    base.phone = phone;
+    base.__isNew = true;
+    const metaSource = base.meta && typeof base.meta === 'object' ? base.meta : {};
+    const createdAt = ensureTimestamp(metaSource.createdAt, now);
+    const updatedAt = ensureTimestamp(metaSource.updatedAt, createdAt);
+    base.meta = { createdAt, updatedAt };
+    return base;
+  }
+
+  function isRecoverableContactError(err){
+    if(!err) return false;
+    const message = typeof err === 'object' && err && typeof err.message === 'string'
+      ? err.message
+      : String(err);
+    if(!message) return false;
+    return /missing property/i.test(message)
+      || /Cannot read properties of undefined/i.test(message)
+      || /Cannot read property/i.test(message);
+  }
+
   const noop = ()=>{};
   let refreshFollowUpSuggestion = noop;
 
@@ -496,11 +546,19 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
 
   window.renderContactModal = async function(contactId, rawOptions){
     const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
-    const requestedId = normalizeContactId(options.contactId || contactId);
-    const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
-    const invoker = options.invoker instanceof HTMLElement
-      ? options.invoker
-      : resolveInvoker(options);
+    const normalizedPrefetch = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
+      ? normalizeNewContactPrefill(options.prefetchedRecord)
+      : null;
+    if(normalizedPrefetch){
+      options.prefetchedRecord = normalizedPrefetch;
+    }
+    let closeDialog = ()=>{};
+    try{
+      const requestedId = normalizeContactId(options.contactId || contactId || (normalizedPrefetch ? normalizedPrefetch.id : ''));
+      const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
+      const invoker = options.invoker instanceof HTMLElement
+        ? options.invoker
+        : resolveInvoker(options);
 
     let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureModal());
     base = base instanceof Promise ? await base : base;
@@ -603,7 +661,7 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
 
     ensureModalAddButton();
 
-    const closeDialog = ()=>{
+    closeDialog = ()=>{
       try{ dlg.close(); }
       catch (_){ }
       try{ dlg.removeAttribute('open'); }
@@ -2287,6 +2345,15 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
     try{ dlg.showModal(); }
     catch (_){ dlg.setAttribute('open',''); }
     return dlg;
+  }catch (err){
+    if(isRecoverableContactError(err)){
+      notify('Unable to open contact editor. Please try again.', 'error');
+      try{ closeDialog(); }
+      catch(_cleanupErr){}
+      return null;
+    }
+    throw err;
+  }
   };
 
   if(typeof window !== 'undefined' && typeof window.renderContactModal === 'function'){
@@ -2363,7 +2430,13 @@ export async function openContactModal(contactId, options){
   }
 
   const opts = options && typeof options === 'object' ? options : {};
-  const normalizedId = normalizeContactId(opts.contactId || contactId);
+  const normalizedPrefetch = opts.prefetchedRecord && typeof opts.prefetchedRecord === 'object'
+    ? normalizeNewContactPrefill(opts.prefetchedRecord)
+    : null;
+  if(normalizedPrefetch){
+    opts.prefetchedRecord = normalizedPrefetch;
+  }
+  const normalizedId = normalizeContactId(opts.contactId || contactId || (normalizedPrefetch ? normalizedPrefetch.id : ''));
   const allowAutoOpen = opts.allowAutoOpen === true;
   const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
   const invoker = resolveInvoker(opts);
@@ -2401,11 +2474,35 @@ export async function openContactModal(contactId, options){
     return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
   }
 
+  let dedupeEntry = null;
+  if(typeof window !== 'undefined'){
+    const dedupeId = normalizedId;
+    if(dedupeId){
+      const now = Date.now();
+      const last = window.__CONTACT_EDITOR_LAST_ID__;
+      if(last && last.id === dedupeId && (now - last.time) < 300){
+        if(last.promise){
+          return last.promise;
+        }
+        if(existing && existing.dataset?.open === '1'){
+          return existing;
+        }
+        if(pendingContactOpen && pendingContactOpen.id === dedupeId){
+          return pendingContactOpen.promise;
+        }
+        return Promise.resolve(existing || null);
+      }
+      dedupeEntry = { id: dedupeId, time: now, promise: null };
+      window.__CONTACT_EDITOR_LAST_ID__ = dedupeEntry;
+    }
+  }
+
   const mergedOptions = Object.assign({}, opts, {
     contactId: normalizedId,
     allowAutoOpen,
     sourceHint,
-    invoker
+    invoker,
+    prefetchedRecord: normalizedPrefetch || opts.prefetchedRecord || null
   });
 
   const sequence = (async () => {
@@ -2421,6 +2518,14 @@ export async function openContactModal(contactId, options){
   })();
 
   pendingContactOpen = { id: normalizedId, promise: sequence.finally(() => { pendingContactOpen = null; }) };
+  if(dedupeEntry){
+    dedupeEntry.promise = pendingContactOpen.promise;
+  }else if(typeof window !== 'undefined' && normalizedId){
+    const last = window.__CONTACT_EDITOR_LAST_ID__;
+    if(last && last.id === normalizedId){
+      last.promise = pendingContactOpen.promise;
+    }
+  }
   return pendingContactOpen.promise;
 }
 
