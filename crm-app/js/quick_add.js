@@ -46,6 +46,41 @@ function closeQuickAddOverlay(node){
   }
 }
 
+function collectQuickAddContactPayload(form){
+  if(!form || typeof form.querySelector !== 'function') return null;
+  const now = Date.now();
+  const read = (name) => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if(!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value.trim() : String(value || '').trim();
+  };
+  const firstName = read('firstName');
+  const lastName = read('lastName');
+  const email = read('email');
+  const phone = read('phone');
+  let idSource = '';
+  const idInput = form.querySelector('input[name="id"], input[name="contactId"], input[name="contact-id"]');
+  if(idInput){
+    const raw = idInput.value;
+    idSource = typeof raw === 'string' ? raw.trim() : String(raw || '').trim();
+  }
+  const name = `${firstName} ${lastName}`.trim();
+  return {
+    id: idSource || `tmp-${now}`,
+    __isNew: true,
+    name: name || '',
+    firstName,
+    lastName,
+    email,
+    phone,
+    meta: {
+      createdAt: now,
+      updatedAt: now
+    }
+  };
+}
+
 function ensureQuickAddFullEditor(form, qa, opener, overlay){
   if(!form || !doc || !qa || typeof opener !== 'function') return;
   if(form.querySelector(`[data-qa="${qa}"]`)) return;
@@ -65,8 +100,27 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
   button.style.marginRight = 'auto';
   button.addEventListener('click', (event) => {
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
+    let payloadSent = false;
+    if(qa === 'open-full-contact-editor'){
+      const payload = collectQuickAddContactPayload(form);
+      closeQuickAddOverlay(overlay);
+      payloadSent = true;
+      try {
+        opener(payload);
+      } catch (err) {
+        try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
+        catch (_) {}
+      }
+      return;
+    }
     closeQuickAddOverlay(overlay);
-    opener();
+    if(!payloadSent){
+      try { opener(); }
+      catch (err) {
+        try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
+        catch (_) {}
+      }
+    }
   });
   actions.prepend(button);
 }
