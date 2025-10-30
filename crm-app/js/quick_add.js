@@ -49,6 +49,7 @@ function closeQuickAddOverlay(node){
 
 function collectQuickAddContactPayload(form){
   if(!form || typeof form.querySelector !== 'function') return null;
+  const now = Date.now();
   const read = (name) => {
     const input = form.querySelector(`[name="${name}"]`);
     if(!input) return '';
@@ -67,13 +68,17 @@ function collectQuickAddContactPayload(form){
   }
   const name = `${firstName} ${lastName}`.trim();
   return {
-    id: idSource,
+    id: idSource || `tmp-${now}`,
     __isNew: true,
     name: name || '',
     firstName,
     lastName,
     email,
-    phone
+    phone,
+    meta: {
+      createdAt: now,
+      updatedAt: now
+    }
   };
 }
 
