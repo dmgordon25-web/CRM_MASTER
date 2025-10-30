@@ -1,5 +1,3 @@
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
-npm warn deprecated puppeteer@22.15.0: < 24.15.0 is no longer supported
 
 added 277 packages, and audited 278 packages in 3s
 

@@ -2383,6 +2383,35 @@ export function normalizeContactId(input) {
 })();
 
 let pendingContactOpen = null;
+let lastContactModalRequest = { id: null, promise: null };
+let lastContactEditorRequest = { id: null, promise: null };
+const CONTACT_NEW_ID_TOKEN = '__contact:new__';
+
+function contactDedupeKey(value){
+  if(value && typeof value === 'object' && 'id' in value){
+    value = value.id;
+  }
+  const raw = value == null ? '' : String(value).trim();
+  return raw || CONTACT_NEW_ID_TOKEN;
+}
+
+function resetContactModalRequest(id, promise){
+  if(lastContactModalRequest.id === id && lastContactModalRequest.promise === promise){
+    lastContactModalRequest = { id: null, promise: null };
+  }
+}
+
+function resetContactEditorRequest(id, promise){
+  if(lastContactEditorRequest.id === id && lastContactEditorRequest.promise === promise){
+    lastContactEditorRequest = { id: null, promise: null };
+  }
+}
+
+function isContactModalHostMissing(){
+  if(typeof document === 'undefined') return false;
+  const modal = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`);
+  return !modal || modal.isConnected === false;
+}
 
 function teardownContactModalShell(){
   if(typeof document === 'undefined') return;
@@ -2485,6 +2514,7 @@ export async function openContactModal(contactId, options){
   const rawIdCandidate = model ? model.id : (opts.contactId ?? contactId ?? '');
   const rawIdString = rawIdCandidate == null ? '' : String(rawIdCandidate).trim();
   const normalizedId = model ? model.id : normalizeContactId(rawIdCandidate);
+  const dedupeKey = contactDedupeKey(normalizedId);
   const allowAutoOpen = opts.allowAutoOpen === true;
   const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
   const invoker = resolveInvoker(opts);
@@ -2523,27 +2553,8 @@ export async function openContactModal(contactId, options){
     return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
   }
 
-  const host = typeof window !== 'undefined' ? window : null;
-  const now = Date.now();
-  let dedupeEntry = null;
-  if(host){
-    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
-      ? host.__CONTACT_EDITOR_LAST__
-      : null;
-    if(last && last.id === normalizedId && (now - (last.t || 0)) < 300){
-      if(last.promise){
-        return last.promise;
-      }
-      if(existing && existing.dataset?.open === '1'){
-        return existing;
-      }
-      if(pendingContactOpen && pendingContactOpen.id === normalizedId){
-        return pendingContactOpen.promise;
-      }
-      return Promise.resolve(existing || null);
-    }
-    dedupeEntry = { id: normalizedId, t: now, promise: null };
-    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
+  if(lastContactModalRequest.id === dedupeKey && lastContactModalRequest.promise){
+    return lastContactModalRequest.promise;
   }
 
   const mergedOptions = Object.assign({}, opts, {
@@ -2577,24 +2588,27 @@ export async function openContactModal(contactId, options){
     }
   })();
 
-  const tracked = sequence.finally(() => { pendingContactOpen = null; });
-  pendingContactOpen = { id: normalizedId, promise: tracked };
-  if(dedupeEntry){
-    dedupeEntry.promise = tracked;
-    dedupeEntry.t = now;
-    if(host){
-      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
+  const tracked = sequence.finally(() => {
+    if(pendingContactOpen && pendingContactOpen.promise === tracked){
+      pendingContactOpen = null;
     }
-  }
+    resetContactModalRequest(dedupeKey, tracked);
+  });
+  pendingContactOpen = { id: normalizedId, promise: tracked };
+  lastContactModalRequest = { id: dedupeKey, promise: tracked };
   return tracked;
 }
 
 export function openContactEditor(prefill){
   let model = normalizeNewContactPrefill(prefill || {});
-  const safeId = normalizeContactId(model);
-  model.id = safeId;
+  model.id = normalizeContactId(model);
 
+  const dedupeKey = contactDedupeKey(model.id);
   closeQuickAddOverlayIfOpen();
+
+  if(lastContactEditorRequest.id === dedupeKey && lastContactEditorRequest.promise){
+    return lastContactEditorRequest.promise;
+  }
 
   const options = {
     allowAutoOpen: true,
@@ -2603,40 +2617,33 @@ export function openContactEditor(prefill){
     suppressErrorToast: true
   };
 
-  const host = typeof window !== 'undefined' ? window : null;
-  const now = Date.now();
-  let dedupeEntry = null;
-  if(host){
-    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
-      ? host.__CONTACT_EDITOR_LAST__
-      : null;
-    if(last && last.id === model.id && (now - (last.t || 0)) < 300){
-      return last.promise || Promise.resolve(null);
-    }
-    dedupeEntry = { id: model.id, t: now, promise: null };
-    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
-  }
-
-  const sequence = (async () => {
-    try{
+  let notified = false;
+  const runOpen = async (attempt = 0) => {
+    try {
       const result = await openContactModal(model.id, options);
       return result || null;
-    }catch (err){
-      try{ console && console.warn && console.warn('[contact-editor:init]', err); }
-      catch(_warn){}
-      toastWarn('Couldn\u2019t open the full editor. Please try again.');
+    } catch (err) {
+      if(!notified){
+        notified = true;
+        try{ console && console.warn && console.warn('[contact-editor:init]', err); }
+        catch(_warn){}
+        toastWarn('Couldn\u2019t open the full editor. Please try again.');
+      }
+      const missingHost = isContactModalHostMissing();
       teardownContactModalShell();
+      const shouldRetry = attempt === 0 && missingHost;
+      if(shouldRetry){
+        return runOpen(attempt + 1);
+      }
       return null;
     }
-  })();
+  };
 
-  if(dedupeEntry){
-    dedupeEntry.promise = sequence;
-    dedupeEntry.t = now;
-    if(host){
-      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
-    }
-  }
+  const sequence = runOpen().finally(() => {
+    resetContactEditorRequest(dedupeKey, sequence);
+  });
+
+  lastContactEditorRequest = { id: dedupeKey, promise: sequence };
 
   return sequence;
 }
