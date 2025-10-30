@@ -103,11 +103,12 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
     let payloadSent = false;
     if(qa === 'open-full-contact-editor'){
-      const payload = collectQuickAddContactPayload(form);
+      const payload = collectQuickAddContactPayload(form) || {};
+      const model = normalizeNewContactPrefill(payload);
       closeQuickAddOverlay(overlay);
       payloadSent = true;
       try {
-        opener(payload);
+        await Promise.resolve(opener(model));
       } catch (err) {
         try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
         catch (_) {}

@@ -36,6 +36,14 @@ function coerceTrimmedString(value) {
     return '';
   }
 }
+const CONTACT_INVALID_ID_TOKENS = new Set(['', 'null', 'undefined']);
+export function normalizeContactId(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const token = raw.toLowerCase();
+  return CONTACT_INVALID_ID_TOKENS.has(token) ? '' : raw;
+}
 
 export function normalizeNewContactPrefill(input = {}) {
   const source = input && typeof input === 'object' ? input : {};
@@ -129,16 +137,7 @@ export function normalizeNewContactPrefill(input = {}) {
   };
 
   const CONTACT_MODAL_KEY = 'contact-edit';
-  const INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
-
-  const normalizeContactId = (value)=>{
-    if(value == null) return '';
-    const raw = String(value).trim();
-    if(!raw) return '';
-    const token = raw.toLowerCase();
-    return INVALID_CONTACT_ID_TOKENS.has(token) ? '' : raw;
-  };
 
   const resolveInvoker = (options)=>{
     if(!options) return null;
@@ -237,7 +236,6 @@ export function normalizeNewContactPrefill(input = {}) {
       missingDocs:''
     };
   }
-
   function safeTrim(value){
     if(value == null) return '';
     if(typeof value === 'string') return value.trim();
