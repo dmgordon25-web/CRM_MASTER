@@ -6,6 +6,7 @@ import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
+import flags from './settings/flags.js';
 
 // app.js
 export function goto(hash){
@@ -35,6 +36,85 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+
+  const featureFlags = flags || {};
+  const notificationsEnabled = featureFlags.notificationsMVP === true;
+
+  function getActionBarNode(){
+    if(typeof document === 'undefined') return null;
+    return document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+  }
+
+  function ensureActionBarIdleState(){
+    const bar = getActionBarNode();
+    if(!bar) return;
+    try { bar.classList.remove('has-selection'); }
+    catch (_) {}
+    if(bar.dataset){
+      if(!bar.dataset.count) bar.dataset.count = '0';
+      bar.dataset.idleVisible = '1';
+      bar.dataset.visible = '1';
+    }
+    try { bar.setAttribute('data-visible', '1'); }
+    catch (_) {}
+    if(bar.style && bar.style.display === 'none'){
+      bar.style.display = '';
+    }
+  }
+
+  const ACTION_BAR_VISIBLE_ROUTES = new Set(['dashboard','longshots','pipeline','partners','contacts']);
+  if(notificationsEnabled){
+    ACTION_BAR_VISIBLE_ROUTES.add('notifications');
+  }
+
+  const DEFAULT_ROUTE = 'dashboard';
+
+  function applyActionBarIdleVisibility(route){
+    const bar = getActionBarNode();
+    if(!bar) return;
+    const normalized = typeof route === 'string' ? route.trim().toLowerCase() : '';
+    const shouldShow = ACTION_BAR_VISIBLE_ROUTES.has(normalized);
+    if(shouldShow){
+      if(bar.dataset){
+        bar.dataset.idleVisible = '1';
+        bar.dataset.visible = '1';
+      }
+      try { bar.setAttribute('data-visible', '1'); }
+      catch (_) {}
+      if(bar.style && bar.style.display === 'none'){
+        bar.style.display = '';
+      }
+    }else{
+      if(bar.dataset){
+        bar.dataset.idleVisible = '0';
+        delete bar.dataset.visible;
+      }
+      if(!bar.classList.contains('has-selection')){
+        try { bar.removeAttribute('data-visible'); }
+        catch (_) {}
+      }
+    }
+    try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
+    catch (_) {}
+  }
+
+  function applyNotificationsNavVisibility(enabled){
+    if(typeof document === 'undefined') return;
+    const btn = document.querySelector('#main-nav button[data-nav="notifications"]');
+    if(!btn) return;
+    const show = !!enabled;
+    if(show){
+      btn.style.display = '';
+      btn.removeAttribute('aria-hidden');
+      if(btn.hasAttribute('tabindex')) btn.removeAttribute('tabindex');
+      btn.disabled = false;
+    }else{
+      btn.style.display = 'none';
+      btn.setAttribute('aria-hidden', 'true');
+      btn.setAttribute('tabindex', '-1');
+      btn.disabled = true;
+    }
+  }
 
   const bootSplash = createBootSplashController();
   const listLoadingController = createListLoadingController();
@@ -207,47 +287,37 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     catch (_) {}
   }
 
-  function forceHideActionBar(){
-    if(typeof document === 'undefined') return;
-    const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
-    if(!bar) return;
-    try { bar.classList.remove('has-selection'); }
-    catch (_) {}
-    try { bar.removeAttribute('data-visible'); }
-    catch (_) {}
-    if(bar.dataset){
-      delete bar.dataset.visible;
-      bar.dataset.count = '0';
-    }
-    try { bar.style.display = 'none'; }
-    catch (_) {}
-  }
-
   function ensurePartnerModalClosed(){
     try { closePartnerEditModal(); }
     catch (_) {}
     forceHidePartnerModal();
   }
 
-  function ensureActionBarHidden(){
-    forceHideActionBar();
-  }
-
   ensurePartnerModalClosed();
-  ensureActionBarHidden();
+  ensureActionBarIdleState();
+  applyActionBarIdleVisibility(DEFAULT_ROUTE);
+  applyNotificationsNavVisibility(notificationsEnabled);
 
   function ensureDefaultRoute(){
     if(typeof window === 'undefined' || !window?.location) return;
     const hash = typeof window.location.hash === 'string' ? window.location.hash.trim() : '';
+    if(!notificationsEnabled && hash === '#notifications'){
+      const targetHash = `#/${DEFAULT_ROUTE}`;
+      try {
+        window.location.hash = targetHash;
+      } catch (_) {}
+      return;
+    }
     if(hash && hash !== '#') return;
+    const targetHash = `#/${DEFAULT_ROUTE}`;
     try {
-      window.location.hash = '#/dashboard';
+      window.location.hash = targetHash;
       return;
     } catch (_err) {}
     try {
       const { pathname = '', search = '' } = window.location;
       if(window.history && typeof window.history.replaceState === 'function'){
-        window.history.replaceState(null, '', `${pathname}${search}#/dashboard`);
+        window.history.replaceState(null, '', `${pathname}${search}${targetHash}`);
       }
     } catch (__err) {}
   }
@@ -256,7 +326,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   onDomReady(() => {
     ensurePartnerModalClosed();
-    ensureActionBarHidden();
+    ensureActionBarIdleState();
+    applyActionBarIdleVisibility(DEFAULT_ROUTE);
+    applyNotificationsNavVisibility(notificationsEnabled);
     ensureDefaultRoute();
     bootSplash.ensure();
   });
@@ -270,14 +342,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   try {
     window.SelectionStore?.clear?.('partners');
   } catch (_) {}
-  try {
-    const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
-    if(bar){
-      bar.classList.remove('has-selection');
-      bar.removeAttribute('data-visible');
-      bar.style.display = 'none';
-    }
-  } catch (_) {}
+  ensureActionBarIdleState();
+  applyActionBarIdleVisibility(DEFAULT_ROUTE);
+  applyNotificationsNavVisibility(notificationsEnabled);
   try {
     window.Selection?.clear?.('app:boot');
   } catch (_) {}
@@ -335,6 +402,16 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   (function wireNotifications(){
     if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
 
+    if (!notificationsEnabled) {
+      applyNotificationsNavVisibility(false);
+      try {
+        if (typeof location !== 'undefined' && location.hash === '#notifications') {
+          goto(`#/${DEFAULT_ROUTE}`);
+        }
+      } catch (_) {}
+      return;
+    }
+
     // Lazy-load service at boot (non-blocking)
     try { import(fromHere('./notifications/notifier.js')); } catch (_) { }
 
@@ -350,7 +427,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         }
       }
       (mod.initNotifications || mod.renderNotifications || (()=>{}))();
-      history.replaceState(null, '', '#notifications');
+      const targetHash = VIEW_HASH.notifications || '#notifications';
+      try {
+        history.replaceState(null, '', targetHash);
+      } catch (_) {
+        try { window.location.hash = targetHash; }
+        catch (__) {}
+      }
     }
 
     // Delegate clicks without touching HTML
@@ -934,7 +1017,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     box.innerHTML = `<div><strong>Contacts:</strong><ul>${list(rec.contacts||{})}</ul></div><div style="margin-top:8px"><strong>Partners:</strong><ul>${list(rec.partners||{})}</ul></div>`;
   }
 
-  const SELECTION_SCOPES = ['contacts','partners','pipeline'];
+  const SELECTION_SCOPES = ['contacts','partners','pipeline','notifications'];
 
   function getSelectionStore(){
     return window.SelectionStore || null;
@@ -954,7 +1037,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const direct = node.getAttribute('data-id');
       if(direct) return String(direct);
     }
-    const row = typeof node.closest === 'function' ? node.closest('tr[data-id]') : null;
+    const row = typeof node.closest === 'function'
+      ? node.closest('[data-selection-row][data-id], tr[data-id]')
+      : null;
     if(row && typeof row.getAttribute === 'function'){
       const viaRow = row.getAttribute('data-id');
       if(viaRow) return String(viaRow);
@@ -996,14 +1081,26 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function collectSelectionRowData(scopeRoot){
     if(!scopeRoot) return [];
-    const rows = Array.from(scopeRoot.querySelectorAll('tbody tr[data-id]'));
-    return rows.map(row => {
+    const seen = new Set();
+    const rows = [];
+    const addRow = (row) => {
+      if(!row || seen.has(row)) return null;
+      seen.add(row);
       const id = row.getAttribute('data-id');
       if(!id) return null;
       const checkbox = row.querySelector('[data-role="select"]');
       if(!checkbox) return null;
       return { row, checkbox, id: String(id), disabled: checkbox.disabled };
-    }).filter(Boolean);
+    };
+    scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
+      const entry = addRow(row);
+      if(entry) rows.push(entry);
+    });
+    scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
+      const entry = addRow(row);
+      if(entry) rows.push(entry);
+    });
+    return rows.filter(Boolean);
   }
 
   function applySelectAllToStore(checkbox, store){
@@ -1063,11 +1160,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     });
   }
 
-  function updateActionBarGuards(count){
+  function updateActionBarGuards(count, scope){
     const bar = document.getElementById('actionbar');
     if(!bar) return;
     const totalRaw = Number(count);
     const total = Number.isFinite(totalRaw) ? totalRaw : 0;
+    const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
+    if(scopeKey){
+      bar.setAttribute('data-selection-type', scopeKey);
+    }else{
+      bar.removeAttribute('data-selection-type');
+    }
     const mergeReadyAttr = total >= 2 ? '1' : '0';
     if(bar.getAttribute('data-merge-ready') !== mergeReadyAttr){
       bar.setAttribute('data-merge-ready', mergeReadyAttr);
@@ -1076,7 +1179,18 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       ? window.applyActionBarGuards
       : null;
     let guards = null;
-    if(apply){
+    if(scopeKey === 'notifications'){
+      guards = {
+        edit: false,
+        merge: false,
+        emailTogether: false,
+        emailMass: false,
+        addTask: false,
+        bulkLog: false,
+        delete: false,
+        clear: true
+      };
+    }else if(apply){
       guards = apply(bar, total);
     }else{
       const compute = typeof window.computeActionBarGuards === 'function'
@@ -1108,6 +1222,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }else{
       bar.classList.remove('has-selection');
     }
+    if(bar.dataset && bar.dataset.idleVisible === '1'){
+      bar.setAttribute('data-visible', '1');
+      if(bar.style && bar.style.display === 'none'){
+        bar.style.display = '';
+      }
+    }
     if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
       queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
@@ -1124,7 +1244,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     syncSelectionCheckboxes(snapshot.scope, ids);
     const rawCount = Number(snapshot.count);
     const derivedCount = Number.isFinite(rawCount) ? rawCount : ids.size;
-    updateActionBarGuards(derivedCount);
+    updateActionBarGuards(derivedCount, snapshot.scope);
   }
 
   function clearAllSelectionScopes(){
@@ -1184,16 +1304,18 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       store.set(next, scope);
     };
     document.addEventListener('change', handleChange, { capture: true });
-    updateActionBarGuards(0);
+    updateActionBarGuards(0, null);
   }
 
-  const DEFAULT_ROUTE = 'dashboard';
   const VIEW_HASH = {
     dashboard: '#/dashboard',
     longshots: '#/long-shots',
     pipeline: '#/pipeline',
     partners: '#/partners'
   };
+  if(notificationsEnabled){
+    VIEW_HASH.notifications = '#/notifications';
+  }
   const HASH_TO_VIEW = new Map();
   Object.entries(VIEW_HASH).forEach(([view, hash]) => {
     const canonical = String(hash || '').toLowerCase();
@@ -1201,6 +1323,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const noSlash = canonical.replace('#/', '#');
     if(noSlash) HASH_TO_VIEW.set(noSlash, view);
   });
+  if(notificationsEnabled){
+    HASH_TO_VIEW.set('#notifications', 'notifications');
+  }
   HASH_TO_VIEW.set('#/longshots', 'longshots');
   HASH_TO_VIEW.set('#longshots', 'longshots');
   HASH_TO_VIEW.set('#/long-shots', 'longshots');
@@ -1594,8 +1719,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function activate(view){
-    const normalized = normalizeView(view);
+    let normalized = normalizeView(view);
     if(!normalized) return;
+    if(normalized === 'notifications' && !notificationsEnabled){
+      normalized = DEFAULT_ROUTE;
+    }
     const previous = activeView;
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
@@ -1605,6 +1733,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     activeView = normalized;
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
+    if(normalized === 'notifications'){
+      updateActionBarGuards(0, 'notifications');
+    }
+    applyActionBarIdleVisibility(normalized);
     if (normalized === 'partners' || normalized === 'contacts') {
       ensureActionBarPostPaintRefresh();
     }

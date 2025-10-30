@@ -1,5 +1,54 @@
 import { listNotifications, clearNotifications, removeNotification, onNotificationsChanged } from '../notifications/notifier.js';
 
+const SCOPE = 'notifications';
+
+function getSelectionStore(){
+  if(typeof window === 'undefined') return null;
+  const store = window.SelectionStore;
+  if(!store) return null;
+  const valid = ['get','set','clear','subscribe'];
+  for(const key of valid){
+    if(typeof store[key] !== 'function') return null;
+  }
+  return store;
+}
+
+function toId(value){
+  if(value == null) return '';
+  return String(value);
+}
+
+function toSelectionSet(input){
+  if(input instanceof Set){
+    return new Set(Array.from(input, toId));
+  }
+  if(Array.isArray(input)){
+    return new Set(input.map(toId));
+  }
+  if(input && typeof input === 'object' && Symbol.iterator in input){
+    return new Set(Array.from(input, toId));
+  }
+  return new Set();
+}
+
+function syncSelectionState(listEl, ids){
+  if(!listEl) return;
+  const selected = toSelectionSet(ids);
+  const rows = listEl.querySelectorAll('[data-selection-row][data-id]');
+  rows.forEach((row) => {
+    const id = row.getAttribute('data-id') || '';
+    const isSelected = selected.has(id);
+    row.classList.toggle('is-selected', isSelected);
+    if(row.dataset){
+      row.dataset.selected = isSelected ? '1' : '0';
+    }
+    const checkbox = row.querySelector('input[data-role="select"]');
+    if(checkbox){
+      checkbox.checked = isSelected;
+    }
+  });
+}
+
 function isArchived(item) {
   return !!(item && typeof item === 'object' && item.state === 'archived');
 }
@@ -39,6 +88,7 @@ function createLayout(){
   section.setAttribute('data-notifs', '');
   section.setAttribute('role', 'region');
   section.setAttribute('aria-label', 'Notifications');
+  section.setAttribute('data-selection-scope', SCOPE);
 
   const header = document.createElement('header');
   header.style.display = 'flex';
@@ -63,32 +113,49 @@ function createLayout(){
   list.className = 'list';
   list.style.marginTop = '12px';
   list.setAttribute('data-list', 'notifications');
+  list.setAttribute('data-selection-scope', SCOPE);
 
   section.append(header, list);
   return { section, list, clearBtn };
 }
 
-function renderList(listEl){
+function renderList(listEl, store){
   const items = listNotifications();
   const activeItems = Array.isArray(items) ? items.filter(item => !isArchived(item)) : [];
+  const selection = store ? toSelectionSet(store.get(SCOPE)) : new Set();
   if (!activeItems.length) {
     const empty = document.createElement('div');
     empty.setAttribute('role', 'note');
     empty.textContent = 'No notifications yet. Workflow alerts and reminders will show up here.';
     listEl.replaceChildren(empty);
+    if (store && selection.size) {
+      try { store.clear(SCOPE); }
+      catch (_) {}
+    }
     return;
   }
 
-  const ul = document.createElement('ul');
-  ul.style.listStyle = 'none';
-  ul.style.padding = '0';
-  ul.style.margin = '0';
+  const fragment = document.createDocumentFragment();
+  const activeIds = new Set();
 
-  activeItems.forEach((item) => {
-    const li = document.createElement('li');
-    li.style.padding = '8px 0';
-    li.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
-    li.setAttribute('data-id', item.id || '');
+  activeItems.forEach((item, index) => {
+    const fallbackId = `${item?.type || 'notif'}-${item?.ts ?? ''}-${item?.title || ''}-${index}`;
+    const rawId = item && Object.prototype.hasOwnProperty.call(item, 'id') ? item.id : fallbackId;
+    const id = toId(rawId);
+    activeIds.add(id);
+
+    const row = document.createElement('div');
+    row.style.padding = '8px 0';
+    row.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
+    row.setAttribute('data-selection-row', '');
+    row.setAttribute('data-id', id);
+    row.setAttribute('data-selection-scope', SCOPE);
+    row.setAttribute('data-selection-type', SCOPE);
+    if(row.dataset){
+      row.dataset.name = item?.title || '';
+      row.dataset.type = item?.type || '';
+      row.dataset.channel = item?.channel || '';
+    }
 
     const header = document.createElement('div');
     header.style.display = 'flex';
@@ -96,10 +163,24 @@ function renderList(listEl){
     header.style.gap = '12px';
     header.style.alignItems = 'center';
 
+    const leftWrap = document.createElement('div');
+    leftWrap.style.display = 'flex';
+    leftWrap.style.alignItems = 'center';
+    leftWrap.style.gap = '12px';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.setAttribute('data-role', 'select');
+    checkbox.setAttribute('data-ui', 'row-check');
+    checkbox.setAttribute('data-id', id);
+    checkbox.checked = selection.has(id);
+    leftWrap.appendChild(checkbox);
+
     const titleWrap = document.createElement('div');
     const title = document.createElement('strong');
-    title.textContent = item.title || '(untitled notification)';
+    title.textContent = item?.title || '(untitled notification)';
     titleWrap.appendChild(title);
+    leftWrap.appendChild(titleWrap);
 
     const actionsWrap = document.createElement('div');
     actionsWrap.style.display = 'flex';
@@ -108,28 +189,40 @@ function renderList(listEl){
 
     const time = document.createElement('div');
     time.style.opacity = '0.7';
-    time.textContent = fmt(item.ts);
+    time.textContent = fmt(item?.ts);
     actionsWrap.appendChild(time);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.setAttribute('data-act', 'notif-remove');
-    removeBtn.setAttribute('data-id', item.id || '');
+    removeBtn.setAttribute('data-id', id);
     removeBtn.textContent = 'Remove';
     actionsWrap.appendChild(removeBtn);
 
-    header.append(titleWrap, actionsWrap);
+    header.append(leftWrap, actionsWrap);
 
     const metaLine = document.createElement('div');
     metaLine.style.fontSize = '12px';
     metaLine.style.opacity = '0.8';
-    metaLine.textContent = item.type || 'info';
+    metaLine.textContent = item?.type || 'info';
 
-    li.append(header, metaLine);
-    ul.appendChild(li);
+    row.append(header, metaLine);
+    fragment.appendChild(row);
   });
 
-  listEl.replaceChildren(ul);
+  listEl.replaceChildren(fragment);
+
+  if (store) {
+    const filtered = new Set(Array.from(selection).filter((id) => activeIds.has(id)));
+    if (filtered.size !== selection.size) {
+      try { store.set(filtered, SCOPE); }
+      catch (_) {}
+      syncSelectionState(listEl, filtered);
+      return;
+    }
+  }
+
+  syncSelectionState(listEl, selection);
 }
 
 export function renderNotifications(root){
@@ -142,6 +235,8 @@ export function renderNotifications(root){
   const { section, list, clearBtn } = createLayout();
   root.replaceChildren(section);
 
+  const store = getSelectionStore();
+
   const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
   const cancelRaf = window.cancelAnimationFrame || window.clearTimeout || clearTimeout;
   let frame = null;
@@ -149,13 +244,14 @@ export function renderNotifications(root){
     if (frame !== null) return;
     frame = raf(() => {
       frame = null;
-      try { renderList(list); } catch (_) {}
+      try { renderList(list, store); } catch (_) {}
     });
   };
 
   const unsub = onNotificationsChanged(apply);
   const clearHandler = () => {
     try { clearNotifications(); } catch (_) {}
+    try { store?.clear(SCOPE); } catch (_) {}
   };
   clearBtn.addEventListener('click', clearHandler);
 
@@ -167,12 +263,31 @@ export function renderNotifications(root){
     const id = btn.getAttribute('data-id');
     if (!id) return;
     removeNotification(id);
+    if (store) {
+      try {
+        const next = store.get(SCOPE);
+        if (next.delete(id)) {
+          store.set(next, SCOPE);
+        }
+      } catch (_) {}
+    }
   };
   section.addEventListener('click', clickHandler);
+
+  const selectionUnsub = store
+    ? store.subscribe((snapshot) => {
+        if(!snapshot || snapshot.scope !== SCOPE) return;
+        try { syncSelectionState(list, snapshot.ids); }
+        catch (_) {}
+      })
+    : null;
 
   const cleanup = () => {
     if (typeof unsub === 'function') {
       try { unsub(); } catch (_) {}
+    }
+    if (typeof selectionUnsub === 'function') {
+      try { selectionUnsub(); } catch (_) {}
     }
     clearBtn.removeEventListener('click', clearHandler);
     section.removeEventListener('click', clickHandler);

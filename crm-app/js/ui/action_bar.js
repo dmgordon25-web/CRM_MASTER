@@ -546,7 +546,8 @@ function syncActionBarVisibility(selCount, explicitEl) {
   const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
     ? Math.max(0, Math.floor(selCount))
     : 0;
-  if (ready && numeric > 0 && _isActuallyVisible(bar)) {
+  const idleVisible = bar?.dataset?.idleVisible === '1';
+  if ((ready && numeric > 0 && _isActuallyVisible(bar)) || idleVisible) {
     bar.setAttribute('data-visible', '1');
   } else {
     if (typeof bar.removeAttribute === 'function') {
