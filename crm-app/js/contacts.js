@@ -27,88 +27,35 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
-function coerceTrimmedString(value) {
-  if (typeof value === 'string') return value.trim();
-  if (value == null) return '';
-  try {
-    return String(value).trim();
-  } catch (_) {
-    return '';
-  }
-}
-const CONTACT_INVALID_ID_TOKENS = new Set(['', 'null', 'undefined']);
-export function normalizeContactId(value) {
-  if (value == null) return '';
-  const raw = String(value).trim();
-  if (!raw) return '';
-  const token = raw.toLowerCase();
-  return CONTACT_INVALID_ID_TOKENS.has(token) ? '' : raw;
-}
-
 export function normalizeNewContactPrefill(input = {}) {
-  const source = input && typeof input === 'object' ? input : {};
-  const now = Date.now();
-  const first = coerceTrimmedString(source.firstName ?? source.first);
-  const last = coerceTrimmedString(source.lastName ?? source.last);
-  const providedName = coerceTrimmedString(source.name);
-  const name = providedName || [first, last].filter(Boolean).join(' ').trim();
-  const email = coerceTrimmedString(source.email ?? source.primaryEmail ?? source.workEmail);
-  const phone = coerceTrimmedString(source.phone ?? source.primaryPhone ?? source.mobile);
-  const rawId = source.id ?? source.contactId ?? source.tempId;
-  const trimmedId = coerceTrimmedString(rawId);
-  const idToken = trimmedId.toLowerCase();
-  const id = trimmedId && idToken !== 'null' && idToken !== 'undefined' ? trimmedId : `tmp-${now}`;
-  const company = typeof source.company === 'string'
-    ? source.company.trim()
-    : coerceTrimmedString(source.company && typeof source.company === 'object' ? source.company.name : '');
-  const title = coerceTrimmedString(source.title);
-  const metaSource = source.meta && typeof source.meta === 'object' ? source.meta : {};
-  const createdAtRaw = Number(metaSource.createdAt ?? metaSource.created_at);
-  const updatedAtRaw = Number(metaSource.updatedAt ?? metaSource.updated_at);
-  const createdAt = Number.isFinite(createdAtRaw) && createdAtRaw > 0 ? createdAtRaw : now;
-  const updatedAt = Number.isFinite(updatedAtRaw) && updatedAtRaw > 0 ? updatedAtRaw : now;
-  const extras = { ...(source && typeof source === 'object' ? source : {}) };
-  const normalized = {
-    ...extras,
+  const now   = Date.now();
+  const first = typeof input.firstName === 'string' ? input.firstName.trim() : '';
+  const last  = typeof input.lastName  === 'string' ? input.lastName.trim()  : '';
+  const name  = (typeof input.name === 'string' ? input.name.trim() : '') || [first, last].filter(Boolean).join(' ');
+  const email = typeof input.email === 'string' ? input.email.trim() : '';
+  const phone = typeof input.phone === 'string' ? input.phone.trim() : '';
+  const id    = (input.id != null && String(input.id).trim() !== '') ? String(input.id) : `tmp-${now}`;
+  return {
     id,
-    __isNew: extras.__isNew === false ? false : true,
+    __isNew: input.__isNew === false ? false : true,
     name,
     firstName: first,
     lastName: last,
     email,
     phone,
-    company,
-    title,
-    meta: {
-      ...metaSource,
-      createdAt,
-      updatedAt
-    }
+    company: typeof input.company === 'string' ? input.company.trim() : (input.company?.name || ''),
+    title:   typeof input.title   === 'string' ? input.title.trim()   : '',
+    meta: { createdAt: input.meta?.createdAt || now, updatedAt: now, ...input.meta },
+    ...input,
   };
-  if (!normalized.first) normalized.first = normalized.firstName || '';
-  if (!normalized.last) normalized.last = normalized.lastName || '';
-  if (typeof normalized.name !== 'string' || !normalized.name.trim()) {
-    normalized.name = [normalized.firstName, normalized.lastName].filter(Boolean).join(' ').trim();
-  }
-  if (!normalized.name) normalized.name = '';
-  if (!normalized.email) normalized.email = '';
-  if (!normalized.phone) normalized.phone = '';
-  if (!normalized.meta || typeof normalized.meta !== 'object') {
-    normalized.meta = { createdAt: createdAt || now, updatedAt: now };
-  } else {
-    const normalizedCreated = Number(normalized.meta.createdAt);
-    const normalizedUpdated = Number(normalized.meta.updatedAt);
-    if (!Number.isFinite(normalizedCreated) || normalizedCreated <= 0) {
-      normalized.meta.createdAt = createdAt;
-    }
-    if (!Number.isFinite(normalizedUpdated) || normalizedUpdated <= 0) {
-      normalized.meta.updatedAt = now;
-    }
-    if (Number.isFinite(normalized.meta.createdAt) && Number.isFinite(normalized.meta.updatedAt) && normalized.meta.updatedAt < normalized.meta.createdAt) {
-      normalized.meta.updatedAt = normalized.meta.createdAt;
-    }
-  }
-  return normalized;
+}
+
+export function normalizeContactId(input) {
+  const now = Date.now();
+  let id = input;
+  if (id && typeof id === 'object' && 'id' in id) id = id.id;
+  id = (id == null) ? '' : String(id).trim();
+  return id || `tmp-${now}`;
 }
 
 // contacts.js — modal guards + renderer (2025-09-17)
@@ -175,19 +122,7 @@ export function normalizeNewContactPrefill(input = {}) {
   }
 
   function generateContactId(seed){
-    const normalized = normalizeContactId(seed);
-    if(normalized) return normalized;
-    try{
-      if(typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function'){
-        return window.crypto.randomUUID();
-      }
-    }catch(_err){}
-    try{
-      if(typeof window !== 'undefined' && typeof window.uuid === 'function'){
-        return window.uuid();
-      }
-    }catch(_err){}
-    return `contact-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    return normalizeContactId(seed);
   }
 
   function createContactDraft(seed){
@@ -2449,6 +2384,37 @@ export function normalizeNewContactPrefill(input = {}) {
 
 let pendingContactOpen = null;
 
+function teardownContactModalShell(){
+  if(typeof document === 'undefined') return;
+  const modal = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`);
+  if(!modal) return;
+  if(typeof modal.close === 'function'){
+    try{ modal.close(); }
+    catch(_err){}
+  }
+  try{ modal.removeAttribute('open'); }
+  catch(_err){}
+  if(modal.dataset){
+    try{ modal.dataset.open = '0'; }
+    catch(_err){}
+  }
+}
+
+function closeQuickAddOverlayIfOpen(){
+  if(typeof document === 'undefined') return;
+  const overlay = document.querySelector('.qa-overlay');
+  if(!overlay) return;
+  const closeBtn = overlay.querySelector('.qa-close');
+  if(closeBtn && typeof closeBtn.click === 'function'){
+    try{ closeBtn.click(); return; }
+    catch(_err){}
+  }
+  if(overlay.parentElement){
+    try{ overlay.parentElement.removeChild(overlay); }
+    catch(_err){}
+  }
+}
+
 const CALENDAR_INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
 const INVALID_PARTNER_ID_TOKENS = new Set(['', 'null', 'undefined']);
 
@@ -2503,19 +2469,28 @@ export async function openContactModal(contactId, options){
     return null;
   }
 
-  const opts = options && typeof options === 'object' ? options : {};
-  const normalizedPrefetch = opts.prefetchedRecord && typeof opts.prefetchedRecord === 'object'
-    ? normalizeNewContactPrefill(opts.prefetchedRecord)
-    : null;
-  if(normalizedPrefetch){
-    opts.prefetchedRecord = normalizedPrefetch;
+  const opts = options && typeof options === 'object' ? { ...options } : {};
+  let model = null;
+  if(opts.prefetchedRecord && typeof opts.prefetchedRecord === 'object'){
+    model = normalizeNewContactPrefill(opts.prefetchedRecord);
+  }else if(contactId && typeof contactId === 'object' && !Array.isArray(contactId)){
+    model = normalizeNewContactPrefill(contactId);
   }
-  const normalizedId = normalizeContactId(opts.contactId || contactId || (normalizedPrefetch ? normalizedPrefetch.id : ''));
+  if(model){
+    const safeId = normalizeContactId(model);
+    model.id = safeId;
+    opts.prefetchedRecord = model;
+  }
+
+  const rawIdCandidate = model ? model.id : (opts.contactId ?? contactId ?? '');
+  const rawIdString = rawIdCandidate == null ? '' : String(rawIdCandidate).trim();
+  const normalizedId = model ? model.id : normalizeContactId(rawIdCandidate);
   const allowAutoOpen = opts.allowAutoOpen === true;
   const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
   const invoker = resolveInvoker(opts);
+  const hasExplicitId = Boolean(rawIdString);
 
-  if(!normalizedId && !allowAutoOpen){
+  if(!hasExplicitId && !allowAutoOpen){
     toastWarn('Select a contact to open');
     return null;
   }
@@ -2548,27 +2523,27 @@ export async function openContactModal(contactId, options){
     return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
   }
 
+  const host = typeof window !== 'undefined' ? window : null;
+  const now = Date.now();
   let dedupeEntry = null;
-  if(typeof window !== 'undefined'){
-    const dedupeId = normalizedId;
-    if(dedupeId){
-      const now = Date.now();
-      const last = window.__CONTACT_EDITOR_LAST_ID__;
-      if(last && last.id === dedupeId && (now - last.time) < 300){
-        if(last.promise){
-          return last.promise;
-        }
-        if(existing && existing.dataset?.open === '1'){
-          return existing;
-        }
-        if(pendingContactOpen && pendingContactOpen.id === dedupeId){
-          return pendingContactOpen.promise;
-        }
-        return Promise.resolve(existing || null);
+  if(host){
+    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
+      ? host.__CONTACT_EDITOR_LAST__
+      : null;
+    if(last && last.id === normalizedId && (now - (last.t || 0)) < 300){
+      if(last.promise){
+        return last.promise;
       }
-      dedupeEntry = { id: dedupeId, time: now, promise: null };
-      window.__CONTACT_EDITOR_LAST_ID__ = dedupeEntry;
+      if(existing && existing.dataset?.open === '1'){
+        return existing;
+      }
+      if(pendingContactOpen && pendingContactOpen.id === normalizedId){
+        return pendingContactOpen.promise;
+      }
+      return Promise.resolve(existing || null);
     }
+    dedupeEntry = { id: normalizedId, t: now, promise: null };
+    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
   }
 
   const mergedOptions = Object.assign({}, opts, {
@@ -2576,74 +2551,94 @@ export async function openContactModal(contactId, options){
     allowAutoOpen,
     sourceHint,
     invoker,
-    prefetchedRecord: normalizedPrefetch || opts.prefetchedRecord || null
+    prefetchedRecord: model || null
   });
+
+  const suppressErrorToast = opts.suppressErrorToast === true;
+  const failureMessage = mergedOptions.prefetchedRecord
+    ? 'Couldn\u2019t open the full editor. Please try again.'
+    : 'Unable to open contact';
 
   const sequence = (async () => {
     try{
       const result = await opener(normalizedId || null, mergedOptions);
       return result || null;
     }catch (err){
-      try{ console && console.warn && console.warn('openContactModal failed', err); }
-      catch(_err){}
-      toastWarn('Unable to open contact');
+      if(!suppressErrorToast){
+        try{ console && console.warn && console.warn('[contact-editor:init]', err); }
+        catch(_err){}
+        toastWarn(failureMessage);
+      }
+      teardownContactModalShell();
+      if(suppressErrorToast){
+        throw err;
+      }
       return null;
     }
   })();
 
-  pendingContactOpen = { id: normalizedId, promise: sequence.finally(() => { pendingContactOpen = null; }) };
+  const tracked = sequence.finally(() => { pendingContactOpen = null; });
+  pendingContactOpen = { id: normalizedId, promise: tracked };
   if(dedupeEntry){
-    dedupeEntry.promise = pendingContactOpen.promise;
-  }else if(typeof window !== 'undefined' && normalizedId){
-    const last = window.__CONTACT_EDITOR_LAST_ID__;
-    if(last && last.id === normalizedId){
-      last.promise = pendingContactOpen.promise;
+    dedupeEntry.promise = tracked;
+    dedupeEntry.t = now;
+    if(host){
+      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
     }
   }
-  return pendingContactOpen.promise;
+  return tracked;
 }
 
 export function openContactEditor(prefill){
-  const model = normalizeNewContactPrefill(prefill || {});
-  const id = model.id;
+  let model = normalizeNewContactPrefill(prefill || {});
+  const safeId = normalizeContactId(model);
+  model.id = safeId;
+
+  closeQuickAddOverlayIfOpen();
+
   const options = {
     allowAutoOpen: true,
     sourceHint: 'quick-create:menu',
-    prefetchedRecord: model
+    prefetchedRecord: model,
+    suppressErrorToast: true
   };
+
   const host = typeof window !== 'undefined' ? window : null;
   const now = Date.now();
-  if(host && id){
-    const last = host.__CONTACT_EDITOR_LAST_ID__;
-    if(last && last.id === id && (now - (last.time || 0)) < 300){
-      if(last.promise){
-        return last.promise;
-      }
-      return Promise.resolve(null);
+  let dedupeEntry = null;
+  if(host){
+    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
+      ? host.__CONTACT_EDITOR_LAST__
+      : null;
+    if(last && last.id === model.id && (now - (last.t || 0)) < 300){
+      return last.promise || Promise.resolve(null);
     }
+    dedupeEntry = { id: model.id, t: now, promise: null };
+    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
   }
-  try{
-    const result = openContactModal(id, options);
-    if(host && id){
-      const promise = Promise.resolve(result);
-      const entry = host.__CONTACT_EDITOR_LAST_ID__ && host.__CONTACT_EDITOR_LAST_ID__.id === id
-        ? host.__CONTACT_EDITOR_LAST_ID__
-        : { id, time: now, promise };
-      entry.time = now;
-      entry.promise = promise;
-      host.__CONTACT_EDITOR_LAST_ID__ = entry;
-      return promise;
-    }
-    return result;
-  }catch (err){
+
+  const sequence = (async () => {
     try{
-      if(console && typeof console.warn === 'function'){
-        console.warn('[contacts] openContactEditor failed', err);
-      }
-    }catch(_warn){}
-    toastWarn('Unable to open contact');
-    return Promise.resolve(null);
+      const result = await openContactModal(model.id, options);
+      return result || null;
+    }catch (err){
+      try{ console && console.warn && console.warn('[contact-editor:init]', err); }
+      catch(_warn){}
+      toastWarn('Couldn\u2019t open the full editor. Please try again.');
+      teardownContactModalShell();
+      return null;
+    }
+  })();
+
+  if(dedupeEntry){
+    dedupeEntry.promise = sequence;
+    dedupeEntry.t = now;
+    if(host){
+      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
+    }
   }
+
+  return sequence;
 }
 
 export async function openCalendarEntityEditor(eventLike, options){

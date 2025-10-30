@@ -1,6 +1,6 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
-import { normalizeNewContactPrefill, openContactEditor } from './contacts.js';
+import { normalizeNewContactPrefill, normalizeContactId, openContactEditor } from './contacts.js';
 import { openPartnerEditor } from './ui/quick_create_menu.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
@@ -67,8 +67,9 @@ function collectQuickAddContactPayload(form){
     idSource = typeof raw === 'string' ? raw.trim() : String(raw || '').trim();
   }
   const name = `${firstName} ${lastName}`.trim();
+  const id = normalizeContactId(idSource || null);
   return {
-    id: idSource || `tmp-${now}`,
+    id,
     __isNew: true,
     name: name || '',
     firstName,
@@ -108,7 +109,7 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
       closeQuickAddOverlay(overlay);
       payloadSent = true;
       try {
-        await Promise.resolve(opener(model));
+        await opener(model);
       } catch (err) {
         try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
         catch (_) {}
