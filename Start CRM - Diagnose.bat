@@ -1,6 +1,7 @@
 @echo off
 setlocal
-pushd %~dp0
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'tools/dev_server.mjs' -WorkingDirectory '%CD%' -WindowStyle Hidden"
-popd
-exit /b 0
+set "SCRIPT_DIR=%~dp0"
+rem Diagnostic launcher keeps console visible and verbose.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Start CRM - Diagnose.ps1"
+set "EXIT_CODE=%ERRORLEVEL%"
+endlocal & exit /b %EXIT_CODE%
