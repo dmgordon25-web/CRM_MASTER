@@ -1,4 +1,5 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
+import { openContactEditor as openContactEditorBridge } from '../contacts.js';
 
 const MENU_DEFAULT_QA = 'fab-menu';
 const QC_DEBUG_KEY = '__QC_DEBUG__';
@@ -544,18 +545,18 @@ export function isQuickCreateMenuOpen(source) {
   return state.source === source;
 }
 
-function defaultOpenContactEditor() {
-  if (typeof window.openContactModal === 'function') {
-    return callSafely(window.openContactModal, null, { allowAutoOpen: true, sourceHint: 'quick-create:menu' });
+function defaultOpenContactEditor(prefill) {
+  try {
+    return openContactEditorBridge(prefill);
+  } catch (err) {
+    try {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[quick-create] contact editor open failed', err);
+      }
+    } catch (_) {}
+    toastWarn('Contact modal unavailable');
+    return null;
   }
-  if (typeof window.renderContactModal === 'function') {
-    return callSafely(window.renderContactModal, null);
-  }
-  if (typeof window.openNewContact === 'function') {
-    return callSafely(window.openNewContact);
-  }
-  toastWarn('Contact modal unavailable');
-  return null;
 }
 
 function loadPartnerModule() {
@@ -608,8 +609,8 @@ function defaultOpenTaskEditor() {
   return null;
 }
 
-export function openContactEditor() {
-  return defaultOpenContactEditor();
+export function openContactEditor(prefill) {
+  return defaultOpenContactEditor(prefill);
 }
 
 export function openPartnerEditor() {
