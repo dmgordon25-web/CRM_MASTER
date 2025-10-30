@@ -27,6 +27,82 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
+function coerceTrimmedString(value) {
+  if (typeof value === 'string') return value.trim();
+  if (value == null) return '';
+  try {
+    return String(value).trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+export function normalizeNewContactPrefill(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const now = Date.now();
+  const first = coerceTrimmedString(source.firstName ?? source.first);
+  const last = coerceTrimmedString(source.lastName ?? source.last);
+  const providedName = coerceTrimmedString(source.name);
+  const name = providedName || [first, last].filter(Boolean).join(' ').trim();
+  const email = coerceTrimmedString(source.email ?? source.primaryEmail ?? source.workEmail);
+  const phone = coerceTrimmedString(source.phone ?? source.primaryPhone ?? source.mobile);
+  const rawId = source.id ?? source.contactId ?? source.tempId;
+  const trimmedId = coerceTrimmedString(rawId);
+  const idToken = trimmedId.toLowerCase();
+  const id = trimmedId && idToken !== 'null' && idToken !== 'undefined' ? trimmedId : `tmp-${now}`;
+  const company = typeof source.company === 'string'
+    ? source.company.trim()
+    : coerceTrimmedString(source.company && typeof source.company === 'object' ? source.company.name : '');
+  const title = coerceTrimmedString(source.title);
+  const metaSource = source.meta && typeof source.meta === 'object' ? source.meta : {};
+  const createdAtRaw = Number(metaSource.createdAt ?? metaSource.created_at);
+  const updatedAtRaw = Number(metaSource.updatedAt ?? metaSource.updated_at);
+  const createdAt = Number.isFinite(createdAtRaw) && createdAtRaw > 0 ? createdAtRaw : now;
+  const updatedAt = Number.isFinite(updatedAtRaw) && updatedAtRaw > 0 ? updatedAtRaw : now;
+  const extras = { ...(source && typeof source === 'object' ? source : {}) };
+  const normalized = {
+    ...extras,
+    id,
+    __isNew: extras.__isNew === false ? false : true,
+    name,
+    firstName: first,
+    lastName: last,
+    email,
+    phone,
+    company,
+    title,
+    meta: {
+      ...metaSource,
+      createdAt,
+      updatedAt
+    }
+  };
+  if (!normalized.first) normalized.first = normalized.firstName || '';
+  if (!normalized.last) normalized.last = normalized.lastName || '';
+  if (typeof normalized.name !== 'string' || !normalized.name.trim()) {
+    normalized.name = [normalized.firstName, normalized.lastName].filter(Boolean).join(' ').trim();
+  }
+  if (!normalized.name) normalized.name = '';
+  if (!normalized.email) normalized.email = '';
+  if (!normalized.phone) normalized.phone = '';
+  if (!normalized.meta || typeof normalized.meta !== 'object') {
+    normalized.meta = { createdAt: createdAt || now, updatedAt: now };
+  } else {
+    const normalizedCreated = Number(normalized.meta.createdAt);
+    const normalizedUpdated = Number(normalized.meta.updatedAt);
+    if (!Number.isFinite(normalizedCreated) || normalizedCreated <= 0) {
+      normalized.meta.createdAt = createdAt;
+    }
+    if (!Number.isFinite(normalizedUpdated) || normalizedUpdated <= 0) {
+      normalized.meta.updatedAt = now;
+    }
+    if (Number.isFinite(normalized.meta.createdAt) && Number.isFinite(normalized.meta.updatedAt) && normalized.meta.updatedAt < normalized.meta.createdAt) {
+      normalized.meta.updatedAt = normalized.meta.createdAt;
+    }
+  }
+  return normalized;
+}
+
 // contacts.js — modal guards + renderer (2025-09-17)
 (function(){
   if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
@@ -2527,6 +2603,49 @@ export async function openContactModal(contactId, options){
     }
   }
   return pendingContactOpen.promise;
+}
+
+export function openContactEditor(prefill){
+  const model = normalizeNewContactPrefill(prefill || {});
+  const id = model.id;
+  const options = {
+    allowAutoOpen: true,
+    sourceHint: 'quick-create:menu',
+    prefetchedRecord: model
+  };
+  const host = typeof window !== 'undefined' ? window : null;
+  const now = Date.now();
+  if(host && id){
+    const last = host.__CONTACT_EDITOR_LAST_ID__;
+    if(last && last.id === id && (now - (last.time || 0)) < 300){
+      if(last.promise){
+        return last.promise;
+      }
+      return Promise.resolve(null);
+    }
+  }
+  try{
+    const result = openContactModal(id, options);
+    if(host && id){
+      const promise = Promise.resolve(result);
+      const entry = host.__CONTACT_EDITOR_LAST_ID__ && host.__CONTACT_EDITOR_LAST_ID__.id === id
+        ? host.__CONTACT_EDITOR_LAST_ID__
+        : { id, time: now, promise };
+      entry.time = now;
+      entry.promise = promise;
+      host.__CONTACT_EDITOR_LAST_ID__ = entry;
+      return promise;
+    }
+    return result;
+  }catch (err){
+    try{
+      if(console && typeof console.warn === 'function'){
+        console.warn('[contacts] openContactEditor failed', err);
+      }
+    }catch(_warn){}
+    toastWarn('Unable to open contact');
+    return Promise.resolve(null);
+  }
 }
 
 export async function openCalendarEntityEditor(eventLike, options){

@@ -1,4 +1,5 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
+import { openContactEditor as openContactEditorBridge } from '../contacts.js';
 
 const MENU_DEFAULT_QA = 'fab-menu';
 const QC_DEBUG_KEY = '__QC_DEBUG__';
@@ -558,8 +559,6 @@ function defaultOpenContactEditor(prefill) {
   if (typeof window.openNewContact === 'function') {
     return callSafely(window.openNewContact);
   }
-  toastWarn('Contact modal unavailable');
-  return null;
 }
 
 function loadPartnerModule() {

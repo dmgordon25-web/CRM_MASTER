@@ -1,6 +1,7 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
-import { openContactEditor, openPartnerEditor } from './ui/quick_create_menu.js';
+import { normalizeNewContactPrefill, openContactEditor } from './contacts.js';
+import { openPartnerEditor } from './ui/quick_create_menu.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -98,7 +99,7 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
   button.style.fontSize = '13px';
   button.style.padding = '0';
   button.style.marginRight = 'auto';
-  button.addEventListener('click', (event) => {
+  button.addEventListener('click', async (event) => {
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
     let payloadSent = false;
     if(qa === 'open-full-contact-editor'){
