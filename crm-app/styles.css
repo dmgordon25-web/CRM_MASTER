@@ -381,7 +381,8 @@ tbody[data-skeleton="1"] tr:hover td{background:transparent}
 @keyframes loading-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 input[type="text"],input[type="number"],input[type="date"],select,textarea{width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
 textarea{min-height:100px}
-.actionbar{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;display:none;z-index:1200;pointer-events:none}
+.actionbar{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;display:flex;z-index:1200;pointer-events:none}
+.actionbar[data-idle-visible="0"]{display:none}
 .actionbar.has-selection,.summary-metric span{display:block}
 .actionbar-shell{pointer-events:auto;display:flex;flex-direction:column;gap:12px;background:rgba(255,255,255,.95);border-radius:18px;border:1px solid rgba(15,23,42,.12);box-shadow:0 24px 48px rgba(15,23,42,.18);padding:16px 20px;min-width:320px;max-width:90vw;position:relative;padding-right:92px}
 .fab{position:fixed;left:50%;bottom:var(--fab-safe-bottom);transform:translateX(-50%);min-width:56px;min-height:56px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:var(--primary-text);font-size:30px;font-weight:600;line-height:1;border:none;padding:0;box-shadow:0 12px 32px rgba(10,102,194,0.3);z-index:10000}
