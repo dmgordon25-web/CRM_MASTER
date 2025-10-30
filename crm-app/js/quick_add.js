@@ -49,6 +49,7 @@ function closeQuickAddOverlay(node){
 
 function collectQuickAddContactPayload(form){
   if(!form || typeof form.querySelector !== 'function') return null;
+  const now = Date.now();
   const read = (name) => {
     const input = form.querySelector(`[name="${name}"]`);
     if(!input) return '';
@@ -67,13 +68,17 @@ function collectQuickAddContactPayload(form){
   }
   const name = `${firstName} ${lastName}`.trim();
   return {
-    id: idSource,
+    id: idSource || `tmp-${now}`,
     __isNew: true,
     name: name || '',
     firstName,
     lastName,
     email,
-    phone
+    phone,
+    meta: {
+      createdAt: now,
+      updatedAt: now
+    }
   };
 }
 
@@ -98,12 +103,11 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
     if(event && typeof event.preventDefault === 'function') event.preventDefault();
     let payloadSent = false;
     if(qa === 'open-full-contact-editor'){
-      const payload = collectQuickAddContactPayload(form) || {};
-      const model = normalizeNewContactPrefill(payload);
+      const payload = collectQuickAddContactPayload(form);
       closeQuickAddOverlay(overlay);
       payloadSent = true;
       try {
-        await Promise.resolve(opener(model));
+        opener(payload);
       } catch (err) {
         try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
         catch (_) {}

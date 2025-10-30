@@ -546,16 +546,18 @@ export function isQuickCreateMenuOpen(source) {
 }
 
 function defaultOpenContactEditor(prefill) {
-  try {
-    return openContactEditorBridge(prefill);
-  } catch (err) {
-    try {
-      if (console && typeof console.warn === 'function') {
-        console.warn('[quick-create] contact editor open failed', err);
-      }
-    } catch (_) {}
-    toastWarn('Contact modal unavailable');
-    return null;
+  const options = { allowAutoOpen: true, sourceHint: 'quick-create:menu' };
+  if (prefill && typeof prefill === 'object') {
+    options.prefetchedRecord = prefill;
+  }
+  if (typeof window.openContactModal === 'function') {
+    return callSafely(window.openContactModal, null, options);
+  }
+  if (typeof window.renderContactModal === 'function') {
+    return callSafely(window.renderContactModal, null, options);
+  }
+  if (typeof window.openNewContact === 'function') {
+    return callSafely(window.openNewContact);
   }
 }
 

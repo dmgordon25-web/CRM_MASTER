@@ -238,6 +238,45 @@ export function normalizeNewContactPrefill(input = {}) {
     };
   }
 
+  function safeTrim(value){
+    if(value == null) return '';
+    if(typeof value === 'string') return value.trim();
+    try { return String(value).trim(); }
+    catch (_err) { return ''; }
+  }
+
+  function ensureTimestamp(value, fallback){
+    const num = Number(value);
+    if(Number.isFinite(num) && num > 0) return num;
+    return fallback;
+  }
+
+  function normalizeNewContactPrefill(raw){
+    if(!raw || typeof raw !== 'object') return null;
+    const now = Date.now();
+    const base = Object.assign({}, raw);
+    const normalizedId = normalizeContactId(base.id || base.contactId || base.tempId);
+    base.id = normalizedId || `tmp-${now}`;
+    const firstName = safeTrim(base.firstName ?? base.first);
+    const lastName = safeTrim(base.lastName ?? base.last);
+    const name = safeTrim(base.name || `${firstName} ${lastName}`.trim());
+    const email = safeTrim(base.email ?? base.primaryEmail ?? base.workEmail);
+    const phone = safeTrim(base.phone ?? base.primaryPhone ?? base.mobile);
+    base.firstName = firstName;
+    base.lastName = lastName;
+    if(!base.first) base.first = firstName;
+    if(!base.last) base.last = lastName;
+    base.name = name;
+    base.email = email;
+    base.phone = phone;
+    base.__isNew = true;
+    const metaSource = base.meta && typeof base.meta === 'object' ? base.meta : {};
+    const createdAt = ensureTimestamp(metaSource.createdAt, now);
+    const updatedAt = ensureTimestamp(metaSource.updatedAt, createdAt);
+    base.meta = { createdAt, updatedAt };
+    return base;
+  }
+
   function isRecoverableContactError(err){
     if(!err) return false;
     const message = typeof err === 'object' && err && typeof err.message === 'string'
