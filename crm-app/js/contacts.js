@@ -27,6 +27,19 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
+export const CONTACT_MODAL_KEY = 'contact-edit';
+
+function resolveContactModalInvoker(source){
+  if(!source) return null;
+  if(source instanceof HTMLElement) return source;
+  if(typeof source === 'object'){
+    if(source.trigger instanceof HTMLElement) return source.trigger;
+    if(source.currentTarget instanceof HTMLElement) return source.currentTarget;
+    if(source.target instanceof HTMLElement) return source.target;
+  }
+  return null;
+}
+
 export function normalizeNewContactPrefill(input = {}) {
   const now   = Date.now();
   const first = typeof input.firstName === 'string' ? input.firstName.trim() : '';
@@ -83,17 +96,7 @@ export function normalizeContactId(input) {
     }
   };
 
-  const CONTACT_MODAL_KEY = 'contact-edit';
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
-
-  const resolveInvoker = (options)=>{
-    if(!options) return null;
-    if(options instanceof HTMLElement) return options;
-    if(options.trigger instanceof HTMLElement) return options.trigger;
-    if(options.currentTarget instanceof HTMLElement) return options.currentTarget;
-    if(options.target instanceof HTMLElement) return options.target;
-    return null;
-  };
 
   function disableBodyScroll(){
     if(typeof document === 'undefined') return ()=>{};
@@ -567,7 +570,7 @@ export function normalizeContactId(input) {
       const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
       const invoker = options.invoker instanceof HTMLElement
         ? options.invoker
-        : resolveInvoker(options);
+        : resolveContactModalInvoker(options);
 
     let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureModal());
     base = base instanceof Promise ? await base : base;
@@ -2487,7 +2490,7 @@ export async function openContactModal(contactId, options){
   const normalizedId = model ? model.id : normalizeContactId(rawIdCandidate);
   const allowAutoOpen = opts.allowAutoOpen === true;
   const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
-  const invoker = resolveInvoker(opts);
+  const invoker = resolveContactModalInvoker(opts);
   const hasExplicitId = Boolean(rawIdString);
 
   if(!hasExplicitId && !allowAutoOpen){
