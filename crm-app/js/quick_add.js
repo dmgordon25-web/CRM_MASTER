@@ -1,8 +1,7 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
-import { normalizeNewContactPrefill, normalizeContactId, openContactEditor } from './contacts.js';
+import { normalizeNewContactPrefill, openContactModal } from './contacts.js';
 import { openPartnerEditor } from './ui/quick_create_menu.js';
-import { toastWarn } from './ui/toast_helpers.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -50,7 +49,6 @@ function closeQuickAddOverlay(node){
 
 function collectQuickAddContactPayload(form){
   if(!form || typeof form.querySelector !== 'function') return null;
-  const now = Date.now();
   const read = (name) => {
     const input = form.querySelector(`[name="${name}"]`);
     if(!input) return '';
@@ -61,26 +59,15 @@ function collectQuickAddContactPayload(form){
   const lastName = read('lastName');
   const email = read('email');
   const phone = read('phone');
-  let idSource = '';
-  const idInput = form.querySelector('input[name="id"], input[name="contactId"], input[name="contact-id"]');
-  if(idInput){
-    const raw = idInput.value;
-    idSource = typeof raw === 'string' ? raw.trim() : String(raw || '').trim();
-  }
   const name = `${firstName} ${lastName}`.trim();
-  const id = normalizeContactId(idSource || null);
   return {
-    id,
     __isNew: true,
     name: name || '',
     firstName,
     lastName,
     email,
     phone,
-    meta: {
-      createdAt: now,
-      updatedAt: now
-    }
+    meta: {}
   };
 }
 
@@ -107,14 +94,7 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
       const payload = collectQuickAddContactPayload(form) || {};
       const model = normalizeNewContactPrefill(payload);
       closeQuickAddOverlay(overlay);
-      try {
-        await opener(model);
-      } catch (err) {
-        try { console && console.warn && console.warn('[quick-add] full contact editor open failed', err); }
-        catch (_) {}
-        try { toastWarn('Contact modal unavailable'); }
-        catch (_) {}
-      }
+      await opener(model);
       return;
     }
     closeQuickAddOverlay(overlay);
@@ -134,7 +114,7 @@ function ensureQuickAddFullEditors(){
   if(!overlay) return;
   const contactForm = overlay.querySelector('.qa-form-contact');
   const partnerForm = overlay.querySelector('.qa-form-partner');
-  ensureQuickAddFullEditor(contactForm, 'open-full-contact-editor', openContactEditor, overlay);
+  ensureQuickAddFullEditor(contactForm, 'open-full-contact-editor', openContactModal, overlay);
   ensureQuickAddFullEditor(partnerForm, 'open-full-partner-editor', openPartnerEditor, overlay);
 }
 
