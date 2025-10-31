@@ -2,6 +2,7 @@ import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
 import { normalizeNewContactPrefill, normalizeContactId, openContactEditor } from './contacts.js';
 import { openPartnerEditor } from './ui/quick_create_menu.js';
+import { toastWarn } from './ui/toast_helpers.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -110,9 +111,42 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
       payloadSent = true;
       try {
         await opener(model);
+        return;
       } catch (err) {
-        try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
+        let fallbackOpened = false;
+        try { console && console.warn && console.warn('[quick-add] full contact editor open failed', err); }
         catch (_) {}
+        const fallbackOptions = {
+          allowAutoOpen: true,
+          sourceHint: 'quick-add:full-contact',
+          prefetchedRecord: model
+        };
+        if(typeof window.renderContactModal === 'function'){
+          try {
+            await window.renderContactModal(null, fallbackOptions);
+            fallbackOpened = true;
+          } catch (fallbackErr) {
+            try { console && console.warn && console.warn('[quick-add] renderContactModal fallback failed', fallbackErr); }
+            catch (_) {}
+          }
+        }
+        if(!fallbackOpened && window.Contacts && typeof window.Contacts.openEditor === 'function'){
+          try {
+            await window.Contacts.openEditor(null, {
+              mode: 'create',
+              prefill: model,
+              sourceHint: 'quick-add:full-contact'
+            });
+            fallbackOpened = true;
+          } catch (fallbackErr) {
+            try { console && console.warn && console.warn('[quick-add] Contacts.openEditor fallback failed', fallbackErr); }
+            catch (_) {}
+          }
+        }
+        if(!fallbackOpened && typeof toastWarn === 'function'){
+          try { toastWarn('Contact modal unavailable'); }
+          catch (_) {}
+        }
       }
       return;
     }
