@@ -1033,7 +1033,37 @@ function listenOnPort(port) {
   });
 }
 
-async function bindServer() {
+function parseCliArgs(argv) {
+  const parsed = {
+    port: null
+  };
+  for (let i = 2; i < argv.length; i += 1) {
+    const token = argv[i];
+    if ((token === '--port' || token === '-p') && i + 1 < argv.length) {
+      const value = Number.parseInt(argv[i + 1], 10);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new Error(`Invalid --port value: ${argv[i + 1]}`);
+      }
+      parsed.port = value;
+      i += 1;
+    }
+  }
+  return parsed;
+}
+
+async function bindServer(preferredPort = null) {
+  if (Number.isFinite(preferredPort) && preferredPort > 0) {
+    try {
+      await listenOnPort(preferredPort);
+      return preferredPort;
+    } catch (error) {
+      if (error && error.code === 'EADDRINUSE') {
+        throw new Error(`Requested port ${preferredPort} is already in use`);
+      }
+      throw error;
+    }
+  }
+
   const inCi = process.env.CI === 'true';
   const basePort = 8080;
   const attempts = inCi ? 1 : 10;
@@ -1077,6 +1107,7 @@ function openBrowser(url) {
 }
 
 async function start() {
+  const cli = parseCliArgs(process.argv);
   await shutdownManager.ensureSingleInstance();
   const preflight = readIndexInfo();
   if (preflight && preflight.error) {
@@ -1090,7 +1121,7 @@ async function start() {
     process.exit(3);
     return;
   }
-  const port = await bindServer();
+  const port = await bindServer(cli.port);
   shutdownManager.writePidFile({ port });
   const url = `http://127.0.0.1:${port}/`;
   console.info(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);

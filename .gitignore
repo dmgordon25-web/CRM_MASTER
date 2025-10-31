@@ -2,3 +2,5 @@ node_modules/
 proofs/
 !proofs/
 !proofs/phase1.png
+
+.runs/

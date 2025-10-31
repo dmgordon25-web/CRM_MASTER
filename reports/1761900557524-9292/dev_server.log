@@ -1,0 +1,8 @@
+[2025-10-31T10:04:09.669Z] --- Attempt 1 started at 2025-10-31T10:04:09.669Z ---
+[2025-10-31T10:04:09.680Z] [spawn] /root/.nvm/versions/node/v20.19.4/bin/node tools/dev_server.mjs --port 8122 (pid=32207)
+[waitForServer] Fetch failed: TypeError: fetch failed
+[VIS] shutdown endpoints ready
+[SERVER] listening on http://127.0.0.1:8122/ (root: /workspace/CRM_MASTER)
+Dev server ready on http://127.0.0.1:8122/
+[2025-10-31T10:04:10.258Z] --- Attempt 1 succeeded in 589ms ---
+[2025-10-31T10:04:10.258Z] Step dev_server completed successfully.
