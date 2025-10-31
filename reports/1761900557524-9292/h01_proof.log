@@ -1,0 +1,4 @@
+[2025-10-31T10:04:10.329Z] --- Attempt 1 started at 2025-10-31T10:04:10.329Z ---
+[2025-10-31T10:04:10.339Z] [spawn] /root/.nvm/versions/node/v20.19.4/bin/node tools/e2e_quickadd.mjs --port 8122 --run-id 1761900557524-9292 --profile /workspace/CRM_MASTER/.runs/1761900557524-9292/chrome-profile (pid=32222)
+[2025-10-31T10:05:02.912Z] --- Attempt 1 succeeded in 52583ms ---
+[2025-10-31T10:05:02.912Z] Step h01_proof completed successfully.

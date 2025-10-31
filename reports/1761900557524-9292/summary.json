@@ -1,0 +1,62 @@
+{
+  "runId": "1761900557524-9292",
+  "startedAt": "2025-10-31T09:11:47.687Z",
+  "steps": {
+    "verify_build": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:03:22.537Z",
+      "details": null,
+      "error": null
+    },
+    "test_boot": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:03:32.504Z",
+      "details": null,
+      "error": null
+    },
+    "features": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:03:46.931Z",
+      "details": null,
+      "error": null
+    },
+    "sweep_s1": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:03:58.022Z",
+      "details": null,
+      "error": null
+    },
+    "sweep_s2": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:04:09.624Z",
+      "details": null,
+      "error": null
+    },
+    "dev_server": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:04:10.258Z",
+      "details": {
+        "port": 8122,
+        "pid": 32207,
+        "origin": "http://127.0.0.1:8122/"
+      },
+      "error": null
+    },
+    "h01_proof": {
+      "status": "PASS",
+      "attempts": 1,
+      "finishedAt": "2025-10-31T10:05:02.913Z",
+      "details": {
+        "proof": true
+      },
+      "error": null
+    }
+  },
+  "lastUpdated": "2025-10-31T10:05:02.913Z"
+}
