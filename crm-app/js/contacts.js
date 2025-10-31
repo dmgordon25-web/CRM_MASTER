@@ -27,7 +27,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
-export const CONTACT_MODAL_KEY = 'contact-modal';
+export const CONTACT_MODAL_KEY = 'contact';
 
 function resolveContactModalInvoker(source){
   if(!source) return null;
@@ -484,6 +484,12 @@ export function normalizeContactId(input) {
 
 
   function ensureModal(){
+    const existingByKey = typeof document !== 'undefined'
+      ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
+      : null;
+    if(existingByKey){
+      return tagModal(existingByKey);
+    }
     let dlg = document.getElementById('contact-modal');
     const tagModal = (node)=>{
       if(!node) return node;
@@ -499,17 +505,29 @@ export function normalizeContactId(input) {
       }
       return node;
     };
+    const resolveHost = ()=>{
+      if(typeof document === 'undefined') return null;
+      return document.querySelector('[data-ui="modal-root"]')
+        || document.body
+        || document.documentElement
+        || null;
+    };
     if(!dlg){
+      const host = resolveHost();
+      if(!host) return null;
       dlg = document.createElement('dialog');
       dlg.id = 'contact-modal';
       dlg.classList.add('record-modal');
       dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
       tagModal(dlg);
-      document.body.appendChild(dlg);
+      host.appendChild(dlg);
     }else{
       tagModal(dlg);
-      if(!dlg.parentNode && typeof document !== 'undefined' && document.body){
-        document.body.appendChild(dlg);
+      if(!dlg.parentNode){
+        const host = resolveHost();
+        if(host){
+          host.appendChild(dlg);
+        }
       }
     }
     if(!dlg.__wired){
@@ -574,7 +592,12 @@ export function normalizeContactId(input) {
 
     let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureModal());
     base = base instanceof Promise ? await base : base;
-    if(!base) return null;
+    if(!base){
+      try{ console && console.warn && console.warn('[contact-editor]', 'host missing'); }
+      catch(_warn){}
+      toastWarn('Contact editor host missing');
+      return null;
+    }
 
     const dlg = base;
     dlg.__contactInvoker = invoker || dlg.__contactInvoker || null;
@@ -2386,6 +2409,10 @@ export function normalizeContactId(input) {
 })();
 
 let pendingContactOpen = null;
+const scheduleContactMicrotask = typeof queueMicrotask === 'function'
+  ? queueMicrotask
+  : (fn) => Promise.resolve().then(fn);
+let __lastOpen = { id: null, tick: 0 };
 
 function teardownContactModalShell(){
   if(typeof document === 'undefined') return;
@@ -2406,15 +2433,53 @@ function teardownContactModalShell(){
 function closeQuickAddOverlayIfOpen(){
   if(typeof document === 'undefined') return;
   const overlay = document.querySelector('.qa-overlay');
-  if(!overlay) return;
-  const closeBtn = overlay.querySelector('.qa-close');
-  if(closeBtn && typeof closeBtn.click === 'function'){
-    try{ closeBtn.click(); return; }
-    catch(_err){}
+  if(overlay){
+    const closeBtn = overlay.querySelector('.qa-close');
+    if(closeBtn && typeof closeBtn.click === 'function'){
+      try{ closeBtn.click(); }
+      catch(_err){}
+    }
+    if(overlay.isConnected){
+      try{ overlay.remove(); }
+      catch(_err){
+        if(overlay.parentElement){
+          try{ overlay.parentElement.removeChild(overlay); }
+          catch(__err){}
+        }
+      }
+    }
   }
-  if(overlay.parentElement){
-    try{ overlay.parentElement.removeChild(overlay); }
+  const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
+  backdrops.forEach(node => {
+    if(!node) return;
+    try{ node.remove(); }
+    catch(_err){
+      if(node.parentElement){
+        try{ node.parentElement.removeChild(node); }
+        catch(__err){}
+      }
+    }
+  });
+  const body = document.body;
+  if(body && body.style){
+    try{ body.style.pointerEvents = ''; }
     catch(_err){}
+    const preserveScrollLock = body.dataset && body.dataset.contactModalScroll === '1';
+    if(!preserveScrollLock){
+      try{ body.style.overflow = ''; }
+      catch(_err){}
+    }
+  }
+  const host = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`) || document.getElementById('contact-modal');
+  if(host){
+    let cursor = host;
+    while(cursor && cursor !== document.body){
+      if(typeof cursor.getAttribute === 'function' && cursor.getAttribute('aria-hidden') === 'true'){
+        try{ cursor.removeAttribute('aria-hidden'); }
+        catch(_err){}
+      }
+      cursor = cursor.parentElement;
+    }
   }
 }
 
@@ -2500,9 +2565,27 @@ export async function openContactModal(contactId, options){
     return null;
   }
 
+  closeQuickAddOverlayIfOpen();
+
   const existing = typeof document !== 'undefined'
     ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
     : null;
+  const dedupeId = normalizedId || '__contact__';
+  const perf = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
+    ? performance
+    : null;
+  const tick = perf ? perf.now() : Date.now();
+  if(__lastOpen.id === dedupeId && Math.abs(tick - __lastOpen.tick) < 8){
+    if(existing && existing.dataset?.open === '1'){
+      if(invoker){ existing.__contactInvoker = invoker; }
+      return existing;
+    }
+    if(pendingContactOpen && pendingContactOpen.id === dedupeId){
+      return pendingContactOpen.promise;
+    }
+    return existing || null;
+  }
+  __lastOpen = { id: dedupeId, tick };
   if(existing && existing.dataset?.open === '1'){
     const currentId = existing.dataset?.contactId
       || existing.querySelector?.('#c-id')?.value?.trim()
@@ -2522,33 +2605,10 @@ export async function openContactModal(contactId, options){
   }
 
   if(pendingContactOpen){
-    if(pendingContactOpen.id === normalizedId){
+    if(pendingContactOpen.id === dedupeId){
       return pendingContactOpen.promise;
     }
     return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
-  }
-
-  const host = typeof window !== 'undefined' ? window : null;
-  const now = Date.now();
-  let dedupeEntry = null;
-  if(host){
-    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
-      ? host.__CONTACT_EDITOR_LAST__
-      : null;
-    if(last && last.id === normalizedId && (now - (last.t || 0)) < 300){
-      if(last.promise){
-        return last.promise;
-      }
-      if(existing && existing.dataset?.open === '1'){
-        return existing;
-      }
-      if(pendingContactOpen && pendingContactOpen.id === normalizedId){
-        return pendingContactOpen.promise;
-      }
-      return Promise.resolve(existing || null);
-    }
-    dedupeEntry = { id: normalizedId, t: now, promise: null };
-    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
   }
 
   const mergedOptions = Object.assign({}, opts, {
@@ -2582,15 +2642,17 @@ export async function openContactModal(contactId, options){
     }
   })();
 
-  const tracked = sequence.finally(() => { pendingContactOpen = null; });
-  pendingContactOpen = { id: normalizedId, promise: tracked };
-  if(dedupeEntry){
-    dedupeEntry.promise = tracked;
-    dedupeEntry.t = now;
-    if(host){
-      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
-    }
-  }
+  const tracked = sequence.finally(() => {
+    pendingContactOpen = null;
+  });
+  tracked.finally(() => {
+    scheduleContactMicrotask(() => {
+      if(__lastOpen.id === dedupeId){
+        __lastOpen = { id: null, tick: 0 };
+      }
+    });
+  });
+  pendingContactOpen = { id: dedupeId, promise: tracked };
   return tracked;
 }
 
