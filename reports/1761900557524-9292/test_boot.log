@@ -1,0 +1,14 @@
+[2025-10-31T10:03:22.582Z] --- Attempt 1 started at 2025-10-31T10:03:22.582Z ---
+[2025-10-31T10:03:22.588Z] [spawn] npm run test:boot (pid=31454)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> crmtool@0.1.0 test:boot
+> node tools/boot_smoke_test.mjs
+
+[CONTRACT LINT] PASS
+[SERVER] listening on http://127.0.0.1:8080/ (root: /workspace/CRM_MASTER/crm-app)
+smoke:action-selector [data-ui="action-bar"] [data-action]:not([data-action="merge"])
+[SMOKE PARTNER SEL] {"svcCount":2,"svcType":"partners","svcIds":["101593c6-a0ea-5238-e097-7f51c066ceb7","18ebe317-e181-5ae9-271f-75423e5d3d28"],"fallbackCount":2,"fallbackIds":null}
+BOOT SMOKE TEST PASS
+[2025-10-31T10:03:32.503Z] --- Attempt 1 succeeded in 9921ms ---
+[2025-10-31T10:03:32.503Z] Step test_boot completed successfully.

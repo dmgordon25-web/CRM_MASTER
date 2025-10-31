@@ -125,13 +125,23 @@ export function wireQuickAddUnified(options = {}) {
     contactForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(contactForm);
+      const first = String(fd.get("firstName") || "").trim();
+      const last = String(fd.get("lastName") || "").trim();
+      const email = String(fd.get("email") || "").trim();
+      const phone = String(fd.get("phone") || "").trim();
+      const now = Date.now();
+      const name = [first, last].filter(Boolean).join(" ").trim();
       const rec = {
-        firstName: String(fd.get("firstName") || "").trim(),
-        lastName:  String(fd.get("lastName")  || "").trim(),
-        email:     String(fd.get("email")     || "").trim(),
-        phone:     String(fd.get("phone")     || "").trim(),
-        createdAt: Date.now(),
-        stage: "Long Shot",
+        firstName: first,
+        lastName: last,
+        first,
+        last,
+        name,
+        email,
+        phone,
+        createdAt: now,
+        updatedAt: now,
+        stage: "Application",
         status: "Active",
       };
       let saved = false;
