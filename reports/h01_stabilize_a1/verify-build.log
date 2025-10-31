@@ -1,0 +1,15 @@
+
+> crmtool@0.1.0 verify:build
+> npm run audit:manifest && npm run test:boot
+
+
+> crmtool@0.1.0 audit:manifest
+> node tools/manifest_audit.js
+
+[MANIFEST AUDIT] PASS
+
+> crmtool@0.1.0 test:boot
+> node tools/boot_smoke_test.mjs
+
+[CONTRACT LINT] PASS
+[SERVER] listening on http://127.0.0.1:8080/ (root: /workspace/CRM_MASTER/crm-app)
