@@ -27,7 +27,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
-export const CONTACT_MODAL_KEY = 'contact-edit';
+export const CONTACT_MODAL_KEY = 'contact-modal';
 
 function resolveContactModalInvoker(source){
   if(!source) return null;
@@ -2418,6 +2418,8 @@ function closeQuickAddOverlayIfOpen(){
   }
 }
 
+let lastOpenedId = null;
+
 const CALENDAR_INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
 const INVALID_PARTNER_ID_TOKENS = new Set(['', 'null', 'undefined']);
 
@@ -2592,10 +2594,16 @@ export async function openContactModal(contactId, options){
   return tracked;
 }
 
-export function openContactEditor(prefill){
+export async function openContactEditor(prefill){
   let model = normalizeNewContactPrefill(prefill || {});
-  const safeId = normalizeContactId(model);
-  model.id = safeId;
+  model.id = normalizeContactId(model);
+
+  if(lastOpenedId === model.id){
+    if(pendingContactOpen && pendingContactOpen.id === model.id){
+      return pendingContactOpen.promise;
+    }
+    return Promise.resolve(null);
+  }
 
   closeQuickAddOverlayIfOpen();
 
@@ -2606,42 +2614,19 @@ export function openContactEditor(prefill){
     suppressErrorToast: true
   };
 
-  const host = typeof window !== 'undefined' ? window : null;
-  const now = Date.now();
-  let dedupeEntry = null;
-  if(host){
-    const last = host.__CONTACT_EDITOR_LAST__ && typeof host.__CONTACT_EDITOR_LAST__ === 'object'
-      ? host.__CONTACT_EDITOR_LAST__
-      : null;
-    if(last && last.id === model.id && (now - (last.t || 0)) < 300){
-      return last.promise || Promise.resolve(null);
-    }
-    dedupeEntry = { id: model.id, t: now, promise: null };
-    host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
+  lastOpenedId = model.id;
+  try {
+    const result = await openContactModal(model.id, options);
+    return result || null;
+  } catch (err) {
+    try{ console && console.warn && console.warn('[contact-editor:init]', err); }
+    catch(_warn){}
+    toastWarn('Couldn\u2019t open the full editor. Please try again.');
+    teardownContactModalShell();
+    return null;
+  } finally {
+    lastOpenedId = null;
   }
-
-  const sequence = (async () => {
-    try{
-      const result = await openContactModal(model.id, options);
-      return result || null;
-    }catch (err){
-      try{ console && console.warn && console.warn('[contact-editor:init]', err); }
-      catch(_warn){}
-      toastWarn('Couldn\u2019t open the full editor. Please try again.');
-      teardownContactModalShell();
-      return null;
-    }
-  })();
-
-  if(dedupeEntry){
-    dedupeEntry.promise = sequence;
-    dedupeEntry.t = now;
-    if(host){
-      host.__CONTACT_EDITOR_LAST__ = dedupeEntry;
-    }
-  }
-
-  return sequence;
 }
 
 export async function openCalendarEntityEditor(eventLike, options){
