@@ -1,0 +1,32 @@
+[Calendar Export Preview]
+source: sample events (A17)
+
+[CSV] first 2 lines
+1: \ufeffDate,Type,Title,Details,Loan,Status,Source
+2: 2025-01-15,meeting,Pipeline Review,Loan: 24-9911,Loan #24-9911,Pending,loan:24-9911
+
+[CSV] last 2 lines
+3: 2025-01-20,milestone,Closing Day,Finalize docs,,Scheduled,
+4: 2025-02-01,task,Follow Up,Call borrower,24-0001,Open,task:8821
+
+[ICS] VEVENT preview (timezone aware)
+BEGIN:VEVENT
+UID:crm-sample-1@local
+DTSTAMP:20251101T213304Z
+DTSTART;TZID=America/New_York:20250115T153000
+DTEND;TZID=America/New_York:20250115T163000
+LOCATION:Zoom
+DESCRIPTION:Status: Pending • Loan: 24-9911
+X-CRM-TZNOTE:Timezone: America/New_York
+SUMMARY:Pipeline Review
+END:VEVENT
+BEGIN:VEVENT
+UID:crm-sample-2@local
+DTSTAMP:20251101T213304Z
+DTSTART;VALUE=DATE:20250120
+DTEND;VALUE=DATE:20250121
+LOCATION:Main Office
+DESCRIPTION:Loan: 24-2025
+X-CRM-TZNOTE:Timezone: America/New_York
+SUMMARY:Closing Day
+END:VEVENT
