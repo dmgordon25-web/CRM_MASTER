@@ -1,4 +1,8 @@
 import { safe, capability } from './probe_utils.js';
+import flags from '../../settings/flags.js';
+
+const featureFlags = flags || {};
+const notificationsEnabled = featureFlags.notificationsMVP === true;
 
 // SOFT probe pattern:
 // const exampleCapability = capability('Namespace.feature');
@@ -492,6 +496,7 @@ const hasRenderNotifications = safe(() => {
 });
 
 const notificationsPanelProbe = safe(() => {
+  if (!notificationsEnabled) return true;
   const notifier = window.Notifier;
   const hasNotifierApi = !!(notifier
     && typeof notifier.onChanged === 'function'
