@@ -1,5 +1,6 @@
 /* crm-app/js/boot/phases.js */
 import { safe, capability } from './contracts/probe_utils.js';
+import flags from '../settings/flags.js';
 
 // SOFT probe pattern:
 // const exampleCapability = capability('Namespace.feature');
@@ -16,6 +17,9 @@ function isSafeMode(){
   return false;
 }
 
+const featureFlags = flags || {};
+const notificationsEnabled = featureFlags.notificationsMVP === true;
+
 const SHELL_MODULES = [
   new URL('../ui_shims.js', import.meta.url).href,
   new URL('../ui/action_bar.js', import.meta.url).href,
@@ -31,16 +35,21 @@ const SERVICE_MODULES = [
   new URL('../partners_merge_orchestrator.js', import.meta.url).href
 ];
 
-const CORE_FEATURE_MODULES = [
-  new URL('../pages/workbench.js', import.meta.url).href,
-  new URL('../calendar_impl.js', import.meta.url).href,
-  new URL('../calendar_actions.js', import.meta.url).href,
-  new URL('../calendar.js', import.meta.url).href,
-  new URL('../contacts.js', import.meta.url).href,
-  new URL('../partners.js', import.meta.url).href,
-  new URL('../notifications.js', import.meta.url).href,
-  new URL('../ui/notifications_panel.js', import.meta.url).href
-];
+const CORE_FEATURE_MODULES = (() => {
+  const modules = [
+    new URL('../pages/workbench.js', import.meta.url).href,
+    new URL('../calendar_impl.js', import.meta.url).href,
+    new URL('../calendar_actions.js', import.meta.url).href,
+    new URL('../calendar.js', import.meta.url).href,
+    new URL('../contacts.js', import.meta.url).href,
+    new URL('../partners.js', import.meta.url).href
+  ];
+  if (notificationsEnabled) {
+    modules.push(new URL('../notifications.js', import.meta.url).href);
+    modules.push(new URL('../ui/notifications_panel.js', import.meta.url).href);
+  }
+  return modules;
+})();
 
 const MIGRATED_PATCH_MODULES = [
   new URL('../patch_2025-09-26_phase1_pipeline_partners.js', import.meta.url).href,
@@ -134,6 +143,7 @@ const selectionServiceProbe = safe(() => {
   return !!window.Selection;
 });
 const notificationsPanelProbe = safe(() => {
+  if (!notificationsEnabled) return true;
   if (!notifierExists()) return false;
   const notifier = window.Notifier;
   const hasNotifierApi = notifier
