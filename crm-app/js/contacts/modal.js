@@ -120,6 +120,19 @@ const CHANNEL_CONFIG = {
       ()=> window?.openSms,
       ()=> window?.openTextComposer
     ]
+  },
+  call: {
+    label: 'Call',
+    resolverKey: 'resolveCallHandler',
+    candidates: [
+      ()=> window?.CRM?.channels?.call?.start,
+      ()=> window?.CRM?.actions?.call?.start,
+      ()=> window?.CRM?.call?.start,
+      ()=> window?.startCall,
+      ()=> window?.callNow,
+      ()=> window?.dialNumber,
+      ()=> window?.openDialer
+    ]
   }
 };
 
@@ -127,22 +140,29 @@ const missingChannelWarnings = new Set();
 
 function resolveChannel(kind, context){
   const config = CHANNEL_CONFIG[kind];
-  if(!config) return { handler:null, source:'none', reason:'handler-missing' };
+  if(!config){
+    return { handler:null, source:'none', reason:'unsupported-channel', adapterEnabled:false, fallback:null };
+  }
   const crm = typeof window !== 'undefined' ? window.CRM : null;
   const adapterEnabled = isCommsAdapterEnabled();
   if(adapterEnabled){
     ensureCommsAdapter();
   }
-  const resolver = adapterEnabled && crm && typeof crm === 'object' ? crm[config.resolverKey] : null;
+  const fallback = findHandler(config.candidates);
+  if(!adapterEnabled){
+    return { handler:null, source:'none', reason:'adapter-disabled', adapterEnabled:false, fallback };
+  }
+
+  const resolver = crm && typeof crm === 'object' ? crm[config.resolverKey] : null;
   let reason = null;
   if(typeof resolver === 'function'){
     try{
       const resolved = resolver(context);
       if(typeof resolved === 'function'){
-        return { handler: resolved, source:'resolver', reason:null };
+        return { handler: resolved, source:'resolver', reason:null, adapterEnabled:true, fallback };
       }
       if(resolved && typeof resolved.handler === 'function'){
-        return { handler: resolved.handler, source:'resolver', reason:null };
+        return { handler: resolved.handler, source:'resolver', reason:null, adapterEnabled:true, fallback };
       }
       reason = 'resolver-returned-null';
     }catch(err){
@@ -153,11 +173,10 @@ function resolveChannel(kind, context){
   }else if(crm){
     reason = 'resolver-missing';
   }
-  const fallback = findHandler(config.candidates);
   if(fallback){
-    return { handler: fallback, source:'fallback', reason };
+    return { handler: fallback, source:'fallback', reason, adapterEnabled:true, fallback };
   }
-  return { handler: null, source: 'none', reason: reason || 'handler-missing' };
+  return { handler: null, source: 'none', reason: reason || 'handler-missing', adapterEnabled:true, fallback:null };
 }
 
 function showMissingChannelToast(kind, reason, options){
@@ -168,6 +187,9 @@ function showMissingChannelToast(kind, reason, options){
   missingChannelWarnings.add(key);
   let message;
   switch(reason){
+    case 'adapter-disabled':
+      message = `${label} integration is disabled. Enable it under Settings → Integrations to send directly.`;
+      break;
     case 'resolver-missing':
       message = `${label} integration is not installed. Ask your administrator to enable it in Settings → Integrations.`;
       break;
@@ -184,7 +206,7 @@ function showMissingChannelToast(kind, reason, options){
       message = `${label} channel is not configured. Configure it under Settings → Integrations.`;
       break;
   }
-  if(options?.fallback){
+  if(options?.fallback && reason !== 'adapter-disabled'){
     message += ' Using the built-in fallback for now.';
   }
   toast('info', message);
@@ -440,6 +462,10 @@ function wireDialog(dialog, config, detail){
     entry.emailButton.addEventListener('click', ()=>{
       const context = contextFor();
       const resolution = resolveChannel('email', context);
+      if(!resolution.adapterEnabled){
+        showMissingChannelToast('email', 'adapter-disabled', { fallback: !!resolution.fallback });
+        return;
+      }
       if(resolution.handler && triggerChannel(resolution.handler, context)){
         if(resolution.source === 'fallback' && resolution.reason){
           showMissingChannelToast('email', resolution.reason, { fallback: true });
@@ -456,6 +482,10 @@ function wireDialog(dialog, config, detail){
     entry.smsButton.addEventListener('click', ()=>{
       const context = contextFor();
       const resolution = resolveChannel('sms', context);
+      if(!resolution.adapterEnabled){
+        showMissingChannelToast('sms', 'adapter-disabled', { fallback: !!resolution.fallback });
+        return;
+      }
       if(resolution.handler && triggerChannel(resolution.handler, context)){
         if(resolution.source === 'fallback' && resolution.reason){
           showMissingChannelToast('sms', resolution.reason, { fallback: true });

@@ -41,8 +41,19 @@ function createNoopAdapter() {
   return {
     resolve: resolveChannel,
     resolveEmail: resolveChannel,
-    resolveSms: resolveChannel
+    resolveSms: resolveChannel,
+    resolveCall: resolveChannel
   };
+}
+
+function ensureAdapterShape(adapter) {
+  const target = adapter && typeof adapter === 'object' ? adapter : {};
+  const noop = createNoopAdapter();
+  if (typeof target.resolve !== 'function') target.resolve = noop.resolve;
+  if (typeof target.resolveEmail !== 'function') target.resolveEmail = noop.resolveEmail;
+  if (typeof target.resolveSms !== 'function') target.resolveSms = noop.resolveSms;
+  if (typeof target.resolveCall !== 'function') target.resolveCall = noop.resolveCall;
+  return target;
 }
 
 function installAdapter(target) {
@@ -52,9 +63,7 @@ function installAdapter(target) {
   const crm = target.CRM = target.CRM || {};
   const adapters = crm.adapters = crm.adapters || {};
 
-  const adapter = adapters.comms && typeof adapters.comms === 'object'
-    ? adapters.comms
-    : createNoopAdapter();
+  const adapter = ensureAdapterShape(adapters.comms);
 
   adapters.comms = adapter;
 
@@ -73,6 +82,15 @@ function installAdapter(target) {
       enumerable: false,
       writable: true,
       value: (context) => adapter.resolveSms(context)
+    });
+  }
+
+  if (typeof crm.resolveCallHandler !== 'function') {
+    Object.defineProperty(crm, 'resolveCallHandler', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: (context) => adapter.resolveCall(context)
     });
   }
 
