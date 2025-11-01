@@ -24,11 +24,8 @@ function runPatch(){
     };
 
     const originStyleId = 'contact-linked-rollup-styles';
-    function ensureStyles(){
-      if(document.getElementById(originStyleId)) return;
-      const style = document.createElement('style');
-      style.id = originStyleId;
-      style.textContent = `
+    const originStyleOrigin = 'crm:contacts:linked-rollup';
+    const originStyleText = `
         .origin-pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 6px;font-size:11px;line-height:1.3;background:#e0f2fe;color:#0369a1;margin-left:8px;font-weight:500;white-space:nowrap;}
         .origin-pill[data-origin-self="true"]{background:#ede9fe;color:#5b21b6;}
         .linked-rollup-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
@@ -37,7 +34,27 @@ function runPatch(){
         .linked-rollup-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 8px;background:#eef2ff;color:#312e81;font-size:12px;font-weight:500;cursor:pointer;}
         .timeline-list li .origin-pill{margin-left:6px;}
       `;
-      document.head.appendChild(style);
+
+    function ensureStyles(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return;
+      const selector = `style[data-origin="${originStyleOrigin}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(originStyleId);
+      }
+      if(!style){
+        style = document.createElement('style');
+        style.id = originStyleId;
+        style.setAttribute('data-origin', originStyleOrigin);
+        head.appendChild(style);
+      }else if(style.getAttribute && style.getAttribute('data-origin') !== originStyleOrigin){
+        try{ style.setAttribute('data-origin', originStyleOrigin); }
+        catch(_err){}
+      }
+      if(style.textContent !== originStyleText){
+        style.textContent = originStyleText;
+      }
     }
 
     function safeString(value){

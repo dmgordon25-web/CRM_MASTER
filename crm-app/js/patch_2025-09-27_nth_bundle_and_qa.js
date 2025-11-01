@@ -19,11 +19,8 @@ function runPatch(){
     const RenderGuard = window.RenderGuard || { enter(){}, exit(){}, isRendering(){ return false; } };
 
     const STYLE_ID = 'patch-2025-09-27-nth-styles';
-    function ensureStyles(){
-      if(document.getElementById(STYLE_ID)) return;
-      const style = document.createElement('style');
-      style.id = STYLE_ID;
-      style.textContent = `
+    const STYLE_ORIGIN = 'crm:nth-bundle:styles';
+    const STYLE_TEXT = `
         .doc-chip[data-tooltip]{position:relative;}
         .doc-chip[data-tooltip]:focus::after,
         .doc-chip[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;left:0;bottom:100%;transform:translateY(-6px);background:#0f172a;color:#f8fafc;padding:6px 8px;border-radius:6px;font-size:11px;line-height:1.3;white-space:nowrap;box-shadow:0 8px 20px rgba(15,23,42,.18);z-index:20;}
@@ -59,7 +56,27 @@ function runPatch(){
         .qa-runner-btn{position:fixed;right:18px;bottom:18px;z-index:400;background:#0f172a;color:#f8fafc;border-radius:999px;padding:10px 18px;border:0;box-shadow:0 12px 24px rgba(15,23,42,.24);cursor:pointer;font-size:14px;font-weight:600;display:none;}
         .qa-runner-btn:focus-visible{outline:2px solid #22d3ee;outline-offset:2px;}
       `;
-      document.head.appendChild(style);
+
+    function ensureStyles(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return;
+      const selector = `style[data-origin="${STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(STYLE_ID);
+      }
+      if(!style){
+        style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.setAttribute('data-origin', STYLE_ORIGIN);
+        head.appendChild(style);
+      }else if(style.getAttribute && style.getAttribute('data-origin') !== STYLE_ORIGIN){
+        try{ style.setAttribute('data-origin', STYLE_ORIGIN); }
+        catch(_err){}
+      }
+      if(style.textContent !== STYLE_TEXT){
+        style.textContent = STYLE_TEXT;
+      }
     }
 
     ensureStyles();

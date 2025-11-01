@@ -26,6 +26,7 @@ const DASHBOARD_WIDGET_NODE_SELECTOR = 'section.card, section.grid, div.card, se
 const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
 const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
+const DASHBOARD_STYLE_ORIGIN = 'crm:dashboard:dnd';
 const DASHBOARD_CLICK_THRESHOLD = 5;
 const DASHBOARD_DRILLDOWN_SELECTOR = '[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
@@ -79,6 +80,35 @@ const GRAPH_RESOLVERS = {
   numbersMomentum: () => doc ? doc.getElementById('numbers-momentum-card') : null,
   pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null
 };
+
+function ensureStyle(originId, cssText, legacyId) {
+  if (!doc) return null;
+  const head = doc.head || doc.getElementsByTagName('head')[0] || doc.documentElement;
+  if (!head || typeof head.appendChild !== 'function') return null;
+  const selector = `style[data-origin="${originId}"]`;
+  let style = typeof doc.querySelector === 'function' ? doc.querySelector(selector) : null;
+  if (!style && legacyId && typeof doc.getElementById === 'function') {
+    style = doc.getElementById(legacyId);
+  }
+  if (style) {
+    if (style.getAttribute && style.getAttribute('data-origin') !== originId) {
+      try { style.setAttribute('data-origin', originId); }
+      catch (_) {}
+    }
+    if (typeof cssText === 'string' && style.textContent !== cssText) {
+      style.textContent = cssText;
+    }
+    return style;
+  }
+  style = doc.createElement('style');
+  if (legacyId) style.id = legacyId;
+  style.setAttribute('data-origin', originId);
+  if (typeof cssText === 'string') {
+    style.textContent = cssText;
+  }
+  head.appendChild(style);
+  return style;
+}
 
 const WIDGET_RESOLVERS = {
   focus: () => doc ? doc.getElementById('dashboard-focus') : null,
@@ -1322,9 +1352,7 @@ function syncStoredDashboardOrder(orderLike) {
 function ensureDashboardDragStyles() {
   if (!doc) return;
   if (doc.getElementById(DASHBOARD_STYLE_ID)) return;
-  const style = doc.createElement('style');
-  style.id = DASHBOARD_STYLE_ID;
-  style.textContent = `
+  ensureStyle(DASHBOARD_STYLE_ORIGIN, `
 [data-ui="dashboard-root"] > [data-dash-widget] {
   position: relative;
   min-width: 0;
@@ -1569,11 +1597,7 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
   opacity: 1;
   transform: translate3d(0, 0, 0);
 }
-`;
-  const head = doc.head || doc.getElementsByTagName('head')[0];
-  if (head) {
-    head.appendChild(style);
-  }
+`, DASHBOARD_STYLE_ID);
 }
 
 function applyDashboardLayoutClasses(container) {

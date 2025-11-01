@@ -1,13 +1,8 @@
 import { ensureCommsAdapter, isCommsAdapterEnabled } from '../services/comms_adapter.js';
 
 const STYLE_ID = 'modal-inline-actions-style';
-
-function ensureStyles(){
-  if(typeof document === 'undefined') return;
-  if(document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = `
+const STYLE_ORIGIN = 'crm:modal:inline-actions';
+const STYLE_TEXT = `
     .record-modal .modal-header.has-inline-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .record-modal .modal-header.has-inline-actions .modal-actions-wrap{flex-basis:100%;display:flex;flex-direction:column;gap:8px}
     .record-modal .modal-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -23,7 +18,28 @@ function ensureStyles(){
     .record-modal .modal-action-panel .panel-actions{display:flex;gap:8px;justify-content:flex-end}
     .record-modal .modal-action-hint{color:#b91c1c;font-size:12px}
   `;
-  document.head.appendChild(style);
+
+function ensureStyles(){
+  if(typeof document === 'undefined') return;
+  const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+  if(!head || typeof head.appendChild !== 'function') return;
+  const selector = `style[data-origin="${STYLE_ORIGIN}"]`;
+  let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+  if(!style && typeof document.getElementById === 'function'){
+    style = document.getElementById(STYLE_ID);
+  }
+  if(!style){
+    style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.setAttribute('data-origin', STYLE_ORIGIN);
+    head.appendChild(style);
+  }else if(style.getAttribute && style.getAttribute('data-origin') !== STYLE_ORIGIN){
+    try{ style.setAttribute('data-origin', STYLE_ORIGIN); }
+    catch(_err){}
+  }
+  if(style.textContent !== STYLE_TEXT){
+    style.textContent = STYLE_TEXT;
+  }
 }
 
 function toast(kind, message){

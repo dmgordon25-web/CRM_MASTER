@@ -311,16 +311,42 @@ function runPatch(){
     }
 
     // --- Today card density -----------------------------------------------------
-    function injectTodayDensity(){
-      if(document.getElementById('masterfix-today-style')) return;
-      const style = document.createElement('style');
-      style.id = 'masterfix-today-style';
-      style.textContent = `
+    const MASTERFIX_TODAY_STYLE_ID = 'masterfix-today-style';
+    const MASTERFIX_TODAY_STYLE_ORIGIN = 'crm:dashboard:today-density';
+    const MASTERFIX_TODAY_STYLE_TEXT = `
         #dashboard-today .grid{max-height:420px;overflow:auto;padding-right:6px}
         #dashboard-today .grid .insight-list{font-size:13px}
         #dashboard-today .grid .insight-list li{font-size:13px}
       `;
-      document.head.appendChild(style);
+
+    function ensureTodayStyle(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return null;
+      const selector = `style[data-origin="${MASTERFIX_TODAY_STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(MASTERFIX_TODAY_STYLE_ID);
+      }
+      if(style){
+        if(style.getAttribute && style.getAttribute('data-origin') !== MASTERFIX_TODAY_STYLE_ORIGIN){
+          try{ style.setAttribute('data-origin', MASTERFIX_TODAY_STYLE_ORIGIN); }
+          catch(_err){}
+        }
+        return style;
+      }
+      const created = document.createElement('style');
+      created.id = MASTERFIX_TODAY_STYLE_ID;
+      created.setAttribute('data-origin', MASTERFIX_TODAY_STYLE_ORIGIN);
+      head.appendChild(created);
+      return created;
+    }
+
+    function injectTodayDensity(){
+      const style = ensureTodayStyle();
+      if(!style) return;
+      if(style.textContent !== MASTERFIX_TODAY_STYLE_TEXT){
+        style.textContent = MASTERFIX_TODAY_STYLE_TEXT;
+      }
     }
     // --- Leads search ------------------------------------------------------
     let longshotsSearchState = '';

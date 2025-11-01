@@ -1540,14 +1540,39 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   let currentPipelineStageFilter = null;
 
-  function ensurePipelineFilterStyle(){
-    if(typeof document === 'undefined') return;
-    if(document.getElementById('pipeline-filter-style')) return;
-    const style = document.createElement('style');
-    style.id = 'pipeline-filter-style';
-    style.textContent = '.pipeline-filter-hide{display:none !important;}';
+  const PIPELINE_FILTER_STYLE_ID = 'pipeline-filter-style';
+  const PIPELINE_FILTER_STYLE_ORIGIN = 'crm:pipeline:filter';
+
+  function ensurePipelineFilterStyleNode(){
+    if(typeof document === 'undefined') return null;
     const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
-    if(head && typeof head.appendChild === 'function') head.appendChild(style);
+    if(!head || typeof head.appendChild !== 'function') return null;
+    const selector = `style[data-origin="${PIPELINE_FILTER_STYLE_ORIGIN}"]`;
+    let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+    if(!style && typeof document.getElementById === 'function'){
+      style = document.getElementById(PIPELINE_FILTER_STYLE_ID);
+    }
+    if(style){
+      if(style.getAttribute && style.getAttribute('data-origin') !== PIPELINE_FILTER_STYLE_ORIGIN){
+        try{ style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN); }
+        catch(_err){}
+      }
+      return style;
+    }
+    style = document.createElement('style');
+    style.id = PIPELINE_FILTER_STYLE_ID;
+    style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN);
+    head.appendChild(style);
+    return style;
+  }
+
+  function ensurePipelineFilterStyle(){
+    const style = ensurePipelineFilterStyleNode();
+    if(!style) return;
+    const cssText = '.pipeline-filter-hide{display:none !important;}';
+    if(style.textContent !== cssText){
+      style.textContent = cssText;
+    }
   }
 
   function groupForStageValue(value){

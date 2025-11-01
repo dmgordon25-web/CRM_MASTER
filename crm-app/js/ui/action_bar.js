@@ -65,6 +65,35 @@ const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
     catch (_) {}
   };
 
+function ensureStyle(originId, cssText, legacyId) {
+  if (typeof document === 'undefined') return null;
+  const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+  if (!head || typeof head.appendChild !== 'function') return null;
+  const selector = `style[data-origin="${originId}"]`;
+  let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+  if (!style && legacyId && typeof document.getElementById === 'function') {
+    style = document.getElementById(legacyId);
+  }
+  if (style) {
+    if (style.getAttribute && style.getAttribute('data-origin') !== originId) {
+      try { style.setAttribute('data-origin', originId); }
+      catch (_) {}
+    }
+    if (typeof cssText === 'string' && style.textContent !== cssText) {
+      style.textContent = cssText;
+    }
+    return style;
+  }
+  style = document.createElement('style');
+  if (legacyId) style.id = legacyId;
+  style.setAttribute('data-origin', originId);
+  if (typeof cssText === 'string') {
+    style.textContent = cssText;
+  }
+  head.appendChild(style);
+  return style;
+}
+
 function postActionBarTelemetry(event, data) {
   if (!event) return;
   const payload = JSON.stringify({ event, ...(data && typeof data === 'object' ? data : {}) });
@@ -940,8 +969,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 function injectActionBarStyle(){
   if (typeof document === 'undefined') return;
   if (document.getElementById('ab-inline-style')) return;
-  const s = document.createElement('style'); s.id = 'ab-inline-style';
-  s.textContent = `
+  ensureStyle('crm:action-bar', `
       #actionbar{
         position:fixed; left:50%; transform:translateX(-50%);
         bottom:16px; z-index:9999;
@@ -977,8 +1005,7 @@ function injectActionBarStyle(){
       #actionbar .btn{ padding:6px 10px; font-size:0.95rem; border-radius:10px; }
       #actionbar .btn.disabled{ opacity:.45; pointer-events:none; }
       #actionbar .btn.active{ outline:2px solid rgba(255,255,255,.35); transform:translateY(-1px); }
-    `;
-  document.head.appendChild(s);
+    `, 'ab-inline-style');
 }
 
 function clamp(value, min, max) {

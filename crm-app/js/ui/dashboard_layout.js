@@ -11,6 +11,34 @@ const ITEM_SELECTOR = ':scope > section.card, :scope > section.grid, :scope > di
 const GROUP_WIDGET_SELECTOR = '#dashboard-insights > .card, #dashboard-insights > section.card, #dashboard-opportunities > .card, #dashboard-opportunities > section.card';
 const HANDLE_SELECTOR = '[data-ui="card-title"], .insight-head, .row > strong:first-child, header, h2, h3, h4';
 const STYLE_ID = 'dash-layout-mode-style';
+const STYLE_ORIGIN = 'crm:dashboard:layout-mode';
+const STYLE_TEXT = `
+[data-dash-layout-mode="on"] [data-ui="card-title"],
+[data-dash-layout-mode="on"] .insight-head,
+[data-dash-layout-mode="on"] header,
+[data-dash-layout-mode="on"] h2,
+[data-dash-layout-mode="on"] h3,
+[data-dash-layout-mode="on"] h4 {
+  cursor: grab;
+}
+[data-dash-layout-mode="on"] .dash-drag-placeholder {
+  border: 2px dashed var(--border-strong, #94a3b8);
+  background: linear-gradient(135deg, rgba(148,163,184,0.18) 25%, rgba(148,163,184,0.08) 25%, rgba(148,163,184,0.08) 50%, rgba(148,163,184,0.18) 50%);
+  background-size: 16px 16px;
+}
+[data-dash-layout-mode="on"] .dash-drag-placeholder::before {
+  content: '';
+}
+[data-dash-layout-mode="on"] .dash-gridlines {
+  border: 2px dashed var(--border-strong, #94a3b8);
+  border-radius: 14px;
+  opacity: 0.35;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px),
+    repeating-linear-gradient(90deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px);
+  background-size: cover;
+}
+`;
 const DASHBOARD_ROOT_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASH_LAYOUT_PREFIX = 'dash:layout';
 const RESET_STORAGE_KEYS = [ORDER_STORAGE_KEY, HIDDEN_STORAGE_KEY, MODE_STORAGE_KEY, ...LEGACY_ORDER_KEYS, ...LEGACY_HIDDEN_KEYS, ...LEGACY_MODE_KEYS];
@@ -120,41 +148,33 @@ function postLog(event, data){
   }
 }
 
-function ensureStyle(){
-  if(typeof document === 'undefined') return;
-  if(document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
+function ensureStyleNode(){
+  if(typeof document === 'undefined') return null;
+  const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+  if(!head || typeof head.appendChild !== 'function') return null;
+  const selector = `style[data-origin="${STYLE_ORIGIN}"]`;
+  let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+  if(!style && typeof document.getElementById === 'function'){
+    style = document.getElementById(STYLE_ID);
+  }
+  if(style){
+    if(style.getAttribute && style.getAttribute('data-origin') !== STYLE_ORIGIN){
+      try{ style.setAttribute('data-origin', STYLE_ORIGIN); }
+      catch(_err){}
+    }
+    return style;
+  }
+  style = document.createElement('style');
   style.id = STYLE_ID;
-  style.textContent = `
-[data-dash-layout-mode="on"] [data-ui="card-title"],
-[data-dash-layout-mode="on"] .insight-head,
-[data-dash-layout-mode="on"] header,
-[data-dash-layout-mode="on"] h2,
-[data-dash-layout-mode="on"] h3,
-[data-dash-layout-mode="on"] h4 {
-  cursor: grab;
+  style.setAttribute('data-origin', STYLE_ORIGIN);
+  return head.appendChild(style);
 }
-[data-dash-layout-mode="on"] .dash-drag-placeholder {
-  border: 2px dashed var(--border-strong, #94a3b8);
-  background: linear-gradient(135deg, rgba(148,163,184,0.18) 25%, rgba(148,163,184,0.08) 25%, rgba(148,163,184,0.08) 50%, rgba(148,163,184,0.18) 50%);
-  background-size: 16px 16px;
-}
-[data-dash-layout-mode="on"] .dash-drag-placeholder::before {
-  content: '';
-}
-[data-dash-layout-mode="on"] .dash-gridlines {
-  border: 2px dashed var(--border-strong, #94a3b8);
-  border-radius: 14px;
-  opacity: 0.35;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px),
-    repeating-linear-gradient(90deg, rgba(148,163,184,0.35) 0, rgba(148,163,184,0.35) 1px, transparent 1px, transparent 32px);
-  background-size: cover;
-}
-`;
-  const head = document.head || document.getElementsByTagName('head')[0];
-  if(head){
-    head.appendChild(style);
+
+function ensureStyle(){
+  const style = ensureStyleNode();
+  if(!style) return;
+  if(style.textContent !== STYLE_TEXT){
+    style.textContent = STYLE_TEXT;
   }
 }
 
