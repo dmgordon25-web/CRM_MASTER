@@ -1560,7 +1560,47 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(stage == null) return null;
     const token = pipelineToken(stage);
     if(!token) return null;
-    return PIPELINE_FILTER_VALUES.has(token) ? token : null;
+    if(PIPELINE_FILTER_VALUES.has(token)) return token;
+    const alias = PIPELINE_STAGE_LOOKUP.get(token)
+      || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, ''))
+      || null;
+    if(alias && PIPELINE_FILTER_VALUES.has(alias)) return alias;
+    return null;
+  }
+
+  function pipelineHashForStage(stage){
+    const normalized = normalizePipelineStage(stage);
+    if(!normalized) return '#/pipeline';
+    try {
+      return `#/pipeline?stage=${encodeURIComponent(normalized)}`;
+    } catch (_err) {
+      return '#/pipeline';
+    }
+  }
+
+  function prunePipelineSelection(){
+    if(typeof document === 'undefined') return;
+    const store = getSelectionStore();
+    if(!store) return;
+    const selected = store.get('pipeline');
+    if(!selected || selected.size === 0) return;
+    const root = document.getElementById('view-pipeline');
+    if(!root) return;
+    const visible = new Set();
+    root.querySelectorAll('[data-selection-scope="pipeline"] tbody tr[data-id]').forEach(row => {
+      if(!isSelectableRowVisible(row)) return;
+      const id = row.getAttribute('data-id');
+      if(id) visible.add(String(id));
+    });
+    const next = new Set();
+    selected.forEach(id => {
+      if(visible.has(id)) next.add(id);
+    });
+    if(next.size !== selected.size){
+      store.set(next, 'pipeline');
+      return;
+    }
+    syncSelectionScope('pipeline', { ids: selected, root });
   }
 
   function renderPipelineFilterTag(stage){
@@ -1621,36 +1661,44 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       });
     });
     renderPipelineFilterTag(stage);
+    prunePipelineSelection();
   }
 
   function setPipelineStageFilter(stage, options = {}){
     const normalized = normalizePipelineStage(stage);
     const force = options && options.force === true;
+    const skipHashSync = options && options.skipHashSync === true;
     if(!force && normalized === currentPipelineStageFilter){
-      return;
+      return currentPipelineStageFilter;
     }
     currentPipelineStageFilter = normalized;
+    if(!skipHashSync){
+      const targetHash = pipelineHashForStage(normalized);
+      if(typeof window !== 'undefined' && window.location){
+        const currentHash = typeof window.location.hash === 'string'
+          ? window.location.hash
+          : '';
+        if(currentHash !== targetHash){
+          try {
+            if(options && options.replace === true && window.history && typeof window.history.replaceState === 'function'){
+              window.history.replaceState(null, '', targetHash);
+            }else{
+              goto(targetHash);
+            }
+          }catch (_err) {}
+        }
+      }
+    }
     if(activeView === 'pipeline'){
       applyPipelineStageFilterToDom(normalized);
     }
+    return currentPipelineStageFilter;
   }
 
   function clearPipelineStageFilter(){
     setPipelineStageFilter(null, { force: true });
     try {
-      const baseHash = '#/pipeline';
-      if(typeof window !== 'undefined' && window.location){
-        if(window.location.hash !== baseHash){
-          if(window.Router && typeof window.Router.goto === 'function'){
-            window.Router.goto(baseHash);
-          }else{
-            window.location.hash = baseHash;
-          }
-        }
-      }
-    }catch (_err) {}
-    try {
-      const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: null } });
+      const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: null, skipHashSync: true } });
       window.dispatchEvent(evt);
     }catch (_err) {}
   }
@@ -1674,13 +1722,23 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function applyPipelineStageFilterFromHash(options){
     const stage = parsePipelineStageFromHash();
-    setPipelineStageFilter(stage, options);
+    const skipHashOption = options && Object.prototype.hasOwnProperty.call(options, 'skipHashSync')
+      ? options.skipHashSync === true
+      : true;
+    const useFallback = options && options.useFallback === true;
+    if(stage == null && useFallback && currentPipelineStageFilter){
+      setPipelineStageFilter(currentPipelineStageFilter, { force: options && options.force === true, skipHashSync: true });
+      return;
+    }
+    setPipelineStageFilter(stage, { force: options && options.force === true, skipHashSync: skipHashOption });
   }
 
   function handlePipelineFilterEvent(evt){
     const detail = evt && evt.detail ? evt.detail : {};
     if(Object.prototype.hasOwnProperty.call(detail, 'stage')){
-      setPipelineStageFilter(detail.stage, { force: true });
+      const force = detail && detail.force === true;
+      const skipHashSync = detail && detail.skipHashSync === true;
+      setPipelineStageFilter(detail.stage, { force, skipHashSync });
     }else if(activeView === 'pipeline'){
       applyPipelineStageFilterToDom(currentPipelineStageFilter);
     }
@@ -1727,16 +1785,20 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const normalized = String(hash || '').trim().toLowerCase();
     if(!normalized) return null;
     if(normalized === '#workbench' || normalized === '#/workbench') return 'workbench';
+    const base = normalized.includes('?') ? normalized.split('?')[0] : normalized;
+    if(HASH_TO_VIEW.has(base)) return HASH_TO_VIEW.get(base);
     return HASH_TO_VIEW.get(normalized) || null;
   }
 
   function syncHashForView(view){
     if(suppressHashUpdate) return;
-    const targetHash = VIEW_HASH[view];
+    const targetHash = view === 'pipeline'
+      ? pipelineHashForStage(currentPipelineStageFilter)
+      : VIEW_HASH[view];
     if(!targetHash) return;
+    const normalizedTarget = String(targetHash).trim().toLowerCase();
     const current = normalizedHash();
-    if(view === 'pipeline' && current.startsWith('#/pipeline?')) return;
-    if(current === String(targetHash).trim().toLowerCase()) return;
+    if(current === normalizedTarget) return;
     goto(targetHash);
   }
 
@@ -1819,7 +1881,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       root = document.getElementById('view-' + normalized) || null;
     }
     if(normalized === 'pipeline'){
-      applyPipelineStageFilterFromHash({ force: true });
+      applyPipelineStageFilterFromHash({ force: true, useFallback: true });
     }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
     scheduleAppRender();
