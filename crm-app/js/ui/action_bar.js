@@ -602,6 +602,67 @@ function readSelectionSnapshot(selection) {
 
 function ensureSelectionSubscription() {
   if (globalWiringState.selectionOff) return;
+  const store = getSelectionStore();
+  if (store && typeof store.subscribe === 'function') {
+    try {
+      const off = store.subscribe((snapshot) => {
+        const scope = typeof snapshot?.scope === 'string' && snapshot.scope.trim()
+          ? snapshot.scope.trim()
+          : '';
+        let ids = [];
+        if (snapshot?.ids instanceof Set) {
+          ids = Array.from(snapshot.ids, (value) => String(value ?? '')).filter(Boolean);
+        } else if (Array.isArray(snapshot?.ids)) {
+          ids = snapshot.ids.map((value) => String(value ?? '')).filter(Boolean);
+        }
+        const count = Number.isFinite(snapshot?.count) ? snapshot.count : ids.length;
+        handleSelectionChanged({
+          ids,
+          count,
+          scope,
+          type: scope,
+          source: 'store'
+        });
+      });
+      globalWiringState.selectionOff = typeof off === 'function' ? off : null;
+    } catch (_) { /* noop */ }
+    if (globalWiringState.selectionOff && !globalWiringState.hasSelectionSnapshot) {
+      const scopes = inferSelectionScopes();
+      let activeScope = '';
+      let ids = [];
+      for (const candidate of scopes) {
+        const scopeKey = typeof candidate === 'string' && candidate.trim() ? candidate.trim() : '';
+        if (!scopeKey) continue;
+        try {
+          const snapshot = store.get(scopeKey);
+          if (snapshot && typeof snapshot.forEach === 'function') {
+            const list = [];
+            snapshot.forEach((value) => {
+              const id = String(value ?? '');
+              if (id) list.push(id);
+            });
+            if (list.length) {
+              ids = list;
+              activeScope = scopeKey;
+              break;
+            }
+          }
+        } catch (_) { /* noop */ }
+      }
+      if (!activeScope && scopes.length) {
+        const first = scopes[0];
+        activeScope = typeof first === 'string' && first.trim() ? first.trim() : 'contacts';
+      }
+      handleSelectionChanged({
+        ids,
+        count: ids.length,
+        scope: activeScope,
+        type: activeScope,
+        source: 'store-init'
+      });
+    }
+  }
+  if (globalWiringState.selectionOff) return;
   const selection = getSelectionApi();
   if (!selection || typeof selection.onChange !== 'function') return;
   try {
