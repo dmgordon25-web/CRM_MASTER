@@ -27,7 +27,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
-export const CONTACT_MODAL_KEY = 'contact';
+export const CONTACT_MODAL_KEY = 'contact-modal';
 
 function resolveContactModalInvoker(source){
   if(!source) return null;
@@ -483,14 +483,7 @@ export function normalizeContactId(input) {
   };
 
 
-  function ensureModal(){
-    const existingByKey = typeof document !== 'undefined'
-      ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
-      : null;
-    if(existingByKey){
-      return tagModal(existingByKey);
-    }
-    let dlg = document.getElementById('contact-modal');
+  function ensureContactModalShell(){
     const tagModal = (node)=>{
       if(!node) return node;
       try{ node.setAttribute('data-modal-key', CONTACT_MODAL_KEY); }
@@ -505,6 +498,16 @@ export function normalizeContactId(input) {
       }
       return node;
     };
+
+    closeQuickAddOverlayIfOpen();
+
+    const existingByKey = typeof document !== 'undefined'
+      ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
+      : null;
+    if(existingByKey){
+      return tagModal(existingByKey);
+    }
+
     const resolveHost = ()=>{
       if(typeof document === 'undefined') return null;
       return document.querySelector('[data-ui="modal-root"]')
@@ -512,6 +515,7 @@ export function normalizeContactId(input) {
         || document.documentElement
         || null;
     };
+    let dlg = document.getElementById('contact-modal');
     if(!dlg){
       const host = resolveHost();
       if(!host) return null;
@@ -590,7 +594,7 @@ export function normalizeContactId(input) {
         ? options.invoker
         : resolveContactModalInvoker(options);
 
-    let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureModal());
+    let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
     base = base instanceof Promise ? await base : base;
     if(!base){
       try{ console && console.warn && console.warn('[contact-editor]', 'host missing'); }
@@ -2409,10 +2413,16 @@ export function normalizeContactId(input) {
 })();
 
 let pendingContactOpen = null;
-const scheduleContactMicrotask = typeof queueMicrotask === 'function'
+const queueContactMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
-  : (fn) => Promise.resolve().then(fn);
-let __lastOpen = { id: null, tick: 0 };
+  : (fn) => {
+    try {
+      if(typeof Promise === 'function'){ Promise.resolve().then(fn).catch(()=>{}); return; }
+    } catch (_err) {}
+    try { fn(); }
+    catch (_) {}
+  };
+let __lastOpen = { id: null, t: 0 };
 
 function teardownContactModalShell(){
   if(typeof document === 'undefined') return;
@@ -2575,8 +2585,9 @@ export async function openContactModal(contactId, options){
   const perf = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
     ? performance
     : null;
-  const tick = perf ? perf.now() : Date.now();
-  if(__lastOpen.id === dedupeId && Math.abs(tick - __lastOpen.tick) < 8){
+  const now = perf ? perf.now() : Date.now();
+  const delta = now - (__lastOpen.t || 0);
+  if(__lastOpen.id === dedupeId && delta >= 0 && delta < 8){
     if(existing && existing.dataset?.open === '1'){
       if(invoker){ existing.__contactInvoker = invoker; }
       return existing;
@@ -2586,7 +2597,7 @@ export async function openContactModal(contactId, options){
     }
     return existing || null;
   }
-  __lastOpen = { id: dedupeId, tick };
+  __lastOpen = { id: dedupeId, t: now };
   if(existing && existing.dataset?.open === '1'){
     const currentId = existing.dataset?.contactId
       || existing.querySelector?.('#c-id')?.value?.trim()
@@ -2645,9 +2656,9 @@ export async function openContactModal(contactId, options){
 
   const tracked = sequence.finally(() => {
     pendingContactOpen = null;
-    scheduleContactMicrotask(() => {
+    queueContactMicrotask(() => {
       if(__lastOpen.id === dedupeId){
-        __lastOpen = { id: null, tick: 0 };
+        __lastOpen = { id: null, t: 0 };
       }
     });
   });
