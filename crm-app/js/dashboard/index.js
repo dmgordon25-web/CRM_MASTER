@@ -27,6 +27,7 @@ const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
 const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
 const DASHBOARD_CLICK_THRESHOLD = 5;
+const DASHBOARD_DRILLDOWN_SELECTOR = '[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
 const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
 const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
@@ -274,6 +275,81 @@ const layoutResetState = {
 };
 
 const pointerTapState = new Map();
+
+function findDashboardDrilldownTarget(node) {
+  if (!node || typeof node.closest !== 'function') return null;
+  const selector = DASHBOARD_DRILLDOWN_SELECTOR;
+  const target = node.closest(selector);
+  if (target) {
+    const data = target.dataset || {};
+    if (data.contactId || data.partnerId || resolveDashboardRouteTarget(target)) {
+      return target;
+    }
+  }
+  if (node.closest) {
+    const anchor = node.closest('a[data-dashboard-link],a[href^="#"],a[href^="/"]');
+    if (anchor && resolveDashboardRouteTarget(anchor)) return anchor;
+  }
+  return null;
+}
+
+function resolveDashboardRouteTarget(node) {
+  if (!node) return '';
+  const dataset = node.dataset || {};
+  const routeCandidates = [
+    dataset.dashboardRoute,
+    dataset.dashRoute,
+    dataset.dashboardHref,
+    dataset.dashHref,
+    dataset.route
+  ];
+  for (const candidate of routeCandidates) {
+    const value = candidate == null ? '' : String(candidate).trim();
+    if (value) return value;
+  }
+  if (node.getAttribute) {
+    const direct = node.getAttribute('data-dashboard-route')
+      || node.getAttribute('data-dash-route')
+      || node.getAttribute('data-dashboard-href')
+      || node.getAttribute('data-dash-href');
+    if (direct) return String(direct).trim();
+    const href = node.getAttribute('href');
+    if (href && href !== '#') return String(href).trim();
+  }
+  return '';
+}
+
+function tryNavigateDashboardRoute(route, target) {
+  const value = route == null ? '' : String(route).trim();
+  if (!value) return false;
+  if (win && win.location) {
+    try {
+      if (value.startsWith('#')) {
+        win.location.hash = value;
+        return true;
+      }
+      if (value.startsWith('/')) {
+        win.location.hash = `#${value.replace(/^[#/]+/, '')}`;
+        return true;
+      }
+    } catch (_err) {}
+  }
+  const detail = { view: value, trigger: target || null };
+  let dispatched = false;
+  if (doc) {
+    try {
+      doc.dispatchEvent(new CustomEvent('app:navigate', { detail }));
+      dispatched = true;
+    } catch (_err) {}
+  }
+  if (win && typeof win.dispatchEvent === 'function') {
+    try {
+      win.dispatchEvent(new CustomEvent('app:navigate', { detail }));
+      dispatched = true;
+    } catch (_err) {}
+  }
+  return dispatched;
+}
 const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
 const DASHBOARD_SKIP_CLICK_WINDOW = 350;
@@ -1344,6 +1420,22 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
   transition: transform 0.18s ease;
 }
 
+.dash-drag-ghost {
+  opacity: 0.65 !important;
+  transform: translateZ(0) scale(0.98);
+  border-radius: 18px;
+  pointer-events: none !important;
+}
+
+.dash-drag-ghost::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(15, 23, 42, 0.08);
+  pointer-events: none;
+}
+
 .dash-resize-handle {
   position: absolute;
   right: 12px;
@@ -1404,11 +1496,11 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
 
 .dash-resize-handle .dash-resize-grip {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
-  border: 2px solid rgba(148, 163, 184, 0.6);
-  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(248, 250, 252, 0.96);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1453,6 +1545,29 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
   opacity: 0;
   z-index: 3;
   transition: opacity 0.18s ease;
+}
+
+.dash-resize-feedback {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.dash-resize-preview.dragging .dash-resize-feedback {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
 }
 `;
   const head = doc.head || doc.getElementsByTagName('head')[0];
@@ -1693,6 +1808,17 @@ function widthPixelsForToken(token, columns, colWidth, gap) {
   return (colWidth * span) + (gap * Math.max(0, span - 1));
 }
 
+function formatWidthLabel(token) {
+  const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
+  return DASHBOARD_WIDTH_DEBUG_LABELS[normalized] || normalized;
+}
+
+function updateResizeFeedback(session, token) {
+  if (!session || !session.feedback) return;
+  const label = formatWidthLabel(token || session.pendingToken || session.startToken);
+  session.feedback.textContent = label;
+}
+
 function snapshotLayoutWidths(host) {
   const container = host || dashDnDState.container || getDashboardContainerNode();
   if (!container) { setDebugWidths([]); return; }
@@ -1718,6 +1844,7 @@ function handleWidgetResizeMove(evt) {
   }, { token: session.startToken || DASHBOARD_DEFAULT_WIDTH, width, delta: Number.POSITIVE_INFINITY });
   session.pendingToken = snap.token;
   if (session.placeholder) session.placeholder.style.width = `${Math.max(1, Math.round(snap.width))}px`;
+  updateResizeFeedback(session, snap.token);
 }
 
 function onResizePointerMove(evt) { handleWidgetResizeMove(evt); }
@@ -1748,6 +1875,7 @@ function finishWidgetResize(evt, commit) {
   }
   session.container.classList.remove('dash-resizing', 'dragging');
   session.node.classList.remove('dash-resize-active');
+  session.feedback = null;
   dashDnDState.resizeSession = null;
   if (commit && session.node && session.pendingToken) {
     setWidgetWidth(session.node, session.pendingToken, { persist: true });
@@ -1782,6 +1910,10 @@ function beginWidgetResize(node, evt) {
   placeholder.setAttribute('aria-hidden', 'true');
   placeholder.setAttribute('data-qa', 'dnd-placeholder');
   placeholder.style.pointerEvents = 'none';
+  const feedback = doc.createElement('div');
+  feedback.className = 'dash-resize-feedback';
+  feedback.setAttribute('aria-hidden', 'true');
+  placeholder.appendChild(feedback);
   container.appendChild(placeholder);
   const style = placeholder.style;
   style.left = `${nodeRect.left - containerRect.left}px`; style.top = `${nodeRect.top - containerRect.top}px`;
@@ -1803,8 +1935,10 @@ function beginWidgetResize(node, evt) {
     startToken,
     pendingToken: startToken,
     placeholder,
+    feedback
   };
   dashDnDState.resizeSession = session;
+  updateResizeFeedback(session, startToken);
   const docTarget = node.ownerDocument || doc;
   if (docTarget) {
     docTarget.addEventListener('pointermove', onResizePointerMove);
@@ -2168,7 +2302,8 @@ function logDrilldownSuccess(target, fallbackKey) {
 
 function handleDashboardTap(evt, target) {
   if (!target) return false;
-  const contactId = target.getAttribute('data-contact-id');
+  const dataset = target.dataset || {};
+  const contactId = dataset.contactId || target.getAttribute('data-contact-id');
   if (contactId) {
     evt.preventDefault();
     evt.stopPropagation();
@@ -2176,13 +2311,23 @@ function handleDashboardTap(evt, target) {
     logDrilldownSuccess(target);
     return true;
   }
-  const partnerId = target.getAttribute('data-partner-id');
+  const partnerId = dataset.partnerId || target.getAttribute('data-partner-id');
   if (partnerId) {
     evt.preventDefault();
     evt.stopPropagation();
     tryOpenPartner(partnerId);
     logDrilldownSuccess(target);
     return true;
+  }
+  const route = resolveDashboardRouteTarget(target);
+  if (route) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const navigated = tryNavigateDashboardRoute(route, target);
+    if (navigated) {
+      logDrilldownSuccess(target);
+      return true;
+    }
   }
   return false;
 }
@@ -2194,7 +2339,7 @@ function wireTileTap(container) {
       if (evt.button != null && evt.button !== 0) return;
     }
     if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const dataTarget = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    const dataTarget = findDashboardDrilldownTarget(evt.target);
     if (!dataTarget) return;
     pointerTapState.set(evt.pointerId, {
       startX: evt.clientX,
@@ -2224,7 +2369,7 @@ function wireTileTap(container) {
     }
     if (state.cancelled) return;
     if (evt.target && evt.target.closest && evt.target.closest('.dash-resize-handle')) return;
-    const resolved = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    const resolved = findDashboardDrilldownTarget(evt.target);
     const target = resolved || state.dataTarget;
     if (!target) return;
     const handled = handleDashboardTap(evt, target);
@@ -2243,7 +2388,7 @@ function wireTileTap(container) {
     if (evt.repeat) return;
     if (evt.key !== 'Enter' && evt.key !== ' ') return;
     if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    const target = findDashboardDrilldownTarget(evt.target);
     if (!target) return;
     const handled = handleDashboardTap(evt, target);
     if (handled) {
@@ -2252,7 +2397,7 @@ function wireTileTap(container) {
   };
   const onClick = evt => {
     if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const target = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    const target = findDashboardDrilldownTarget(evt.target);
     if (!target) return;
     const skipUntil = target[DASHBOARD_SKIP_CLICK_KEY] || 0;
     if (skipUntil && skipUntil > Date.now()) {
