@@ -1,0 +1,6 @@
+RUN1: listening OK
+RUN1: pid exists after kill? no
+RUN2: listening OK
+RUN2: pid exists after kill? no
+RUN3: listening OK
+RUN3: pid exists after kill? no
