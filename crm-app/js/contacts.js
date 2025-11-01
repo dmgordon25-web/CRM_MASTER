@@ -2557,6 +2557,9 @@ export async function openContactModal(contactId, options){
   const normalizedId = model ? model.id : normalizeContactId(rawIdCandidate);
   const allowAutoOpen = opts.allowAutoOpen === true;
   const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
+
+  closeQuickAddOverlayIfOpen();
+
   const invoker = resolveContactModalInvoker(opts);
   const hasExplicitId = Boolean(rawIdString);
 
@@ -2564,8 +2567,6 @@ export async function openContactModal(contactId, options){
     toastWarn('Select a contact to open');
     return null;
   }
-
-  closeQuickAddOverlayIfOpen();
 
   const existing = typeof document !== 'undefined'
     ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
@@ -2644,8 +2645,6 @@ export async function openContactModal(contactId, options){
 
   const tracked = sequence.finally(() => {
     pendingContactOpen = null;
-  });
-  tracked.finally(() => {
     scheduleContactMicrotask(() => {
       if(__lastOpen.id === dedupeId){
         __lastOpen = { id: null, tick: 0 };
@@ -3009,8 +3008,43 @@ if(typeof document !== 'undefined'){
   }
 }
 
-if(typeof window !== 'undefined' && typeof window.openContactModal !== 'function'){
-  window.openContactModal = function(contactId, options){
-    return openContactModal(contactId, options);
-  };
+if(typeof window !== 'undefined'){
+  if(typeof window.openContactModal !== 'function'){
+    window.openContactModal = function(contactId, options){
+      return openContactModal(contactId, options);
+    };
+  }
+
+  if(!window.__test_openContactEditor){
+    let search = '';
+    try {
+      search = typeof window.location?.search === 'string' ? window.location.search : '';
+    } catch (_err) {
+      search = '';
+    }
+    if(search && /(?:^|[?&])debug_editor=1(?:&|$)/.test(search)){
+      window.__test_openContactEditor = async function debugOpenContactEditor(n = 20){
+        const total = Number(n);
+        const iterations = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+        for(let i = 0; i < iterations; i += 1){
+          const model = normalizeNewContactPrefill({ name: `Debug ${i}` });
+          try{
+            await openContactModal(model, {
+              allowAutoOpen: true,
+              sourceHint: 'debug:contact-editor',
+              suppressErrorToast: true
+            });
+          }catch(err){
+            const message = `Debug contact editor open failed (iteration ${i + 1} of ${iterations})`;
+            try{ console && console.warn && console.warn('[contacts:debug]', message, err); }
+            catch(_warn){}
+            try{ toastError(message); }
+            catch(_toast){}
+            throw err;
+          }
+        }
+        return iterations > 0;
+      };
+    }
+  }
 }
