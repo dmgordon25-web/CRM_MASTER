@@ -1,9 +1,14 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
-import { openCalendarEntityEditor } from './contacts.js';
+import { openContactModal } from './contacts.js';
+import { openTaskEditor } from './ui/quick_create_menu.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachStatusBanner } from './ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
-import { toastWarn } from './ui/toast_helpers.js';
+import { toastWarn, toastInfo } from './ui/toast_helpers.js';
+import { ensureSingletonModal, registerModalCleanup, closeSingletonModal } from './ui/modal_singleton.js';
+import { dbPut } from './db.js';
+import { recordTask } from './tasks/store.js';
 
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
@@ -40,6 +45,379 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 
 const MONTH_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 const DAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+const TASK_HINT_TOKENS = new Set(['task', 'todo', 'followup', 'follow-up', 'call', 'reminder']);
+const PARTNER_HINT_TOKENS = new Set(['partner', 'referral', 'lender', 'broker']);
+const CONTACT_HINT_TOKENS = new Set(['contact', 'client', 'meeting', 'appointment', 'birthday', 'anniversary', 'lead']);
+
+function formatISODate(value){
+  const date = value instanceof Date ? new Date(value.getTime()) : parseDateInput(value);
+  if(!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  date.setHours(0, 0, 0, 0);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dispatchTaskUpdated(record){
+  if(!record || !record.id) return;
+  const contactId = record.contactId ? String(record.contactId) : '';
+  try{
+    if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
+      window.dispatchAppDataChanged({
+        source: 'calendar',
+        action: 'task:update',
+        taskId: String(record.id),
+        contactId,
+      });
+    }
+  }catch (_err){}
+  try{
+    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+      const detail = {
+        id: String(record.id),
+        status: record.status || record.statusLabel || '',
+        due: record.due || record.dueDate || '',
+        source: 'calendar',
+      };
+      document.dispatchEvent(new CustomEvent('task:updated', { detail }));
+    }
+  }catch (_err){}
+}
+
+function createTaskRescheduleHandler(taskRecord){
+  const base = taskRecord && typeof taskRecord === 'object' ? { ...taskRecord } : {};
+  const taskId = base && base.id != null ? String(base.id) : '';
+  return async function handleTaskReschedule(payload){
+    if(!taskId){
+      return { ok: false, reason: 'task-missing-id' };
+    }
+    const nextDate = payload && payload.date instanceof Date ? new Date(payload.date.getTime()) : null;
+    if(!(nextDate instanceof Date) || Number.isNaN(nextDate.getTime())){
+      return { ok: false, reason: 'invalid-date' };
+    }
+    nextDate.setHours(0, 0, 0, 0);
+    const iso = formatISODate(nextDate);
+    const updated = {
+      ...base,
+      id: taskId,
+      due: iso,
+      dueDate: iso,
+      date: iso,
+      updatedAt: Date.now(),
+    };
+    try{
+      await dbPut('tasks', updated);
+      try{ recordTask(updated); }
+      catch (_err){}
+      dispatchTaskUpdated(updated);
+      base.due = updated.due;
+      base.dueDate = updated.dueDate;
+      base.date = updated.date;
+      base.updatedAt = updated.updatedAt;
+      return { ok: true, task: updated };
+    }catch (error){
+      return { ok: false, error };
+    }
+  };
+}
+
+function normalizeId(value){
+  if(value == null) return '';
+  const text = String(value).trim();
+  return text;
+}
+
+function collectEventTokens(event){
+  const tokens = new Set();
+  const push = (value) => {
+    if(!value && value !== 0) return;
+    const text = String(value).trim().toLowerCase();
+    if(!text) return;
+    tokens.add(text);
+    text.split(/[^a-z0-9]+/).forEach((part) => {
+      if(part && part !== text) tokens.add(part);
+    });
+  };
+  if(!event || typeof event !== 'object') return tokens;
+  push(event.type);
+  push(event.category);
+  push(event.categoryKey);
+  push(event.categoryLabel);
+  push(event.label);
+  push(event.raw && event.raw.type);
+  push(event.raw && event.raw.kind);
+  push(event.raw && event.raw.category);
+  push(event.raw && event.raw.categoryKey);
+  push(event.raw && event.raw.label);
+  const source = event.source && typeof event.source === 'object' ? event.source : null;
+  const rawSource = event.raw && typeof event.raw.source === 'object' ? event.raw.source : null;
+  push(source && source.entity);
+  push(rawSource && rawSource.entity);
+  if(event.id){
+    const prefix = String(event.id).split(':')[0];
+    push(prefix);
+  }
+  return tokens;
+}
+
+function gatherCandidateIds(event){
+  const contactIds = new Set();
+  const partnerIds = new Set();
+  const taskIds = new Set();
+
+  const addToSet = (set, value) => {
+    const id = normalizeId(value);
+    if(id) set.add(id);
+  };
+
+  if(event){
+    addToSet(contactIds, event.contactId);
+    addToSet(contactIds, event.raw && event.raw.contactId);
+    addToSet(partnerIds, event.partnerId);
+    addToSet(partnerIds, event.raw && event.raw.partnerId);
+    addToSet(taskIds, event.taskId);
+    addToSet(taskIds, event.raw && event.raw.taskId);
+    addToSet(taskIds, event.raw && event.raw.id && (event.raw.type === 'task' ? event.raw.id : ''));
+    const source = event.source && typeof event.source === 'object' ? event.source : null;
+    if(source){
+      if(source.entity === 'contact') addToSet(contactIds, source.id);
+      if(source.entity === 'partner') addToSet(partnerIds, source.id);
+      if(source.entity === 'task') addToSet(taskIds, source.id);
+    }
+    const rawSource = event.raw && typeof event.raw.source === 'object' ? event.raw.source : null;
+    if(rawSource){
+      if(rawSource.entity === 'contact') addToSet(contactIds, rawSource.id);
+      if(rawSource.entity === 'partner') addToSet(partnerIds, rawSource.id);
+      if(rawSource.entity === 'task') addToSet(taskIds, rawSource.id);
+    }
+  }
+
+  return { contactIds, partnerIds, taskIds };
+}
+
+function firstValue(set){
+  for(const value of set){
+    if(value) return value;
+  }
+  return '';
+}
+
+function resolveEventTarget(event){
+  const tokens = collectEventTokens(event);
+  const hints = {
+    task: Array.from(tokens).some((token) => TASK_HINT_TOKENS.has(token)),
+    partner: Array.from(tokens).some((token) => PARTNER_HINT_TOKENS.has(token)),
+    contact: Array.from(tokens).some((token) => CONTACT_HINT_TOKENS.has(token)),
+  };
+  const { contactIds, partnerIds, taskIds } = gatherCandidateIds(event);
+  const hasTask = taskIds.size > 0;
+  const hasContact = contactIds.size > 0;
+  const hasPartner = partnerIds.size > 0;
+
+  if(hasTask && (hints.task || (!hasContact && !hasPartner))){
+    return { kind: 'task', id: firstValue(taskIds) };
+  }
+
+  if(hasPartner && !hasContact){
+    return { kind: 'partner', id: firstValue(partnerIds) };
+  }
+
+  if(hasPartner && hasContact){
+    if(hints.partner && !hints.contact){
+      return { kind: 'partner', id: firstValue(partnerIds) };
+    }
+    if(hints.contact && !hints.partner){
+      return { kind: 'contact', id: firstValue(contactIds) };
+    }
+    const options = [];
+    const contactLabel = event && event.contactName ? String(event.contactName) : '';
+    const partnerLabel = event && event.raw && event.raw.partnerName
+      ? String(event.raw.partnerName)
+      : (event && event.partnerName ? String(event.partnerName)
+        : (event && event.subtitle ? String(event.subtitle) : ''));
+    contactIds.forEach((id) => {
+      options.push({ kind: 'contact', id, label: contactLabel || 'Contact' });
+    });
+    partnerIds.forEach((id) => {
+      options.push({ kind: 'partner', id, label: partnerLabel || 'Partner' });
+    });
+    return { kind: 'ambiguous', options };
+  }
+
+  if(hasContact){
+    return { kind: 'contact', id: firstValue(contactIds) };
+  }
+
+  if(hasPartner){
+    return { kind: 'partner', id: firstValue(partnerIds) };
+  }
+
+  if(hasTask){
+    return { kind: 'task', id: firstValue(taskIds) };
+  }
+
+  return { kind: 'none' };
+}
+
+function describeTargetLabel(event, target){
+  if(target.kind === 'partner'){
+    const partnerName = event && event.raw && event.raw.partnerName
+      ? String(event.raw.partnerName).trim()
+      : (event && event.partnerName ? String(event.partnerName).trim()
+        : (event && event.subtitle ? String(event.subtitle).trim() : ''));
+    return partnerName ? `Open ${partnerName}` : 'Open Partner';
+  }
+  if(target.kind === 'task') return 'Open Task';
+  const contactName = event && event.contactName ? String(event.contactName).trim() : '';
+  return contactName ? `Open ${contactName}` : 'Open Contact';
+}
+
+function presentEntityChooser(event, options){
+  if(!DOC) return Promise.resolve(null);
+  const targets = Array.isArray(options) ? options.filter((item) => item && item.id) : [];
+  if(!targets.length) return Promise.resolve(null);
+
+  const build = () => {
+    const overlay = DOC.createElement('div');
+    overlay.className = 'calendar-choice-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:1400;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,0.45);';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.dataset.modalKey = 'calendar-entity-chooser';
+    const panel = DOC.createElement('div');
+    panel.className = 'calendar-choice-panel';
+    panel.style.cssText = 'background:#fff;border-radius:12px;box-shadow:0 24px 48px rgba(15,23,42,0.2);width:100%;max-width:360px;display:flex;flex-direction:column;overflow:hidden;';
+    const header = DOC.createElement('div');
+    header.style.cssText = 'padding:20px 24px;border-bottom:1px solid rgba(15,23,42,0.08);font-size:18px;font-weight:600;color:#101828;';
+    header.textContent = 'Which record would you like to open?';
+    panel.appendChild(header);
+    const list = DOC.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;padding:16px;gap:12px;';
+    targets.forEach((target) => {
+      const button = DOC.createElement('button');
+      button.type = 'button';
+      button.className = 'calendar-choice-button';
+      button.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid rgba(15,23,42,0.12);border-radius:10px;background:#fff;font-size:15px;font-weight:500;color:#101828;cursor:pointer;';
+      button.dataset.kind = target.kind;
+      button.dataset.id = target.id;
+      button.textContent = target.label || describeTargetLabel(event, target);
+      list.appendChild(button);
+    });
+    const cancel = DOC.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'calendar-choice-cancel';
+    cancel.style.cssText = 'margin:0 16px 16px 16px;padding:10px 16px;border-radius:10px;border:1px solid rgba(15,23,42,0.12);background:#f8fafc;color:#475467;font-size:14px;font-weight:500;cursor:pointer;';
+    cancel.textContent = 'Cancel';
+    panel.appendChild(list);
+    panel.appendChild(cancel);
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (evt) => {
+      if(evt.target === overlay) closeSingletonModal('calendar-entity-chooser');
+    });
+    return overlay;
+  };
+
+  const setup = (root, resolve) => {
+    if(!root){
+      resolve(null);
+      return;
+    }
+    const buttons = Array.from(root.querySelectorAll('.calendar-choice-button'));
+    const cancel = root.querySelector('.calendar-choice-cancel');
+    const handleSelect = (evt) => {
+      const button = evt.currentTarget;
+      if(!button) return;
+      const kind = button.dataset.kind;
+      const id = button.dataset.id;
+      closeSingletonModal('calendar-entity-chooser');
+      resolve(kind && id ? { kind, id } : null);
+    };
+    buttons.forEach((button) => {
+      button.addEventListener('click', handleSelect);
+    });
+    const handleCancel = () => {
+      closeSingletonModal('calendar-entity-chooser');
+      resolve(null);
+    };
+    if(cancel){
+      cancel.addEventListener('click', handleCancel);
+    }
+    registerModalCleanup(root, () => {
+      buttons.forEach((button) => {
+        button.removeEventListener('click', handleSelect);
+      });
+      if(cancel){
+        cancel.removeEventListener('click', handleCancel);
+      }
+    });
+  };
+
+  return new Promise((resolve) => {
+    const modal = ensureSingletonModal('calendar-entity-chooser', build);
+    if(modal && typeof modal.then === 'function'){
+      modal.then((root) => setup(root, resolve)).catch(() => resolve(null));
+      return;
+    }
+    setup(modal, resolve);
+  });
+}
+
+async function openCalendarEventTarget(target, event, context = {}){
+  const safeMode = context.safeMode === true;
+  const sourceHint = typeof context.sourceHint === 'string' && context.sourceHint ? context.sourceHint : 'calendar:event';
+  const trigger = context.trigger || null;
+  if(safeMode){
+    toastInfo('Calendar editing is disabled in Safe Mode.');
+    return { opened: false, reason: 'safe-mode' };
+  }
+  try{
+    if(target.kind === 'task'){
+      if(!target.id){
+        toastWarn('Task not available');
+        return { opened: false, reason: 'task-missing-id' };
+      }
+      const result = await Promise.resolve(openTaskEditor({ id: target.id, event, sourceHint }));
+      return { opened: true, kind: 'task', taskId: target.id, result };
+    }
+    if(target.kind === 'partner'){
+      if(!target.id){
+        toastWarn('Partner not available');
+        return { opened: false, reason: 'partner-missing-id' };
+      }
+      const result = await Promise.resolve(openPartnerEditModal(target.id, { sourceHint, trigger }));
+      return { opened: true, kind: 'partner', partnerId: target.id, result };
+    }
+    if(target.kind === 'contact'){
+      if(!target.id){
+        toastWarn('Contact not available');
+        return { opened: false, reason: 'contact-missing-id' };
+      }
+      const result = await openContactModal(target.id, { sourceHint, trigger, allowAutoOpen: true });
+      return { opened: true, kind: 'contact', contactId: target.id, result };
+    }
+  }catch (error){
+    toastWarn('Unable to open calendar item');
+    return { opened: false, reason: `${target.kind || 'unknown'}-error`, error };
+  }
+  toastWarn('No linked record to open');
+  return { opened: false, reason: 'no-target' };
+}
+
+async function openCalendarEvent(event, context){
+  const resolution = resolveEventTarget(event);
+  if(resolution.kind === 'ambiguous'){
+    const choice = await presentEntityChooser(event, resolution.options);
+    if(!choice) return { opened: false, reason: 'chooser-cancelled' };
+    return openCalendarEventTarget(choice, event, context);
+  }
+  if(resolution.kind === 'none'){
+    toastWarn('No linked record to open');
+    return { opened: false, reason: 'no-target' };
+  }
+  return openCalendarEventTarget(resolution, event, context);
+}
 
 function normalizeLoanType(value){
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -139,17 +517,31 @@ function collectTaskEvents(tasks, contactMap, range){
     const contactId = task.contactId ? String(task.contactId) : (task.partnerId ? String(task.partnerId) : '');
     const contact = contactId ? contactMap.get(contactId) : null;
     const contactName = formatContactName(contact);
+    const partnerId = task.partnerId ? String(task.partnerId) : '';
+    const taskId = task.id != null ? String(task.id) : '';
+    const rawTask = {
+      ...(task && typeof task === 'object' ? task : {}),
+      id: taskId,
+      contactId,
+      partnerId,
+      type: 'task',
+      taskId,
+      userEvent: true,
+    };
+    rawTask.onReschedule = createTaskRescheduleHandler(rawTask);
     list.push({
-      id: task.id ? `task:${task.id}` : `task:${dueDate.getTime()}:${index}`,
+      id: taskId ? `task:${taskId}` : `task:${dueDate.getTime()}:${index}`,
       type: 'task',
       title: task.title ? String(task.title) : 'Task',
       subtitle: contactName || '',
       status: task.status ? String(task.status) : '',
       contactId: contact && contact.id ? String(contact.id) : '',
-      partnerId: task.partnerId ? String(task.partnerId) : '',
+      partnerId,
       contactName,
       date: dueDate,
-      source: makeSource('task', task.id, 'due'),
+      taskId,
+      source: makeSource('task', taskId, 'due'),
+      raw: rawTask,
     });
   });
   return list;
@@ -563,6 +955,7 @@ function normalizeEvent(raw, index){
   const status = raw.status ? String(raw.status) : '';
   const contactId = raw.contactId || raw.partnerId || (raw.source && raw.source.entity === 'partner' ? raw.source.id : null);
   const partnerId = raw.partnerId || raw.contactId || null;
+  const taskId = raw.taskId || (raw.source && raw.source.entity === 'task' ? raw.source.id : null);
   const hasLoan = !!raw.hasLoan;
   const contactName = raw.contactName ? String(raw.contactName) : '';
   const loanKey = raw.loanKey ? String(raw.loanKey) : '';
@@ -579,6 +972,7 @@ function normalizeEvent(raw, index){
     status,
     contactId: contactId ? String(contactId) : '',
     partnerId: partnerId ? String(partnerId) : '',
+    taskId: taskId ? String(taskId) : '',
     contactName,
     hasLoan,
     loanKey,
@@ -637,6 +1031,7 @@ function cloneForApi(event){
     status: event.status,
     contactId: event.contactId,
     partnerId: event.partnerId,
+    taskId: event.taskId,
     contactName: event.contactName,
     hasLoan: event.hasLoan,
     loanKey: event.loanKey,
@@ -711,9 +1106,17 @@ function buildEventDropUpdate(event, target){
     nextDate.setHours(hour, minute, 0, 0);
   }
   const timeLabel = allDay ? 'All Day' : TIME_FORMAT.format(nextDate);
-  const raw = event.raw && typeof event.raw === 'object'
+  let raw = event.raw && typeof event.raw === 'object'
     ? { ...event.raw, date: new Date(nextDate.getTime()) }
     : event.raw;
+  if(raw && typeof raw === 'object' && (raw.type === 'task' || raw.taskId)){
+    const iso = formatISODate(nextDate);
+    raw = {
+      ...raw,
+      due: iso,
+      dueDate: iso,
+    };
+  }
   return {
     ...event,
     date: nextDate,
@@ -1718,19 +2121,16 @@ export function initCalendar({ openDB, bus, services, mount }){
   const handlers = {
     onOpen(event){
       if(!event) return;
-      const partnerId = event.partnerId ? String(event.partnerId) : '';
-      const contactId = event.contactId ? String(event.contactId) : '';
-      Promise.resolve(openCalendarEntityEditor(event, {
-        contactId,
-        partnerId,
+      Promise.resolve(openCalendarEvent(event, {
         safeMode: state.safeMode,
         sourceHint: 'calendar:event',
       })).then((result) => {
         if(result && result.opened){
           dispatchThroughBus(bus, 'calendar:event:open', {
             event,
-            partnerId,
-            contactId,
+            partnerId: result.partnerId || (event.partnerId ? String(event.partnerId) : ''),
+            contactId: result.contactId || (event.contactId ? String(event.contactId) : ''),
+            taskId: result.taskId || (event.taskId ? String(event.taskId) : ''),
             kind: result.kind || '',
           });
         }
