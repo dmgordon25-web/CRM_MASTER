@@ -52,7 +52,7 @@ const DASHBOARD_DEFAULT_WIDTHS = {
   numbersMomentum: 'twoThird',
   pipelineCalendar: 'twoThird'
 };
-const TODAY_WIDGET_KEYS = new Set(['today']);
+const TODAY_WIDGET_KEYS = new Set(['today', CELEBRATIONS_WIDGET_KEY]);
 
 const todayHighlightState = {
   modeObserver: null,
@@ -2452,9 +2452,6 @@ function buildDefaultMap(keys) {
 
 function defaultPrefs() {
   const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS));
-  if (Object.prototype.hasOwnProperty.call(widgets, CELEBRATIONS_WIDGET_KEY)) {
-    widgets[CELEBRATIONS_WIDGET_KEY] = false;
-  }
   return {
     mode: 'today',
     widgets,

@@ -37,7 +37,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities' },
   { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar' },
   { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist' },
-  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)', defaultEnabled: false },
+  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)' },
   { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' },
   { id: 'dashboard-status-stack', key: 'statusStack', label: 'Status Panels' }
 ];
