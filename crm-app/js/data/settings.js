@@ -353,7 +353,6 @@ function shouldValidateGeneral(partial){
     widgetDefaults.pipeline = false;
     widgetDefaults.leaderboard = false;
     widgetDefaults.stale = false;
-    widgetDefaults.upcomingCelebrations = false;
     const defaults = {
       mode: 'today',
       widgets: widgetDefaults,
