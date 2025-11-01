@@ -1754,7 +1754,7 @@ import { syncTableLayout } from './ui/table_layout.js';
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
         ${favoriteCell}
-        <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
+        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
       }).join('');
@@ -1800,7 +1800,7 @@ import { syncTableLayout } from './ui/table_layout.js';
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>
         <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
         ${favoriteCell}
-        <td class="contact-name" data-role="contact-name">${contactLink(c)}</td>
+        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
         <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
         <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
       }).join('');

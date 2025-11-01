@@ -313,6 +313,15 @@ function runPatch(){
       return contact;
     }
 
+    function cloneContact(record){
+      if(!record || typeof record !== 'object') return null;
+      const next = Object.assign({}, record);
+      if(record.stageEnteredAt && typeof record.stageEnteredAt === 'object' && !Array.isArray(record.stageEnteredAt)){
+        next.stageEnteredAt = Object.assign({}, record.stageEnteredAt);
+      }
+      return next;
+    }
+
     function applyStageTransition(record, nextStage, prevStage, options){
       if(!record) return null;
       const canonical = canonicalizeStage(nextStage);
@@ -396,6 +405,21 @@ function runPatch(){
       return placeContactInLane(hydrated);
     }
 
+    const scheduleMicrotask = typeof queueMicrotask === 'function'
+      ? queueMicrotask
+      : (cb) => Promise.resolve().then(cb).catch(()=>{});
+
+    function refreshPipelineSelection(){
+      if(typeof window === 'undefined') return;
+      const sync = window.syncSelectionScope;
+      if(typeof sync !== 'function') return;
+      scheduleMicrotask(() => {
+        try {
+          sync('pipeline');
+        } catch (_err) {}
+      });
+    }
+
     function removeContact(id){
       const key = String(id);
       const lane = state.contactLane.get(key);
@@ -406,6 +430,7 @@ function runPatch(){
       state.contactLane.delete(key);
       state.contacts.delete(key);
       renderLeaderboard();
+      refreshPipelineSelection();
     }
 
     function removeLegacyControls(){
@@ -432,6 +457,13 @@ function runPatch(){
           toggle.remove();
         }
       }
+    }
+
+    function isPipelineActive(){
+      const view = document.getElementById('view-pipeline');
+      if(!view) return false;
+      if(typeof view.classList === 'undefined') return true;
+      return !view.classList.contains('hidden');
     }
 
     function ensureBoard(){
@@ -479,7 +511,8 @@ function runPatch(){
           if(list) list.setAttribute('data-stage', key);
         }
       });
-      wireBoard(host);
+      if(isPipelineActive()) wireBoard(host);
+      else teardownBoard(host);
       return host;
     }
 
@@ -708,6 +741,7 @@ function runPatch(){
         LANE_ORDER.forEach(renderLane);
       }
       renderLeaderboard();
+      refreshPipelineSelection();
     }
 
     async function loadContact(id){
@@ -838,6 +872,7 @@ function runPatch(){
       if(newLane) toRender.add(newLane);
       toRender.forEach(renderLane);
       renderLeaderboard();
+      refreshPipelineSelection();
     }
 
     function findCardNode(id){
@@ -893,10 +928,17 @@ function runPatch(){
     }
 
     function wireBoard(host){
-      if(!host || host.__phase1Wired) return;
-      host.__phase1Wired = true;
+      if(!host) return;
+      const abortActive = host.__phase1Abort && host.__phase1Abort.signal && host.__phase1Abort.signal.aborted === false;
+      if(host.__phase1Wired && abortActive) return;
+      if(host.__phase1Wired && !abortActive){
+        teardownBoard(host);
+      }
+      const supportsAbort = typeof AbortController === 'function';
+      const controller = supportsAbort ? new AbortController() : null;
+      const listenerOptions = supportsAbort ? { capture: true, signal: controller.signal } : { capture: true };
       let dragState = null;
-      host.addEventListener('dragstart', evt => {
+      const onDragStart = evt => {
         const card = evt.target && evt.target.closest('[data-card-id]');
         if(!card) return;
         evt.stopPropagation();
@@ -910,13 +952,13 @@ function runPatch(){
           evt.dataTransfer.effectAllowed = 'move';
           evt.dataTransfer.setData('text/plain', dragState.id||'');
         }
-      }, true);
-      host.addEventListener('dragend', evt => {
+      };
+      const onDragEnd = evt => {
         const card = evt.target && evt.target.closest('[data-card-id]');
         if(card) card.classList.remove('dragging');
         dragState = null;
-      }, true);
-      host.addEventListener('dragover', evt => {
+      };
+      const onDragOver = evt => {
         const list = evt.target && evt.target.closest('[data-role="list"]');
         if(list){
           evt.preventDefault();
@@ -926,8 +968,8 @@ function runPatch(){
           const id = dragState && dragState.id;
           if(id) ensureCardPlacement(list, id, evt.clientY);
         }
-      }, true);
-      host.addEventListener('drop', async evt => {
+      };
+      const onDrop = async evt => {
         const targetLane = evt.target && evt.target.closest('[data-role="list"]');
         if(!targetLane) return;
         evt.preventDefault();
@@ -938,15 +980,55 @@ function runPatch(){
         const id = dragState?.id || (evt.dataTransfer && evt.dataTransfer.getData('text/plain'));
         if(!id) return;
         await handleDrop(id, laneKey, dragState && dragState.source);
-      }, true);
-      host.addEventListener('click', evt => {
+      };
+      const onClick = evt => {
         const card = evt.target && evt.target.closest('[data-card-id]');
         if(!card) return;
         evt.stopPropagation();
         evt.stopImmediatePropagation();
         const id = card.getAttribute('data-card-id');
         if(id && typeof window.renderContactModal === 'function') window.renderContactModal(id);
-      }, true);
+      };
+      const listeners = [
+        ['dragstart', onDragStart],
+        ['dragend', onDragEnd],
+        ['dragover', onDragOver],
+        ['drop', onDrop],
+        ['click', onClick]
+      ];
+      listeners.forEach(([type, handler]) => {
+        host.addEventListener(type, handler, listenerOptions);
+      });
+      host.__phase1Wired = true;
+      if(controller){
+        host.__phase1Abort = controller;
+        host.__phase1Listeners = null;
+        host.__phase1ListenerCapture = null;
+      }else{
+        host.__phase1Abort = null;
+        host.__phase1Listeners = listeners;
+        host.__phase1ListenerCapture = !!listenerOptions.capture;
+      }
+    }
+
+    function teardownBoard(host){
+      if(!host || !host.__phase1Wired) return;
+      const controller = host.__phase1Abort;
+      if(controller && typeof controller.abort === 'function' && !(controller.signal && controller.signal.aborted)){
+        try { controller.abort(); }
+        catch (_err) {}
+      }
+      if(!controller && Array.isArray(host.__phase1Listeners)){
+        const capture = host.__phase1ListenerCapture === true;
+        host.__phase1Listeners.forEach(([type, handler]) => {
+          try { host.removeEventListener(type, handler, capture); }
+          catch (_err) {}
+        });
+      }
+      delete host.__phase1Abort;
+      delete host.__phase1Listeners;
+      delete host.__phase1ListenerCapture;
+      delete host.__phase1Wired;
     }
 
     function laneOrderSnapshot(lane){
@@ -1159,6 +1241,7 @@ function runPatch(){
         if(typeof window.dispatchAppDataChanged === 'function') window.dispatchAppDataChanged(result.dispatchDetail);
         else document.dispatchEvent(new CustomEvent('app:data:changed',{detail:result.dispatchDetail}));
       }
+      refreshPipelineSelection();
       if(window.DEBUG){
         const fromStage = prevStage ? canonicalizeStage(prevStage) : '';
         const toStage = canonicalizeStage(nextStage);
@@ -1223,6 +1306,7 @@ function runPatch(){
         if(typeof window.toast === 'function') window.toast('Stage update failed');
         if(prevLane) renderLane(prevLane);
         renderLane(nextLane);
+        refreshPipelineSelection();
       }
     }
 
@@ -1771,43 +1855,87 @@ function runPatch(){
         const applied = applyStageTransition(record, canonical, prevStage, { now, lossReason: opts.lossReason });
         return applied ? Object.assign({}, applied) : null;
       }
+      function renderPending(record){
+        if(!record) return null;
+        const placement = setContact(record) || {};
+        if(placement.prevLane) renderLane(placement.prevLane);
+        if(placement.nextLane) renderLane(placement.nextLane);
+        renderLeaderboard();
+        refreshPipelineSelection();
+        return placement;
+      }
       if(target && typeof target === 'object'){
         const applied = apply(target);
         if(applied){
           Object.assign(target, applied);
-          return target;
+          renderPending(applied);
         }
         return target;
       }
       const id = String(target);
+      const existing = state.contacts.get(id);
+      const snapshot = cloneContact(existing);
+      if(existing){
+        const pending = apply(existing);
+        if(pending) renderPending(pending);
+      }
       return (async ()=>{
         if(typeof openDB!=='function' || typeof dbGet!=='function' || typeof dbPut!=='function'){
           if(typeof updateContactStageOriginal === 'function') return updateContactStageOriginal.apply(this, arguments);
           return null;
         }
-        await openDB();
-        const existing = await dbGet('contacts', id);
-        if(!existing) return null;
-        const statusBefore = canonicalStatusKey(existing.status || '');
-        const updated = apply(existing);
-        if(!updated) return existing;
-        await dbPut('contacts', updated);
-        pendingStageRecords.set(id, updated);
-        emitChange({
-          action:'stage',
-          contactId:id,
-          stage:canonical,
-          status: updated.status,
-          statusBefore,
-          milestone: updated.pipelineMilestone
-        });
-        if(window.Toast && typeof window.Toast.show === 'function'){
-          const stageMessage = canonical === 'processing' ? 'Moved to Processing' : 'Updated';
-          window.Toast.show(stageMessage);
+        try {
+          await openDB();
+          const record = await dbGet('contacts', id);
+          if(!record) return null;
+          const statusBefore = canonicalStatusKey(record.status || '');
+          const updated = apply(record);
+          if(!updated) return record;
+          await dbPut('contacts', updated);
+          pendingStageRecords.set(id, updated);
+          emitChange({
+            action:'stage',
+            contactId:id,
+            stage:canonical,
+            status: updated.status,
+            statusBefore,
+            milestone: updated.pipelineMilestone
+          });
+          if(window.Toast && typeof window.Toast.show === 'function'){
+            const stageMessage = canonical === 'processing' ? 'Moved to Processing' : 'Updated';
+            window.Toast.show(stageMessage);
+          }
+          return updated;
+        } catch (err) {
+          if(snapshot){
+            renderPending(snapshot);
+          }
+          refreshPipelineSelection();
+          throw err;
+        } finally {
+          refreshPipelineSelection();
         }
-        return updated;
       })();
     };
+
+    function ensureViewLifecycleBinding(){
+      if(typeof window === 'undefined') return;
+      if(window.__PIPELINE_PHASE1_VIEW_HANDLER__) return;
+      const handler = event => {
+        const detail = event && event.detail ? event.detail : {};
+        const view = detail.view || '';
+        const previous = detail.previous || '';
+        if(view === 'pipeline'){
+          const host = ensureBoard();
+          if(host) wireBoard(host);
+        }else if(previous === 'pipeline'){
+          const host = document.getElementById('kanban-area');
+          if(host) teardownBoard(host);
+        }
+      };
+      window.addEventListener('app:view:changed', handler);
+      window.__PIPELINE_PHASE1_VIEW_HANDLER__ = handler;
+    }
 
     document.addEventListener('app:data:changed', evt => {
       const detail = evt && evt.detail ? Object.assign({}, evt.detail) : null;
@@ -1820,6 +1948,8 @@ function runPatch(){
       LANE_ORDER.forEach(renderLane);
       renderLeaderboard();
     });
+
+    ensureViewLifecycleBinding();
 
     if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ()=>fullRefresh());
     else fullRefresh();
