@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase3_dashboard_reports.js — Phase 3 dashboard + reports
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
+import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 
@@ -1927,7 +1928,13 @@ function runPatch(){
       if(contactBtn){
         evt.preventDefault();
         const id = contactBtn.getAttribute('data-contact-id');
-        if(id && typeof window.renderContactModal === 'function') window.renderContactModal(id);
+        if(!id || typeof openContactModal !== 'function') return;
+        try{
+          openContactModal(id, { sourceHint: 'dashboard:reports', trigger: contactBtn });
+        }catch(err){
+          try{ console && console.warn && console.warn('[dashboard:reports] openContactModal failed', err); }
+          catch(_warn){}
+        }
         return;
       }
       const row = evt.target.closest('#referral-leaderboard [data-partner-id]');
