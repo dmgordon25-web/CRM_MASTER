@@ -1088,9 +1088,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       seen.add(row);
       const id = row.getAttribute('data-id');
       if(!id) return null;
-      const checkbox = row.querySelector('[data-role="select"]');
+      const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
       if(!checkbox) return null;
-      return { row, checkbox, id: String(id), disabled: checkbox.disabled };
+      const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
+      const disabled = checkbox.disabled || ariaDisabled === 'true';
+      return { row, checkbox, id: String(id), disabled };
     };
     scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
       const entry = addRow(row);
@@ -1106,26 +1108,30 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function applySelectAllToStore(checkbox, store){
     if(!checkbox || !store) return;
     const scope = selectionScopeFor(checkbox);
+    checkbox.indeterminate = false;
     const host = checkbox.closest('[data-selection-scope]');
-    const roots = host ? [host] : Array.from(document.querySelectorAll(`[data-selection-scope="${scope}"]`));
-    let entries = [];
-    roots.forEach(root => {
-      entries = entries.concat(collectSelectionRowData(root));
-    });
+    const entries = host ? collectSelectionRowData(host) : [];
     const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
     if(!visible.length){
       checkbox.indeterminate = false;
       checkbox.checked = false;
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err){}
       return;
     }
+    const ids = visible.map(entry => entry.id);
     const base = store.get(scope);
     const next = base instanceof Set
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
     if(checkbox.checked){
-      visible.forEach(entry => next.add(entry.id));
+      ids.forEach(id => next.add(id));
+      try { checkbox.setAttribute('aria-checked', 'true'); }
+      catch (_err){}
     }else{
-      visible.forEach(entry => next.delete(entry.id));
+      ids.forEach(id => next.delete(id));
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err){}
     }
     store.set(next, scope);
   }
@@ -1179,9 +1185,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       if(header){
         const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
         const total = visible.length;
-        const checkedCount = visible.filter(entry => entry.checkbox.checked).length;
-        const shouldIndeterminate = total > 0 && checkedCount > 0 && checkedCount < total;
-        const shouldChecked = total > 0 && checkedCount === total;
+        let selectedVisible = 0;
+        visible.forEach((entry) => {
+          if(idSet.has(entry.id)) selectedVisible += 1;
+        });
+        const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
+        const shouldChecked = total > 0 && selectedVisible === total;
         header.indeterminate = shouldIndeterminate;
         header.checked = shouldChecked;
         try {
