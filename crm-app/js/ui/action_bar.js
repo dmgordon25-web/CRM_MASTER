@@ -110,6 +110,173 @@ function requestVisibilityRefresh() {
   });
 }
 
+function getActionBarRoot() {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById('actionbar');
+}
+
+function ensureActionBarPill(bar) {
+  if (typeof document === 'undefined') return null;
+  const root = bar || getActionBarRoot();
+  if (!root) return null;
+  let pill = root.querySelector('[data-role="actionbar-pill"]');
+  if (!pill) {
+    pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'actionbar-pill';
+    pill.setAttribute('data-role', 'actionbar-pill');
+    pill.setAttribute('aria-describedby', 'actionbar-pill-tooltip');
+    pill.setAttribute('aria-label', '0 • Actions');
+    pill.setAttribute('title', 'Select rows to activate actions');
+    const label = document.createElement('span');
+    label.setAttribute('data-role', 'pill-label');
+    label.textContent = '0 • Actions';
+    const tooltip = document.createElement('span');
+    tooltip.id = 'actionbar-pill-tooltip';
+    tooltip.setAttribute('data-role', 'pill-tooltip');
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.setAttribute('aria-hidden', 'true');
+    tooltip.textContent = 'Select rows to activate actions';
+    pill.appendChild(label);
+    pill.appendChild(tooltip);
+    if (root.firstChild) {
+      root.insertBefore(pill, root.firstChild);
+    } else {
+      root.appendChild(pill);
+    }
+  }
+  if (!pill.__actionBarPillWired) {
+    const handleBlur = () => {
+      hideActionBarPillTooltip(pill);
+    };
+    pill.addEventListener('blur', handleBlur);
+    pill.addEventListener('click', (event) => {
+      if (!event) return;
+      const barEl = getActionBarRoot();
+      if (!barEl || barEl.getAttribute('data-minimized') !== '1') return;
+      showActionBarPillTooltip(pill);
+    });
+    pill.addEventListener('keydown', (event) => {
+      if (!event) return;
+      const key = typeof event.key === 'string' ? event.key : '';
+      const keyCode = typeof event.keyCode === 'number' ? event.keyCode : 0;
+      const activate = key ? (key === 'Enter' || key === ' ') : (keyCode === 13 || keyCode === 32);
+      if (!activate) return;
+      const barEl = getActionBarRoot();
+      if (!barEl || barEl.getAttribute('data-minimized') !== '1') return;
+      if (typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+      showActionBarPillTooltip(pill);
+    });
+    pill.__actionBarPillWired = true;
+  }
+  return pill;
+}
+
+function updateActionBarPillLabel(pill, count) {
+  if (!pill) return;
+  const numeric = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  const text = `${numeric} • Actions`;
+  const label = pill.querySelector('[data-role="pill-label"]');
+  if (label && label.textContent !== text) {
+    label.textContent = text;
+  }
+  pill.setAttribute('aria-label', text);
+}
+
+function hideActionBarPillTooltip(pill) {
+  if (!pill) return;
+  if (pill.hasAttribute('data-tip-visible')) {
+    pill.removeAttribute('data-tip-visible');
+  }
+  const tooltip = pill.querySelector('[data-role="pill-tooltip"]');
+  if (tooltip) {
+    tooltip.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function showActionBarPillTooltip(pill) {
+  if (!pill) return;
+  pill.setAttribute('data-tip-visible', '1');
+  const tooltip = pill.querySelector('[data-role="pill-tooltip"]');
+  if (tooltip) {
+    tooltip.setAttribute('aria-hidden', 'false');
+  }
+  if (typeof pill.focus === 'function') {
+    pill.focus();
+  }
+}
+
+function updateActionBarMinimizedState(count) {
+  if (typeof document === 'undefined') return;
+  const bar = getActionBarRoot();
+  if (!bar) return;
+  const pill = ensureActionBarPill(bar);
+  const numeric = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  if (pill) {
+    updateActionBarPillLabel(pill, numeric);
+    if (numeric > 0) {
+      hideActionBarPillTooltip(pill);
+    }
+  }
+  const minimized = numeric <= 0;
+  if (minimized) {
+    if (bar.getAttribute('data-minimized') !== '1') {
+      bar.setAttribute('data-minimized', '1');
+    }
+  } else if (bar.hasAttribute('data-minimized')) {
+    bar.removeAttribute('data-minimized');
+  }
+  bar.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+}
+
+function clearGlobalSelection(source = 'actionbar:esc') {
+  if (typeof window === 'undefined') return false;
+  let cleared = false;
+  try {
+    if (typeof window.Selection?.clear === 'function') {
+      window.Selection.clear(source);
+      cleared = true;
+    }
+  } catch (_) {}
+  try {
+    if (typeof window.SelectionService?.clear === 'function') {
+      window.SelectionService.clear(source);
+      cleared = true;
+    }
+  } catch (_) {}
+  const store = getSelectionStore();
+  if (store && typeof store.clear === 'function') {
+    const scopes = inferSelectionScopes();
+    scopes.forEach((scope) => {
+      try {
+        store.clear(scope);
+        cleared = true;
+      } catch (_) {}
+    });
+  }
+  return cleared;
+}
+
+function handleActionBarKeydown(event) {
+  if (!event) return;
+  const key = typeof event.key === 'string' ? event.key : '';
+  const keyCode = typeof event.keyCode === 'number' ? event.keyCode : 0;
+  const isEscape = key ? (key === 'Escape' || key === 'Esc') : keyCode === 27;
+  if (!isEscape) return;
+  const count = globalWiringState.selectedCount || 0;
+  if (count <= 0) {
+    const pill = ensureActionBarPill();
+    hideActionBarPillTooltip(pill);
+    return;
+  }
+  const cleared = clearGlobalSelection('actionbar:esc');
+  if (cleared && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
+}
+
 function applyMergeReadyFlag(count) {
   if (typeof document === 'undefined') return;
   const bar = document.getElementById('actionbar');
@@ -346,6 +513,7 @@ function setSelectedCount(count) {
     globalWiringState.mergeReadyCount = next;
   }
   applyMergeReadyFlag(next);
+  updateActionBarMinimizedState(next);
   if (previous === next) return;
   handleSelectionTransition(previous, next);
   requestVisibilityRefresh();
@@ -361,6 +529,7 @@ function resetActionBarState() {
     globalWiringState.routeState.hasCentered = false;
     globalWiringState.routeState.centerActive = false;
   }
+  updateActionBarMinimizedState(0);
   requestVisibilityRefresh();
 }
 
@@ -672,10 +841,13 @@ function initializeActionBar() {
   const bar = markActionbarHost();
   injectActionBarStyle();
   ensureActionBarFabRemoved(bar);
+  ensureActionBarPill(bar);
   ensureMergeHandler();
   ensureSelectionSubscription();
   syncActionBarVisibility(0, bar);
+  updateActionBarMinimizedState(globalWiringState.selectedCount || 0);
   ensureHeaderQuickAddBinding();
+  registerDocumentListener('keydown', handleActionBarKeydown);
 }
 
 function trackLastActionBarClick(event) {
@@ -697,6 +869,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     initializeActionBar();
   }
   syncActionBarVisibility(0);
+  updateActionBarMinimizedState(globalWiringState.selectedCount || 0);
   registerDocumentListener('click', trackLastActionBarClick, true);
   registerDocumentListener('app:view:changed', handleAppViewChanged);
   registerWindowListener('hashchange', handleRouteHashChange, { passive: true });
@@ -714,6 +887,30 @@ function injectActionBarStyle(){
         max-width:960px; width:auto; padding:8px 12px;
         border-radius:12px; background:rgba(20,22,28,0.88); color:#fff;
         box-shadow:0 8px 24px rgba(0,0,0,.25);
+      }
+      #actionbar[data-minimized="1"]{
+        top:72px; right:24px; left:auto; bottom:auto;
+        transform:none; padding:0; background:transparent; box-shadow:none;
+        border-radius:999px; pointer-events:auto; width:auto; max-width:none;
+      }
+      #actionbar[data-minimized="1"] .actionbar-shell{ display:none !important; }
+      #actionbar [data-role="actionbar-pill"]{
+        display:none; position:relative; align-items:center; gap:6px;
+        padding:6px 12px; border-radius:999px; background:rgba(20,22,28,0.92);
+        color:#fff; font-weight:600; font-size:0.85rem; letter-spacing:.01em;
+        border:0; cursor:pointer; pointer-events:auto; box-shadow:0 8px 20px rgba(15,23,42,.28);
+      }
+      #actionbar [data-role="actionbar-pill"]:focus-visible{ outline:2px solid rgba(148,163,184,.85); outline-offset:2px; }
+      #actionbar[data-minimized="1"] [data-role="actionbar-pill"]{ display:flex; }
+      #actionbar [data-role="actionbar-pill"] [data-role="pill-tooltip"]{
+        position:absolute; top:calc(100% + 8px); right:0; background:rgba(15,23,42,0.95);
+        color:#f8fafc; padding:6px 10px; border-radius:8px; font-size:12px;
+        white-space:nowrap; box-shadow:0 12px 24px rgba(15,23,42,0.3);
+        opacity:0; transform:translateY(-4px); transition:opacity .15s ease, transform .15s ease;
+        pointer-events:none;
+      }
+      #actionbar [data-role="actionbar-pill"][data-tip-visible="1"] [data-role="pill-tooltip"]{
+        opacity:1; transform:translateY(0);
       }
       #actionbar .actionbar-actions{ display:flex; gap:8px; align-items:center; justify-content:center; position:relative; }
       #actionbar .btn{ padding:6px 10px; font-size:0.95rem; border-radius:10px; }
