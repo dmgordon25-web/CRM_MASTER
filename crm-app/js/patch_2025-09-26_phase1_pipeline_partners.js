@@ -2,12 +2,15 @@
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
 import { normalizeStatusForStage, normalizeMilestoneForStatus, toneForStatus, toneClassName, canonicalStatusKey } from './pipeline/constants.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
   : 'crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js';
 
 let __wired = false;
+let releasePipelineRouteToken = null;
+let activeBoardHost = null;
 function domReady(){
   const doc = typeof document === 'undefined' ? null : document;
   if (!doc) return Promise.resolve();
@@ -947,6 +950,9 @@ function runPatch(){
 
     function wireBoard(host){
       if(!host) return;
+      if(activeBoardHost && activeBoardHost !== host){
+        teardownBoard(activeBoardHost);
+      }
       const abortActive = host.__phase1Abort && host.__phase1Abort.signal && host.__phase1Abort.signal.aborted === false;
       if(host.__phase1Wired && abortActive) return;
       if(host.__phase1Wired && !abortActive){
@@ -1018,6 +1024,7 @@ function runPatch(){
         host.addEventListener(type, handler, listenerOptions);
       });
       host.__phase1Wired = true;
+      activeBoardHost = host;
       if(controller){
         host.__phase1Abort = controller;
         host.__phase1Listeners = null;
@@ -1047,6 +1054,15 @@ function runPatch(){
       delete host.__phase1Listeners;
       delete host.__phase1ListenerCapture;
       delete host.__phase1Wired;
+      if(activeBoardHost === host){
+        activeBoardHost = null;
+      }
+    }
+
+    function teardownActiveBoard(){
+      const host = activeBoardHost || document.getElementById('kanban-area');
+      if(!host) return;
+      teardownBoard(host);
     }
 
     function laneOrderSnapshot(lane){
@@ -1937,6 +1953,18 @@ function runPatch(){
     };
 
     function ensureViewLifecycleBinding(){
+      if(!releasePipelineRouteToken && typeof acquireRouteLifecycleToken === 'function'){
+        const release = acquireRouteLifecycleToken('pipeline', {
+          mount(){
+            const host = ensureBoard();
+            if(host) wireBoard(host);
+          },
+          unmount(){
+            teardownActiveBoard();
+          }
+        });
+        releasePipelineRouteToken = typeof release === 'function' ? release : () => {};
+      }
       if(typeof window === 'undefined') return;
       if(window.__PIPELINE_PHASE1_VIEW_HANDLER__) return;
       const handler = event => {
@@ -1947,8 +1975,7 @@ function runPatch(){
           const host = ensureBoard();
           if(host) wireBoard(host);
         }else if(previous === 'pipeline'){
-          const host = document.getElementById('kanban-area');
-          if(host) teardownBoard(host);
+          teardownActiveBoard();
         }
       };
       window.addEventListener('app:view:changed', handler);

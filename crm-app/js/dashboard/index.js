@@ -1,4 +1,5 @@
 import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
+import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
@@ -8,6 +9,7 @@ import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
+let releaseDashboardRouteToken = null;
 
 function setDebugWidths(values) {
   if (!win || typeof win !== 'object') return;
@@ -2507,6 +2509,24 @@ function persistDashboardOrderImmediate() {
   snapshotLayoutWidths();
 }
 
+function ensureDashboardRouteLifecycle() {
+  if (releaseDashboardRouteToken || typeof acquireRouteLifecycleToken !== 'function') return;
+  const release = acquireRouteLifecycleToken('dashboard', {
+    mount() {
+      try {
+        ensureWidgetDnD();
+      } catch (err) {
+        try { if (console && console.warn) console.warn('[dashboard] route mount failed', err); }
+        catch (_warnErr) {}
+      }
+    },
+    unmount() {
+      teardownWidgetDnD('route-lifecycle');
+    }
+  });
+  releaseDashboardRouteToken = typeof release === 'function' ? release : () => {};
+}
+
 function ensureWidgetDnD() {
   const container = getDashboardContainerNode();
   if (!container) {
@@ -3172,6 +3192,7 @@ function handleLayoutColumnsChange(evt) {
 
 function init() {
   if (!doc) return;
+  ensureDashboardRouteLifecycle();
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', () => {
       if (typeof ensureLayoutToggle === 'function') {
