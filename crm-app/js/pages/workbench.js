@@ -459,7 +459,8 @@ function ensureMount(target){
   }
   root.style.maxWidth = '100%';
   root.style.width = '100%';
-  root.style.overflow = 'hidden';
+  root.style.overflow = 'visible';
+  root.style.overflowX = 'visible';
   state.mount = mount;
   state.root = root;
   return root;
@@ -2240,7 +2241,7 @@ function buildWindow(lensState){
 
   const body = document.createElement('div');
   body.className = 'workbench-window-body';
-  body.style.marginTop = '12px';
+  body.style.marginTop = 'var(--space-3)';
   body.style.maxWidth = '100%';
   body.style.overflowX = 'hidden';
   body.style.minWidth = '0';
@@ -2371,7 +2372,7 @@ function buildWindow(lensState){
 
   const tableWrap = document.createElement('div');
   tableWrap.className = 'table-wrap';
-  tableWrap.style.marginTop = '8px';
+  tableWrap.style.marginTop = 'var(--space-2)';
   tableWrap.style.maxWidth = '100%';
   tableWrap.style.overflowX = 'auto';
   tableWrap.style.overflowY = 'hidden';
@@ -2480,7 +2481,7 @@ function buildShell(){
   root.innerHTML = '';
   root.style.display = 'flex';
   root.style.flexDirection = 'column';
-  root.style.gap = '16px';
+  root.style.gap = 'var(--space-4)';
   const legendDoc = root.ownerDocument || document;
   const legend = createLegendPopover({
     document: legendDoc,
