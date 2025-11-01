@@ -145,6 +145,14 @@ import { syncTableLayout } from './ui/table_layout.js';
     if(host){
       markTableHasData(host);
       syncTableLayout(host);
+      if(typeof window !== 'undefined'){
+        try{
+          const scope = host.getAttribute ? host.getAttribute('data-selection-scope') : null;
+          if(scope && typeof window.syncSelectionScope === 'function'){
+            window.syncSelectionScope(scope, { root: host });
+          }
+        }catch (_err){}
+      }
     }
   }
   function primeLoadingPlaceholders(){

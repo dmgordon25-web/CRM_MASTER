@@ -1130,18 +1130,50 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     store.set(next, scope);
   }
 
-  function syncSelectionCheckboxes(scope, ids){
+  function syncSelectionCheckboxes(scope, ids, options){
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
-    const idSet = ids instanceof Set
-      ? ids
-      : new Set(Array.isArray(ids) ? ids.map(String) : []);
-    document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
+    const providedIds = ids instanceof Set
+      ? Array.from(ids, value => String(value))
+      : Array.isArray(ids)
+        ? ids.map(String)
+        : [];
+    const idSet = new Set(providedIds);
+    const roots = [];
+    const optRoot = options && options.root;
+    if(optRoot){
+      if(Array.isArray(optRoot)){
+        optRoot.forEach((node) => {
+          if(node) roots.push(node);
+        });
+      }else if(optRoot){
+        roots.push(optRoot);
+      }
+    }
+    if(!roots.length){
+      document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
+        if(table) roots.push(table);
+      });
+    }
+    const seen = new Set();
+    roots.forEach(table => {
+      if(!table || seen.has(table)) return;
+      seen.add(table);
       const entries = collectSelectionRowData(table);
       entries.forEach(entry => {
         const shouldCheck = idSet.has(entry.id);
         if(entry.checkbox.checked !== shouldCheck){
           entry.checkbox.checked = shouldCheck;
         }
+        try {
+          if(shouldCheck){
+            entry.row.setAttribute('data-selected', '1');
+          }else{
+            entry.row.removeAttribute('data-selected');
+          }
+        }catch (_err){}
+        try {
+          entry.checkbox.setAttribute('aria-checked', shouldCheck ? 'true' : 'false');
+        }catch (_err){}
       });
       const header = table.querySelector('thead input[data-role="select-all"]');
       if(header){
@@ -1152,12 +1184,37 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         const shouldChecked = total > 0 && checkedCount === total;
         header.indeterminate = shouldIndeterminate;
         header.checked = shouldChecked;
+        try {
+          header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
+        }catch (_err){}
         if(!total){
           header.indeterminate = false;
           header.checked = false;
+          try { header.setAttribute('aria-checked', 'false'); }
+          catch (_err){}
         }
       }
     });
+  }
+
+  function syncSelectionScope(scope, options){
+    const store = getSelectionStore();
+    if(!store) return;
+    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+    let ids;
+    if(options && options.ids instanceof Set){
+      ids = options.ids;
+    }else if(options && Array.isArray(options.ids)){
+      ids = new Set(options.ids.map(String));
+    }else{
+      ids = store.get(scopeKey);
+    }
+    const root = options && options.root ? options.root : null;
+    syncSelectionCheckboxes(scopeKey, ids, root ? { root } : undefined);
+    const count = options && Number.isFinite(options.count)
+      ? Number(options.count)
+      : store.count(scopeKey);
+    updateActionBarGuards(count, scopeKey);
   }
 
   function updateActionBarGuards(count, scope){
@@ -1241,10 +1298,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const ids = snapshot.ids instanceof Set
       ? new Set(Array.from(snapshot.ids, value => String(value)))
       : new Set(Array.from(snapshot.ids || [], value => String(value)));
-    syncSelectionCheckboxes(snapshot.scope, ids);
     const rawCount = Number(snapshot.count);
     const derivedCount = Number.isFinite(rawCount) ? rawCount : ids.size;
-    updateActionBarGuards(derivedCount, snapshot.scope);
+    syncSelectionScope(snapshot.scope, { ids, count: derivedCount });
   }
 
   function clearAllSelectionScopes(){
@@ -1305,6 +1361,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     };
     document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
+    if(typeof window !== 'undefined'){
+      window.syncSelectionScope = syncSelectionScope;
+    }
   }
 
   const VIEW_HASH = {
