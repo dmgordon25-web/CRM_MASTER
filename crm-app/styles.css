@@ -361,6 +361,14 @@ tr:hover td{background:#fafafa}
 .portfolio-table col.portfolio-col-partner{width:clamp(180px,20%,260px)}
 .portfolio-table th:nth-child(3),.portfolio-table td:nth-child(3){text-align:right;font-variant-numeric:tabular-nums}
 .portfolio-table-wrap{max-width:100%;overflow-x:auto}
+.portfolio-card-header{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0 0 var(--space-3)}
+.portfolio-card-title{margin:0;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.portfolio-card-header .table-search{margin:0;flex:0 0 auto;max-width:100%}
+.portfolio-card-header .table-search input{width:220px;max-width:100%}
+@media (max-width:720px){
+  .portfolio-card-header .table-search{flex:1 1 100%}
+  .portfolio-card-header .table-search input{width:100%}
+}
 .table-scroll-host{scrollbar-gutter:stable both-edges}
 #view-workbench{max-width:100%;width:100%;padding-block:var(--space-5);overflow-x:hidden}
 #workbench-root{max-width:100%;width:100%;display:flex;flex-direction:column;gap:var(--space-4);overflow:visible}
