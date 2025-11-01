@@ -6,6 +6,21 @@
 }
 
 
+/* Shared validation styling */
+.field-error {
+  color: var(--danger-text, #b42318);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+input.field-error,
+select.field-error,
+textarea.field-error {
+  border-color: var(--danger-border, #fda29b) !important;
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.25);
+}
+
 /* PATCH: ensure row selection checkboxes are rendered and clickable at boot */
 [data-ui="row-check"] {
   display: inline-flex !important;   /* prevent accidental display:none */

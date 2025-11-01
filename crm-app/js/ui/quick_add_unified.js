@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
 import { toastSoftError, toastSuccess, toastWarn } from './toast_helpers.js';
+import { validateContact } from '../contacts.js';
+import { validatePartner } from '../partners.js';
+import { bindQuickAddValidation } from './quick_add_validation.js';
 
 const DEFAULT_COPY = {
   modalTitle: 'Quick Add',
@@ -19,6 +22,76 @@ const DEFAULT_COPY = {
 };
 
 let quickAddCopy = null;
+
+const CONTACT_VALIDATION_CONFIG = {
+  name: {
+    fields: ['firstName', 'lastName'],
+    message: () => 'Name is required'
+  },
+  email: {
+    fields: ['email'],
+    message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email or phone required'
+  },
+  phone: {
+    fields: ['phone'],
+    message: () => 'Phone or email required'
+  }
+};
+
+const PARTNER_VALIDATION_CONFIG = {
+  name: {
+    fields: ['name'],
+    message: () => 'Enter the primary contact name'
+  }
+};
+
+const QUICK_ADD_INVALID_TOAST = 'Please fix highlighted fields';
+
+function readContactFormModel(form){
+  if(!form || typeof form.querySelector !== 'function'){
+    return { firstName: '', lastName: '', email: '', phone: '', name: '' };
+  }
+  const read = (name) => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if(!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value.trim() : String(value || '').trim();
+  };
+  const firstName = read('firstName');
+  const lastName = read('lastName');
+  const email = read('email');
+  const phone = read('phone');
+  const name = `${firstName} ${lastName}`.trim();
+  return { firstName, lastName, email, phone, name };
+}
+
+function readPartnerFormModel(form){
+  if(!form || typeof form.querySelector !== 'function'){
+    return { company: '', name: '', email: '', phone: '' };
+  }
+  const read = (name) => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if(!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value.trim() : String(value || '').trim();
+  };
+  return {
+    company: read('company'),
+    name: read('name'),
+    email: read('email'),
+    phone: read('phone')
+  };
+}
+
+function focusField(node){
+  if(!node || typeof node.focus !== 'function') return;
+  try {
+    node.focus({ preventScroll: true });
+  } catch (_err) {
+    try { node.focus(); }
+    catch (_focusErr) {}
+  }
+}
 
 // Unified Quick Add modal with Contact/Partner tabs; idempotent wiring.
 export function wireQuickAddUnified(options = {}) {
@@ -122,96 +195,162 @@ export function wireQuickAddUnified(options = {}) {
     const contactForm = node.querySelector('.qa-form[data-kind="contact"]');
     const partnerForm = node.querySelector('.qa-form[data-kind="partner"]');
 
-    contactForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(contactForm);
-      const first = String(fd.get("firstName") || "").trim();
-      const last = String(fd.get("lastName") || "").trim();
-      const email = String(fd.get("email") || "").trim();
-      const phone = String(fd.get("phone") || "").trim();
-      const now = Date.now();
-      const name = [first, last].filter(Boolean).join(" ").trim();
-      const rec = {
-        firstName: first,
-        lastName: last,
-        first,
-        last,
-        name,
-        email,
-        phone,
-        createdAt: now,
-        updatedAt: now,
-        stage: "Application",
-        status: "Active",
-      };
-      let saved = false;
-      let failureMessage = '';
-      let failureToastShown = false;
-      try {
-        if (window.Contacts?.createQuick) {
-          await window.Contacts.createQuick(rec);
-          saved = true;
-        } else if (typeof window.dbPut === "function") {
-          await window.dbPut("contacts", rec);
-          saved = true;
-        } else {
-          failureMessage = 'Contacts service unavailable. Contact not saved.';
-          try { console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec); }
-          catch (_) {}
-        }
-      } catch (err) {
-        failureMessage = 'Unable to save contact. Please try again.';
-        failureToastShown = toastSoftError('[soft] [quickAdd] contact save failed', err, failureMessage);
-      } finally {
-        try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
-        if (saved) {
-          toastSuccess("Contact created");
-        } else if (failureMessage && !failureToastShown) {
-          failureToastShown = toastWarn(failureMessage);
-        }
-        close();
-      }
-    });
+    const contactSaveBtn = contactForm ? contactForm.querySelector('.qa-save') : null;
+    let contactSaving = false;
+    const contactValidation = contactForm
+      ? bindQuickAddValidation(contactForm, CONTACT_VALIDATION_CONFIG, {
+          buildModel: readContactFormModel,
+          validate: validateContact,
+          onResult: (result) => {
+            if (contactSaveBtn) {
+              contactSaveBtn.disabled = contactSaving || !result.ok;
+            }
+          }
+        })
+      : null;
 
-    partnerForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(partnerForm);
-      const rec = {
-        company:   String(fd.get("company") || "").trim(),
-        name:      String(fd.get("name")    || "").trim(),
-        email:     String(fd.get("email")   || "").trim(),
-        phone:     String(fd.get("phone")   || "").trim(),
-        createdAt: Date.now(),
-        tier: "Unassigned",
-      };
-      let saved = false;
-      let failureMessage = '';
-      let failureToastShown = false;
-      try {
-        if (window.Partners?.createQuick) {
-          await window.Partners.createQuick(rec);
-          saved = true;
-        } else if (typeof window.dbPut === "function") {
-          await window.dbPut("partners", rec);
-          saved = true;
-        } else {
-          failureMessage = 'Partners service unavailable. Partner not saved.';
-          try { console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec); }
-          catch (_) {}
+    const partnerSaveBtn = partnerForm ? partnerForm.querySelector('.qa-save') : null;
+    let partnerSaving = false;
+    const partnerValidation = partnerForm
+      ? bindQuickAddValidation(partnerForm, PARTNER_VALIDATION_CONFIG, {
+          buildModel: readPartnerFormModel,
+          validate: validatePartner,
+          onResult: (result) => {
+            if (partnerSaveBtn) {
+              partnerSaveBtn.disabled = partnerSaving || !result.ok;
+            }
+          }
+        })
+      : null;
+
+    if (contactForm) {
+      contactForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const validationResult = contactValidation
+          ? contactValidation.run(true)
+          : { ok: true, model: readContactFormModel(contactForm) };
+        const model = validationResult.model || readContactFormModel(contactForm);
+        if (!validationResult.ok) {
+          toastWarn(QUICK_ADD_INVALID_TOAST);
+          if (validationResult.firstInvalid) {
+            focusField(validationResult.firstInvalid);
+          }
+          return;
         }
-      } catch (err) {
-        failureMessage = 'Unable to save partner. Please try again.';
-        failureToastShown = toastSoftError('[soft] [quickAdd] partner save failed', err, failureMessage);
-      } finally {
-        try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
-        if (saved) {
-          toastSuccess("Partner created");
-        } else if (failureMessage && !failureToastShown) {
-          failureToastShown = toastWarn(failureMessage);
+
+        contactSaving = true;
+        if (contactSaveBtn) {
+          contactSaveBtn.disabled = true;
         }
-        close();
-      }
-    });
+
+        const now = Date.now();
+        const first = model.firstName || '';
+        const last = model.lastName || '';
+        const email = model.email || '';
+        const phone = model.phone || '';
+        const name = model.name || [first, last].filter(Boolean).join(' ').trim();
+        const rec = {
+          firstName: first,
+          lastName: last,
+          first,
+          last,
+          name,
+          email,
+          phone,
+          createdAt: now,
+          updatedAt: now,
+          stage: "Application",
+          status: "Active",
+        };
+        let saved = false;
+        let failureMessage = '';
+        let failureToastShown = false;
+        try {
+          if (window.Contacts?.createQuick) {
+            await window.Contacts.createQuick(rec);
+            saved = true;
+          } else if (typeof window.dbPut === "function") {
+            await window.dbPut("contacts", rec);
+            saved = true;
+          } else {
+            failureMessage = 'Contacts service unavailable. Contact not saved.';
+            try { console.warn("[quickAdd] no Contacts.createQuick or dbPut; saved to memory only", rec); }
+            catch (_) {}
+          }
+        } catch (err) {
+          failureMessage = 'Unable to save contact. Please try again.';
+          failureToastShown = toastSoftError('[soft] [quickAdd] contact save failed', err, failureMessage);
+        } finally {
+          contactSaving = false;
+          try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
+          if (saved) {
+            toastSuccess("Contact created");
+          } else if (failureMessage && !failureToastShown) {
+            failureToastShown = toastWarn(failureMessage);
+          }
+          close();
+        }
+      });
+    }
+
+    if (partnerForm) {
+      partnerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const validationResult = partnerValidation
+          ? partnerValidation.run(true)
+          : { ok: true, model: readPartnerFormModel(partnerForm) };
+        const model = validationResult.model || readPartnerFormModel(partnerForm);
+        if (!validationResult.ok) {
+          toastWarn(QUICK_ADD_INVALID_TOAST);
+          if (validationResult.firstInvalid) {
+            focusField(validationResult.firstInvalid);
+          }
+          return;
+        }
+
+        partnerSaving = true;
+        if (partnerSaveBtn) {
+          partnerSaveBtn.disabled = true;
+        }
+
+        const rec = {
+          company: model.company || '',
+          name: model.name || '',
+          email: model.email || '',
+          phone: model.phone || '',
+          createdAt: Date.now(),
+          tier: "Unassigned",
+        };
+        let saved = false;
+        let failureMessage = '';
+        let failureToastShown = false;
+        try {
+          if (window.Partners?.createQuick) {
+            await window.Partners.createQuick(rec);
+            saved = true;
+          } else if (typeof window.dbPut === "function") {
+            await window.dbPut("partners", rec);
+            saved = true;
+          } else {
+            failureMessage = 'Partners service unavailable. Partner not saved.';
+            try { console.warn("[quickAdd] no Partners.createQuick or dbPut; saved to memory only", rec); }
+            catch (_) {}
+          }
+        } catch (err) {
+          failureMessage = 'Unable to save partner. Please try again.';
+          failureToastShown = toastSoftError('[soft] [quickAdd] partner save failed', err, failureMessage);
+        } finally {
+          partnerSaving = false;
+          try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
+          if (saved) {
+            toastSuccess("Partner created");
+          } else if (failureMessage && !failureToastShown) {
+            failureToastShown = toastWarn(failureMessage);
+          }
+          close();
+        }
+      });
+    }
 
     selectTab(initialTab || "contact");
   }
