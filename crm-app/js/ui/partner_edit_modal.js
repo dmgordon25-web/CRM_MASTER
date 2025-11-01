@@ -2,6 +2,7 @@ import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from 
 import { createFormFooter } from './form_footer.js';
 import { registerModalActions } from '../contacts/modal.js';
 import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
+import { validatePartner } from '../partners.js';
 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
@@ -12,6 +13,62 @@ const scheduleMicrotask = typeof queueMicrotask === 'function'
   ? queueMicrotask
   : (fn) => Promise.resolve().then(fn);
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
+
+const PARTNER_INVALID_TOAST = 'Please fix highlighted fields';
+
+function focusPartnerField(field){
+  if(!field || typeof field.focus !== 'function') return;
+  try {
+    field.focus({ preventScroll: true });
+  } catch (_err) {
+    try { field.focus(); }
+    catch (__err) {}
+  }
+}
+
+function clearPartnerValidation(root){
+  if(!root) return;
+  root.querySelectorAll('[data-partner-error]').forEach(node => node.remove());
+  root.querySelectorAll('[data-partner-invalid]').forEach(field => {
+    field.classList.remove('field-error');
+    field.removeAttribute('aria-invalid');
+    delete field.dataset.partnerInvalid;
+  });
+}
+
+function applyPartnerValidation(root, errors){
+  clearPartnerValidation(root);
+  if(!root) return { firstInvalid: null };
+  const nameField = root.querySelector('#p-name');
+  const code = errors && Object.prototype.hasOwnProperty.call(errors, 'name') ? errors.name : null;
+  const message = code ? 'Enter the primary contact name' : '';
+  if(nameField){
+    const existing = root.querySelector('[data-partner-error="name"]');
+    if(existing){ existing.remove(); }
+    if(message){
+      nameField.classList.add('field-error');
+      nameField.setAttribute('aria-invalid', 'true');
+      nameField.dataset.partnerInvalid = '1';
+      const label = nameField.closest('label');
+      if(label){
+        const errorEl = document.createElement('div');
+        errorEl.className = 'field-error';
+        errorEl.dataset.partnerError = 'name';
+        errorEl.textContent = message;
+        label.insertAdjacentElement('afterend', errorEl);
+      }
+    }else if(nameField.dataset && nameField.dataset.partnerInvalid){
+      nameField.classList.remove('field-error');
+      nameField.removeAttribute('aria-invalid');
+      delete nameField.dataset.partnerInvalid;
+    }else{
+      nameField.classList.remove('field-error');
+      nameField.removeAttribute('aria-invalid');
+    }
+    return { firstInvalid: message ? nameField : null };
+  }
+  return { firstInvalid: null };
+}
 
 function __closeStrayDialogsOnce(label = '[STRAY_DIALOG_CLOSED]'){
   if(typeof document === 'undefined') return;
@@ -491,6 +548,17 @@ async function renderPartnerEditor(root, partnerId){
     btnSave.addEventListener('click', async (evt)=>{
       if(evt) evt.preventDefault();
       if(btnSave.dataset.loading === '1') return;
+      const nameField = root.querySelector('#p-name');
+      const nameValue = nameField ? nameField.value.trim() : '';
+      const validationResult = validatePartner({ name: nameValue }) || { ok: true, errors: {} };
+      const validationOutcome = applyPartnerValidation(root, validationResult.errors || {});
+      if(!validationResult.ok){
+        if(validationOutcome.firstInvalid){
+          focusPartnerField(validationOutcome.firstInvalid);
+        }
+        toastWarn(PARTNER_INVALID_TOAST);
+        return;
+      }
       setBusy(true);
       try{
         const baseRecord = Object.assign({}, root.__currentPartnerBase || {});
@@ -499,7 +567,7 @@ async function renderPartnerEditor(root, partnerId){
         }
         const rec = Object.assign({}, baseRecord, {
           id: baseRecord.id,
-          name: root.querySelector('#p-name')?.value?.trim() || '',
+          name: nameValue,
           company: root.querySelector('#p-company')?.value?.trim() || '',
           email: root.querySelector('#p-email')?.value?.trim() || '',
           phone: root.querySelector('#p-phone')?.value?.trim() || '',

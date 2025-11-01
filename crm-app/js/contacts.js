@@ -135,6 +135,89 @@ export function normalizeContactId(input) {
   };
 
   const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
+  const CONTACT_INVALID_TOAST = 'Please fix highlighted fields';
+
+  function focusContactField(field){
+    if(!field || typeof field.focus !== 'function') return;
+    try {
+      field.focus({ preventScroll: true });
+    } catch (_err) {
+      try { field.focus(); }
+      catch (__err) {}
+    }
+  }
+
+  const CONTACT_VALIDATION_CONFIG = {
+    name: {
+      selectors: ['#c-first', '#c-last'],
+      message: () => 'Name is required'
+    },
+    email: {
+      selectors: ['#c-email'],
+      message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email or phone required'
+    },
+    phone: {
+      selectors: ['#c-phone'],
+      message: () => 'Phone or email required'
+    }
+  };
+
+  function clearContactValidation(container){
+    if(!container) return;
+    container.querySelectorAll('[data-contact-error]').forEach(node => node.remove());
+    container.querySelectorAll('[data-contact-invalid]').forEach(field => {
+      field.classList.remove('field-error');
+      field.removeAttribute('aria-invalid');
+      delete field.dataset.contactInvalid;
+    });
+  }
+
+  function applyContactValidation(container, errors){
+    clearContactValidation(container);
+    if(!container) return { firstInvalid: null };
+    let firstInvalid = null;
+    const keys = Object.keys(CONTACT_VALIDATION_CONFIG);
+    keys.forEach(key => {
+      const config = CONTACT_VALIDATION_CONFIG[key] || {};
+      const selectors = Array.isArray(config.selectors) ? config.selectors : [];
+      const code = errors && Object.prototype.hasOwnProperty.call(errors, key) ? errors[key] : null;
+      const message = code ? (typeof config.message === 'function' ? config.message(code, key) : config.message || '') : '';
+      const primarySelector = selectors[0] || null;
+      const primaryField = primarySelector ? container.querySelector(primarySelector) : null;
+      const previous = container.querySelector(`[data-contact-error="${key}"]`);
+      if(previous){
+        previous.remove();
+      }
+      selectors.forEach(selector => {
+        const field = container.querySelector(selector);
+        if(!field) return;
+        if(message){
+          field.classList.add('field-error');
+          field.setAttribute('aria-invalid', 'true');
+          field.dataset.contactInvalid = '1';
+          if(!firstInvalid) firstInvalid = field;
+        }else if(field.dataset && field.dataset.contactInvalid){
+          field.classList.remove('field-error');
+          field.removeAttribute('aria-invalid');
+          delete field.dataset.contactInvalid;
+        }else{
+          field.classList.remove('field-error');
+          field.removeAttribute('aria-invalid');
+        }
+      });
+      if(message && primaryField){
+        const label = primaryField.closest('label');
+        if(label){
+          const errorEl = document.createElement('div');
+          errorEl.className = 'field-error';
+          errorEl.dataset.contactError = key;
+          errorEl.textContent = String(message);
+          label.insertAdjacentElement('afterend', errorEl);
+        }
+      }
+    });
+    return { firstInvalid };
+  }
 
   function disableBodyScroll(){
     if(typeof document === 'undefined') return ()=>{};
@@ -1705,6 +1788,25 @@ export function normalizeContactId(input) {
       const prevStage = c.stage;
       const prevStatusKey = canonicalStatusKey(c.status || '');
       const prevMilestoneNormalized = normalizeMilestoneForStatus(c.pipelineMilestone, prevStatusKey || c.status || 'inprogress');
+      const firstNameValue = $('#c-first', body)?.value?.trim() || '';
+      const lastNameValue = $('#c-last', body)?.value?.trim() || '';
+      const emailValue = $('#c-email', body)?.value?.trim() || '';
+      const phoneValue = $('#c-phone', body)?.value?.trim() || '';
+      const validationResult = validateContact({
+        firstName: firstNameValue,
+        lastName: lastNameValue,
+        email: emailValue,
+        phone: phoneValue,
+        name: `${firstNameValue} ${lastNameValue}`.trim()
+      }) || { ok: true, errors: {} };
+      const validationOutcome = applyContactValidation(body, validationResult.errors || {});
+      if(!validationResult.ok){
+        if(validationOutcome.firstInvalid){
+          focusContactField(validationOutcome.firstInvalid);
+        }
+        toastWarn(CONTACT_INVALID_TOAST);
+        return null;
+      }
       setBusy(true);
       try{
         const referralPartnerSelectSave = $('#c-referral-partner',body);
@@ -1719,8 +1821,10 @@ export function normalizeContactId(input) {
             || (cleanReferralPartnerId === referralPartnerId ? referralPartnerName : ''))
           : '';
         const u = Object.assign({}, c, {
-          first: $('#c-first',body).value.trim(), last: $('#c-last',body).value.trim(),
-          email: $('#c-email',body).value.trim(), phone: $('#c-phone',body).value.trim(),
+          first: firstNameValue,
+          last: lastNameValue,
+          email: emailValue,
+          phone: phoneValue,
           address: $('#c-address',body).value.trim(), city: $('#c-city',body).value.trim(),
           state: ($('#c-state',body).value||'').toUpperCase(), zip: $('#c-zip',body).value.trim(),
           stage: $('#c-stage',body).value, status: $('#c-status',body).value,
