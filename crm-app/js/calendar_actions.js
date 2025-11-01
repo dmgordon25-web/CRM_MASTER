@@ -9,6 +9,7 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
   const SELECTOR_CSV = '[data-ui="calendar-export-csv"]';
   const CSV_HEADER = ['Date','Type','Title','Details','Loan','Status','Source'];
   const CSV_BOM = '\ufeff';
+  const FALLBACK_TZ = window.APP_TZ || 'America/New_York';
   const TASK_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   function safeEvents(){
@@ -98,12 +99,38 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
       .replace(/\r?\n/g, '\\n');
   }
 
+  function formatUtcStamp(date){
+    const year = date.getUTCFullYear();
+    const month = pad(date.getUTCMonth() + 1);
+    const day = pad(date.getUTCDate());
+    const hour = pad(date.getUTCHours());
+    const minute = pad(date.getUTCMinutes());
+    const second = pad(date.getUTCSeconds());
+    return `${year}${month}${day}T${hour}${minute}${second}Z`;
+  }
+
+  function formatDateTimeLocal(date){
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    const h = pad(date.getHours());
+    const mm = pad(date.getMinutes());
+    const s = pad(date.getSeconds());
+    return `${y}${m}${d}T${h}${mm}${s}`;
+  }
+
+  function escapeIcsParam(value){
+    return String(value ?? '').replace(/([,;])/g, '\\$1').replace(/\r?\n/g, '');
+  }
+
   function buildFallbackIcs(payload){
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//CRM//Calendar Export//EN'
+      'PRODID:-//CRM//Calendar Export//EN',
+      `X-WR-TIMEZONE:${escapeIcsValue(FALLBACK_TZ)}`
     ];
+    const tzParam = escapeIcsParam(FALLBACK_TZ);
     payload.forEach((item, index) => {
       if (!item || !(item.start instanceof Date) || Number.isNaN(item.start.getTime())) return;
       const uid = escapeIcsValue(item.id || `event-${index}`);
@@ -113,14 +140,24 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
       const startDate = new Date(item.start.getTime());
       lines.push('BEGIN:VEVENT');
       lines.push(`UID:${uid}`);
+      lines.push(`DTSTAMP:${formatUtcStamp(new Date())}`);
       lines.push(`SUMMARY:${title}`);
       if (description) lines.push(`DESCRIPTION:${description}`);
       if (location) lines.push(`LOCATION:${location}`);
       if (item.allDay) {
         lines.push(`DTSTART;VALUE=DATE:${formatDateValue(startDate)}`);
+        const endDate = new Date(startDate.getTime());
+        endDate.setDate(endDate.getDate() + 1);
+        lines.push(`DTEND;VALUE=DATE:${formatDateValue(endDate)}`);
       } else {
-        lines.push(`DTSTART:${formatDateValue(startDate)}T000000`);
+        lines.push(`DTSTART;TZID=${tzParam}:${formatDateTimeLocal(startDate)}`);
+        if (item.end instanceof Date && !Number.isNaN(item.end.getTime())){
+          const endDate = new Date(item.end.getTime());
+          lines.push(`DTEND;TZID=${tzParam}:${formatDateTimeLocal(endDate)}`);
+        }
       }
+      const tzNote = escapeIcsValue(`Timezone: ${FALLBACK_TZ}`);
+      if (tzNote) lines.push(`X-CRM-TZNOTE:${tzNote}`);
       lines.push('END:VEVENT');
     });
     lines.push('END:VCALENDAR');
@@ -136,6 +173,14 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function recordPreview(kind, text){
+    if (typeof text !== 'string' || !text) return;
+    if (typeof window !== 'undefined'){
+      const store = window.__CRM_CAL_EXPORT_PREVIEW__ = window.__CRM_CAL_EXPORT_PREVIEW__ || {};
+      store[kind] = { text, timestamp: Date.now() };
+    }
   }
 
   function downloadCsv(events){
@@ -161,6 +206,7 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
     const csv = `${CSV_BOM}${rows.join('\r\n')}`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     triggerDownload(blob, 'calendar-export.csv');
+    return csv;
   }
 
   function handleIcs(){
@@ -175,9 +221,11 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
         : null;
       if (build && download){
         const ics = build(payload);
+        recordPreview('ics', ics);
         download('calendar-export.ics', ics);
       } else {
         const icsText = buildFallbackIcs(payload);
+        recordPreview('ics', icsText);
         triggerDownload(new Blob([icsText], { type: 'text/calendar;charset=utf-8' }), 'calendar-export.ics');
       }
       toastSuccess('Calendar ICS exported');
@@ -189,7 +237,8 @@ import { toastSoftError, toastSuccess } from './ui/toast_helpers.js';
   function handleCsv(){
     try {
       const events = safeEvents();
-      downloadCsv(events);
+      const csvText = downloadCsv(events);
+      recordPreview('csv', csvText);
       toastSuccess('Calendar CSV exported');
     } catch (err) {
       toastSoftError('[soft] calendar export csv failed', err, 'Unable to export calendar CSV.');

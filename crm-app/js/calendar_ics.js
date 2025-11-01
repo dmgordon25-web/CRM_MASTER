@@ -16,12 +16,25 @@
     const S = pad2(z.getUTCSeconds());
     return `${y}${m}${d}T${H}${M}${S}Z`;
   }
+
+  function fmtLocalWithTz(dt){
+    const local = new Date(dt.getTime());
+    const y = local.getFullYear();
+    const m = pad2(local.getMonth()+1);
+    const d = pad2(local.getDate());
+    const H = pad2(local.getHours());
+    const M = pad2(local.getMinutes());
+    const S = pad2(local.getSeconds());
+    return `${y}${m}${d}T${H}${M}${S}`;
+  }
   function fmtAllDay(d){ // Date-only YYYYMMDD for all-day
     const y = d.getFullYear(), m = pad2(d.getMonth()+1), day = pad2(d.getDate());
     return `${y}${m}${day}`;
   }
 
   function esc(s){ return String(s||"").replace(/([,;])/g,"\\$1").replace(/\n/g,"\\n"); }
+
+  function escParam(s){ return String(s||"").replace(/[\n\r]/g, "").replace(/([,;])/g, "\\$1"); }
 
   function vevent(ev){
     // expected ev shape: { id, title, desc, location, start, end, allDay }
@@ -30,6 +43,7 @@
     let body = `BEGIN:VEVENT${CRLF}UID:${uid}${CRLF}DTSTAMP:${now}${CRLF}`;
     const title = esc(ev.title || "Event");
     const desc  = esc(ev.desc || "");
+    const tzParam = escParam(TZ);
     if (ev.allDay){
       // All-day uses VALUE=DATE (local midnight in local TZ); DTEND is exclusive next day
       const s = fmtAllDay(new Date(ev.start));
@@ -37,11 +51,19 @@
       const e = fmtAllDay(eDate);
       body += `DTSTART;VALUE=DATE:${s}${CRLF}DTEND;VALUE=DATE:${e}${CRLF}`;
     } else {
-      body += `DTSTART:${fmtLocalToZ(new Date(ev.start))}${CRLF}`;
-      if (ev.end) body += `DTEND:${fmtLocalToZ(new Date(ev.end))}${CRLF}`;
+      const startLocal = new Date(ev.start);
+      body += `DTSTART;TZID=${tzParam}:${fmtLocalWithTz(startLocal)}${CRLF}`;
+      if (ev.end){
+        const endLocal = new Date(ev.end);
+        body += `DTEND;TZID=${tzParam}:${fmtLocalWithTz(endLocal)}${CRLF}`;
+      }
     }
     if (ev.location) body += `LOCATION:${esc(ev.location)}${CRLF}`;
     if (desc)        body += `DESCRIPTION:${desc}${CRLF}`;
+    if (TZ){
+      const tzNote = `Timezone: ${TZ}`;
+      body += `X-CRM-TZNOTE:${esc(tzNote)}${CRLF}`;
+    }
     body += `SUMMARY:${title}${CRLF}END:VEVENT${CRLF}`;
     return body;
   }
