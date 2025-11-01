@@ -371,6 +371,17 @@ const LENS_CONFIGS = Object.values(RAW_LENS_CONFIGS).map((raw) => {
 
 const CONFIG_BY_KEY = new Map(LENS_CONFIGS.map((config) => [config.key, config]));
 
+const ROW_BATCH_SIZE = 250;
+const MIN_NAME_COLUMN_WIDTH = 160;
+
+const yieldMicrotask = typeof queueMicrotask === 'function'
+  ? () => new Promise((resolve) => queueMicrotask(resolve))
+  : () => Promise.resolve().then(() => {});
+
+const yieldFrame = typeof requestAnimationFrame === 'function'
+  ? () => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+  : yieldMicrotask;
+
 function isoDateString(date){
   if(!(date instanceof Date)) return '';
   const copy = new Date(date.getTime()); copy.setHours(0,0,0,0);
@@ -664,6 +675,7 @@ function attachDataListener(){
     state.lensStates.forEach((lensState) => {
       lensState.baseRecords = null;
       lensState.dataLoaded = false;
+      lensState.rowCache = new WeakMap();
       if(lensState.open){
         runLensQuery(lensState, { reuseBase: false });
       }
@@ -751,7 +763,8 @@ function createLensState(config){
     lastError: null,
     statusBanner: null,
     activePreset: '',
-    restoredDraft: false
+    restoredDraft: false,
+    rowCache: new WeakMap()
   };
 }
 
@@ -1185,6 +1198,30 @@ function buildRow(record, config){
   };
 }
 
+function resetRowModel(row, record){
+  if(!row) return null;
+  row.record = record;
+  row.id = toId(record?.id);
+  row.valueCache = Object.create(null);
+  row.displayCache = Object.create(null);
+  row.searchText = null;
+  return row;
+}
+
+function getRowModel(record, lensState){
+  if(!lensState) return resetRowModel(buildRow(record, {}), record);
+  const cache = lensState.rowCache || (lensState.rowCache = new WeakMap());
+  if(!record || (typeof record !== 'object' && typeof record !== 'function')){
+    return resetRowModel(buildRow(record, lensState.config), record);
+  }
+  let row = cache.get(record);
+  if(!row){
+    row = buildRow(record, lensState.config);
+    cache.set(record, row);
+  }
+  return resetRowModel(row, record);
+}
+
 function buildSearchText(row, config){
   if(row.searchText != null) return row.searchText;
   const parts = [];
@@ -1196,69 +1233,84 @@ function buildSearchText(row, config){
   return row.searchText;
 }
 
-function applyFiltersToBaseRecords(lensState, baseRecords){
-  const filters = sanitizeFilters(lensState);
-  if(!filters.length) return baseRecords.slice();
-  return baseRecords.filter((record) => {
-    const row = buildRow(record, lensState.config);
-    return filters.every((filter) => {
-      const field = lensState.config.fieldsMap.get(filter.field);
-      if(!field) return true;
-      const value = getRowValue(row, filter.field, lensState.config);
-      const type = field.type || 'string';
-      const normalized = value == null ? '' : value;
-      if(type === 'number'){
-        const numericValue = Number(normalized);
-        const needle = Number(filter.value);
-        if(!Number.isFinite(needle)) return true;
-        if(!Number.isFinite(numericValue)) return false;
-        switch(filter.operator){
-          case '=': return numericValue === needle;
-          case '>': return numericValue > needle;
-          case '>=': return numericValue >= needle;
-          case '<': return numericValue < needle;
-          case '<=': return numericValue <= needle;
-          default: return numericValue === needle;
-        }
-      }
-      if(type === 'date'){
-        const ts = parseDateValue(normalized);
-        const needleTs = parseDateValue(filter.value);
-        if(needleTs == null) return true;
-        if(ts == null) return false;
-        switch(filter.operator){
-          case '=': return ts === needleTs;
-          case '>': return ts > needleTs;
-          case '>=': return ts >= needleTs;
-          case '<': return ts < needleTs;
-          case '<=': return ts <= needleTs;
-          default: return ts === needleTs;
-        }
-      }
-      const haystack = toLower(normalized);
-      const needle = toLower(filter.value);
+function matchesFilters(row, filters, lensState){
+  if(!filters.length) return true;
+  return filters.every((filter) => {
+    const field = lensState.config.fieldsMap.get(filter.field);
+    if(!field) return true;
+    const value = getRowValue(row, filter.field, lensState.config);
+    const type = field.type || 'string';
+    const normalized = value == null ? '' : value;
+    if(type === 'number'){
+      const numericValue = Number(normalized);
+      const needle = Number(filter.value);
+      if(!Number.isFinite(needle)) return true;
+      if(!Number.isFinite(numericValue)) return false;
       switch(filter.operator){
-        case 'equals': return haystack === needle;
-        case 'starts': return haystack.startsWith(needle);
-        case 'ends': return haystack.endsWith(needle);
-        case 'contains':
-        default:
-          return haystack.includes(needle);
+        case '=': return numericValue === needle;
+        case '>': return numericValue > needle;
+        case '>=': return numericValue >= needle;
+        case '<': return numericValue < needle;
+        case '<=': return numericValue <= needle;
+        default: return numericValue === needle;
       }
-    });
+    }
+    if(type === 'date'){
+      const ts = parseDateValue(normalized);
+      const needleTs = parseDateValue(filter.value);
+      if(needleTs == null) return true;
+      if(ts == null) return false;
+      switch(filter.operator){
+        case '=': return ts === needleTs;
+        case '>': return ts > needleTs;
+        case '>=': return ts >= needleTs;
+        case '<': return ts < needleTs;
+        case '<=': return ts <= needleTs;
+        default: return ts === needleTs;
+      }
+    }
+    const haystack = toLower(normalized);
+    const needle = toLower(filter.value);
+    switch(filter.operator){
+      case 'equals': return haystack === needle;
+      case 'starts': return haystack.startsWith(needle);
+      case 'ends': return haystack.endsWith(needle);
+      case 'contains':
+      default:
+        return haystack.includes(needle);
+    }
   });
 }
 
+async function applyFiltersToBaseRecords(lensState, baseRecords){
+  const filters = sanitizeFilters(lensState);
+  if(!Array.isArray(baseRecords) || !baseRecords.length){
+    return [];
+  }
+  const result = [];
+  for(let index = 0; index < baseRecords.length; index += 1){
+    const record = baseRecords[index];
+    const row = getRowModel(record, lensState);
+    if(matchesFilters(row, filters, lensState)){
+      result.push(row);
+    }
+    if(index && index % ROW_BATCH_SIZE === 0){
+      await yieldFrame();
+    }
+  }
+  await yieldMicrotask();
+  return result;
+}
+
 function sortRows(rows, lensState){
+  if(!Array.isArray(rows)) return [];
   const { sort, config } = lensState;
   const field = sort.field;
   if(!field) return rows.slice();
   const direction = sort.direction === 'asc' ? 1 : -1;
   const fieldMeta = config.fieldsMap.get(field);
   const type = fieldMeta?.type || 'string';
-  return rows.slice().sort((a, b) => {
-    const rowA = buildRow(a, config);
-    const rowB = buildRow(b, config);
+  return rows.slice().sort((rowA, rowB) => {
     let valueA;
     let valueB;
     if(type === 'date'){
@@ -1273,8 +1325,8 @@ function sortRows(rows, lensState){
     }
     const result = compareValues(valueA, valueB);
     if(result !== 0) return result * direction;
-    const nameA = contactName(a) || partnerName(a) || '';
-    const nameB = contactName(b) || partnerName(b) || '';
+    const nameA = contactName(rowA.record) || partnerName(rowA.record) || '';
+    const nameB = contactName(rowB.record) || partnerName(rowB.record) || '';
     return nameA.localeCompare(nameB) * direction;
   });
 }
@@ -1286,14 +1338,16 @@ function applyLimit(rows, limit){
 
 function applySearch(lensState){
   const { config, searchText, rows } = lensState;
+  if(!Array.isArray(rows) || !rows.length){
+    lensState.visibleRows = [];
+    return;
+  }
   if(!searchText){
-    lensState.visibleRows = rows.map((record) => buildRow(record, config));
+    lensState.visibleRows = rows.slice();
     return;
   }
   const needle = searchText.toLowerCase();
-  lensState.visibleRows = rows
-    .map((record) => buildRow(record, config))
-    .filter((row) => buildSearchText(row, config).includes(needle));
+  lensState.visibleRows = rows.filter((row) => buildSearchText(row, config).includes(needle));
 }
 
 function updateCounts(lensState){
@@ -1694,6 +1748,34 @@ function applyTableLayout(manager){
   const gutterWidth = horizontalOverflow ? scrollbarWidth : 0;
   const containerWidth = wrap.clientWidth;
 
+  let nameIndex = -1;
+  for(let index = 0; index < dataColumnCount; index += 1){
+    const headerCell = headerCells[index];
+    if(!headerCell || !headerCell.dataset) continue;
+    if(headerCell.dataset.column === 'name'){
+      nameIndex = index;
+      break;
+    }
+  }
+  if(nameIndex > -1 && containerWidth > 0){
+    const otherWidth = widths.reduce((sum, value, idx) => idx === nameIndex ? sum : sum + value, 0);
+    const available = containerWidth - otherWidth - gutterWidth;
+    if(available > 0){
+      const base = Math.max(widths[nameIndex], MIN_NAME_COLUMN_WIDTH);
+      let target;
+      if(available >= base){
+        target = available;
+      }else if(available >= MIN_NAME_COLUMN_WIDTH){
+        target = Math.max(MIN_NAME_COLUMN_WIDTH, available);
+      }else{
+        target = Math.max(available, 44);
+      }
+      widths[nameIndex] = Math.max(44, Math.round(target));
+    }else if(widths[nameIndex] < MIN_NAME_COLUMN_WIDTH){
+      widths[nameIndex] = Math.max(44, Math.round(widths[nameIndex]));
+    }
+  }
+
   const newSnapshot = {
     widths: widths.slice(),
     gutter: Math.max(0, Math.round(gutterWidth)),
@@ -1847,31 +1929,37 @@ async function ensureBaseRecords(lensState){
       try{ return config.baseFilter(record); }
       catch (err){ console && console.warn && console.warn('[workbench] partner base filter failed', err); return false; }
     });
+    lensState.rowCache = new WeakMap();
   }else{
     const contacts = await loadContacts();
     lensState.baseRecords = contacts.filter((record) => {
       try{ return config.baseFilter(record); }
       catch (err){ console && console.warn && console.warn('[workbench] contact base filter failed', err); return false; }
     });
+    lensState.rowCache = new WeakMap();
   }
   return lensState.baseRecords;
 }
 
 async function runLensQuery(lensState, options = {}){
-  const { config } = lensState;
-  const reuseBase = options.reuseBase === true;
+  const refreshBase = options.refreshBase === true;
   setLoading(lensState, true);
   lensState.lastError = null;
   try{
-    if(!reuseBase){
-      await ensureBaseRecords(lensState);
-    }else if(!lensState.baseRecords){
+    if(refreshBase){
+      lensState.baseRecords = null;
+    }
+    if(refreshBase || !Array.isArray(lensState.baseRecords)){
       await ensureBaseRecords(lensState);
     }
+    await yieldFrame();
     const baseRecords = Array.isArray(lensState.baseRecords) ? lensState.baseRecords : [];
-    const filtered = applyFiltersToBaseRecords(lensState, baseRecords);
+    const filtered = await applyFiltersToBaseRecords(lensState, baseRecords);
+    await yieldMicrotask();
     const sorted = sortRows(filtered, lensState);
-    const limited = applyLimit(sorted, lensState.limit != null ? Number(lensState.limit) : null);
+    await yieldMicrotask();
+    const limitValue = lensState.limit != null ? Number(lensState.limit) : null;
+    const limited = applyLimit(sorted, Number.isFinite(limitValue) ? limitValue : null);
     lensState.rows = limited;
     lensState.dataLoaded = true;
     applySearch(lensState);
@@ -2095,7 +2183,7 @@ function buildWindow(lensState){
   runBtn.addEventListener('click', () => {
     state.layout.lastActive = lensState.config.key;
     scheduleLayoutSave();
-    runLensQuery(lensState, { reuseBase: false });
+    runLensQuery(lensState, { refreshBase: true });
   });
   header.appendChild(runBtn);
 
