@@ -27,7 +27,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
-export const CONTACT_MODAL_KEY = 'contact-modal';
+export const CONTACT_MODAL_KEY = 'contact';
 
 function resolveContactModalInvoker(source){
   if(!source) return null;
@@ -594,8 +594,13 @@ export function normalizeContactId(input) {
         ? options.invoker
         : resolveContactModalInvoker(options);
 
-    let base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
-    base = base instanceof Promise ? await base : base;
+    let base = null;
+    if(options.host instanceof HTMLElement){
+      base = tagModal(options.host);
+    }else{
+      base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
+      base = base instanceof Promise ? await base : base;
+    }
     if(!base){
       try{ console && console.warn && console.warn('[contact-editor]', 'host missing'); }
       catch(_warn){}
@@ -2493,8 +2498,6 @@ function closeQuickAddOverlayIfOpen(){
   }
 }
 
-let lastOpenedId = null;
-
 const CALENDAR_INVALID_CONTACT_ID_TOKENS = new Set(['', 'null', 'undefined']);
 const INVALID_PARTNER_ID_TOKENS = new Set(['', 'null', 'undefined']);
 
@@ -2575,6 +2578,10 @@ export async function openContactModal(contactId, options){
 
   if(!hasExplicitId && !allowAutoOpen){
     toastWarn('Select a contact to open');
+    queueContactMicrotask(() => {
+      if(__lastOpen.id === null) return;
+      __lastOpen = { id: null, t: 0 };
+    });
     return null;
   }
 
@@ -2598,6 +2605,7 @@ export async function openContactModal(contactId, options){
     return existing || null;
   }
   __lastOpen = { id: dedupeId, t: now };
+
   if(existing && existing.dataset?.open === '1'){
     const currentId = existing.dataset?.contactId
       || existing.querySelector?.('#c-id')?.value?.trim()
@@ -2612,6 +2620,11 @@ export async function openContactModal(contactId, options){
           catch(__err){}
         }
       }
+      queueContactMicrotask(() => {
+        if(__lastOpen.id === dedupeId){
+          __lastOpen = { id: null, t: 0 };
+        }
+      });
       return existing;
     }
   }
@@ -2637,6 +2650,18 @@ export async function openContactModal(contactId, options){
     : 'Unable to open contact';
 
   const sequence = (async () => {
+    closeQuickAddOverlayIfOpen();
+    let host = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
+    host = host instanceof Promise ? await host : host;
+    if(!host){
+      try{ console && console.warn && console.warn('[contact-editor]', 'host missing'); }
+      catch(_warn){}
+      if(!suppressErrorToast){
+        toastWarn('Contact editor unavailable');
+      }
+      return null;
+    }
+    mergedOptions.host = host;
     try{
       const result = await opener(normalizedId || null, mergedOptions);
       return result || null;
@@ -2667,15 +2692,8 @@ export async function openContactModal(contactId, options){
 }
 
 export async function openContactEditor(prefill){
-  let model = normalizeNewContactPrefill(prefill || {});
+  const model = normalizeNewContactPrefill(prefill || {});
   model.id = normalizeContactId(model);
-
-  if(lastOpenedId === model.id){
-    if(pendingContactOpen && pendingContactOpen.id === model.id){
-      return pendingContactOpen.promise;
-    }
-    return Promise.resolve(null);
-  }
 
   closeQuickAddOverlayIfOpen();
 
@@ -2686,9 +2704,8 @@ export async function openContactEditor(prefill){
     suppressErrorToast: true
   };
 
-  lastOpenedId = model.id;
   try {
-    const result = await openContactModal(model.id, options);
+    const result = await openContactModal(model, options);
     return result || null;
   } catch (err) {
     try{ console && console.warn && console.warn('[contact-editor:init]', err); }
@@ -2696,8 +2713,6 @@ export async function openContactEditor(prefill){
     toastWarn('Couldn\u2019t open the full editor. Please try again.');
     teardownContactModalShell();
     return null;
-  } finally {
-    lastOpenedId = null;
   }
 }
 

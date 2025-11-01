@@ -151,15 +151,9 @@ function renderContactNameLink(record, id, lensKey){
   link.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if(!id) return;
-    const opener = typeof openContactModal === 'function'
-      ? openContactModal
-      : (typeof window !== 'undefined' && typeof window.renderContactModal === 'function'
-        ? window.renderContactModal
-        : null);
-    if(!opener) return;
+    if(!id || typeof openContactModal !== 'function') return;
     try{
-      opener(id, { sourceHint: `workbench:${lensKey}`, trigger: link });
+      openContactModal(id, { sourceHint: `workbench:${lensKey}`, trigger: link });
     }catch (err){
       try{ console && console.warn && console.warn('[workbench] contact modal failed', err); }
       catch (_err){}
@@ -1989,18 +1983,12 @@ function handleRowClick(event, lensState){
     }
     return;
   }
-  const opener = typeof openContactModal === 'function'
-    ? openContactModal
-    : (typeof window !== 'undefined' && typeof window.renderContactModal === 'function'
-      ? window.renderContactModal
-      : null);
-  if(opener){
-    try{
-      opener(id, { sourceHint: `workbench:${lensState.config.key}`, trigger: link });
-    }catch (err){
-      try{ console && console.warn && console.warn('[workbench] contact modal failed', err); }
-      catch (_err){}
-    }
+  if(typeof openContactModal !== 'function') return;
+  try{
+    openContactModal(id, { sourceHint: `workbench:${lensState.config.key}`, trigger: link });
+  }catch (err){
+    try{ console && console.warn && console.warn('[workbench] contact modal failed', err); }
+    catch (_err){}
   }
 }
 
