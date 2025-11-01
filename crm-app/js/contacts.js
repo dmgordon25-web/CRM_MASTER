@@ -3,6 +3,44 @@ import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function resolveContactName(model){
+  if(!model || typeof model !== 'object') return '';
+  if(typeof model.name === 'string' && model.name.trim()){
+    return model.name.trim();
+  }
+  const first = typeof model.firstName === 'string' ? model.firstName.trim() : '';
+  const last = typeof model.lastName === 'string' ? model.lastName.trim() : '';
+  return [first, last].filter(Boolean).join(' ').trim();
+}
+
+export function validateContact(model){
+  const source = model && typeof model === 'object' ? model : {};
+  const errors = {};
+
+  const name = resolveContactName(source);
+  if(!name){
+    errors.name = 'required';
+  }
+
+  const email = typeof source.email === 'string' ? source.email.trim() : '';
+  const phone = typeof source.phone === 'string' ? source.phone.trim() : '';
+  const hasPhone = Boolean(phone);
+  const hasEmail = Boolean(email);
+
+  if(hasEmail && !EMAIL_PATTERN.test(email)){
+    errors.email = 'invalid';
+  }
+
+  if(!hasEmail && !hasPhone){
+    errors.email = errors.email || 'required';
+    errors.phone = 'required';
+  }
+
+  return { ok: Object.keys(errors).length === 0, errors };
+}
 import {
   renderStageChip,
   canonicalStage,

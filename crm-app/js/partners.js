@@ -10,6 +10,16 @@ import { clearSelectionForSurface } from './services/selection_reset.js';
 import { REFERRAL_ROLLUP_RANGES, computeReferralRollup } from './reports/referrals.js';
 import { openContactModal } from './contacts.js';
 
+export function validatePartner(model){
+  const source = model && typeof model === 'object' ? model : {};
+  const name = typeof source.name === 'string' ? source.name.trim() : '';
+  const errors = {};
+  if(!name){
+    errors.name = 'required';
+  }
+  return { ok: Object.keys(errors).length === 0, errors };
+}
+
 const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[data-ui="toast"]';
 
 const referralRollupState = {
