@@ -422,6 +422,7 @@ const state = {
   root: null,
   layout: null,
   savedQueries: [],
+  savedQueriesLoaded: false,
   lensStates: new Map(),
   lensDrafts: new Map(),
   selectionUnsubscribe: null,
@@ -518,7 +519,11 @@ async function loadSavedQueries(){
     try{ await window.openDB(); }
     catch (_err){}
   }
-  if(typeof window.dbSettingsGet !== 'function'){ state.savedQueries = []; return state.savedQueries; }
+  if(typeof window.dbSettingsGet !== 'function'){
+    state.savedQueries = [];
+    state.savedQueriesLoaded = true;
+    return state.savedQueries;
+  }
   try{
     const record = await window.dbSettingsGet(STORAGE_KEYS.queries);
     if(record && Array.isArray(record.queries)){
@@ -530,6 +535,7 @@ async function loadSavedQueries(){
     state.savedQueries = [];
     console && console.warn && console.warn('[workbench] failed to load saved queries', err);
   }
+  state.savedQueriesLoaded = true;
   return state.savedQueries;
 }
 
@@ -544,6 +550,365 @@ async function persistSavedQueries(){
   }catch (err){
     console && console.warn && console.warn('[workbench] failed to persist saved queries', err);
   }
+}
+
+function ensureSavedQueriesLoaded(){
+  if(state.savedQueriesLoaded){
+    return Promise.resolve(state.savedQueries);
+  }
+  return loadSavedQueries();
+}
+
+function cloneSavedQuery(entry){
+  if(!entry) return null;
+  const filters = Array.isArray(entry.filters)
+    ? entry.filters.map((filter) => ({
+      field: filter?.field || '',
+      operator: filter?.operator || '',
+      value: filter?.value
+    })).filter((filter) => filter.field)
+    : [];
+  const sort = entry.sort && entry.sort.field
+    ? { field: entry.sort.field, direction: entry.sort.direction === 'desc' ? 'desc' : 'asc' }
+    : { field: '', direction: 'asc' };
+  const limit = entry.limit != null ? Number(entry.limit) || null : null;
+  return {
+    id: entry.id,
+    name: entry.name,
+    lens: entry.lens,
+    filters,
+    sort,
+    limit,
+    createdAt: entry.createdAt || Date.now(),
+    updatedAt: entry.updatedAt || entry.createdAt || Date.now()
+  };
+}
+
+function toServiceResult(entry){
+  const clone = cloneSavedQuery(entry);
+  if(!clone) return null;
+  const config = CONFIG_BY_KEY.get(clone.lens) || null;
+  return {
+    ...clone,
+    entity: config ? config.entity : ''
+  };
+}
+
+function resolveLensConfigFromOptions(options = {}){
+  const lensKey = typeof options.lens === 'string' ? options.lens.trim() : '';
+  if(lensKey && CONFIG_BY_KEY.has(lensKey)){
+    return CONFIG_BY_KEY.get(lensKey);
+  }
+  const rawEntity = typeof options.entity === 'string' ? options.entity.trim().toLowerCase() : '';
+  if(rawEntity){
+    const entity = rawEntity.endsWith('s') ? rawEntity.slice(0, -1) : rawEntity;
+    const match = LENS_CONFIGS.find((config) => config.entity === entity || config.key === rawEntity);
+    if(match) return match;
+  }
+  const layout = ensureLayout();
+  if(layout.lastActive && CONFIG_BY_KEY.has(layout.lastActive)){
+    return CONFIG_BY_KEY.get(layout.lastActive);
+  }
+  return LENS_CONFIGS[0] || null;
+}
+
+function getLensStateForConfig(config){
+  if(!config) return null;
+  ensureLensStates();
+  return state.lensStates.get(config.key) || null;
+}
+
+function normalizeServiceFilters(source, config){
+  if(!config) return [];
+  const filters = [];
+  if(Array.isArray(source)){
+    source.forEach((filter) => {
+      const fieldKey = typeof filter?.field === 'string' ? filter.field : '';
+      if(!fieldKey || !config.fieldsMap.has(fieldKey)) return;
+      const rawValue = filter?.value;
+      if(rawValue == null || rawValue === '') return;
+      const operator = typeof filter?.operator === 'string'
+        ? filter.operator
+        : defaultOperatorFor(config.fieldsMap.get(fieldKey));
+      filters.push({ field: fieldKey, operator, value: rawValue });
+    });
+    return filters;
+  }
+  if(source && typeof source === 'object'){
+    Object.entries(source).forEach(([fieldKey, rawValue]) => {
+      if(!config.fieldsMap.has(fieldKey)) return;
+      if(rawValue == null || rawValue === '') return;
+      const operator = defaultOperatorFor(config.fieldsMap.get(fieldKey));
+      filters.push({ field: fieldKey, operator, value: rawValue });
+    });
+    return filters;
+  }
+  return [];
+}
+
+function normalizeQuerySpec(spec, config){
+  const payload = {
+    filters: [],
+    sort: config?.defaultSort ? { ...config.defaultSort } : { field: '', direction: 'asc' },
+    limit: null
+  };
+  if(!config || !spec || typeof spec !== 'object'){
+    return payload;
+  }
+  let filterSource = null;
+  if(Array.isArray(spec.filters) || (spec.filters && typeof spec.filters === 'object')){
+    filterSource = spec.filters;
+  }else{
+    const candidate = {};
+    Object.entries(spec).forEach(([key, value]) => {
+      if(config.fieldsMap.has(key)) candidate[key] = value;
+    });
+    if(Object.keys(candidate).length){
+      filterSource = candidate;
+    }
+  }
+  if(filterSource){
+    payload.filters = normalizeServiceFilters(filterSource, config);
+  }
+  const sortSource = spec.sort || spec.order || spec.sortBy;
+  if(sortSource && typeof sortSource === 'object'){
+    const sortField = typeof sortSource.field === 'string'
+      ? sortSource.field
+      : typeof sortSource.key === 'string'
+        ? sortSource.key
+        : '';
+    if(sortField && config.fieldsMap.has(sortField)){
+      const dirRaw = sortSource.direction || sortSource.dir || sortSource.order;
+      payload.sort = {
+        field: sortField,
+        direction: dirRaw === 'desc' ? 'desc' : 'asc'
+      };
+    }
+  }
+  const limitSource = spec.limit ?? spec.pageSize ?? spec.take;
+  if(limitSource != null){
+    const numeric = Number(limitSource);
+    payload.limit = Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+  return payload;
+}
+
+async function ensureLensData(lensState, { refresh = false } = {}){
+  if(!lensState) return null;
+  if(refresh){
+    lensState.dataLoaded = false;
+  }
+  if(!lensState.dataLoaded){
+    await runLensQuery(lensState, { refreshBase: refresh });
+  }
+  return lensState;
+}
+
+function escapeCsvValue(value){
+  const str = value == null ? '' : String(value);
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
+function buildCsvLines(lensState, rows){
+  if(!lensState || !lensState.config) return [];
+  const headers = ['ID'].concat(lensState.config.columns.map((col) => col.label));
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    const rawId = row.id || toId(row.record?.id) || '';
+    const values = [escapeCsvValue(rawId)];
+    lensState.config.columns.forEach((column) => {
+      const value = getDisplayValue(row, column, lensState.config) || '';
+      values.push(escapeCsvValue(value));
+    });
+    lines.push(values.join(','));
+  });
+  return lines;
+}
+
+function csvFromLines(lines){
+  if(!Array.isArray(lines) || !lines.length) return '\ufeff';
+  return `\ufeff${lines.join('\n')}`;
+}
+
+async function writeReportFile(path, content){
+  if(!path || !content) return false;
+  if(typeof window === 'undefined') return false;
+  const normalizedPath = path.replace(/^\/+/, '');
+  const writers = [
+    window.__WORKBENCH_REPORT_WRITER__,
+    window.__CRM_REPORT_WRITER__,
+    window.__APP_WRITE_REPORT__,
+    window.__writeReport,
+    window.__appendReport
+  ].filter((fn, index, array) => typeof fn === 'function' && array.indexOf(fn) === index);
+  for(let index = 0; index < writers.length; index += 1){
+    const writer = writers[index];
+    try{
+      const result = writer(normalizedPath, content);
+      if(result && typeof result.then === 'function'){
+        await result;
+      }
+      return true;
+    }catch (err){
+      try{ console && console.warn && console.warn('[workbench] report writer failed', err); }
+      catch (_err){}
+    }
+  }
+  if(typeof fetch === 'function'){
+    try{
+      const origin = window.location && window.location.origin ? window.location.origin : '';
+      const url = origin ? `${origin}/__report` : '/__report';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: normalizedPath, content })
+      });
+      if(response && response.ok) return true;
+    }catch (_err){}
+  }
+  return false;
+}
+
+async function recordCsvPreview(lines){
+  if(!Array.isArray(lines) || !lines.length) return;
+  const preview = lines.slice(0, 5).join('\n');
+  if(!preview) return;
+  try{
+    await writeReportFile('reports/A18/workbench_export.log', `${preview}\n`);
+  }catch (err){
+    try{ console && console.warn && console.warn('[workbench] failed to record CSV preview', err); }
+    catch (_err){}
+  }
+}
+
+function createWorkbenchViewService(){
+  return {
+    async list(scope){
+      await ensureSavedQueriesLoaded();
+      if(!scope){
+        return state.savedQueries.map((entry) => toServiceResult(entry)).filter(Boolean);
+      }
+      const config = resolveLensConfigFromOptions(typeof scope === 'string' ? { lens: scope, entity: scope } : scope);
+      if(!config){
+        return [];
+      }
+      return state.savedQueries
+        .filter((entry) => entry.lens === config.key)
+        .map((entry) => toServiceResult(entry))
+        .filter(Boolean);
+    },
+    async save(name, querySpec = {}, options = {}){
+      await ensureSavedQueriesLoaded();
+      const config = resolveLensConfigFromOptions(options);
+      if(!config){
+        throw new Error('Workbench lens unavailable');
+      }
+      const normalized = normalizeQuerySpec(querySpec, config);
+      const now = Date.now();
+      const trimmed = typeof name === 'string' ? name.trim() : '';
+      const entry = {
+        id: generateId(),
+        name: trimmed || `${config.label} Query`,
+        lens: config.key,
+        filters: normalized.filters,
+        sort: normalized.sort,
+        limit: normalized.limit,
+        createdAt: now,
+        updatedAt: now
+      };
+      state.savedQueries.push(entry);
+      await persistSavedQueries();
+      renderSavedQueryLists();
+      return toServiceResult(entry);
+    },
+    async update(id, updates = {}){
+      await ensureSavedQueriesLoaded();
+      if(!id) return null;
+      const entry = state.savedQueries.find((item) => item.id === id);
+      if(!entry) return null;
+      const config = resolveLensConfigFromOptions({ lens: entry.lens });
+      if(typeof updates.name === 'string'){
+        const trimmed = updates.name.trim();
+        if(trimmed) entry.name = trimmed;
+      }
+      if(Object.prototype.hasOwnProperty.call(updates, 'filters')){
+        const normalized = normalizeQuerySpec({ filters: updates.filters }, config);
+        entry.filters = normalized.filters;
+      }
+      if(Object.prototype.hasOwnProperty.call(updates, 'sort')){
+        const normalized = normalizeQuerySpec({ sort: updates.sort }, config);
+        entry.sort = normalized.sort;
+      }
+      if(Object.prototype.hasOwnProperty.call(updates, 'limit')){
+        const normalized = normalizeQuerySpec({ limit: updates.limit }, config);
+        entry.limit = normalized.limit;
+      }
+      entry.updatedAt = Date.now();
+      await persistSavedQueries();
+      renderSavedQueryLists();
+      return toServiceResult(entry);
+    },
+    async remove(id){
+      await ensureSavedQueriesLoaded();
+      const index = state.savedQueries.findIndex((item) => item.id === id);
+      if(index === -1) return false;
+      state.savedQueries.splice(index, 1);
+      state.lensStates.forEach((lensState) => {
+        if(lensState.savedQueryId === id){
+          lensState.savedQueryId = null;
+        }
+      });
+      await persistSavedQueries();
+      renderSavedQueryLists();
+      return true;
+    },
+    async load(id){
+      await ensureSavedQueriesLoaded();
+      const entry = state.savedQueries.find((item) => item.id === id);
+      return entry ? toServiceResult(entry) : null;
+    }
+  };
+}
+
+function createWorkbenchExportApi(){
+  return async function workbenchExportCsv(options = {}){
+    const config = resolveLensConfigFromOptions(options);
+    if(!config){
+      throw new Error('Workbench lens unavailable');
+    }
+    const lensState = getLensStateForConfig(config);
+    if(!lensState){
+      throw new Error('Workbench lens state missing');
+    }
+    await ensureLensData(lensState, { refresh: options.refresh === true });
+    const mode = options.mode === 'all' ? 'all' : 'visible';
+    const rows = mode === 'all'
+      ? (Array.isArray(lensState.rows) ? lensState.rows : [])
+      : (Array.isArray(lensState.visibleRows) && lensState.visibleRows.length ? lensState.visibleRows : (Array.isArray(lensState.rows) ? lensState.rows : []));
+    const lines = buildCsvLines(lensState, rows);
+    recordCsvPreview(lines);
+    return csvFromLines(lines);
+  };
+}
+
+function createWorkbenchSimulateLargeFilter(){
+  return async function workbenchSimulateLargeFilter(sampleSize = 1000, options = {}){
+    const config = resolveLensConfigFromOptions(options);
+    if(!config) return 0;
+    const lensState = getLensStateForConfig(config);
+    if(!lensState) return 0;
+    await ensureLensData(lensState, { refresh: options.refresh === true });
+    const baseRecords = await ensureBaseRecords(lensState);
+    if(!Array.isArray(baseRecords) || !baseRecords.length) return 0;
+    const numericSize = Number(sampleSize);
+    const targetSize = Number.isFinite(numericSize) && numericSize > 0 ? Math.min(numericSize, 50000) : baseRecords.length;
+    const records = [];
+    for(let index = 0; index < targetSize; index += 1){
+      records.push(baseRecords[index % baseRecords.length]);
+    }
+    const filtered = await applyFiltersToBaseRecords(lensState, records);
+    return filtered.length;
+  };
 }
 
 async function loadLensDrafts(){
@@ -2023,26 +2388,18 @@ function handleHeaderSort(lensState, field){
 }
 
 function handleExport(lensState){
-  const rows = lensState.visibleRows;
+  const rows = Array.isArray(lensState?.visibleRows) ? lensState.visibleRows : [];
   if(!rows.length){
     toast('No rows to export');
     return;
   }
-  const headers = ['ID'].concat(lensState.config.columns.map((col) => col.label));
-  const csvLines = [headers.join(',')];
-  rows.forEach((row) => {
-    const rawId = row.id || toId(row.record?.id) || '';
-    const idEscaped = String(rawId).replace(/"/g, '""');
-    const values = [`"${idEscaped}"`];
-    lensState.config.columns.forEach((column) => {
-      const value = getDisplayValue(row, column, lensState.config) || '';
-      const escaped = String(value).replace(/"/g, '""');
-      values.push(`"${escaped}"`);
-    });
-    csvLines.push(values.join(','));
-  });
+  const lines = buildCsvLines(lensState, rows);
+  const previewPromise = recordCsvPreview(lines);
+  if(previewPromise && typeof previewPromise.then === 'function'){
+    previewPromise.catch(() => {});
+  }
   const filename = `${lensState.config.key}-workbench-${new Date().toISOString().slice(0,10)}.csv`;
-  const blob = new Blob(['\ufeff', csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvFromLines(lines)], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -2050,7 +2407,15 @@ function handleExport(lensState){
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  const revoke = () => {
+    try{ URL.revokeObjectURL(url); }
+    catch (_err){}
+  };
+  if(typeof queueMicrotask === 'function'){
+    queueMicrotask(revoke);
+  }else{
+    Promise.resolve().then(revoke, () => {});
+  }
   toast('CSV export ready');
 }
 
@@ -2588,6 +2953,13 @@ if(typeof window !== 'undefined'){
     const mount = state.mount || document.getElementById('view-workbench');
     await renderWorkbench(mount, opts);
   };
+  const viewService = createWorkbenchViewService();
+  const existingViews = window.WorkbenchViews && typeof window.WorkbenchViews === 'object'
+    ? window.WorkbenchViews
+    : {};
+  window.WorkbenchViews = { ...existingViews, ...viewService };
+  window.workbenchExportCsv = createWorkbenchExportApi();
+  window.workbenchSimulateLargeFilter = createWorkbenchSimulateLargeFilter();
 }
 
 export default {
