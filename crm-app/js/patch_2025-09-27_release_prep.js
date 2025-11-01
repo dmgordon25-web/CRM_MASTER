@@ -61,11 +61,8 @@ function runPatch(){
       catch (_) { return String(err); }
     }
 
-    function ensureStyles(){
-      if(document.getElementById(BUTTON_STYLE_ID)) return;
-      const style = document.createElement('style');
-      style.id = BUTTON_STYLE_ID;
-      style.textContent = `
+    const BUTTON_STYLE_ORIGIN = 'crm:release:button';
+    const BUTTON_STYLE_TEXT = `
         #${BUTTON_ID}{
           position:fixed;
           bottom:18px;
@@ -86,7 +83,27 @@ function runPatch(){
           cursor:progress;
         }
       `;
-      document.head.appendChild(style);
+
+    function ensureStyles(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return;
+      const selector = `style[data-origin="${BUTTON_STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(BUTTON_STYLE_ID);
+      }
+      if(!style){
+        style = document.createElement('style');
+        style.id = BUTTON_STYLE_ID;
+        style.setAttribute('data-origin', BUTTON_STYLE_ORIGIN);
+        head.appendChild(style);
+      }else if(style.getAttribute && style.getAttribute('data-origin') !== BUTTON_STYLE_ORIGIN){
+        try{ style.setAttribute('data-origin', BUTTON_STYLE_ORIGIN); }
+        catch(_err){}
+      }
+      if(style.textContent !== BUTTON_STYLE_TEXT){
+        style.textContent = BUTTON_STYLE_TEXT;
+      }
     }
 
     function paramEnabled(){

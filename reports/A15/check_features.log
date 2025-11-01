@@ -1,0 +1,19 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> crmtool@0.1.0 check:features
+> node tools/feature_check.mjs
+
+{"cwd":"/workspace/CRM_MASTER","servedRoot":"/workspace/CRM_MASTER/crm-app","indexPath":"/workspace/CRM_MASTER/crm-app/index.html","indexSha1":"7a8d8b1f251e562011e197ed644dbb8f0c2130a9","time":"2025-11-01T20:55:06.572Z","devKey":"7f471801e2eff547317e89044436f2c6"}
+Error: Failed to launch the browser process!
+/root/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome: error while loading shared libraries: libatk-1.0.so.0: cannot open shared object file: No such file or directory
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at Interface.onClose (file:///workspace/CRM_MASTER/node_modules/@puppeteer/browsers/lib/esm/launch.js:301:24)
+    at Interface.emit (node:events:536:35)
+    at Interface.close (node:internal/readline/interface:527:10)
+    at Socket.onend (node:internal/readline/interface:253:10)
+    at Socket.emit (node:events:536:35)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21)

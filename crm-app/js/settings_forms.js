@@ -22,16 +22,35 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
 
   (function injectSettingsTidy(){
     if(typeof document === 'undefined') return;
-    function apply(){
-      if(!document.getElementById('settings-inline-style')){
-        const styleEl = document.createElement('style');
-        styleEl.id = 'settings-inline-style';
-        styleEl.textContent = '#dashboard-widget-list{ display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:10px; }\n#dashboard-widget-list label.switch{ display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border-subtle,#DDD); border-radius:10px; background:#fff; }';
-        const head = document.head || document.querySelector('head');
-        if(head){
-          head.appendChild(styleEl);
-        }
+    const SETTINGS_STYLE_ID = 'settings-inline-style';
+    const SETTINGS_STYLE_ORIGIN = 'crm:settings:inline';
+    const SETTINGS_STYLE_TEXT = '#dashboard-widget-list{ display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:10px; }\n#dashboard-widget-list label.switch{ display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border-subtle,#DDD); border-radius:10px; background:#fff; }';
+
+    function ensureSettingsStyle(){
+      const head = document.head || document.querySelector('head') || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return null;
+      const selector = `style[data-origin="${SETTINGS_STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(SETTINGS_STYLE_ID);
       }
+      if(!style){
+        style = document.createElement('style');
+        style.id = SETTINGS_STYLE_ID;
+        style.setAttribute('data-origin', SETTINGS_STYLE_ORIGIN);
+        head.appendChild(style);
+      }else if(style.getAttribute && style.getAttribute('data-origin') !== SETTINGS_STYLE_ORIGIN){
+        try{ style.setAttribute('data-origin', SETTINGS_STYLE_ORIGIN); }
+        catch(_err){}
+      }
+      if(style.textContent !== SETTINGS_STYLE_TEXT){
+        style.textContent = SETTINGS_STYLE_TEXT;
+      }
+      return style;
+    }
+
+    function apply(){
+      ensureSettingsStyle();
       const focusCard = document.querySelector('.settings-panel[data-panel="dashboard"] .card:nth-of-type(2)');
       if(focusCard) focusCard.style.display = 'none';
     }

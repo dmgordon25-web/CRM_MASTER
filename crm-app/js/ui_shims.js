@@ -32,9 +32,9 @@
     }
 
     // Minimal styles if not present
-    if(!document.getElementById('modal-shim-css')){
-      const css = document.createElement('style'); css.id='modal-shim-css';
-      css.textContent = `
+    const MODAL_SHIM_STYLE_ID = 'modal-shim-css';
+    const MODAL_SHIM_STYLE_ORIGIN = 'crm:ui:modal-shim';
+    const MODAL_SHIM_STYLE_TEXT = `
       .hidden{ display:none !important; }
       .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:9999; }
       .modal-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.35); }
@@ -51,7 +51,23 @@
       .btn-primary{ background:#0b5cff; color:#fff; border-color:#0b5cff; }
       .muted{ opacity:.7; }
       `;
-      document.head.appendChild(css);
+    if(!document.getElementById(MODAL_SHIM_STYLE_ID)){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(head && typeof head.appendChild === 'function'){
+        let css = typeof document.querySelector === 'function' ? document.querySelector(`style[data-origin="${MODAL_SHIM_STYLE_ORIGIN}"]`) : null;
+        if(!css){
+          css = document.createElement('style');
+          css.id = MODAL_SHIM_STYLE_ID;
+          css.setAttribute('data-origin', MODAL_SHIM_STYLE_ORIGIN);
+          head.appendChild(css);
+        }else if(css.getAttribute && css.getAttribute('data-origin') !== MODAL_SHIM_STYLE_ORIGIN){
+          try{ css.setAttribute('data-origin', MODAL_SHIM_STYLE_ORIGIN); }
+          catch(_err){}
+        }
+        if(css && css.textContent !== MODAL_SHIM_STYLE_TEXT){
+          css.textContent = MODAL_SHIM_STYLE_TEXT;
+        }
+      }
     }
 
     // Ensure None partner exists (deterministic)

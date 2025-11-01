@@ -662,11 +662,9 @@ function runPatch(){
       updateCard('errors', formatErrorCard);
     }
 
-    function ensureStyles(){
-      if(document.getElementById('diag-phase6-style')) return;
-      const style = document.createElement('style');
-      style.id = 'diag-phase6-style';
-      style.textContent = `
+    const DIAG_STYLE_ID = 'diag-phase6-style';
+    const DIAG_STYLE_ORIGIN = 'crm:diag:phase6';
+    const DIAG_STYLE_TEXT = `
         #diag-tray{position:fixed;bottom:16px;right:16px;width:320px;max-height:70vh;font-family:var(--font-body,Arial,Helvetica,sans-serif);font-size:12px;background:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:8px;box-shadow:0 6px 16px rgba(15,23,42,0.2);z-index:30;display:none;flex-direction:column;overflow:hidden}
         #diag-tray[data-open="1"]{display:flex}
         #diag-tray header{display:flex;align-items:center;padding:8px 12px;background:#0f172a;color:#fff;font-size:12px}
@@ -685,7 +683,35 @@ function runPatch(){
         #perf-overlay header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
         #perf-overlay header button{margin-left:auto;font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid rgba(248,250,252,0.6);background:rgba(15,23,42,0.6);color:#f8fafc;cursor:pointer}
       `;
-      document.head.appendChild(style);
+
+    function ensureStyleNode(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return null;
+      const selector = `style[data-origin="${DIAG_STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(DIAG_STYLE_ID);
+      }
+      if(style){
+        if(style.getAttribute && style.getAttribute('data-origin') !== DIAG_STYLE_ORIGIN){
+          try{ style.setAttribute('data-origin', DIAG_STYLE_ORIGIN); }
+          catch(_err){}
+        }
+        return style;
+      }
+      const created = document.createElement('style');
+      created.id = DIAG_STYLE_ID;
+      created.setAttribute('data-origin', DIAG_STYLE_ORIGIN);
+      head.appendChild(created);
+      return created;
+    }
+
+    function ensureStyles(){
+      const style = ensureStyleNode();
+      if(!style) return;
+      if(style.textContent !== DIAG_STYLE_TEXT){
+        style.textContent = DIAG_STYLE_TEXT;
+      }
     }
 
     function ensureTray(){

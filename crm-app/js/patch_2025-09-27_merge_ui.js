@@ -78,11 +78,8 @@ function runPatch(){
       'logs'
     ]);
 
-    function ensureStyle(){
-      if(document.getElementById(STYLE_ID)) return;
-      const style = document.createElement('style');
-      style.id = STYLE_ID;
-      style.textContent = `
+    const STYLE_ORIGIN = 'crm:merge-ui';
+    const STYLE_TEXT = `
         #${MODAL_ID}.merge-dialog::backdrop{background:rgba(15,23,42,.35)}
         #${MODAL_ID}.merge-dialog{max-width:960px;width:94vw;border:none;border-radius:12px;padding:0}
         #${MODAL_ID}.merge-dialog .merge-shell{display:flex;flex-direction:column;max-height:90vh}
@@ -121,7 +118,27 @@ function runPatch(){
           #${MODAL_ID}.merge-dialog .merge-option[data-side="B"]{grid-column:span 2}
         }
       `;
-      document.head.appendChild(style);
+
+    function ensureStyle(){
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if(!head || typeof head.appendChild !== 'function') return;
+      const selector = `style[data-origin="${STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if(!style && typeof document.getElementById === 'function'){
+        style = document.getElementById(STYLE_ID);
+      }
+      if(!style){
+        style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.setAttribute('data-origin', STYLE_ORIGIN);
+        head.appendChild(style);
+      }else if(style.getAttribute && style.getAttribute('data-origin') !== STYLE_ORIGIN){
+        try{ style.setAttribute('data-origin', STYLE_ORIGIN); }
+        catch(_err){}
+      }
+      if(style.textContent !== STYLE_TEXT){
+        style.textContent = STYLE_TEXT;
+      }
     }
 
     function normalizeText(value){
