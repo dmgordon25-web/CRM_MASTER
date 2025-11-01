@@ -1363,10 +1363,13 @@ function gatherLensRowData(table){
   return Array.from(table.querySelectorAll('tbody tr[data-id]')).map(row => {
     const id = row.getAttribute('data-id');
     const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
+    const ariaDisabled = checkbox && checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
+    const disabled = !!(checkbox && (checkbox.disabled || ariaDisabled === 'true'));
     return {
       row,
       id: id ? String(id) : null,
       checkbox,
+      disabled,
       visible: isLensRowVisible(row)
     };
   });
@@ -1395,16 +1398,24 @@ function syncSelectionForLens(lensState){
   });
   const header = table.querySelector('thead input[data-role="select-all"]');
   if(header){
-    const visibleBoxes = rowData.filter(entry => entry.visible && entry.checkbox);
+    const visibleBoxes = rowData.filter(entry => entry.visible && entry.checkbox && !entry.disabled && entry.id);
     const total = visibleBoxes.length;
-    const checkedCount = visibleBoxes.filter(entry => entry.checkbox.checked).length;
-    const shouldIndeterminate = total > 0 && checkedCount > 0 && checkedCount < total;
-    const shouldChecked = total > 0 && checkedCount === total;
+    let selectedVisible = 0;
+    visibleBoxes.forEach((entry) => {
+      if(entry.id && ids.has(entry.id)) selectedVisible += 1;
+    });
+    const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
+    const shouldChecked = total > 0 && selectedVisible === total;
     header.indeterminate = shouldIndeterminate;
     header.checked = shouldChecked;
+    try {
+      header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
+    }catch (_err){}
     if(!total){
       header.indeterminate = false;
       header.checked = false;
+      try { header.setAttribute('aria-checked', 'false'); }
+      catch (_err){}
     }
   }
 }
@@ -2003,10 +2014,13 @@ function handleSelectAllChange(event, lensState){
   if(!store) return;
   checkbox.indeterminate = false;
   const rowData = gatherLensRowData(table);
-  const visibleIds = rowData.filter(entry => entry.visible && entry.id).map(entry => entry.id);
+  const visibleEntries = rowData.filter(entry => entry.visible && entry.id && entry.checkbox && !entry.disabled);
+  const visibleIds = visibleEntries.map(entry => entry.id);
   if(!visibleIds.length){
     checkbox.indeterminate = false;
     checkbox.checked = false;
+    try { checkbox.setAttribute('aria-checked', 'false'); }
+    catch (_err){}
     syncSelectionForLens(lensState);
     return;
   }
@@ -2016,8 +2030,12 @@ function handleSelectAllChange(event, lensState){
     : new Set(Array.from(current || [], value => String(value)));
   if(checkbox.checked){
     visibleIds.forEach(id => next.add(id));
+    try { checkbox.setAttribute('aria-checked', 'true'); }
+    catch (_err){}
   }else{
     visibleIds.forEach(id => next.delete(id));
+    try { checkbox.setAttribute('aria-checked', 'false'); }
+    catch (_err){}
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
