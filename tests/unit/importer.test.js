@@ -64,7 +64,7 @@ describe('importer dedupe + normalization', () => {
     });
     expect(keys).toContain('id:12345');
     expect(keys).toContain('em:user@example.com');
-    expect(keys).toContain('ph:5550001111x9');
+    expect(keys).toContain('ph:55500011119');
     expect(keys).toContain('fb:ada|lovelace|london');
   });
 

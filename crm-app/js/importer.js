@@ -109,14 +109,93 @@ function ensureNoTruncatedCommit(headers) {
   throw error;
 }
 
-function pickExisting(candidate, index) {
+function pickExisting(candidate, index, meta) {
+  if (meta && typeof meta === 'object') meta.matchedKey = null;
   if (!candidate) return null;
   const id = candidate.id == null ? null : String(candidate.id);
-  if (id && index.byId.has(id)) return index.byId.get(id);
+  if (id && index.byId.has(id)) {
+    if (meta && typeof meta === 'object') meta.matchedKey = `id:${id}`;
+    return index.byId.get(id);
+  }
   for (const key of candidate._dedupeKeys || []) {
-    if (index.byKey.has(key)) return index.byKey.get(key);
+    if (index.byKey.has(key)) {
+      if (meta && typeof meta === 'object') meta.matchedKey = key;
+      return index.byKey.get(key);
+    }
   }
   return null;
+}
+
+function describeMatchKey(key) {
+  if (!key) return null;
+  if (key.startsWith('id:')) return 'id';
+  if (key.startsWith('em:')) return 'email';
+  if (key.startsWith('ph:')) return 'phone';
+  if (key.startsWith('fb:')) return 'fallback';
+  return key;
+}
+
+function previewPartner(record) {
+  if (!record || typeof record !== 'object') return null;
+  return {
+    id: record.id ?? null,
+    partnerId: record.partnerId ?? record.id ?? null,
+    name: canon(record.name),
+    company: canon(record.company),
+    email: normalizeEmail(record.email),
+    phone: normalizePhone(record.phone),
+    city: canon(record.city)
+  };
+}
+
+function previewContact(record) {
+  if (!record || typeof record !== 'object') return null;
+  return {
+    id: record.id ?? null,
+    contactId: record.contactId ?? record.id ?? null,
+    first: canon(record.first),
+    last: canon(record.last),
+    email: normalizeEmail(record.email),
+    phone: normalizePhone(record.phone),
+    city: canon(record.city)
+  };
+}
+
+function formatDryRunGroup(group){
+  if(!group || typeof group !== 'object') return '';
+  const kind = group.kind === 'partner' ? 'partner' : 'contact';
+  const kindLabel = kind === 'partner' ? (STR['importer.preview.partner'] || 'Partner') : (STR['importer.preview.contact'] || 'Contact');
+  const reasonLabel = group.reason === 'would-dedupe'
+    ? (STR['importer.preview.reason.dedupe'] || 'would-dedupe')
+    : (STR['importer.preview.reason.create'] || 'would-create');
+  const matched = group.matchedBy ? ` ${(STR['importer.preview.matched'] || 'via')} ${group.matchedBy}` : '';
+  const note = group.note === 'auto-partner' ? ` (${STR['importer.preview.auto-partner'] || 'auto partner link'})` : '';
+  let name = '';
+  if(kind === 'partner'){
+    name = group.next?.name || group.next?.company || group.next?.partnerId || group.next?.id || '—';
+  }else{
+    const first = group.next?.first || '';
+    const last = group.next?.last || '';
+    const full = `${first} ${last}`.trim();
+    name = full || group.next?.contactId || group.next?.id || '—';
+  }
+  const email = group.next?.email ? ` <${group.next.email}>` : '';
+  return `${kindLabel} ${reasonLabel}${matched}${note}: ${name}${email}`;
+}
+
+function renderDryRunPreview(result){
+  if(!result || typeof result !== 'object') return '';
+  const creates = Number(result.creates || 0);
+  const dedupes = Number(result.dedupes || 0);
+  const summary = text('importer.status.dry-run', { creates, dedupes });
+  const lines = [summary];
+  const clampCount = Number(result.clamped || 0);
+  if(clampCount) lines.push(text('importer.status.clamped-note', { count: clampCount }));
+  const autoPartners = Number(result.partnersAutocreated || 0);
+  if(autoPartners) lines.push(text('general.auto-created-partners', { count: autoPartners }));
+  const groups = Array.isArray(result.groups) ? result.groups : [];
+  groups.slice(0, 5).map(formatDryRunGroup).filter(Boolean).forEach((entry) => lines.push(entry));
+  return lines.join('\n');
 }
 
 function buildContactKeys(record) {
@@ -151,6 +230,8 @@ function clampContact(record, stats) {
   next.last = clampValue(next.last, CLAMP_LIMITS.name, stats);
   next.address = clampValue(next.address, CLAMP_LIMITS.address, stats);
   next.notes = clampValue(next.notes, CLAMP_LIMITS.notes, stats);
+  next.email = normalizeEmail(next.email);
+  next.phone = normalizePhone(next.phone);
   return next;
 }
 
@@ -160,6 +241,8 @@ function clampPartner(record, stats) {
   next.company = clampValue(next.company, CLAMP_LIMITS.company, stats);
   next.address = clampValue(next.address, CLAMP_LIMITS.address, stats);
   next.notes = clampValue(next.notes, CLAMP_LIMITS.notes, stats);
+  next.email = normalizeEmail(next.email);
+  next.phone = normalizePhone(next.phone);
   return next;
 }
 
@@ -209,6 +292,8 @@ function mergeContactRecord(existing, incoming) {
   result.updatedAt = Date.now();
   if (!result.id && payload.id) result.id = payload.id;
   if (!result.contactId && payload.contactId) result.contactId = payload.contactId;
+  result.email = normalizeEmail(result.email);
+  result.phone = normalizePhone(result.phone);
   return result;
 }
 
@@ -233,6 +318,8 @@ function mergePartnerRecord(existing, incoming) {
   result.updatedAt = Date.now();
   if (!result.id && payload.id) result.id = payload.id;
   if (!result.partnerId && payload.partnerId) result.partnerId = payload.partnerId;
+  result.email = normalizeEmail(result.email);
+  result.phone = normalizePhone(result.phone);
   return result;
 }
 
@@ -257,6 +344,11 @@ export const IMPORTER_INTERNALS = {
   createIndex,
   registerRecord,
   pickExisting,
+  describeMatchKey,
+  previewContact,
+  previewPartner,
+  formatDryRunGroup,
+  renderDryRunPreview,
   findTruncatedHeaders,
   ensureNoTruncatedCommit
 };
@@ -367,11 +459,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const req = new Set(REQ_PARTNER);
     const col = (key) => mapping[key] && (idx[mapping[key]]!==undefined) ? idx[mapping[key]] : idx[key];
     const clampStats = { count: 0 };
+    const isDryRun = mode === 'dry-run';
+    const dryRun = isDryRun ? { groups: [], creates: 0, dedupes: 0 } : null;
 
-    if(mode==='replace'){ await dbClear('partners'); }
-    await ensureNonePartner();
+    if(mode==='replace' && !isDryRun){ await dbClear('partners'); }
+    if(!isDryRun) await ensureNonePartner();
 
-    const existing = mode==='replace' ? [] : await dbGetAll('partners');
+    const existing = (mode==='replace' && !isDryRun) ? [] : await dbGetAll('partners');
     const index = createIndex(existing, buildPartnerKeys);
     const upserts = [];
 
@@ -411,16 +505,29 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const incoming = clampPartner(baseRecord, clampStats);
       incoming._dedupeKeys = buildPartnerKeys(incoming);
 
-      if(mode==='replace'){
+      if(mode==='replace' && !isDryRun){
         upserts.push(incoming);
         registerRecord(incoming, index, buildPartnerKeys);
         continue;
       }
 
-      const existingMatch = pickExisting(incoming, index);
+      const meta = {};
+      const existingMatch = pickExisting(incoming, index, meta);
       if(existingMatch){
         const merged = mergePartnerRecord(existingMatch, incoming);
         merged._dedupeKeys = buildPartnerKeys(merged);
+        if(dryRun){
+          dryRun.dedupes += 1;
+          dryRun.groups.push({
+            kind: 'partner',
+            reason: 'would-dedupe',
+            matchedBy: describeMatchKey(meta.matchedKey),
+            existing: previewPartner(existingMatch),
+            next: previewPartner(merged)
+          });
+          registerRecord(merged, index, buildPartnerKeys);
+          continue;
+        }
         upserts.push(merged);
         registerRecord(merged, index, buildPartnerKeys);
       }else{
@@ -428,9 +535,32 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         incoming.id = incoming.partnerId = id;
         incoming.updatedAt = Date.now();
         incoming._dedupeKeys = buildPartnerKeys(incoming);
+        if(dryRun){
+          dryRun.creates += 1;
+          dryRun.groups.push({
+            kind: 'partner',
+            reason: 'would-create',
+            matchedBy: null,
+            existing: null,
+            next: previewPartner(incoming)
+          });
+          registerRecord(incoming, index, buildPartnerKeys);
+          continue;
+        }
         upserts.push(incoming);
         registerRecord(incoming, index, buildPartnerKeys);
       }
+    }
+
+    if(dryRun){
+      return {
+        partners: dryRun.creates + dryRun.dedupes,
+        clamped: clampStats.count,
+        creates: dryRun.creates,
+        dedupes: dryRun.dedupes,
+        groups: dryRun.groups,
+        mode: 'dry-run'
+      };
     }
 
     if(upserts.length) await dbBulkPut('partners', upserts);
@@ -444,13 +574,15 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const req = new Set(REQ_CONTACT);
     const col = (key) => mapping[key] && (idx[mapping[key]]!==undefined) ? idx[mapping[key]] : idx[key];
     const clampStats = { count: 0 };
+    const isDryRun = mode === 'dry-run';
+    const dryRun = isDryRun ? { groups: [], creates: 0, dedupes: 0, partnerCreates: 0 } : null;
 
-    if(mode==='replace'){ await dbClear('contacts'); }
+    if(mode==='replace' && !isDryRun){ await dbClear('contacts'); }
 
     const partners = await dbGetAll('partners');
     const pmap = new Map(partners.map(p=>[p.id, p]));
 
-    const existing = mode==='replace' ? [] : await dbGetAll('contacts');
+    const existing = (mode==='replace' && !isDryRun) ? [] : await dbGetAll('contacts');
     const index = createIndex(existing, buildContactKeys);
     const upserts = [];
     const toCreatePartners = [];
@@ -484,11 +616,24 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         const pid = canon(r[col(idKey)]||'');
         if(pid && pmap.has(pid)) return pid;
         const nm = canon(r[col(nameKey)]||''); const co = canon(r[col(compKey)]||''); const em = canon(r[col(emailKey)]||''); const ph = canon(r[col(phoneKey)]||'');
+        const email = normalizeEmail(em);
+        const phone = normalizePhone(ph);
         if(!nm) return NONE_PARTNER_ID;
         const gen = stablePartnerId(nm, co, em);
         if(!pmap.has(gen)){
-          const rec = { id: gen, name:nm, company:co, email:em, phone:ph, tier:'Developing' };
+          const rec = { id: gen, name:nm, company:co, email, phone, tier:'Developing' };
           pmap.set(gen, rec); toCreatePartners.push(rec);
+          if(dryRun){
+            dryRun.partnerCreates += 1;
+            dryRun.groups.push({
+              kind: 'partner',
+              reason: 'would-create',
+              matchedBy: null,
+              existing: null,
+              next: previewPartner(rec),
+              note: 'auto-partner'
+            });
+          }
         }
         return gen;
       }
@@ -505,17 +650,30 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const incoming = clampContact(base, clampStats);
       incoming._dedupeKeys = buildContactKeys(incoming);
 
-      if(mode==='replace'){
+      if(mode==='replace' && !isDryRun){
         incoming.updatedAt = Date.now();
         upserts.push(incoming);
         registerRecord(incoming, index, buildContactKeys);
         continue;
       }
 
-      const existingMatch = pickExisting(incoming, index);
+      const meta = {};
+      const existingMatch = pickExisting(incoming, index, meta);
       if(existingMatch){
         const merged = mergeContactRecord(existingMatch, incoming);
         merged._dedupeKeys = buildContactKeys(merged);
+        if(dryRun){
+          dryRun.dedupes += 1;
+          dryRun.groups.push({
+            kind: 'contact',
+            reason: 'would-dedupe',
+            matchedBy: describeMatchKey(meta.matchedKey),
+            existing: previewContact(existingMatch),
+            next: previewContact(merged)
+          });
+          registerRecord(merged, index, buildContactKeys);
+          continue;
+        }
         upserts.push(merged);
         registerRecord(merged, index, buildContactKeys);
       }else{
@@ -523,15 +681,44 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         incoming.id = incoming.contactId = idFinal;
         incoming.updatedAt = Date.now();
         incoming._dedupeKeys = buildContactKeys(incoming);
+        if(dryRun){
+          dryRun.creates += 1;
+          dryRun.groups.push({
+            kind: 'contact',
+            reason: 'would-create',
+            matchedBy: null,
+            existing: null,
+            next: previewContact(incoming)
+          });
+          registerRecord(incoming, index, buildContactKeys);
+          continue;
+        }
         upserts.push(incoming);
         registerRecord(incoming, index, buildContactKeys);
       }
+    }
+
+    if(dryRun){
+      return {
+        contacts: dryRun.creates + dryRun.dedupes,
+        clamped: clampStats.count,
+        partnersAutocreated: dryRun.partnerCreates,
+        creates: dryRun.creates,
+        dedupes: dryRun.dedupes,
+        groups: dryRun.groups,
+        mode: 'dry-run'
+      };
     }
 
     if(toCreatePartners.length) await dbBulkPut('partners', toCreatePartners);
     if(upserts.length) await dbBulkPut('contacts', upserts);
     if(upserts.length || toCreatePartners.length) emitImportChanged('contacts');
     return { contacts: upserts.length, partnersAutocreated: toCreatePartners.length, clamped: clampStats.count };
+  }
+
+  if(IMPORTER_INTERNALS){
+    IMPORTER_INTERNALS.__importPartners = importPartners;
+    IMPORTER_INTERNALS.__importContacts = importContacts;
   }
 
   function makeMappingUI(headers, required, initialMapping, resolved){
@@ -577,6 +764,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           <strong title="${text('tooltip.pipeline')}">${text('importer.mode.label')}</strong>
           <label class="switch"><input type="radio" name="imp-mode" value="merge" checked> <span title="${text('importer.mode.merge-tooltip')}">${text('importer.mode.merge')}</span></label>
           <label class="switch"><input type="radio" name="imp-mode" value="replace"> <span title="${text('importer.mode.replace-tooltip')}">${text('importer.mode.replace')}</span></label>
+          <label class="switch"><input type="radio" name="imp-mode" value="dry-run"> <span title="${text('importer.mode.dry-run-tooltip')}">${text('importer.mode.dry-run')}</span></label>
         </div>
 
         <div class="card" style="margin-top:8px">
@@ -671,6 +859,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
               const res = (kind==='partners')
                 ? await importPartners(rows, headers, mode, mapping)
                 : await importContacts(rows, headers, mode, mapping);
+              if(mode === 'dry-run'){
+                const preview = renderDryRunPreview(res);
+                if(statusEl){
+                  statusEl.textContent = preview;
+                }
+                const summary = text('importer.status.dry-run', {
+                  creates: Number(res?.creates || 0),
+                  dedupes: Number(res?.dedupes || 0)
+                });
+                const clampCount = Number(res?.clamped || 0);
+                const clampNoteText = clampCount ? text('importer.status.clamped-note', { count: clampCount }) : '';
+                const toastMessage = clampNoteText ? `${summary} (${clampNoteText})` : summary;
+                toastSuccess(toastMessage);
+                return;
+              }
               const count = res.partners || res.contacts || 0;
               const extra = res.partnersAutocreated ? text('general.auto-created-partners', { count: res.partnersAutocreated }) : '';
               const summary = extra

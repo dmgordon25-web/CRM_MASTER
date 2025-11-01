@@ -35,6 +35,8 @@ export const STR = {
   'importer.mode.replace': 'Replace (clear existing records first)',
   'importer.mode.merge-tooltip': 'Merge keeps existing records and updates matches while adding new ones.',
   'importer.mode.replace-tooltip': 'Replace removes existing records before importing this file.',
+  'importer.mode.dry-run': 'Dry run (no changes)',
+  'importer.mode.dry-run-tooltip': 'Preview dedupe outcomes and new records without saving.',
   'importer.step.partners': 'Step 1 — Partners',
   'importer.step.contacts': 'Step 2 — Contacts',
   'importer.step.description': 'Upload CSV. Known headers auto-map; extras are preserved.',
@@ -47,12 +49,20 @@ export const STR = {
   'importer.error.truncated-header': 'Detected truncated column header(s): {headers}. Export a fresh CSV with full column names.',
   'importer.status.imported': 'Imported: {count}',
   'importer.status.imported-with-auto': 'Imported: {count} ({extra})',
+  'importer.status.dry-run': 'Dry run — create: {creates}, dedupe: {dedupes}',
+  'importer.status.clamped-note': 'clamped fields: {count}',
   'importer.status.error': '{message}',
   'importer.tooltip.partners': 'Partner records include contact details and relationship data.',
   'importer.tooltip.contacts': 'Contact records include borrowers, prospects, and referral details.',
   'importer.status.defaults-preselected': 'Defaults are pre-selected when possible.',
   'importer.status.auto-map-note': 'All required fields auto-mapped ✔',
   'importer.status.mapping-help': 'Detected {count} columns. Map required fields:',
+  'importer.preview.partner': 'Partner',
+  'importer.preview.contact': 'Contact',
+  'importer.preview.reason.create': 'would-create',
+  'importer.preview.reason.dedupe': 'would-dedupe',
+  'importer.preview.matched': 'via',
+  'importer.preview.auto-partner': 'auto partner link',
   'stage.long-shot': 'Long Shot',
   'stage.application': 'Application',
   'stage.processing': 'Processing',
@@ -161,7 +171,8 @@ export function legacyText(key, params) {
   return text(key, params);
 }
 
-if (typeof window !== 'undefined') {
-  window.STR = STR;
-  window.getUiString = text;
+const runtime = typeof globalThis !== 'undefined' ? globalThis : null;
+if (runtime) {
+  runtime.STR = STR;
+  runtime.getUiString = text;
 }
