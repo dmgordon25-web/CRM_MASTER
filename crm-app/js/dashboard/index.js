@@ -205,6 +205,8 @@ const prefCache = { value: null, loading: null };
 let lastPersistedLayoutColumns = null;
 let pendingLayoutPersist = null;
 
+const DASHBOARD_WIDGET_EDITING_CLASS = 'dash-widget-editing';
+
 const dashDnDState = {
   controller: null,
   container: null,
@@ -219,8 +221,41 @@ const dashDnDState = {
   hostObserver: null,
   hostObserverTarget: null,
   hostNode: null,
-  lastTeardownReason: ''
+  lastTeardownReason: '',
+  editing: false,
+  updatingEditing: false
 };
+
+function isDashboardEditingEnabled() {
+  return !!dashDnDState.editing;
+}
+
+function applyRootEditingState(container, enabled) {
+  if (!container) return;
+  if (enabled) {
+    try { container.setAttribute('data-editing', '1'); } catch (_err) {}
+  } else {
+    if (container.removeAttribute) {
+      try { container.removeAttribute('data-editing'); } catch (_err) {}
+    }
+  }
+}
+
+function applyWidgetEditingMarkers(container, enabled) {
+  if (!container) return;
+  const nodes = collectWidgetNodes(container);
+  if (!nodes.length) return;
+  nodes.forEach(node => {
+    if (!node) return;
+    if (node.classList) {
+      if (enabled) {
+        node.classList.add(DASHBOARD_WIDGET_EDITING_CLASS);
+      } else {
+        node.classList.remove(DASHBOARD_WIDGET_EDITING_CLASS);
+      }
+    }
+  });
+}
 
 const layoutToggleState = {
   button: null,
@@ -365,6 +400,8 @@ function teardownWidgetDnD(reason) {
   if (container) {
     try { destroyDraggable(container); } catch (_err) {}
   }
+  applyWidgetEditingMarkers(container, false);
+  applyRootEditingState(container, false);
   dashDnDState.controller = null;
   dashDnDState.container = null;
   dashDnDState.active = false;
@@ -483,10 +520,56 @@ function updateLayoutToggleButton(enabled) {
   button.dataset.layoutMode = next ? 'edit' : 'view';
 }
 
+function updateDashboardEditingState(enabled, options = {}) {
+  const next = !!enabled;
+  dashDnDState.editing = next;
+  const wasUpdating = dashDnDState.updatingEditing;
+  if (!wasUpdating) {
+    dashDnDState.updatingEditing = true;
+    try {
+      ensureWidgetDnD();
+    } finally {
+      dashDnDState.updatingEditing = false;
+    }
+  }
+  const container = dashDnDState.container || getDashboardContainerNode();
+  if (container) {
+    applyRootEditingState(container, next);
+    applyWidgetEditingMarkers(container, next);
+  }
+  const controller = dashDnDState.controller;
+  if (controller) {
+    if (typeof controller.setEditMode === 'function') {
+      controller.setEditMode(next);
+    }
+    if (next) {
+      if (typeof controller.enable === 'function') {
+        controller.enable();
+      }
+    } else if (typeof controller.disable === 'function') {
+      controller.disable();
+    }
+  }
+  if (!next) {
+    dashDnDState.active = false;
+    const shouldPersist = options.persist !== false && options.commit !== false;
+    if (shouldPersist) {
+      const host = dashDnDState.container || getDashboardContainerNode();
+      if (host) {
+        persistDashboardOrderImmediate();
+        const columns = dashDnDState.columns || getPreferredLayoutColumns();
+        persistDashboardLayoutState(columns, { includeWidths: true, force: true });
+      }
+    }
+  }
+  exposeDashboardDnDHandlers();
+}
+
 function applyLayoutToggleMode(enabled, options = {}) {
   const next = !!enabled;
   layoutToggleState.mode = next;
   updateLayoutToggleButton(next);
+  updateDashboardEditingState(next, { commit: options.commit !== false, persist: options.persist !== false });
   if (options.commit !== false) {
     const setOptions = {};
     if (options.persist === false) setOptions.persist = false;
@@ -1218,7 +1301,9 @@ function ensureDashboardDragStyles() {
   outline-offset: 2px;
 }
 
-[data-dash-layout-mode="on"] .dash-drag-handle {
+[data-dash-layout-mode="on"] .dash-drag-handle,
+main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
+.dash-widget-editing > .dash-drag-handle {
   display: inline-flex;
   pointer-events: auto;
   opacity: 1;
@@ -1277,7 +1362,11 @@ function ensureDashboardDragStyles() {
 }
 
 [data-dash-layout-mode="on"] [data-dash-widget]:hover > .dash-resize-handle,
-[data-dash-layout-mode="on"] .dash-resize-handle:focus-within {
+[data-dash-layout-mode="on"] .dash-resize-handle:focus-within,
+main[data-ui="dashboard-root"][data-editing="1"] [data-dash-widget]:hover > .dash-resize-handle,
+main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle:focus-within,
+.dash-widget-editing:hover > .dash-resize-handle,
+.dash-widget-editing > .dash-resize-handle:focus-within {
   opacity: 1;
 }
 
@@ -1298,7 +1387,9 @@ main[data-ui="dashboard-root"].dash-gridlines-visible > .dash-gridlines {
   opacity: 0.85;
 }
 
-[data-dash-layout-mode="on"] .dash-resize-handle {
+[data-dash-layout-mode="on"] .dash-resize-handle,
+main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
+.dash-widget-editing > .dash-resize-handle {
   inset: 0;
   right: auto;
   bottom: auto;
@@ -1670,6 +1761,7 @@ function beginWidgetResize(node, evt) {
   if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
     if (evt.button != null && evt.button !== 0) return;
   }
+  if (!isDashboardEditingEnabled()) return;
   const container = dashDnDState.container || getDashboardContainerNode();
   if (!container) return;
   if (dashDnDState.resizeSession) finishWidgetResize(null, false);
@@ -2009,6 +2101,7 @@ function ensureDashboardWidgets(container) {
       }
     }
   });
+  applyWidgetEditingMarkers(container, isDashboardEditingEnabled());
   return nodes;
 }
 
@@ -2255,39 +2348,44 @@ function ensureWidgetDnD() {
   if (dashDnDState.container && dashDnDState.container !== container) {
     teardownWidgetDnD('container-replaced');
   }
-  if (typeof ensureLayoutToggle === 'function') {
+  if (typeof ensureLayoutToggle === 'function' && !dashDnDState.updatingEditing) {
     ensureLayoutToggle();
   }
   dashDnDState.container = container;
   dashDnDState.lastTeardownReason = '';
+  const editing = isDashboardEditingEnabled();
+  applyRootEditingState(container, editing);
   const columns = getPreferredLayoutColumns();
   dashDnDState.columns = columns;
   applyLayoutColumns(columns);
   const nodes = ensureDashboardWidgets(container);
+  applyWidgetEditingMarkers(container, editing);
   const hasNodes = Array.isArray(nodes) && nodes.length > 0;
   celebrationsState.dndReady = hasNodes;
-  dashDnDState.active = hasNodes;
   observeDashboardHost(container);
   if (!hasNodes) {
-    if (dashDnDState.controller && typeof dashDnDState.controller.disable === 'function') {
-      dashDnDState.controller.disable();
+    if (dashDnDState.controller) {
+      if (typeof dashDnDState.controller.setEditMode === 'function') {
+        dashDnDState.controller.setEditMode(editing);
+      }
+      if (typeof dashDnDState.controller.disable === 'function') {
+        dashDnDState.controller.disable();
+      }
     }
+    dashDnDState.active = false;
     cleanupPointerHandlersFor(container);
     exposeDashboardDnDHandlers();
     return;
   }
-  if (dashDnDState.controller && typeof dashDnDState.controller.enable === 'function') {
-    dashDnDState.controller.enable();
-  }
+  const gap = resolveGridGap(container);
+  const gridOptions = {
+    gap,
+    columns,
+    minColumns: DASHBOARD_MIN_COLUMNS,
+    maxColumns: DASHBOARD_MAX_COLUMNS
+  };
   if (!dashDnDState.controller) {
     try {
-      const gap = resolveGridGap(container);
-      const gridOptions = {
-        gap,
-        columns,
-        minColumns: DASHBOARD_MIN_COLUMNS,
-        maxColumns: DASHBOARD_MAX_COLUMNS
-      };
       dashDnDState.controller = makeDraggableGrid({
         container,
         itemSel: DASHBOARD_ITEM_SELECTOR,
@@ -2295,7 +2393,8 @@ function ensureWidgetDnD() {
         storageKey: DASHBOARD_ORDER_STORAGE_KEY,
         idGetter: el => (el && el.dataset && el.dataset.dashWidget) ? el.dataset.dashWidget : (el && el.id ? String(el.id).trim() : ''),
         onOrderChange: persistDashboardOrder,
-        grid: gridOptions
+        grid: gridOptions,
+        enabled: editing
       });
       if (dashDnDState.controller && typeof dashDnDState.controller.setGrid === 'function') {
         dashDnDState.controller.setGrid(gridOptions);
@@ -2309,20 +2408,30 @@ function ensureWidgetDnD() {
       } catch (_warnErr) {}
     }
   } else {
-    const gap = resolveGridGap(container);
-    const gridOptions = {
-      gap,
-      columns,
-      minColumns: DASHBOARD_MIN_COLUMNS,
-      maxColumns: DASHBOARD_MAX_COLUMNS
-    };
     if (typeof dashDnDState.controller.setGrid === 'function') {
       dashDnDState.controller.setGrid(gridOptions);
     }
-    if (typeof dashDnDState.controller.refresh === 'function') {
-      dashDnDState.controller.refresh();
+  }
+  const controller = dashDnDState.controller;
+  if (controller) {
+    if (typeof controller.setEditMode === 'function') {
+      controller.setEditMode(editing);
+    }
+    if (editing) {
+      if (typeof controller.enable === 'function') {
+        controller.enable();
+      }
+    } else if (typeof controller.disable === 'function') {
+      controller.disable();
+    }
+    if (typeof controller.refresh === 'function') {
+      controller.refresh();
     }
   }
+  const enabled = controller && typeof controller.isEnabled === 'function'
+    ? controller.isEnabled()
+    : editing;
+  dashDnDState.active = !!(hasNodes && enabled);
   wireTileTap(container);
   exposeDashboardDnDHandlers();
   if (celebrationsState.shouldRender) {
