@@ -2308,7 +2308,8 @@ function buildWindow(lensState){
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
-  selectAll.setAttribute('aria-label', 'Select all visible rows');
+  selectAll.setAttribute('data-ui', 'row-check-all');
+  selectAll.setAttribute('aria-label', 'Select all');
   selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
   selectAllTh.appendChild(selectAll);
   headerRow.appendChild(selectAllTh);
