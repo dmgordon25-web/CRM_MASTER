@@ -362,11 +362,11 @@ tr:hover td{background:#fafafa}
 .portfolio-table th:nth-child(3),.portfolio-table td:nth-child(3){text-align:right;font-variant-numeric:tabular-nums}
 .portfolio-table-wrap{max-width:100%;overflow-x:auto}
 .table-scroll-host{scrollbar-gutter:stable both-edges}
-#view-workbench{max-width:100%;overflow-x:hidden}
-#workbench-root{max-width:100%;width:100%;overflow:hidden}
+#view-workbench{max-width:100%;width:100%;padding-block:var(--space-5);overflow-x:hidden}
+#workbench-root{max-width:100%;width:100%;display:flex;flex-direction:column;gap:var(--space-4);overflow:visible}
 #workbench-root .workbench-window-body{max-width:100%;overflow-x:hidden;min-width:0}
 #workbench-root .workbench-window-body>*{min-width:0}
-#workbench-root .table-wrap{margin-top:8px}
+#workbench-root .table-wrap{margin-top:var(--space-2)}
 tbody[data-skeleton="1"] tr:hover td{background:transparent}
 [data-skeleton-row] td{padding:12px 10px;border-bottom:1px solid rgba(226,232,240,.7)}
 .skeleton-bar,.skeleton-dot,.loading-line{background:linear-gradient(90deg,rgba(226,232,240,.82) 0%,rgba(203,213,225,.64) 45%,rgba(226,232,240,.82) 100%);background-size:200% 100%;animation:loading-shimmer 1.2s ease-in-out infinite}
