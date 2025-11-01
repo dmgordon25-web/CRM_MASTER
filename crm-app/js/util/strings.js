@@ -6,7 +6,12 @@ export function safeMax(value, limit) {
 }
 
 export function normalizePhone(value) {
-  return String(value ?? '').replace(/[^0-9x+]/gi, '');
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const hasPlus = raw.startsWith('+');
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  return hasPlus ? `+${digits}` : digits;
 }
 
 export function normalizeEmail(value) {
