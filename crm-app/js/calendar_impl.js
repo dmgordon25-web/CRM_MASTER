@@ -129,6 +129,68 @@ function normalizeId(value){
   return text;
 }
 
+function firstNonEmptyId(...values){
+  for(const candidate of values){
+    const id = normalizeId(candidate);
+    if(id) return id;
+  }
+  return '';
+}
+
+function extractNestedId(source, entity){
+  if(!source || typeof source !== 'object') return '';
+  if(entity === 'contact'){
+    if(source.contact && source.contact.id != null) return normalizeId(source.contact.id);
+    if(source.client && source.client.id != null) return normalizeId(source.client.id);
+    if(source.lead && source.lead.id != null) return normalizeId(source.lead.id);
+  }
+  if(entity === 'partner'){
+    if(source.partner && source.partner.id != null) return normalizeId(source.partner.id);
+    if(source.referral && source.referral.id != null) return normalizeId(source.referral.id);
+    if(source.referralPartner && source.referralPartner.id != null) return normalizeId(source.referralPartner.id);
+  }
+  if(entity === 'task'){
+    if(source.task && source.task.id != null) return normalizeId(source.task.id);
+  }
+  return '';
+}
+
+function resolveLinkedId(primary, rawCandidate, normalizedSource, candidateSource, entity){
+  const keys = [`${entity}Id`, `${entity}ID`, `${entity}_id`, `${entity}id`];
+  const collect = (record) => {
+    if(!record || typeof record !== 'object') return [];
+    const results = [];
+    keys.forEach((key) => {
+      if(Object.prototype.hasOwnProperty.call(record, key)){
+        results.push(record[key]);
+      }
+    });
+    const nested = extractNestedId(record, entity);
+    if(nested) results.push(nested);
+    if(entity === 'task'){
+      const type = typeof record.type === 'string' ? record.type.toLowerCase() : '';
+      const kind = typeof record.kind === 'string' ? record.kind.toLowerCase() : '';
+      if((type === 'task' || kind === 'task') && record.id != null){
+        results.push(record.id);
+      }
+    }
+    return results;
+  };
+
+  const candidates = [];
+  collect(primary).forEach((value) => candidates.push(value));
+  if(rawCandidate && rawCandidate !== primary){
+    collect(rawCandidate).forEach((value) => candidates.push(value));
+  }
+  if(normalizedSource && normalizedSource.entity === entity){
+    candidates.push(normalizedSource.id);
+  }
+  if(candidateSource && candidateSource.entity === entity){
+    candidates.push(candidateSource.id);
+  }
+  return firstNonEmptyId(...candidates);
+}
+
 function collectEventTokens(event){
   const tokens = new Set();
   const push = (value) => {
@@ -514,10 +576,14 @@ function collectTaskEvents(tasks, contactMap, range){
     if(!task) return;
     const dueDate = toDateValue(task.due || task.date || task.dueDate);
     if(!dueDate || !isWithinRange(dueDate, range.start, range.end)) return;
-    const contactId = task.contactId ? String(task.contactId) : (task.partnerId ? String(task.partnerId) : '');
+    const contactId = task.contactId != null && task.contactId !== ''
+      ? String(task.contactId)
+      : '';
     const contact = contactId ? contactMap.get(contactId) : null;
     const contactName = formatContactName(contact);
-    const partnerId = task.partnerId ? String(task.partnerId) : '';
+    const partnerId = task.partnerId != null && task.partnerId !== ''
+      ? String(task.partnerId)
+      : '';
     const taskId = task.id != null ? String(task.id) : '';
     const rawTask = {
       ...(task && typeof task === 'object' ? task : {}),
@@ -953,14 +1019,16 @@ function normalizeEvent(raw, index){
   const label = raw.title ? String(raw.title) : 'Calendar Event';
   const subtitle = raw.subtitle ? String(raw.subtitle) : '';
   const status = raw.status ? String(raw.status) : '';
-  const contactId = raw.contactId || raw.partnerId || (raw.source && raw.source.entity === 'partner' ? raw.source.id : null);
-  const partnerId = raw.partnerId || raw.contactId || null;
-  const taskId = raw.taskId || (raw.source && raw.source.entity === 'task' ? raw.source.id : null);
+  const normalizedSource = normalizeSource(raw.source);
+  const rawSource = toRawEventCandidate(raw);
+  const candidateSource = rawSource && rawSource !== raw ? normalizeSource(rawSource.source) : null;
+  const contactId = resolveLinkedId(raw, rawSource, normalizedSource, candidateSource, 'contact');
+  const partnerId = resolveLinkedId(raw, rawSource, normalizedSource, candidateSource, 'partner');
+  const taskId = resolveLinkedId(raw, rawSource, normalizedSource, candidateSource, 'task');
   const hasLoan = !!raw.hasLoan;
   const contactName = raw.contactName ? String(raw.contactName) : '';
   const loanKey = raw.loanKey ? String(raw.loanKey) : '';
   const loanLabel = raw.loanLabel ? String(raw.loanLabel) : '';
-  const rawSource = toRawEventCandidate(raw);
   const userEvent = isUserEventCandidate(rawSource) || isUserEventCandidate(raw);
   const fixed = isEventFixed(rawSource) || isEventFixed(raw);
   const draggable = !!(userEvent && !fixed && !isExplicitFalse(rawSource && rawSource.draggable) && !isExplicitFalse(raw.draggable));
@@ -970,9 +1038,9 @@ function normalizeEvent(raw, index){
     title: label,
     subtitle,
     status,
-    contactId: contactId ? String(contactId) : '',
-    partnerId: partnerId ? String(partnerId) : '',
-    taskId: taskId ? String(taskId) : '',
+    contactId,
+    partnerId,
+    taskId,
     contactName,
     hasLoan,
     loanKey,
@@ -990,7 +1058,7 @@ function normalizeEvent(raw, index){
     categoryLabel: meta.label,
     icon: meta.icon,
     label: labelForEvent(raw),
-    source: normalizeSource(raw.source),
+    source: normalizedSource,
     raw: rawSource || null,
     userEvent,
     fixed,
