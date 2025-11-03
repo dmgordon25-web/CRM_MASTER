@@ -729,21 +729,34 @@ table.list-table tr::before { content: none !important; }
 
 table.list-table td.contact-name,
 table.list-table td[data-column="name"] {
-  min-width: 0;
+  min-width: 180px;
 }
 
 table.list-table td.contact-name .status-name-link,
 table.list-table td[data-column="name"] .status-name-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
 }
 
 table.list-table td.contact-name .name-text,
 table.list-table td[data-column="name"] .name-text {
-  display: inline-block;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  table.list-table td.contact-name,
+  table.list-table td[data-column="name"] {
+    min-width: 140px;
+  }
 }
 
 table.list-table td.favorite-cell,

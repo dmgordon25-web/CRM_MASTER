@@ -1009,6 +1009,7 @@ function runPatch(){
       const onClick = evt => {
         const card = evt.target && evt.target.closest('[data-card-id]');
         if(!card) return;
+        evt.preventDefault();
         evt.stopPropagation();
         evt.stopImmediatePropagation();
         const id = card.getAttribute('data-card-id');
