@@ -18,6 +18,7 @@ Unphased files (warn only): [
   './dashboard/widgets/pipeline_momentum.js',
   './dashboard/widgets/portfolio_mix.js',
   './dashboard/widgets/referral_leaders.js',
+  './exporter.js',
   './pipeline/constants.js',
   './relationships/index.js',
   './relationships/map.js',
