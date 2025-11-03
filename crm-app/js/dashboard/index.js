@@ -308,6 +308,38 @@ const layoutResetState = {
 
 const pointerTapState = new Map();
 
+function detachLayoutToggleButton(target) {
+  if (!target) return;
+  try { target.removeEventListener('click', handleLayoutToggleClick); }
+  catch (_err) {}
+  try { target.removeEventListener('keydown', handleLayoutToggleKeydown); }
+  catch (_err) {}
+}
+
+function releaseLayoutToggleGlobals() {
+  if (layoutToggleState.modeListenerBound && doc && typeof doc.removeEventListener === 'function') {
+    try { doc.removeEventListener('dashboard:layout-mode', handleExternalLayoutMode); }
+    catch (_err) {}
+    layoutToggleState.modeListenerBound = false;
+  }
+  if (layoutToggleState.storageBound && win && typeof win.removeEventListener === 'function') {
+    try { win.removeEventListener('storage', handleLayoutToggleStorage); }
+    catch (_err) {}
+    layoutToggleState.storageBound = false;
+  }
+}
+
+function teardownLayoutControls() {
+  if (layoutToggleState.button && layoutToggleState.wired) {
+    detachLayoutToggleButton(layoutToggleState.button);
+  }
+  layoutToggleState.button = null;
+  layoutToggleState.viewLabel = null;
+  layoutToggleState.editLabel = null;
+  layoutToggleState.wired = false;
+  releaseLayoutToggleGlobals();
+}
+
 function findDashboardDrilldownTarget(node) {
   if (!node || typeof node.closest !== 'function') return null;
   const selector = DASHBOARD_DRILLDOWN_SELECTOR;
@@ -517,6 +549,9 @@ function teardownWidgetDnD(reason) {
   disconnectDashboardHostObserver();
   celebrationsState.dndReady = false;
   exposeDashboardDnDHandlers();
+  if (reason === 'route-lifecycle' || reason === 'host-removed') {
+    teardownLayoutControls();
+  }
 }
 
 function handleDashboardAppNavigate(evt) {
@@ -526,6 +561,7 @@ function handleDashboardAppNavigate(evt) {
     ensureWidgetDnD();
     return;
   }
+  teardownLayoutControls();
   if (!dashDnDState.container && !dashDnDState.pointerHandlers && !dashDnDState.controller) return;
   teardownWidgetDnD('app:navigate');
 }
@@ -746,11 +782,19 @@ function handleLayoutToggleStorage(evt) {
 function ensureLayoutToggle() {
   const button = resolveLayoutToggleButton();
   if (!button) {
+    if (layoutToggleState.button && layoutToggleState.wired) {
+      detachLayoutToggleButton(layoutToggleState.button);
+    }
     layoutToggleState.button = null;
     layoutToggleState.viewLabel = null;
     layoutToggleState.editLabel = null;
     layoutToggleState.wired = false;
+    releaseLayoutToggleGlobals();
     return null;
+  }
+  if (layoutToggleState.button && layoutToggleState.button !== button && layoutToggleState.wired) {
+    detachLayoutToggleButton(layoutToggleState.button);
+    layoutToggleState.wired = false;
   }
   layoutToggleState.button = button;
   ensureLayoutResetButton();
