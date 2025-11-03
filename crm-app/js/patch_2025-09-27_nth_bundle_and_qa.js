@@ -969,7 +969,7 @@ function runPatch(){
         if(visible.length !== 1) throw new Error(`Expected 1 visible row, saw ${visible.length}`);
         const text = visible[0].textContent || '';
         if(!text.includes('Unique')) throw new Error('Unique row not present');
-        logResult(results, section, name, true, 'Search isolates the unique Long Shot row');
+        logResult(results, section, name, true, 'Search isolates the unique Lead row');
       }catch (err) {
         logResult(results, section, name, false, err && err.message ? err.message : String(err));
       }

@@ -1446,7 +1446,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const full = fullName(c);
       const displayName = safe(full);
       const titleAttr = attr(full || '');
-      return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-id="${attr(c.id||'')}" title="${titleAttr}">${avatar}<span class="name-text">${displayName}</span></a>`;
+      return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-ui="name-link" data-id="${attr(c.id||'')}" title="${titleAttr}">${avatar}<span class="name-text">${displayName}</span></a>`;
     };
 
     const relOpportunities = inpr.map(c=>{

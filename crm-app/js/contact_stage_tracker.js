@@ -4,7 +4,7 @@
 
   // Canonical stage order (8 lanes)
   const STAGE_ITEMS = [
-    { key: 'long-shot', label: 'Long Shot' },
+    { key: 'long-shot', label: 'Lead' },
     { key: 'application', label: 'Application' },
     { key: 'preapproved', label: 'Pre-Approved' },
     { key: 'processing', label: 'Processing' },

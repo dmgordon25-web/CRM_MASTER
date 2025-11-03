@@ -108,6 +108,6 @@ Generated: 2025-10-27T22:31:55.163Z
 | cleared-to-close | Queues closing packet reminders, notifies settlement partners, and schedules celebration touch points. |
 | funded | Triggers post-closing nurture, partner thank-yous, and review requests for the borrower. |
 | post-close | Launches annual reviews, referrals, and gifting automations for happy clients. |
-| nurture | Keeps long-term prospects warm with periodic value touches and partner updates. |
+| nurture | Keeps long-term leads warm with periodic value touches and partner updates. |
 | lost | Documents outcome, schedules re-engagement, and captures learnings for the team. |
 | denied | Captures denial reasons, assigns compliance follow-ups, and plans credit repair touchpoints. |
