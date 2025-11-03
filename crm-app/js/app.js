@@ -1082,6 +1082,110 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
   const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
   const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
+  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
+
+  function normalizeIdSet(ids, scope, store){
+    if(ids instanceof Set) return ids;
+    if(Array.isArray(ids)) return new Set(ids.map(String));
+    if(ids && typeof ids[Symbol.iterator] === 'function'){
+      return new Set(Array.from(ids, (value) => String(value)));
+    }
+    return store ? store.get(scope) : new Set();
+  }
+
+  function wireSelectAllForTable(table){
+    if(!isTableElement(table)) return;
+    const store = getSelectionStore();
+    if(!store) return;
+    const header = typeof table.querySelector === 'function'
+      ? table.querySelector(SELECT_ALL_INPUT_SELECTOR)
+      : null;
+    if(!header) return;
+    const scopeRaw = selectionScopeFor(table);
+    const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
+    const existing = TABLE_SELECT_ALL_BINDINGS.get(table);
+    if(existing && existing.header === header) return;
+    if(existing && typeof existing.cleanup === 'function'){
+      existing.cleanup();
+    }
+    let cleaned = false;
+    let unsubscribe = null;
+    let removalObserver = null;
+
+    const cleanup = () => {
+      if(cleaned) return;
+      cleaned = true;
+      try { header.removeEventListener('change', handleChange); }
+      catch (_err){}
+      if(unsubscribe){
+        try { unsubscribe(); }
+        catch (_err){}
+        unsubscribe = null;
+      }
+      if(removalObserver){
+        try { removalObserver.disconnect(); }
+        catch (_err){}
+        removalObserver = null;
+      }
+      TABLE_SELECT_ALL_BINDINGS.delete(table);
+    };
+
+    const sync = (ids, count) => {
+      if(cleaned) return;
+      if(!table.isConnected){
+        cleanup();
+        return;
+      }
+      const normalizedIds = normalizeIdSet(ids, scope, store);
+      const payload = { root: table, ids: normalizedIds };
+      if(Number.isFinite(count)){
+        payload.count = Number(count);
+      }
+      syncSelectionScope(scope, payload);
+    };
+
+    const handleChange = (event) => {
+      if(event && event.target !== header) return;
+      if(cleaned) return;
+      if(!table.isConnected){
+        cleanup();
+        return;
+      }
+      header.indeterminate = false;
+      applySelectAllToStore(header, store);
+    };
+
+    try {
+      header.addEventListener('change', handleChange);
+    }catch (_err){}
+
+    if(typeof MutationObserver === 'function'){
+      try {
+        removalObserver = new MutationObserver(() => {
+          if(cleaned) return;
+          if(table.isConnected) return;
+          cleanup();
+        });
+        const doc = table.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        const root = doc && doc.documentElement ? doc.documentElement : null;
+        if(root){
+          removalObserver.observe(root, { childList: true, subtree: true });
+        }
+      }catch (_err){
+        removalObserver = null;
+      }
+    }
+
+    unsubscribe = store.subscribe((snapshot) => {
+      if(cleaned) return;
+      if(!snapshot || snapshot.scope !== scope) return;
+      sync(snapshot.ids, snapshot.count);
+    });
+
+    TABLE_SELECT_ALL_BINDINGS.set(table, { header, cleanup, scope });
+
+    sync(store.get(scope), store.count(scope));
+  }
 
   function isTableElement(node){
     if(!node || typeof node !== 'object') return false;
@@ -1091,12 +1195,16 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function ensureRowCheckHeaderForTable(table){
     if(!isTableElement(table)) return;
-    if(typeof table.querySelector === 'function' && table.querySelector(SELECT_ALL_INPUT_SELECTOR)) return;
     const scopeAttr = typeof table.getAttribute === 'function' ? table.getAttribute('data-selection-scope') : '';
     const normalizedScope = typeof scopeAttr === 'string' ? scopeAttr.trim().toLowerCase() : '';
     const hasTargetScope = SELECTABLE_SCOPES.has(normalizedScope);
     const hasRowChecks = typeof table.querySelector === 'function' ? table.querySelector(ROW_CHECK_SELECTOR) : null;
     if(!hasTargetScope && !hasRowChecks) return;
+    const hasHeader = typeof table.querySelector === 'function' ? table.querySelector(SELECT_ALL_INPUT_SELECTOR) : null;
+    if(hasHeader){
+      wireSelectAllForTable(table);
+      return;
+    }
     const head = table.tHead || (typeof table.querySelector === 'function' ? table.querySelector('thead') : null);
     if(!head) return;
     const row = (head.rows && head.rows.length) ? head.rows[0] : (typeof head.querySelector === 'function' ? head.querySelector('tr') : null);
@@ -1129,6 +1237,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }else if(typeof targetCell.appendChild === 'function'){
       targetCell.appendChild(input);
     }
+    wireSelectAllForTable(table);
   }
 
   function ensureRowCheckHeaders(root){
@@ -1420,8 +1529,6 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       if(!(target instanceof HTMLInputElement)) return;
       const role = target.dataset ? target.dataset.role : null;
       if(role === 'select-all'){
-        target.indeterminate = false;
-        applySelectAllToStore(target, store);
         return;
       }
       if(role !== 'select') return;
@@ -1435,6 +1542,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     };
     document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
+    try {
+      document.querySelectorAll('table[data-selection-scope]').forEach((table) => {
+        wireSelectAllForTable(table);
+      });
+    }catch (_err){}
     if(typeof window !== 'undefined'){
       window.syncSelectionScope = syncSelectionScope;
     }
