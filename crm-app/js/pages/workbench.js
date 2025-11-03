@@ -2735,6 +2735,8 @@ function buildWindow(lensState){
   selectAll.setAttribute('data-role', 'select-all');
   selectAll.setAttribute('data-ui', 'row-check-all');
   selectAll.setAttribute('aria-label', 'Select all');
+  selectAll.setAttribute('role', 'checkbox');
+  selectAll.setAttribute('aria-checked', 'false');
   selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
   selectAllTh.appendChild(selectAll);
   headerRow.appendChild(selectAllTh);

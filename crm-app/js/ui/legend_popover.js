@@ -77,7 +77,7 @@ function createEntry(doc, entry){
 }
 
 export const STAGE_LEGEND_ENTRIES = [
-  { label: 'Prospects & nurture', description: 'Long shots, nurture, and brand-new leads', color: 'var(--stage-new)' },
+  { label: 'Leads & nurture', description: 'Lead-stage, nurture, and brand-new leads', color: 'var(--stage-new)' },
   { label: 'Application / Pre-Approved', description: 'Application, qualification, and pre-approval work', color: 'var(--stage-qualified)' },
   { label: 'Processing / Underwriting', description: 'Files actively in processing or underwriting', color: 'var(--stage-negotiating)' },
   { label: 'Clear to Close', description: 'Clear-to-close approvals ready to schedule closing', color: 'var(--stage-ctc)' },

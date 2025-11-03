@@ -1,5 +1,6 @@
 export const TOUCH_OPTIONS = [
   { key: 'call', label: 'Call', prefix: 'Called' },
+  { key: 'text', label: 'Text', prefix: 'Texted' },
   { key: 'email', label: 'Email', prefix: 'Emailed' },
   { key: 'meeting', label: 'Meeting', prefix: 'Met' }
 ];

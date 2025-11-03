@@ -1156,6 +1156,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     };
 
     try {
+      if(header.getAttribute('role') !== 'checkbox'){
+        header.setAttribute('role', 'checkbox');
+      }
+      const state = header.indeterminate ? 'mixed' : (header.checked ? 'true' : 'false');
+      header.setAttribute('aria-checked', state);
+    }catch (_err){}
+
+    try {
       header.addEventListener('change', handleChange);
     }catch (_err){}
 
@@ -1232,6 +1240,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     input.setAttribute('data-ui', 'row-check-all');
     input.setAttribute('data-role', 'select-all');
     input.setAttribute('aria-label', 'Select all');
+    input.setAttribute('role', 'checkbox');
+    input.setAttribute('aria-checked', 'false');
     if(typeof targetCell.insertBefore === 'function'){
       targetCell.insertBefore(input, targetCell.firstChild || null);
     }else if(typeof targetCell.appendChild === 'function'){

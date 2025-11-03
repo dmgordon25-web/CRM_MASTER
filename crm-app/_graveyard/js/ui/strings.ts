@@ -49,7 +49,7 @@ export const STR: Record<string, string> = {
   'importer.status.imported-with-auto': 'Imported: {count} ({extra})',
   'importer.status.error': '{message}',
   'importer.tooltip.partners': 'Partner records include contact details and relationship data.',
-  'importer.tooltip.contacts': 'Contact records include borrowers, prospects, and referral details.',
+  'importer.tooltip.contacts': 'Contact records include borrowers, leads, and referral details.',
   'importer.status.defaults-preselected': 'Defaults are pre-selected when possible.',
   'importer.status.auto-map-note': 'All required fields auto-mapped ✔',
   'importer.status.mapping-help': 'Detected {count} columns. Map required fields:',
@@ -126,7 +126,7 @@ export const STR: Record<string, string> = {
   'tooltip.cleared-to-close': 'Cleared to Close means all conditions are satisfied and documents are ready for signing.',
   'tooltip.processing': 'Processing verifies documents and collects outstanding borrower items.',
   'tooltip.underwriting': 'Underwriting reviews the file for credit, collateral, and capacity.',
-  'tooltip.nurture': 'Nurture keeps prospects warm with automated touchpoints.'
+  'tooltip.nurture': 'Nurture keeps leads warm with automated touchpoints.'
 };
 
 const LEGACY_ALIAS: Record<string, string> = {

@@ -248,8 +248,8 @@ function runPatch(){
     };
 
     const stageLabels = {
-      lead: 'Long Shot',
-      'long-shot': 'Long Shot',
+      lead: 'Lead',
+      'long-shot': 'Lead',
       'pre-app': 'Pre-Approved',
       preapproved: 'Pre-Approved',
       'preapproved-lead': 'Pre-Approved',

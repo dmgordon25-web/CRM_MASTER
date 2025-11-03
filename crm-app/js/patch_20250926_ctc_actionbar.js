@@ -116,7 +116,7 @@ function runPatch(){
       nurture:'Nurture',
       lost:'Lost',
       denied:'Denied',
-      'long-shot':'Long Shot'
+      'long-shot':'Lead'
     };
     const currencyFmt = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb)=>setTimeout(cb,16);
@@ -1271,7 +1271,7 @@ function runPatch(){
         }
         case 'convertPipeline':{
           if(snap.type !== 'contacts'){ toast('Conversion applies to contacts only'); return { status:'cancel', dispatch:false }; }
-          if(snap.ids.length !== 1){ toast('Select a single long shot to convert'); return { status:'cancel', dispatch:false }; }
+          if(snap.ids.length !== 1){ toast('Select a single lead to convert'); return { status:'cancel', dispatch:false }; }
           const data = await ensureSelectionDetail();
           const contact = data.contacts[0];
           if(!contact || !isLongShotRecord(contact)){ toast('Selected contact is already in pipeline'); return { status:'cancel', dispatch:false }; }

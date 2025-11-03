@@ -366,7 +366,7 @@ export function normalizeContactId(input) {
   };
 
   const STAGES = [
-    {value:'long-shot', label:'Long Shot'},
+    {value:'long-shot', label:'Lead'},
     {value:'application', label:'Application'},
     {value:'preapproved', label:'Pre-Approved'},
     {value:'processing', label:'Processing'},
@@ -390,7 +390,7 @@ export function normalizeContactId(input) {
     'cleared-to-close': 'Queues closing packet reminders, notifies settlement partners, and schedules celebration touch points.',
     funded: 'Triggers post-closing nurture, partner thank-yous, and review requests for the borrower.',
     'post-close': 'Launches annual reviews, referrals, and gifting automations for happy clients.',
-    nurture: 'Keeps long-term prospects warm with periodic value touches and partner updates.',
+    nurture: 'Keeps long-term leads warm with periodic value touches and partner updates.',
     lost: 'Documents outcome, schedules re-engagement, and captures learnings for the team.',
     denied: 'Captures denial reasons, assigns compliance follow-ups, and plans credit repair touchpoints.'
   };
@@ -604,6 +604,17 @@ export function normalizeContactId(input) {
     const item = list.find(it=> String(typeof it==='string'?it:it.value)===String(value||''));
     if(!item) return '';
     return typeof item==='string'?item:(item.label||item.value||'');
+  };
+  const DETAIL_DATE_FORMATTER = new Intl.DateTimeFormat('en-US',{ month:'short', day:'numeric', year:'numeric' });
+  const formatDetailDate = (value, fallback = 'Not logged')=>{
+    if(!value) return fallback;
+    try{
+      const date = value instanceof Date ? value : new Date(value);
+      if(Number.isNaN(date.getTime())) return fallback;
+      return DETAIL_DATE_FORMATTER.format(date);
+    }catch (_err){
+      return fallback;
+    }
   };
 
   window.renderContactModal = async function(contactId, rawOptions){
@@ -826,6 +837,13 @@ export function normalizeContactId(input) {
     const fmtCurrency = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const loanMetric = Number(c.loanAmount||0)>0 ? fmtCurrency.format(Number(c.loanAmount||0)) : 'TBD';
     const nextTouch = (c.nextFollowUp||'').slice(0,10) || (c.closingTimeline||'TBD');
+    const lastTouchIso = String(c.lastContact || c.lastTouch || '').slice(0,10);
+    const detailLastTouch = lastTouchIso ? formatDetailDate(lastTouchIso, 'Not logged') : 'Not logged';
+    const nextFollowUpIso = String(c.nextFollowUp || '').slice(0,10);
+    const detailNextFollowUp = nextFollowUpIso
+      ? formatDetailDate(nextFollowUpIso, 'TBD')
+      : (c.closingTimeline ? String(c.closingTimeline) : 'TBD');
+    const detailReferralDisplay = referralPartnerLabel || 'Not linked';
     const stageSliderMarks = STAGE_FLOW.map((stage, idx)=> `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx+1}</span>`).join('');
     const stageSliderLabels = STAGE_FLOW.map(stage=> `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
     const firstName = String(c.first||'').trim();
@@ -881,25 +899,27 @@ export function normalizeContactId(input) {
           </div>
         </aside>
         <div class="modal-main">
-          <section class="milestone-header" data-role="milestone-header">
-            <div class="milestone-header-top">
-              <div class="milestone-progress" role="progressbar" aria-label="Pipeline milestone progress" aria-valuemin="1" aria-valuemax="${PIPELINE_MILESTONES.length}" aria-valuenow="1" data-role="milestone-progress" data-qa="milestone-bar">
-                <div class="milestone-progress-fill" data-role="milestone-progress-fill"></div>
+          <div class="modal-core">
+            <section class="milestone-header" data-role="milestone-header">
+              <div class="milestone-header-top">
+                <div class="milestone-progress" role="progressbar" aria-label="Pipeline milestone progress" aria-valuemin="1" aria-valuemax="${PIPELINE_MILESTONES.length}" aria-valuenow="1" data-role="milestone-progress" data-qa="milestone-bar">
+                  <div class="milestone-progress-fill" data-role="milestone-progress-fill"></div>
+                </div>
+                <button class="btn ghost compact" type="button" data-role="milestone-next" data-qa="milestone-next">Log Next Step</button>
               </div>
-              <button class="btn ghost compact" type="button" data-role="milestone-next" data-qa="milestone-next">Log Next Step</button>
-            </div>
-            <div class="milestone-badges" role="group" aria-label="Milestone badges">
-              ${PIPELINE_MILESTONES.map((label, idx)=> `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('')}
-            </div>
-          </section>
-          <nav class="modal-tabs" id="contact-tabs">
-            <button class="btn active" data-panel="profile" type="button">Profile</button>
-            <button class="btn" data-panel="loan" type="button">Loan &amp; Property</button>
-            <button class="btn" data-panel="relationships" type="button">Relationships</button>
-            <button class="btn" data-panel="docs" type="button">Docs &amp; Automations</button>
-          </nav>
-          <div class="modal-panels">
-            <section class="modal-section modal-panel active" data-panel="profile">
+              <div class="milestone-badges" role="group" aria-label="Milestone badges">
+                ${PIPELINE_MILESTONES.map((label, idx)=> `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('')}
+              </div>
+            </section>
+            <div class="modal-content">
+              <nav class="modal-tabs" id="contact-tabs">
+                <button class="btn active" data-panel="profile" type="button">Profile</button>
+                <button class="btn" data-panel="loan" type="button">Loan &amp; Property</button>
+                <button class="btn" data-panel="relationships" type="button">Relationships</button>
+                <button class="btn" data-panel="docs" type="button">Document Checklist</button>
+              </nav>
+              <div class="modal-panels">
+                <section class="modal-section modal-panel active" data-panel="profile">
               <h4>Borrower Profile</h4>
               <div class="field-grid cols-2">
                 <label data-required="true">First Name<input aria-required="true" id="c-first" value="${escape(c.first||'')}"></label>
@@ -973,21 +993,67 @@ export function normalizeContactId(input) {
               <label class="section-subhead" style="margin-top:14px">Conversation Notes</label>
               <textarea id="c-notes">${escape(c.notes||'')}</textarea>
             </section>
-            <section class="modal-section modal-panel" data-panel="docs">
-              <h4>Documentation &amp; Automations</h4>
-              <div class="doc-automation-grid">
-                <div class="doc-automation-summary">
-                  <div class="muted" id="c-doc-summary">Select a loan program to generate the checklist.</div>
-                  <div class="doc-missing" id="c-doc-missing"></div>
-                  <ul class="doc-chip-list" id="c-doc-list"></ul>
-                </div>
-                <div class="doc-automation-actions">
-                  <button class="btn" type="button" id="c-sync-docs">Sync Required Docs</button>
-                  <button class="btn brand" type="button" id="c-email-docs">Email Document Request</button>
-                </div>
+                <section class="modal-section modal-panel" data-panel="docs">
+                  <h4>Document Checklist</h4>
+                  <div class="doc-automation-grid">
+                    <div class="doc-automation-summary">
+                      <div class="muted" id="c-doc-summary">Select a loan program to generate the checklist.</div>
+                      <div class="doc-missing" id="c-doc-missing"></div>
+                      <ul class="doc-chip-list" id="c-doc-list"></ul>
+                    </div>
+                    <div class="doc-automation-actions">
+                      <button class="btn" type="button" id="c-sync-docs">Sync Required Docs</button>
+                      <button class="btn brand" type="button" id="c-email-docs">Email Document Request</button>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </section>
+            </div>
           </div>
+          <aside class="modal-aside" data-ui="contact-detail-pane">
+            <section class="detail-card" data-role="contact-detail-overview">
+              <h4>Contact Snapshot</h4>
+              <dl class="detail-list">
+                <div class="detail-list-row">
+                  <dt>Stage</dt>
+                  <dd id="c-detail-stage">${escape(stageLabel)}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Status</dt>
+                  <dd id="c-detail-status">${escape(statusLabel)}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Last Touch</dt>
+                  <dd id="c-detail-last">${escape(detailLastTouch)}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Next Follow-Up</dt>
+                  <dd id="c-detail-next">${escape(detailNextFollowUp)}</dd>
+                </div>
+              </dl>
+            </section>
+            <section class="detail-card" data-role="contact-detail-highlights">
+              <h4>Key Details</h4>
+              <dl class="detail-list">
+                <div class="detail-list-row">
+                  <dt>Loan Program</dt>
+                  <dd id="c-detail-program">${escape(c.loanType||c.loanProgram||'Select')}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Loan Amount</dt>
+                  <dd id="c-detail-amount">${escape(loanMetric)}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Lead Source</dt>
+                  <dd id="c-detail-source">${escape(c.leadSource||'Set Source')}</dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Referral Partner</dt>
+                  <dd id="c-detail-referral">${escape(detailReferralDisplay)}</dd>
+                </div>
+              </dl>
+            </section>
+          </aside>
         </div>
       </div>`;
     const buyerSel = $('#c-buyer', body);
@@ -1380,17 +1446,40 @@ export function normalizeContactId(input) {
       const programEl = $('#c-summary-program',body);
       const sourceEl = $('#c-summary-source',body);
       const touchEl = $('#c-summary-touch',body);
+      const detailStageEl = $('#c-detail-stage', body);
+      const detailStatusEl = $('#c-detail-status', body);
+      const detailLastEl = $('#c-detail-last', body);
+      const detailNextEl = $('#c-detail-next', body);
+      const detailProgramEl = $('#c-detail-program', body);
+      const detailAmountEl = $('#c-detail-amount', body);
+      const detailSourceEl = $('#c-detail-source', body);
+      const detailReferralEl = $('#c-detail-referral', body);
       const summaryName = body.querySelector('.summary-name');
       const summaryNote = $('#c-summary-note',body);
       const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
       const statusEl = body.querySelector('.status-pill');
       const stageVal = $('#c-stage',body)?.value || 'application';
       const statusVal = $('#c-status',body)?.value || 'inprogress';
+      const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
+      const statusLabelText = findLabel(STATUSES, statusVal) || 'In Progress';
+      const lastContactField = $('#c-lastcontact', body);
+      const nextFollowUpField = $('#c-nexttouch', body);
+      const timelineField = $('#c-timeline', body);
+      const lastDetailValue = lastContactField && lastContactField.value ? String(lastContactField.value) : '';
+      const nextDetailValue = nextFollowUpField && nextFollowUpField.value ? String(nextFollowUpField.value) : '';
+      const timelineDetailValue = timelineField && timelineField.value ? String(timelineField.value) : '';
+      const nextDetailLabel = nextDetailValue
+        ? formatDetailDate(nextDetailValue, 'TBD')
+        : (timelineDetailValue || 'TBD');
+      const lastDetailLabel = lastDetailValue ? formatDetailDate(lastDetailValue, 'Not logged') : 'Not logged';
       const firstVal = $('#c-first',body)?.value?.trim()||'';
       const lastVal = $('#c-last',body)?.value?.trim()||'';
       if(amountEl){ amountEl.textContent = amountVal>0 ? fmtCurrency.format(amountVal) : 'TBD'; }
       if(programEl){ programEl.textContent = program || 'Select'; }
       if(sourceEl){ sourceEl.textContent = source || 'Set Source'; }
+      if(detailAmountEl){ detailAmountEl.textContent = amountVal>0 ? fmtCurrency.format(amountVal) : 'TBD'; }
+      if(detailProgramEl){ detailProgramEl.textContent = program || 'Select'; }
+      if(detailSourceEl){ detailSourceEl.textContent = source || 'Set Source'; }
       if(referralSummaryBtn){
         const selectedPartnerId = referralPartnerSelect ? String(referralPartnerSelect.value || '').trim() : '';
         let partnerText = partnerLabelFor(selectedPartnerId);
@@ -1406,8 +1495,15 @@ export function normalizeContactId(input) {
         }else{
           delete referralSummaryBtn.dataset.partnerId;
         }
+        if(detailReferralEl){
+          detailReferralEl.textContent = partnerText || 'Not linked';
+        }
+      }else if(detailReferralEl){
+        detailReferralEl.textContent = detailReferralDisplay;
       }
       if(touchEl){ touchEl.textContent = next || 'TBD'; }
+      if(detailNextEl){ detailNextEl.textContent = nextDetailLabel || 'TBD'; }
+      if(detailLastEl){ detailLastEl.textContent = lastDetailLabel; }
       if(summaryName){
         const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
         const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
@@ -1425,14 +1521,14 @@ export function normalizeContactId(input) {
         applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
       }
       if(stageWrap){
-        const canonicalKey = canonicalStage(stageVal) || canonicalStage(findLabel(STAGES, stageVal));
+        const canonicalKey = canonicalStage(stageVal) || canonicalStage(stageLabelText);
         if(canonicalKey){ stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
         stageWrap.dataset.stage = stageVal;
-        const label = findLabel(STAGES, stageVal) || stageVal || 'Application';
-        const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || label) : label;
-        const chip = renderStageChip(stageVal) || renderStageChip(label) || buildStageFallback(canonicalLabel || label, stageVal);
+        const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || stageLabelText) : stageLabelText;
+        const chip = renderStageChip(stageVal) || renderStageChip(stageLabelText) || buildStageFallback(canonicalLabel || stageLabelText, stageVal);
         stageWrap.innerHTML = chip;
       }
+      if(detailStageEl){ detailStageEl.textContent = stageLabelText; }
       if(statusEl){
         statusEl.dataset.status = statusVal;
         const toneKey = toneForStatus(statusVal);
@@ -1441,11 +1537,12 @@ export function normalizeContactId(input) {
         if(toneClass){ statusEl.classList.add(toneClass); }
         if(toneKey){ statusEl.setAttribute('data-tone', toneKey); }
         else { statusEl.removeAttribute('data-tone'); }
-        statusEl.textContent = findLabel(STATUSES, statusVal) || 'In Progress';
+        statusEl.textContent = statusLabelText;
       }
+      if(detailStatusEl){ detailStatusEl.textContent = statusLabelText; }
       if(summaryNote){
         if(stageVal==='post-close'){ summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
-        else if(stageVal==='long-shot'){ summaryNote.textContent = 'Prioritize quick outreach, log lead intel, and enroll in nurture campaigns.'; }
+        else if(stageVal==='long-shot'){ summaryNote.textContent = 'Prioritize quick outreach, log lead intel, and enroll leads in nurture campaigns.'; }
         else if(stageVal==='funded'){ summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }
         else if(stageVal==='nurture'){ summaryNote.textContent = 'Set light-touch cadences, send value content, and track partner intel.'; }
         else if(stageVal==='lost' || stageVal==='denied'){ summaryNote.textContent = 'Capture the outcome, log lessons learned, and schedule a re-engagement plan.'; }
@@ -2246,10 +2343,14 @@ export function normalizeContactId(input) {
     };
 
     const installTouchLogging = ()=>{
+      if(typeof createTouchLogEntry !== 'function' || typeof touchSuccessMessage !== 'function'){
+        toastWarn('Touch logging unavailable');
+        return null;
+      }
       const footer = dlg.querySelector('[data-component="form-footer"]');
-      if(!footer) return;
+      if(!footer) return null;
       const start = footer.querySelector('.form-footer__start');
-      if(!start) return;
+      if(!start) return null;
 
       let controls = dlg.__contactTouchControls || null;
       if(!controls){
@@ -2279,7 +2380,7 @@ export function normalizeContactId(input) {
       }
 
       const { button: logButton, menu } = controls;
-      if(!logButton || !menu) return;
+      if(!logButton || !menu) return null;
 
       TOUCH_OPTIONS.forEach(option => {
         let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
@@ -2360,6 +2461,8 @@ export function normalizeContactId(input) {
         }
       };
 
+      dlg.__contactTouchHandler = logTouch;
+
       if(!logButton.__touchToggle){
         logButton.__touchToggle = true;
         logButton.addEventListener('click', (event)=>{
@@ -2418,10 +2521,41 @@ export function normalizeContactId(input) {
         catch(_err){ dlg.addEventListener('close', closeHandler); }
         menu.__touchCloseHook = closeHandler;
       }
+      return logTouch;
     };
 
     installFollowUpScheduler();
-    installTouchLogging();
+    const logTouchHandler = installTouchLogging();
+    const installHeaderLogButtons = (handler)=>{
+      const host = dlg.querySelector('[data-role="contact-header-actions"]');
+      if(!host) return;
+      host.__logHandler = handler;
+      if(host.__wired) return;
+      host.__wired = true;
+      const buttons = [
+        { key:'call', label:'Log a Call', ui:'log-call' },
+        { key:'text', label:'Log a Text', ui:'log-text' },
+        { key:'email', label:'Log an Email', ui:'log-email' }
+      ];
+      buttons.forEach((meta)=>{
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn ghost';
+        btn.textContent = meta.label;
+        btn.dataset.ui = meta.ui;
+        btn.addEventListener('click', (event)=>{
+          event.preventDefault();
+          const handlerFn = host.__logHandler;
+          if(typeof handlerFn === 'function'){
+            handlerFn(meta.key);
+          }else{
+            toastWarn('Touch logging unavailable');
+          }
+        });
+        host.appendChild(btn);
+      });
+    };
+    installHeaderLogButtons(logTouchHandler);
 
     if(saveBtn){
       if(typeof window.saveForm === 'function'){
@@ -2510,7 +2644,7 @@ export function ensureContactModalShell(options = {}){
     dlg = document.createElement('dialog');
     dlg.id = CONTACT_MODAL_TEMPLATE_ID;
     dlg.classList.add('record-modal');
-    dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
+    dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><div class="modal-header-actions" data-role="contact-header-actions"></div><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
     tagContactModal(dlg);
     host.appendChild(dlg);
   }else{

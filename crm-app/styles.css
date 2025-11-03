@@ -708,11 +708,13 @@ dialog::backdrop{ background:rgba(0,0,0,.35); }
 }
 
 /* Modal layouts */
-.modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:0 0 12px;border-bottom:1px solid #e2e8f0}
+.modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:0 0 12px;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
 .modal-header h3,.modal-header strong,.modal-header .modal-title{margin:0;font-size:18px;letter-spacing:.2px;font-weight:700;color:var(--ink)}
 .modal-header .btn{min-width:auto}
 .modal-header .btn.ghost{color:#1f2937;border-color:transparent;background:rgba(148,163,184,.12)}
 .modal-header .btn.ghost:hover{background:rgba(148,163,184,.2)}
+.modal-header-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.modal-header-actions .btn{min-width:auto}
 .modal-body{flex:1;display:flex;flex-direction:column;gap:16px;min-height:0}
 .dialog-scroll{flex:1 1 auto;overflow:auto;padding-right:8px;margin-right:-8px;max-height:calc(100vh - 220px);min-height:0}
 .modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:12px;border-top:1px solid #e2e8f0}
@@ -745,13 +747,14 @@ table.list-table tr::before { content: none !important; }
 
 table.list-table td.contact-name,
 table.list-table td[data-column="name"] {
-  min-width: 180px;
+  min-width: 200px;
+  white-space: normal;
 }
 
 table.list-table td.contact-name .status-name-link,
 table.list-table td[data-column="name"] .status-name-link {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   max-width: 100%;
@@ -764,14 +767,16 @@ table.list-table td[data-column="name"] .name-text {
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 @media (max-width: 720px) {
   table.list-table td.contact-name,
   table.list-table td[data-column="name"] {
-    min-width: 140px;
+    min-width: 160px;
   }
 }
 
@@ -929,8 +934,8 @@ table.list-table td[data-column="nextAction"] {
 
 /* Make the dialog wide on desktop but fluid if screen is smaller */
 .record-modal .dlg {
-  width: clamp(1040px, 94vw, 1280px);
-  max-width: 1280px;
+  width: clamp(960px, 96vw, 1360px);
+  max-width: min(96vw, 1360px);
 }
 
 /* Let the scroll container live on the body so summary + tabs stay aligned */
@@ -950,6 +955,9 @@ table.list-table td[data-column="nextAction"] {
   padding-right: 24px;
   margin-right: -24px;
   scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* Layout summary + main as a grid; keep children from forcing overflow */
@@ -967,7 +975,19 @@ table.list-table td[data-column="nextAction"] {
 .summary-metric{background:rgba(255,255,255,.72);border:1px solid rgba(15,23,42,.08);border-radius:12px;padding:10px}
 .summary-metric .metric-label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#475569;margin-bottom:4px}
 .summary-metric .metric-value{font-size:16px;font-weight:700;color:var(--ink)}
-.modal-main{flex:1;display:flex;gap:16px;align-items:flex-start;min-width:0}
+.modal-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,320px);gap:20px;align-items:start;min-width:0}
+.modal-main>.modal-core{display:flex;flex-direction:column;gap:16px;min-width:0}
+.modal-core .modal-content{display:flex;gap:16px;align-items:flex-start;min-width:0}
+.modal-main>[data-ui="contact-detail-pane"]{display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;position:relative}
+.modal-main>[data-ui="contact-detail-pane"]::before{content:"";position:absolute;inset:-8px -12px -8px -12px;border-radius:18px;z-index:-1;background:linear-gradient(150deg,#eef2ff,#f1f5f9);opacity:.8}
+[data-ui="contact-detail-pane"] .detail-card{background:#fff;border:1px solid #dbeafe;border-radius:14px;padding:16px;box-shadow:0 10px 26px rgba(148,163,184,.18);display:flex;flex-direction:column;gap:12px}
+[data-ui="contact-detail-pane"] .detail-card h4{margin:0;font-size:14px;letter-spacing:.3px;text-transform:uppercase;color:#1e293b}
+.detail-list{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.detail-list-row{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px;align-items:start}
+.detail-list-row dt{font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:#64748b;margin:0}
+.detail-list-row dd{margin:0;font-size:13px;font-weight:600;color:#0f172a;word-break:break-word}
+.detail-actions{display:flex;flex-wrap:wrap;gap:8px}
+.detail-actions .btn{flex:1 1 120px}
 .milestone-header{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;padding:14px;border-radius:16px;background:linear-gradient(145deg,#f8fafc,#eef2ff);border:1px solid rgba(148,163,184,.24);box-shadow:0 16px 30px rgba(148,163,184,.16)}
 .milestone-header-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .milestone-progress{position:relative;flex:1;min-width:160px;height:8px;border-radius:999px;background:rgba(148,163,184,.28);overflow:hidden}
@@ -1070,6 +1090,15 @@ th.favorite-col > span{display:inline-flex;align-items:center;justify-content:ce
 
 @media (max-width:1023px){
   .modal-summary{max-width:100%}
+}
+
+@media (max-width:1200px){
+  .modal-main{grid-template-columns:minmax(0,1fr) minmax(240px,1fr)}
+}
+
+@media (max-width:960px){
+  .modal-main{grid-template-columns:minmax(0,1fr)}
+  .modal-main>[data-ui="contact-detail-pane"]::before{display:none}
 }
 
 @media (max-width:1080px){

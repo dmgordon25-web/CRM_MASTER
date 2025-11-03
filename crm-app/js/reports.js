@@ -53,7 +53,7 @@ import { normalizeStatus } from './pipeline/constants.js';
     nurture:'Nurture',
     lost:'Lost',
     denied:'Denied',
-    'long shot':'Long Shot'
+    'long shot':'Lead'
   };
   const stageColors = {
     application:'#6366f1',
