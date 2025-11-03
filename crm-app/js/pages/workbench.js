@@ -2507,21 +2507,19 @@ function handleRowCheckboxChange(event, lensState){
 function buildWindow(lensState){
   const { config } = lensState;
   const section = document.createElement('section');
-  section.className = 'card';
+  section.className = 'card workbench-window';
   section.dataset.lens = config.key;
 
   const header = document.createElement('div');
-  header.className = 'row';
-  header.style.alignItems = 'center';
-  header.style.gap = '12px';
+  header.className = 'row workbench-window__header';
 
   const title = document.createElement('h3');
   title.textContent = config.label;
-  title.style.margin = '0';
+  title.className = 'workbench-window__title';
   header.appendChild(title);
 
   const count = document.createElement('span');
-  count.className = 'muted';
+  count.className = 'workbench-window__count muted';
   header.appendChild(count);
 
   const spacer = document.createElement('div');
@@ -2606,22 +2604,13 @@ function buildWindow(lensState){
 
   const body = document.createElement('div');
   body.className = 'workbench-window-body';
-  body.style.marginTop = 'var(--space-3)';
-  body.style.maxWidth = '100%';
-  body.style.overflowX = 'hidden';
-  body.style.minWidth = '0';
   body.hidden = !lensState.open;
 
   const controls = document.createElement('div');
   controls.className = 'workbench-controls';
-  controls.style.display = 'flex';
-  controls.style.flexDirection = 'column';
-  controls.style.gap = '12px';
 
   const filterRow = document.createElement('div');
-  filterRow.className = 'row';
-  filterRow.style.gap = '8px';
-  filterRow.style.alignItems = 'center';
+  filterRow.className = 'row workbench-filter-row';
 
   const addFilterBtn = document.createElement('button');
   addFilterBtn.type = 'button';
@@ -2672,18 +2661,12 @@ function buildWindow(lensState){
 
   const filtersContainer = document.createElement('div');
   filtersContainer.className = 'workbench-filters';
-  filtersContainer.style.display = 'flex';
-  filtersContainer.style.flexDirection = 'column';
-  filtersContainer.style.gap = '8px';
   controls.appendChild(filtersContainer);
 
   body.appendChild(controls);
 
   const savedQueriesWrap = document.createElement('div');
-  savedQueriesWrap.style.display = 'flex';
-  savedQueriesWrap.style.flexDirection = 'column';
-  savedQueriesWrap.style.gap = '8px';
-  savedQueriesWrap.style.marginTop = '12px';
+  savedQueriesWrap.className = 'workbench-saved-queries-wrap';
 
   const savedHeader = document.createElement('strong');
   savedHeader.textContent = 'My Queries';
@@ -2691,17 +2674,11 @@ function buildWindow(lensState){
 
   const savedList = document.createElement('div');
   savedList.className = 'workbench-saved-queries';
-  savedList.style.display = 'flex';
-  savedList.style.flexDirection = 'column';
-  savedList.style.gap = '6px';
   savedQueriesWrap.appendChild(savedList);
   body.appendChild(savedQueriesWrap);
 
   const searchRow = document.createElement('div');
-  searchRow.className = 'row';
-  searchRow.style.alignItems = 'center';
-  searchRow.style.gap = '8px';
-  searchRow.style.marginTop = '12px';
+  searchRow.className = 'row workbench-search-row';
 
   const searchInput = document.createElement('input');
   searchInput.type = 'search';
@@ -2720,28 +2697,17 @@ function buildWindow(lensState){
 
   const status = document.createElement('div');
   status.className = 'workbench-status muted';
-  status.style.marginLeft = 'auto';
-  status.style.display = 'flex';
-  status.style.alignItems = 'center';
-  status.style.gap = '8px';
-  status.style.minHeight = '24px';
   searchRow.appendChild(status);
 
   body.appendChild(searchRow);
 
   const presetRow = document.createElement('div');
-  presetRow.className = 'preset-chip-row';
-  Object.assign(presetRow.style, { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' });
+  presetRow.className = 'preset-chip-row workbench-preset-row';
   presetRow.hidden = true;
   body.appendChild(presetRow);
 
   const tableWrap = document.createElement('div');
   tableWrap.className = 'table-wrap';
-  tableWrap.style.marginTop = 'var(--space-2)';
-  tableWrap.style.maxWidth = '100%';
-  tableWrap.style.overflowX = 'auto';
-  tableWrap.style.overflowY = 'hidden';
-  tableWrap.style.position = 'relative';
   if(tableWrap.dataset){
     tableWrap.dataset.tableLens = config.key || '';
   }
@@ -2749,7 +2715,6 @@ function buildWindow(lensState){
   const table = document.createElement('table');
   table.className = 'table list-table';
   table.classList.add('table-managed');
-  table.style.width = '100%';
   table.setAttribute('data-selection-scope', config.selectionScope);
   table.setAttribute('data-table-role', config.key ? `workbench-${config.key}` : 'workbench');
   if(table.dataset){
@@ -2849,9 +2814,7 @@ function buildShell(){
   const root = state.root;
   if(!root) return;
   root.innerHTML = '';
-  root.style.display = 'flex';
-  root.style.flexDirection = 'column';
-  root.style.gap = 'var(--space-4)';
+  root.classList.add('workbench-shell');
   const legendDoc = root.ownerDocument || document;
   const legend = createLegendPopover({
     document: legendDoc,
