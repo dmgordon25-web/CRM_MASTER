@@ -2806,6 +2806,11 @@ function buildWindow(lensState){
   tableWrap.appendChild(table);
   body.appendChild(tableWrap);
 
+  if(typeof window !== 'undefined' && typeof window.ensureRowCheckHeaders === 'function'){
+    try { window.ensureRowCheckHeaders(table); }
+    catch (_err) {}
+  }
+
   section.appendChild(body);
 
   lensState.elements = {

@@ -1079,8 +1079,73 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     return true;
   }
 
+  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
+  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
+  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
+
+  function isTableElement(node){
+    if(!node || typeof node !== 'object') return false;
+    const name = typeof node.nodeName === 'string' ? node.nodeName.toLowerCase() : '';
+    return name === 'table';
+  }
+
+  function ensureRowCheckHeaderForTable(table){
+    if(!isTableElement(table)) return;
+    if(typeof table.querySelector === 'function' && table.querySelector(SELECT_ALL_INPUT_SELECTOR)) return;
+    const scopeAttr = typeof table.getAttribute === 'function' ? table.getAttribute('data-selection-scope') : '';
+    const normalizedScope = typeof scopeAttr === 'string' ? scopeAttr.trim().toLowerCase() : '';
+    const hasTargetScope = SELECTABLE_SCOPES.has(normalizedScope);
+    const hasRowChecks = typeof table.querySelector === 'function' ? table.querySelector(ROW_CHECK_SELECTOR) : null;
+    if(!hasTargetScope && !hasRowChecks) return;
+    const head = table.tHead || (typeof table.querySelector === 'function' ? table.querySelector('thead') : null);
+    if(!head) return;
+    const row = (head.rows && head.rows.length) ? head.rows[0] : (typeof head.querySelector === 'function' ? head.querySelector('tr') : null);
+    if(!row) return;
+    const cellList = (row.cells && row.cells.length)
+      ? Array.from(row.cells)
+      : (typeof row.querySelectorAll === 'function' ? Array.from(row.querySelectorAll('th,td')) : []);
+    if(!cellList.length) return;
+    let targetCell = cellList.find((cell) => {
+      if(!cell || typeof cell !== 'object') return false;
+      const dataset = cell.dataset || {};
+      if(dataset.role === 'select' || dataset.column === 'select') return true;
+      const dataRole = typeof cell.getAttribute === 'function' ? cell.getAttribute('data-role') : null;
+      const dataColumn = typeof cell.getAttribute === 'function' ? cell.getAttribute('data-column') : null;
+      if(dataRole === 'select' || dataColumn === 'select') return true;
+      if(typeof cell.querySelector === 'function' && cell.querySelector(ROW_CHECK_SELECTOR)) return true;
+      return false;
+    });
+    if(!targetCell) targetCell = cellList[0];
+    if(!targetCell || (typeof targetCell.querySelector === 'function' && targetCell.querySelector(SELECT_ALL_INPUT_SELECTOR))) return;
+    const doc = table.ownerDocument || document;
+    if(!doc || typeof doc.createElement !== 'function') return;
+    const input = doc.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('data-ui', 'row-check-all');
+    input.setAttribute('data-role', 'select-all');
+    input.setAttribute('aria-label', 'Select all');
+    if(typeof targetCell.insertBefore === 'function'){
+      targetCell.insertBefore(input, targetCell.firstChild || null);
+    }else if(typeof targetCell.appendChild === 'function'){
+      targetCell.appendChild(input);
+    }
+  }
+
+  function ensureRowCheckHeaders(root){
+    if(!root) return;
+    if(isTableElement(root)){
+      ensureRowCheckHeaderForTable(root);
+      return;
+    }
+    if(typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('table[data-selection-scope]').forEach((table) => {
+      ensureRowCheckHeaderForTable(table);
+    });
+  }
+
   function collectSelectionRowData(scopeRoot){
     if(!scopeRoot) return [];
+    ensureRowCheckHeaders(scopeRoot);
     const seen = new Set();
     const rows = [];
     const addRow = (row) => {
@@ -2172,6 +2237,18 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('[data-table-search]').forEach(input=> applyTableSearch(input));
   });
+
+  if(typeof window !== 'undefined'){
+    window.ensureRowCheckHeaders = ensureRowCheckHeaders;
+  }
+  if(typeof document !== 'undefined'){
+    const runEnsureRowCheckHeaders = () => ensureRowCheckHeaders(document);
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', runEnsureRowCheckHeaders, { once: true });
+    }else{
+      runEnsureRowCheckHeaders();
+    }
+  }
 
   const SORT_STATE = {};
   function compareValues(a, b, type){
