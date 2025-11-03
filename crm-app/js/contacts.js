@@ -2847,21 +2847,56 @@ export async function openContactModal(contactId, options){
   return tracked;
 }
 
-export async function openContactEditor(prefill){
-  const model = normalizeNewContactPrefill(prefill || {});
-  model.id = normalizeContactId(model);
+export async function openContactEditor(target, options){
+  const opts = options && typeof options === 'object' ? { ...options } : {};
+  const allowAutoOpen = opts.allowAutoOpen !== false;
+  const trigger = opts.trigger;
+  const suppressErrorToast = opts.suppressErrorToast === true;
+  const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
+
+  const prefillCandidate = opts.prefill && typeof opts.prefill === 'object'
+    ? opts.prefill
+    : (target && typeof target === 'object' && !Array.isArray(target) ? target : null);
+
+  const rawId = opts.contactId ?? (prefillCandidate ? prefillCandidate.id : (!prefillCandidate ? target : null));
+  const hasExplicitId = rawId != null && String(rawId).trim() !== '';
+  const explicitId = hasExplicitId ? normalizeContactId(rawId) : '';
+  const treatAsExisting = (prefillCandidate && prefillCandidate.__isNew === false) || (!prefillCandidate && hasExplicitId);
 
   closeQuickAddOverlayIfOpen();
 
-  const options = {
-    allowAutoOpen: true,
-    sourceHint: 'quick-create:menu',
-    prefetchedRecord: model,
-    suppressErrorToast: true
+  const modalOptions = {
+    allowAutoOpen,
+    trigger,
+    suppressErrorToast,
   };
 
+  if(treatAsExisting && explicitId){
+    modalOptions.sourceHint = sourceHint || 'contact:editor';
+    try {
+      const result = await openContactModal(explicitId, modalOptions);
+      return result || null;
+    } catch (err) {
+      if(!suppressErrorToast){
+        try{ console && console.warn && console.warn('[contact-editor:init]', err); }
+        catch(_warn){}
+        toastWarn('Unable to open contact');
+      }
+      teardownContactModalShell();
+      return null;
+    }
+  }
+
+  const model = normalizeNewContactPrefill(prefillCandidate || {});
+  model.id = explicitId || normalizeContactId(model);
+  if(prefillCandidate && prefillCandidate.__isNew === false) model.__isNew = false;
+
+  modalOptions.sourceHint = sourceHint || 'quick-create:menu';
+  modalOptions.prefetchedRecord = model;
+  modalOptions.suppressErrorToast = true;
+
   try {
-    const result = await openContactModal(model, options);
+    const result = await openContactModal(model, modalOptions);
     return result || null;
   } catch (err) {
     try{ console && console.warn && console.warn('[contact-editor:init]', err); }
@@ -2937,6 +2972,12 @@ export async function openCalendarEntityEditor(eventLike, options){
   return { opened: false, reason: 'no-entity' };
 }
 
+const CONTACT_ROW_TARGETS = [
+  { key: 'contacts:list', tableId: 'tbl-longshots', surface: 'contacts', sourceHint: 'contacts:list-row', selectionReason: 'contacts:row-open' },
+  { key: 'pipeline:table', tableId: 'tbl-pipeline', surface: 'pipeline', sourceHint: 'pipeline:list-row', selectionReason: 'pipeline:row-open' },
+  { key: 'pipeline:clients', tableId: 'tbl-clients', surface: 'pipeline', sourceHint: 'pipeline:clients-row', selectionReason: 'pipeline:row-open' }
+];
+
 const ROW_BIND_ONCE = (typeof window !== 'undefined'
   ? (window.__ROW_BIND_ONCE__ = window.__ROW_BIND_ONCE__ || {})
   : {});
@@ -2944,6 +2985,8 @@ const ROW_BIND_ONCE = (typeof window !== 'undefined'
 function getContactRowState(){
   const state = ROW_BIND_ONCE.contacts || (ROW_BIND_ONCE.contacts = {});
   if(!state.watchers) state.watchers = [];
+  if(!state.bindings) state.bindings = new Map();
+  if(!state.activeSurfaces) state.activeSurfaces = new Set();
   if(!state.surface) state.surface = 'contacts';
   return state;
 }
@@ -2958,8 +3001,10 @@ const scheduleContactTask = typeof queueMicrotask === 'function'
     catch (_) {}
   };
 
-function clearContactSelection(table){
-  clearSelectionForSurface('contacts', { reason: 'contacts:row-open' });
+function clearSurfaceSelection(surface, table, reason){
+  const scope = surface || 'contacts';
+  const detail = typeof reason === 'string' && reason ? reason : `${scope}:row-open`;
+  clearSelectionForSurface(scope, { reason: detail });
   if(!table || typeof table.querySelectorAll !== 'function') return;
   table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
     try {
@@ -2972,70 +3017,100 @@ function clearContactSelection(table){
   });
 }
 
-function detachContactHandler(state){
-  if(state.root && state.handler){
-    try { state.root.removeEventListener('click', state.handler); }
+function detachBinding(binding){
+  if(binding && binding.root && binding.handler){
+    try { binding.root.removeEventListener('click', binding.handler); }
     catch (_err){}
   }
-  state.root = null;
-  state.handler = null;
-  state.bound = false;
+  if(binding){
+    binding.root = null;
+    binding.handler = null;
+    binding.bound = false;
+  }
 }
 
-function bindContactRow(){
-  const state = getContactRowState();
-  if(!state.active) return;
+function bindContactTables(){
   if(typeof document === 'undefined') return;
-  const table = document.getElementById('tbl-longshots');
-  if(!table){
-    detachContactHandler(state);
-    return;
-  }
-  if(state.root === table && state.bound) return;
-  detachContactHandler(state);
-  const handler = (event) => {
-    if(!event || event.__crmRowEditorHandled) return;
-    const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
-    if(skip) return;
-    const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
-    if(control) return;
-    const anchor = event.target?.closest?.('a');
-    if(anchor && !anchor.closest('[data-role="contact-name"],.contact-name')) return;
-    const row = event.target?.closest?.('tr[data-contact-id],tr[data-id]');
-    if(!row || !table.contains(row)) return;
-    const id = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
-    if(!id) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.__crmRowEditorHandled = true;
-    event.__contactEditHandled = true;
-    clearContactSelection(table);
-    try {
-      openContactModal(id, { sourceHint: 'contacts:list-row', trigger: row });
-    } catch (err) {
-      try { console && console.warn && console.warn('[contacts] row open failed', err); }
-      catch (_warn){}
+  const state = getContactRowState();
+  CONTACT_ROW_TARGETS.forEach((def) => {
+    let binding = state.bindings.get(def.key);
+    if(!binding){
+      binding = { key: def.key, def, root: null, handler: null, bound: false };
+      state.bindings.set(def.key, binding);
     }
-  };
-  table.addEventListener('click', handler);
-  state.root = table;
-  state.handler = handler;
-  state.bound = true;
-  state.surface = 'contacts';
+    if(!state.activeSurfaces.has(def.surface)){
+      detachBinding(binding);
+      return;
+    }
+    const table = document.getElementById(def.tableId);
+    if(!table){
+      detachBinding(binding);
+      return;
+    }
+    if(binding.root === table && binding.bound) return;
+    detachBinding(binding);
+    const handler = (event) => {
+      if(!event || event.__crmRowEditorHandled) return;
+      const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
+      if(skip) return;
+      const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
+      if(control) return;
+      const anchor = event.target?.closest?.('a');
+      if(anchor && !anchor.closest('[data-role="contact-name"],.contact-name')) return;
+      const row = event.target?.closest?.('tr[data-contact-id],tr[data-id]');
+      if(!row || !table.contains(row)) return;
+      const id = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
+      if(!id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.__crmRowEditorHandled = true;
+      event.__contactEditHandled = true;
+      clearSurfaceSelection(def.surface, table, def.selectionReason);
+      try {
+        const result = openContactEditor({ id, __isNew: false }, {
+          allowAutoOpen: true,
+          sourceHint: def.sourceHint,
+          trigger: row,
+          suppressErrorToast: true
+        });
+        if(result && typeof result.catch === 'function'){
+          result.catch(err => {
+            try { console && console.warn && console.warn('[contact-gateway] open failed', { id, surface: def.surface }, err); }
+            catch (_warn){}
+          });
+        }
+      } catch (err) {
+        try { console && console.warn && console.warn('[contact-gateway] open failed', { id, surface: def.surface }, err); }
+        catch (_warn){}
+      }
+    };
+    table.addEventListener('click', handler);
+    binding.root = table;
+    binding.handler = handler;
+    binding.bound = true;
+    state.surface = def.surface;
+  });
+}
+
+function detachAllBindings(state){
+  if(!state.bindings) return;
+  for(const binding of state.bindings.values()){
+    detachBinding(binding);
+  }
 }
 
 function scheduleContactBind(){
   const state = getContactRowState();
-  if(!state.active) return;
+  if(!state.activeSurfaces || state.activeSurfaces.size === 0) return;
   if(state.pendingBind) return;
   state.pendingBind = true;
   scheduleContactTask(() => {
     state.pendingBind = false;
-    if(!state.active){
-      detachContactHandler(state);
+    if(!state.activeSurfaces || state.activeSurfaces.size === 0){
+      detachAllBindings(state);
       return;
     }
-    bindContactRow();
+    bindContactTables();
   });
 }
 
@@ -3045,7 +3120,7 @@ function ensureContactDomReady(state){
     if(state.domReadyListener) return;
     const onReady = () => {
       state.domReadyListener = null;
-      if(state.active) scheduleContactBind();
+      if(state.activeSurfaces && state.activeSurfaces.size) scheduleContactBind();
     };
     try {
       document.addEventListener('DOMContentLoaded', onReady, { once: true });
@@ -3059,11 +3134,14 @@ function ensureContactDomReady(state){
 function attachContactWatchers(state){
   if(state.watchersAttached) return;
   const doc = typeof document !== 'undefined' ? document : null;
+  const win = typeof window !== 'undefined' ? window : null;
   const listeners = [];
   const rebinder = state.rebinder || (state.rebinder = () => scheduleContactBind());
   const defs = [
     { target: doc, type: 'app:data:changed' },
-    { target: doc, type: 'contacts:list:refresh' }
+    { target: doc, type: 'contacts:list:refresh' },
+    { target: win, type: 'app:view:changed' },
+    { target: win, type: 'pipeline:applyFilter' }
   ];
   for(const def of defs){
     const { target, type } = def;
@@ -3088,20 +3166,27 @@ function detachContactWatchers(state){
   state.watchersAttached = false;
 }
 
-function mountContactRowGateway(){
-  if(typeof document === 'undefined') return;
+function mountContactRowGateway(surface){
   const state = getContactRowState();
-  if(!state.active){
-    state.active = true;
-    state.surface = 'contacts';
-  }
+  state.activeSurfaces.add(surface || 'contacts');
+  state.active = true;
+  state.surface = surface || 'contacts';
   attachContactWatchers(state);
   ensureContactDomReady(state);
   scheduleContactBind();
 }
 
-function unmountContactRowGateway(){
+function unmountContactRowGateway(surface){
   const state = getContactRowState();
+  if(surface){
+    state.activeSurfaces.delete(surface);
+  }else{
+    state.activeSurfaces.clear();
+  }
+  if(state.activeSurfaces.size > 0){
+    scheduleContactBind();
+    return;
+  }
   state.active = false;
   if(state.domReadyListener && typeof document !== 'undefined'){
     try { document.removeEventListener('DOMContentLoaded', state.domReadyListener); }
@@ -3109,15 +3194,19 @@ function unmountContactRowGateway(){
   }
   state.domReadyListener = null;
   detachContactWatchers(state);
-  detachContactHandler(state);
+  detachAllBindings(state);
   state.pendingBind = false;
 }
 
 if(typeof window !== 'undefined' || typeof document !== 'undefined'){
   const state = getContactRowState();
   state.routeToken = acquireRouteLifecycleToken('contacts', {
-    mount: () => mountContactRowGateway(),
-    unmount: () => unmountContactRowGateway()
+    mount: () => mountContactRowGateway('contacts'),
+    unmount: () => unmountContactRowGateway('contacts')
+  });
+  state.pipelineRouteToken = acquireRouteLifecycleToken('pipeline', {
+    mount: () => mountContactRowGateway('pipeline'),
+    unmount: () => unmountContactRowGateway('pipeline')
   });
 }
 
@@ -3167,7 +3256,13 @@ function ensureFullContactButton(){
   button.textContent = 'Open Full Contact Editor';
   button.addEventListener('click', (event) => {
     if(event) event.preventDefault();
-    openContactModal(null, { sourceHint: 'contacts:full-editor', allowAutoOpen: true });
+    const result = openContactEditor({}, { sourceHint: 'contacts:full-editor', allowAutoOpen: true, suppressErrorToast: true });
+    if(result && typeof result.catch === 'function'){
+      result.catch(err => {
+        try{ console && console.warn && console.warn('[contacts] full editor button failed', err); }
+        catch(_warn){}
+      });
+    }
   });
   const filters = header.querySelector('#btn-filters-longshots');
   if(filters && filters.parentNode === header){
@@ -3191,12 +3286,6 @@ if(typeof document !== 'undefined'){
 }
 
 if(typeof window !== 'undefined'){
-  if(typeof window.openContactModal !== 'function'){
-    window.openContactModal = function(contactId, options){
-      return openContactModal(contactId, options);
-    };
-  }
-
   if(!window.__test_openContactEditor){
     let search = '';
     try {
@@ -3211,7 +3300,7 @@ if(typeof window !== 'undefined'){
         for(let i = 0; i < iterations; i += 1){
           const model = normalizeNewContactPrefill({ name: `Debug ${i}` });
           try{
-            await openContactModal(model, {
+            await openContactEditor(model, {
               allowAutoOpen: true,
               sourceHint: 'debug:contact-editor',
               suppressErrorToast: true

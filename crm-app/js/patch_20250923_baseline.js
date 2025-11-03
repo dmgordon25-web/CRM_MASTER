@@ -1,4 +1,5 @@
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { openContactEditor } from './contacts.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 
 let __wired = false;
@@ -311,8 +312,26 @@ function runPatch(){
         window.requestPartnerModal(id);
         return;
       }
-    }else if(typeof window.renderContactModal === 'function'){
-      window.renderContactModal(id);
+    }else{
+      try {
+        const result = openContactEditor({ id, __isNew: false }, {
+          allowAutoOpen: true,
+          sourceHint: 'baseline:row-open',
+          trigger: nameCell,
+          suppressErrorToast: true
+        });
+        if(result && typeof result.catch === 'function'){
+          result.catch(err => {
+            if(typeof window.renderContactModal === 'function'){
+              window.renderContactModal(id);
+            }
+          });
+        }
+      } catch (err) {
+        if(typeof window.renderContactModal === 'function'){
+          window.renderContactModal(id);
+        }
+      }
     }
   }, true);
 }
