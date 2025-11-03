@@ -24,6 +24,7 @@ const DEBUG_DEFAULT = {
 };
 
 const DRAG_DISTANCE_THRESHOLD = 5;
+const REORDER_EPSILON = 0.5;
 
 function parseSelectors(sel){
   if(!sel) return [];
@@ -565,6 +566,7 @@ function refreshItemsMeta(state){
     if(state) state.itemsMeta = null;
     return null;
   }
+  const metrics = state.metrics || state.overlayMetrics || deriveMetrics(state);
   let items = collectItems(state.container, state.itemSelector);
   if(items.length){
     items = items.filter(el => el !== state.dragEl);
@@ -573,17 +575,20 @@ function refreshItemsMeta(state){
     if(!el || typeof el.getBoundingClientRect !== 'function') return null;
     let rect = null;
     try{
-      rect = el.getBoundingClientRect();
+      const raw = el.getBoundingClientRect();
+      rect = cloneRect(raw);
     }catch (_err){
       rect = null;
     }
     if(!rect) return null;
+    const span = measureElementSpan(state, el, rect, metrics);
     return {
       node: el,
       order,
       rect,
       centerX: rect.left + rect.width / 2,
-      centerY: rect.top + rect.height / 2
+      centerY: rect.top + rect.height / 2,
+      span
     };
   }).filter(Boolean);
   state.itemsMeta = meta.length ? meta : null;
@@ -616,17 +621,22 @@ function movePlaceholder(state, index){
   if(metrics){
     clamped = clampIndexForSpan(clamped, metrics.columns, state.placeholderSpan, total);
   }
-  if(state.placeholderIndex === clamped) return;
-  const beforeNode = clamped >= total ? null : items[clamped];
-  if(beforeNode){
-    container.insertBefore(placeholder, beforeNode);
-  }else{
-    container.appendChild(placeholder);
+  const prevMeta = cloneMetaList(state.itemsMeta);
+  if(state.placeholderIndex !== clamped){
+    const beforeNode = clamped >= total ? null : items[clamped];
+    if(beforeNode){
+      container.insertBefore(placeholder, beforeNode);
+    }else{
+      container.appendChild(placeholder);
+    }
+    bumpDebugCounter('swaps');
+    state.placeholderIndex = clamped;
+    state.targetIndex = clamped;
   }
-  bumpDebugCounter('swaps');
-  state.placeholderIndex = clamped;
-  state.targetIndex = clamped;
-  refreshItemsMeta(state);
+  const plan = computeOccupancyPlan(state);
+  applyOccupancyPlan(state, plan);
+  const nextMeta = refreshItemsMeta(state);
+  applyReflowAnimation(state, prevMeta, nextMeta);
 }
 
 function updatePlaceholderForPosition(state, x, y, clientX, clientY){
@@ -699,6 +709,222 @@ function persistCurrentOrder(state){
   }
 }
 
+function cloneRect(rect){
+  if(!rect) return null;
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height
+  };
+}
+
+function cloneMetaList(list){
+  if(!Array.isArray(list) || !list.length) return null;
+  return list.map(entry => {
+    if(!entry) return null;
+    const rect = cloneRect(entry.rect);
+    return {
+      node: entry.node,
+      order: entry.order,
+      rect,
+      centerX: rect ? rect.left + rect.width / 2 : entry.centerX,
+      centerY: rect ? rect.top + rect.height / 2 : entry.centerY,
+      span: entry.span || 1
+    };
+  }).filter(Boolean);
+}
+
+function measureElementSpan(state, el, rect, metrics){
+  if(!el) return 1;
+  const resolvedMetrics = metrics || state.metrics || state.overlayMetrics || deriveMetrics(state);
+  const columns = resolvedMetrics ? Math.max(1, resolvedMetrics.columns || 1) : 1;
+  let span = NaN;
+  if(typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'){
+    try{
+      const style = window.getComputedStyle(el);
+      if(style && typeof style.gridColumnEnd === 'string'){
+        const match = style.gridColumnEnd.match(/span\s+(\d+)/i);
+        if(match) span = Number.parseInt(match[1], 10);
+      }
+      if((!Number.isFinite(span) || span <= 0) && style && typeof style.gridColumn === 'string'){
+        const fallback = style.gridColumn.match(/span\s+(\d+)/i);
+        if(fallback) span = Number.parseInt(fallback[1], 10);
+      }
+    }catch (_err){}
+  }
+  if(!Number.isFinite(span) || span <= 0){
+    const metricsSource = resolvedMetrics || deriveMetrics(state);
+    const gap = metricsSource ? metricsSource.gap || 0 : 0;
+    const baseWidth = rect ? rect.width : (el.offsetWidth || 0);
+    const stepX = metricsSource ? (metricsSource.stepX || metricsSource.colWidth || 1) : Math.max(1, baseWidth || 1);
+    span = Math.max(1, Math.round((baseWidth + gap) / Math.max(1, stepX)));
+  }
+  if(resolvedMetrics){
+    span = clamp(span, 1, Math.max(1, resolvedMetrics.columns || 1));
+  }
+  return span;
+}
+
+function clearReflowAnimation(state){
+  if(!state) return;
+  if(state.reflowFrame && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function'){
+    try{ window.cancelAnimationFrame(state.reflowFrame); }
+    catch (_err){}
+  }
+  state.reflowFrame = null;
+  if(Array.isArray(state.reflowEntries)){
+    state.reflowEntries.forEach(entry => {
+      const node = entry && entry.node;
+      if(!node || !node.style) return;
+      if(Object.prototype.hasOwnProperty.call(entry, 'prevTransition')){
+        node.style.transition = entry.prevTransition;
+      }
+      if(Object.prototype.hasOwnProperty.call(entry, 'prevTransform')){
+        node.style.transform = entry.prevTransform;
+      }
+    });
+  }else if(Array.isArray(state.reflowNodes)){
+    state.reflowNodes.forEach(node => {
+      if(!node || !node.style) return;
+      node.style.transition = '';
+      node.style.transform = '';
+    });
+  }
+  state.reflowEntries = null;
+  state.reflowNodes = null;
+}
+
+function applyReflowAnimation(state, prevMeta, nextMeta){
+  if(!state) return;
+  if(typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
+  if(!Array.isArray(prevMeta) || !Array.isArray(nextMeta)) return;
+  const prevMap = new Map();
+  prevMeta.forEach(entry => {
+    if(!entry || !entry.node || !entry.rect) return;
+    prevMap.set(entry.node, entry.rect);
+  });
+  const animated = [];
+  nextMeta.forEach(entry => {
+    if(!entry || !entry.node || !entry.rect) return;
+    const prevRect = prevMap.get(entry.node);
+    if(!prevRect) return;
+    const dx = prevRect.left - entry.rect.left;
+    const dy = prevRect.top - entry.rect.top;
+    if(Math.abs(dx) < REORDER_EPSILON && Math.abs(dy) < REORDER_EPSILON) return;
+    const node = entry.node;
+    if(!node || !node.style) return;
+    animated.push({
+      node,
+      dx,
+      dy,
+      prevTransition: node.style.transition || '',
+      prevTransform: node.style.transform || ''
+    });
+  });
+  if(!animated.length) return;
+  clearReflowAnimation(state);
+  animated.forEach(entry => {
+    try{ entry.node.style.transition = 'none'; }
+    catch (_err){}
+    try{ entry.node.style.transform = `translate(${entry.dx}px, ${entry.dy}px)`; }
+    catch (_err){}
+    try{ void entry.node.offsetWidth; }
+    catch (_err){}
+  });
+  state.reflowEntries = animated;
+  state.reflowNodes = animated.map(entry => entry.node);
+  state.reflowFrame = window.requestAnimationFrame(() => {
+    animated.forEach(entry => {
+      if(!entry.node || !entry.node.style) return;
+      entry.node.style.transition = entry.prevTransition;
+      entry.node.style.transform = entry.prevTransform;
+    });
+    state.reflowFrame = null;
+    state.reflowEntries = null;
+    state.reflowNodes = null;
+  });
+}
+
+function computeOccupancyPlan(state){
+  if(!state || !state.container) return null;
+  const metrics = state.metrics || state.overlayMetrics || deriveMetrics(state);
+  if(!metrics) return null;
+  const columns = Math.max(1, metrics.columns || 1);
+  const items = collectItems(state.container, state.itemSelector).filter(el => el !== state.dragEl);
+  const placeholderIndex = clamp(state.placeholderIndex == null ? items.length : state.placeholderIndex, 0, items.length);
+  const entries = items.map(item => ({ node: item, span: measureElementSpan(state, item, null, metrics) }));
+  const placeholderSpan = Math.max(1, Math.min(columns, state.placeholderSpan || 1));
+  entries.splice(placeholderIndex, 0, { placeholder: true, span: placeholderSpan });
+  const occupancy = [];
+  const nodePositions = new Map();
+  let placeholderPos = null;
+  entries.forEach(entry => {
+    const span = Math.max(1, Math.min(columns, entry.span || 1));
+    let placed = false;
+    for(let row = 0; !placed; row += 1){
+      if(!occupancy[row]){
+        occupancy[row] = new Array(columns).fill(false);
+      }
+      for(let col = 0; col <= columns - span; col += 1){
+        let fits = true;
+        for(let offset = 0; offset < span; offset += 1){
+          if(occupancy[row][col + offset]){
+            fits = false;
+            break;
+          }
+        }
+        if(!fits) continue;
+        for(let offset = 0; offset < span; offset += 1){
+          occupancy[row][col + offset] = true;
+        }
+        const position = { row, col, span };
+        if(entry.placeholder){
+          placeholderPos = position;
+        }else if(entry.node){
+          nodePositions.set(entry.node, position);
+        }
+        placed = true;
+        break;
+      }
+    }
+  });
+  return { placeholder: placeholderPos, nodes: nodePositions, columns };
+}
+
+function applyOccupancyPlan(state, plan){
+  state.occupancyPlan = plan || null;
+  const placeholderInfo = plan && plan.placeholder ? plan.placeholder : null;
+  if(placeholderInfo){
+    const { row, col, span } = placeholderInfo;
+    const startRow = row + 1;
+    const startCol = col + 1;
+    const spanText = span > 1 ? `span ${span}` : '';
+    state.placeholderGridRowStart = String(startRow);
+    state.placeholderGridRowEnd = '';
+    state.placeholderGridColumnStart = String(startCol);
+    state.placeholderGridColumnEnd = spanText;
+    state.placeholderGridColumn = spanText;
+  }else{
+    state.placeholderGridRowStart = '';
+    state.placeholderGridRowEnd = '';
+    state.placeholderGridColumnStart = '';
+    state.placeholderGridColumnEnd = '';
+    state.placeholderGridColumn = state.placeholderSpan > 1 ? `span ${state.placeholderSpan}` : '';
+  }
+  if(state.placeholder && state.placeholder.style){
+    state.placeholder.style.gridRowStart = state.placeholderGridRowStart || '';
+    state.placeholder.style.gridRowEnd = state.placeholderGridRowEnd || '';
+    state.placeholder.style.gridColumnStart = state.placeholderGridColumnStart || '';
+    state.placeholder.style.gridColumnEnd = state.placeholderGridColumnEnd || '';
+    if(state.placeholderGridColumn){
+      state.placeholder.style.gridColumn = state.placeholderGridColumn;
+    }
+  }
+}
+
 function finishDrag(state, commit){
   const dragEl = state.dragEl;
   if(!dragEl) return;
@@ -706,6 +932,7 @@ function finishDrag(state, commit){
     try{ dragEl.releasePointerCapture(state.pointerId); }
     catch (_err){}
   }
+  clearReflowAnimation(state);
   if(state.moveListener){
     dragEl.removeEventListener('pointermove', state.moveListener);
   }
@@ -737,6 +964,7 @@ function finishDrag(state, commit){
   state.placeholderGridRow = '';
   state.placeholderGridRowStart = '';
   state.placeholderGridRowEnd = '';
+  state.occupancyPlan = null;
   if(!commit && Array.isArray(state.startOrder) && state.startOrder.length){
     reorderFromOrder(state, state.startOrder, state.startOrder.join('|'));
   }
@@ -877,6 +1105,7 @@ function beginGridDrag(state, item, evt){
   state.placeholderIndex = state.startIndex;
   container.insertBefore(placeholder, item);
   if(placeholder && placeholder.classList) placeholder.classList.add('dragging');
+  applyOccupancyPlan(state, computeOccupancyPlan(state));
   state.restoreSelection = preventTextSelection(item.ownerDocument);
   item.style.position = 'absolute';
   item.style.left = `${state.elemStartX}px`;
@@ -1025,7 +1254,11 @@ function ensureState(container){
       placeholderGridColumnEnd: '',
       placeholderGridRow: '',
       placeholderGridRowStart: '',
-      placeholderGridRowEnd: ''
+      placeholderGridRowEnd: '',
+      reflowFrame: null,
+      reflowNodes: null,
+      reflowEntries: null,
+      occupancyPlan: null
     };
     state.onPointerDown = evt => handlePointerDown(evt, state);
     attachOnce(container, 'pointerdown', state.onPointerDown, 'drag-core:pointerdown');
@@ -1082,6 +1315,8 @@ function destroyContainerState(container, state){
   state.overlayMetrics = null;
   state.editModeRequested = false;
   state.editModeActive = false;
+  clearReflowAnimation(state);
+  state.occupancyPlan = null;
   if(state.gridOverlay){
     try{ state.gridOverlay.remove(); }
     catch(_err){

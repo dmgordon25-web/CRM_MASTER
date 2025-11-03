@@ -1592,14 +1592,15 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
 }
 
 .dash-drag-placeholder {
-  border: 2px dashed rgba(148, 163, 184, 0.55);
+  border: 2px dashed rgba(148, 163, 184, 0.5);
   border-radius: 18px;
-  background-color: rgba(148, 163, 184, 0.12);
-  transition: opacity 0.18s ease;
+  background-color: rgba(148, 163, 184, 0.1);
+  transition: opacity 0.18s ease, transform 0.2s ease;
 }
 
 .dash-dragging .dash-drag-placeholder {
   opacity: 0.85;
+  transform: scale(0.995);
 }
 
 .dash-gridlines {
@@ -1622,10 +1623,11 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
 }
 
 .dash-drag-ghost {
-  opacity: 0.65 !important;
-  transform: translateZ(0) scale(0.98);
+  opacity: 0.45 !important;
+  transform: translateZ(0) scale(0.96);
   border-radius: 18px;
   pointer-events: none !important;
+  backdrop-filter: blur(2px);
 }
 
 .dash-drag-ghost::after {
@@ -1633,7 +1635,7 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.12);
   pointer-events: none;
 }
 
@@ -1642,12 +1644,14 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-drag-handle,
   right: 12px;
   bottom: 12px;
   display: none;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(248, 250, 252, 0.9);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease, transform 0.18s ease;
@@ -1697,11 +1701,11 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
 
 .dash-resize-handle .dash-resize-grip {
   position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  background: rgba(248, 250, 252, 0.96);
+  width: 18px;
+  height: 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: rgba(255, 255, 255, 0.96);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1714,6 +1718,16 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
 .dash-resize-handle .dash-resize-grip:focus-visible {
   outline: 2px solid var(--focus-ring, #2563eb);
   outline-offset: 2px;
+}
+
+.dash-resize-handle .dash-resize-grip::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.7;
 }
 
 .dash-resize-handle [data-qa="resize-e"] {
@@ -1750,16 +1764,16 @@ main[data-ui="dashboard-root"][data-editing="1"] .dash-resize-handle,
 
 .dash-resize-feedback {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
+  right: 10px;
+  bottom: 10px;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: #fff;
-  background: rgba(15, 23, 42, 0.72);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.28);
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.3);
   pointer-events: none;
   opacity: 0;
   transform: translate3d(0, 6px, 0);
@@ -2005,14 +2019,11 @@ function widthPixelsForToken(token, columns, colWidth, gap) {
   return (colWidth * span) + (gap * Math.max(0, span - 1));
 }
 
-function formatWidthLabel(token) {
-  const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
-  return DASHBOARD_WIDTH_DEBUG_LABELS[normalized] || normalized;
-}
-
 function updateResizeFeedback(session, token) {
   if (!session || !session.feedback) return;
-  const label = formatWidthLabel(token || session.pendingToken || session.startToken);
+  const activeToken = token || session.pendingToken || session.startToken;
+  const span = spanForWidthToken(activeToken, session.columns || DASHBOARD_MIN_COLUMNS);
+  const label = span === 1 ? '1 col' : `${span} cols`;
   session.feedback.textContent = label;
 }
 
@@ -2499,6 +2510,7 @@ function logDrilldownSuccess(target, fallbackKey) {
 
 function handleDashboardTap(evt, target) {
   if (!target) return false;
+  if (isDashboardEditingEnabled()) return false;
   const dataset = target.dataset || {};
   const contactId = dataset.contactId || target.getAttribute('data-contact-id');
   if (contactId) {
