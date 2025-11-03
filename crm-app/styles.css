@@ -900,22 +900,27 @@ table.list-table td[data-column="nextAction"] {
 
 /* Make the dialog wide on desktop but fluid if screen is smaller */
 .record-modal .dlg {
-  width: clamp(960px, 92vw, 1120px);
-  max-width: 1120px;
+  width: clamp(1040px, 94vw, 1280px);
+  max-width: 1280px;
 }
 
 /* Let the scroll container live on the body so summary + tabs stay aligned */
 .record-modal .dialog-scroll {
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100vh - 208px);
   padding-right: 0;
   margin-right: 0;
 }
 
 .record-modal .modal-body {
+  flex: 1;
   overflow: auto;
-  max-height: calc(100vh - 220px);
-  padding-right: 16px;
-  margin-right: -16px;
+  overscroll-behavior: contain;
+  padding-right: 24px;
+  margin-right: -24px;
+  scrollbar-gutter: stable;
 }
 
 /* Layout summary + main as a grid; keep children from forcing overflow */
