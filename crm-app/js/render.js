@@ -15,7 +15,7 @@ import {
   toneForStage,
   toneClassName
 } from './pipeline/constants.js';
-import { openContactModal } from './contacts.js';
+import { openContactModal, openContactEditor } from './contacts.js';
 import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_edit/index.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
@@ -912,10 +912,15 @@ import { syncTableLayout } from './ui/table_layout.js';
   function dispatchContactModal(contactId, options){
     if(!contactId) return null;
     const openers = [];
+    if(typeof openContactEditor === 'function'){
+      openers.push((id, opts) => openContactEditor({ id, __isNew: false }, Object.assign({
+        allowAutoOpen: true,
+        suppressErrorToast: true
+      }, opts)));
+    }
     if(typeof openContactModal === 'function') openers.push(openContactModal);
-    if(typeof window !== 'undefined'){
-      if(typeof window.renderContactModal === 'function') openers.push(window.renderContactModal);
-      if(typeof window.openContactModal === 'function') openers.push(window.openContactModal);
+    if(typeof window !== 'undefined' && typeof window.renderContactModal === 'function'){
+      openers.push(window.renderContactModal);
     }
     for(const fn of openers){
       if(typeof fn !== 'function') continue;

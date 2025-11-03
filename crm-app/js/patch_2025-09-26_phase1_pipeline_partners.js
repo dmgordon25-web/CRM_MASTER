@@ -2,6 +2,7 @@
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
 import { normalizeStatusForStage, normalizeMilestoneForStatus, toneForStatus, toneClassName, canonicalStatusKey } from './pipeline/constants.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+import { openContactEditor } from './contacts.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
@@ -1011,7 +1012,24 @@ function runPatch(){
         evt.stopPropagation();
         evt.stopImmediatePropagation();
         const id = card.getAttribute('data-card-id');
-        if(id && typeof window.renderContactModal === 'function') window.renderContactModal(id);
+        if(!id) return;
+        try {
+          const result = openContactEditor({ id, __isNew: false }, {
+            allowAutoOpen: true,
+            sourceHint: 'pipeline:board-card',
+            trigger: card,
+            suppressErrorToast: true
+          });
+          if(result && typeof result.catch === 'function'){
+            result.catch(err => {
+              try { console && console.warn && console.warn('[pipeline-board] contact open failed', err); }
+              catch (_warn){}
+            });
+          }
+        } catch (err) {
+          try { console && console.warn && console.warn('[pipeline-board] contact open failed', err); }
+          catch (_warn){}
+        }
       };
       const listeners = [
         ['dragstart', onDragStart],

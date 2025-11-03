@@ -1,6 +1,6 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
-import { openContactModal } from './contacts.js';
+import { openContactEditor } from './contacts.js';
 import { openTaskEditor } from './ui/quick_create_menu.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachStatusBanner } from './ui/status_banners.js';
@@ -394,7 +394,7 @@ async function openCalendarEventTarget(target, event, context = {}){
         toastWarn('Contact not available');
         return { opened: false, reason: 'contact-missing-id' };
       }
-      const result = await openContactModal(target.id, { sourceHint, trigger, allowAutoOpen: true });
+      const result = await openContactEditor({ id: target.id, __isNew: false }, { sourceHint, trigger, allowAutoOpen: true, suppressErrorToast: true });
       return { opened: true, kind: 'contact', contactId: target.id, result };
     }
   }catch (error){
