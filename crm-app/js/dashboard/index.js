@@ -583,7 +583,8 @@ const celebrationsState = {
   bindingApplied: false,
   dateFormatter: null,
   items: [],
-  lastError: null
+  lastError: null,
+  fallback: null
 };
 
 const scheduleIdleTask = (typeof win !== 'undefined' && win && typeof win.requestIdleCallback === 'function')
@@ -908,6 +909,117 @@ function ensureCelebrationsWidgetShell() {
   return celebrationsState.node || null;
 }
 
+function clearCelebrationsFallback() {
+  const { fallback } = celebrationsState;
+  if (!fallback) return;
+  try {
+    if (fallback.parentElement) {
+      fallback.parentElement.removeChild(fallback);
+    }
+  } catch (_err) {
+    try { fallback.remove(); }
+    catch (_removeErr) {}
+  }
+  celebrationsState.fallback = null;
+}
+
+function createCelebrationsActionButton(label, handler, variant) {
+  if (!doc) return null;
+  const button = doc.createElement('button');
+  button.type = 'button';
+  button.textContent = label || '';
+  button.className = 'btn';
+  button.style.fontSize = '13px';
+  button.style.padding = '6px 12px';
+  button.style.lineHeight = '1.2';
+  button.style.borderRadius = '8px';
+  if (variant === 'primary') {
+    button.classList.add('brand');
+  } else {
+    button.classList.add('subtle');
+  }
+  if (typeof handler === 'function') {
+    button.addEventListener('click', evt => {
+      evt.preventDefault();
+      handler(evt);
+    });
+  }
+  return button;
+}
+
+function navigateToDashboardSettings() {
+  if (!win || !win.location) return;
+  const hash = '#settings/dashboard';
+  try {
+    if (win.location.hash !== hash) {
+      win.location.hash = hash;
+      return;
+    }
+    if (doc && typeof doc.dispatchEvent === 'function') {
+      try {
+        doc.dispatchEvent(new CustomEvent('app:navigate', { detail: { view: 'settings', panel: 'dashboard' } }));
+      } catch (_err) {}
+    }
+  } catch (_err) {}
+}
+
+function renderCelebrationsFallback(message, options = {}) {
+  const node = ensureCelebrationsWidgetShell();
+  if (!node) return;
+  const { list, statusBanner } = celebrationsState;
+  if (statusBanner && typeof statusBanner.clear === 'function') {
+    statusBanner.clear();
+  }
+  if (list) {
+    list.hidden = true;
+    if (list.style) list.style.display = 'none';
+  }
+  clearCelebrationsFallback();
+  if (!doc) return;
+  const fallback = doc.createElement('div');
+  fallback.dataset.role = 'celebrations-fallback';
+  fallback.style.display = 'flex';
+  fallback.style.flexDirection = 'column';
+  fallback.style.gap = '8px';
+  fallback.style.padding = '12px';
+  fallback.style.marginTop = '8px';
+  fallback.style.border = '1px dashed var(--border-subtle, #CBD5F5)';
+  fallback.style.borderRadius = '12px';
+  fallback.style.background = 'var(--surface-subtle, #f8fafc)';
+  const body = doc.createElement('p');
+  body.textContent = message || 'We couldn\'t load celebrations.';
+  body.className = 'muted';
+  body.style.margin = '0';
+  fallback.appendChild(body);
+  const actions = doc.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.flexWrap = 'wrap';
+  actions.style.gap = '8px';
+  const { onRetry, onConfigure } = options;
+  if (typeof onRetry === 'function') {
+    const retryButton = createCelebrationsActionButton('Retry', onRetry, 'primary');
+    if (retryButton) actions.appendChild(retryButton);
+  }
+  const configureHandler = typeof onConfigure === 'function' ? onConfigure : navigateToDashboardSettings;
+  if (configureHandler) {
+    const configureButton = createCelebrationsActionButton('Configure', configureHandler, 'secondary');
+    if (configureButton) actions.appendChild(configureButton);
+  }
+  if (!actions.childElementCount) {
+    const configureButton = createCelebrationsActionButton('Configure', navigateToDashboardSettings, 'secondary');
+    if (configureButton) actions.appendChild(configureButton);
+  }
+  fallback.appendChild(actions);
+  node.appendChild(fallback);
+  celebrationsState.fallback = fallback;
+}
+
+function requestCelebrationsRetry() {
+  celebrationsState.lastError = null;
+  celebrationsState.dirty = true;
+  scheduleCelebrationsHydration();
+}
+
 function handleCelebrationsListClick(evt) {
   const target = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
   if (!target) return;
@@ -948,6 +1060,7 @@ function renderCelebrationsItems(items) {
   const node = ensureCelebrationsWidgetShell();
   const { list, statusBanner } = celebrationsState;
   celebrationsState.items = Array.isArray(items) ? items.slice() : [];
+  clearCelebrationsFallback();
   if (!node || !list) return;
   while (list.firstChild) {
     list.removeChild(list.firstChild);
@@ -1238,6 +1351,9 @@ async function runCelebrationsHydration() {
             }
           });
         }
+        renderCelebrationsFallback('We couldn’t load celebrations. Please try again.', {
+          onRetry: requestCelebrationsRetry
+        });
         return;
       }
     } else if (typeof window !== 'undefined' && typeof window.dbGetAll === 'function') {
@@ -1257,6 +1373,9 @@ async function runCelebrationsHydration() {
             }
           });
         }
+        renderCelebrationsFallback('We couldn’t load celebrations. Please try again.', {
+          onRetry: requestCelebrationsRetry
+        });
         return;
       }
     }
@@ -1278,6 +1397,9 @@ async function runCelebrationsHydration() {
           }
         });
       }
+      renderCelebrationsFallback('We couldn’t process celebrations. Please try again.', {
+        onRetry: requestCelebrationsRetry
+      });
       return;
     }
     if (!celebrationsState.shouldRender) {
@@ -1311,10 +1433,15 @@ function markCelebrationsDirty() {
 
 function maybeHydrateCelebrations(prefs) {
   const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
-  const enabled = widgetPrefs[CELEBRATIONS_WIDGET_KEY] !== false;
+  const mode = prefs && prefs.mode === 'all' ? 'all' : 'today';
+  const forceTodayMode = mode === 'today';
+  const enabled = forceTodayMode ? true : widgetPrefs[CELEBRATIONS_WIDGET_KEY] !== false;
   const previouslyEnabled = celebrationsState.shouldRender;
   celebrationsState.shouldRender = enabled;
-  if (!enabled) return;
+  if (!enabled) {
+    clearCelebrationsFallback();
+    return;
+  }
   ensureCelebrationsWidgetShell();
   if (!previouslyEnabled) {
     celebrationsState.dirty = true;
@@ -3067,10 +3194,11 @@ function applySurfaceVisibility(prefs) {
   const visibleKeys = [];
 
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
-    const widgetEnabled = widgetPrefs[key] !== false;
-    const graphEnabled = GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true;
-    const cardEnabled = WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true;
     const isTodayWidget = TODAY_WIDGET_KEYS.has(key);
+    const forceTodayVisibility = restrictToToday && isTodayWidget;
+    const widgetEnabled = forceTodayVisibility ? true : widgetPrefs[key] !== false;
+    const graphEnabled = forceTodayVisibility ? true : (GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true);
+    const cardEnabled = forceTodayVisibility ? true : (WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true);
     if (key === CELEBRATIONS_WIDGET_KEY && widgetEnabled && graphEnabled && cardEnabled) {
       ensureCelebrationsWidgetShell();
     }

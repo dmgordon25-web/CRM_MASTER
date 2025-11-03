@@ -11,17 +11,90 @@ import initDashboardLayout, {
 
 const DASHBOARD_WIDGET_SELECTOR = ':scope > section.card, :scope > div.card, :scope > section.grid > .card, :scope > section.grid > section.card';
 const defaultWidgets = getDashboardWidgets();
-const defaultOrderIndex = new Map(defaultWidgets.map((widget, index) => [widget.id, index]));
+
+function canonicalizeWidgetKey(value){
+  if(value == null) return '';
+  return String(value).trim();
+}
+
+const canonicalIdLookup = new Map();
+const keyToId = new Map();
+const idToKey = new Map();
+
+function registerWidgetMeta(widget){
+  if(!widget || typeof widget !== 'object') return;
+  const rawId = canonicalizeWidgetKey(widget.id);
+  const rawKey = canonicalizeWidgetKey(widget.key);
+  if(rawId){
+    canonicalIdLookup.set(rawId, rawId);
+    canonicalIdLookup.set(rawId.toLowerCase(), rawId);
+  }
+  if(rawKey){
+    const targetId = rawId || rawKey;
+    keyToId.set(rawKey, targetId);
+    keyToId.set(rawKey.toLowerCase(), targetId);
+    if(targetId){
+      idToKey.set(targetId, rawKey);
+      idToKey.set(targetId.toLowerCase(), rawKey);
+    }
+  }
+}
+
+defaultWidgets.forEach(registerWidgetMeta);
+
+function canonicalizeWidgetId(value){
+  const raw = canonicalizeWidgetKey(value);
+  if(!raw) return '';
+  if(canonicalIdLookup.has(raw)) return canonicalIdLookup.get(raw);
+  const lower = raw.toLowerCase();
+  if(canonicalIdLookup.has(lower)) return canonicalIdLookup.get(lower);
+  if(keyToId.has(raw)) return keyToId.get(raw);
+  if(keyToId.has(lower)) return keyToId.get(lower);
+  return raw;
+}
+
+function resolveWidgetKeyFromId(value){
+  const canonicalId = canonicalizeWidgetId(value);
+  if(!canonicalId) return '';
+  if(idToKey.has(canonicalId)) return idToKey.get(canonicalId);
+  const lower = canonicalId.toLowerCase();
+  if(idToKey.has(lower)) return idToKey.get(lower);
+  return '';
+}
+
+const defaultOrderIndex = new Map();
+defaultWidgets.forEach((widget, index) => {
+  const canonicalId = canonicalizeWidgetId(widget.id || widget.key);
+  if(canonicalId && !defaultOrderIndex.has(canonicalId)){
+    defaultOrderIndex.set(canonicalId, index);
+  }
+});
+
+const canonicalWidgets = [];
+const canonicalSeen = new Set();
+defaultWidgets.forEach(widget => {
+  const id = canonicalizeWidgetId(widget.id || widget.key);
+  if(!id || canonicalSeen.has(id)) return;
+  canonicalSeen.add(id);
+  const key = resolveWidgetKeyFromId(id) || canonicalizeWidgetKey(widget.key);
+  const label = widget.label || id;
+  canonicalWidgets.push({ id, key, label });
+});
 
 const prefsState = {
   wired: false,
   logged: false,
   layoutMode: false,
   hidden: new Set(),
-  widgets: defaultWidgets.slice()
+  widgets: canonicalWidgets.map(widget => ({ ...widget }))
 };
 
-const widgetLabelMap = new Map(prefsState.widgets.map(widget => [widget.id, widget.label]));
+const widgetLabelMap = new Map();
+prefsState.widgets.forEach(widget => {
+  if(widget && widget.id){
+    widgetLabelMap.set(widget.id, widget.label);
+  }
+});
 
 function postLog(event, data){
   const payload = JSON.stringify(Object.assign({ event }, data || {}));
@@ -48,7 +121,10 @@ function logReady(){
 
 function refreshState(){
   prefsState.layoutMode = !!readStoredLayoutMode();
-  prefsState.hidden = new Set(readStoredHiddenIds().map(String));
+  const hiddenIds = readStoredHiddenIds()
+    .map(id => canonicalizeWidgetId(id))
+    .filter(Boolean);
+  prefsState.hidden = new Set(hiddenIds);
 }
 
 function dispatchLayoutMode(enabled){
@@ -149,67 +225,79 @@ function scanWidgets(container){
   const next = [];
   nodes.forEach(node => {
     const dataset = node.dataset || {};
-    let id = dataset.widgetId || dataset.widget || '';
-    id = id ? String(id).trim() : '';
+    const datasetId = canonicalizeWidgetKey(dataset.widgetId || dataset.widget || dataset.widgetKey || dataset.dashWidget);
+    let id = canonicalizeWidgetId(datasetId);
     if(!id){
-      id = String(node.id || '').trim();
+      id = canonicalizeWidgetId(node.id);
+    }
+    if(!id && datasetId){
+      id = canonicalizeWidgetId(datasetId);
     }
     if(!id){
-      const fallback = resolveWidgetLabel(node);
-      if(fallback){
-        id = fallback.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const fallbackLabel = resolveWidgetLabel(node);
+      if(fallbackLabel){
+        const slug = fallbackLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        id = canonicalizeWidgetId(slug);
       }
     }
     if(!id) return;
-    if(seen.has(id)){
-      let index = 1;
-      let candidate = `${id}-${index}`;
-      while(seen.has(candidate)){
-        index += 1;
-        candidate = `${id}-${index}`;
-      }
-      id = candidate;
-    }
-    seen.add(id);
-    if(!dataset.widgetId){
-      node.dataset.widgetId = id;
-    }
-    let label = widgetLabelMap.get(id);
+    const canonicalId = canonicalizeWidgetId(id);
+    if(!canonicalId || seen.has(canonicalId)) return;
+    seen.add(canonicalId);
+    const key = resolveWidgetKeyFromId(canonicalId) || canonicalizeWidgetKey(dataset.widgetKey || dataset.widgetId || dataset.widget || dataset.dashWidget);
+    let label = widgetLabelMap.get(canonicalId);
     if(!label){
-      label = resolveWidgetLabel(node) || id;
-      widgetLabelMap.set(id, label);
+      label = resolveWidgetLabel(node) || canonicalId;
+      widgetLabelMap.set(canonicalId, label);
     }
-    next.push({ id, label });
+    if(!canonicalIdLookup.has(canonicalId)){
+      registerWidgetMeta({ id: canonicalId, key });
+    }
+    next.push({ id: canonicalId, key, label });
   });
   const fallback = [];
   widgetLabelMap.forEach((label, id) => {
     if(seen.has(id)) return;
     const order = defaultOrderIndex.has(id) ? defaultOrderIndex.get(id) : Number.MAX_SAFE_INTEGER;
-    fallback.push({ id, label, order });
+    fallback.push({ id, key: resolveWidgetKeyFromId(id), label, order });
   });
   if(fallback.length){
     fallback.sort((a, b) => {
       if(a.order === b.order) return a.id.localeCompare(b.id);
       return a.order - b.order;
     });
-    fallback.forEach(entry => next.push({ id: entry.id, label: entry.label }));
+    fallback.forEach(entry => next.push({ id: entry.id, key: entry.key, label: entry.label }));
   }
-  if(next.length){
-    prefsState.widgets = next;
-  }
+  if(!next.length) return;
+  next.sort((a, b) => {
+    const orderA = defaultOrderIndex.has(a.id) ? defaultOrderIndex.get(a.id) : Number.MAX_SAFE_INTEGER;
+    const orderB = defaultOrderIndex.has(b.id) ? defaultOrderIndex.get(b.id) : Number.MAX_SAFE_INTEGER;
+    if(orderA === orderB){
+      return (a.label || a.id).localeCompare(b.label || b.id, undefined, { sensitivity: 'base' });
+    }
+    return orderA - orderB;
+  });
+  prefsState.widgets = next;
 }
 
 function renderWidgetList(list){
   list.innerHTML = '';
   prefsState.widgets.forEach(widget => {
+    if(!widget) return;
+    const canonicalId = canonicalizeWidgetId(widget.id);
+    if(!canonicalId) return;
     const label = document.createElement('label');
     label.className = 'switch';
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.setAttribute('data-widget-id', widget.id);
-    input.checked = !prefsState.hidden.has(widget.id);
+    input.setAttribute('data-widget-id', canonicalId);
+    const widgetKey = canonicalizeWidgetKey(widget.key);
+    if(widgetKey){
+      input.setAttribute('data-widget-key', widgetKey);
+    }
+    input.checked = !prefsState.hidden.has(canonicalId);
     const span = document.createElement('span');
-    span.textContent = widget.label;
+    span.textContent = widget.label || canonicalId;
     label.appendChild(input);
     label.appendChild(span);
     list.appendChild(label);
@@ -266,7 +354,7 @@ function render(){
         ? evt.target
         : evt.target?.closest?.('input[data-widget-id]');
       if(!(target instanceof HTMLInputElement)) return;
-      const id = target.getAttribute('data-widget-id');
+      const id = canonicalizeWidgetId(target.getAttribute('data-widget-id'));
       if(!id) return;
       const nextHidden = new Set(prefsState.hidden);
       if(target.checked){
@@ -308,7 +396,7 @@ function render(){
         refreshState();
         renderWidgetList(list);
         list.querySelectorAll('input[data-widget-id]').forEach(input => {
-          const id = input.getAttribute('data-widget-id');
+          const id = canonicalizeWidgetId(input.getAttribute('data-widget-id'));
           input.checked = !prefsState.hidden.has(id);
         });
         layoutInput.checked = prefsState.layoutMode;
@@ -323,7 +411,7 @@ function render(){
   }
   updateHandlerCountNode(handlerNote);
   list.querySelectorAll('input[data-widget-id]').forEach(input => {
-    const id = input.getAttribute('data-widget-id');
+    const id = canonicalizeWidgetId(input.getAttribute('data-widget-id'));
     input.checked = !prefsState.hidden.has(id);
   });
   layoutInput.checked = prefsState.layoutMode;
