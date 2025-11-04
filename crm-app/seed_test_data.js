@@ -68,6 +68,8 @@
   const DEFAULT_OPTIONS = {
     count: 60,
     includeCelebrations: true,
+    includeTasks: true,
+    includeMeetings: true,
     stages: STAGE_DEFS.map(def => def.key),
     loanTypes: LOAN_TYPES.slice(),
     partners: { buyer: true, listing: true },
@@ -195,6 +197,14 @@
       ? DEFAULT_OPTIONS.includeCelebrations
       : !!input.includeCelebrations;
 
+    const includeTasks = input.includeTasks === undefined
+      ? DEFAULT_OPTIONS.includeTasks
+      : !!input.includeTasks;
+
+    const includeMeetings = input.includeMeetings === undefined
+      ? DEFAULT_OPTIONS.includeMeetings
+      : !!input.includeMeetings;
+
     const stages = normalizeStageList(input.stages);
     const loanTypes = normalizeLoanList(input.loanTypes);
     const partners = normalizePartners(input.partners || input);
@@ -206,6 +216,8 @@
     return {
       count,
       includeCelebrations,
+      includeTasks,
+      includeMeetings,
       stages,
       loanTypes,
       partners,
@@ -219,6 +231,8 @@
       namespace: RNG_NAMESPACE,
       count: normalized.count,
       includeCelebrations: normalized.includeCelebrations,
+      includeTasks: normalized.includeTasks,
+      includeMeetings: normalized.includeMeetings,
       stages: normalized.stages,
       loanTypes: normalized.loanTypes,
       partners: normalized.partners
@@ -248,6 +262,7 @@
     const dataset = {
       contacts: [],
       tasks: [],
+      events: [],
       documents: [],
       deals: [],
       commissions: []
@@ -332,24 +347,57 @@
         updatedAt
       });
 
-      const baseDue = stageAnchor + (3 * DAY);
-      const followUpTitle = `Pipeline touch (${stageLabel})`;
-      dataset.tasks.push({
-        id: `seed-task-${pad(seq, 4)}-a`,
-        contactId,
-        title: followUpTitle,
-        due: toYMD(baseDue),
-        done: stageKey === 'funded' && (seq % 2 === 0),
-        updatedAt
-      });
-      dataset.tasks.push({
-        id: `seed-task-${pad(seq, 4)}-b`,
-        contactId,
-        title: `Document chase ${pad(seq, 2)}`,
-        due: toYMD(baseDue + DAY),
-        done: stageKey === 'funded' && (seq % 3 === 0),
-        updatedAt
-      });
+      if(normalized.includeTasks){
+        const baseDue = stageAnchor + (3 * DAY);
+        const followUpTitle = `Pipeline touch (${stageLabel})`;
+        dataset.tasks.push({
+          id: `seed-task-${pad(seq, 4)}-a`,
+          contactId,
+          title: followUpTitle,
+          due: toYMD(baseDue),
+          done: stageKey === 'funded' && (seq % 2 === 0),
+          status: stageKey === 'funded' && (seq % 2 === 0) ? 'done' : 'open',
+          updatedAt
+        });
+        dataset.tasks.push({
+          id: `seed-task-${pad(seq, 4)}-b`,
+          contactId,
+          title: `Document chase ${pad(seq, 2)}`,
+          due: toYMD(baseDue + DAY),
+          done: stageKey === 'funded' && (seq % 3 === 0),
+          status: stageKey === 'funded' && (seq % 3 === 0) ? 'done' : 'open',
+          updatedAt
+        });
+      }
+
+      if(normalized.includeMeetings){
+        const meetingBase = stageAnchor + (5 * DAY);
+        const callBase = stageAnchor + (7 * DAY);
+        
+        dataset.events.push({
+          id: `seed-event-${pad(seq, 4)}-meeting`,
+          contactId,
+          title: `Pre-approval meeting with ${first} ${last}`,
+          type: 'meeting',
+          date: toYMD(meetingBase),
+          startTime: '10:00',
+          endTime: '11:00',
+          notes: `Discuss loan options and documentation requirements for ${loanType} loan.`,
+          updatedAt
+        });
+
+        dataset.events.push({
+          id: `seed-event-${pad(seq, 4)}-call`,
+          contactId,
+          title: `Follow-up call: ${name}`,
+          type: 'call',
+          date: toYMD(callBase),
+          startTime: '14:00',
+          endTime: '14:30',
+          notes: `Check status of ${stageLabel} stage progress.`,
+          updatedAt
+        });
+      }
 
       DOC_TEMPLATES.forEach((template, idx) => {
         const status = stageKey === 'funded'
@@ -448,8 +496,8 @@
 
     const stores = (globalScope.DB_META && Array.isArray(globalScope.DB_META.STORES))
       ? globalScope.DB_META.STORES
-      : ['partners','contacts','tasks','documents','deals','commissions'];
-    const targetStores = stores.filter(store => ['partners','contacts','tasks','documents','deals','commissions'].includes(store));
+      : ['partners','contacts','tasks','events','documents','deals','commissions'];
+    const targetStores = stores.filter(store => ['partners','contacts','tasks','events','documents','deals','commissions'].includes(store));
     await clearStores(targetStores);
 
     const { dataset, normalized } = buildDataset(rawOptions);
@@ -459,7 +507,8 @@
 
     await bulkPut('partners', partnerRows);
     await bulkPut('contacts', dataset.contacts);
-    await bulkPut('tasks', dataset.tasks);
+    if(dataset.tasks && dataset.tasks.length) await bulkPut('tasks', dataset.tasks);
+    if(dataset.events && dataset.events.length) await bulkPut('events', dataset.events);
     await bulkPut('documents', dataset.documents);
     await bulkPut('deals', dataset.deals);
     await bulkPut('commissions', dataset.commissions);
