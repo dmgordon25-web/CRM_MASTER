@@ -3384,19 +3384,18 @@ function init() {
   if (!doc) return;
   ensureDashboardRouteLifecycle();
   
-  // Helper to toggle dashboard mode to refresh Today widget on boot
-  const toggleDashboardModeOnBoot = () => {
+  // Ensure proper widget visibility on boot
+  const ensureProperBootState = () => {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
     raf(() => {
       raf(() => {
         const current = getDashboardMode();
-        if (current === 'today') {
-          // Toggle to "all" then back to "today" to force proper widget rendering
-          setDashboardMode('all', { skipPersist: true, force: true });
-          raf(() => {
-            setDashboardMode('today', { skipPersist: true, force: true });
-          });
-        }
+        // Force re-apply of the current mode to ensure widgets are properly visible
+        setDashboardMode(current, { skipPersist: true, force: true });
+        // Trigger a refresh of widget visibility after initial render
+        raf(() => {
+          applySurfaceVisibility(prefCache.value || defaultPrefs());
+        });
       });
     });
   };
@@ -3408,7 +3407,7 @@ function init() {
       }
       scheduleApply();
       ensureWidgetDnD();
-      toggleDashboardModeOnBoot();
+      ensureProperBootState();
     }, { once: true });
   } else {
     if (typeof ensureLayoutToggle === 'function') {
@@ -3416,7 +3415,7 @@ function init() {
     }
     scheduleApply();
     ensureWidgetDnD();
-    toggleDashboardModeOnBoot();
+    ensureProperBootState();
   }
   if (win && win.RenderGuard && typeof win.RenderGuard.registerHook === 'function') {
     try {

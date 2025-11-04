@@ -1507,7 +1507,18 @@ function runPatch(){
         }
         toggleSectionVisibility('dashboard-focus', showFocus);
 
-        const widgetVisible = key => state.dashboard.mode === 'all' && state.dashboard.widgets[key] !== false;
+        // Define which widgets should be visible in 'today' mode
+        const todayModeWidgets = new Set(['today']);
+        
+        const widgetVisible = key => {
+          // In 'today' mode, show only today-specific widgets
+          if(state.dashboard.mode === 'today'){
+            return todayModeWidgets.has(key);
+          }
+          // In 'all' mode, show widgets that aren't explicitly disabled
+          return state.dashboard.widgets[key] !== false;
+        };
+        
         const shouldRenderWidget = key => {
           if(!widgetVisible(key)) return false;
           if(all) return true;
