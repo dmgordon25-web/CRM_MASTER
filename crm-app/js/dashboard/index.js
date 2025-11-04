@@ -56,7 +56,16 @@ const DASHBOARD_DEFAULT_WIDTHS = {
   numbersMomentum: 'twoThird',
   pipelineCalendar: 'twoThird'
 };
-const TODAY_WIDGET_KEYS = new Set(['today', CELEBRATIONS_WIDGET_KEY]);
+const TODAY_WIDGET_KEYS = new Set([
+  'today',
+  CELEBRATIONS_WIDGET_KEY,
+  'focus',
+  'kpis',
+  'priorityActions',
+  'milestones',
+  'goalProgress',
+  'pipelineCalendar'
+]);
 
 const todayHighlightState = {
   modeObserver: null,

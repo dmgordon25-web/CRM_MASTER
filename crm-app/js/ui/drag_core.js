@@ -604,8 +604,16 @@ function clampIndexForSpan(index, columns, span, totalItems){
   const rowStart = Math.floor(target / safeColumns) * safeColumns;
   const colOffset = target - rowStart;
   if(colOffset > maxStart){
-    target = rowStart + maxStart;
-    if(target > totalItems) target = totalItems;
+    // Improved snap behavior: snap to the nearest valid position
+    // This prevents widgets from getting stuck at invalid positions
+    const snapToRowMax = rowStart + maxStart;
+    const snapToNextRow = rowStart + safeColumns;
+    // Choose the closer position, but prefer staying in the same row if close
+    if(colOffset - maxStart <= 2 || snapToNextRow > totalItems){
+      target = snapToRowMax;
+    }else{
+      target = Math.min(snapToNextRow, totalItems);
+    }
   }
   return target;
 }
@@ -861,37 +869,72 @@ function computeOccupancyPlan(state){
   const occupancy = [];
   const nodePositions = new Map();
   let placeholderPos = null;
+  let hasCollision = false;
   entries.forEach(entry => {
     const span = Math.max(1, Math.min(columns, entry.span || 1));
     let placed = false;
-    for(let row = 0; !placed; row += 1){
+    let attemptedRow = 0;
+    for(let row = 0; !placed && row < 100; row += 1){
+      attemptedRow = row;
       if(!occupancy[row]){
         occupancy[row] = new Array(columns).fill(false);
       }
+      // Try to find the best fit position in this row
+      let bestCol = -1;
+      let minOverlap = Infinity;
       for(let col = 0; col <= columns - span; col += 1){
         let fits = true;
+        let overlapCount = 0;
         for(let offset = 0; offset < span; offset += 1){
           if(occupancy[row][col + offset]){
             fits = false;
-            break;
+            overlapCount += 1;
           }
         }
-        if(!fits) continue;
-        for(let offset = 0; offset < span; offset += 1){
-          occupancy[row][col + offset] = true;
+        if(fits){
+          bestCol = col;
+          break;
+        }else if(overlapCount < minOverlap){
+          minOverlap = overlapCount;
+          bestCol = col;
         }
-        const position = { row, col, span };
+      }
+      if(bestCol >= 0 && minOverlap === 0){
+        // Perfect fit found
+        for(let offset = 0; offset < span; offset += 1){
+          occupancy[row][bestCol + offset] = true;
+        }
+        const position = { row, col: bestCol, span };
         if(entry.placeholder){
           placeholderPos = position;
         }else if(entry.node){
           nodePositions.set(entry.node, position);
         }
         placed = true;
-        break;
+      }
+    }
+    if(!placed){
+      // Fallback: place at the end even if it causes overlap
+      hasCollision = true;
+      const row = attemptedRow;
+      if(!occupancy[row]){
+        occupancy[row] = new Array(columns).fill(false);
+      }
+      const col = 0;
+      for(let offset = 0; offset < span; offset += 1){
+        if(col + offset < columns){
+          occupancy[row][col + offset] = true;
+        }
+      }
+      const position = { row, col, span };
+      if(entry.placeholder){
+        placeholderPos = position;
+      }else if(entry.node){
+        nodePositions.set(entry.node, position);
       }
     }
   });
-  return { placeholder: placeholderPos, nodes: nodePositions, columns };
+  return { placeholder: placeholderPos, nodes: nodePositions, columns, hasCollision };
 }
 
 function applyOccupancyPlan(state, plan){
