@@ -3389,36 +3389,25 @@ function init() {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
     
     const performToggle = () => {
-      // Wait for splash screen to hide plus additional delay
+      // Simple toggle: from current mode to alternate and back
+      const current = getDashboardMode();
+      const alternate = current === 'today' ? 'all' : 'today';
+      
+      // Toggle to alternate mode to force re-render
+      setDashboardMode(alternate, { skipPersist: true, force: true });
+      
+      // Toggle back to desired mode after one RAF
       raf(() => {
+        setDashboardMode(current, { skipPersist: true, force: true });
+        
+        // Emit ready event after toggle completes
         raf(() => {
-          raf(() => {
-            const current = getDashboardMode();
-            const alternate = current === 'today' ? 'all' : 'today';
-            // Toggle to alternate mode first to trigger proper rendering
-            setDashboardMode(alternate, { skipPersist: true, force: true });
-            // Then toggle back to the desired mode with additional delays
-            raf(() => {
-              raf(() => {
-                raf(() => {
-                  setDashboardMode(current, { skipPersist: true, force: true });
-                  // Final refresh to ensure everything is visible with extra time
-                  raf(() => {
-                    raf(() => {
-                      applySurfaceVisibility(prefCache.value || defaultPrefs());
-                      // Emit ready event after all rendering is complete
-                      if (doc) {
-                        try {
-                          const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
-                          doc.dispatchEvent(evt);
-                        } catch (_) {}
-                      }
-                    });
-                  });
-                });
-              });
-            });
-          });
+          if (doc) {
+            try {
+              const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
+              doc.dispatchEvent(evt);
+            } catch (_) {}
+          }
         });
       });
     };
@@ -3426,7 +3415,8 @@ function init() {
     // Wait for splash screen to hide before performing toggle
     const checkSplashHidden = () => {
       if (win && win.__SPLASH_HIDDEN__) {
-        performToggle();
+        // Wait one more frame after splash hidden to ensure DOM is stable
+        raf(() => performToggle());
         return;
       }
       // Try again after delay
@@ -3434,7 +3424,7 @@ function init() {
     };
     
     // Start checking for splash hidden
-    setTimeout(checkSplashHidden, 300);
+    setTimeout(checkSplashHidden, 200);
   };
   
   if (doc.readyState === 'loading') {
