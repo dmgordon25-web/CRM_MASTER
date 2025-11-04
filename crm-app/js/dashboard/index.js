@@ -64,7 +64,13 @@ const TODAY_WIDGET_KEYS = new Set([
   'priorityActions',
   'milestones',
   'goalProgress',
-  'pipelineCalendar'
+  'pipelineCalendar',
+  'leaderboard',
+  'favorites',
+  'numbersPortfolio',
+  'numbersReferrals',
+  'numbersMomentum',
+  'pipeline'
 ]);
 
 const todayHighlightState = {
