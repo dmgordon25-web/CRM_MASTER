@@ -3384,17 +3384,25 @@ function init() {
   if (!doc) return;
   ensureDashboardRouteLifecycle();
   
-  // Ensure proper widget visibility on boot
+  // Ensure proper widget visibility on boot by toggling modes
   const ensureProperBootState = () => {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+    // Wait for initial render to complete
     raf(() => {
       raf(() => {
         const current = getDashboardMode();
-        // Force re-apply of the current mode to ensure widgets are properly visible
-        setDashboardMode(current, { skipPersist: true, force: true });
-        // Trigger a refresh of widget visibility after initial render
+        const alternate = current === 'today' ? 'all' : 'today';
+        // Toggle to alternate mode first to trigger proper rendering
+        setDashboardMode(alternate, { skipPersist: true, force: true });
+        // Then toggle back to the desired mode
         raf(() => {
-          applySurfaceVisibility(prefCache.value || defaultPrefs());
+          raf(() => {
+            setDashboardMode(current, { skipPersist: true, force: true });
+            // Final refresh to ensure everything is visible
+            raf(() => {
+              applySurfaceVisibility(prefCache.value || defaultPrefs());
+            });
+          });
         });
       });
     });

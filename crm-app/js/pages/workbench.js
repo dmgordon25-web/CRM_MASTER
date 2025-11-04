@@ -2493,10 +2493,26 @@ function handleSelectAllChange(event, lensState){
     visibleIds.forEach(id => next.add(id));
     try { checkbox.setAttribute('aria-checked', 'true'); }
     catch (_err){}
+    // Update DOM checkboxes BEFORE updating store so action bar can detect them
+    visibleEntries.forEach(entry => {
+      if(entry.checkbox && entry.id){
+        entry.checkbox.checked = true;
+        entry.checkbox.setAttribute('aria-checked', 'true');
+        if(entry.row) entry.row.setAttribute('data-selected', '1');
+      }
+    });
   }else{
     visibleIds.forEach(id => next.delete(id));
     try { checkbox.setAttribute('aria-checked', 'false'); }
     catch (_err){}
+    // Update DOM checkboxes BEFORE updating store
+    visibleEntries.forEach(entry => {
+      if(entry.checkbox && entry.id){
+        entry.checkbox.checked = false;
+        entry.checkbox.setAttribute('aria-checked', 'false');
+        if(entry.row) entry.row.removeAttribute('data-selected');
+      }
+    });
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
