@@ -2518,31 +2518,50 @@ function handleSelectAllChange(event, lensState){
   syncSelectionForLens(lensState);
   // Force immediate action bar update when toggling select-all
   try {
-    // Use microtask to ensure store subscriptions have processed
-    const forceActionBarUpdate = () => {
+    const selectionCount = next.size;
+    // Directly update action bar visibility with the correct count
+    const updateActionBarWithCount = () => {
+      // Update the action bar with explicit count
+      if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+        try { window.updateActionbar(); }
+        catch(_err){}
+      }
+      // Force action bar visibility based on count
+      const bar = typeof document !== 'undefined' 
+        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+        : null;
+      if(bar){
+        if(selectionCount > 0){
+          bar.setAttribute('data-visible', '1');
+          bar.dataset.count = String(selectionCount);
+        }else{
+          bar.removeAttribute('data-visible');
+          bar.dataset.count = '0';
+        }
+      }
+      // Trigger standard update mechanisms
       if(typeof ensureActionBarPostPaintRefresh === 'function'){
         ensureActionBarPostPaintRefresh();
       }
-      // Force immediate visibility refresh
       if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
         window.__UPDATE_ACTION_BAR_VISIBLE__();
       }
-      // Additional RAF to ensure action bar processes the update
-      if(typeof requestAnimationFrame === 'function'){
-        requestAnimationFrame(() => {
-          if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
-            window.__UPDATE_ACTION_BAR_VISIBLE__();
-          }
-        });
-      }
     };
-    // Queue update after store subscription has fired
+    // Call immediately
+    updateActionBarWithCount();
+    // Call again after microtask to ensure subscriptions have processed
     if(typeof queueMicrotask === 'function'){
-      queueMicrotask(forceActionBarUpdate);
+      queueMicrotask(updateActionBarWithCount);
     }else if(typeof Promise !== 'undefined'){
-      Promise.resolve().then(forceActionBarUpdate).catch(() => {});
-    }else{
-      forceActionBarUpdate();
+      Promise.resolve().then(updateActionBarWithCount).catch(() => {});
+    }
+    // Call again after RAF for final sync
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(() => {
+        updateActionBarWithCount();
+        // One more RAF to be absolutely sure
+        requestAnimationFrame(updateActionBarWithCount);
+      });
     }
   }catch(_err){}
 }
