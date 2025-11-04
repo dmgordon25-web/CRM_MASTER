@@ -1320,10 +1320,35 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       ids.forEach(id => next.add(id));
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err){}
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      // This ensures the action bar sees checked boxes when it receives the notification
+      visible.forEach(entry => {
+        if(entry.checkbox && entry.id){
+          entry.checkbox.checked = true;
+          try { entry.checkbox.setAttribute('aria-checked', 'true'); }
+          catch (_err){}
+          if(entry.row){
+            try { entry.row.setAttribute('data-selected', '1'); }
+            catch (_err){}
+          }
+        }
+      });
     }else{
       ids.forEach(id => next.delete(id));
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err){}
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      visible.forEach(entry => {
+        if(entry.checkbox && entry.id){
+          entry.checkbox.checked = false;
+          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
+          catch (_err){}
+          if(entry.row){
+            try { entry.row.removeAttribute('data-selected'); }
+            catch (_err){}
+          }
+        }
+      });
     }
     store.set(next, scope);
   }
