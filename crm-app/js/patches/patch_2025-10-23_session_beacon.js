@@ -3,10 +3,7 @@
 
   function markBye() {
     const sid = window.__SID;
-    if (!sid) {
-      return;
-    }
-    const target = `/__bye?sid=${encodeURIComponent(sid)}`;
+    const target = sid ? `/__bye?sid=${encodeURIComponent(sid)}` : '/__bye';
     if (navigator.sendBeacon) {
       try {
         if (navigator.sendBeacon(target, '')) {
@@ -28,6 +25,8 @@
       return;
     }
     state.armed = true;
+    window.addEventListener('beforeunload', markBye, { capture: true });
+    window.addEventListener('unload', markBye, { capture: true });
     window.addEventListener('pagehide', markBye, { capture: true });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
