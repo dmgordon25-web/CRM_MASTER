@@ -147,6 +147,10 @@ import { syncTableLayout } from './ui/table_layout.js';
       syncTableLayout(host);
       if(typeof window !== 'undefined'){
         try{
+          // Ensure select-all checkbox is wired up
+          if(typeof window.ensureRowCheckHeaders === 'function'){
+            window.ensureRowCheckHeaders(host);
+          }
           const scope = host.getAttribute ? host.getAttribute('data-selection-scope') : null;
           if(scope && typeof window.syncSelectionScope === 'function'){
             window.syncSelectionScope(scope, { root: host });
