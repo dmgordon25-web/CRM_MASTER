@@ -3383,6 +3383,25 @@ function handleLayoutColumnsChange(evt) {
 function init() {
   if (!doc) return;
   ensureDashboardRouteLifecycle();
+  
+  // Helper to toggle dashboard mode to refresh Today widget on boot
+  const toggleDashboardModeOnBoot = () => {
+    const sessionKey = 'dashboard:boot-toggled';
+    const bootToggled = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey) === 'true';
+    if (!bootToggled) {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(sessionKey, 'true');
+      }
+      // Toggle to All then back to Today to ensure proper rendering
+      setTimeout(() => {
+        setDashboardMode('all', { skipPersist: true });
+        setTimeout(() => {
+          setDashboardMode('today', { skipPersist: true });
+        }, 100);
+      }, 200);
+    }
+  };
+  
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', () => {
       if (typeof ensureLayoutToggle === 'function') {
@@ -3390,6 +3409,7 @@ function init() {
       }
       scheduleApply();
       ensureWidgetDnD();
+      toggleDashboardModeOnBoot();
     }, { once: true });
   } else {
     if (typeof ensureLayoutToggle === 'function') {
@@ -3397,6 +3417,7 @@ function init() {
     }
     scheduleApply();
     ensureWidgetDnD();
+    toggleDashboardModeOnBoot();
   }
   if (win && win.RenderGuard && typeof win.RenderGuard.registerHook === 'function') {
     try {

@@ -2914,9 +2914,13 @@ async function setupWorkbench(target){
   restoreLensDrafts();
   syncUI();
   
-  // On first initialization, briefly toggle tables open then closed to render them collapsed
-  if(!state.layout.initialized){
-    state.layout.initialized = true;
+  // On first session entry, toggle tables open then closed to render them properly collapsed
+  const sessionKey = 'workbench:session-initialized';
+  const sessionInitialized = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey) === 'true';
+  if(!sessionInitialized){
+    if(typeof sessionStorage !== 'undefined'){
+      sessionStorage.setItem(sessionKey, 'true');
+    }
     // Briefly open all sections to render their initial state
     state.lensStates.forEach((lensState) => {
       if(lensState.elements && lensState.elements.body){
@@ -2926,8 +2930,8 @@ async function setupWorkbench(target){
         lensState.elements.toggle.textContent = 'Hide';
       }
     });
-    // Immediately close them all
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Wait a tick then close them all
+    await new Promise(resolve => setTimeout(resolve, 50));
     state.lensStates.forEach((lensState) => {
       if(lensState.elements && lensState.elements.body){
         lensState.open = false;

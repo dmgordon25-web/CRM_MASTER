@@ -49,6 +49,31 @@ input[type="checkbox"][data-role="select-all"],
   opacity: 0.8;
 }
 
+/* Ensure select-all checkboxes in table headers are visible */
+th input[data-ui="row-check-all"],
+th input[data-role="select-all"],
+thead input[data-ui="row-check-all"],
+thead input[data-role="select-all"] {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  margin: 0 auto;
+}
+
+/* Ensure the parent th cell shows the checkbox */
+th[data-role="select"],
+th[data-column="select"] {
+  text-align: center !important;
+  width: 44px !important;
+  padding: 8px !important;
+}
+
 
 /* PATCH: make Merge modal reliably visible and clickable at open */
 [data-ui="merge-modal"] {

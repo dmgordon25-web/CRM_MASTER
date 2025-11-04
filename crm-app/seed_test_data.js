@@ -373,6 +373,7 @@
       if(normalized.includeMeetings){
         const meetingBase = stageAnchor + (5 * DAY);
         const callBase = stageAnchor + (7 * DAY);
+        const otherBase = stageAnchor + (10 * DAY);
         
         dataset.events.push({
           id: `seed-event-${pad(seq, 4)}-meeting`,
@@ -395,6 +396,17 @@
           startTime: '14:00',
           endTime: '14:30',
           notes: `Check status of ${stageLabel} stage progress.`,
+          updatedAt
+        });
+
+        // Add "other" type events
+        dataset.events.push({
+          id: `seed-event-${pad(seq, 4)}-other`,
+          contactId,
+          title: `Document review: ${name}`,
+          type: 'other',
+          date: toYMD(otherBase),
+          notes: `Review and verify submitted documents for ${loanType} loan application.`,
           updatedAt
         });
       }
