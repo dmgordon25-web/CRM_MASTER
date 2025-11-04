@@ -2516,54 +2516,51 @@ function handleSelectAllChange(event, lensState){
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
-  // Force immediate action bar update when toggling select-all
-  try {
-    const selectionCount = next.size;
-    // Directly update action bar visibility with the correct count
-    const updateActionBarWithCount = () => {
-      // Update the action bar with explicit count
-      if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
-        try { window.updateActionbar(); }
-        catch(_err){}
-      }
-      // Force action bar visibility based on count
-      const bar = typeof document !== 'undefined' 
-        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
-        : null;
-      if(bar){
-        if(selectionCount > 0){
-          bar.setAttribute('data-visible', '1');
-          bar.dataset.count = String(selectionCount);
-        }else{
-          bar.removeAttribute('data-visible');
-          bar.dataset.count = '0';
-        }
-      }
-      // Trigger standard update mechanisms
-      if(typeof ensureActionBarPostPaintRefresh === 'function'){
-        ensureActionBarPostPaintRefresh();
-      }
-      if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
-        window.__UPDATE_ACTION_BAR_VISIBLE__();
-      }
-    };
-    // Call immediately
-    updateActionBarWithCount();
-    // Call again after microtask to ensure subscriptions have processed
-    if(typeof queueMicrotask === 'function'){
-      queueMicrotask(updateActionBarWithCount);
-    }else if(typeof Promise !== 'undefined'){
-      Promise.resolve().then(updateActionBarWithCount).catch(() => {});
+  // Force immediate and comprehensive action bar update
+  const selectionCount = next.size;
+  const updateActionBar = () => {
+    // Call updateActionbar if available to trigger full update
+    if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+      try { window.updateActionbar(); }
+      catch(_err){}
     }
-    // Call again after RAF for final sync
-    if(typeof requestAnimationFrame === 'function'){
-      requestAnimationFrame(() => {
-        updateActionBarWithCount();
-        // One more RAF to be absolutely sure
-        requestAnimationFrame(updateActionBarWithCount);
-      });
+    // Directly manipulate action bar visibility
+    const bar = typeof document !== 'undefined' 
+      ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+      : null;
+    if(bar){
+      if(selectionCount > 0){
+        bar.setAttribute('data-visible', '1');
+        bar.style.display = '';
+        bar.dataset.count = String(selectionCount);
+      }else{
+        bar.removeAttribute('data-visible');
+        bar.style.display = 'none';
+        bar.dataset.count = '0';
+      }
     }
-  }catch(_err){}
+    // Trigger all update mechanisms
+    if(typeof ensureActionBarPostPaintRefresh === 'function'){
+      try { ensureActionBarPostPaintRefresh(); }
+      catch(_err){}
+    }
+    if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+      try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+      catch(_err){}
+    }
+  };
+  // Immediate update
+  updateActionBar();
+  // Update after microtask
+  if(typeof queueMicrotask === 'function'){
+    queueMicrotask(updateActionBar);
+  }else if(typeof Promise !== 'undefined'){
+    Promise.resolve().then(updateActionBar).catch(() => {});
+  }
+  // Update after RAF for final sync
+  if(typeof requestAnimationFrame === 'function'){
+    requestAnimationFrame(updateActionBar);
+  }
 }
 
 function handleRowCheckboxChange(event, lensState){

@@ -581,8 +581,13 @@ function runPatch(){
       const bar = actionbar();
       if(!bar) return;
       const numeric = typeof selCount === 'number' && Number.isFinite(selCount) ? selCount : 0;
-      if(numeric > 0) bar.setAttribute('data-visible','1');
-      else bar.removeAttribute('data-visible');
+      if(numeric > 0){
+        bar.setAttribute('data-visible','1');
+        bar.style.display = '';
+      }else{
+        bar.removeAttribute('data-visible');
+        bar.style.display = 'none';
+      }
     }
 
     function deselectAllRows(){
@@ -617,6 +622,20 @@ function runPatch(){
         catch (_err) {}
         try { window.SelectionStore?.clear?.('partners'); }
         catch (_err) {}
+        try { window.SelectionStore?.clear?.('leads'); }
+        catch (_err) {}
+        try { window.SelectionStore?.clear?.('partners:active'); }
+        catch (_err) {}
+        // Also uncheck and reset all select-all checkboxes
+        try{
+          document.querySelectorAll('[data-ui="row-check-all"], [data-role="select-all"]').forEach(node => {
+            if(node && node instanceof HTMLInputElement){
+              node.checked = false;
+              node.indeterminate = false;
+              node.setAttribute('aria-checked', 'false');
+            }
+          });
+        }catch(_err){}
       }
     }
 
@@ -1076,6 +1095,8 @@ function runPatch(){
           if(ensureSelectionService() && typeof SelectionService.clear === 'function'){
             SelectionService.clear(`${sourceBase}:clear`);
           }
+          // Also update all UI checkboxes when clearing
+          deselectAllRows();
         }else if(ensureSelectionService() && typeof SelectionService.reemit === 'function'){
           SelectionService.reemit(`${sourceBase}:ok`);
         }
