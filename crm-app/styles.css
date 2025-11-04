@@ -938,8 +938,8 @@ table.list-table td[data-column="nextAction"] {
 
 /* Make the dialog wide on desktop but fluid if screen is smaller */
 .record-modal .dlg {
-  width: clamp(960px, 96vw, 1360px);
-  max-width: min(96vw, 1360px);
+  width: clamp(1040px, 98vw, 1480px);
+  max-width: min(98vw, 1480px);
   max-height: min(94vh, calc(100vh - 80px));
 }
 
@@ -987,7 +987,7 @@ table.list-table td[data-column="nextAction"] {
 .summary-metric .metric-value{font-size:16px;font-weight:700;color:var(--ink)}
 .modal-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,320px);gap:20px;align-items:start;min-width:0}
 .modal-main>.modal-core{display:flex;flex-direction:column;gap:16px;min-width:0}
-.modal-core .modal-content{display:flex;gap:16px;align-items:flex-start;min-width:0}
+.modal-core .modal-content{display:flex;gap:32px;align-items:flex-start;min-width:0}
 .modal-main>[data-ui="contact-detail-pane"]{display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;position:relative}
 .modal-main>[data-ui="contact-detail-pane"]::before{content:"";position:absolute;inset:-8px -12px -8px -12px;border-radius:18px;z-index:-1;background:linear-gradient(150deg,#eef2ff,#f1f5f9);opacity:.8}
 [data-ui="contact-detail-pane"] .detail-card{background:#fff;border:1px solid #dbeafe;border-radius:14px;padding:16px;box-shadow:0 10px 26px rgba(148,163,184,.18);display:flex;flex-direction:column;gap:12px}
@@ -1007,9 +1007,10 @@ table.list-table td[data-column="nextAction"] {
 .milestone-badge{border-radius:999px;border:1px solid rgba(15,23,42,.16);background:#fff;color:#334155;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer;transition:background .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
 .milestone-badge.is-active{background:var(--accent-milestone,#f97316);border-color:var(--accent-milestone,#f97316);color:#fff;box-shadow:0 0 0 2px rgba(249,115,22,.18)}
 .milestone-badge:focus-visible{outline:2px solid var(--focus-ring,#2563eb);outline-offset:2px}
-.modal-tabs{display:flex;flex-direction:column;gap:8px;min-width:180px;position:sticky;top:0}
-.modal-tabs button{justify-content:flex-start}
-.modal-tabs button.active{background:#eef2ff;border-color:#c7d2fe;color:#312e81;font-weight:700}
+.modal-tabs{display:flex;flex-direction:column;gap:8px;min-width:200px;position:sticky;top:0}
+.modal-tabs button{justify-content:flex-start;background:#f8fafc;border:1px solid #e2e8f0;color:#475569;font-weight:500;transition:all .2s ease}
+.modal-tabs button:hover{background:#f1f5f9;border-color:#cbd5e1;color:#334155;transform:translateX(2px);box-shadow:0 4px 12px rgba(15,23,42,.08)}
+.modal-tabs button.active{background:linear-gradient(135deg,#4f46e5,#6366f1);border-color:#4f46e5;color:#ffffff;font-weight:700;box-shadow:0 8px 24px rgba(79,70,229,.35);transform:translateX(4px)}
 .modal-panels{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
 .modal-panels .modal-panel,.modal-panels .modal-section,.modal-panels .field-grid{min-width:0}
 .modal-panel{display:none;flex-direction:column;gap:16px}
