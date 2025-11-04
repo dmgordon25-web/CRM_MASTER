@@ -493,9 +493,13 @@ dialog::backdrop{background:#0004}
 .table-search{margin:8px 0}
 .table-search input{width:100%;max-width:100%}
 .status-table-wrap{overflow:auto;max-height:70vh;border-top:1px solid #e2e8f0;background:#fff;scrollbar-gutter:stable both-edges}
-.status-table{min-width:960px}
-.status-table td{white-space:nowrap}
-.status-table td:nth-child(2){white-space:normal}
+.status-table{min-width:960px;table-layout:auto}
+.status-table th, .status-table td{padding:12px 10px}
+.status-table td{white-space:nowrap;vertical-align:middle}
+.status-table td:nth-child(2){white-space:normal;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.status-table th[data-column="select"], .status-table td[data-role="select"]{width:44px;text-align:center;padding:8px}
+.status-name-link, .contact-name{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:normal;line-height:1.4;cursor:pointer;text-decoration:none;color:var(--brand);font-weight:500}
+.status-name-link:hover, .contact-name:hover{text-decoration:underline}
 .sort-btn{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer}
 .sort-btn .sort-icon{font-size:12px;color:#94a3b8}
 .sort-btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:8px}
@@ -886,6 +890,41 @@ table.list-table td[data-column="nextTouch"],
 table.list-table th[data-column="nextAction"],
 table.list-table td[data-column="nextAction"] {
   width: clamp(140px, 22vw, 200px);
+}
+
+/* Pipeline table specifics */
+#tbl-pipeline, #tbl-clients {
+  table-layout: auto;
+  min-width: 800px;
+}
+
+#tbl-pipeline th,
+#tbl-pipeline td,
+#tbl-clients th,
+#tbl-clients td {
+  padding: 14px 10px;
+  vertical-align: middle;
+}
+
+#tbl-pipeline td:nth-child(2),
+#tbl-clients td:nth-child(2) {
+  white-space: normal;
+  min-width: 180px;
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+#tbl-pipeline a,
+#tbl-clients a {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+#tbl-pipeline a:hover,
+#tbl-clients a:hover {
+  text-decoration: underline;
 }
 
 #tbl-longshots th:nth-child(1),

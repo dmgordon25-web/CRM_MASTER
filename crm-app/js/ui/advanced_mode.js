@@ -60,6 +60,93 @@ function applyAdvancedModeVisibility() {
     // Also update aria-hidden for accessibility
     element.setAttribute('aria-hidden', show ? 'false' : 'true');
   });
+  
+  // In simple mode, hide workbench and reports (client portfolio) pages
+  if (!isAdvancedMode) {
+    // Hide workbench nav button
+    const workbenchNav = document.querySelector('[data-nav="workbench"]');
+    if (workbenchNav) {
+      workbenchNav.style.display = 'none';
+      workbenchNav.setAttribute('aria-hidden', 'true');
+    }
+    
+    // Hide reports nav button (Client Portfolio)
+    const reportsNav = document.querySelector('[data-nav="reports"]');
+    if (reportsNav) {
+      reportsNav.style.display = 'none';
+      reportsNav.setAttribute('aria-hidden', 'true');
+    }
+    
+    // Hide workbench view
+    const workbenchView = document.getElementById('view-workbench');
+    if (workbenchView) {
+      workbenchView.style.display = 'none';
+      workbenchView.setAttribute('aria-hidden', 'true');
+    }
+    
+    // Hide reports view
+    const reportsView = document.getElementById('view-reports');
+    if (reportsView) {
+      reportsView.style.display = 'none';
+      reportsView.setAttribute('aria-hidden', 'true');
+    }
+  } else {
+    // Restore visibility in advanced mode
+    const workbenchNav = document.querySelector('[data-nav="workbench"]');
+    if (workbenchNav) {
+      workbenchNav.style.display = '';
+      workbenchNav.setAttribute('aria-hidden', 'false');
+    }
+    
+    const reportsNav = document.querySelector('[data-nav="reports"]');
+    if (reportsNav) {
+      reportsNav.style.display = '';
+      reportsNav.setAttribute('aria-hidden', 'false');
+    }
+    
+    const workbenchView = document.getElementById('view-workbench');
+    if (workbenchView) {
+      workbenchView.style.display = '';
+      workbenchView.setAttribute('aria-hidden', 'false');
+    }
+    
+    const reportsView = document.getElementById('view-reports');
+    if (reportsView) {
+      reportsView.style.display = '';
+      reportsView.setAttribute('aria-hidden', 'false');
+    }
+  }
+  
+  // Apply simple mode to modal fields
+  applySimpleModeToModals();
+}
+
+/**
+ * Apply simple mode styling to modals (hide non-required fields)
+ */
+function applySimpleModeToModals() {
+  const modalFields = document.querySelectorAll('[data-simple-hide]');
+  
+  modalFields.forEach(field => {
+    const show = isAdvancedMode;
+    field.style.display = show ? '' : 'none';
+    
+    if (!show) {
+      field.setAttribute('aria-hidden', 'true');
+      // Disable inputs in hidden fields
+      const inputs = field.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        input.disabled = true;
+      });
+    } else {
+      field.setAttribute('aria-hidden', 'false');
+      // Re-enable inputs in shown fields
+      const inputs = field.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        input.disabled = false;
+      });
+    }
+  });
 }
 
 /**

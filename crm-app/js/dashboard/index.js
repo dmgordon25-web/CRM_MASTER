@@ -58,19 +58,7 @@ const DASHBOARD_DEFAULT_WIDTHS = {
 };
 const TODAY_WIDGET_KEYS = new Set([
   'today',
-  CELEBRATIONS_WIDGET_KEY,
-  'focus',
-  'kpis',
-  'priorityActions',
-  'milestones',
-  'goalProgress',
-  'pipelineCalendar',
-  'leaderboard',
-  'favorites',
-  'numbersPortfolio',
-  'numbersReferrals',
-  'numbersMomentum',
-  'pipeline'
+  CELEBRATIONS_WIDGET_KEY
 ]);
 
 const todayHighlightState = {
