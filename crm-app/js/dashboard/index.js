@@ -3442,4 +3442,21 @@ function init() {
   refreshTodayHighlightWiring();
 }
 
+function toggleDashboardModeOnBoot() {
+  if (!doc) return;
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+  raf(() => {
+    raf(() => {
+      const current = getDashboardMode();
+      if (current === 'today') {
+        // Toggle to "all" then back to "today" to force proper widget rendering
+        setDashboardMode('all', { skipPersist: true, force: true });
+        raf(() => {
+          setDashboardMode('today', { skipPersist: false, force: true });
+        });
+      }
+    });
+  });
+}
+
 init();
