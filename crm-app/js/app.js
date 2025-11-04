@@ -2587,6 +2587,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
       const countInput = seedForm.querySelector('#seed-count');
       const includeCelebrations = !!seedForm.querySelector('#seed-include-celebrations')?.checked;
+      const includeTasks = !!seedForm.querySelector('#seed-include-tasks')?.checked;
+      const includeMeetings = !!seedForm.querySelector('#seed-include-meetings')?.checked;
       const stageValues = Array.from(seedForm.querySelectorAll('input[name="seed-stage"]:checked')).map(el => el.value);
       const loanValues = Array.from(seedForm.querySelectorAll('input[name="seed-loan"]:checked')).map(el => el.value);
       const includeBuyer = seedForm.querySelector('#seed-partner-buyer')?.checked !== false;
@@ -2605,6 +2607,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const options = {
         count: countValue,
         includeCelebrations,
+        includeTasks,
+        includeMeetings,
         stages: stageValues,
         loanTypes: loanValues,
         partners: {
