@@ -164,17 +164,18 @@ export async function loadCalendarData(request = {}){
     };
   }
 
-  const [contacts, tasks, deals] = await Promise.all([
+  const [contacts, tasks, deals, events] = await Promise.all([
     getAll('contacts'),
     getAll('tasks'),
-    getAll('deals')
+    getAll('deals'),
+    getAll('events')
   ]);
 
   return {
     contacts: cloneList(contacts),
     tasks: cloneList(tasks),
     deals: cloneList(deals),
-    events: [],
+    events: cloneEventList(events),
     start: start instanceof Date ? new Date(start.getTime()) : null,
     end: end instanceof Date ? new Date(end.getTime()) : null
   };

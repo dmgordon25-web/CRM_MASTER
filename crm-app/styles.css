@@ -82,8 +82,10 @@ h4{margin:0;font-size:var(--font-size-sm);line-height:var(--line-height-snug);le
 .btn.good:hover,.btn.good:focus-visible{background:color-mix(in srgb,var(--ok) 85%,var(--ok-soft) 15%);border-color:color-mix(in srgb,var(--ok) 70%,var(--ok-soft) 30%);}
 .btn.warn{background:var(--warn);border-color:var(--warn);color:#111}
 .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
-nav{display:flex;gap:var(--space-2);flex-wrap:wrap}
-.nav-split{margin-left:auto}
+nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
+#universal-search-container{order:1}
+.header-new-wrap{order:2}
+.nav-split{margin-left:auto;order:10}
 .pill{padding:6px var(--space-3);border-radius:999px;background:color-mix(in srgb,var(--brand) 12%,#eef2ff);border:1px solid color-mix(in srgb,var(--brand) 35%,transparent);color:var(--ink);font-size:var(--font-size-sm);font-weight:600;letter-spacing:var(--letter-spacing-tight);}
 .row{display:flex;gap:var(--space-3)}
 .grow{flex:1}
