@@ -3387,20 +3387,33 @@ function init() {
   // Ensure proper widget visibility on boot by toggling modes
   const ensureProperBootState = () => {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
-    // Wait for initial render to complete
+    // Wait for initial render to complete with extended timing
     raf(() => {
       raf(() => {
-        const current = getDashboardMode();
-        const alternate = current === 'today' ? 'all' : 'today';
-        // Toggle to alternate mode first to trigger proper rendering
-        setDashboardMode(alternate, { skipPersist: true, force: true });
-        // Then toggle back to the desired mode
         raf(() => {
+          const current = getDashboardMode();
+          const alternate = current === 'today' ? 'all' : 'today';
+          // Toggle to alternate mode first to trigger proper rendering
+          setDashboardMode(alternate, { skipPersist: true, force: true });
+          // Then toggle back to the desired mode with additional delays
           raf(() => {
-            setDashboardMode(current, { skipPersist: true, force: true });
-            // Final refresh to ensure everything is visible
             raf(() => {
-              applySurfaceVisibility(prefCache.value || defaultPrefs());
+              raf(() => {
+                setDashboardMode(current, { skipPersist: true, force: true });
+                // Final refresh to ensure everything is visible with extra time
+                raf(() => {
+                  raf(() => {
+                    applySurfaceVisibility(prefCache.value || defaultPrefs());
+                    // Emit ready event after all rendering is complete
+                    if (doc) {
+                      try {
+                        const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
+                        doc.dispatchEvent(evt);
+                      } catch (_) {}
+                    }
+                  });
+                });
+              });
             });
           });
         });
