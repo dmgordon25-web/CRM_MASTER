@@ -302,14 +302,72 @@ function scanWidgets(container){
   prefsState.widgets = next;
 }
 
+// Widget descriptions matching the language used on each widget
+const WIDGET_DESCRIPTIONS = {
+  'dashboard-focus': 'Summary of your daily priorities and focus items',
+  'dashboard-filters': 'Quick filters to slice your dashboard view',
+  'dashboard-kpis': 'Key performance indicators and metrics',
+  'dashboard-pipeline-overview': 'High-level pipeline status overview',
+  'dashboard-today': "Today's work - tasks, follow-ups, and priorities",
+  'referral-leaderboard': 'Top referring partners by volume',
+  'dashboard-stale': 'Deals requiring attention due to inactivity',
+  'favorites-card': 'Your starred contacts and partners',
+  'goal-progress-card': 'Monthly targets versus real progress',
+  'numbers-portfolio-card': 'Tier mix across active partners',
+  'numbers-referrals-card': 'Top partners feeding your funnel',
+  'numbers-momentum-card': 'Stage distribution at a glance',
+  'pipeline-calendar-card': 'Upcoming milestones for the next 30 days',
+  'priority-actions-card': 'Overdue & high-impact follow-ups',
+  'milestones-card': 'Upcoming events & touchpoints',
+  'doc-pulse-card': 'Outstanding document requests across clients',
+  'rel-opps-card': 'Pipeline borrowers needing a touch',
+  'nurture-card': 'Funded clients ready for nurture',
+  'closing-watch-card': 'Deals approaching the finish line',
+  'dashboard-celebrations': 'Upcoming birthdays & anniversaries (7 days)',
+  'doc-center-card': 'Manage document checklists and requests',
+  'dashboard-status-stack': 'Monitor borrowers moving through the pipeline'
+};
+
 function renderWidgetList(list){
   list.innerHTML = '';
+  // Create table structure for better layout
+  const table = document.createElement('table');
+  table.className = 'widget-settings-table';
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  const thToggle = document.createElement('th');
+  thToggle.textContent = 'Show';
+  thToggle.style.width = '80px';
+  const thName = document.createElement('th');
+  thName.textContent = 'Widget';
+  thName.style.width = '200px';
+  const thDesc = document.createElement('th');
+  thDesc.textContent = 'Description';
+  headerRow.appendChild(thToggle);
+  headerRow.appendChild(thName);
+  headerRow.appendChild(thDesc);
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  
+  const tbody = document.createElement('tbody');
+  
   prefsState.widgets.forEach(widget => {
     if(!widget) return;
     const canonicalId = canonicalizeWidgetId(widget.id);
     if(!canonicalId) return;
+    
+    const row = document.createElement('tr');
+    row.style.borderBottom = '1px solid var(--border-subtle, #e2e8f0)';
+    
+    // Toggle cell
+    const tdToggle = document.createElement('td');
+    tdToggle.style.padding = '8px';
     const label = document.createElement('label');
     label.className = 'switch';
+    label.style.margin = '0';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.setAttribute('data-widget-id', canonicalId);
@@ -319,11 +377,32 @@ function renderWidgetList(list){
     }
     input.checked = !prefsState.hidden.has(canonicalId);
     const span = document.createElement('span');
-    span.textContent = widget.label || canonicalId;
+    span.textContent = '';
     label.appendChild(input);
     label.appendChild(span);
-    list.appendChild(label);
+    tdToggle.appendChild(label);
+    
+    // Name cell
+    const tdName = document.createElement('td');
+    tdName.style.padding = '8px';
+    tdName.style.fontWeight = '500';
+    tdName.textContent = widget.label || canonicalId;
+    
+    // Description cell
+    const tdDesc = document.createElement('td');
+    tdDesc.style.padding = '8px';
+    tdDesc.className = 'muted';
+    tdDesc.style.fontSize = '13px';
+    tdDesc.textContent = WIDGET_DESCRIPTIONS[canonicalId] || 'Dashboard widget';
+    
+    row.appendChild(tdToggle);
+    row.appendChild(tdName);
+    row.appendChild(tdDesc);
+    tbody.appendChild(row);
   });
+  
+  table.appendChild(tbody);
+  list.appendChild(table);
 }
 
 function render(){

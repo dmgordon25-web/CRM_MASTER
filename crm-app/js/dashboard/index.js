@@ -3211,6 +3211,7 @@ function applySurfaceVisibility(prefs) {
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
     const isTodayWidget = TODAY_WIDGET_KEYS.has(key);
     const forceTodayVisibility = restrictToToday && isTodayWidget;
+    // Ensure today widget is always visible when in today mode
     const widgetEnabled = forceTodayVisibility ? true : widgetPrefs[key] !== false;
     const graphEnabled = forceTodayVisibility ? true : (GRAPH_KEYS.has(key) ? graphPrefs[key] !== false : true);
     const cardEnabled = forceTodayVisibility ? true : (WIDGET_CARD_KEYS.has(key) ? cardPrefs[key] !== false : true);
@@ -3225,7 +3226,8 @@ function applySurfaceVisibility(prefs) {
     }
     if (GRAPH_KEYS.has(key)) handledGraphs.add(key);
     if (WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
-    const show = widgetEnabled && graphEnabled && cardEnabled && (!restrictToToday || isTodayWidget);
+    // Force show today widgets when in today mode, regardless of other settings
+    const show = (forceTodayVisibility || (widgetEnabled && graphEnabled && cardEnabled)) && (!restrictToToday || isTodayWidget);
     applyNodeVisibility(node, show);
     if (show) visibleKeys.push(key);
   });
