@@ -67,7 +67,7 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
 
 export const CONTACT_MODAL_KEY = 'contact-edit';
 const CONTACT_MODAL_TEMPLATE_ID = 'contact-modal';
-const CONTACT_MODAL_DATA_UI = 'contact-modal';
+const CONTACT_MODAL_DATA_UI = 'contact-edit-modal';
 const MODAL_ROOT_SELECTOR = '[data-ui="modal-root"]';
 
 function resolveContactModalInvoker(source){
@@ -2644,7 +2644,7 @@ export function ensureContactModalShell(options = {}){
     dlg = document.createElement('dialog');
     dlg.id = CONTACT_MODAL_TEMPLATE_ID;
     dlg.classList.add('record-modal');
-    dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><div class="modal-header-actions" data-role="contact-header-actions"></div><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
+    dlg.innerHTML = '<div class="dlg"><form class="modal-form-shell" method="dialog"><div class="modal-header"><h3 class="grow modal-title">Add / Edit Contact</h3><div class="modal-header-actions" data-role="contact-header-actions"></div><button type="button" class="btn ghost" data-close>Close</button></div><div class="dialog-scroll"><div class="modal-body" data-ui="modal-body" id="contact-modal-body"></div></div><div class="modal-footer" data-form-footer="contact"><button class="btn" data-close type="button">Cancel</button><button class="btn brand" id="btn-save-contact" type="button" value="default">Save Contact</button></div></form></div>';
     tagContactModal(dlg);
     host.appendChild(dlg);
   }else{

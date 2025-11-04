@@ -441,30 +441,49 @@ function bindSummaryListeners(root){
 function wireTabNavigation(root){
   if(!root) return;
   const tabNav = root.querySelector('#partner-tabs');
+  const partnerId = root.dataset?.partnerId || root.getAttribute('data-partner-id') || '';
+  const storageKey = partnerId ? `partner:tab:${partnerId}` : null;
+
+  // Retrieve last used tab for this partner, default to 'linked'
+  let defaultTab = 'linked';
+  if(storageKey){
+    try{
+      const stored = localStorage.getItem(storageKey);
+      if(stored) defaultTab = stored;
+    }catch(_){}
+  }
+
   if(tabNav && !tabNav.__wired){
     tabNav.__wired = true;
     tabNav.addEventListener('click', evt => {
       const btn = evt.target && evt.target.closest('button[data-panel]');
       if(!btn) return;
       evt.preventDefault();
-      const key = btn.getAttribute('data-panel') || 'overview';
+      const key = btn.getAttribute('data-panel') || defaultTab;
       root.querySelectorAll('.partner-panel').forEach(panel => {
         panel.classList.toggle('active', panel.getAttribute('data-panel') === key);
       });
       tabNav.querySelectorAll('button[data-panel]').forEach(tab => {
         tab.classList.toggle('active', tab.getAttribute('data-panel') === key);
       });
+
+      // Persist tab selection for this partner
+      if(storageKey){
+        try{
+          localStorage.setItem(storageKey, key);
+        }catch(_){}
+      }
     });
   }
   const firstPanel = root.querySelector('.partner-panel');
   if(firstPanel){
     root.querySelectorAll('.partner-panel').forEach(panel => {
-      panel.classList.toggle('active', panel === firstPanel || panel.getAttribute('data-panel') === 'overview');
+      panel.classList.toggle('active', panel === firstPanel || panel.getAttribute('data-panel') === defaultTab);
     });
   }
   if(tabNav){
     tabNav.querySelectorAll('button[data-panel]').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-panel') === 'overview');
+      btn.classList.toggle('active', btn.getAttribute('data-panel') === defaultTab);
     });
   }
 }

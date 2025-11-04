@@ -1,0 +1,96 @@
+
+> crmtool@0.1.0 sweep:s2
+> (npm run verify:build || true) && npm run check:s2
+
+
+> crmtool@0.1.0 verify:build
+> npm run audit:manifest && npm run test:boot
+
+
+> crmtool@0.1.0 audit:manifest
+> node tools/manifest_audit.js
+
+[MANIFEST AUDIT] PASS
+Unphased files (warn only): [
+  './calendar/index.js',
+  './contacts/form.js',
+  './contacts/modal.js',
+  './dashboard/index.js',
+  './dashboard/kpis.js',
+  './dashboard/widgets/pipeline_momentum.js',
+  './dashboard/widgets/portfolio_mix.js',
+  './dashboard/widgets/referral_leaders.js',
+  './exporter.js',
+  './pipeline/constants.js',
+  './relationships/index.js',
+  './relationships/map.js',
+  './reports/referrals.js',
+  './router/init.js',
+  './router/patterns.js',
+  './services/comms_adapter.js',
+  './services/selection_reset.js',
+  './settings/dashboard_prefs.js',
+  './settings/flags.js',
+  './tasks/api.js',
+  './tasks/store.js',
+  './tasks/task_utils.js',
+  './tasks.js',
+  './ui/bootstrap_features_probe.js',
+  './ui/dashboard_layout.js',
+  './ui/debug_overlay.js',
+  './ui/drag_core.js',
+  './ui/legend_popover.js',
+  './ui/modal_singleton.js',
+  './ui/modals/partner_edit/index.js',
+  './ui/partner_edit_modal.js',
+  './ui/quick_add_compat.js',
+  './ui/quick_add_validation.js',
+  './ui/quick_create_menu.js',
+  './ui/route_lifecycle.js',
+  './ui/status_banners.js',
+  './ui/toast_helpers.js',
+  './util/favorites.js',
+  './util/touch_log.js'
+]
+
+> crmtool@0.1.0 test:boot
+> node tools/boot_smoke_test.mjs
+
+node:internal/modules/package_json_reader:314
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'puppeteer' imported from /home/user/CRM_MASTER/tools/boot_smoke_test.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+    at packageResolve (node:internal/modules/esm/resolve:767:81)
+    at moduleResolve (node:internal/modules/esm/resolve:853:18)
+    at defaultResolve (node:internal/modules/esm/resolve:983:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:731:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:708:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:310:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v22.21.0
+
+> crmtool@0.1.0 check:s2
+> node tools/check_suite_s2.mjs
+
+node:internal/modules/package_json_reader:314
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'puppeteer' imported from /home/user/CRM_MASTER/tools/feature_check.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+    at packageResolve (node:internal/modules/esm/resolve:767:81)
+    at moduleResolve (node:internal/modules/esm/resolve:853:18)
+    at defaultResolve (node:internal/modules/esm/resolve:983:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:731:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:708:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:310:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v22.21.0
