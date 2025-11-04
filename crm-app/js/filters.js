@@ -70,7 +70,7 @@ import { normalizeStatus } from './pipeline/constants.js';
     clients:'Client Stages',
     partners:'Partners',
     longshots:'Leads',
-    statusLongshots:'Leads & Nurture'
+    statusLongshots:'Leads'
   };
   const OPS={
     string:[

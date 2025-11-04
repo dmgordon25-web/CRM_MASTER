@@ -6,7 +6,7 @@ import { attachStatusBanner } from '../ui/status_banners.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
-const LONGSHOT_STATUSES = new Set(['prospect', 'longshot', 'nurture', 'paused']);
+const LEAD_STATUSES = new Set(['prospect', 'longshot', 'nurture', 'paused']);
 
 const STORAGE_KEYS = {
   layout: 'workbench:layout',
@@ -21,7 +21,8 @@ const DEFAULT_LAYOUT = {
     clients: false,
     partners: false
   },
-  lastActive: 'longshots'
+  lastActive: 'longshots',
+  initialized: false
 };
 
 const FILTER_OPERATORS = {
@@ -273,14 +274,14 @@ function buildColumns(columnKeys, source){
 }
 
 const RAW_LENS_CONFIGS = {
-  longshots: {
+  leads: {
     key: 'longshots',
     label: 'Leads',
     entity: 'contact',
     selectionScope: 'contacts',
     baseFilter: (record) => {
       const status = toLower(record?.status);
-      if(LONGSHOT_STATUSES.has(status)) return true;
+      if(LEAD_STATUSES.has(status)) return true;
       const stage = normalizeStatus(record?.stage || record?.status);
       if(!stage) return false;
       if(stage.includes('long')) return true;
@@ -2905,6 +2906,33 @@ async function setupWorkbench(target){
   buildShell();
   restoreLensDrafts();
   syncUI();
+  
+  // On first initialization, briefly toggle tables open then closed to render them collapsed
+  if(!state.layout.initialized){
+    state.layout.initialized = true;
+    // Briefly open all sections to render their initial state
+    state.lensStates.forEach((lensState) => {
+      if(lensState.elements && lensState.elements.body){
+        lensState.open = true;
+        lensState.elements.body.hidden = false;
+        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
+        lensState.elements.toggle.textContent = 'Hide';
+      }
+    });
+    // Immediately close them all
+    await new Promise(resolve => setTimeout(resolve, 0));
+    state.lensStates.forEach((lensState) => {
+      if(lensState.elements && lensState.elements.body){
+        lensState.open = false;
+        lensState.elements.body.hidden = true;
+        lensState.elements.toggle.setAttribute('aria-expanded', 'false');
+        lensState.elements.toggle.textContent = 'Show';
+        state.layout.open[lensState.config.key] = false;
+      }
+    });
+    scheduleLayoutSave();
+  }
+  
   reportListsSummary();
   subscribeSelection();
   attachDataListener();

@@ -57,6 +57,7 @@ const DASHBOARD_DEFAULT_WIDTHS = {
   pipelineCalendar: 'twoThird'
 };
 const TODAY_WIDGET_KEYS = new Set([
+  'focus',
   'today',
   CELEBRATIONS_WIDGET_KEY
 ]);
