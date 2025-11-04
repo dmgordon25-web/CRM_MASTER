@@ -140,6 +140,7 @@ function renderContactNameLink(record, id, lensKey){
   link.href = '#';
   link.className = 'status-name-link contact-name';
   link.setAttribute('data-role', 'contact-name');
+  link.setAttribute('data-ui', 'name-link');
   if(id) link.setAttribute('data-id', id);
   link.setAttribute('data-entity', 'contact');
   const label = contactName(record) || '—';
@@ -1892,6 +1893,7 @@ function renderTable(lensState){
           link.href = '#';
           link.textContent = getDisplayValue(row, column, config) || '—';
           link.setAttribute('data-role', 'open-record');
+          link.setAttribute('data-ui', 'name-link');
           link.setAttribute('data-entity', config.entity);
           if(id) link.setAttribute('data-id', id);
           link.title = link.textContent;

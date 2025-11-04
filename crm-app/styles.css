@@ -936,6 +936,12 @@ table.list-table td[data-column="nextAction"] {
 .record-modal .dlg {
   width: clamp(960px, 96vw, 1360px);
   max-width: min(96vw, 1360px);
+  max-height: min(94vh, calc(100vh - 80px));
+}
+
+[data-ui="contact-edit-modal"] .dlg,
+[data-ui="partner-edit-modal"] .dlg {
+  max-height: min(96vh, calc(100vh - 60px));
 }
 
 /* Let the scroll container live on the body so summary + tabs stay aligned */
@@ -1092,13 +1098,18 @@ th.favorite-col > span{display:inline-flex;align-items:center;justify-content:ce
   .modal-summary{max-width:100%}
 }
 
+@media (max-width:1360px){
+  .modal-main{grid-template-columns:minmax(0,1fr) minmax(260px,0.4fr)}
+}
+
 @media (max-width:1200px){
-  .modal-main{grid-template-columns:minmax(0,1fr) minmax(240px,1fr)}
+  .modal-main{grid-template-columns:minmax(0,1fr)}
+  .modal-main>[data-ui="contact-detail-pane"]::before{display:none}
+  .modal-main>[data-ui="contact-detail-pane"]{margin-top:12px}
 }
 
 @media (max-width:960px){
   .modal-main{grid-template-columns:minmax(0,1fr)}
-  .modal-main>[data-ui="contact-detail-pane"]::before{display:none}
 }
 
 @media (max-width:1080px){
