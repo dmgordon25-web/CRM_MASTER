@@ -50,7 +50,7 @@
      <div class="grow">
      </div>
      <div id="universal-search-container" style="position:relative;min-width:280px;max-width:400px;">
-      <input type="search" id="universal-search" placeholder="Search contacts or partners..." style="width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" aria-label="Universal search">
+      <input type="search" id="universal-search" placeholder="Search contacts or partners..." style="width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" aria-label="Universal search" data-hint="Quickly find any contact or partner by name, email, or phone. Press ESC to close.">
       <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:16px;">🔍</span>
       <div id="universal-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-height:400px;overflow-y:auto;z-index:1000;"></div>
      </div>
@@ -126,6 +126,7 @@
      <span data-mode="view">Edit layout</span>
      <span data-mode="edit" hidden>Done editing</span>
     </button>
+    <span class="help-hint" data-hint="Drag widgets to reorder, resize using corner handles. Toggle between Today view for priority items and All view for full dashboard.">?</span>
     <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button" title="Restore default dashboard layout">
      <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
      <span>Reset layout</span>
@@ -571,6 +572,7 @@
       <strong>
        Partners
       </strong>
+      <span class="help-hint" data-hint="Tag partners on contacts to track referral performance and conversion rates. Partner relationships drive your pipeline.">?</span>
       <span class="grow">
       </span>
       <button class="btn" data-export-table="partners" aria-label="Export to CSV" title="Export to CSV">Export CSV</button>
@@ -642,6 +644,7 @@
       <h3 style="margin:0">
        Pipeline Kanban
       </h3>
+      <span class="help-hint" data-hint="Drag cards between stages to update contact status. Stages represent the loan lifecycle from lead to funded.">?</span>
       <span class="muted">
        Drag contacts across Application → Processing → Underwriting.
       </span>
@@ -1077,6 +1080,7 @@
       <strong>
        Client Portfolio &amp; Earnings
       </strong>
+      <span class="help-hint" data-hint="All metrics update in real-time based on your contact stages and activities.">?</span>
       <span class="grow">
       </span>
       <label>
@@ -1148,6 +1152,7 @@
       <div class="portfolio-card-header">
        <h3 class="portfolio-card-title" title="Referral Partner Performance">
         Referral Partner Performance
+        <span class="help-hint" data-hint="Conversion % = (Funded / Leads Sent) — Your key partner performance metric. Shows which partners send quality leads.">?</span>
        </h3>
        <div class="table-search">
         <input aria-label="Search partners" data-table-search="#tbl-referral-performance" placeholder="Search Partners" type="search"/>
@@ -1499,6 +1504,13 @@
          <input checked="" id="toggle-autobackup" type="checkbox"/>
          <span>Auto Backup on Close</span>
         </label>
+        <label class="switch">
+         <input checked="" id="toggle-advanced-mode" type="checkbox"/>
+         <span>Advanced Mode</span>
+        </label>
+        <p class="muted fine-print" style="margin-top:8px;">
+         Simple mode hides rarely-used fields and advanced features for a cleaner interface.
+        </p>
        </div>
        <div class="card">
         <h3>Maintenance</h3>
@@ -2195,6 +2207,8 @@
   <script type="module" src="./js/ui/debug_overlay.js"></script>
   <script type="module" src="./js/ui/universal_search.js"></script>
   <script type="module" src="./js/table/table_export.js"></script>
+  <script type="module" src="./js/ui/help_hints.js"></script>
+  <script type="module" src="./js/ui/advanced_mode.js"></script>
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';
