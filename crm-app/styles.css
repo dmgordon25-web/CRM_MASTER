@@ -504,7 +504,7 @@ table.list-table td.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .status-name-link{color:#4f46e5;text-decoration:underline;font-weight:600;display:inline-flex;align-items:center;gap:8px;max-width:100%;min-width:0}
 .status-name-link:hover{text-decoration:none}
 .partner-name{display:inline-flex;align-items:center;gap:8px}
-.status-name-link .name-text,.partner-name .name-text{white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.status-name-link .name-text,.partner-name .name-text{white-space:normal;display:inline-block;max-width:100%;word-break:break-word;line-height:1.3;}
 
 .commission-table{min-height:64px}
 .empty-row td{text-align:center;color:var(--muted);padding:18px 12px}
@@ -737,18 +737,22 @@ dialog::backdrop{ background:rgba(0,0,0,.35); }
 /* Table behaves like a normal data table */
 table.list-table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
 table.list-table th,
-table.list-table td { box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.list-table td { box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 10px 8px; vertical-align: middle; }
 
 /* Sticky header inside the same scroll container (no header clones) */
-table.list-table thead th { position: sticky; top: 0; background: inherit; z-index: 1; }
+table.list-table thead th { position: sticky; top: 0; background: inherit; z-index: 1; padding: 10px 8px; vertical-align: middle; }
 
 /* Kill any decorative left rail/gutter stealing pixels */
 table.list-table tr::before { content: none !important; }
 
 table.list-table td.contact-name,
 table.list-table td[data-column="name"] {
-  min-width: 200px;
+  min-width: 220px;
+  max-width: 320px;
   white-space: normal;
+  padding: 12px 8px !important;
+  vertical-align: middle;
+  line-height: 1.4;
 }
 
 table.list-table td.contact-name .status-name-link,
