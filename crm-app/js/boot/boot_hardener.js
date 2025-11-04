@@ -512,6 +512,51 @@ function maybeRenderAll() {
   }
 }
 
+async function animateTabCycle() {
+  // Cycle through all tabs on boot while splash is visible
+  const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
+  const delay = 200; // milliseconds between tab switches
+  
+  // Helper to activate a tab button
+  function activateTab(tabName) {
+    try {
+      // Find the button with matching data-nav attribute
+      const button = documentRef.querySelector(`#main-nav button[data-nav="${tabName}"]`);
+      if (button) {
+        button.click();
+        console.info(`[BOOT_ANIMATION] Cycled to ${tabName}`);
+      }
+    } catch (err) {
+      console.warn(`[BOOT_ANIMATION] Failed to activate ${tabName}:`, err);
+    }
+  }
+
+  // Helper to wait for a specified duration
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  try {
+    // Ensure we start at dashboard
+    activateTab('dashboard');
+    await wait(delay);
+
+    // Cycle through each tab
+    for (let i = 1; i < tabs.length; i++) {
+      activateTab(tabs[i]);
+      await wait(delay);
+    }
+
+    // Return to dashboard
+    activateTab('dashboard');
+    await wait(delay);
+
+    console.info('[BOOT_ANIMATION] Tab cycle complete');
+  } catch (err) {
+    console.warn('[BOOT_ANIMATION] Tab cycle failed:', err);
+  }
+}
+
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
   const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
@@ -578,6 +623,12 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await evaluatePrereqs(coreRecords, 'soft');
 
     await readyPromise;
+
+    // Animate tab cycling before hiding splash (skip in safe mode)
+    if (!safe) {
+      console.info('[BOOT] Starting tab animation sequence');
+      await animateTabCycle();
+    }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     hideSplashOnce();
