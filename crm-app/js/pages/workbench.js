@@ -3,6 +3,7 @@ import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
+import { ensureActionBarPostPaintRefresh } from '../ui/action_bar.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -2499,6 +2500,11 @@ function handleSelectAllChange(event, lensState){
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
+  try {
+    if(typeof ensureActionBarPostPaintRefresh === 'function'){
+      ensureActionBarPostPaintRefresh();
+    }
+  }catch(_err){}
 }
 
 function handleRowCheckboxChange(event, lensState){

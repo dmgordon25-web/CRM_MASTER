@@ -3386,20 +3386,19 @@ function init() {
   
   // Helper to toggle dashboard mode to refresh Today widget on boot
   const toggleDashboardModeOnBoot = () => {
-    const sessionKey = 'dashboard:boot-toggled';
-    const bootToggled = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey) === 'true';
-    if (!bootToggled) {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(sessionKey, 'true');
-      }
-      // Toggle to All then back to Today to ensure proper rendering
-      setTimeout(() => {
-        setDashboardMode('all', { skipPersist: true });
-        setTimeout(() => {
-          setDashboardMode('today', { skipPersist: true });
-        }, 100);
-      }, 200);
-    }
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+    raf(() => {
+      raf(() => {
+        const current = getDashboardMode();
+        if (current === 'today') {
+          // Toggle to "all" then back to "today" to force proper widget rendering
+          setDashboardMode('all', { skipPersist: true, force: true });
+          raf(() => {
+            setDashboardMode('today', { skipPersist: true, force: true });
+          });
+        }
+      });
+    });
   };
   
   if (doc.readyState === 'loading') {
@@ -3440,23 +3439,6 @@ function init() {
     scheduleApply();
   });
   refreshTodayHighlightWiring();
-}
-
-function toggleDashboardModeOnBoot() {
-  if (!doc) return;
-  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
-  raf(() => {
-    raf(() => {
-      const current = getDashboardMode();
-      if (current === 'today') {
-        // Toggle to "all" then back to "today" to force proper widget rendering
-        setDashboardMode('all', { skipPersist: true, force: true });
-        raf(() => {
-          setDashboardMode('today', { skipPersist: false, force: true });
-        });
-      }
-    });
-  });
 }
 
 init();
