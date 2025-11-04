@@ -1,0 +1,16 @@
+
+> crmtool@0.1.0 check:features
+> node tools/feature_check.mjs
+
+{"cwd":"/home/user/CRM_MASTER","servedRoot":"/home/user/CRM_MASTER/crm-app","indexPath":"/home/user/CRM_MASTER/crm-app/index.html","indexSha1":"edee8ee6ad1d8429b4add8e6fe28b301a377ac84","time":"2025-11-03T23:58:30.724Z","devKey":"1952c25dc209700fb257bdf232ae8e24"}
+Error: Could not find Chrome (ver. 127.0.6533.88). This can occur if either
+ 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+ 2. your cache path is incorrectly configured (which is: /root/.cache/puppeteer).
+For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+    at ChromeLauncher.resolveExecutablePath (file:///home/user/CRM_MASTER/node_modules/puppeteer-core/lib/esm/puppeteer/node/ProductLauncher.js:265:27)
+    at ChromeLauncher.executablePath (file:///home/user/CRM_MASTER/node_modules/puppeteer-core/lib/esm/puppeteer/node/ChromeLauncher.js:203:25)
+    at ChromeLauncher.computeLaunchArguments (file:///home/user/CRM_MASTER/node_modules/puppeteer-core/lib/esm/puppeteer/node/ChromeLauncher.js:83:37)
+    at async ChromeLauncher.launch (file:///home/user/CRM_MASTER/node_modules/puppeteer-core/lib/esm/puppeteer/node/ProductLauncher.js:44:28)
+    at async runFeatureCheck (file:///home/user/CRM_MASTER/tools/feature_check.mjs:84:19)
+    at async Object.runDefaultFeatureCheck [as feature:avatar-persist] (file:///home/user/CRM_MASTER/tools/feature_check.mjs:178:32)
+    at async file:///home/user/CRM_MASTER/tools/feature_check.mjs:722:5
