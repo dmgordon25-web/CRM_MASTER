@@ -43,6 +43,10 @@
       .then((payload) => {
         if (payload && payload.sid) {
           window.__SID = payload.sid;
+          // Store in sessionStorage for beforeunload handler access
+          try {
+            sessionStorage.setItem('crm-session-id', payload.sid);
+          } catch (_) {}
         }
       })
       .catch(() => {})

@@ -849,6 +849,17 @@ const server = http.createServer((req, res) => {
     }
     const sid = getSearchParam(req.url, 'sid');
     markSessionClosed(sid);
+    
+    // If this is the last session closing, initiate shutdown after a short delay
+    if (activeSessions.size === 0) {
+      console.info('[SERVER] Last session closed, scheduling shutdown...');
+      setTimeout(() => {
+        if (activeSessions.size === 0) {
+          requestShutdown();
+        }
+      }, 2000);
+    }
+    
     send(res, 204, '');
     return;
   }
@@ -1106,8 +1117,50 @@ function openBrowser(url) {
   }
 }
 
+async function killOrphanedNodeProcesses() {
+  if (process.platform !== 'win32') return;
+  
+  console.info('[CLEANUP] Checking for orphaned Node.js processes...');
+  
+  try {
+    // Find all node processes running dev_server.mjs
+    const findProc = spawn('tasklist', ['/FI', 'IMAGENAME eq node.exe', '/FO', 'CSV', '/NH'], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true
+    });
+    
+    const output = findProc.stdout ? findProc.stdout.toString() : '';
+    const lines = output.split('\n').filter(line => line.includes('node.exe'));
+    
+    for (const line of lines) {
+      const match = line.match(/"(\d+)"/);
+      if (match && match[1]) {
+        const pid = parseInt(match[1], 10);
+        if (pid === process.pid) continue; // Don't kill ourselves
+        
+        // Try to kill orphaned node processes
+        try {
+          const killProc = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
+            stdio: 'ignore',
+            windowsHide: true
+          });
+          if (killProc.status === 0) {
+            console.info(`[CLEANUP] Killed orphaned node process (PID ${pid})`);
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('[CLEANUP] Could not check for orphaned processes:', err.message);
+  }
+}
+
 async function start() {
   const cli = parseCliArgs(process.argv);
+  
+  // Kill any orphaned processes from previous runs before starting
+  await killOrphanedNodeProcesses();
+  
   await shutdownManager.ensureSingleInstance();
   const preflight = readIndexInfo();
   if (preflight && preflight.error) {

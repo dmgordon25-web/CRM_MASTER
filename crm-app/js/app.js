@@ -2629,13 +2629,22 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
   });
 
-  window.addEventListener('beforeunload', async ()=>{
+  window.addEventListener('beforeunload', async (event)=>{
     const enabled = $('#toggle-autobackup')?.checked;
-    if(!enabled) return;
+    if(enabled){
+      try{
+        const snapshot = await dbExportAll();
+        const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
+        await dbPut('meta', rec);
+      }catch (_) {}
+    }
+    
+    // Signal server when window closes (note: session beacon patch also handles this)
     try{
-      const snapshot = await dbExportAll();
-      const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
-      await dbPut('meta', rec);
+      const sid = window.__SID || sessionStorage.getItem('crm-session-id');
+      if(sid){
+        navigator.sendBeacon(`/__bye?sid=${encodeURIComponent(sid)}`);
+      }
     }catch (_) {}
   });
 
