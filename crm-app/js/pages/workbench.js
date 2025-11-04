@@ -2921,39 +2921,20 @@ async function setupWorkbench(target){
     if(typeof sessionStorage !== 'undefined'){
       sessionStorage.setItem(sessionKey, 'true');
     }
-    // Briefly open all sections to render their initial state
+    // First, programmatically open all sections to trigger render
     state.lensStates.forEach((lensState) => {
-      if(lensState.elements && lensState.elements.body){
-        lensState.open = true;
-        lensState.elements.body.hidden = false;
-        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
-        lensState.elements.toggle.textContent = 'Hide';
+      if(lensState.elements && lensState.elements.toggle){
+        lensState.elements.toggle.click();
       }
     });
-    // Wait for rendering
-    await new Promise(resolve => setTimeout(resolve, 100));
-    // Close them again to show them collapsed
+    // Wait for rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 150));
+    // Then close them all to default to collapsed state
     state.lensStates.forEach((lensState) => {
-      if(lensState.elements && lensState.elements.body){
-        lensState.open = true;
-        lensState.elements.body.hidden = false;
-        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
-        lensState.elements.toggle.textContent = 'Hide';
+      if(lensState.elements && lensState.elements.toggle){
+        lensState.elements.toggle.click();
       }
     });
-    // Wait another tick
-    await new Promise(resolve => setTimeout(resolve, 50));
-    // Finally close them all
-    state.lensStates.forEach((lensState) => {
-      if(lensState.elements && lensState.elements.body){
-        lensState.open = false;
-        lensState.elements.body.hidden = true;
-        lensState.elements.toggle.setAttribute('aria-expanded', 'false');
-        lensState.elements.toggle.textContent = 'Show';
-        state.layout.open[lensState.config.key] = false;
-      }
-    });
-    scheduleLayoutSave();
   }
   
   reportListsSummary();
