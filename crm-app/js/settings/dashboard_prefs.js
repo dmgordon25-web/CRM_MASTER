@@ -125,6 +125,28 @@ function refreshState(){
     .map(id => canonicalizeWidgetId(id))
     .filter(Boolean);
   prefsState.hidden = new Set(hiddenIds);
+  // Sync with actual widget visibility in the DOM
+  const dashContainer = findDashboardContainer();
+  if(dashContainer){
+    try{
+      const visibleWidgets = Array.from(dashContainer.querySelectorAll(DASHBOARD_WIDGET_SELECTOR))
+        .filter(el => el && el.nodeType === 1 && el.style.display !== 'none' && !el.hasAttribute('aria-hidden'));
+      const hiddenWidgets = Array.from(dashContainer.querySelectorAll(DASHBOARD_WIDGET_SELECTOR))
+        .filter(el => el && el.nodeType === 1 && (el.style.display === 'none' || el.getAttribute('aria-hidden') === 'true'));
+      // Update hidden state based on actual DOM visibility
+      hiddenWidgets.forEach(el => {
+        const dataset = el.dataset || {};
+        const id = canonicalizeWidgetId(dataset.widgetId || dataset.widget || dataset.widgetKey || dataset.dashWidget || el.id);
+        if(id) prefsState.hidden.add(id);
+      });
+      // Remove from hidden if actually visible
+      visibleWidgets.forEach(el => {
+        const dataset = el.dataset || {};
+        const id = canonicalizeWidgetId(dataset.widgetId || dataset.widget || dataset.widgetKey || dataset.dashWidget || el.id);
+        if(id) prefsState.hidden.delete(id);
+      });
+    }catch(_err){}
+  }
 }
 
 function dispatchLayoutMode(enabled){
@@ -410,6 +432,8 @@ function render(){
     });
   }
   updateHandlerCountNode(handlerNote);
+  // Force re-sync visibility state before rendering checkboxes
+  refreshState();
   list.querySelectorAll('input[data-widget-id]').forEach(input => {
     const id = canonicalizeWidgetId(input.getAttribute('data-widget-id'));
     input.checked = !prefsState.hidden.has(id);

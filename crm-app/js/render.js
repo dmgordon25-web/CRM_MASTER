@@ -1266,25 +1266,37 @@ import { syncTableLayout } from './ui/table_layout.js';
     setText($('#kpi-comm-received'), money(loanVol * 0.005));
     setText($('#kpi-comm-proj'), money(loanVol * 0.012));
 
-    renderPortfolioMixWidget({
-      host: $('#partner-tier-breakdown'),
-      countEl: asEl('partner-portfolio-count'),
-      partners,
-      safe,
-      colorForTier
-    });
+    try{
+      renderPortfolioMixWidget({
+        host: $('#partner-tier-breakdown'),
+        countEl: asEl('partner-portfolio-count'),
+        partners,
+        safe,
+        colorForTier
+      });
+    }catch(err){
+      const host = $('#partner-tier-breakdown');
+      if(host) host.innerHTML = '<div class="mini-bar-chart portfolio-chart"><div class="mini-bar-row error">Error loading widget. Please refresh.</div></div>';
+      console.warn('Portfolio widget render failed:', err);
+    }
 
-    renderReferralLeadersWidget({
-      host: $('#top3'),
-      contacts,
-      partners,
-      safe,
-      money,
-      attr,
-      initials,
-      normalizeStatus,
-      stageLabels
-    });
+    try{
+      renderReferralLeadersWidget({
+        host: $('#top3'),
+        contacts,
+        partners,
+        safe,
+        money,
+        attr,
+        initials,
+        normalizeStatus,
+        stageLabels
+      });
+    }catch(err){
+      const host = $('#top3');
+      if(host) host.innerHTML = '<li class="error">Error loading referral leaders. Please refresh.</li>';
+      console.warn('Referral leaders widget render failed:', err);
+    }
 
     const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
       const dueDate = toDate(t.due);
@@ -1320,7 +1332,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const cls = task.status==='overdue' ? 'bad' : (task.status==='soon' ? 'warn' : 'good');
       const phr = task.status==='overdue' ? `${Math.abs(task.diffFromToday||0)}d overdue` : (task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
       const idAttr = task.contact ? attr(task.contact.id||'') : '';
-      const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-widget="needs-attn"` : '';
+      const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-contact-id="${idAttr}" data-widget="needs-attn"` : '';
       return `<li class="${task.status}"${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1338,7 +1350,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const cls = task.status==='soon' ? 'warn' : 'good';
       const phr = task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
       const idAttr = task.contact ? attr(task.contact.id||'') : '';
-      const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-widget="upcoming"` : '';
+      const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-contact-id="${idAttr}" data-widget="upcoming"` : '';
       return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1351,15 +1363,21 @@ import { syncTableLayout } from './ui/table_layout.js';
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 
-    renderPipelineMomentumWidget({
-      host: $('#pipeline-breakdown'),
-      countEl: asEl('pipeline-momentum-count'),
-      contacts,
-      safe,
-      normalizeStatus,
-      stageLabels,
-      colorForStage
-    });
+    try{
+      renderPipelineMomentumWidget({
+        host: $('#pipeline-breakdown'),
+        countEl: asEl('pipeline-momentum-count'),
+        contacts,
+        safe,
+        normalizeStatus,
+        stageLabels,
+        colorForStage
+      });
+    }catch(err){
+      const host = $('#pipeline-breakdown');
+      if(host) host.innerHTML = '<div class="mini-bar-chart momentum-chart"><div class="mini-bar-row error">Error loading pipeline momentum. Please refresh.</div></div>';
+      console.warn('Pipeline momentum widget render failed:', err);
+    }
 
     const docs = documents || [];
     const docHost = $('#doc-status-summary');
@@ -1476,7 +1494,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||'');
       const amount = Number(c.loanAmount||0) ? ` • ${money(c.loanAmount)}` : '';
-      return `<li data-id="${attr(c.id||'')}" data-widget="rel-opps">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="rel-opps">
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1505,7 +1523,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||STR['kanban.placeholder.client']);
       const funded = c.fundedDate ? `${translate('calendar.event.funded')} ${safe(c.fundedDate)}` : STR['kanban.placeholder.client'];
-      return `<li data-id="${attr(c.id||'')}" data-widget="nurture">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="nurture">
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1531,7 +1549,7 @@ import { syncTableLayout } from './ui/table_layout.js';
       const when = item.date.toISOString().slice(0,10);
       const amount = Number(c.loanAmount||0) ? money(c.loanAmount) : 'TBD';
       const statusClass = item.stage==='funded' ? 'good' : 'warn';
-      return `<li data-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}">
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
