@@ -2516,9 +2516,33 @@ function handleSelectAllChange(event, lensState){
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
+  // Force immediate action bar update when toggling select-all
   try {
-    if(typeof ensureActionBarPostPaintRefresh === 'function'){
-      ensureActionBarPostPaintRefresh();
+    // Use microtask to ensure store subscriptions have processed
+    const forceActionBarUpdate = () => {
+      if(typeof ensureActionBarPostPaintRefresh === 'function'){
+        ensureActionBarPostPaintRefresh();
+      }
+      // Force immediate visibility refresh
+      if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+        window.__UPDATE_ACTION_BAR_VISIBLE__();
+      }
+      // Additional RAF to ensure action bar processes the update
+      if(typeof requestAnimationFrame === 'function'){
+        requestAnimationFrame(() => {
+          if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+            window.__UPDATE_ACTION_BAR_VISIBLE__();
+          }
+        });
+      }
+    };
+    // Queue update after store subscription has fired
+    if(typeof queueMicrotask === 'function'){
+      queueMicrotask(forceActionBarUpdate);
+    }else if(typeof Promise !== 'undefined'){
+      Promise.resolve().then(forceActionBarUpdate).catch(() => {});
+    }else{
+      forceActionBarUpdate();
     }
   }catch(_err){}
 }
