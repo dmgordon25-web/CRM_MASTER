@@ -373,7 +373,8 @@ const LENS_CONFIGS = Object.values(RAW_LENS_CONFIGS).map((raw) => {
 const CONFIG_BY_KEY = new Map(LENS_CONFIGS.map((config) => [config.key, config]));
 
 const ROW_BATCH_SIZE = 250;
-const MIN_NAME_COLUMN_WIDTH = 160;
+const MIN_NAME_COLUMN_WIDTH = 240;
+const MAX_STATUS_COLUMN_WIDTH = 140;
 
 const yieldMicrotask = typeof queueMicrotask === 'function'
   ? () => new Promise((resolve) => queueMicrotask(resolve))
@@ -2117,14 +2118,24 @@ function applyTableLayout(manager){
   const containerWidth = wrap.clientWidth;
 
   let nameIndex = -1;
+  let statusIndex = -1;
   for(let index = 0; index < dataColumnCount; index += 1){
     const headerCell = headerCells[index];
     if(!headerCell || !headerCell.dataset) continue;
+    const colField = headerCell.dataset.field || '';
     if(headerCell.dataset.column === 'name'){
       nameIndex = index;
-      break;
+    }
+    if(colField === 'status' || colField === 'stage'){
+      statusIndex = index;
     }
   }
+  
+  // Constrain status/stage column to MAX_STATUS_COLUMN_WIDTH
+  if(statusIndex > -1 && widths[statusIndex] > MAX_STATUS_COLUMN_WIDTH){
+    widths[statusIndex] = MAX_STATUS_COLUMN_WIDTH;
+  }
+  
   if(nameIndex > -1 && containerWidth > 0){
     const otherWidth = widths.reduce((sum, value, idx) => idx === nameIndex ? sum : sum + value, 0);
     const available = containerWidth - otherWidth - gutterWidth;
@@ -2349,22 +2360,26 @@ async function runLensQuery(lensState, options = {}){
 }
 
 function toggleWindow(lensState, open){
-  lensState.open = open;
-  const { section, body, toggle } = lensState.elements;
+  const actualOpen = Boolean(open);
+  lensState.open = actualOpen;
+  const { section, body, toggle } = lensState.elements || {};
   if(section){
-    section.classList.toggle('collapsed', !open);
+    section.classList.toggle('collapsed', !actualOpen);
+    section.setAttribute('data-window-open', actualOpen ? '1' : '0');
   }
   if(body){
-    body.hidden = !open;
+    body.hidden = !actualOpen;
+    body.style.display = actualOpen ? '' : 'none';
+    body.setAttribute('aria-hidden', actualOpen ? 'false' : 'true');
   }
   if(toggle){
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    toggle.textContent = open ? 'Hide' : 'Show';
-    toggle.title = open ? 'Hide results' : 'Show results';
+    toggle.setAttribute('aria-expanded', actualOpen ? 'true' : 'false');
+    toggle.textContent = actualOpen ? 'Hide' : 'Show';
+    toggle.title = actualOpen ? 'Hide results' : 'Show results';
   }
   ensureLayout();
-  state.layout.open[lensState.config.key] = open;
-  if(open){
+  state.layout.open[lensState.config.key] = actualOpen;
+  if(actualOpen){
     state.layout.lastActive = lensState.config.key;
     scheduleLayoutSave();
     if(!lensState.dataLoaded){

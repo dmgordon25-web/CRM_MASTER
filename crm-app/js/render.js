@@ -147,9 +147,15 @@ import { syncTableLayout } from './ui/table_layout.js';
       syncTableLayout(host);
       if(typeof window !== 'undefined'){
         try{
-          // Ensure select-all checkbox is wired up
+          // Ensure select-all checkbox is wired up for all tables
           if(typeof window.ensureRowCheckHeaders === 'function'){
             window.ensureRowCheckHeaders(host);
+            // Also ensure all tables in the document are wired
+            requestAnimationFrame(() => {
+              if(typeof window.ensureRowCheckHeaders === 'function'){
+                window.ensureRowCheckHeaders(document);
+              }
+            });
           }
           const scope = host.getAttribute ? host.getAttribute('data-selection-scope') : null;
           if(scope && typeof window.syncSelectionScope === 'function'){
@@ -354,6 +360,33 @@ import { syncTableLayout } from './ui/table_layout.js';
       }
     }
     header.__legendAttached = true;
+  }
+
+  function ensureStatusStackLegend(){
+    if(typeof document === 'undefined') return;
+    const stack = document.getElementById('dashboard-status-stack');
+    if(!stack) return;
+    // Check if legend already exists
+    if(stack.__legendAttached || stack.querySelector('[data-legend="status-stack"]')) return;
+    const legend = createLegendPopover({
+      id: 'status-stack-stage-legend',
+      summaryLabel: 'Legend',
+      summaryAriaLabel: 'Status table color legend',
+      title: 'Stage colors',
+      entries: STAGE_LEGEND_ENTRIES,
+      note: 'All status tables use these colors for stage identification.'
+    });
+    if(!legend) return;
+    legend.setAttribute('data-legend', 'status-stack');
+    legend.style.marginBottom = '12px';
+    // Insert at the beginning of the status stack
+    const firstPanel = stack.querySelector('.status-panel');
+    if(firstPanel && typeof stack.insertBefore === 'function'){
+      stack.insertBefore(legend, firstPanel);
+    }else{
+      stack.insertBefore(legend, stack.firstChild);
+    }
+    stack.__legendAttached = true;
   }
   function classToken(value){
     if(!value) return '';
@@ -1741,6 +1774,7 @@ import { syncTableLayout } from './ui/table_layout.js';
     }
 
     ensurePipelineLegend();
+    ensureStatusStackLegend();
 
     const tblPipeline = document.getElementById('tbl-pipeline');
     if(tblPipeline) ensureFavoriteColumn(tblPipeline);
