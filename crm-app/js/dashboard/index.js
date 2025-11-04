@@ -3384,6 +3384,16 @@ function init() {
   if (!doc) return;
   ensureDashboardRouteLifecycle();
   
+  // Helper to toggle dashboard mode to refresh Today widget on boot
+  const toggleDashboardModeOnBoot = () => {
+    // Always toggle on dashboard entry to ensure Today widget renders correctly
+    // Toggle to All then back to Today to force proper rendering
+    setTimeout(() => {
+      setDashboardMode('all', { skipPersist: true });
+      setTimeout(() => {
+        setDashboardMode('today', { skipPersist: true });
+      }, 100);
+    }, 200);
   // Ensure proper widget visibility on boot
   const ensureProperBootState = () => {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);

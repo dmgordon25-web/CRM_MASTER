@@ -1232,7 +1232,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       return false;
     });
     if(!targetCell) targetCell = cellList[0];
-    if(!targetCell || (typeof targetCell.querySelector === 'function' && targetCell.querySelector(SELECT_ALL_INPUT_SELECTOR))) return;
+    // Check if select-all checkbox already exists
+    const existingCheckbox = (typeof targetCell.querySelector === 'function' && targetCell.querySelector(SELECT_ALL_INPUT_SELECTOR)) || 
+                            (typeof table.querySelector === 'function' && table.querySelector(SELECT_ALL_INPUT_SELECTOR));
+    if(existingCheckbox){
+      // Wire up the existing checkbox
+      wireSelectAllForTable(table);
+      return;
+    }
+    if(!targetCell) return;
     const doc = table.ownerDocument || document;
     if(!doc || typeof doc.createElement !== 'function') return;
     const input = doc.createElement('input');
