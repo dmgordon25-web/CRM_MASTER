@@ -849,6 +849,39 @@ table.list-table td[data-column="select"] {
   min-width: 44px;
 }
 
+/* Ensure select-all checkboxes are visible */
+table.list-table th[data-role="select"] input[data-role="select-all"],
+table.list-table th input[data-role="select-all"],
+table thead th input[data-role="select-all"],
+input[data-role="select-all"],
+input[data-ui="row-check-all"] {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 auto !important;
+  cursor: pointer !important;
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  -moz-appearance: checkbox !important;
+}
+
+/* Ensure row checkboxes are also visible */
+input[data-role="select"],
+input[data-ui="row-check"] {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  -moz-appearance: checkbox !important;
+}
+
 table.list-table th[data-column="favorite"],
 table.list-table td[data-column="favorite"] {
   width: 40px;
