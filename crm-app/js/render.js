@@ -946,8 +946,29 @@ import { syncTableLayout } from './ui/table_layout.js';
     }
   }
 
-  function dispatchContactModal(contactId, options){
+  async function dispatchContactModal(contactId, options){
     if(!contactId) return null;
+    
+    // Verify contact exists before attempting to open modal
+    try{
+      if(typeof window.dbGet === 'function'){
+        const contact = await window.dbGet('contacts', contactId);
+        if(!contact){
+          if(typeof notify === 'function'){
+            notify('Contact not found', 'warn');
+          }
+          console && console.warn && console.warn('Contact not found:', contactId);
+          return null;
+        }
+      }
+    }catch(err){
+      console && console.warn && console.warn('Contact lookup error:', err);
+      if(typeof notify === 'function'){
+        notify('Unable to load contact', 'error');
+      }
+      return null;
+    }
+    
     const openers = [];
     if(typeof openContactEditor === 'function'){
       openers.push((id, opts) => openContactEditor({ id, __isNew: false }, Object.assign({
