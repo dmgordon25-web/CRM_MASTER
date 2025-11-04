@@ -16,7 +16,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_LAYOUT = {
   open: {
-    longshots: true,
+    longshots: false,
     pipeline: false,
     clients: false,
     partners: false
