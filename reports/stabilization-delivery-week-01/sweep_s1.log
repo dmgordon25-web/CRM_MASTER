@@ -1,0 +1,64 @@
+
+> crmtool@0.1.0 sweep:s1
+> npm run verify:build && npm run check:s1
+
+
+> crmtool@0.1.0 verify:build
+> npm run audit:manifest && npm run test:boot
+
+
+> crmtool@0.1.0 audit:manifest
+> node tools/manifest_audit.js
+
+[MANIFEST AUDIT] PASS
+Unphased files (warn only): [
+  './calendar/index.js',
+  './contacts/form.js',
+  './contacts/modal.js',
+  './dashboard/index.js',
+  './dashboard/kpis.js',
+  './dashboard/widgets/pipeline_momentum.js',
+  './dashboard/widgets/portfolio_mix.js',
+  './dashboard/widgets/referral_leaders.js',
+  './exporter.js',
+  './pipeline/constants.js',
+  './relationships/index.js',
+  './relationships/map.js',
+  './reports/referrals.js',
+  './router/init.js',
+  './router/patterns.js',
+  './services/comms_adapter.js',
+  './services/selection_reset.js',
+  './settings/dashboard_prefs.js',
+  './settings/flags.js',
+  './tasks/api.js',
+  './tasks/store.js',
+  './tasks/task_utils.js',
+  './tasks.js',
+  './ui/bootstrap_features_probe.js',
+  './ui/dashboard_layout.js',
+  './ui/debug_overlay.js',
+  './ui/drag_core.js',
+  './ui/legend_popover.js',
+  './ui/modal_singleton.js',
+  './ui/modals/partner_edit/index.js',
+  './ui/partner_edit_modal.js',
+  './ui/quick_add_compat.js',
+  './ui/quick_add_validation.js',
+  './ui/quick_create_menu.js',
+  './ui/route_lifecycle.js',
+  './ui/status_banners.js',
+  './ui/toast_helpers.js',
+  './util/favorites.js',
+  './util/touch_log.js'
+]
+
+> crmtool@0.1.0 test:boot
+> node tools/boot_smoke_test.mjs
+
+[CONTRACT LINT] PASS
+[SERVER] listening on http://127.0.0.1:8080/ (root: /home/user/CRM_MASTER/crm-app)
+BOOT SMOKE TEST FAIL: Could not find Chrome (ver. 127.0.6533.88). This can occur if either
+ 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+ 2. your cache path is incorrectly configured (which is: /root/.cache/puppeteer).
+For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
