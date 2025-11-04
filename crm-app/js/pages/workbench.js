@@ -2748,6 +2748,10 @@ function buildWindow(lensState){
   selectAllTh.setAttribute('data-role', 'select');
   selectAllTh.dataset.compact = '1';
   selectAllTh.dataset.column = 'select';
+  selectAllTh.style.width = '40px';
+  selectAllTh.style.minWidth = '40px';
+  selectAllTh.style.textAlign = 'center';
+  selectAllTh.style.padding = '8px';
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.setAttribute('data-role', 'select-all');
@@ -2755,6 +2759,9 @@ function buildWindow(lensState){
   selectAll.setAttribute('aria-label', 'Select all');
   selectAll.setAttribute('role', 'checkbox');
   selectAll.setAttribute('aria-checked', 'false');
+  selectAll.style.cursor = 'pointer';
+  selectAll.style.display = 'inline-block';
+  selectAll.style.margin = '0';
   selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
   selectAllTh.appendChild(selectAll);
   headerRow.appendChild(selectAllTh);

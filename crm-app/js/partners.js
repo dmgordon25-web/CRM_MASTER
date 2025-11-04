@@ -1003,7 +1003,14 @@ function ensurePartnersBoot(ctx){
     detachPartnerHandler(state);
     const handler = (event) => {
       if(!event || event.__crmRowEditorHandled || event.__partnerEditHandled) return;
-      const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="partner-actions"]');
+      // Check if the click is on or inside a favorite toggle button
+      const favoriteToggle = event.target?.closest?.('[data-role="favorite-toggle"]');
+      if(favoriteToggle) {
+        // Stop propagation to prevent row click handler from triggering
+        event.stopPropagation();
+        return;
+      }
+      const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="partner-actions"]');
       if(skip) return;
       const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
       if(control) return;
