@@ -49,6 +49,11 @@
      </h1>
      <div class="grow">
      </div>
+     <div id="universal-search-container" style="position:relative;min-width:280px;max-width:400px;">
+      <input type="search" id="universal-search" placeholder="Search contacts or partners..." style="width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" aria-label="Universal search">
+      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:16px;">🔍</span>
+      <div id="universal-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-height:400px;overflow-y:auto;z-index:1000;"></div>
+     </div>
      <div id="lo-profile-chip" style="text-align:right;margin-right:12px;min-width:180px">
       <div class="fine-print muted">Loan Officer</div>
       <div data-role="lo-name">Set your profile</div>
@@ -568,6 +573,7 @@
       </strong>
       <span class="grow">
       </span>
+      <button class="btn" data-export-table="partners" aria-label="Export to CSV" title="Export to CSV">Export CSV</button>
       <button class="btn" id="btn-filters-partners">
        Filters
       </button>
@@ -659,9 +665,11 @@
     </section>
     <section class="grid cols-2">
      <div class="card">
-     <h3>
-      Application / Processing / Underwriting
-     </h3>
+     <div class="row" style="align-items:center;gap:12px;margin-bottom:8px;">
+      <h3 style="margin:0;">Application / Processing / Underwriting</h3>
+      <span class="grow"></span>
+      <button class="btn" data-export-table="pipeline" aria-label="Export to CSV" title="Export to CSV">Export CSV</button>
+     </div>
      <div class="table-search">
       <input aria-label="Search pipeline" data-table-search="#tbl-pipeline" placeholder="Search Pipeline" type="search"/>
      </div>
@@ -693,9 +701,11 @@
       </table>
      </div>
      <div class="card">
-     <h3>
-      Clients (Approved / <abbr title="Cleared to Close">CTC</abbr> / Funded)
-     </h3>
+     <div class="row" style="align-items:center;gap:12px;margin-bottom:8px;">
+      <h3 style="margin:0;">Clients (Approved / <abbr title="Cleared to Close">CTC</abbr> / Funded)</h3>
+      <span class="grow"></span>
+      <button class="btn" data-export-table="clients" aria-label="Export to CSV" title="Export to CSV">Export CSV</button>
+     </div>
      <div class="table-search">
       <input aria-label="Search clients" data-table-search="#tbl-clients" placeholder="Search Clients" type="search"/>
      </div>
@@ -882,6 +892,7 @@
       </strong>
       <span class="grow">
       </span>
+      <button class="btn" data-export-table="longshots" aria-label="Export to CSV" title="Export to CSV">Export CSV</button>
       <button class="btn" id="btn-filters-longshots">
        Filters
       </button>
@@ -1133,6 +1144,35 @@
       </div>
      </div>
      <section class="card" id="reports-root"></section>
+     <div class="card" style="margin-top:12px">
+      <div class="portfolio-card-header">
+       <h3 class="portfolio-card-title" title="Referral Partner Performance">
+        Referral Partner Performance
+       </h3>
+       <div class="table-search">
+        <input aria-label="Search partners" data-table-search="#tbl-referral-performance" placeholder="Search Partners" type="search"/>
+       </div>
+      </div>
+      <p class="widget-summary muted">Track which partners are sending quality leads and closing loans. Your #1 business metric.</p>
+      <div class="table-wrap portfolio-table-wrap">
+       <table class="table portfolio-table" id="tbl-referral-performance">
+        <thead>
+         <tr>
+          <th>Partner</th>
+          <th>Tier</th>
+          <th>Leads Sent</th>
+          <th>Applications</th>
+          <th>Funded</th>
+          <th>Conversion %</th>
+          <th>Total Volume</th>
+         </tr>
+        </thead>
+        <tbody>
+         <tr class="empty-row"><td colspan="7">Loading partner metrics...</td></tr>
+        </tbody>
+       </table>
+      </div>
+     </div>
      <div class="card" style="margin-top:12px">
       <div class="portfolio-card-header">
        <h3 class="portfolio-card-title" title="Funded Deals in Range">
@@ -2153,6 +2193,8 @@
   </script>
   <script type="module" src="./js/router/init.js"></script>
   <script type="module" src="./js/ui/debug_overlay.js"></script>
+  <script type="module" src="./js/ui/universal_search.js"></script>
+  <script type="module" src="./js/table/table_export.js"></script>
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';

@@ -213,6 +213,74 @@ import { normalizeStatus } from './pipeline/constants.js';
       </li>`;
     }).join('') : '<li class="empty">Recruit or tag partners to surface leaders.</li>');
 
+    // Referral Partner Performance Table
+    const perfTable = $('#tbl-referral-performance tbody');
+    if(perfTable){
+      const partnerMap = new Map();
+      partners.forEach(p => {
+        if(!p || !p.id) return;
+        partnerMap.set(String(p.id), p);
+      });
+      
+      const partnerPerformance = new Map();
+      contacts.forEach(contact => {
+        const pid = contact.buyerPartnerId || contact.listingPartnerId || contact.partnerId;
+        if(!pid || pid===NONE_PARTNER_ID) return;
+        const pidStr = String(pid);
+        
+        if(!partnerPerformance.has(pidStr)){
+          partnerPerformance.set(pidStr, {
+            leads: 0,
+            applications: 0,
+            funded: 0,
+            volume: 0
+          });
+        }
+        
+        const perf = partnerPerformance.get(pidStr);
+        perf.leads += 1;
+        
+        const stage = normalizeStatus(contact.stage);
+        if(['application','processing','underwriting','approved','cleared-to-close','clear_to_close','funded','post-close'].includes(stage)){
+          perf.applications += 1;
+        }
+        
+        if(contact.fundedDate || stage === 'funded' || stage === 'post-close'){
+          perf.funded += 1;
+          perf.volume += Number(contact.loanAmount||0)||0;
+        }
+      });
+      
+      const perfRows = Array.from(partnerPerformance.entries())
+        .map(([pid, perf]) => {
+          const partner = partnerMap.get(pid) || {name: '—', tier: '—'};
+          const convRate = perf.leads > 0 ? Math.round((perf.funded / perf.leads) * 100) : 0;
+          return {
+            partner,
+            ...perf,
+            convRate
+          };
+        })
+        .sort((a,b) => b.funded - a.funded || b.convRate - a.convRate);
+      
+      if(perfRows.length === 0){
+        perfTable.innerHTML = '<tr class="empty-row"><td colspan="7">No referral data available. Tag partners in your contacts to see performance metrics.</td></tr>';
+      }else{
+        perfTable.innerHTML = perfRows.map(row => {
+          const tierColor = colorForTier(row.partner.tier);
+          return `<tr>
+            <td><strong>${safe(row.partner.name)}</strong><br><span class="muted" style="font-size:12px">${safe(row.partner.company||'')}</span></td>
+            <td><span class="insight-tag light" style="border-color:${tierColor};color:${tierColor}">${safe(row.partner.tier||'—')}</span></td>
+            <td style="text-align:right">${row.leads}</td>
+            <td style="text-align:right">${row.applications}</td>
+            <td style="text-align:right"><strong>${row.funded}</strong></td>
+            <td style="text-align:right"><strong>${row.convRate}%</strong></td>
+            <td style="text-align:right">${money(row.volume)}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
     // Needs Your Attention — overdue & soon tasks
     const openTasks = (tasks||[]).filter(task=> task && task.due && !task.done).map(task=>{
       const dueDate = toDate(task.due);
