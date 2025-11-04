@@ -3384,33 +3384,36 @@ function init() {
   if (!doc) return;
   ensureDashboardRouteLifecycle();
   
-  // Ensure proper widget visibility on boot by toggling modes
+  // Ensure proper widget visibility on boot by toggling modes AFTER splash screen hides
   const ensureProperBootState = () => {
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
-    // Wait for initial render to complete with extended timing
-    raf(() => {
+    
+    const performToggle = () => {
+      // Wait for splash screen to hide plus additional delay
       raf(() => {
         raf(() => {
-          const current = getDashboardMode();
-          const alternate = current === 'today' ? 'all' : 'today';
-          // Toggle to alternate mode first to trigger proper rendering
-          setDashboardMode(alternate, { skipPersist: true, force: true });
-          // Then toggle back to the desired mode with additional delays
           raf(() => {
+            const current = getDashboardMode();
+            const alternate = current === 'today' ? 'all' : 'today';
+            // Toggle to alternate mode first to trigger proper rendering
+            setDashboardMode(alternate, { skipPersist: true, force: true });
+            // Then toggle back to the desired mode with additional delays
             raf(() => {
               raf(() => {
-                setDashboardMode(current, { skipPersist: true, force: true });
-                // Final refresh to ensure everything is visible with extra time
                 raf(() => {
+                  setDashboardMode(current, { skipPersist: true, force: true });
+                  // Final refresh to ensure everything is visible with extra time
                   raf(() => {
-                    applySurfaceVisibility(prefCache.value || defaultPrefs());
-                    // Emit ready event after all rendering is complete
-                    if (doc) {
-                      try {
-                        const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
-                        doc.dispatchEvent(evt);
-                      } catch (_) {}
-                    }
+                    raf(() => {
+                      applySurfaceVisibility(prefCache.value || defaultPrefs());
+                      // Emit ready event after all rendering is complete
+                      if (doc) {
+                        try {
+                          const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
+                          doc.dispatchEvent(evt);
+                        } catch (_) {}
+                      }
+                    });
                   });
                 });
               });
@@ -3418,7 +3421,20 @@ function init() {
           });
         });
       });
-    });
+    };
+    
+    // Wait for splash screen to hide before performing toggle
+    const checkSplashHidden = () => {
+      if (win && win.__SPLASH_HIDDEN__) {
+        performToggle();
+        return;
+      }
+      // Try again after delay
+      setTimeout(checkSplashHidden, 100);
+    };
+    
+    // Start checking for splash hidden
+    setTimeout(checkSplashHidden, 300);
   };
   
   if (doc.readyState === 'loading') {
