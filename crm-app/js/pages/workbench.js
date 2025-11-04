@@ -2930,8 +2930,20 @@ async function setupWorkbench(target){
         lensState.elements.toggle.textContent = 'Hide';
       }
     });
-    // Wait a tick then close them all
+    // Wait for rendering
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // Close them again to show them collapsed
+    state.lensStates.forEach((lensState) => {
+      if(lensState.elements && lensState.elements.body){
+        lensState.open = true;
+        lensState.elements.body.hidden = false;
+        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
+        lensState.elements.toggle.textContent = 'Hide';
+      }
+    });
+    // Wait another tick
     await new Promise(resolve => setTimeout(resolve, 50));
+    // Finally close them all
     state.lensStates.forEach((lensState) => {
       if(lensState.elements && lensState.elements.body){
         lensState.open = false;
