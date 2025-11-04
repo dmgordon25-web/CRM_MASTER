@@ -23,7 +23,7 @@ const CRM_LOG_ROOT = process.env.LOCALAPPDATA
 const FRONTEND_LOG_PATH = path.join(CRM_LOG_ROOT, 'frontend.log');
 const MAX_LOG_PAYLOAD = 64 * 1024;
 const DEV_KEY = crypto.randomBytes(16).toString('hex');
-const IDLE_TIMEOUT_MS = 60_000;
+const IDLE_TIMEOUT_MS = 5_000;
 const PID_FILE = path.join(REPO_ROOT, '.devserver.pid');
 
 // ---------------------------------------------------------------------------
@@ -148,6 +148,38 @@ function markSessionClosed(sid) {
     activeSessions.clear();
   }
   scheduleIdleExit();
+}
+
+async function requestExistingDevServerShutdown(port, key) {
+  if (!Number.isFinite(port) || port <= 0) return false;
+  if (!key || typeof key !== 'string') return false;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(!!result);
+    };
+    try {
+      const req = http.get({
+        hostname: '127.0.0.1',
+        port,
+        path: `/__shutdown?key=${encodeURIComponent(key)}`
+      }, (res) => {
+        try { res.resume(); }
+        catch {}
+        finish(res.statusCode >= 200 && res.statusCode < 300);
+      });
+      req.on('error', () => finish(false));
+      req.setTimeout(1500, () => {
+        try { req.destroy(); }
+        catch {}
+        finish(false);
+      });
+    } catch {
+      finish(false);
+    }
+  });
 }
 
 class ShutdownManager {
@@ -361,6 +393,10 @@ class ShutdownManager {
     if (Number.isFinite(candidatePort) && candidatePort > 0) {
       record.port = candidatePort;
     }
+    const devKey = meta && typeof meta.devKey === 'string' ? meta.devKey : null;
+    if (devKey) {
+      record.devKey = devKey;
+    }
     fs.writeFileSync(this.pidFile, JSON.stringify(record), 'utf8');
   }
 
@@ -416,10 +452,14 @@ class ShutdownManager {
     }
     let existingPid = Number.NaN;
     let existingPort = Number.NaN;
+    let existingKey = null;
     try {
       const parsed = JSON.parse(existingRaw);
       existingPid = Number.parseInt(parsed && parsed.pid, 10);
       existingPort = Number.parseInt(parsed && parsed.port, 10);
+      if (parsed && typeof parsed.devKey === 'string') {
+        existingKey = parsed.devKey;
+      }
     } catch {
       existingPid = Number.parseInt(existingRaw, 10);
     }
@@ -432,9 +472,37 @@ class ShutdownManager {
       this.removePidFile();
       return;
     }
+    let stillAlive = true;
+    let graceful = false;
+    if (existingKey && Number.isFinite(existingPort) && existingPort > 0) {
+      try {
+        const ok = await requestExistingDevServerShutdown(existingPort, existingKey);
+        if (ok) {
+          graceful = true;
+          await this.waitForPidDeath(existingPid, 4000);
+        }
+      } catch {}
+    }
+    stillAlive = this.isPidAlive(existingPid);
+    if (stillAlive) {
+      try {
+        await this.killPidTree(existingPid);
+        await this.waitForPidDeath(existingPid, 4000);
+      } catch {}
+      stillAlive = this.isPidAlive(existingPid);
+    }
+    if (!stillAlive) {
+      console.info('[DEV SERVER] reclaimed stale server process before boot.');
+      this.removePidFile();
+      return;
+    }
     const attachPort = Number.isFinite(existingPort) && existingPort > 0 ? existingPort : null;
     const attachUrl = attachPort ? `http://127.0.0.1:${attachPort}/` : null;
-    console.info(`[DEV SERVER] existing instance already running (pid ${existingPid}).`);
+    if (graceful) {
+      console.info(`[DEV SERVER] previous instance (pid ${existingPid}) did not exit cleanly; unable to reclaim automatically.`);
+    } else {
+      console.info(`[DEV SERVER] existing instance already running (pid ${existingPid}).`);
+    }
     if (attachUrl) {
       console.info(`[DEV SERVER] attach: ${attachUrl}`);
     } else {
@@ -1122,7 +1190,7 @@ async function start() {
     return;
   }
   const port = await bindServer(cli.port);
-  shutdownManager.writePidFile({ port });
+  shutdownManager.writePidFile({ port, devKey: DEV_KEY });
   const url = `http://127.0.0.1:${port}/`;
   console.info(`[SERVER] listening on ${url} (root: ${REPO_ROOT})`);
 
