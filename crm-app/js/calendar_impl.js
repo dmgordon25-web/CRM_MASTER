@@ -25,8 +25,12 @@ function isSafeModeActive(){
 }
 
 const EVENT_CATEGORIES = Object.freeze([
-  { key: 'meeting', label: 'Meeting', icon: '👥', type: 'contact', accent: '--accent-contact', tokens: ['contact', 'meeting', 'appointment', 'birthday', 'anniversary', 'review'] },
-  { key: 'call', label: 'Call', icon: '📞', type: 'task', accent: '--accent-task', tokens: ['task', 'call', 'follow', 'touch', 'reminder', 'phone'] },
+  { key: 'call', label: 'Call', icon: '📞', type: 'task', accent: '--accent-task', tokens: ['call', 'phone'] },
+  { key: 'email', label: 'Email', icon: '✉️', type: 'task', accent: '--accent-task', tokens: ['email', 'mail'] },
+  { key: 'sms', label: 'SMS', icon: '💬', type: 'task', accent: '--accent-task', tokens: ['sms', 'text', 'message'] },
+  { key: 'meeting', label: 'Meeting', icon: '👥', type: 'contact', accent: '--accent-contact', tokens: ['meeting', 'appointment', 'birthday', 'anniversary', 'review'] },
+  { key: 'postal', label: 'Postal', icon: '📮', type: 'task', accent: '--accent-task', tokens: ['postal', 'mail', 'letter'] },
+  { key: 'followup', label: 'Follow-up', icon: '🔔', type: 'task', accent: '--accent-task', tokens: ['follow-up', 'followup', 'follow', 'touch', 'reminder'] },
   { key: 'deadline', label: 'Deadline', icon: '⭐', type: 'milestone', accent: '--accent-milestone', tokens: ['milestone', 'deal', 'closing', 'deadline', 'funded', 'closing-watch'] },
   { key: 'other', label: 'Other', icon: '📌', type: 'other', accent: '--accent-other', tokens: [] },
 ]);

@@ -50,6 +50,7 @@
   };
 
   const LOAN_TYPES = ['Conventional', 'FHA', 'VA', 'Jumbo'];
+  const TASK_TYPES = ['Call', 'Email', 'SMS', 'Meeting', 'Postal', 'Follow-up'];
 
   const FIRST_NAMES = ['Avery','Charlie','Dakota','Elliot','Finley','Harper','Jordan','Kai','Logan','Morgan','Peyton','Reese','Rowan','Sawyer','Skyler'];
   const LAST_NAMES = ['Adler','Bennett','Cameron','Dalton','Ellis','Finch','Grayson','Hayes','Iverson','Jensen','Kensington','Lang','Monroe','Prescott','Quinn'];
@@ -350,19 +351,25 @@
       if(normalized.includeTasks){
         const baseDue = stageAnchor + (3 * DAY);
         const followUpTitle = `Pipeline touch (${stageLabel})`;
+        const taskTypeIndex = seq % TASK_TYPES.length;
+        const taskType = TASK_TYPES[taskTypeIndex];
         dataset.tasks.push({
           id: `seed-task-${pad(seq, 4)}-a`,
           contactId,
           title: followUpTitle,
+          type: taskType,
           due: toYMD(baseDue),
           done: stageKey === 'funded' && (seq % 2 === 0),
           status: stageKey === 'funded' && (seq % 2 === 0) ? 'done' : 'open',
           updatedAt
         });
+        const secondTaskTypeIndex = (seq + 1) % TASK_TYPES.length;
+        const secondTaskType = TASK_TYPES[secondTaskTypeIndex];
         dataset.tasks.push({
           id: `seed-task-${pad(seq, 4)}-b`,
           contactId,
           title: `Document chase ${pad(seq, 2)}`,
+          type: secondTaskType,
           due: toYMD(baseDue + DAY),
           done: stageKey === 'funded' && (seq % 3 === 0),
           status: stageKey === 'funded' && (seq % 3 === 0) ? 'done' : 'open',

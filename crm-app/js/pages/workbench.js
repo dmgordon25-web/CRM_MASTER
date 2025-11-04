@@ -3,6 +3,7 @@ import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
+import { ensureActionBarPostPaintRefresh } from '../ui/action_bar.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -2499,6 +2500,11 @@ function handleSelectAllChange(event, lensState){
   }
   store.set(next, scope);
   syncSelectionForLens(lensState);
+  try {
+    if(typeof ensureActionBarPostPaintRefresh === 'function'){
+      ensureActionBarPostPaintRefresh();
+    }
+  }catch(_err){}
 }
 
 function handleRowCheckboxChange(event, lensState){
@@ -2922,12 +2928,10 @@ async function setupWorkbench(target){
       sessionStorage.setItem(sessionKey, 'true');
     }
     // Step 1: Show all sections
+    // First, programmatically open all sections to trigger render
     state.lensStates.forEach((lensState) => {
-      if(lensState.elements && lensState.elements.body){
-        lensState.open = true;
-        lensState.elements.body.hidden = false;
-        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
-        lensState.elements.toggle.textContent = 'Hide';
+      if(lensState.elements && lensState.elements.toggle){
+        lensState.elements.toggle.click();
       }
     });
     // Step 2: Hide them
@@ -2952,16 +2956,14 @@ async function setupWorkbench(target){
     });
     // Step 4: Finally hide and set default closed state
     await new Promise(resolve => setTimeout(resolve, 50));
+    // Wait for rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 150));
+    // Then close them all to default to collapsed state
     state.lensStates.forEach((lensState) => {
-      if(lensState.elements && lensState.elements.body){
-        lensState.open = false;
-        lensState.elements.body.hidden = true;
-        lensState.elements.toggle.setAttribute('aria-expanded', 'false');
-        lensState.elements.toggle.textContent = 'Show';
-        state.layout.open[lensState.config.key] = false;
+      if(lensState.elements && lensState.elements.toggle){
+        lensState.elements.toggle.click();
       }
     });
-    scheduleLayoutSave();
   }
   
   reportListsSummary();

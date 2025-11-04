@@ -3394,6 +3394,20 @@ function init() {
         setDashboardMode('today', { skipPersist: true });
       }, 100);
     }, 200);
+  // Ensure proper widget visibility on boot
+  const ensureProperBootState = () => {
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+    raf(() => {
+      raf(() => {
+        const current = getDashboardMode();
+        // Force re-apply of the current mode to ensure widgets are properly visible
+        setDashboardMode(current, { skipPersist: true, force: true });
+        // Trigger a refresh of widget visibility after initial render
+        raf(() => {
+          applySurfaceVisibility(prefCache.value || defaultPrefs());
+        });
+      });
+    });
   };
   
   if (doc.readyState === 'loading') {
@@ -3403,7 +3417,7 @@ function init() {
       }
       scheduleApply();
       ensureWidgetDnD();
-      toggleDashboardModeOnBoot();
+      ensureProperBootState();
     }, { once: true });
   } else {
     if (typeof ensureLayoutToggle === 'function') {
@@ -3411,7 +3425,7 @@ function init() {
     }
     scheduleApply();
     ensureWidgetDnD();
-    toggleDashboardModeOnBoot();
+    ensureProperBootState();
   }
   if (win && win.RenderGuard && typeof win.RenderGuard.registerHook === 'function') {
     try {
