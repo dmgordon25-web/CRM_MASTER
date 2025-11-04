@@ -3386,20 +3386,14 @@ function init() {
   
   // Helper to toggle dashboard mode to refresh Today widget on boot
   const toggleDashboardModeOnBoot = () => {
-    const sessionKey = 'dashboard:boot-toggled';
-    const bootToggled = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey) === 'true';
-    if (!bootToggled) {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(sessionKey, 'true');
-      }
-      // Toggle to All then back to Today to ensure proper rendering
+    // Always toggle on dashboard entry to ensure Today widget renders correctly
+    // Toggle to All then back to Today to force proper rendering
+    setTimeout(() => {
+      setDashboardMode('all', { skipPersist: true });
       setTimeout(() => {
-        setDashboardMode('all', { skipPersist: true });
-        setTimeout(() => {
-          setDashboardMode('today', { skipPersist: true });
-        }, 100);
-      }, 200);
-    }
+        setDashboardMode('today', { skipPersist: true });
+      }, 100);
+    }, 200);
   };
   
   if (doc.readyState === 'loading') {

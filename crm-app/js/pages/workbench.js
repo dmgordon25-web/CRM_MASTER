@@ -2914,14 +2914,14 @@ async function setupWorkbench(target){
   restoreLensDrafts();
   syncUI();
   
-  // On first session entry, toggle tables open then closed to render them properly collapsed
+  // On first session entry, toggle tables open -> hide -> show -> hide to properly initialize
   const sessionKey = 'workbench:session-initialized';
   const sessionInitialized = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey) === 'true';
   if(!sessionInitialized){
     if(typeof sessionStorage !== 'undefined'){
       sessionStorage.setItem(sessionKey, 'true');
     }
-    // Briefly open all sections to render their initial state
+    // Step 1: Show all sections
     state.lensStates.forEach((lensState) => {
       if(lensState.elements && lensState.elements.body){
         lensState.open = true;
@@ -2930,7 +2930,27 @@ async function setupWorkbench(target){
         lensState.elements.toggle.textContent = 'Hide';
       }
     });
-    // Wait a tick then close them all
+    // Step 2: Hide them
+    await new Promise(resolve => setTimeout(resolve, 50));
+    state.lensStates.forEach((lensState) => {
+      if(lensState.elements && lensState.elements.body){
+        lensState.open = false;
+        lensState.elements.body.hidden = true;
+        lensState.elements.toggle.setAttribute('aria-expanded', 'false');
+        lensState.elements.toggle.textContent = 'Show';
+      }
+    });
+    // Step 3: Show them again
+    await new Promise(resolve => setTimeout(resolve, 50));
+    state.lensStates.forEach((lensState) => {
+      if(lensState.elements && lensState.elements.body){
+        lensState.open = true;
+        lensState.elements.body.hidden = false;
+        lensState.elements.toggle.setAttribute('aria-expanded', 'true');
+        lensState.elements.toggle.textContent = 'Hide';
+      }
+    });
+    // Step 4: Finally hide and set default closed state
     await new Promise(resolve => setTimeout(resolve, 50));
     state.lensStates.forEach((lensState) => {
       if(lensState.elements && lensState.elements.body){
