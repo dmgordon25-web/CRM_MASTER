@@ -2599,15 +2599,35 @@ function handleSelectAllChange(event, lensState){
       : null;
     if(bar){
       if(selectionCount > 0){
+        // CRITICAL: Remove minimized state when we have selections
+        if(bar.hasAttribute('data-minimized')){
+          bar.removeAttribute('data-minimized');
+        }
         bar.setAttribute('data-visible', '1');
         if(bar.dataset) bar.dataset.idleVisible = '1';
-        bar.style.display = '';
+        if(bar.style) {
+          bar.style.display = '';
+          bar.style.opacity = '1';
+          bar.style.visibility = 'visible';
+          bar.style.pointerEvents = 'auto';
+        }
         bar.dataset.count = String(selectionCount);
+        // Update aria-expanded to indicate the bar is now expanded
+        bar.setAttribute('aria-expanded', 'true');
       }else{
         bar.removeAttribute('data-visible');
         bar.removeAttribute('data-idle-visible');
-        bar.style.display = 'none';
+        // Restore minimized state when count is 0
+        bar.setAttribute('data-minimized', '1');
+        if(bar.style) {
+          bar.style.display = '';  // Don't set to 'none' - let CSS handle visibility via data-minimized
+          bar.style.opacity = '1';
+          bar.style.visibility = 'visible';
+          bar.style.pointerEvents = 'auto';
+        }
         bar.dataset.count = '0';
+        // Update aria-expanded to indicate the bar is now minimized
+        bar.setAttribute('aria-expanded', 'false');
       }
     }
     // Trigger all update mechanisms
