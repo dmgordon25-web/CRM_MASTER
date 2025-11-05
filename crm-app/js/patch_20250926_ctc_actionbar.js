@@ -584,7 +584,7 @@ function runPatch(){
       
       // CRITICAL: Properly show/hide action bar based on selection count
       if(numeric > 0){
-        // Show action bar when items are selected
+        // Show full action bar when items are selected (not minimized)
         bar.setAttribute('data-visible','1');
         bar.setAttribute('data-idle-visible', '1'); // Ensure it stays visible
         bar.style.display = '';
@@ -595,13 +595,17 @@ function runPatch(){
         // Update the count display
         bar.dataset.count = String(numeric);
       }else{
-        // Hide action bar when no items are selected
+        // When count is 0, show the minimized pill (don't hide the bar completely)
         bar.removeAttribute('data-visible');
         bar.removeAttribute('data-idle-visible');
-        bar.style.display = 'none';
-        bar.style.opacity = '0';
-        bar.style.visibility = 'hidden';
-        bar.style.pointerEvents = 'none';
+        // CRITICAL: Do NOT set display: none - let the minimized state show the pill
+        // The CSS handles hiding the shell and showing the pill via data-minimized="1"
+        if(bar.style.display === 'none'){
+          bar.style.display = '';  // Remove display:none to allow pill to show
+        }
+        bar.style.opacity = '1';  // Keep visible for pill
+        bar.style.visibility = 'visible';  // Keep visible for pill
+        bar.style.pointerEvents = 'auto';  // Keep interactive for pill
         
         bar.dataset.count = '0';
       }
@@ -732,7 +736,7 @@ function runPatch(){
         const { editBtn, mergeBtn } = findButtons();
         const count = getSelectedCount();
         const editOn = count === 1;
-        const mergeOn = count === 2;
+        const mergeOn = count === 2;  // CRITICAL: Merge only for exactly 2 selections
         setButtonDisabled(editBtn, !editOn);
         setButtonDisabled(mergeBtn, !mergeOn);
       }
@@ -864,7 +868,8 @@ function runPatch(){
       const namesEl = bar.querySelector('[data-role="names"]');
       const stagesEl = bar.querySelector('[data-role="stages"]');
       if(!count){
-        bar.style.display = 'none';
+        // CRITICAL: Don't set display:none - let syncActionBarVisibility handle visibility
+        // This allows the minimized pill to show when count is 0
         bar.classList.remove('has-selection');
         bar.removeAttribute('data-selection-type');
         if(countEl) countEl.textContent = 'No records selected';

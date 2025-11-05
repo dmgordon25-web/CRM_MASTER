@@ -83,7 +83,7 @@ export function computeActionBarGuards(selectedCount){
   const n = Number(selectedCount || 0);
   return {
     edit: n === 1,
-    merge: n >= 2,
+    merge: n === 2,  // FIXED: Merge only available for exactly 2 selections, not 3+
     emailTogether: n >= 1,
     emailMass: n >= 1,
     addTask: n >= 1,
