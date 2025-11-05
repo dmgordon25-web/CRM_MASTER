@@ -823,6 +823,11 @@ function syncActionBarVisibility(selCount, explicitEl) {
       bar.style.visibility = 'visible';
       bar.style.pointerEvents = 'auto';
     }
+    // CRITICAL: Remove minimized state when we have selections
+    if (bar.hasAttribute('data-minimized')) {
+      bar.removeAttribute('data-minimized');
+    }
+    bar.setAttribute('aria-expanded', 'true');
   } else {
     // When count is 0, show the minimized pill (don't hide the bar completely)
     bar.removeAttribute('data-visible');
@@ -837,6 +842,9 @@ function syncActionBarVisibility(selCount, explicitEl) {
       bar.style.visibility = 'visible';  // Keep visible for pill
       bar.style.pointerEvents = 'auto';  // Keep interactive for pill
     }
+    // CRITICAL: Set minimized state when count is 0 to show the pill
+    bar.setAttribute('data-minimized', '1');
+    bar.setAttribute('aria-expanded', 'false');
   }
 }
 

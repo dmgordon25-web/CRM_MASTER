@@ -620,12 +620,6 @@ function runPatch(){
         bar.dataset.count = '0';
       }
       
-      // Call updateActionBarMinimizedState if available from ui/action_bar.js
-      if(typeof window !== 'undefined' && typeof window.updateActionBarMinimizedState === 'function'){
-        try { window.updateActionBarMinimizedState(numeric); }
-        catch (_) {}
-      }
-      
       // Trigger global action bar update if available
       if(typeof window !== 'undefined'){
         if(typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){

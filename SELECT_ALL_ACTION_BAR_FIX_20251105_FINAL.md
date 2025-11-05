@@ -90,12 +90,18 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
 
 ## Files Modified
 
-1. `/workspace/crm-app/js/patch_20250926_ctc_actionbar.js` - Lines 579-640
+1. `/workspace/crm-app/js/patch_20250926_ctc_actionbar.js` - Lines 579-634
    - Updated `syncActionBarVisibility()` to properly set/remove `data-minimized` attribute
-   - Added call to `updateActionBarMinimizedState()` for consistent behavior
+   - Added `aria-expanded` attribute management for accessibility
+   - Ensures action bar expands when count > 0 and minimizes when count = 0
 
-2. `/workspace/crm-app/js/ui/action_bar.js` - Line 871
-   - Exported `updateActionBarMinimizedState` to `window` object
+2. `/workspace/crm-app/js/ui/action_bar.js` - Lines 799-849
+   - Updated `syncActionBarVisibility()` to properly set/remove `data-minimized` attribute
+   - Added `aria-expanded` attribute management for accessibility
+   - Ensures consistency with patch behavior across all action bar updates
+
+3. `/workspace/crm-app/js/ui/action_bar.js` - Line 871
+   - Exported `updateActionBarMinimizedState` to `window` object for module interoperability
 
 ## Expected Behavior After Fix
 
@@ -159,3 +165,13 @@ Test the following scenarios across all table views:
 - ✅ Audit passes successfully
 - ✅ Code follows existing patterns in the codebase
 - ✅ Consistent with Workbench implementation (which works correctly)
+- ✅ Both `patch_20250926_ctc_actionbar.js` and `ui/action_bar.js` now handle `data-minimized` consistently
+
+## CI Fix Notes
+
+The initial implementation revealed that both the patch file and the main ui/action_bar.js needed to handle `data-minimized` attribute management. The `syncActionBarVisibility()` function in ui/action_bar.js is called from multiple places including:
+- `refreshActionBarVisibility()` → called by `requestVisibilityRefresh()`
+- `setSelectedCount()` → updates global state and triggers refresh
+- Direct calls from various UI update flows
+
+By updating both functions to consistently manage `data-minimized`, we ensure that regardless of which code path is taken, the action bar will properly expand/minimize based on selection count.
