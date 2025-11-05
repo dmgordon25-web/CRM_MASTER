@@ -1022,6 +1022,56 @@ function getSelectionStore(){
   return window.SelectionStore || null;
 }
 
+function normalizeSelectionIds(ids){
+  if(ids instanceof Set){
+    return Array.from(ids, (value) => String(value ?? '')).filter(Boolean);
+  }
+  if(Array.isArray(ids)){
+    return ids.map((value) => String(value ?? '')).filter(Boolean);
+  }
+  return [];
+}
+
+function syncSelectionApis(ids, scope, source){
+  const list = normalizeSelectionIds(ids);
+  const type = scope === 'partners' ? 'partners' : 'contacts';
+  const origin = source || 'workbench:select-all';
+  let applied = false;
+
+  if(typeof window !== 'undefined'){
+    const selection = window.Selection;
+    if(selection && typeof selection.set === 'function'){
+      try{
+        selection.set(list, type, origin);
+        applied = true;
+      }catch (err){
+        try{ console && console.warn && console.warn('[workbench] Selection.set failed', err); }
+        catch (_warnErr){}
+      }
+    }
+
+    const service = window.SelectionService;
+    if(service && typeof service.set === 'function'){
+      try{
+        service.set(list, type, origin);
+        applied = true;
+      }catch (err){
+        try{ console && console.warn && console.warn('[workbench] SelectionService.set failed', err); }
+        catch (_warnErr){}
+      }
+    }
+
+    if(!applied && list.length === 0){
+      try{ window.SelectionService?.clear?.(origin); }
+      catch (_err){}
+      try{ window.Selection?.clear?.(origin); }
+      catch (_err){}
+    }
+  }
+
+  return list;
+}
+
 function subscribeSelection(){
   if(state.selectionUnsubscribe) return;
   const store = getSelectionStore();
@@ -2514,18 +2564,20 @@ function handleSelectAllChange(event, lensState){
       }
     });
   }
+
+  const normalizedIds = syncSelectionApis(next, scope, checkbox.checked ? 'workbench:select-all:on' : 'workbench:select-all:off');
   store.set(next, scope);
   syncSelectionForLens(lensState);
   // Force immediate and comprehensive action bar update
-  const selectionCount = next.size;
-  
+  const selectionCount = normalizedIds.length;
+
   // Dispatch selection:changed event to notify action bar
   try {
     const eventDetail = {
       type: scope === 'partners' ? 'partners' : 'contacts',
-      ids: Array.from(next),
+      ids: normalizedIds,
       count: selectionCount,
-      source: 'workbench:select-all',
+      source: checkbox.checked ? 'workbench:select-all:on' : 'workbench:select-all:off',
       scope: scope
     };
     if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
@@ -2548,10 +2600,12 @@ function handleSelectAllChange(event, lensState){
     if(bar){
       if(selectionCount > 0){
         bar.setAttribute('data-visible', '1');
+        if(bar.dataset) bar.dataset.idleVisible = '1';
         bar.style.display = '';
         bar.dataset.count = String(selectionCount);
       }else{
         bar.removeAttribute('data-visible');
+        bar.removeAttribute('data-idle-visible');
         bar.style.display = 'none';
         bar.dataset.count = '0';
       }
