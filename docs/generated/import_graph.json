@@ -1,0 +1,421 @@
+{
+  "crm-app/js/app.js": [
+    "./ui/modals/partner_edit/index.js",
+    "./ui/action_bar.js",
+    "./pipeline/constants.js",
+    "../components/Loaders/InlineLoader.js",
+    "./ui/loading_block.js",
+    "./settings/flags.js"
+  ],
+  "crm-app/js/bulk_log.js": [],
+  "crm-app/js/calendar.js": [
+    "./boot/contracts/services.js",
+    "./db.js",
+    "./calendar_impl.js"
+  ],
+  "crm-app/js/calendar_actions.js": [
+    "./ui/toast_helpers.js"
+  ],
+  "crm-app/js/calendar_ics.js": [],
+  "crm-app/js/calendar_impl.js": [
+    "./calendar/index.js",
+    "./contacts.js",
+    "./ui/quick_create_menu.js",
+    "./ui/modals/partner_edit/index.js",
+    "./ui/status_banners.js",
+    "./ui/loading_block.js",
+    "./ui/toast_helpers.js",
+    "./ui/modal_singleton.js",
+    "./db.js",
+    "./tasks/store.js"
+  ],
+  "crm-app/js/commissions.js": [],
+  "crm-app/js/compose.js": [
+    "./email/templates_store.js",
+    "./email/merge_vars.js"
+  ],
+  "crm-app/js/contact_stage_tracker.js": [],
+  "crm-app/js/contacts.js": [
+    "./ui/modal_singleton.js",
+    "./ui/form_footer.js",
+    "./contacts/form.js",
+    "./ui/route_lifecycle.js",
+    "./services/selection_reset.js",
+    "./pipeline/constants.js",
+    "./ui/toast_helpers.js",
+    "./util/touch_log.js",
+    "./util/favorites.js",
+    "./ui/modals/partner_edit/index.js",
+    "./tasks/task_utils.js"
+  ],
+  "crm-app/js/contacts_merge.js": [
+    "./contacts_merge_orchestrator.js"
+  ],
+  "crm-app/js/contacts_merge_orchestrator.js": [
+    "./ui/merge_modal.js",
+    "./merge/merge_core.js"
+  ],
+  "crm-app/js/dash_range.js": [],
+  "crm-app/js/db.js": [],
+  "crm-app/js/db_compat.js": [],
+  "crm-app/js/diagnostics_quiet.js": [],
+  "crm-app/js/doccenter_rules.js": [],
+  "crm-app/js/env.js": [],
+  "crm-app/js/exporter.js": [
+    "./importer.js",
+    "./util/strings.js"
+  ],
+  "crm-app/js/filters.js": [
+    "./pipeline/constants.js"
+  ],
+  "crm-app/js/header_ui.js": [],
+  "crm-app/js/ical.js": [],
+  "crm-app/js/importer.js": [
+    "./ui/strings.js",
+    "./util/strings.js",
+    "./pipeline/stages.js",
+    "./pipeline/constants.js",
+    "./ui/toast_helpers.js"
+  ],
+  "crm-app/js/importer_contacts.js": [],
+  "crm-app/js/importer_helpers.js": [],
+  "crm-app/js/importer_partners.js": [],
+  "crm-app/js/migrations.js": [],
+  "crm-app/js/notifications.js": [],
+  "crm-app/js/partners.js": [
+    "./patch_2025-10-02_baseline_ux_cleanup.js",
+    "./ui/modals/partner_edit/index.js",
+    "./ui/modal_singleton.js",
+    "./util/touch_log.js",
+    "./ui/toast_helpers.js",
+    "./util/favorites.js",
+    "./ui/route_lifecycle.js",
+    "./services/selection_reset.js",
+    "./reports/referrals.js",
+    "./contacts.js"
+  ],
+  "crm-app/js/partners_detail.js": [
+    "./pipeline/stages.js",
+    "./pipeline/constants.js",
+    "./contacts.js"
+  ],
+  "crm-app/js/partners_merge.js": [
+    "./ui/action_bar.js"
+  ],
+  "crm-app/js/partners_merge_orchestrator.js": [
+    "./ui/merge_modal.js",
+    "./merge/merge_core.js"
+  ],
+  "crm-app/js/partners_modal.js": [
+    "./ui/modals/partner_edit/index.js"
+  ],
+  "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js": [
+    "./pipeline/stages.js",
+    "./pipeline/constants.js",
+    "./ui/partner_edit_modal.js",
+    "./contacts.js",
+    "./ui/route_lifecycle.js"
+  ],
+  "crm-app/js/patch_2025-09-26_phase2_automations.js": [
+    "./pipeline/constants.js"
+  ],
+  "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js": [
+    "./pipeline/stages.js",
+    "./contacts.js",
+    "./ui/modals/partner_edit/index.js",
+    "./ui/loading_block.js"
+  ],
+  "crm-app/js/patch_2025-09-26_phase4_polish_regression.js": [],
+  "crm-app/js/patch_2025-09-27_contact_linking_5A.js": [],
+  "crm-app/js/patch_2025-09-27_contact_linking_5B.js": [],
+  "crm-app/js/patch_2025-09-27_contact_linking_5C.js": [],
+  "crm-app/js/patch_2025-09-27_doccenter2.js": [],
+  "crm-app/js/patch_2025-09-27_masterfix.js": [],
+  "crm-app/js/patch_2025-09-27_merge_ui.js": [],
+  "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js": [],
+  "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js": [],
+  "crm-app/js/patch_2025-09-27_release_prep.js": [],
+  "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js": [],
+  "crm-app/js/patch_2025-10-02_medium_nice.js": [],
+  "crm-app/js/patch_2025-10-03_automation_seed.js": [],
+  "crm-app/js/patch_2025-10-03_calendar_ics_button.js": [],
+  "crm-app/js/patch_20250923_baseline.js": [
+    "./ui/partner_edit_modal.js",
+    "./contacts.js",
+    "./services/selection_reset.js"
+  ],
+  "crm-app/js/patch_20250924_bootstrap_ready.js": [],
+  "crm-app/js/patch_20250926_ctc_actionbar.js": [
+    "./patch_2025-10-02_baseline_ux_cleanup.js",
+    "./contacts_merge_orchestrator.js",
+    "./partners_merge_orchestrator.js",
+    "./ui/partner_edit_modal.js"
+  ],
+  "crm-app/js/post_funding.js": [],
+  "crm-app/js/presets.js": [],
+  "crm-app/js/print.js": [],
+  "crm-app/js/qa.js": [],
+  "crm-app/js/quick_add.js": [
+    "./ui/strings.js",
+    "./ui/quick_add_unified.js",
+    "./contacts.js",
+    "./ui/quick_create_menu.js"
+  ],
+  "crm-app/js/render.js": [
+    "./ui/strings.js",
+    "./pipeline/stages.js",
+    "./pipeline/constants.js",
+    "./contacts.js",
+    "./ui/modals/partner_edit/index.js",
+    "./dashboard/widgets/portfolio_mix.js",
+    "./dashboard/widgets/referral_leaders.js",
+    "./dashboard/widgets/pipeline_momentum.js",
+    "./util/favorites.js",
+    "./ui/legend_popover.js",
+    "./ui/loading_block.js",
+    "./ui/table_layout.js",
+    "./ui/quick_add_unified.js"
+  ],
+  "crm-app/js/reports.js": [
+    "./pipeline/constants.js"
+  ],
+  "crm-app/js/seed_data.js": [],
+  "crm-app/js/selftest.js": [],
+  "crm-app/js/selftest_panel.js": [],
+  "crm-app/js/settings_forms.js": [
+    "./ui/strings.js"
+  ],
+  "crm-app/js/snapshot.js": [],
+  "crm-app/js/tasks.js": [],
+  "crm-app/js/templates.js": [],
+  "crm-app/js/ui_shims.js": [],
+  "crm-app/js/utils.js": [],
+  "crm-app/js/ux/svg_sanitizer.js": [],
+  "crm-app/js/util/favorites.js": [],
+  "crm-app/js/util/strings.js": [],
+  "crm-app/js/util/touch_log.js": [],
+  "crm-app/js/ui/Confirm.js": [],
+  "crm-app/js/ui/GhostButton.js": [],
+  "crm-app/js/ui/PrimaryButton.js": [],
+  "crm-app/js/ui/Toast.js": [],
+  "crm-app/js/ui/action_bar.js": [
+    "./merge_modal.js",
+    "../quick_add.js",
+    "./quick_create_menu.js"
+  ],
+  "crm-app/js/ui/advanced_mode.js": [],
+  "crm-app/js/ui/bootstrap_features_probe.js": [],
+  "crm-app/js/ui/dashboard_layout.js": [
+    "./drag_core.js"
+  ],
+  "crm-app/js/ui/debug_overlay.js": [],
+  "crm-app/js/ui/drag_core.js": [],
+  "crm-app/js/ui/form_footer.js": [
+    "./GhostButton.js",
+    "./PrimaryButton.js"
+  ],
+  "crm-app/js/ui/header_toolbar.js": [
+    "./quick_create_menu.js",
+    "../quick_add.js"
+  ],
+  "crm-app/js/ui/help_hints.js": [],
+  "crm-app/js/ui/legend_popover.js": [],
+  "crm-app/js/ui/loading_block.js": [
+    "../../components/Loaders/InlineLoader.js"
+  ],
+  "crm-app/js/ui/merge_modal.js": [
+    "../merge/merge_core.js",
+    "./toast_helpers.js"
+  ],
+  "crm-app/js/ui/modal_singleton.js": [],
+  "crm-app/js/ui/notifications_panel.js": [
+    "../notifications/notifier.js",
+    "./toast_helpers.js"
+  ],
+  "crm-app/js/ui/partner_edit_modal.js": [
+    "./modal_singleton.js",
+    "./form_footer.js",
+    "../contacts/modal.js",
+    "./toast_helpers.js",
+    "../partners.js"
+  ],
+  "crm-app/js/ui/quick_add_compat.js": [],
+  "crm-app/js/ui/quick_add_unified.js": [
+    "./toast_helpers.js",
+    "../contacts.js",
+    "../partners.js",
+    "./quick_add_validation.js"
+  ],
+  "crm-app/js/ui/quick_add_validation.js": [],
+  "crm-app/js/ui/quick_create_menu.js": [
+    "./toast_helpers.js",
+    "../contacts.js",
+    "../tasks.js",
+    "./quick_add_validation.js"
+  ],
+  "crm-app/js/ui/route_lifecycle.js": [],
+  "crm-app/js/ui/route_toast_sentinel.js": [],
+  "crm-app/js/ui/settings_form.js": [
+    "../data/settings.js"
+  ],
+  "crm-app/js/ui/status_banners.js": [
+    "../../components/Loaders/InlineLoader.js"
+  ],
+  "crm-app/js/ui/strings.js": [],
+  "crm-app/js/ui/table_layout.js": [],
+  "crm-app/js/ui/toast_helpers.js": [],
+  "crm-app/js/ui/universal_search.js": [],
+  "crm-app/js/ui/modals/partner_edit/index.js": [
+    "../../partner_edit_modal.js"
+  ],
+  "crm-app/js/tasks/api.js": [
+    "../db.js",
+    "./store.js"
+  ],
+  "crm-app/js/tasks/store.js": [
+    "../calendar/index.js"
+  ],
+  "crm-app/js/tasks/task_utils.js": [
+    "../pipeline/constants.js"
+  ],
+  "crm-app/js/table/column_chooser.js": [
+    "./registry.js"
+  ],
+  "crm-app/js/table/csv_export.js": [
+    "./registry.js"
+  ],
+  "crm-app/js/table/registry.js": [],
+  "crm-app/js/table/table_export.js": [],
+  "crm-app/js/table/presets/contacts.js": [
+    "../registry.js"
+  ],
+  "crm-app/js/table/presets/partners.js": [
+    "../registry.js"
+  ],
+  "crm-app/js/table/presets/workbench.js": [
+    "../registry.js"
+  ],
+  "crm-app/js/state/actionBarGuards.js": [],
+  "crm-app/js/state/selectionStore.js": [],
+  "crm-app/js/settings/dashboard_prefs.js": [
+    "../ui/dashboard_layout.js"
+  ],
+  "crm-app/js/settings/flags.js": [],
+  "crm-app/js/services/comms_adapter.js": [],
+  "crm-app/js/services/pipelineStages.js": [
+    "../pipeline/stages.js"
+  ],
+  "crm-app/js/services/selection.js": [],
+  "crm-app/js/services/selection_adapter.js": [],
+  "crm-app/js/services/selection_fallback.js": [],
+  "crm-app/js/services/selection_reset.js": [],
+  "crm-app/js/services/softDelete.js": [],
+  "crm-app/js/router/init.js": [
+    "./patterns.js"
+  ],
+  "crm-app/js/router/patterns.js": [],
+  "crm-app/js/reports/referrals.js": [
+    "../pipeline/constants.js"
+  ],
+  "crm-app/js/relationships/index.js": [
+    "../contacts.js",
+    "../ui/modals/partner_edit/index.js",
+    "./map.js"
+  ],
+  "crm-app/js/relationships/map.js": [],
+  "crm-app/js/pipeline/constants.js": [
+    "./stages.js"
+  ],
+  "crm-app/js/pipeline/kanban_dnd.js": [
+    "./stages.js",
+    "./constants.js"
+  ],
+  "crm-app/js/pipeline/stages.js": [],
+  "crm-app/js/patches/loader.js": [
+    "../boot/manifest.js",
+    "../boot/boot_hardener.js",
+    "../boot/phase_runner.js",
+    "../boot/phases.js"
+  ],
+  "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js": [
+    "../ui/action_bar.js"
+  ],
+  "crm-app/js/patches/patch_2025-10-23_session_beacon.js": [],
+  "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js": [],
+  "crm-app/js/patches/polish_overlay_ready.js": [],
+  "crm-app/js/partners/list.js": [
+    "../ui/modals/partner_edit/index.js"
+  ],
+  "crm-app/js/pages/email_templates.js": [
+    "../email/templates_store.js",
+    "../email/merge_vars.js"
+  ],
+  "crm-app/js/pages/notifications.js": [
+    "../notifications/notifier.js"
+  ],
+  "crm-app/js/pages/workbench.js": [
+    "../pipeline/constants.js",
+    "../contacts.js",
+    "../ui/modals/partner_edit/index.js",
+    "../ui/legend_popover.js",
+    "../ui/status_banners.js",
+    "../ui/action_bar.js"
+  ],
+  "crm-app/js/notifications/notifier.js": [],
+  "crm-app/js/merge/merge_core.js": [],
+  "crm-app/js/email/merge_vars.js": [],
+  "crm-app/js/email/templates_store.js": [],
+  "crm-app/js/doc/doc_center_enhancer.js": [],
+  "crm-app/js/debug/overlay.js": [],
+  "crm-app/js/data/seed.js": [
+    "../pipeline/constants.js"
+  ],
+  "crm-app/js/data/settings.js": [],
+  "crm-app/js/dashboard/index.js": [
+    "../ui/drag_core.js",
+    "../ui/route_lifecycle.js",
+    "../ui/dashboard_layout.js",
+    "../contacts.js",
+    "../ui/modals/partner_edit/index.js",
+    "../ui/legend_popover.js",
+    "../ui/status_banners.js",
+    "../ui/loading_block.js"
+  ],
+  "crm-app/js/dashboard/kpis.js": [
+    "../pipeline/stages.js"
+  ],
+  "crm-app/js/dashboard/widgets/pipeline_momentum.js": [],
+  "crm-app/js/dashboard/widgets/portfolio_mix.js": [],
+  "crm-app/js/dashboard/widgets/referral_leaders.js": [],
+  "crm-app/js/core/capabilities_probe.js": [],
+  "crm-app/js/core/renderGuard.js": [],
+  "crm-app/js/contacts/form.js": [
+    "../ui/modals/partner_edit/index.js"
+  ],
+  "crm-app/js/contacts/modal.js": [
+    "../services/comms_adapter.js"
+  ],
+  "crm-app/js/calendar/index.js": [
+    "../db.js"
+  ],
+  "crm-app/js/boot/boot_hardener.js": [],
+  "crm-app/js/boot/early_trap.js": [],
+  "crm-app/js/boot/loader.js": [
+    "./manifest.js",
+    "./boot_hardener.js"
+  ],
+  "crm-app/js/boot/manifest.js": [
+    "./boot_hardener.js"
+  ],
+  "crm-app/js/boot/phase_runner.js": [],
+  "crm-app/js/boot/phases.js": [
+    "./contracts/probe_utils.js",
+    "../settings/flags.js"
+  ],
+  "crm-app/js/boot/splash_sequence.js": [],
+  "crm-app/js/boot/contracts/probe_utils.js": [],
+  "crm-app/js/boot/contracts/services.js": [
+    "./probe_utils.js",
+    "../../settings/flags.js"
+  ]
+}

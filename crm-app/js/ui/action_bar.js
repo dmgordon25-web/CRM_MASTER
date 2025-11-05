@@ -867,6 +867,8 @@ function _attachActionBarVisibilityHooks(actionBarRoot) {
   window.__UPDATE_ACTION_BAR_VISIBLE__ = function updateActionBarVisible() {
     requestVisibilityRefresh();
   };
+  // Export updateActionBarMinimizedState for use by other modules
+  window.updateActionBarMinimizedState = updateActionBarMinimizedState;
   if (actionBarRoot) {
     requestVisibilityRefresh();
   }
