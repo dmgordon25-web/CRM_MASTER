@@ -43,9 +43,10 @@ window.CRM.ctx = window.CRM.ctx || {
   }
   ctx.logger.log('[phase] SERVICES complete', { count: svcRes.length, errors: svcRes.filter(r => !r.ok).length });
 
-  if (shellContract.ok && (svcContract?.ok ?? true)) {
-    if (typeof hideDiagnostics === 'function') hideDiagnostics();
-  }
+  // DO NOT hide splash here - let splash_sequence.js handle it after proper initialization
+  // if (shellContract.ok && (svcContract?.ok ?? true)) {
+  //   if (typeof hideDiagnostics === 'function') hideDiagnostics();
+  // }
 
   // Run FEATURES (parallel for speed)
   const featureRes = await runPhaseParallel('FEATURES', PHASES.FEATURES, ctx, (e) => ctx.logger.log(e));
@@ -57,12 +58,13 @@ window.CRM.ctx = window.CRM.ctx || {
     window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
     window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'contracts', SHELL: shellContract, SERVICES: svcContract, FEATURES: featContract });
   } catch (_) {}
-  if (shellContract.ok && (svcContract?.ok ?? true) && featContract.ok) {
-    const splash = document.getElementById('diagnostics-splash');
-    if (splash && !window.__BOOT_FATAL__) {
-      splash.style.display = 'none';
-    }
-  }
+  // DO NOT hide splash here - let splash_sequence.js handle it after proper initialization
+  // if (shellContract.ok && (svcContract?.ok ?? true) && featContract.ok) {
+  //   const splash = document.getElementById('diagnostics-splash');
+  //   if (splash && !window.__BOOT_FATAL__) {
+  //     splash.style.display = 'none';
+  //   }
+  // }
   try {
     const shellMs = Array.isArray(shellRes) ? Math.round(shellRes.reduce((a, r) => a + (r.t1 - r.t0), 0)) : 0;
     const svcMs = Array.isArray(svcRes) ? Math.round(svcRes.reduce((a, r) => a + (r.t1 - r.t0), 0)) : 0;
@@ -74,5 +76,25 @@ window.CRM.ctx = window.CRM.ctx || {
   // Optional: final render tick
   if (typeof window.renderAll === 'function'){
     requestAnimationFrame(() => requestAnimationFrame(() => window.renderAll()));
+  }
+  
+  // Import and initialize splash sequence after boot completes
+  try {
+    import('../boot/splash_sequence.js').then(module => {
+      if (module && typeof module.runSplashSequence === 'function') {
+        // Give dashboard time to render before starting sequence
+        setTimeout(() => module.runSplashSequence(), 500);
+      }
+    }).catch(err => {
+      console.warn('[loader] Failed to load splash sequence', err);
+      // Fallback: hide splash if sequence fails to load
+      const splash = document.getElementById('diagnostics-splash');
+      if (splash) splash.style.display = 'none';
+    });
+  } catch (err) {
+    console.warn('[loader] Failed to import splash sequence', err);
+    // Fallback: hide splash if import fails
+    const splash = document.getElementById('diagnostics-splash');
+    if (splash) splash.style.display = 'none';
   }
 })();
