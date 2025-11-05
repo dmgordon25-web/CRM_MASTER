@@ -1350,13 +1350,39 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         }
       });
     }
+    const normalizedIds = Array.from(next).map(String);
+    const selectionCount = normalizedIds.length;
+    
+    // Sync Selection APIs before updating store (like workbench does)
+    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+    
+    if(typeof window !== 'undefined'){
+      const selection = window.Selection;
+      if(selection && typeof selection.set === 'function'){
+        try{
+          selection.set(normalizedIds, type, origin);
+        }catch (err){
+          try{ console && console.warn && console.warn('[select-all] Selection.set failed', err); }
+          catch (_warnErr){}
+        }
+      }
+      
+      const service = window.SelectionService;
+      if(service && typeof service.set === 'function'){
+        try{
+          service.set(normalizedIds, type, origin);
+        }catch (err){
+          try{ console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
+          catch (_warnErr){}
+        }
+      }
+    }
+    
     store.set(next, scope);
     
     // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
     // This ensures the action bar shows properly, not just the minimized icon
-    const normalizedIds = Array.from(next).map(String);
-    const selectionCount = normalizedIds.length;
-    
     try {
       const eventDetail = {
         type: scope === 'partners' ? 'partners' : 'contacts',
@@ -1372,12 +1398,63 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       console.warn('[select-all] Failed to dispatch selection:changed', _err);
     }
     
-    // Call updateActionbar if available to trigger full update
-    if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
-      try { 
-        window.updateActionbar(); 
+    // Comprehensive action bar update (adapted from workbench implementation)
+    const updateActionBar = () => {
+      // Call updateActionbar if available to trigger full update
+      if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+        try { window.updateActionbar(); }
+        catch(_err){}
       }
-      catch(_err){}
+      // Directly manipulate action bar visibility
+      const bar = typeof document !== 'undefined' 
+        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+        : null;
+      if(bar){
+        if(selectionCount > 0){
+          bar.setAttribute('data-visible', '1');
+          if(bar.dataset) bar.dataset.idleVisible = '1';
+          if(bar.style) {
+            bar.style.display = '';
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+          bar.dataset.count = String(selectionCount);
+        }else{
+          bar.removeAttribute('data-visible');
+          bar.removeAttribute('data-idle-visible');
+          if(bar.style) {
+            bar.style.display = 'none';
+            bar.style.opacity = '0';
+            bar.style.visibility = 'hidden';
+            bar.style.pointerEvents = 'none';
+          }
+          bar.dataset.count = '0';
+        }
+      }
+      // Trigger all update mechanisms
+      if(typeof window !== 'undefined'){
+        if(typeof window.ensureActionBarPostPaintRefresh === 'function'){
+          try { window.ensureActionBarPostPaintRefresh(); }
+          catch(_err){}
+        }
+        if(typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+          catch(_err){}
+        }
+      }
+    };
+    // Immediate update
+    updateActionBar();
+    // Update after microtask
+    if(typeof queueMicrotask === 'function'){
+      queueMicrotask(updateActionBar);
+    }else if(typeof Promise !== 'undefined'){
+      Promise.resolve().then(updateActionBar).catch(() => {});
+    }
+    // Update after RAF for final sync
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(updateActionBar);
     }
   }
 
