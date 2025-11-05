@@ -802,25 +802,18 @@ function syncActionBarVisibility(selCount, explicitEl) {
     || document.querySelector('[data-ui="action-bar"]')
     || document.getElementById('actionbar');
   if (!bar) return;
-  const ready = globalWiringState.actionsReady === true;
+
   const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
     ? Math.max(0, Math.floor(selCount))
     : 0;
   const idleVisible = bar?.dataset?.idleVisible === '1';
-  
-  // Show action bar if:
-  // 1. Actions are ready AND we have selections (ready && numeric > 0), OR
-  // 2. The current route allows idle visibility (idleVisible is true)
-  // 
-  // NOTE: We prioritize showing the bar when there are selections, even if
-  // data-idle-visible is not set, to ensure selections are always actionable.
-  const hasSelections = ready && numeric > 0;
+  const hasSelections = numeric > 0;
   const shouldBeVisible = hasSelections || idleVisible;
   
   if (shouldBeVisible) {
     bar.setAttribute('data-visible', '1');
-    // Ensure data-idle-visible is also set when we have selections
-    // This prevents the bar from being hidden by route-specific logic
+    // Ensure data-idle-visible is set when selections are present so
+    // that late "ready" transitions or route toggles do not hide the bar.
     if (hasSelections && bar.dataset) {
       bar.dataset.idleVisible = '1';
     }
