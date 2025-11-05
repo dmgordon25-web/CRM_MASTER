@@ -594,8 +594,6 @@ function runPatch(){
         
         // Update the count display
         bar.dataset.count = String(numeric);
-        
-        console.info(`[actionbar] Showing action bar with ${numeric} selection(s)`);
       }else{
         // Hide action bar when no items are selected
         bar.removeAttribute('data-visible');
@@ -606,8 +604,6 @@ function runPatch(){
         bar.style.pointerEvents = 'none';
         
         bar.dataset.count = '0';
-        
-        console.info('[actionbar] Hiding action bar (no selections)');
       }
       
       // Trigger global action bar update if available
@@ -832,8 +828,6 @@ function runPatch(){
       }catch (_err) {}
       if(!Number.isFinite(count)) count = 0;
       count = count > 0 ? Math.max(0, Math.floor(count)) : 0;
-      
-      console.info(`[actionbar] updateActionbarBase: count=${count}`);
       syncActionBarVisibility(count);
       if(typeof window.applyActionBarGuards === 'function'){
         try{ window.applyActionBarGuards(bar, count); }

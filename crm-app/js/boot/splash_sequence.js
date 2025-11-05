@@ -26,10 +26,9 @@ function toggleDashboardMode(mode) {
   if (modeButton && typeof modeButton.click === 'function') {
     try {
       modeButton.click();
-      console.info(`[splash-seq] Toggled dashboard to ${mode} mode`);
       return true;
     } catch (err) {
-      console.warn('[splash-seq] Failed to click mode button', err);
+      // Silently fail
     }
   }
   
@@ -37,10 +36,9 @@ function toggleDashboardMode(mode) {
   if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
     try {
       window.setDashboardMode(mode, { force: true });
-      console.info(`[splash-seq] Set dashboard to ${mode} mode via function`);
       return true;
     } catch (err) {
-      console.warn('[splash-seq] Failed to set mode via function', err);
+      // Silently fail
     }
   }
   
@@ -57,10 +55,9 @@ function navigateToTab(tabName) {
   if (navButton && typeof navButton.click === 'function') {
     try {
       navButton.click();
-      console.info(`[splash-seq] Navigated to ${tabName} tab`);
       return true;
     } catch (err) {
-      console.warn('[splash-seq] Failed to navigate to tab', tabName, err);
+      // Silently fail
     }
   }
   
@@ -82,14 +79,12 @@ async function waitForDashboard() {
                      document.querySelector('[data-nav="dashboard"].active');
     
     if (dashboard) {
-      console.info('[splash-seq] Dashboard is ready');
       return true;
     }
     
     await wait(checkInterval);
   }
   
-  console.warn('[splash-seq] Dashboard did not become ready within timeout');
   return false;
 }
 
@@ -110,7 +105,6 @@ function hideSplash() {
       if (diagnosticsSplash.dataset) {
         diagnosticsSplash.dataset.overlayHidden = '1';
       }
-      console.info('[splash-seq] Diagnostics splash hidden');
     }
     
     const bootSplash = document.querySelector(BOOT_SPLASH_SELECTOR);
@@ -119,10 +113,9 @@ function hideSplash() {
       bootSplash.style.pointerEvents = 'none';
       bootSplash.style.visibility = 'hidden';
       bootSplash.style.display = 'none';
-      console.info('[splash-seq] Boot splash hidden');
     }
   } catch (err) {
-    console.warn('[splash-seq] Error hiding splash', err);
+    // Silently fail
   }
 }
 
@@ -131,12 +124,10 @@ function hideSplash() {
  */
 export async function runSplashSequence() {
   if (splashSequenceRan) {
-    console.info('[splash-seq] Sequence already ran, skipping');
     return;
   }
   
   splashSequenceRan = true;
-  console.info('[splash-seq] Starting initialization sequence');
   
   try {
     // Wait for dashboard to be ready
@@ -144,7 +135,6 @@ export async function runSplashSequence() {
     await wait(500); // Give dashboard time to fully render
     
     // === Toggle All/Today 2x BEFORE tab cycling ===
-    console.info('[splash-seq] Phase 1: Toggle All/Today (2x before tabs)');
     
     // Toggle to "All" (1st time)
     toggleDashboardMode('all');
@@ -163,7 +153,6 @@ export async function runSplashSequence() {
     await wait(TOGGLE_DELAY);
     
     // === Cycle through tabs ===
-    console.info('[splash-seq] Phase 2: Cycling through tabs');
     
     const tabs = ['pipeline', 'partners', 'dashboard'];
     for (const tab of tabs) {
@@ -177,7 +166,6 @@ export async function runSplashSequence() {
     await wait(TAB_DELAY);
     
     // === Toggle All/Today 2x AFTER tab cycling ===
-    console.info('[splash-seq] Phase 3: Toggle All/Today (2x after tabs)');
     
     // Toggle to "All" (1st time after tabs)
     toggleDashboardMode('all');
@@ -196,13 +184,9 @@ export async function runSplashSequence() {
     await wait(FINAL_DELAY); // Extra time for final render
     
     // === Hide the splash page ===
-    console.info('[splash-seq] Phase 4: Hiding splash page');
     hideSplash();
     
-    console.info('[splash-seq] Initialization sequence complete');
-    
   } catch (err) {
-    console.error('[splash-seq] Sequence failed', err);
     // Hide splash anyway on error
     hideSplash();
   }

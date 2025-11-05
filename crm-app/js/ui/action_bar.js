@@ -574,8 +574,6 @@ function handleSelectionChanged(detail) {
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
   
-  console.info(`[action_bar] handleSelectionChanged: count=${count}, source=${source}, ids.length=${ids.length}`);
-  
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
     count = 0;
     try { window.Selection?.clear?.('actionbar:init'); }
@@ -818,8 +816,6 @@ function syncActionBarVisibility(selCount, explicitEl) {
   // data-idle-visible is not set, to ensure selections are always actionable.
   const hasSelections = ready && numeric > 0;
   const shouldBeVisible = hasSelections || idleVisible;
-  
-  console.info(`[action_bar] syncActionBarVisibility: count=${numeric}, ready=${ready}, hasSelections=${hasSelections}, shouldBeVisible=${shouldBeVisible}`);
   
   if (shouldBeVisible) {
     bar.setAttribute('data-visible', '1');
