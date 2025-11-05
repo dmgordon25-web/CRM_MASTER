@@ -62,7 +62,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   }
 
-  const ACTION_BAR_VISIBLE_ROUTES = new Set(['dashboard','longshots','pipeline','partners','contacts']);
+  const ACTION_BAR_VISIBLE_ROUTES = new Set(['dashboard','leads','longshots','pipeline','partners','contacts']);
   if(notificationsEnabled){
     ACTION_BAR_VISIBLE_ROUTES.add('notifications');
   }
