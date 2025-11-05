@@ -1663,12 +1663,85 @@ function runPatch(){
         if(!target.closest('table')) return;
         const id = resolveRowId(target);
         if(!id) return;
-        evt.stopPropagation();
-        evt.stopImmediatePropagation();
         const type = detectRowType(target);
-        if(!ensureSelectionService()) return;
-        if(target.checked) SelectionService.add(id, type);
-        else SelectionService.remove(id);
+        if (ensureSelectionService() && SelectionService) {
+          try {
+            SelectionService.type = type;
+          } catch (_) {}
+        }
+        if (typeof window !== 'undefined' && window.Selection && typeof window.Selection.type !== 'undefined') {
+          try {
+            window.Selection.type = type;
+          } catch (_) {}
+        }
+        let applied = false;
+        if(ensureSelectionService() && SelectionService){
+          try {
+            if(target.checked && typeof SelectionService.add === 'function'){
+              SelectionService.add(id, type);
+              applied = true;
+            } else if(!target.checked && typeof SelectionService.remove === 'function'){
+              SelectionService.remove(id);
+              applied = true;
+            }
+          } catch (err) {
+            applied = false;
+            try { console && console.warn && console.warn('[selection] service update failed', err); }
+            catch (_warn) {}
+          }
+        }
+        if(!applied && typeof window !== 'undefined'){
+          const selection = window.Selection;
+          try {
+            if(selection && typeof selection.add === 'function' && typeof selection.remove === 'function'){
+              if(target.checked) selection.add(id, type);
+              else selection.remove(id);
+              applied = true;
+            }else if(selection && typeof selection.toggle === 'function'){
+              selection.toggle(id, type);
+              applied = true;
+            }
+          } catch (err) {
+            applied = false;
+            try { console && console.warn && console.warn('[selection] fallback update failed', err); }
+            catch (_warn) {}
+          }
+        }
+        if(!applied){
+          if (typeof SelectionService !== 'undefined' && SelectionService) {
+            try {
+              const next = SelectionService.get ? SelectionService.get() : null;
+              const scopeType = type === 'partners' ? 'partners' : 'contacts';
+              const ids = new Set(next && Array.isArray(next.ids) ? next.ids.map(String) : []);
+              if(target.checked) ids.add(id); else ids.delete(id);
+              if (typeof SelectionService.set === 'function') {
+                SelectionService.set(Array.from(ids), scopeType);
+                applied = true;
+              }
+            } catch(_) {}
+          }
+        }
+        if(!applied && typeof window !== 'undefined' && window.SelectionStore && typeof window.SelectionStore.set === 'function'){
+          try {
+            const scopeKey = type === 'partners' ? 'partners' : 'contacts';
+            const current = window.SelectionStore.get(scopeKey);
+            const next = current instanceof Set ? new Set(current) : new Set();
+            if(target.checked) next.add(id); else next.delete(id);
+            window.SelectionStore.set(next, scopeKey);
+            applied = true;
+          } catch(_) {}
+        }
+        if(!applied && typeof document !== 'undefined'){
+          try {
+            const eventDetail = {
+              type,
+              ids: target.checked ? [id] : [],
+              count: target.checked ? 1 : 0,
+              source: 'actionbar:checkbox-fallback'
+            };
+            document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+          } catch (_err) {}
+        }
       }, true);
     }
 

@@ -17,6 +17,7 @@ function normalizeKey(x) {
 
 const WIRED_BOARDS = new Set();
 const BOARD_HANDLERS = new Map();
+const SEEN_BOARDS = typeof WeakSet === 'function' ? new WeakSet() : null;
 let HANDLER_TOTAL = 0;
 let ACTIVE_HANDLERS = 0;
 let COLUMN_COUNT = 0;
@@ -371,7 +372,12 @@ function installDnD(root, laneList){
   root.addEventListener('drop', handlers.drop);
   WIRED_BOARDS.add(root);
   BOARD_HANDLERS.set(root, handlers);
-  HANDLER_TOTAL += 1;
+  if (!SEEN_BOARDS || !SEEN_BOARDS.has(root)) {
+    if (SEEN_BOARDS) {
+      SEEN_BOARDS.add(root);
+    }
+    HANDLER_TOTAL += 1;
+  }
   ACTIVE_HANDLERS += 1;
   exposeCounters();
 }

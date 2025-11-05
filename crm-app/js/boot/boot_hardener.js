@@ -512,162 +512,266 @@ function maybeRenderAll() {
   }
 }
 
-async function animateTabCycle() {
-  // Cycle through all tabs AND partners on boot while splash is visible
-  const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
-  const delay = 300; // milliseconds between tab switches - optimized for CI timing
-  
-  // Helper to activate a tab button
-  function activateTab(tabName) {
-    try {
-      // Find the button with matching data-nav attribute
-      const button = documentRef.querySelector(`#main-nav button[data-nav="${tabName}"]`);
-      if (button) {
-        button.click();
-        console.info(`[BOOT_ANIMATION] Cycled to ${tabName}`);
+  async function animateTabCycle() {
+    const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
+    const MODE_SEQUENCE = ['all', 'today', 'all', 'today'];
+    const TAB_WAIT_TIMEOUT = 650;
+    const MODE_WAIT_TIMEOUT = 550;
+    const TAB_POST_DELAY = 200;
+    const TAB_RETURN_POST_DELAY = 240;
+    const MODE_POST_DELAY = 200;
+    const MODE_FINAL_POST_DELAY = 320;
+    const PARTNER_CYCLE_DELAY = 260;
+    const EXTRA_FINAL_DELAY = 320;
+
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitFor(predicate, { timeout = 1600, interval = 70 } = {}) {
+      const start = Date.now();
+      while ((Date.now() - start) < timeout) {
+        try {
+          if (predicate()) return true;
+        } catch (_) {}
+        await wait(interval);
       }
-    } catch (err) {
-      console.warn(`[BOOT_ANIMATION] Failed to activate ${tabName}:`, err);
-    }
-  }
-
-  // Helper to set dashboard mode (Today or All)
-  function setDashboardMode(mode) {
-    try {
-      const button = documentRef.querySelector(`[data-dashboard-mode="${mode}"]`);
-      if (button && !button.classList.contains('active')) {
-        button.click();
-        console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${mode}`);
+      try {
+        return !!predicate();
+      } catch (_) {
+        return false;
       }
-    } catch (err) {
-      console.warn(`[BOOT_ANIMATION] Failed to set dashboard mode to ${mode}:`, err);
     }
-  }
 
-  // Helper to get all available partners from the partner filter dropdown
-  function getAvailablePartners() {
-    try {
-      const select = documentRef.querySelector('select[data-filter-key="partner"]');
-      if (!select) return [];
-      const options = Array.from(select.querySelectorAll('option'));
-      return options
-        .filter(opt => opt.value && opt.value !== 'all')
-        .map(opt => ({ id: opt.value, name: opt.textContent.trim() }))
-        .slice(0, 2); // Cycle through first 2 partners max (optimized for CI timing)
-    } catch (err) {
-      console.warn('[BOOT_ANIMATION] Failed to get partners:', err);
-      return [];
+    function dispatchSyntheticClick(node, label) {
+      if (!node) return;
+      const opts = { bubbles: true, cancelable: true, view: typeof window !== 'undefined' ? window : undefined };
+      const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+      for (const type of events) {
+        try {
+          const Ctor = type.startsWith('pointer') && typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+          node.dispatchEvent(new Ctor(type, opts));
+        } catch (err) {
+          try {
+            if (documentRef && typeof documentRef.createEvent === 'function') {
+              const evt = documentRef.createEvent('MouseEvents');
+              evt.initEvent(type === 'click' ? 'click' : 'mousedown', true, true);
+              node.dispatchEvent(evt);
+            }
+          } catch (_) {}
+        }
+      }
+      try { node.focus?.(); }
+      catch (_) {}
+      try { node.click?.(); }
+      catch (err) {
+        if (label && console && console.warn) {
+          console.warn(`[BOOT_ANIMATION] fallback click failed for ${label}`, err);
+        }
+      }
     }
-  }
 
-  // Helper to set partner filter
-  function setPartnerFilter(partnerId) {
-    try {
-      const select = documentRef.querySelector('select[data-filter-key="partner"]');
-      if (!select) return false;
-      select.value = partnerId;
-      // Trigger change event to update dashboard
-      const event = new Event('change', { bubbles: true });
-      select.dispatchEvent(event);
-      console.info(`[BOOT_ANIMATION] Set partner filter to: ${partnerId}`);
+    function getActiveTabName() {
+      try {
+        const activeButton = documentRef?.querySelector('#main-nav button[data-nav].active');
+        if (activeButton) {
+          const nav = activeButton.getAttribute('data-nav');
+          if (nav) return nav.toLowerCase();
+        }
+      } catch (_) {}
+      try {
+        const activeMain = documentRef?.querySelector('main[id^="view-"]:not(.hidden)');
+        if (activeMain && typeof activeMain.id === 'string') {
+          return activeMain.id.replace(/^view-/, '').toLowerCase();
+        }
+      } catch (_) {}
+      return '';
+    }
+
+    function getActiveDashboardMode() {
+      try {
+        const activeBtn = documentRef?.querySelector('[data-dashboard-mode].active');
+        if (activeBtn) {
+          const value = activeBtn.getAttribute('data-dashboard-mode');
+          return value === 'all' ? 'all' : 'today';
+        }
+      } catch (_) {}
+      try {
+        const fallback = documentRef?.body?.dataset?.dashboardMode;
+        if (fallback) return fallback === 'all' ? 'all' : 'today';
+      } catch (_) {}
+      return '';
+    }
+
+    async function ensureTabActive(tabName, { postDelay = TAB_POST_DELAY } = {}) {
+      const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
+      if (!target) return false;
+      const button = documentRef?.querySelector(`#main-nav button[data-nav="${target}"]`);
+      if (!button) {
+        console.warn(`[BOOT_ANIMATION] nav button missing for ${target}`);
+        return false;
+      }
+      if (getActiveTabName() === target) {
+        await wait(Math.max(140, postDelay));
+        return true;
+      }
+      dispatchSyntheticClick(button, `tab:${target}`);
+      const success = await waitFor(() => getActiveTabName() === target, {
+        timeout: TAB_WAIT_TIMEOUT,
+        interval: 50
+      });
+      if (!success) {
+        console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
+        return false;
+      }
+      await wait(Math.max(140, postDelay));
+      console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
       return true;
-    } catch (err) {
-      console.warn(`[BOOT_ANIMATION] Failed to set partner filter to ${partnerId}:`, err);
-      return false;
     }
-  }
 
-  // Helper to wait for a specified duration
-  function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // Helper to wait for dashboard ready event
-  function waitForDashboardReady() {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
-        resolve();
-      }, 5000);
-      
-      const handler = () => {
-        clearTimeout(timeout);
-        console.info('[BOOT_ANIMATION] Dashboard widgets ready event received');
-        resolve();
-      };
-      
-      if (documentRef) {
-        documentRef.addEventListener('dashboard:widgets:ready', handler, { once: true });
+    async function ensureDashboardMode(mode, { postDelay = MODE_POST_DELAY } = {}) {
+      const normalized = mode === 'all' ? 'all' : 'today';
+      const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
+      if (!button && typeof window?.setDashboardMode === 'function') {
+        window.setDashboardMode(normalized, { force: true, skipPersist: true });
+      }
+      if (!button && getActiveDashboardMode() === normalized) {
+        await wait(Math.max(160, postDelay));
+        return true;
+      }
+      if (!button) {
+        console.warn(`[BOOT_ANIMATION] dashboard mode button missing for ${normalized}`);
+        return false;
+      }
+      if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
+        try {
+          window.setDashboardMode(normalized, { force: true, skipPersist: true });
+        } catch (_) {}
       } else {
-        clearTimeout(timeout);
-        resolve();
+        dispatchSyntheticClick(button, `mode:${normalized}`);
       }
-    });
-  }
-
-  try {
-    // Start at dashboard with Today mode
-    console.info('[BOOT_ANIMATION] Starting boot animation sequence');
-    activateTab('dashboard');
-    await wait(delay);
-
-    // FIRST: Toggle between Today and All modes 2x BEFORE cycling tabs
-    console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today → All → Today → All');
-    setDashboardMode('today');
-    await wait(150);
-    setDashboardMode('all');
-    await wait(150);
-    setDashboardMode('today');
-    await wait(150);
-    setDashboardMode('all');
-    await wait(delay);
-
-    // Cycle through partners on the dashboard
-    const partners = getAvailablePartners();
-    if (partners.length > 0) {
-      console.info(`[BOOT_ANIMATION] Cycling through ${partners.length} partners`);
-      for (const partner of partners) {
-        setPartnerFilter(partner.id);
-        await wait(delay);
+      const success = await waitFor(() => getActiveDashboardMode() === normalized, {
+        timeout: MODE_WAIT_TIMEOUT,
+        interval: 50
+      });
+      if (!success) {
+        console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
+        return false;
       }
-      // Reset to all partners
-      setPartnerFilter('all');
-      await wait(delay);
-    } else {
-      console.info('[BOOT_ANIMATION] No partners to cycle through');
+      await wait(Math.max(160, postDelay));
+      console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
+      return true;
     }
 
-    // Cycle through each tab
-    console.info('[BOOT_ANIMATION] Cycling through tabs');
-    for (let i = 1; i < tabs.length; i++) {
-      activateTab(tabs[i]);
-      await wait(delay);
+    function getAvailablePartners() {
+      try {
+        const select = documentRef?.querySelector('select[data-filter-key="partner"]');
+        if (!select) return [];
+        const options = Array.from(select.querySelectorAll('option'));
+        return options
+          .filter((opt) => opt.value && opt.value !== 'all')
+          .map((opt) => ({ id: opt.value, name: opt.textContent.trim() }))
+          .slice(0, 2);
+      } catch (err) {
+        console.warn('[BOOT_ANIMATION] Failed to get partners:', err);
+        return [];
+      }
     }
 
-    // Return to dashboard
-    console.info('[BOOT_ANIMATION] Returning to dashboard');
-    activateTab('dashboard');
-    
-    // Wait for dashboard to be fully ready
-    console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
-    await waitForDashboardReady();
-    
-    // SECOND: Toggle between All and Today 2x AFTER cycling completes
-    console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All → Today → All → Today');
-    setDashboardMode('all');
-    await wait(150);
-    setDashboardMode('today');
-    await wait(150);
-    setDashboardMode('all');
-    await wait(150);
-    setDashboardMode('today');
-    await wait(delay);
+    function setPartnerFilter(partnerId) {
+      try {
+        const select = documentRef?.querySelector('select[data-filter-key="partner"]');
+        if (!select) return false;
+        select.value = partnerId;
+        const event = new Event('change', { bubbles: true });
+        select.dispatchEvent(event);
+        console.info(`[BOOT_ANIMATION] Set partner filter to: ${partnerId}`);
+        return true;
+      } catch (err) {
+        console.warn(`[BOOT_ANIMATION] Failed to set partner filter to ${partnerId}:`, err);
+        return false;
+      }
+    }
 
-    console.info('[BOOT_ANIMATION] Boot animation sequence complete');
-  } catch (err) {
-    console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
+    function waitForDashboardReady() {
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
+          resolve();
+        }, 2500);
+
+        const handler = () => {
+          clearTimeout(timeout);
+          console.info('[BOOT_ANIMATION] Dashboard widgets ready event received');
+          resolve();
+        };
+
+        if (documentRef) {
+          documentRef.addEventListener('dashboard:widgets:ready', handler, { once: true });
+        } else {
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+    }
+
+    try {
+      console.info('[BOOT_ANIMATION] Starting boot animation sequence');
+      await ensureTabActive('dashboard', { postDelay: TAB_POST_DELAY });
+      await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
+
+      console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today ↔ All');
+      for (const mode of MODE_SEQUENCE) {
+        await ensureDashboardMode(mode, { postDelay: MODE_POST_DELAY });
+      }
+
+      const partners = getAvailablePartners();
+      if (partners.length) {
+        console.info(`[BOOT_ANIMATION] Cycling through ${partners.length} partners`);
+        for (const partner of partners) {
+          if (setPartnerFilter(partner.id)) {
+            await wait(PARTNER_CYCLE_DELAY);
+          }
+        }
+        setPartnerFilter('all');
+        await wait(PARTNER_CYCLE_DELAY);
+      } else {
+        console.info('[BOOT_ANIMATION] No partners to cycle through');
+      }
+
+      console.info('[BOOT_ANIMATION] Cycling through tabs');
+      for (const tab of TAB_SEQUENCE) {
+        if (tab === 'dashboard') continue;
+        await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
+      }
+
+      console.info('[BOOT_ANIMATION] Returning to dashboard');
+      await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
+
+      console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
+      await waitForDashboardReady();
+
+      console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All ↔ Today');
+      for (const mode of MODE_SEQUENCE) {
+        const postDelay = mode === 'today' ? MODE_FINAL_POST_DELAY : MODE_POST_DELAY;
+        await ensureDashboardMode(mode, { postDelay });
+      }
+
+      await wait(EXTRA_FINAL_DELAY);
+      if (getActiveDashboardMode() !== 'today') {
+        console.warn('[BOOT_ANIMATION] Dashboard mode did not settle on today; retrying');
+        await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
+        await wait(EXTRA_FINAL_DELAY);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.__BOOT_ANIMATION_COMPLETE__ = true;
+      }
+      console.info('[BOOT_ANIMATION] Boot animation sequence complete');
+    } catch (err) {
+      console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
+    }
   }
-}
 
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
