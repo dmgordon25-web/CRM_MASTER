@@ -513,9 +513,9 @@ function maybeRenderAll() {
 }
 
 async function animateTabCycle() {
-  // Cycle through all tabs on boot while splash is visible
+  // Cycle through all tabs AND partners on boot while splash is visible
   const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
-  const delay = 600; // milliseconds between tab switches - increased for proper rendering
+  const delay = 300; // milliseconds between tab switches - optimized for CI timing
   
   // Helper to activate a tab button
   function activateTab(tabName) {
@@ -541,6 +541,39 @@ async function animateTabCycle() {
       }
     } catch (err) {
       console.warn(`[BOOT_ANIMATION] Failed to set dashboard mode to ${mode}:`, err);
+    }
+  }
+
+  // Helper to get all available partners from the partner filter dropdown
+  function getAvailablePartners() {
+    try {
+      const select = documentRef.querySelector('select[data-filter-key="partner"]');
+      if (!select) return [];
+      const options = Array.from(select.querySelectorAll('option'));
+      return options
+        .filter(opt => opt.value && opt.value !== 'all')
+        .map(opt => ({ id: opt.value, name: opt.textContent.trim() }))
+        .slice(0, 2); // Cycle through first 2 partners max (optimized for CI timing)
+    } catch (err) {
+      console.warn('[BOOT_ANIMATION] Failed to get partners:', err);
+      return [];
+    }
+  }
+
+  // Helper to set partner filter
+  function setPartnerFilter(partnerId) {
+    try {
+      const select = documentRef.querySelector('select[data-filter-key="partner"]');
+      if (!select) return false;
+      select.value = partnerId;
+      // Trigger change event to update dashboard
+      const event = new Event('change', { bubbles: true });
+      select.dispatchEvent(event);
+      console.info(`[BOOT_ANIMATION] Set partner filter to: ${partnerId}`);
+      return true;
+    } catch (err) {
+      console.warn(`[BOOT_ANIMATION] Failed to set partner filter to ${partnerId}:`, err);
+      return false;
     }
   }
 
@@ -573,13 +606,37 @@ async function animateTabCycle() {
   }
 
   try {
-    // Ensure we start at dashboard with Today mode
-    console.info('[BOOT_ANIMATION] Setting initial Today mode');
+    // Start at dashboard with Today mode
+    console.info('[BOOT_ANIMATION] Starting boot animation sequence');
     activateTab('dashboard');
+    await wait(delay);
+
+    // FIRST: Toggle between Today and All modes before cycling
+    console.info('[BOOT_ANIMATION] Initial dashboard toggle: Today → All → Today');
+    setDashboardMode('today');
+    await wait(150);
+    setDashboardMode('all');
+    await wait(150);
     setDashboardMode('today');
     await wait(delay);
 
+    // Cycle through partners on the dashboard
+    const partners = getAvailablePartners();
+    if (partners.length > 0) {
+      console.info(`[BOOT_ANIMATION] Cycling through ${partners.length} partners`);
+      for (const partner of partners) {
+        setPartnerFilter(partner.id);
+        await wait(delay);
+      }
+      // Reset to all partners
+      setPartnerFilter('all');
+      await wait(delay);
+    } else {
+      console.info('[BOOT_ANIMATION] No partners to cycle through');
+    }
+
     // Cycle through each tab
+    console.info('[BOOT_ANIMATION] Cycling through tabs');
     for (let i = 1; i < tabs.length; i++) {
       activateTab(tabs[i]);
       await wait(delay);
@@ -593,16 +650,16 @@ async function animateTabCycle() {
     console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
     await waitForDashboardReady();
     
-    // Toggle between All and Today to ensure everything is properly rendered
-    console.info('[BOOT_ANIMATION] Toggling All/Today for complete render');
+    // SECOND: Toggle between All and Today again after cycling completes
+    console.info('[BOOT_ANIMATION] Final dashboard toggle: All → Today');
     setDashboardMode('all');
-    await wait(300);
+    await wait(150);
     setDashboardMode('today');
-    await wait(300);
+    await wait(150);
 
-    console.info('[BOOT_ANIMATION] Tab cycle complete, dashboard ready');
+    console.info('[BOOT_ANIMATION] Boot animation sequence complete');
   } catch (err) {
-    console.warn('[BOOT_ANIMATION] Tab cycle failed:', err);
+    console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
   }
 }
 
