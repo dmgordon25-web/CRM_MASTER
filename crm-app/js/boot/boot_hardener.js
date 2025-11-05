@@ -611,13 +611,15 @@ async function animateTabCycle() {
     activateTab('dashboard');
     await wait(delay);
 
-    // FIRST: Toggle between Today and All modes before cycling
-    console.info('[BOOT_ANIMATION] Initial dashboard toggle: Today → All → Today');
+    // FIRST: Toggle between Today and All modes 2x BEFORE cycling tabs
+    console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today → All → Today → All');
     setDashboardMode('today');
     await wait(150);
     setDashboardMode('all');
     await wait(150);
     setDashboardMode('today');
+    await wait(150);
+    setDashboardMode('all');
     await wait(delay);
 
     // Cycle through partners on the dashboard
@@ -650,12 +652,16 @@ async function animateTabCycle() {
     console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
     await waitForDashboardReady();
     
-    // SECOND: Toggle between All and Today again after cycling completes
-    console.info('[BOOT_ANIMATION] Final dashboard toggle: All → Today');
+    // SECOND: Toggle between All and Today 2x AFTER cycling completes
+    console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All → Today → All → Today');
     setDashboardMode('all');
     await wait(150);
     setDashboardMode('today');
     await wait(150);
+    setDashboardMode('all');
+    await wait(150);
+    setDashboardMode('today');
+    await wait(delay);
 
     console.info('[BOOT_ANIMATION] Boot animation sequence complete');
   } catch (err) {

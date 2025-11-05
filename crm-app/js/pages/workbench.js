@@ -2518,6 +2518,23 @@ function handleSelectAllChange(event, lensState){
   syncSelectionForLens(lensState);
   // Force immediate and comprehensive action bar update
   const selectionCount = next.size;
+  
+  // Dispatch selection:changed event to notify action bar
+  try {
+    const eventDetail = {
+      type: scope === 'partners' ? 'partners' : 'contacts',
+      ids: Array.from(next),
+      count: selectionCount,
+      source: 'workbench:select-all',
+      scope: scope
+    };
+    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+      document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+    }
+  } catch(_err){
+    console.warn('[workbench] Failed to dispatch selection:changed', _err);
+  }
+  
   const updateActionBar = () => {
     // Call updateActionbar if available to trigger full update
     if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
