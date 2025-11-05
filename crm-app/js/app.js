@@ -1351,6 +1351,34 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       });
     }
     store.set(next, scope);
+    
+    // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
+    // This ensures the action bar shows properly, not just the minimized icon
+    const normalizedIds = Array.from(next).map(String);
+    const selectionCount = normalizedIds.length;
+    
+    try {
+      const eventDetail = {
+        type: scope === 'partners' ? 'partners' : 'contacts',
+        ids: normalizedIds,
+        count: selectionCount,
+        source: checkbox.checked ? 'select-all:on' : 'select-all:off',
+        scope: scope
+      };
+      if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+      }
+    } catch(_err){
+      console.warn('[select-all] Failed to dispatch selection:changed', _err);
+    }
+    
+    // Call updateActionbar if available to trigger full update
+    if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+      try { 
+        window.updateActionbar(); 
+      }
+      catch(_err){}
+    }
   }
 
   function syncSelectionCheckboxes(scope, ids, options){

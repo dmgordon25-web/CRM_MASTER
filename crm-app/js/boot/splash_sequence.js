@@ -2,9 +2,9 @@
 
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
-const TOGGLE_DELAY = 800; // Time to wait for each toggle to render
+const TOGGLE_DELAY = 1000; // Time to wait for each toggle to render (1 second per user request)
 const TAB_DELAY = 600; // Time to wait for each tab to render
-const FINAL_DELAY = 1200; // Final delay before hiding splash
+const FINAL_DELAY = 500; // Final delay before hiding splash
 
 let splashSequenceRan = false;
 
@@ -137,56 +137,41 @@ export async function runSplashSequence() {
   try {
     // Wait for dashboard to be ready
     await waitForDashboard();
-    await wait(500); // Give dashboard time to fully render
+    await wait(1000); // Wait for page to be quiet and loaded
     
-    // === Toggle All/Today 2x BEFORE tab cycling ===
+    // === Cycle through all tabs once ===
     
-    // Toggle to "All" (1st time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "Today" (1st time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "All" (2nd time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle back to "Today" (2nd time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
-    
-    // === Cycle through tabs ===
-    
-    const tabs = ['pipeline', 'partners', 'dashboard'];
+    const tabs = ['leads', 'pipeline', 'partners', 'contacts', 'dashboard'];
     for (const tab of tabs) {
       if (navigateToTab(tab)) {
         await wait(TAB_DELAY);
       }
     }
     
-    // Return to dashboard
+    // Ensure we're back on dashboard for the toggle sequence
     navigateToTab('dashboard');
     await wait(TAB_DELAY);
     
-    // === Toggle All/Today 2x AFTER tab cycling ===
+    // === Toggle All/Today 2x with 1 second pauses ===
     
-    // Toggle to "All" (1st time after tabs)
+    // Toggle to "All" (1st time)
     toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
+    await wait(TOGGLE_DELAY); // 1 second pause
     
-    // Toggle to "Today" (1st time after tabs)
+    // Toggle to "Today" (1st time)
     toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
+    await wait(TOGGLE_DELAY); // 1 second pause
     
-    // Toggle to "All" (2nd time after tabs - FINAL trigger)
+    // Toggle to "All" (2nd time)
     toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
+    await wait(TOGGLE_DELAY); // 1 second pause
     
-    // Toggle back to "Today" (2nd time after tabs)
+    // Toggle back to "Today" (2nd time)
     toggleDashboardMode('today');
-    await wait(FINAL_DELAY); // Extra time for final render
+    await wait(TOGGLE_DELAY); // 1 second pause
+    
+    // Final delay before hiding splash
+    await wait(FINAL_DELAY);
     
     // === Hide the splash page ===
     hideSplash();
