@@ -515,7 +515,8 @@ function maybeRenderAll() {
 async function animateTabCycle() {
   // Cycle through all tabs on boot while splash is visible
   const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
-  const delay = 200; // milliseconds between tab switches
+  const delay = 600; // milliseconds between tab switches - increased for proper rendering
+  const dashboardSettleDelay = 800; // extra time for dashboard to fully render after cycling
   
   // Helper to activate a tab button
   function activateTab(tabName) {
@@ -550,6 +551,11 @@ async function animateTabCycle() {
     // Return to dashboard
     activateTab('dashboard');
     await wait(delay);
+
+    // Wait additional time for dashboard to fully render and settle
+    console.info('[BOOT_ANIMATION] Tab cycle complete, waiting for dashboard to settle');
+    await wait(dashboardSettleDelay);
+    console.info('[BOOT_ANIMATION] Dashboard settled and ready');
 
     console.info('[BOOT_ANIMATION] Tab cycle complete');
   } catch (err) {
