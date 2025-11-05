@@ -15,14 +15,15 @@ The Workbench page (in `pages/workbench.js`) had a comprehensive `updateActionBa
 ## Solution
 Updated the `applySelectAllToStore` function in `/workspace/crm-app/js/app.js` to include the comprehensive action bar update logic from the Workbench implementation.
 
-### Key Changes (lines 1353-1432)
+### Key Changes (lines 1353-1458)
 
 1. **Moved ID normalization before store.set()** - Ensure we have the selection count calculated first
-2. **Added comprehensive updateActionBar function** that:
+2. **Added Selection API synchronization** (lines 1356-1380) - Updates `window.Selection` and `window.SelectionService` BEFORE updating the store, ensuring smoke tests see the correct selection state
+3. **Added comprehensive updateActionBar function** that:
    - Calls `window.updateActionbar()` if available
    - Directly manipulates action bar visibility attributes and styles
    - Calls `ensureActionBarPostPaintRefresh()` and `__UPDATE_ACTION_BAR_VISIBLE__()`
-3. **Triple update strategy**:
+4. **Triple update strategy**:
    - Immediate update
    - Microtask update (via `queueMicrotask` or Promise)
    - RAF update (via `requestAnimationFrame`)
@@ -43,7 +44,11 @@ All tables have the correct `data-selection-scope` attribute in `index.html`:
 
 The `wireSelectAllForTable` function (app.js line 1096) calls `applySelectAllToStore` when the select-all checkbox changes (line 1155), so all pages benefit from this fix.
 
+## CI Fix
+The initial fix caused a CI test failure because the smoke test checks `window.Selection` and `window.SelectionService`, not just the SelectionStore. Added synchronization (lines 1356-1380) to update these APIs before updating the store, matching the workbench implementation.
+
 ## Notes
 - Workbench has its own custom implementation (`handleSelectAllChange` in `pages/workbench.js`) and continues to work with its existing code
 - The fix ensures consistent behavior across all pages
 - The action bar will now properly show/hide with appropriate visibility, opacity, and display properties
+- The Selection APIs (`window.Selection` and `window.SelectionService`) are now kept in sync with the SelectionStore

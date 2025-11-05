@@ -1353,6 +1353,32 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const normalizedIds = Array.from(next).map(String);
     const selectionCount = normalizedIds.length;
     
+    // Sync Selection APIs before updating store (like workbench does)
+    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+    
+    if(typeof window !== 'undefined'){
+      const selection = window.Selection;
+      if(selection && typeof selection.set === 'function'){
+        try{
+          selection.set(normalizedIds, type, origin);
+        }catch (err){
+          try{ console && console.warn && console.warn('[select-all] Selection.set failed', err); }
+          catch (_warnErr){}
+        }
+      }
+      
+      const service = window.SelectionService;
+      if(service && typeof service.set === 'function'){
+        try{
+          service.set(normalizedIds, type, origin);
+        }catch (err){
+          try{ console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
+          catch (_warnErr){}
+        }
+      }
+    }
+    
     store.set(next, scope);
     
     // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
