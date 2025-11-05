@@ -1,0 +1,3978 @@
+[
+  {
+    "file": "crm-app/js/app.js",
+    "imports": [
+      "./ui/modals/partner_edit/index.js",
+      "./ui/action_bar.js",
+      "./pipeline/constants.js",
+      "../components/Loaders/InlineLoader.js",
+      "./ui/loading_block.js",
+      "./settings/flags.js"
+    ],
+    "exports": [
+      "goto"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "hashchange",
+      "change",
+      "pipeline:applyFilter",
+      "app:data:changed",
+      "input",
+      "status-table-updated",
+      "close",
+      "submit",
+      "beforeunload",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": true
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/bulk_log.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "input",
+      "keydown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/calendar.js",
+    "imports": [
+      "./boot/contracts/services.js",
+      "./db.js",
+      "./calendar_impl.js"
+    ],
+    "exports": [
+      "ensureCalendar"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/calendar_actions.js",
+    "imports": [
+      "./ui/toast_helpers.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded",
+      "calendar:exports:ready",
+      "app:view:changed",
+      "calendar:rendered",
+      "calendar:event:moved"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/calendar_ics.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/calendar_impl.js",
+    "imports": [
+      "./calendar/index.js",
+      "./contacts.js",
+      "./ui/quick_create_menu.js",
+      "./ui/modals/partner_edit/index.js",
+      "./ui/status_banners.js",
+      "./ui/loading_block.js",
+      "./ui/toast_helpers.js",
+      "./ui/modal_singleton.js",
+      "./db.js",
+      "./tasks/store.js"
+    ],
+    "exports": [
+      "initCalendar"
+    ],
+    "events": [
+      "click",
+      "keydown",
+      "blur",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "pointerdown",
+      "task:updated",
+      "calendar:rendered"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/commissions.js",
+    "imports": [],
+    "exports": [
+      "exp"
+    ],
+    "events": [
+      "click",
+      "change",
+      "DOMContentLoaded",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/compose.js",
+    "imports": [
+      "./email/templates_store.js",
+      "./email/merge_vars.js"
+    ],
+    "exports": [
+      "composeEmail",
+      "composeSms"
+    ],
+    "events": [
+      "click",
+      "close",
+      "cancel",
+      "input",
+      "keydown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/contact_stage_tracker.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/contacts.js",
+    "imports": [
+      "./ui/modal_singleton.js",
+      "./ui/form_footer.js",
+      "./contacts/form.js",
+      "./ui/route_lifecycle.js",
+      "./services/selection_reset.js",
+      "./pipeline/constants.js",
+      "./ui/toast_helpers.js",
+      "./util/touch_log.js",
+      "./util/favorites.js",
+      "./ui/modals/partner_edit/index.js",
+      "./tasks/task_utils.js"
+    ],
+    "exports": [
+      "validateContact",
+      "CONTACT_MODAL_KEY",
+      "normalizeNewContactPrefill",
+      "normalizeContactId",
+      "ensureContactModalShell",
+      "openContactModal",
+      "openContactEditor",
+      "openCalendarEntityEditor",
+      "ensureContactModalReady"
+    ],
+    "events": [
+      "click",
+      "change",
+      "input",
+      "keydown",
+      "abort",
+      "close",
+      "cancel",
+      "DOMContentLoaded",
+      "tasks:changed",
+      "app:data:changed",
+      "contact:modal:ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/contacts_merge.js",
+    "imports": [
+      "./contacts_merge_orchestrator.js"
+    ],
+    "exports": [
+      "mergeContactsWithIds",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/contacts_merge_orchestrator.js",
+    "imports": [
+      "./ui/merge_modal.js",
+      "./merge/merge_core.js"
+    ],
+    "exports": [
+      "init",
+      "openContactsMergeByIds"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/dash_range.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [
+      "dash:range"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/db.js",
+    "imports": [],
+    "exports": [
+      "openDB",
+      "dbGet",
+      "dbPut"
+    ],
+    "events": [
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/db_compat.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/diagnostics_quiet.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/doccenter_rules.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/env.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/exporter.js",
+    "imports": [
+      "./importer.js",
+      "./util/strings.js"
+    ],
+    "exports": [
+      "buildExportSnapshot",
+      "renderExportPreview",
+      "EXPORTER_INTERNALS"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/filters.js",
+    "imports": [
+      "./pipeline/constants.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "change",
+      "input",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/header_ui.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ical.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/importer.js",
+    "imports": [
+      "./ui/strings.js",
+      "./util/strings.js",
+      "./pipeline/stages.js",
+      "./pipeline/constants.js",
+      "./ui/toast_helpers.js"
+    ],
+    "exports": [
+      "REQ_PARTNER",
+      "REQ_CONTACT",
+      "CONTACT_TEMPLATE_FIELDS",
+      "PARTNER_TEMPLATE_FIELDS",
+      "IMPORTER_INTERNALS"
+    ],
+    "events": [
+      "change",
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/importer_contacts.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/importer_helpers.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/importer_partners.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/migrations.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/notifications.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "change",
+      "click",
+      "keydown",
+      "DOMContentLoaded",
+      "notifications:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/partners.js",
+    "imports": [
+      "./patch_2025-10-02_baseline_ux_cleanup.js",
+      "./ui/modals/partner_edit/index.js",
+      "./ui/modal_singleton.js",
+      "./util/touch_log.js",
+      "./ui/toast_helpers.js",
+      "./util/favorites.js",
+      "./ui/route_lifecycle.js",
+      "./services/selection_reset.js",
+      "./reports/referrals.js",
+      "./contacts.js"
+    ],
+    "exports": [
+      "validatePartner",
+      "init"
+    ],
+    "events": [
+      "change",
+      "click",
+      "app:data:changed",
+      "close",
+      "input",
+      "DOMContentLoaded",
+      "keydown",
+      "abort",
+      "partner:modal:ready",
+      "tasks:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/partners_detail.js",
+    "imports": [
+      "./pipeline/stages.js",
+      "./pipeline/constants.js",
+      "./contacts.js"
+    ],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "input",
+      "click",
+      "close",
+      "partner:modal:ready",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/partners_merge.js",
+    "imports": [
+      "./ui/action_bar.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "submit",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/partners_merge_orchestrator.js",
+    "imports": [
+      "./ui/merge_modal.js",
+      "./merge/merge_core.js"
+    ],
+    "exports": [
+      "init",
+      "openPartnersMergeByIds"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/partners_modal.js",
+    "imports": [
+      "./ui/modals/partner_edit/index.js"
+    ],
+    "exports": [
+      "openPartnerQuickCreate"
+    ],
+    "events": [
+      "app:data:changed",
+      "close"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+    "imports": [
+      "./pipeline/stages.js",
+      "./pipeline/constants.js",
+      "./ui/partner_edit_modal.js",
+      "./contacts.js",
+      "./ui/route_lifecycle.js"
+    ],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "close",
+      "submit",
+      "click",
+      "change",
+      "app:view:changed",
+      "app:data:changed",
+      "stage:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+    "imports": [
+      "./pipeline/constants.js"
+    ],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "close",
+      "change",
+      "contact:modal:ready",
+      "form:saved",
+      "stage:changed",
+      "status:changed",
+      "contact:created",
+      "app:data:changed",
+      "automation:catchup"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+    "imports": [
+      "./pipeline/stages.js",
+      "./contacts.js",
+      "./ui/modals/partner_edit/index.js",
+      "./ui/loading_block.js"
+    ],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "app:view:changed",
+      "change",
+      "click",
+      "app:data:changed",
+      "task:updated"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [
+      "dashboard:mode"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+    "imports": [],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "load",
+      "focus",
+      "visibilitychange",
+      "app:data:changed",
+      "app:navigate",
+      "automation:catchup"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [
+      "APP_DEV"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_contact_linking_5A.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_contact_linking_5B.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "change",
+      "click",
+      "app:data:changed",
+      "submit",
+      "input",
+      "close"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "keydown",
+      "close",
+      "change",
+      "contact:modal:ready",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_doccenter2.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "change",
+      "dragstart",
+      "dragend",
+      "keydown",
+      "dragover",
+      "dragenter",
+      "dragleave",
+      "drop",
+      "click",
+      "app:data:changed",
+      "close",
+      "cancel",
+      "contact:modal:ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "change",
+      "selection:changed",
+      "calendar:exports:ready",
+      "click",
+      "close",
+      "automation:enqueued",
+      "automation:catchup",
+      "visibilitychange",
+      "app:data:changed",
+      "automation:executed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_merge_ui.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "input",
+      "change",
+      "close",
+      "click",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "contact:modal:ready",
+      "click",
+      "keydown",
+      "mousedown",
+      "change",
+      "input",
+      "close",
+      "app:data:changed",
+      "hashchange",
+      "popstate",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "keydown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [
+      "DIAG_ENABLED"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "popstate",
+      "hashchange",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+    "imports": [],
+    "exports": [
+      "hide",
+      "setDisabled",
+      "debounce",
+      "resolveElements",
+      "doubleRaf",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-10-02_medium_nice.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "app:data:changed",
+      "dragstart",
+      "dragover",
+      "drop",
+      "dragend",
+      "click",
+      "keydown",
+      "change",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-10-03_automation_seed.js",
+    "imports": [],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_2025-10-03_calendar_ics_button.js",
+    "imports": [],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "calendar:exports:ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_20250923_baseline.js",
+    "imports": [
+      "./ui/partner_edit_modal.js",
+      "./contacts.js",
+      "./services/selection_reset.js"
+    ],
+    "exports": [
+      "init",
+      "cleanBottomOverlaysAggressive"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patch_20250924_bootstrap_ready.js",
+    "imports": [],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+    "imports": [
+      "./patch_2025-10-02_baseline_ux_cleanup.js",
+      "./contacts_merge_orchestrator.js",
+      "./partners_merge_orchestrator.js",
+      "./ui/partner_edit_modal.js"
+    ],
+    "exports": [
+      "init"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "input",
+      "keydown",
+      "change",
+      "app:data:changed",
+      "close",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/post_funding.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/presets.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/print.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "change",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/qa.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/quick_add.js",
+    "imports": [
+      "./ui/strings.js",
+      "./ui/quick_add_unified.js",
+      "./contacts.js",
+      "./ui/quick_create_menu.js"
+    ],
+    "exports": [
+      "getQuickAddMenuOptions",
+      "bindHeaderQuickAddOnce"
+    ],
+    "events": [
+      "click",
+      "abort"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/render.js",
+    "imports": [
+      "./ui/strings.js",
+      "./pipeline/stages.js",
+      "./pipeline/constants.js",
+      "./contacts.js",
+      "./ui/modals/partner_edit/index.js",
+      "./dashboard/widgets/portfolio_mix.js",
+      "./dashboard/widgets/referral_leaders.js",
+      "./dashboard/widgets/pipeline_momentum.js",
+      "./util/favorites.js",
+      "./ui/legend_popover.js",
+      "./ui/loading_block.js",
+      "./ui/table_layout.js",
+      "./ui/quick_add_unified.js"
+    ],
+    "exports": [],
+    "events": [
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/reports.js",
+    "imports": [
+      "./pipeline/constants.js"
+    ],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded",
+      "change",
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/seed_data.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/selftest.js",
+    "imports": [],
+    "exports": [
+      "renderSelfTestBanner",
+      "runSelfTest"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "click",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [
+      "DEBUG"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/selftest_panel.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/settings_forms.js",
+    "imports": [
+      "./ui/strings.js"
+    ],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded",
+      "change",
+      "click",
+      "input",
+      "load",
+      "error",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/snapshot.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "change"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/tasks.js",
+    "imports": [],
+    "exports": [
+      "validateTask"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/templates.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui_shims.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/utils.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "cancel",
+      "close",
+      "submit",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ux/svg_sanitizer.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/util/favorites.js",
+    "imports": [],
+    "exports": [
+      "normalizeFavoriteSnapshot",
+      "ensureFavoriteState",
+      "applyFavoriteSnapshot",
+      "renderFavoriteToggle",
+      "isFavorite",
+      "setFavoriteLocal",
+      "updateFavoriteButtonDom",
+      "syncFavoriteDom",
+      "persistFavorites",
+      "toggleFavorite"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/util/strings.js",
+    "imports": [],
+    "exports": [
+      "safeMax",
+      "normalizePhone",
+      "normalizeEmail"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/util/touch_log.js",
+    "imports": [],
+    "exports": [
+      "TOUCH_OPTIONS",
+      "findTouchOption",
+      "formatTouchDate",
+      "createTouchLogEntry",
+      "touchSuccessMessage"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/Confirm.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "submit",
+      "cancel",
+      "close"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/GhostButton.js",
+    "imports": [],
+    "exports": [
+      "createGhostButton"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/PrimaryButton.js",
+    "imports": [],
+    "exports": [
+      "createPrimaryButton"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/Toast.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "transitionend",
+      "ui:toast"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/action_bar.js",
+    "imports": [
+      "./merge_modal.js",
+      "../quick_add.js",
+      "./quick_create_menu.js"
+    ],
+    "exports": [
+      "ensureActionBarPostPaintRefresh",
+      "initActionBarDrag",
+      "ensurePartnersMergeButton",
+      "setPartnersMergeState",
+      "onPartnersMerge",
+      "teardownActionBarWiring"
+    ],
+    "events": [
+      "blur",
+      "click",
+      "keydown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "pointerdown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/advanced_mode.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "isAdvancedModeEnabled",
+      "setAdvancedMode",
+      "initAdvancedMode"
+    ],
+    "events": [
+      "change",
+      "DOMContentLoaded",
+      "advancedmode:change"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/bootstrap_features_probe.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/dashboard_layout.js",
+    "imports": [
+      "./drag_core.js"
+    ],
+    "exports": [
+      "setDashboardLayoutMode",
+      "applyDashboardHidden",
+      "readStoredLayoutMode",
+      "readStoredHiddenIds",
+      "getDashboardWidgets",
+      "reapplyDashboardLayout",
+      "getDashboardListenerCount",
+      "requestDashboardLayoutPass",
+      "resetDashboardLayoutState",
+      "resetLayout",
+      "initDashboardLayout"
+    ],
+    "events": [
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/debug_overlay.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded",
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/drag_core.js",
+    "imports": [],
+    "exports": [
+      "bumpDebugResized",
+      "setDebugTodayMode",
+      "setDebugSelectedIds",
+      "applyOrder",
+      "attachOnce",
+      "destroyDraggable",
+      "makeDraggableGrid",
+      "makeDraggableList",
+      "listenerCount"
+    ],
+    "events": [
+      "pointermove",
+      "pointerup",
+      "pointercancel"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/form_footer.js",
+    "imports": [
+      "./GhostButton.js",
+      "./PrimaryButton.js"
+    ],
+    "exports": [
+      "createFormFooter"
+    ],
+    "events": [
+      "click",
+      "keydown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/header_toolbar.js",
+    "imports": [
+      "./quick_create_menu.js",
+      "../quick_add.js"
+    ],
+    "exports": [
+      "ensureProfileControls"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "load",
+      "error",
+      "change",
+      "click",
+      "storage",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/help_hints.js",
+    "imports": [],
+    "exports": [
+      "__esModule",
+      "initHelpHints"
+    ],
+    "events": [
+      "mouseenter",
+      "mouseleave",
+      "focus",
+      "blur",
+      "resize",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/legend_popover.js",
+    "imports": [],
+    "exports": [
+      "STAGE_LEGEND_ENTRIES",
+      "createLegendPopover"
+    ],
+    "events": [
+      "click",
+      "focusin",
+      "toggle",
+      "keydown"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/loading_block.js",
+    "imports": [
+      "../../components/Loaders/InlineLoader.js"
+    ],
+    "exports": [
+      "attachLoadingBlock",
+      "detachLoadingBlock",
+      "applyTableSkeleton",
+      "markTableHasData"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/merge_modal.js",
+    "imports": [
+      "../merge/merge_core.js",
+      "./toast_helpers.js"
+    ],
+    "exports": [
+      "openMergeModal"
+    ],
+    "events": [
+      "keydown",
+      "click",
+      "change",
+      "focusin",
+      "ui:merge"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/modal_singleton.js",
+    "imports": [],
+    "exports": [
+      "ensureSingletonModal",
+      "registerModalCleanup",
+      "closeSingletonModal"
+    ],
+    "events": [
+      "storage"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/notifications_panel.js",
+    "imports": [
+      "../notifications/notifier.js",
+      "./toast_helpers.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "app:data:changed",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/partner_edit_modal.js",
+    "imports": [
+      "./modal_singleton.js",
+      "./form_footer.js",
+      "../contacts/modal.js",
+      "./toast_helpers.js",
+      "../partners.js"
+    ],
+    "exports": [
+      "closePartnerEditModal",
+      "openPartnerEditModal"
+    ],
+    "events": [
+      "click",
+      "input",
+      "change",
+      "submit",
+      "keydown",
+      "shown",
+      "app:data:changed",
+      "partner:modal:ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/quick_add_compat.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "cancel",
+      "close",
+      "submit",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/quick_add_unified.js",
+    "imports": [
+      "./toast_helpers.js",
+      "../contacts.js",
+      "../partners.js",
+      "./quick_add_validation.js"
+    ],
+    "exports": [
+      "wireQuickAddUnified"
+    ],
+    "events": [
+      "keydown",
+      "click",
+      "submit"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/quick_add_validation.js",
+    "imports": [],
+    "exports": [
+      "bindQuickAddValidation"
+    ],
+    "events": [
+      "input",
+      "change"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/quick_create_menu.js",
+    "imports": [
+      "./toast_helpers.js",
+      "../contacts.js",
+      "../tasks.js",
+      "./quick_add_validation.js"
+    ],
+    "exports": [
+      "closeQuickCreateMenu",
+      "openQuickCreateMenu",
+      "toggleQuickCreateMenu",
+      "isQuickCreateMenuOpen",
+      "openContactEditor",
+      "openPartnerEditor",
+      "openTaskEditor",
+      "bindQuickCreateMenu",
+      "bindHeaderQuickCreateOnce"
+    ],
+    "events": [
+      "click",
+      "change",
+      "submit",
+      "resize",
+      "scroll",
+      "keydown",
+      "quick-create-menu:state",
+      "abort"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/route_lifecycle.js",
+    "imports": [],
+    "exports": [
+      "acquireRouteLifecycleToken",
+      "currentRouteKey"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/route_toast_sentinel.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "hashchange"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/settings_form.js",
+    "imports": [
+      "../data/settings.js"
+    ],
+    "exports": [
+      "initSettingsForm",
+      "hydrateSettingsForm"
+    ],
+    "events": [
+      "submit",
+      "app:data:changed",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/ui/status_banners.js",
+    "imports": [
+      "../../components/Loaders/InlineLoader.js"
+    ],
+    "exports": [
+      "attachStatusBanner"
+    ],
+    "events": [
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/strings.js",
+    "imports": [],
+    "exports": [
+      "STR",
+      "text",
+      "legacyText"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/table_layout.js",
+    "imports": [],
+    "exports": [
+      "syncTableLayout"
+    ],
+    "events": [
+      "resize",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/toast_helpers.js",
+    "imports": [],
+    "exports": [
+      "showToast",
+      "toastSuccess",
+      "toastInfo",
+      "toastWarn",
+      "toastError",
+      "toastSoftError"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/universal_search.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "input",
+      "focus",
+      "keydown",
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/ui/modals/partner_edit/index.js",
+    "imports": [
+      "../../partner_edit_modal.js"
+    ],
+    "exports": [
+      "openPartnerEditModal",
+      "closePartnerEditModal"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/tasks/api.js",
+    "imports": [
+      "../db.js",
+      "./store.js"
+    ],
+    "exports": [
+      "createMinimalTask",
+      "createTaskFromEvent"
+    ],
+    "events": [
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/tasks/store.js",
+    "imports": [
+      "../calendar/index.js"
+    ],
+    "exports": [
+      "getTasks",
+      "subscribe",
+      "recordTask",
+      "refreshTasks"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/tasks/task_utils.js",
+    "imports": [
+      "../pipeline/constants.js"
+    ],
+    "exports": [
+      "suggestFollowUpSchedule",
+      "describeFollowUpCadence",
+      "DAY_MS"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/column_chooser.js",
+    "imports": [
+      "./registry.js"
+    ],
+    "exports": [
+      "createColumnChooser",
+      "destroyColumnChooser"
+    ],
+    "events": [
+      "click",
+      "change"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/csv_export.js",
+    "imports": [
+      "./registry.js"
+    ],
+    "exports": [
+      "exportToCSV",
+      "createCSVExportButton"
+    ],
+    "events": [
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/registry.js",
+    "imports": [],
+    "exports": [
+      "registerSurface",
+      "getSurfaceSchema",
+      "getVisibleColumns",
+      "setVisibleColumns",
+      "resetColumns",
+      "renderRow"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/table_export.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/presets/contacts.js",
+    "imports": [
+      "../registry.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/presets/partners.js",
+    "imports": [
+      "../registry.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/table/presets/workbench.js",
+    "imports": [
+      "../registry.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/state/actionBarGuards.js",
+    "imports": [],
+    "exports": [
+      "computeActionBarGuards",
+      "applyActionBarGuards"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/state/selectionStore.js",
+    "imports": [],
+    "exports": [
+      "SelectionStore"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/settings/dashboard_prefs.js",
+    "imports": [
+      "../ui/dashboard_layout.js"
+    ],
+    "exports": [],
+    "events": [
+      "change",
+      "click",
+      "DOMContentLoaded",
+      "dashboard:layout-mode",
+      "dashboard:hidden-change"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/settings/flags.js",
+    "imports": [],
+    "exports": [
+      "flags"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/comms_adapter.js",
+    "imports": [],
+    "exports": [
+      "isCommsAdapterEnabled",
+      "ensureCommsAdapter",
+      "getCommsAdapter"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/pipelineStages.js",
+    "imports": [
+      "../pipeline/stages.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/selection.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "selection:ready",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/selection_adapter.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "ui:selection-ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/selection_fallback.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "change",
+      "DOMContentLoaded",
+      "selection:changed",
+      "ui:selection-ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/selection_reset.js",
+    "imports": [],
+    "exports": [
+      "clearSelectionForSurface"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/services/softDelete.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/router/init.js",
+    "imports": [
+      "./patterns.js"
+    ],
+    "exports": [
+      "ROUTER_MATCHERS",
+      "applyRouteFromPath"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/router/patterns.js",
+    "imports": [],
+    "exports": [
+      "compileRouteTable",
+      "normalizePathname",
+      "mergeMatchers",
+      "resolveRoute",
+      "normalizeBasePath"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/reports/referrals.js",
+    "imports": [
+      "../pipeline/constants.js"
+    ],
+    "exports": [
+      "REFERRAL_ROLLUP_RANGES",
+      "computeReferralRollup"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/relationships/index.js",
+    "imports": [
+      "../contacts.js",
+      "../ui/modals/partner_edit/index.js",
+      "./map.js"
+    ],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded",
+      "app:data:changed",
+      "relationships:refresh"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/relationships/map.js",
+    "imports": [],
+    "exports": [
+      "renderRelationshipMap"
+    ],
+    "events": [
+      "click",
+      "input",
+      "mouseenter",
+      "focus",
+      "blur",
+      "pointerleave",
+      "scroll",
+      "resize"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/pipeline/constants.js",
+    "imports": [
+      "./stages.js"
+    ],
+    "exports": [
+      "PIPELINE_TONES",
+      "DEFAULT_STAGE_TONE",
+      "toneClassName",
+      "normalizeTone",
+      "TONE_CLASSNAMES",
+      "STAGES",
+      "STATUS_ALIASES",
+      "STAGE_ALIASES",
+      "DEFAULT_STAGE_FOLLOW_UP_DAYS",
+      "STAGE_FOLLOW_UP_CADENCE_DAYS",
+      "followUpCadenceDaysForStage",
+      "PIPELINE_MILESTONES",
+      "milestoneIndex",
+      "canonicalMilestoneLabel",
+      "PIPELINE_STATUS_KEYS",
+      "canonicalStatusKey",
+      "allowedStatusesForStage",
+      "normalizeStatusForStage",
+      "milestoneRangeForStatus",
+      "normalizeMilestoneForStatus",
+      "allowedMilestonesForStatus",
+      "allowedStatusesForMilestone",
+      "normalizeStatusForMilestone",
+      "normalizeStatus",
+      "toCanonicalStage",
+      "canonicalStage",
+      "toneForStage",
+      "toneForStatus",
+      "renderStageChip"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/pipeline/kanban_dnd.js",
+    "imports": [
+      "./stages.js",
+      "./constants.js"
+    ],
+    "exports": [
+      "wireKanbanDnD"
+    ],
+    "events": [
+      "dragstart",
+      "dragover",
+      "drop",
+      "DOMContentLoaded",
+      "app:navigate",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/pipeline/stages.js",
+    "imports": [],
+    "exports": [
+      "PIPELINE_STAGES",
+      "NORMALIZE_STAGE",
+      "stageKeyFromLabel",
+      "stageLabelFromKey",
+      "PIPELINE_STAGE_KEYS"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patches/loader.js",
+    "imports": [
+      "../boot/manifest.js",
+      "../boot/boot_hardener.js",
+      "../boot/phase_runner.js",
+      "../boot/phases.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+    "imports": [
+      "../ui/action_bar.js"
+    ],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patches/patch_2025-10-23_session_beacon.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "beforeunload",
+      "unload",
+      "pagehide",
+      "visibilitychange",
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/patches/polish_overlay_ready.js",
+    "imports": [],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/partners/list.js",
+    "imports": [
+      "../ui/modals/partner_edit/index.js"
+    ],
+    "exports": [],
+    "events": [
+      "hashchange",
+      "partners:list:refresh",
+      "app:data:changed",
+      "DOMContentLoaded",
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/pages/email_templates.js",
+    "imports": [
+      "../email/templates_store.js",
+      "../email/merge_vars.js"
+    ],
+    "exports": [
+      "renderEmailTemplates",
+      "initEmailTemplates",
+      "render"
+    ],
+    "events": [
+      "input",
+      "click",
+      "submit"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/pages/notifications.js",
+    "imports": [
+      "../notifications/notifier.js"
+    ],
+    "exports": [
+      "renderNotifications",
+      "initNotifications"
+    ],
+    "events": [
+      "click"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/pages/workbench.js",
+    "imports": [
+      "../pipeline/constants.js",
+      "../contacts.js",
+      "../ui/modals/partner_edit/index.js",
+      "../ui/legend_popover.js",
+      "../ui/status_banners.js",
+      "../ui/action_bar.js"
+    ],
+    "exports": [
+      "initWorkbench"
+    ],
+    "events": [
+      "click",
+      "app:data:changed",
+      "change",
+      "input",
+      "selection:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": true,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/notifications/notifier.js",
+    "imports": [],
+    "exports": [
+      "getNotificationsCount",
+      "listNotifications",
+      "pushNotification",
+      "replaceNotifications",
+      "removeNotification",
+      "clearNotifications",
+      "onNotificationsChanged",
+      "setNotificationState",
+      "setNotificationsState"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/merge/merge_core.js",
+    "imports": [],
+    "exports": [
+      "isNonEmpty",
+      "scoreField",
+      "chooseValue",
+      "unionArray",
+      "mergeContacts",
+      "pickWinnerContact",
+      "mergePartners",
+      "pickWinnerPartner"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/email/merge_vars.js",
+    "imports": [],
+    "exports": [
+      "dot",
+      "compile",
+      "sampleData"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/email/templates_store.js",
+    "imports": [],
+    "exports": [
+      "Templates"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/doc/doc_center_enhancer.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "click",
+      "input",
+      "DOMContentLoaded",
+      "app:data:changed",
+      "doc:open",
+      "doc:download"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/debug/overlay.js",
+    "imports": [],
+    "exports": [
+      "initDebugOverlay",
+      "noteRepaint",
+      "teardownDebugOverlay"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "keydown",
+      "app:data:changed",
+      "beforeunload",
+      "visibilitychange",
+      "hashchange"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/data/seed.js",
+    "imports": [
+      "../pipeline/constants.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/data/settings.js",
+    "imports": [],
+    "exports": [
+      "validateSettings"
+    ],
+    "events": [
+      "click",
+      "DOMContentLoaded",
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/dashboard/index.js",
+    "imports": [
+      "../ui/drag_core.js",
+      "../ui/route_lifecycle.js",
+      "../ui/dashboard_layout.js",
+      "../contacts.js",
+      "../ui/modals/partner_edit/index.js",
+      "../ui/legend_popover.js",
+      "../ui/status_banners.js",
+      "../ui/loading_block.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "keydown",
+      "dashboard:layout-mode",
+      "storage",
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "DOMContentLoaded",
+      "hashchange",
+      "app:navigate",
+      "dashboard:hidden-change",
+      "dashboard:layout-columns",
+      "app:data:changed",
+      "dashboard:widgets:ready"
+    ],
+    "render": {
+      "usesRenderGuard": true,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/dashboard/kpis.js",
+    "imports": [
+      "../pipeline/stages.js"
+    ],
+    "exports": [],
+    "events": [
+      "click",
+      "app:data:changed",
+      "DOMContentLoaded",
+      "pipeline:applyFilter"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+    "imports": [],
+    "exports": [
+      "renderPipelineMomentumWidget"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/dashboard/widgets/portfolio_mix.js",
+    "imports": [],
+    "exports": [
+      "renderPortfolioMixWidget"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/dashboard/widgets/referral_leaders.js",
+    "imports": [],
+    "exports": [
+      "renderReferralLeadersWidget"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/core/capabilities_probe.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "ui:selection-ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/core/renderGuard.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "app:data:changed"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/contacts/form.js",
+    "imports": [
+      "../ui/modals/partner_edit/index.js"
+    ],
+    "exports": [
+      "setReferredBy"
+    ],
+    "events": [
+      "click",
+      "app:data:changed",
+      "close",
+      "change",
+      "input",
+      "contact:modal:ready",
+      "contact:referredBy:set"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": true
+    }
+  },
+  {
+    "file": "crm-app/js/contacts/modal.js",
+    "imports": [
+      "../services/comms_adapter.js"
+    ],
+    "exports": [
+      "registerModalActions"
+    ],
+    "events": [
+      "click",
+      "modal:note:saved",
+      "modal:reminder:set"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/calendar/index.js",
+    "imports": [
+      "../db.js"
+    ],
+    "exports": [
+      "toLocalMidnight",
+      "parseDateInput",
+      "startOfWeek",
+      "addDays",
+      "ymd",
+      "isWithinRange",
+      "rangeForView",
+      "registerCalendarProvider",
+      "loadCalendarData",
+      "loadEventsForRange",
+      "loadEventsBetween"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/boot_hardener.js",
+    "imports": [],
+    "exports": [
+      "normalizeModuleId",
+      "isSafeMode",
+      "ensureCoreThenPatches",
+      "__private"
+    ],
+    "events": [
+      "DOMContentLoaded",
+      "dashboard:widgets:ready"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": true
+    },
+    "storageKeys": [
+      "SAFE"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/early_trap.js",
+    "imports": [],
+    "exports": [],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/loader.js",
+    "imports": [
+      "./manifest.js",
+      "./boot_hardener.js"
+    ],
+    "exports": [],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/manifest.js",
+    "imports": [
+      "./boot_hardener.js"
+    ],
+    "exports": [
+      "CORE",
+      "PATCHES",
+      "patches",
+      "SAFE_MODE",
+      "ACTIVE_PATCHES",
+      "REQUIRED",
+      "normalizeModuleId",
+      "isSafeMode"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/phase_runner.js",
+    "imports": [],
+    "exports": [
+      "runPhase",
+      "checkContract",
+      "runPhaseParallel"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/phases.js",
+    "imports": [
+      "./contracts/probe_utils.js",
+      "../settings/flags.js"
+    ],
+    "exports": [
+      "PHASES",
+      "HARD_PREREQS",
+      "SOFT_PREREQS",
+      "CONTRACTS"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [
+      "SAFE"
+    ],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/splash_sequence.js",
+    "imports": [],
+    "exports": [
+      "runSplashSequence",
+      "initSplashSequence"
+    ],
+    "events": [
+      "DOMContentLoaded"
+    ],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/contracts/probe_utils.js",
+    "imports": [],
+    "exports": [
+      "safe",
+      "capability",
+      "once"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  },
+  {
+    "file": "crm-app/js/boot/contracts/services.js",
+    "imports": [
+      "./probe_utils.js",
+      "../../settings/flags.js"
+    ],
+    "exports": [
+      "HARD_PREREQS",
+      "SOFT_PREREQS",
+      "__WHEN_SERVICES_READY"
+    ],
+    "events": [],
+    "render": {
+      "usesRenderGuard": false,
+      "callsRenderAll": false
+    },
+    "storageKeys": [],
+    "flags": {
+      "hasModuleFallbackLog": false,
+      "mentionsSelectionChanged": false,
+      "mentionsDataChanged": false
+    }
+  }
+]

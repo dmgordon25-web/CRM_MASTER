@@ -592,6 +592,12 @@ function runPatch(){
         bar.style.visibility = 'visible';
         bar.style.pointerEvents = 'auto';
         
+        // CRITICAL: Remove minimized state when we have selections
+        if(bar.hasAttribute('data-minimized')){
+          bar.removeAttribute('data-minimized');
+        }
+        bar.setAttribute('aria-expanded', 'true');
+        
         // Update the count display
         bar.dataset.count = String(numeric);
       }else{
@@ -606,6 +612,10 @@ function runPatch(){
         bar.style.opacity = '1';  // Keep visible for pill
         bar.style.visibility = 'visible';  // Keep visible for pill
         bar.style.pointerEvents = 'auto';  // Keep interactive for pill
+        
+        // CRITICAL: Set minimized state when count is 0 to show the pill
+        bar.setAttribute('data-minimized', '1');
+        bar.setAttribute('aria-expanded', 'false');
         
         bar.dataset.count = '0';
       }
