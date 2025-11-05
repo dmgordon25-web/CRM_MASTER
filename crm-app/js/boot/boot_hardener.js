@@ -516,7 +516,6 @@ async function animateTabCycle() {
   // Cycle through all tabs on boot while splash is visible
   const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
   const delay = 600; // milliseconds between tab switches - increased for proper rendering
-  const dashboardSettleDelay = 800; // extra time for dashboard to fully render after cycling
   
   // Helper to activate a tab button
   function activateTab(tabName) {
@@ -532,14 +531,52 @@ async function animateTabCycle() {
     }
   }
 
+  // Helper to set dashboard mode (Today or All)
+  function setDashboardMode(mode) {
+    try {
+      const button = documentRef.querySelector(`[data-dashboard-mode="${mode}"]`);
+      if (button && !button.classList.contains('active')) {
+        button.click();
+        console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${mode}`);
+      }
+    } catch (err) {
+      console.warn(`[BOOT_ANIMATION] Failed to set dashboard mode to ${mode}:`, err);
+    }
+  }
+
   // Helper to wait for a specified duration
   function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Helper to wait for dashboard ready event
+  function waitForDashboardReady() {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
+        resolve();
+      }, 5000);
+      
+      const handler = () => {
+        clearTimeout(timeout);
+        console.info('[BOOT_ANIMATION] Dashboard widgets ready event received');
+        resolve();
+      };
+      
+      if (documentRef) {
+        documentRef.addEventListener('dashboard:widgets:ready', handler, { once: true });
+      } else {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  }
+
   try {
-    // Ensure we start at dashboard
+    // Ensure we start at dashboard with Today mode
+    console.info('[BOOT_ANIMATION] Setting initial Today mode');
     activateTab('dashboard');
+    setDashboardMode('today');
     await wait(delay);
 
     // Cycle through each tab
@@ -549,15 +586,21 @@ async function animateTabCycle() {
     }
 
     // Return to dashboard
+    console.info('[BOOT_ANIMATION] Returning to dashboard');
     activateTab('dashboard');
-    await wait(delay);
+    
+    // Wait for dashboard to be fully ready
+    console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
+    await waitForDashboardReady();
+    
+    // Toggle between All and Today to ensure everything is properly rendered
+    console.info('[BOOT_ANIMATION] Toggling All/Today for complete render');
+    setDashboardMode('all');
+    await wait(300);
+    setDashboardMode('today');
+    await wait(300);
 
-    // Wait additional time for dashboard to fully render and settle
-    console.info('[BOOT_ANIMATION] Tab cycle complete, waiting for dashboard to settle');
-    await wait(dashboardSettleDelay);
-    console.info('[BOOT_ANIMATION] Dashboard settled and ready');
-
-    console.info('[BOOT_ANIMATION] Tab cycle complete');
+    console.info('[BOOT_ANIMATION] Tab cycle complete, dashboard ready');
   } catch (err) {
     console.warn('[BOOT_ANIMATION] Tab cycle failed:', err);
   }
