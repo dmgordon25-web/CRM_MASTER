@@ -515,14 +515,14 @@ function maybeRenderAll() {
   async function animateTabCycle() {
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
     const MODE_SEQUENCE = ['all', 'today', 'all', 'today'];
-    const TAB_SETTLE_DELAY = 420;
-    const MODE_SETTLE_DELAY = 480;
-    const TAB_POST_DELAY = 220;
-    const TAB_RETURN_POST_DELAY = 260;
-    const MODE_POST_DELAY = 240;
-    const MODE_FINAL_POST_DELAY = 400;
-    const PARTNER_CYCLE_DELAY = 320;
-    const EXTRA_FINAL_DELAY = 520;
+    const TAB_WAIT_TIMEOUT = 650;
+    const MODE_WAIT_TIMEOUT = 550;
+    const TAB_POST_DELAY = 200;
+    const TAB_RETURN_POST_DELAY = 240;
+    const MODE_POST_DELAY = 200;
+    const MODE_FINAL_POST_DELAY = 320;
+    const PARTNER_CYCLE_DELAY = 260;
+    const EXTRA_FINAL_DELAY = 320;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -603,67 +603,64 @@ function maybeRenderAll() {
       return '';
     }
 
-    async function ensureTabActive(tabName, { attempts = 4, settleDelay = TAB_SETTLE_DELAY, postDelay = TAB_POST_DELAY } = {}) {
+    async function ensureTabActive(tabName, { postDelay = TAB_POST_DELAY } = {}) {
       const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
       if (!target) return false;
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        const button = documentRef?.querySelector(`#main-nav button[data-nav="${target}"]`);
-        if (!button) {
-          console.warn(`[BOOT_ANIMATION] nav button missing for ${target}`);
-          break;
-        }
-        dispatchSyntheticClick(button, `tab:${target}`);
-        const success = await waitFor(() => getActiveTabName() === target, {
-          timeout: Math.max(settleDelay, 620),
-          interval: 70
-        });
-        if (success) {
-          await wait(Math.max(160, postDelay));
-          console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
-          return true;
-        }
-        await wait(180);
+      const button = documentRef?.querySelector(`#main-nav button[data-nav="${target}"]`);
+      if (!button) {
+        console.warn(`[BOOT_ANIMATION] nav button missing for ${target}`);
+        return false;
       }
-      console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}; continuing`);
-      return false;
+      if (getActiveTabName() === target) {
+        await wait(Math.max(140, postDelay));
+        return true;
+      }
+      dispatchSyntheticClick(button, `tab:${target}`);
+      const success = await waitFor(() => getActiveTabName() === target, {
+        timeout: TAB_WAIT_TIMEOUT,
+        interval: 50
+      });
+      if (!success) {
+        console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
+        return false;
+      }
+      await wait(Math.max(140, postDelay));
+      console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
+      return true;
     }
 
-    async function ensureDashboardMode(mode, { attempts = 5, settleDelay = MODE_SETTLE_DELAY, postDelay = MODE_POST_DELAY } = {}) {
+    async function ensureDashboardMode(mode, { postDelay = MODE_POST_DELAY } = {}) {
       const normalized = mode === 'all' ? 'all' : 'today';
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
-        if (!button) {
-          console.warn(`[BOOT_ANIMATION] dashboard mode button missing for ${normalized}`);
-          break;
-        }
-        dispatchSyntheticClick(button, `mode:${normalized}`);
-        const success = await waitFor(() => getActiveDashboardMode() === normalized, {
-          timeout: Math.max(settleDelay, 700),
-          interval: 70
-        });
-        if (success) {
-          await wait(Math.max(180, postDelay));
-          console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
-          return true;
-        }
-        await wait(220);
+      const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
+      if (!button && typeof window?.setDashboardMode === 'function') {
+        window.setDashboardMode(normalized, { force: true, skipPersist: true });
       }
-
-      try {
-        if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
+      if (!button && getActiveDashboardMode() === normalized) {
+        await wait(Math.max(160, postDelay));
+        return true;
+      }
+      if (!button) {
+        console.warn(`[BOOT_ANIMATION] dashboard mode button missing for ${normalized}`);
+        return false;
+      }
+      if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
+        try {
           window.setDashboardMode(normalized, { force: true, skipPersist: true });
-          const success = await waitFor(() => getActiveDashboardMode() === normalized, {
-            timeout: Math.max(settleDelay, 760),
-            interval: 80
-          });
-          if (success) {
-            await wait(Math.max(180, postDelay));
-            return true;
-          }
-        }
-      } catch (_) {}
-
-      return getActiveDashboardMode() === normalized;
+        } catch (_) {}
+      } else {
+        dispatchSyntheticClick(button, `mode:${normalized}`);
+      }
+      const success = await waitFor(() => getActiveDashboardMode() === normalized, {
+        timeout: MODE_WAIT_TIMEOUT,
+        interval: 50
+      });
+      if (!success) {
+        console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
+        return false;
+      }
+      await wait(Math.max(160, postDelay));
+      console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
+      return true;
     }
 
     function getAvailablePartners() {
@@ -701,7 +698,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, 3500);
+        }, 2500);
 
         const handler = () => {
           clearTimeout(timeout);
@@ -720,12 +717,12 @@ function maybeRenderAll() {
 
     try {
       console.info('[BOOT_ANIMATION] Starting boot animation sequence');
-      await ensureTabActive('dashboard', { attempts: 4, settleDelay: TAB_SETTLE_DELAY });
-      await ensureDashboardMode('today', { attempts: 4, settleDelay: MODE_SETTLE_DELAY });
+      await ensureTabActive('dashboard', { postDelay: TAB_POST_DELAY });
+      await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
 
       console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today ↔ All');
       for (const mode of MODE_SEQUENCE) {
-        await ensureDashboardMode(mode, { attempts: 5, settleDelay: MODE_SETTLE_DELAY });
+        await ensureDashboardMode(mode, { postDelay: MODE_POST_DELAY });
       }
 
       const partners = getAvailablePartners();
@@ -745,11 +742,11 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Cycling through tabs');
       for (const tab of TAB_SEQUENCE) {
         if (tab === 'dashboard') continue;
-        await ensureTabActive(tab, { attempts: 4, settleDelay: TAB_SETTLE_DELAY, postDelay: TAB_POST_DELAY });
+        await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
       }
 
       console.info('[BOOT_ANIMATION] Returning to dashboard');
-      await ensureTabActive('dashboard', { attempts: 4, settleDelay: TAB_SETTLE_DELAY, postDelay: TAB_RETURN_POST_DELAY });
+      await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
 
       console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
       await waitForDashboardReady();
@@ -757,13 +754,13 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All ↔ Today');
       for (const mode of MODE_SEQUENCE) {
         const postDelay = mode === 'today' ? MODE_FINAL_POST_DELAY : MODE_POST_DELAY;
-        await ensureDashboardMode(mode, { attempts: 5, settleDelay: MODE_SETTLE_DELAY + 80, postDelay });
+        await ensureDashboardMode(mode, { postDelay });
       }
 
       await wait(EXTRA_FINAL_DELAY);
       if (getActiveDashboardMode() !== 'today') {
         console.warn('[BOOT_ANIMATION] Dashboard mode did not settle on today; retrying');
-        await ensureDashboardMode('today', { attempts: 3, settleDelay: MODE_SETTLE_DELAY + 100, postDelay: MODE_FINAL_POST_DELAY });
+        await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
         await wait(EXTRA_FINAL_DELAY);
       }
 
