@@ -581,12 +581,45 @@ function runPatch(){
       const bar = actionbar();
       if(!bar) return;
       const numeric = typeof selCount === 'number' && Number.isFinite(selCount) ? selCount : 0;
+      
+      // CRITICAL: Properly show/hide action bar based on selection count
       if(numeric > 0){
+        // Show action bar when items are selected
         bar.setAttribute('data-visible','1');
+        bar.setAttribute('data-idle-visible', '1'); // Ensure it stays visible
         bar.style.display = '';
+        bar.style.opacity = '1';
+        bar.style.visibility = 'visible';
+        bar.style.pointerEvents = 'auto';
+        
+        // Update the count display
+        bar.dataset.count = String(numeric);
+        
+        console.info(`[actionbar] Showing action bar with ${numeric} selection(s)`);
       }else{
+        // Hide action bar when no items are selected
         bar.removeAttribute('data-visible');
+        bar.removeAttribute('data-idle-visible');
         bar.style.display = 'none';
+        bar.style.opacity = '0';
+        bar.style.visibility = 'hidden';
+        bar.style.pointerEvents = 'none';
+        
+        bar.dataset.count = '0';
+        
+        console.info('[actionbar] Hiding action bar (no selections)');
+      }
+      
+      // Trigger global action bar update if available
+      if(typeof window !== 'undefined'){
+        if(typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+          catch (_) {}
+        }
+        if(typeof window.applyActionBarGuards === 'function'){
+          try { window.applyActionBarGuards(bar, numeric); }
+          catch (_) {}
+        }
       }
     }
 
@@ -799,6 +832,8 @@ function runPatch(){
       }catch (_err) {}
       if(!Number.isFinite(count)) count = 0;
       count = count > 0 ? Math.max(0, Math.floor(count)) : 0;
+      
+      console.info(`[actionbar] updateActionbarBase: count=${count}`);
       syncActionBarVisibility(count);
       if(typeof window.applyActionBarGuards === 'function'){
         try{ window.applyActionBarGuards(bar, count); }

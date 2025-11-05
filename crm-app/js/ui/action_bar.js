@@ -573,6 +573,9 @@ function handleSelectionChanged(detail) {
     : ids.length;
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
+  
+  console.info(`[action_bar] handleSelectionChanged: count=${count}, source=${source}, ids.length=${ids.length}`);
+  
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
     count = 0;
     try { window.Selection?.clear?.('actionbar:init'); }
@@ -816,6 +819,8 @@ function syncActionBarVisibility(selCount, explicitEl) {
   const hasSelections = ready && numeric > 0;
   const shouldBeVisible = hasSelections || idleVisible;
   
+  console.info(`[action_bar] syncActionBarVisibility: count=${numeric}, ready=${ready}, hasSelections=${hasSelections}, shouldBeVisible=${shouldBeVisible}`);
+  
   if (shouldBeVisible) {
     bar.setAttribute('data-visible', '1');
     // Ensure data-idle-visible is also set when we have selections
@@ -823,15 +828,31 @@ function syncActionBarVisibility(selCount, explicitEl) {
     if (hasSelections && bar.dataset) {
       bar.dataset.idleVisible = '1';
     }
-    // Ensure display is not none
-    if (bar.style && bar.style.display === 'none') {
-      bar.style.display = '';
+    // Ensure display is not none and visibility is proper
+    if (bar.style) {
+      if (bar.style.display === 'none') {
+        bar.style.display = '';
+      }
+      bar.style.opacity = '1';
+      bar.style.visibility = 'visible';
+      bar.style.pointerEvents = 'auto';
     }
   } else {
     if (typeof bar.removeAttribute === 'function') {
       bar.removeAttribute('data-visible');
+      // Also remove idle-visible when no selections
+      if (numeric === 0) {
+        bar.removeAttribute('data-idle-visible');
+      }
     } else {
       bar.setAttribute('data-visible', '0');
+    }
+    // Hide the bar when no selections
+    if (numeric === 0 && bar.style) {
+      bar.style.display = 'none';
+      bar.style.opacity = '0';
+      bar.style.visibility = 'hidden';
+      bar.style.pointerEvents = 'none';
     }
   }
 }
