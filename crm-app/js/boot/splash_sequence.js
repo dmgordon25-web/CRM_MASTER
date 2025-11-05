@@ -114,6 +114,11 @@ function hideSplash() {
       bootSplash.style.visibility = 'hidden';
       bootSplash.style.display = 'none';
     }
+    if (typeof window !== 'undefined') {
+      try {
+        window.__SPLASH_HIDDEN__ = true;
+      } catch (_) {}
+    }
   } catch (err) {
     // Silently fail
   }
