@@ -513,7 +513,7 @@ function maybeRenderAll() {
 }
 
   async function animateTabCycle() {
-    const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
+    const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'calendar', 'reports', 'workbench'];
     const MODE_SEQUENCE = ['all', 'today', 'all', 'today'];
     const TAB_WAIT_TIMEOUT = 650;
     const MODE_WAIT_TIMEOUT = 550;
@@ -718,12 +718,9 @@ function maybeRenderAll() {
     try {
       console.info('[BOOT_ANIMATION] Starting boot animation sequence');
       await ensureTabActive('dashboard', { postDelay: TAB_POST_DELAY });
-      await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
-
-      console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today ↔ All');
-      for (const mode of MODE_SEQUENCE) {
-        await ensureDashboardMode(mode, { postDelay: MODE_POST_DELAY });
-      }
+      
+      // Wait for page to be quiet and loaded
+      await wait(800);
 
       const partners = getAvailablePartners();
       if (partners.length) {
@@ -739,7 +736,7 @@ function maybeRenderAll() {
         console.info('[BOOT_ANIMATION] No partners to cycle through');
       }
 
-      console.info('[BOOT_ANIMATION] Cycling through tabs');
+      console.info('[BOOT_ANIMATION] Cycling through tabs (once each, equally spaced)');
       for (const tab of TAB_SEQUENCE) {
         if (tab === 'dashboard') continue;
         await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
@@ -748,14 +745,18 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Returning to dashboard');
       await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
 
+      console.info('[BOOT_ANIMATION] Dashboard toggles (2x): All ↔ Today with 1 second pauses');
+      // Toggle to All (1st time)
+      await ensureDashboardMode('all', { postDelay: 1000 });
+      // Toggle to Today (1st time)
+      await ensureDashboardMode('today', { postDelay: 1000 });
+      // Toggle to All (2nd time)
+      await ensureDashboardMode('all', { postDelay: 1000 });
+      // Toggle to Today (2nd time)
+      await ensureDashboardMode('today', { postDelay: 1000 });
+
       console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
       await waitForDashboardReady();
-
-      console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All ↔ Today');
-      for (const mode of MODE_SEQUENCE) {
-        const postDelay = mode === 'today' ? MODE_FINAL_POST_DELAY : MODE_POST_DELAY;
-        await ensureDashboardMode(mode, { postDelay });
-      }
 
       await wait(EXTRA_FINAL_DELAY);
       if (getActiveDashboardMode() !== 'today') {
