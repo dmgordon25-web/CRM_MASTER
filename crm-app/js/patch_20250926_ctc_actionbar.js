@@ -1664,9 +1664,50 @@ function runPatch(){
         const id = resolveRowId(target);
         if(!id) return;
         const type = detectRowType(target);
-        if(!ensureSelectionService()) return;
-        if(target.checked) SelectionService.add(id, type);
-        else SelectionService.remove(id);
+        let applied = false;
+        if(ensureSelectionService() && SelectionService){
+          try {
+            if(target.checked && typeof SelectionService.add === 'function'){
+              SelectionService.add(id, type);
+              applied = true;
+            } else if(!target.checked && typeof SelectionService.remove === 'function'){
+              SelectionService.remove(id);
+              applied = true;
+            }
+          } catch (err) {
+            applied = false;
+            try { console && console.warn && console.warn('[selection] service update failed', err); }
+            catch (_warn) {}
+          }
+        }
+        if(!applied && typeof window !== 'undefined'){
+          const selection = window.Selection;
+          try {
+            if(selection && typeof selection.add === 'function' && typeof selection.remove === 'function'){
+              if(target.checked) selection.add(id, type);
+              else selection.remove(id);
+              applied = true;
+            }else if(selection && typeof selection.toggle === 'function'){
+              selection.toggle(id, type);
+              applied = true;
+            }
+          } catch (err) {
+            applied = false;
+            try { console && console.warn && console.warn('[selection] fallback update failed', err); }
+            catch (_warn) {}
+          }
+        }
+        if(!applied && typeof document !== 'undefined'){
+          try {
+            const eventDetail = {
+              type,
+              ids: target.checked ? [id] : [],
+              count: target.checked ? 1 : 0,
+              source: 'actionbar:checkbox-fallback'
+            };
+            document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+          } catch (_err) {}
+        }
       }, true);
     }
 
