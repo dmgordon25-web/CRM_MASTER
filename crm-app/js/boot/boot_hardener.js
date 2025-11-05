@@ -515,16 +515,16 @@ function maybeRenderAll() {
   async function animateTabCycle() {
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
     const MODE_SEQUENCE = ['all', 'today', 'all', 'today'];
-    const TAB_SETTLE_DELAY = 900;
-    const MODE_SETTLE_DELAY = 950;
-    const PARTNER_CYCLE_DELAY = 750;
-    const EXTRA_FINAL_DELAY = 1600;
+    const TAB_SETTLE_DELAY = 480;
+    const MODE_SETTLE_DELAY = 520;
+    const PARTNER_CYCLE_DELAY = 360;
+    const EXTRA_FINAL_DELAY = 620;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async function waitFor(predicate, { timeout = 2200, interval = 80 } = {}) {
+    async function waitFor(predicate, { timeout = 1600, interval = 70 } = {}) {
       const start = Date.now();
       while ((Date.now() - start) < timeout) {
         try {
@@ -599,7 +599,7 @@ function maybeRenderAll() {
       return '';
     }
 
-    async function ensureTabActive(tabName, { attempts = 5, settleDelay = TAB_SETTLE_DELAY } = {}) {
+    async function ensureTabActive(tabName, { attempts = 4, settleDelay = TAB_SETTLE_DELAY } = {}) {
       const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
       if (!target) return false;
       for (let attempt = 0; attempt < attempts; attempt++) {
@@ -610,8 +610,8 @@ function maybeRenderAll() {
         }
         dispatchSyntheticClick(button, `tab:${target}`);
         const success = await waitFor(() => getActiveTabName() === target, {
-          timeout: Math.max(settleDelay, 900),
-          interval: 80
+          timeout: Math.max(settleDelay, 620),
+          interval: 70
         });
         if (success) {
           await wait(settleDelay);
@@ -634,8 +634,8 @@ function maybeRenderAll() {
         }
         dispatchSyntheticClick(button, `mode:${normalized}`);
         const success = await waitFor(() => getActiveDashboardMode() === normalized, {
-          timeout: Math.max(settleDelay, 1000),
-          interval: 80
+          timeout: Math.max(settleDelay, 700),
+          interval: 70
         });
         if (success) {
           await wait(settleDelay);
@@ -649,8 +649,8 @@ function maybeRenderAll() {
         if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
           window.setDashboardMode(normalized, { force: true, skipPersist: true });
           const success = await waitFor(() => getActiveDashboardMode() === normalized, {
-            timeout: Math.max(settleDelay, 1000),
-            interval: 90
+            timeout: Math.max(settleDelay, 760),
+            interval: 80
           });
           if (success) {
             await wait(settleDelay);
@@ -697,7 +697,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, 7000);
+        }, 3500);
 
         const handler = () => {
           clearTimeout(timeout);
@@ -716,12 +716,12 @@ function maybeRenderAll() {
 
     try {
       console.info('[BOOT_ANIMATION] Starting boot animation sequence');
-      await ensureTabActive('dashboard', { attempts: 6, settleDelay: TAB_SETTLE_DELAY });
+      await ensureTabActive('dashboard', { attempts: 4, settleDelay: TAB_SETTLE_DELAY });
       await ensureDashboardMode('today', { attempts: 4, settleDelay: MODE_SETTLE_DELAY });
 
       console.info('[BOOT_ANIMATION] Initial dashboard toggles (2x): Today ↔ All');
       for (const mode of MODE_SEQUENCE) {
-        await ensureDashboardMode(mode, { attempts: 6, settleDelay: MODE_SETTLE_DELAY });
+        await ensureDashboardMode(mode, { attempts: 5, settleDelay: MODE_SETTLE_DELAY });
       }
 
       const partners = getAvailablePartners();
@@ -741,24 +741,24 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Cycling through tabs');
       for (const tab of TAB_SEQUENCE) {
         if (tab === 'dashboard') continue;
-        await ensureTabActive(tab, { attempts: 5, settleDelay: TAB_SETTLE_DELAY });
+        await ensureTabActive(tab, { attempts: 4, settleDelay: TAB_SETTLE_DELAY });
       }
 
       console.info('[BOOT_ANIMATION] Returning to dashboard');
-      await ensureTabActive('dashboard', { attempts: 6, settleDelay: TAB_SETTLE_DELAY });
+      await ensureTabActive('dashboard', { attempts: 4, settleDelay: TAB_SETTLE_DELAY });
 
       console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
       await waitForDashboardReady();
 
       console.info('[BOOT_ANIMATION] Final dashboard toggles (2x): All ↔ Today');
       for (const mode of MODE_SEQUENCE) {
-        await ensureDashboardMode(mode, { attempts: 6, settleDelay: MODE_SETTLE_DELAY + 150 });
+        await ensureDashboardMode(mode, { attempts: 5, settleDelay: MODE_SETTLE_DELAY + 120 });
       }
 
       await wait(EXTRA_FINAL_DELAY);
       if (getActiveDashboardMode() !== 'today') {
         console.warn('[BOOT_ANIMATION] Dashboard mode did not settle on today; retrying');
-        await ensureDashboardMode('today', { attempts: 3, settleDelay: MODE_SETTLE_DELAY + 200 });
+        await ensureDashboardMode('today', { attempts: 3, settleDelay: MODE_SETTLE_DELAY + 160 });
         await wait(EXTRA_FINAL_DELAY);
       }
 
