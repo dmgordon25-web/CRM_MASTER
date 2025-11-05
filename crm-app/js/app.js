@@ -1079,21 +1079,113 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     return true;
   }
 
-  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
-  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
-  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
-  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
+    const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
+    const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
+    const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
+    const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
 
-  function normalizeIdSet(ids, scope, store){
-    if(ids instanceof Set) return ids;
-    if(Array.isArray(ids)) return new Set(ids.map(String));
-    if(ids && typeof ids[Symbol.iterator] === 'function'){
-      return new Set(Array.from(ids, (value) => String(value)));
+    function normalizeIdSet(ids, scope, store){
+      if(ids instanceof Set) return ids;
+      if(Array.isArray(ids)) return new Set(ids.map(String));
+      if(ids && typeof ids[Symbol.iterator] === 'function'){
+        return new Set(Array.from(ids, (value) => String(value)));
+      }
+      return store ? store.get(scope) : new Set();
     }
-    return store ? store.get(scope) : new Set();
-  }
 
-  function wireSelectAllForTable(table){
+    function normalizeSelectionIds(ids){
+      if(ids instanceof Set){
+        return Array.from(ids, value => String(value ?? '')).filter(Boolean);
+      }
+      if(Array.isArray(ids)){
+        return ids.map(value => String(value ?? '')).filter(Boolean);
+      }
+      if(ids && typeof ids[Symbol.iterator] === 'function'){
+        return Array.from(ids, value => String(value ?? '')).filter(Boolean);
+      }
+      return [];
+    }
+
+    function syncSelectionServices(ids, scope, source){
+      const list = normalizeSelectionIds(ids);
+      const type = scope === 'partners' ? 'partners' : 'contacts';
+      const origin = source || 'app:select-all';
+      let applied = false;
+      if(typeof window !== 'undefined'){
+        const selection = window.Selection;
+        if(selection && typeof selection.set === 'function'){
+          try{
+            selection.set(list, type, origin);
+            applied = true;
+          }catch (_err){}
+        }
+        const service = window.SelectionService;
+        if(service && typeof service.set === 'function'){
+          try{
+            service.set(list, type, origin);
+            applied = true;
+          }catch (_err){}
+        }
+        if(!applied && list.length === 0){
+          try{ window.SelectionService?.clear?.(origin); }
+          catch (_err){}
+          try{ window.Selection?.clear?.(origin); }
+          catch (_err){}
+        }
+      }
+      return list;
+    }
+
+    function forceActionBarRefresh(selectionCount){
+      const count = Number.isFinite(selectionCount) ? Math.max(0, Math.floor(selectionCount)) : 0;
+      if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+        try{ window.updateActionbar(); }
+        catch (_err){}
+      }
+      const bar = typeof document !== 'undefined'
+        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+        : null;
+      if(bar){
+        if(count > 0){
+          try{ bar.setAttribute('data-visible', '1'); }
+          catch (_err){}
+          if(bar.dataset){
+            bar.dataset.idleVisible = '1';
+            bar.dataset.count = String(count);
+          }
+          if(bar.style){
+            bar.style.display = '';
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+        }else{
+          try{
+            bar.removeAttribute('data-visible');
+            bar.removeAttribute('data-idle-visible');
+          }catch (_err){}
+          if(bar.dataset){
+            bar.dataset.count = '0';
+          }
+          if(bar.style){
+            bar.style.display = 'none';
+            bar.style.opacity = '0';
+            bar.style.visibility = 'hidden';
+            bar.style.pointerEvents = 'none';
+          }
+        }
+      }
+      if(typeof ensureActionBarPostPaintRefresh === 'function'){
+        try{ ensureActionBarPostPaintRefresh(); }
+        catch (_err){}
+      }
+      if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+        try{ window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+        catch (_err){}
+      }
+    }
+
+    function wireSelectAllForTable(table){
     if(!isTableElement(table)) return;
     const store = getSelectionStore();
     if(!store) return;
@@ -1350,7 +1442,34 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         }
       });
     }
+
+    const source = checkbox.checked ? 'app:select-all:on' : 'app:select-all:off';
+    const normalizedIds = syncSelectionServices(next, scope, source);
     store.set(next, scope);
+    const selectionCount = normalizedIds.length;
+    try {
+      const eventDetail = {
+        type: scope === 'partners' ? 'partners' : 'contacts',
+        ids: normalizedIds,
+        count: selectionCount,
+        source,
+        scope
+      };
+      if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+      }
+    } catch (_err){}
+
+    const updateActionBar = () => forceActionBarRefresh(selectionCount);
+    updateActionBar();
+    if(typeof queueMicrotask === 'function'){
+      queueMicrotask(updateActionBar);
+    }else if(typeof Promise !== 'undefined'){
+      Promise.resolve().then(updateActionBar).catch(()=>{});
+    }
+    if(typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(() => updateActionBar());
+    }
   }
 
   function syncSelectionCheckboxes(scope, ids, options){

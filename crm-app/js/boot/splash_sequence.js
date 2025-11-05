@@ -2,9 +2,10 @@
 
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
-const TOGGLE_DELAY = 800; // Time to wait for each toggle to render
-const TAB_DELAY = 600; // Time to wait for each tab to render
-const FINAL_DELAY = 1200; // Final delay before hiding splash
+const TOGGLE_DELAY = 1000; // Pause 1s after each Today/All toggle
+const TAB_DELAY = 700; // Time to wait for each tab to settle
+const QUIET_IDLE_TIMEOUT = 900; // Max wait (ms) for idle callbacks
+const QUIET_PASSES = 3;
 
 let splashSequenceRan = false;
 
@@ -88,6 +89,102 @@ async function waitForDashboard() {
   return false;
 }
 
+function isElementVisible(node) {
+  if (!node) return false;
+  if (typeof node.checkVisibility === 'function') {
+    try {
+      return node.checkVisibility({
+        visibilityProperty: 'visible',
+        opacityProperty: 'visible',
+        contentVisibilityAuto: true
+      });
+    } catch (_) {
+      // Fallback to manual checks
+    }
+  }
+  if (typeof node.offsetParent !== 'undefined' && node.offsetParent !== null) {
+    return true;
+  }
+  if (typeof node.getBoundingClientRect === 'function') {
+    const rect = node.getBoundingClientRect();
+    if (rect && rect.width > 0 && rect.height > 0) {
+      return true;
+    }
+  }
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    try {
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) {
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function collectNavTabs() {
+  if (typeof document === 'undefined') return [];
+  const navRoot = document.getElementById('main-nav');
+  const candidates = navRoot
+    ? Array.from(navRoot.querySelectorAll('[data-nav]'))
+    : Array.from(document.querySelectorAll('#main-nav [data-nav]'));
+  const seen = new Set();
+  const tabs = [];
+  candidates.forEach((node) => {
+    if (!node) return;
+    const value = node.getAttribute('data-nav');
+    if (!value || seen.has(value)) return;
+    if (typeof node.disabled === 'boolean' && node.disabled) return;
+    if (!isElementVisible(node)) return;
+    seen.add(value);
+    tabs.push(value);
+  });
+  if (!tabs.length) {
+    ['dashboard', 'pipeline', 'partners', 'workbench', 'reports'].forEach((fallback) => {
+      if (!seen.has(fallback)) {
+        tabs.push(fallback);
+        seen.add(fallback);
+      }
+    });
+  }
+  return tabs;
+}
+
+async function waitForQuietPage() {
+  if (typeof window === 'undefined') return;
+  if (typeof document !== 'undefined' && document.readyState !== 'complete') {
+    await new Promise((resolve) => {
+      const handler = () => {
+        if (document.readyState === 'complete') {
+          document.removeEventListener('readystatechange', handler);
+          resolve();
+        }
+      };
+      document.addEventListener('readystatechange', handler, { once: true });
+      setTimeout(() => {
+        document.removeEventListener('readystatechange', handler);
+        resolve();
+      }, 2000);
+    });
+  }
+  await wait(500);
+  for (let i = 0; i < QUIET_PASSES; i++) {
+    if (typeof window.requestIdleCallback === 'function') {
+      await new Promise((resolve) => {
+        try {
+          window.requestIdleCallback(() => resolve(), { timeout: QUIET_IDLE_TIMEOUT });
+        } catch (_) {
+          resolve();
+        }
+      });
+    } else {
+      await wait(QUIET_IDLE_TIMEOUT);
+    }
+  }
+}
+
 /**
  * Hide the splash screen
  */
@@ -135,59 +232,37 @@ export async function runSplashSequence() {
   splashSequenceRan = true;
   
   try {
-    // Wait for dashboard to be ready
+    // Wait for dashboard to be ready and reach a quiet state
     await waitForDashboard();
-    await wait(500); // Give dashboard time to fully render
-    
-    // === Toggle All/Today 2x BEFORE tab cycling ===
-    
-    // Toggle to "All" (1st time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "Today" (1st time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "All" (2nd time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle back to "Today" (2nd time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
-    
-    // === Cycle through tabs ===
-    
-    const tabs = ['pipeline', 'partners', 'dashboard'];
+    await waitForQuietPage();
+
+    // === Cycle through each available tab once ===
+    const tabs = collectNavTabs();
     for (const tab of tabs) {
-      if (navigateToTab(tab)) {
+      const target = typeof tab === 'string' ? tab.trim() : '';
+      if (!target) continue;
+      if (navigateToTab(target)) {
         await wait(TAB_DELAY);
+      } else {
+        await wait(150);
       }
     }
-    
-    // Return to dashboard
-    navigateToTab('dashboard');
-    await wait(TAB_DELAY);
-    
-    // === Toggle All/Today 2x AFTER tab cycling ===
-    
-    // Toggle to "All" (1st time after tabs)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "Today" (1st time after tabs)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle to "All" (2nd time after tabs - FINAL trigger)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY);
-    
-    // Toggle back to "Today" (2nd time after tabs)
-    toggleDashboardMode('today');
-    await wait(FINAL_DELAY); // Extra time for final render
-    
+
+    // Return to dashboard before toggles
+    if (navigateToTab('dashboard')) {
+      await wait(TAB_DELAY);
+    }
+
+    // Give dashboard a brief moment to settle
+    await wait(400);
+
+    // === Toggle Today/All twice each ===
+    const toggleSequence = ['all', 'today', 'all', 'today'];
+    for (const mode of toggleSequence) {
+      toggleDashboardMode(mode);
+      await wait(TOGGLE_DELAY);
+    }
+
     // === Hide the splash page ===
     hideSplash();
     
