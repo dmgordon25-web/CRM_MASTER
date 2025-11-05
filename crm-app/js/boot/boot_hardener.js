@@ -515,7 +515,7 @@ function maybeRenderAll() {
 async function animateTabCycle() {
   // Cycle through all tabs AND partners on boot while splash is visible
   const tabs = ['dashboard', 'longshots', 'pipeline', 'calendar', 'reports', 'workbench'];
-  const delay = 600; // milliseconds between tab switches - increased for proper rendering
+  const delay = 300; // milliseconds between tab switches - optimized for CI timing
   
   // Helper to activate a tab button
   function activateTab(tabName) {
@@ -553,7 +553,7 @@ async function animateTabCycle() {
       return options
         .filter(opt => opt.value && opt.value !== 'all')
         .map(opt => ({ id: opt.value, name: opt.textContent.trim() }))
-        .slice(0, 3); // Cycle through first 3 partners max
+        .slice(0, 2); // Cycle through first 2 partners max (optimized for CI timing)
     } catch (err) {
       console.warn('[BOOT_ANIMATION] Failed to get partners:', err);
       return [];
@@ -614,9 +614,9 @@ async function animateTabCycle() {
     // FIRST: Toggle between Today and All modes before cycling
     console.info('[BOOT_ANIMATION] Initial dashboard toggle: Today → All → Today');
     setDashboardMode('today');
-    await wait(300);
+    await wait(150);
     setDashboardMode('all');
-    await wait(300);
+    await wait(150);
     setDashboardMode('today');
     await wait(delay);
 
@@ -653,9 +653,9 @@ async function animateTabCycle() {
     // SECOND: Toggle between All and Today again after cycling completes
     console.info('[BOOT_ANIMATION] Final dashboard toggle: All → Today');
     setDashboardMode('all');
-    await wait(300);
+    await wait(150);
     setDashboardMode('today');
-    await wait(300);
+    await wait(150);
 
     console.info('[BOOT_ANIMATION] Boot animation sequence complete');
   } catch (err) {

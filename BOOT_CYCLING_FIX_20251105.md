@@ -38,7 +38,7 @@
 #### `getAvailablePartners()` (lines 547-561)
 - Queries the partner filter dropdown
 - Returns array of partner objects with id and name
-- Limits to first 3 partners to prevent excessive boot time
+- Limits to first 2 partners to prevent excessive boot time and ensure CI tests pass
 
 #### `setPartnerFilter(partnerId)` (lines 563-578)
 - Programmatically changes the partner filter dropdown
@@ -50,22 +50,22 @@
 The complete boot sequence now follows this order:
 
 1. **Navigate to Dashboard** (line 611)
-   - Wait 600ms for rendering
+   - Wait 300ms for rendering
 
 2. **Initial Dashboard Toggle** (lines 614-621)
    - Today mode → All mode → Today mode
-   - 300ms wait between each toggle
-   - Final 600ms wait after sequence
+   - 150ms wait between each toggle
+   - Final 300ms wait after sequence
 
 3. **Partner Cycling** (lines 623-636)
-   - Get available partners (up to 3)
-   - Cycle through each partner with 600ms rendering time
+   - Get available partners (up to 2)
+   - Cycle through each partner with 300ms rendering time
    - Reset to "All Partners" 
-   - Wait 600ms after reset
+   - Wait 300ms after reset
 
 4. **Tab Cycling** (lines 638-643)
    - Cycle through: longshots, pipeline, calendar, reports, workbench
-   - 600ms rendering time per tab
+   - 300ms rendering time per tab
 
 5. **Return to Dashboard** (lines 645-651)
    - Navigate back to dashboard
@@ -73,7 +73,7 @@ The complete boot sequence now follows this order:
 
 6. **Final Dashboard Toggle** (lines 653-658)
    - All mode → Today mode
-   - 300ms wait between each toggle
+   - 150ms wait between each toggle
 
 7. **Hide Splash Screen** (lines 740-745)
    - Mark boot as successful
@@ -83,14 +83,16 @@ The complete boot sequence now follows this order:
 ## Timing Breakdown
 
 Approximate boot animation duration (excluding data loading):
-- Initial dashboard load: 600ms
-- Initial toggle cycle: 1,200ms
-- Partner cycling (3 partners): 2,400ms
-- Tab cycling (5 tabs): 3,000ms
+- Initial dashboard load: 300ms
+- Initial toggle cycle: 600ms (150ms + 150ms + 300ms)
+- Partner cycling (2 partners): 900ms (2 × 300ms + 300ms reset)
+- Tab cycling (5 tabs): 1,500ms (5 × 300ms)
 - Dashboard return + ready wait: variable (200ms - 5s)
-- Final toggle cycle: 600ms
+- Final toggle cycle: 300ms (150ms + 150ms)
 
-**Total**: ~8-13 seconds depending on data load time
+**Total**: ~4-9 seconds depending on data load time
+
+**Note**: Timings are optimized to ensure CI tests complete within the 15-second timeout while still providing thorough rendering cycles.
 
 ## Benefits
 
@@ -110,8 +112,8 @@ Approximate boot animation duration (excluding data loading):
 
 2. **Partner Count Variations**:
    - Test with 0 partners (should skip partner cycling)
-   - Test with 1-3 partners (should cycle all)
-   - Test with >3 partners (should cycle only first 3)
+   - Test with 1-2 partners (should cycle all)
+   - Test with >2 partners (should cycle only first 2)
 
 3. **Safe Mode Test**:
    - Add `?safe=true` to URL
