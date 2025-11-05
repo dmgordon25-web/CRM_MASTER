@@ -810,13 +810,10 @@ function syncActionBarVisibility(selCount, explicitEl) {
   const hasSelections = numeric > 0;
   const shouldBeVisible = hasSelections || idleVisible;
   
-  if (shouldBeVisible) {
+  if (hasSelections) {
+    // When we have selections, show the full action bar (not minimized)
     bar.setAttribute('data-visible', '1');
-    // Ensure data-idle-visible is set when selections are present so
-    // that late "ready" transitions or route toggles do not hide the bar.
-    if (hasSelections && bar.dataset) {
-      bar.dataset.idleVisible = '1';
-    }
+    bar.dataset.idleVisible = '1';
     // Ensure display is not none and visibility is proper
     if (bar.style) {
       if (bar.style.display === 'none') {
@@ -827,21 +824,18 @@ function syncActionBarVisibility(selCount, explicitEl) {
       bar.style.pointerEvents = 'auto';
     }
   } else {
-    if (typeof bar.removeAttribute === 'function') {
-      bar.removeAttribute('data-visible');
-      // Also remove idle-visible when no selections
-      if (numeric === 0) {
-        bar.removeAttribute('data-idle-visible');
+    // When count is 0, show the minimized pill (don't hide the bar completely)
+    bar.removeAttribute('data-visible');
+    bar.removeAttribute('data-idle-visible');
+    // CRITICAL: Do NOT set display: none - let the minimized state show the pill
+    // The CSS handles hiding the shell and showing the pill via data-minimized="1"
+    if (bar.style) {
+      if (bar.style.display === 'none') {
+        bar.style.display = '';  // Remove display:none to allow pill to show
       }
-    } else {
-      bar.setAttribute('data-visible', '0');
-    }
-    // Hide the bar when no selections
-    if (numeric === 0 && bar.style) {
-      bar.style.display = 'none';
-      bar.style.opacity = '0';
-      bar.style.visibility = 'hidden';
-      bar.style.pointerEvents = 'none';
+      bar.style.opacity = '1';  // Keep visible for pill
+      bar.style.visibility = 'visible';  // Keep visible for pill
+      bar.style.pointerEvents = 'auto';  // Keep interactive for pill
     }
   }
 }
