@@ -1663,8 +1663,6 @@ function runPatch(){
         if(!target.closest('table')) return;
         const id = resolveRowId(target);
         if(!id) return;
-        evt.stopPropagation();
-        evt.stopImmediatePropagation();
         const type = detectRowType(target);
         if(!ensureSelectionService()) return;
         if(target.checked) SelectionService.add(id, type);
