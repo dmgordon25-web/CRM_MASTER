@@ -1053,6 +1053,53 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   const SELECTION_SCOPES = ['contacts','partners','pipeline','notifications'];
 
+  function normalizeScopeKey(scope){
+    if(scope == null) return '';
+    const raw = String(scope).trim().toLowerCase();
+    if(!raw) return '';
+    if(raw === 'partner' || raw === 'partners' || raw === 'partner:list') return 'partners';
+    if(raw === 'contact' || raw === 'contacts' || raw === 'contact:list') return 'contacts';
+    if(raw.startsWith('pipeline')) return 'pipeline';
+    if(raw === 'notification' || raw === 'notifications') return 'notifications';
+    if(raw === 'selection') return 'selection';
+    return raw;
+  }
+
+  function mapScopeToSelectionType(scope){
+    const key = normalizeScopeKey(scope);
+    if(!key) return null;
+    if(key === 'partners') return 'partners';
+    if(key === 'contacts') return 'contacts';
+    if(key === 'pipeline' || key === 'notifications') return 'contacts';
+    return key === 'selection' ? null : key;
+  }
+
+  function extractScopesFromDetail(detail){
+    const scopes = new Set();
+    const push = (value) => {
+      const key = normalizeScopeKey(value);
+      if(key) scopes.add(key);
+    };
+    if(!detail || typeof detail !== 'object') return scopes;
+    push(detail.scope);
+    push(detail.selectionScope);
+    if(typeof detail.scopeKey === 'string') push(detail.scopeKey);
+    if(Array.isArray(detail.scopes)) detail.scopes.forEach(push);
+    if(Array.isArray(detail.affects)) detail.affects.forEach(push);
+    const partial = detail.partial;
+    if(typeof partial === 'string'){
+      push(partial);
+    }else if(Array.isArray(partial)){
+      partial.forEach(push);
+    }else if(partial && typeof partial === 'object'){
+      push(partial.scope);
+      if(typeof partial.lane === 'string') push(partial.lane);
+      if(Array.isArray(partial.lanes)) partial.lanes.forEach(push);
+      if(Array.isArray(partial.scopes)) partial.scopes.forEach(push);
+    }
+    return scopes;
+  }
+
   function getSelectionStore(){
     return window.SelectionStore || null;
   }
@@ -1604,11 +1651,16 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     syncSelectionScope(snapshot.scope, { ids, count: derivedCount });
   }
 
-  function clearAllSelectionScopes(){
+  function clearAllSelectionScopes(options){
     const store = getSelectionStore();
+    const scopedInput = options && Array.isArray(options.scopes) ? options.scopes : null;
+    const requested = scopedInput && scopedInput.length ? scopedInput : SELECTION_SCOPES;
+    const normalized = Array.from(new Set(requested.map(normalizeScopeKey))).filter(Boolean);
+    const targets = normalized.length ? normalized : SELECTION_SCOPES;
+    const effectiveTargets = targets.filter(scope => scope && scope !== 'selection');
     let storeCleared = false;
-    if(store){
-      SELECTION_SCOPES.forEach(scope => {
+    if(store && effectiveTargets.length){
+      effectiveTargets.forEach(scope => {
         if(store.count(scope)){
           store.clear(scope);
           storeCleared = true;
@@ -1620,19 +1672,68 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       if (typeof window !== 'undefined') {
         const selection = window.Selection;
         if (selection && typeof selection.count === 'function' && typeof selection.clear === 'function') {
-          if (selection.count() > 0) {
-            selection.clear('app:scopes-reset');
-            selectionCleared = true;
+          const currentCount = selection.count();
+          if (currentCount > 0) {
+            const currentType = (() => {
+              if (typeof selection.type === 'string' && selection.type.trim()) return selection.type.trim();
+              try {
+                if (typeof selection.get === 'function') {
+                  const snapshot = selection.get();
+                  if (snapshot && typeof snapshot.type === 'string') return snapshot.type.trim();
+                }
+              } catch (_err) {}
+              return '';
+            })();
+            const typeTargets = effectiveTargets.length
+              ? Array.from(new Set(effectiveTargets.map(mapScopeToSelectionType).filter(Boolean)))
+              : ['contacts','partners'];
+            if (!typeTargets.length || typeTargets.includes(currentType || 'contacts')) {
+              selection.clear('app:scopes-reset');
+              selectionCleared = true;
+            }
           }
-        } else if (selection && typeof selection.clear === 'function') {
+        } else if (selection && typeof selection.clear === 'function' && effectiveTargets.length) {
           selection.clear('app:scopes-reset');
           selectionCleared = true;
+        }
+      }
+    } catch (_) {}
+    try {
+      if (typeof window !== 'undefined') {
+        const selectionService = window.SelectionService;
+        if (selectionService && typeof selectionService.clear === 'function') {
+          const typeTargets = effectiveTargets.length
+            ? Array.from(new Set(effectiveTargets.map(mapScopeToSelectionType).filter(Boolean)))
+            : ['contacts','partners'];
+          const currentType = typeof selectionService.type === 'string' && selectionService.type.trim()
+            ? selectionService.type.trim()
+            : '';
+          if (!typeTargets.length || typeTargets.includes(currentType || 'contacts')) {
+            selectionService.clear('app:scopes-reset');
+            selectionCleared = true;
+          }
         }
       }
     } catch (_) {}
     if (storeCleared || selectionCleared) {
       try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
       catch (_) {}
+    }
+    if(!store && effectiveTargets.length){
+      effectiveTargets.forEach(scope => {
+        const tableList = document.querySelectorAll(`[data-selection-scope="${scope}"]`);
+        if(!tableList || !tableList.length) return;
+        tableList.forEach(table => {
+          table.querySelectorAll('[data-ui="row-check"]').forEach(input => {
+            try { input.checked = false; }
+            catch (_err){}
+          });
+          table.querySelectorAll('[data-selected]').forEach(row => {
+            try { row.removeAttribute('data-selected'); }
+            catch (_err){}
+          });
+        });
+      });
     }
   }
 
@@ -2858,11 +2959,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         }
       }
       if(isDebug) sampleMemoryTrend();
+      const scopeSet = extractScopesFromDetail(detail);
       const partial = detail ? detail.partial : null;
       const detailScope = typeof detail.scope === 'string' ? detail.scope : null;
       const partialScope = partial && typeof partial === 'object' && typeof partial.scope === 'string' ? partial.scope : null;
-      if(detailScope !== 'selection' && partialScope !== 'selection'){
-        clearAllSelectionScopes();
+      if(!scopeSet.has('selection')){
+        const scopesToClear = Array.from(scopeSet).filter(scope => scope && scope !== 'selection');
+        if(scopesToClear.length){
+          clearAllSelectionScopes({ scopes: scopesToClear });
+        }else{
+          clearAllSelectionScopes();
+        }
       }
       if(partial){
         const lanes = [];
