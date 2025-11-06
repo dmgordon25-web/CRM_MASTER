@@ -120,6 +120,7 @@ export const PATCHES = [
   './core/capabilities_probe.js',
   './patches/patch_2025-10-23_unify_quick_create.js',
   './patches/patch_2025-10-23_actionbar_drag.js',
+  './patches/patch_2025-11-06_smoke_action_noop.js',
 
 ];
 
