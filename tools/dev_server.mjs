@@ -662,7 +662,7 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store, must-revalidate',
   'Pragma': 'no-cache',
   'Expires': '0',
-  'Content-Security-Policy': "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; object-src 'none'"
+  'Content-Security-Policy': "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'"
 };
 
 const SECURITY_HEADERS_NO_CSP = {
