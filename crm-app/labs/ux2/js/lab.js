@@ -3,12 +3,22 @@
    Main JavaScript Module
    =================================== */
 
+console.log('🧪 [MODULE] lab.js loading...');
+
 // Import widget configurations
 import { WIDGET_CONFIGS, createWidgetElement } from './widgets.js';
 
-// Initialize dayjs plugins
-dayjs.extend(window.dayjs_plugin_relativeTime);
-dayjs.extend(window.dayjs_plugin_calendar);
+console.log('🧪 [MODULE] Widgets imported:', Object.keys(WIDGET_CONFIGS).length, 'widgets');
+
+// Initialize dayjs plugins if available
+if (typeof dayjs !== 'undefined') {
+  if (window.dayjs_plugin_relativeTime) {
+    dayjs.extend(window.dayjs_plugin_relativeTime);
+  }
+  if (window.dayjs_plugin_calendar) {
+    dayjs.extend(window.dayjs_plugin_calendar);
+  }
+}
 
 // Lab State
 const LabState = {
@@ -28,36 +38,57 @@ const STORAGE_KEYS = {
 
 // Initialize the Lab
 async function init() {
-  console.log('🧪 Initializing Lab Environment...');
+  console.log('🧪 [1/6] Initializing Lab Environment...');
+  console.log('🧪 [DEBUG] Document ready state:', document.readyState);
+  console.log('🧪 [DEBUG] GridStack available:', typeof GridStack !== 'undefined');
 
   try {
     // Load saved theme
+    console.log('🧪 [2/6] Loading theme...');
     loadTheme();
+    console.log('✅ Theme loaded');
 
     // Initialize GridStack
+    console.log('🧪 [3/6] Initializing GridStack...');
     initializeGrid();
+    console.log('✅ GridStack initialized');
 
     // Load widgets
+    console.log('🧪 [4/6] Loading widgets...');
     await loadWidgets();
+    console.log('✅ Widgets loaded');
 
     // Setup event listeners
+    console.log('🧪 [5/6] Setting up event listeners...');
     setupEventListeners();
+    console.log('✅ Event listeners attached');
 
     // Hide loading, show shell
-    document.getElementById('lab-loading').style.display = 'none';
-    document.getElementById('lab-shell').style.display = 'flex';
+    console.log('🧪 [6/6] Showing Lab shell...');
+    const loadingEl = document.getElementById('lab-loading');
+    const shellEl = document.getElementById('lab-shell');
+    console.log('🧪 [DEBUG] Loading element:', loadingEl ? 'found' : 'NOT FOUND');
+    console.log('🧪 [DEBUG] Shell element:', shellEl ? 'found' : 'NOT FOUND');
+
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (shellEl) shellEl.style.display = 'flex';
 
     LabState.initialized = true;
-    console.log('✅ Lab Environment Ready');
+    console.log('✅ Lab Environment Ready - All systems go!');
   } catch (error) {
     console.error('❌ Lab initialization failed:', error);
-    showError('Failed to initialize Lab environment. Please check the console for details.');
+    console.error('❌ Error stack:', error.stack);
+    showError(`Failed to initialize Lab: ${error.message}`);
   }
 }
 
 // Initialize GridStack
 function initializeGrid() {
   const gridElement = document.getElementById('lab-grid');
+
+  if (typeof GridStack === 'undefined') {
+    throw new Error('GridStack library not loaded. Please check your internet connection.');
+  }
 
   LabState.grid = GridStack.init({
     column: 12,
@@ -344,24 +375,38 @@ function removeWidget(widgetId) {
 
 // Error Display
 function showError(message) {
+  console.error('Lab Error:', message);
   const loadingElement = document.getElementById('lab-loading');
-  loadingElement.innerHTML = `
-    <div style="text-align: center; padding: 24px;">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--lab-danger); margin-bottom: 16px;">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="15" y1="9" x2="9" y2="15"></line>
-        <line x1="9" y1="9" x2="15" y2="15"></line>
-      </svg>
-      <h3 style="margin: 0 0 8px 0; color: var(--lab-danger);">Error</h3>
-      <p style="margin: 0; color: var(--lab-text-muted);">${message}</p>
-    </div>
-  `;
+  if (loadingElement) {
+    loadingElement.innerHTML = `
+      <div style="text-align: center; padding: 24px; max-width: 600px; margin: 0 auto;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ef4444; margin-bottom: 16px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+        <h3 style="margin: 0 0 8px 0; color: #ef4444;">Lab Initialization Error</h3>
+        <p style="margin: 0 0 16px 0; color: #64748b;">${message}</p>
+        <a href="../../index.html" style="display: inline-block; padding: 8px 16px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px;">
+          Return to Dashboard
+        </a>
+      </div>
+    `;
+  }
 }
 
 // Initialize when DOM is ready
+console.log('🧪 [MODULE] Setting up initialization...');
+console.log('🧪 [MODULE] Document ready state:', document.readyState);
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  console.log('🧪 [MODULE] DOM still loading, will wait for DOMContentLoaded...');
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('🧪 [EVENT] DOMContentLoaded fired, calling init()...');
+    init();
+  });
 } else {
+  console.log('🧪 [MODULE] DOM already ready, calling init() immediately...');
   init();
 }
 

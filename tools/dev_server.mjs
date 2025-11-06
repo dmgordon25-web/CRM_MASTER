@@ -662,8 +662,23 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store, must-revalidate',
   'Pragma': 'no-cache',
   'Expires': '0',
-  'Content-Security-Policy': "script-src 'self' 'unsafe-inline'; object-src 'none'"
+  'Content-Security-Policy': "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; object-src 'none'"
 };
+
+const SECURITY_HEADERS_NO_CSP = {
+  'Cache-Control': 'no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0'
+};
+
+// Helper to get appropriate security headers based on path
+function getSecurityHeaders(filePath) {
+  // Skip CSP for Lab files - they have their own CSP meta tag
+  if (filePath && filePath.includes('/labs/')) {
+    return SECURITY_HEADERS_NO_CSP;
+  }
+  return SECURITY_HEADERS;
+}
 
 function send(res, statusCode, body, extraHeaders = {}) {
   const headers = {
@@ -737,7 +752,7 @@ function handleLogPost(req, res) {
 function serveStream(req, res, filePath, stats) {
   const ext = path.extname(filePath).toLowerCase();
   const headers = {
-    ...SECURITY_HEADERS,
+    ...getSecurityHeaders(filePath),
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
     [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
   };

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CRM Lab - Experimental Dashboard</title>
 
-  <!-- Lab-specific CDN imports -->
-  <link href="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack-extra.min.css" rel="stylesheet" />
+  <!-- Lab-specific GridStack (local, no CDN) -->
+  <link href="./vendor/gridstack.min.css" rel="stylesheet" />
+  <link href="./vendor/gridstack-extra.min.css" rel="stylesheet" />
 
   <!-- Lab CSS -->
   <link rel="stylesheet" href="./css/lab.css">
@@ -135,13 +135,8 @@
     </main>
   </div>
 
-  <!-- GridStack from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack-all.js"></script>
-
-  <!-- Day.js for date handling -->
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/calendar.js"></script>
+  <!-- GridStack (local bundle) -->
+  <script src="./vendor/gridstack-all.js"></script>
 
   <!-- Lab Main JS -->
   <script type="module" src="./js/lab.js"></script>
