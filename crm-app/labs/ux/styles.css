@@ -60,6 +60,103 @@ body.labs-mode [data-labs-shell] {
   color: #f8fafc;
   padding: 10px 16px;
   border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.lab-tab.is-active {
+  background: color-mix(in srgb, var(--lab-accent-soft) 70%, transparent);
+  color: var(--lab-accent-ink);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -20px rgba(15, 23, 42, 0.7);
+}
+
+.lab-panel {
+  margin-top: var(--lab-spacing-xl);
+  display: none;
+  flex-direction: column;
+  gap: var(--lab-spacing-lg);
+}
+
+.lab-panel.is-active {
+  display: flex;
+}
+
+.lab-panel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--lab-spacing-lg);
+  padding: var(--lab-spacing-lg);
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--lab-outline) 70%, transparent);
+  background: color-mix(in srgb, var(--lab-surface) 90%, white 10%);
+  box-shadow: 0 16px 45px -40px rgba(15, 23, 42, 0.45);
+}
+
+.lab-panel__actions {
+  display: flex;
+  gap: var(--lab-spacing-md);
+}
+
+.lab-panel__scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lab-spacing-sm);
+  padding: 0 var(--lab-spacing-lg);
+}
+
+.lab-scope-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--lab-outline) 65%, transparent);
+  background: color-mix(in srgb, var(--lab-surface) 86%, white 14%);
+  color: var(--lab-ink);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.lab-scope-btn:hover,
+.lab-scope-btn:focus-visible {
+  background: color-mix(in srgb, var(--lab-accent-soft) 60%, white 40%);
+  box-shadow: 0 12px 24px -18px rgba(15, 23, 42, 0.45);
+}
+
+.lab-scope-btn.is-active {
+  background: color-mix(in srgb, var(--lab-accent-soft) 70%, transparent);
+  border-color: color-mix(in srgb, var(--lab-accent-soft) 65%, transparent);
+  color: var(--lab-accent-ink);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.55);
+  transform: translateY(-1px);
+}
+
+.lab-scope-btn--exit {
+  background: var(--lab-accent-strong);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 16px 32px -20px rgba(76, 29, 149, 0.45);
+}
+
+.lab-scope-btn--exit:hover,
+.lab-scope-btn--exit:focus-visible {
+  background: color-mix(in srgb, var(--lab-accent-strong) 90%, white 10%);
+  color: #fff;
+}
+
+.lab-button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--lab-accent-strong);
+  color: white;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms ease, transform 120ms ease;
