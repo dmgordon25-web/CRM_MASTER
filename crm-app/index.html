@@ -2211,13 +2211,34 @@
         window.__CRM_BOOT_BASE__ = hint;
       }
     } catch (_) {}
+    try {
+      if (!Array.isArray(window.__CRM_POST_FIRST_PAINT_MODULES__)) {
+        const modules = [
+          './js/ui/debug_overlay.js',
+          './js/ui/universal_search.js',
+          './js/table/table_export.js',
+          './js/ui/help_hints.js',
+          './js/ui/advanced_mode.js'
+        ];
+        window.__CRM_POST_FIRST_PAINT_MODULES__ = modules.map((spec) => {
+          try {
+            return new URL(spec, document.baseURI).href;
+          } catch (_) {
+            return spec;
+          }
+        });
+      }
+    } catch (_) {
+      window.__CRM_POST_FIRST_PAINT_MODULES__ = [
+        './js/ui/debug_overlay.js',
+        './js/ui/universal_search.js',
+        './js/table/table_export.js',
+        './js/ui/help_hints.js',
+        './js/ui/advanced_mode.js'
+      ];
+    }
   </script>
   <script type="module" src="./js/router/init.js"></script>
-  <script type="module" src="./js/ui/debug_overlay.js"></script>
-  <script type="module" src="./js/ui/universal_search.js"></script>
-  <script type="module" src="./js/table/table_export.js"></script>
-  <script type="module" src="./js/ui/help_hints.js"></script>
-  <script type="module" src="./js/ui/advanced_mode.js"></script>
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';

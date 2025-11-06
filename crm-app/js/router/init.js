@@ -1,5 +1,87 @@
 import { mergeMatchers, normalizeBasePath, normalizePathname, resolveRoute } from './patterns.js';
 
+const globalScope = typeof window !== 'undefined' ? window : null;
+const markPerf = (name) => {
+  if (typeof performance !== 'undefined' && performance && typeof performance.mark === 'function') {
+    try {
+      performance.mark(name);
+    } catch (_) {}
+  }
+  try {
+    if (globalScope?.console?.info) {
+      globalScope.console.info(`[perf] ${name}`);
+    }
+  } catch (_) {}
+};
+
+const POST_PAINT_SOURCES = (() => {
+  if (!globalScope) return [];
+  const seen = new Set();
+  const rawList = Array.isArray(globalScope.__CRM_POST_FIRST_PAINT_MODULES__)
+    ? globalScope.__CRM_POST_FIRST_PAINT_MODULES__
+    : [];
+  return rawList
+    .map((entry) => {
+      if (typeof entry !== 'string') return null;
+      const trimmed = entry.trim();
+      if (!trimmed) return null;
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+        return trimmed;
+      }
+      try {
+        const base = globalScope.__CRM_BOOT_BASE__
+          ? new URL(globalScope.__CRM_BOOT_BASE__, globalScope.location?.href)
+          : new URL('../', import.meta.url);
+        return new URL(trimmed, base).href;
+      } catch (_) {
+        return trimmed;
+      }
+    })
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) return false;
+      seen.add(entry);
+      return true;
+    });
+})();
+
+let postPaintScheduled = false;
+
+function schedulePostFirstPaintModules(){
+  if (postPaintScheduled || !globalScope) return;
+  postPaintScheduled = true;
+  markPerf('crm:first-route-ready');
+
+  const beginPostPaint = () => {
+    markPerf('crm:post-first-paint-start');
+
+    if (POST_PAINT_SOURCES.length === 0) return;
+
+    const loadDeferred = () => {
+      POST_PAINT_SOURCES.forEach((spec) => {
+        import(/* @vite-ignore */ spec).catch((error) => {
+          try {
+            console.error('[router] deferred module failed to load', spec, error);
+          } catch (_) {}
+        });
+      });
+    };
+
+    if (typeof globalScope.requestIdleCallback === 'function') {
+      globalScope.requestIdleCallback(loadDeferred);
+      return;
+    }
+    globalScope.setTimeout(loadDeferred, 0);
+  };
+
+  if (typeof globalScope.requestAnimationFrame === 'function') {
+    globalScope.requestAnimationFrame(() => {
+      globalScope.requestAnimationFrame(beginPostPaint);
+    });
+    return;
+  }
+  beginPostPaint();
+}
+
 function ensureDefaultHash(){
   if(typeof window === 'undefined' || !window?.location) return;
   const hash = typeof window.location.hash === 'string' ? window.location.hash.trim() : '';
@@ -96,5 +178,6 @@ function applyRouteFromPath(){
 }
 
 applyRouteFromPath();
+schedulePostFirstPaintModules();
 
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };
