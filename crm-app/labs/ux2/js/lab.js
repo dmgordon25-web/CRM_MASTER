@@ -179,16 +179,31 @@ async function loadWidgetContent() {
   iframe.style.cssText = 'position:absolute;width:0;height:0;border:none;visibility:hidden;';
   document.body.appendChild(iframe);
 
-  // Wait for baseline to load
+  // Wait for baseline to load and initialize
   await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Baseline load timeout')), 10000);
+    const timeout = setTimeout(() => reject(new Error('Baseline load timeout')), 15000);
 
     iframe.onload = () => {
       clearTimeout(timeout);
       console.log('✅ Baseline dashboard loaded');
 
-      // Wait a bit for baseline to initialize its widgets
-      setTimeout(resolve, 2000);
+      // Wait longer for baseline to fully initialize all widgets
+      // Check periodically if widgets are rendered
+      let attempts = 0;
+      const maxAttempts = 20; // 10 seconds total
+      const checkInterval = setInterval(() => {
+        attempts++;
+        const baselineDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const widgetCount = baselineDoc.querySelectorAll('.card[id], [data-widget-id]').length;
+
+        console.log(`🔍 Checking baseline widgets... Found: ${widgetCount} (attempt ${attempts}/${maxAttempts})`);
+
+        if (widgetCount >= 10 || attempts >= maxAttempts) {
+          clearInterval(checkInterval);
+          console.log(`✅ Baseline ready with ${widgetCount} widgets`);
+          resolve();
+        }
+      }, 500);
     };
 
     iframe.onerror = () => {
@@ -200,39 +215,71 @@ async function loadWidgetContent() {
   // Clone widgets from baseline
   try {
     const baselineDoc = iframe.contentDocument || iframe.contentWindow.document;
+    console.log('📋 Starting widget clone process...');
+
+    let successCount = 0;
+    let failCount = 0;
 
     for (const [widgetId, widgetData] of LabState.widgets) {
       const config = widgetData.config;
       const labWidgetBody = widgetData.element.querySelector('.lab-widget-body');
 
-      if (!labWidgetBody) continue;
+      if (!labWidgetBody) {
+        console.warn(`⚠️ No widget body found for ${widgetId}`);
+        continue;
+      }
 
-      // Find corresponding widget in baseline
-      const baselineWidget = baselineDoc.querySelector(`#${widgetId}, [data-widget-id="${widgetId}"]`);
+      // Try multiple selectors to find the widget
+      const selectors = [
+        `#${widgetId}`,
+        `[data-widget-id="${widgetId}"]`,
+        `[data-widget-id="${widgetId.replace('dashboard-', '')}"]`,
+        `.card[id="${widgetId}"]`
+      ];
+
+      let baselineWidget = null;
+      let usedSelector = null;
+
+      for (const selector of selectors) {
+        baselineWidget = baselineDoc.querySelector(selector);
+        if (baselineWidget) {
+          usedSelector = selector;
+          break;
+        }
+      }
 
       if (baselineWidget) {
-        // Clone the widget content
+        // Clone the widget content deeply
         const clonedContent = baselineWidget.cloneNode(true);
+
+        // Preserve all styling but override layout
         clonedContent.style.width = '100%';
-        clonedContent.style.height = '100%';
+        clonedContent.style.height = 'auto';
+        clonedContent.style.minHeight = '100%';
         clonedContent.style.border = 'none';
         clonedContent.style.boxShadow = 'none';
         clonedContent.style.margin = '0';
+        clonedContent.style.background = 'transparent';
 
         // Clear loading placeholder
         labWidgetBody.innerHTML = '';
         labWidgetBody.appendChild(clonedContent);
 
-        console.log(`✅ Loaded widget: ${widgetId}`);
+        successCount++;
+        console.log(`✅ Cloned widget: ${widgetId} (using ${usedSelector})`);
+        console.log(`   Content length: ${clonedContent.innerHTML.length} chars`);
       } else {
+        failCount++;
         console.warn(`⚠️ Widget not found in baseline: ${widgetId}`);
+        console.warn(`   Tried selectors:`, selectors);
         showWidgetPlaceholder(widgetId, config);
       }
     }
 
-    console.log('✅ All widgets loaded from baseline');
+    console.log(`✅ Widget cloning complete: ${successCount} success, ${failCount} failed`);
   } catch (error) {
     console.error('❌ Error loading widgets from baseline:', error);
+    console.error('Error stack:', error.stack);
 
     // Fall back to placeholders
     for (const [widgetId, widgetData] of LabState.widgets) {
