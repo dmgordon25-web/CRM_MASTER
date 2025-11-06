@@ -55,6 +55,16 @@ function debugLog(message, meta) {
   } catch (_) {}
 }
 
+function updateSelectionMetric(count) {
+  const win = safeWindow();
+  if (!win) return;
+  const numeric = Number(count);
+  const value = Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+  try {
+    win.__SEL_COUNT__ = value;
+  } catch (_) {}
+}
+
 function syncSelectionApis(ids, scope, source) {
   const list = normalizeIds(ids);
   const win = safeWindow();
@@ -213,10 +223,15 @@ export function set(ids, options = {}) {
     : 'selection:set';
   const list = syncSelectionApis(ids, scope, source);
   setStoreIds(list, scope);
+  const resolvedCountRaw = typeof options.count === 'number' && Number.isFinite(options.count)
+    ? options.count
+    : list.length;
+  const resolvedCount = Math.max(0, Math.floor(resolvedCountRaw));
+  updateSelectionMetric(resolvedCount);
   const payload = {
     type: toSelectionType(scope),
     ids: list,
-    count: typeof options.count === 'number' ? options.count : list.length,
+    count: resolvedCount,
     source,
     scope,
   };
@@ -247,6 +262,7 @@ export function clear(options = {}) {
     : 'selection:clear';
   syncSelectionApis([], scope, source);
   clearStore(scope);
+  updateSelectionMetric(0);
   emitSelectionChanged({ type: toSelectionType(scope), ids: [], count: 0, source, scope });
   return [];
 }
