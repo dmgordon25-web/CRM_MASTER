@@ -62,6 +62,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     catch (_) {}
     try { bar.removeAttribute('data-idle-visible'); }
     catch (_) {}
+    try { bar.setAttribute('data-minimized', '1'); }
+    catch (_) {}
+    try { bar.setAttribute('aria-expanded', 'false'); }
+    catch (_) {}
     if(typeof window !== 'undefined' && typeof window.updateActionBarMinimizedState === 'function'){
       try { window.updateActionBarMinimizedState(0); }
       catch (_) {}
@@ -1133,15 +1137,21 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function selectionIdFor(node){
     if(!node) return null;
     if(typeof node.getAttribute === 'function'){
-      const direct = node.getAttribute('data-id');
-      if(direct) return String(direct);
+      const attrs = ['data-id','data-partner-id','data-contact-id','data-row-id'];
+      for(const name of attrs){
+        const direct = node.getAttribute(name);
+        if(direct) return String(direct);
+      }
     }
     const row = typeof node.closest === 'function'
-      ? node.closest('[data-selection-row][data-id], tr[data-id]')
+      ? node.closest('[data-selection-row][data-id], [data-selection-row][data-partner-id], [data-selection-row][data-contact-id], tr[data-id], tr[data-partner-id], tr[data-contact-id]')
       : null;
     if(row && typeof row.getAttribute === 'function'){
-      const viaRow = row.getAttribute('data-id');
-      if(viaRow) return String(viaRow);
+      const attrs = ['data-id','data-partner-id','data-contact-id','data-row-id'];
+      for(const name of attrs){
+        const viaRow = row.getAttribute(name);
+        if(viaRow) return String(viaRow);
+      }
     }
     return null;
   }
@@ -1236,36 +1246,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       applySelectAllToStore(header);
     };
 
-    const handleRowChange = (event) => {
-      if(cleaned) return;
-      if(!table.isConnected){
-        cleanup();
-        return;
-      }
-      const input = event.target;
-      if(!(input instanceof HTMLInputElement)) return;
-      if(input.getAttribute('data-ui') !== 'row-check') return;
-      if(input.getAttribute('data-role') !== 'select') return;
-      const id = selectionIdFor(input);
-      if(!id) return;
-      const next = new Set(getCanonicalSelection({ scope }));
-      if(input.checked){
-        next.add(id);
-      }else{
-        next.delete(id);
-      }
-      setCanonicalSelection(Array.from(next), {
-        scope,
-        source: input.checked ? `${scope}:row-check:on` : `${scope}:row-check:off`,
-      });
-    };
-
     const cleanup = () => {
       if(cleaned) return;
       cleaned = true;
       try { header.removeEventListener('change', handleChange); }
-      catch (_err){}
-      try { table.removeEventListener('change', handleRowChange, true); }
       catch (_err){}
       if(unsubscribe){
         try { unsubscribe(); }
@@ -1290,10 +1274,6 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
     try {
       header.addEventListener('change', handleChange);
-    }catch (_err){}
-
-    try {
-      table.addEventListener('change', handleRowChange, true);
     }catch (_err){}
 
     if(typeof MutationObserver === 'function'){
@@ -1627,23 +1607,32 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
     if(total > 0){
       bar.classList.add('has-selection');
-    }else{
-      bar.classList.remove('has-selection');
-    }
-    if(bar.dataset){
-      bar.dataset.count = String(total);
-      if(total > 0){
+      try { bar.setAttribute('data-visible', '1'); }
+      catch (_) {}
+      try { bar.setAttribute('aria-expanded', 'true'); }
+      catch (_) {}
+      try { bar.removeAttribute('data-minimized'); }
+      catch (_) {}
+      if(bar.dataset){
+        bar.dataset.count = String(total);
         bar.dataset.idleVisible = '1';
       }
-    }
-    if(total > 0){
-      bar.setAttribute('data-visible', '1');
       if(bar.style && bar.style.display === 'none'){
         bar.style.display = '';
       }
     }else{
-      bar.removeAttribute('data-visible');
-      bar.removeAttribute('data-idle-visible');
+      bar.classList.remove('has-selection');
+      try { bar.removeAttribute('data-visible'); }
+      catch (_) {}
+      try { bar.removeAttribute('data-idle-visible'); }
+      catch (_) {}
+      try { bar.setAttribute('data-minimized', '1'); }
+      catch (_) {}
+      try { bar.setAttribute('aria-expanded', 'false'); }
+      catch (_) {}
+      if(bar.dataset){
+        bar.dataset.count = '0';
+      }
     }
     if(typeof window !== 'undefined' && typeof window.updateActionBarMinimizedState === 'function'){
       try { window.updateActionBarMinimizedState(total); }
@@ -1657,6 +1646,34 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         catch (_) {}
       });
     }
+  }
+
+  const ROW_CHECK_EVENT_OPTS = { capture: true };
+  function handleGlobalRowChange(event){
+    const input = event && event.target;
+    if(!(input instanceof HTMLInputElement)) return;
+    if(input.getAttribute('data-ui') !== 'row-check') return;
+    if(input.getAttribute('data-role') !== 'select') return;
+    const scope = selectionScopeFor(input);
+    const id = selectionIdFor(input);
+    if(!id) return;
+    const current = new Set(getCanonicalSelection({ scope }));
+    if(input.checked){
+      current.add(id);
+    }else{
+      current.delete(id);
+    }
+    const sourceBase = `${scope}:row-check:${input.checked ? 'on' : 'off'}`;
+    setCanonicalSelection(Array.from(current), { scope, source: sourceBase });
+  }
+
+  function ensureGlobalRowListener(){
+    if(typeof document === 'undefined') return;
+    if(ensureGlobalRowListener.__wired) return;
+    try {
+      document.addEventListener('change', handleGlobalRowChange, ROW_CHECK_EVENT_OPTS);
+      ensureGlobalRowListener.__wired = true;
+    } catch (_) {}
   }
 
   function handleSelectionSnapshot(snapshot){
@@ -1762,6 +1779,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     initSelectionBindings.__wired = true;
     store.subscribe(handleSelectionSnapshot);
     updateActionBarGuards(0, null);
+    ensureGlobalRowListener();
     try {
       document.querySelectorAll('table[data-selection-scope]').forEach((table) => {
         wireSelectAllForTable(table);
