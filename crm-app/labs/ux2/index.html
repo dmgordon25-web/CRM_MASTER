@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; img-src 'self' data: https:; connect-src 'self'; object-src 'none';">
   <title>CRM Lab - Experimental Dashboard</title>
 
-  <!-- Lab-specific CDN imports -->
-  <link href="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack-extra.min.css" rel="stylesheet" />
+  <!-- Lab-specific GridStack (local, no CDN) -->
+  <link href="./vendor/gridstack.min.css" rel="stylesheet" />
+  <link href="./vendor/gridstack-extra.min.css" rel="stylesheet" />
 
   <!-- Lab CSS -->
   <link rel="stylesheet" href="./css/lab.css">
@@ -136,11 +135,8 @@
     </main>
   </div>
 
-  <!-- GridStack from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack-all.js"></script>
-
-  <!-- Day.js for date handling (optional, not currently used) -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script> -->
+  <!-- GridStack (local bundle) -->
+  <script src="./vendor/gridstack-all.js"></script>
 
   <!-- Lab Main JS -->
   <script type="module" src="./js/lab.js"></script>
