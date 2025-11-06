@@ -53,6 +53,11 @@
               <button type="button" class="lab-button" data-action="save-layout">Save snapshot</button>
             </div>
           </div>
+          <div class="lab-panel__scope" role="group" aria-label="Dashboard scope">
+            <button type="button" class="lab-scope-btn is-active" data-lab-scope="today">Today</button>
+            <button type="button" class="lab-scope-btn" data-lab-scope="all">All</button>
+            <a class="lab-scope-btn lab-scope-btn--exit" data-lab-exit href="./" title="Return to the standard CRM dashboard">Back to CRM</a>
+          </div>
           <div id="lab-grid" class="grid-stack lab-grid" aria-live="polite"></div>
         </section>
         <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" class="lab-panel">

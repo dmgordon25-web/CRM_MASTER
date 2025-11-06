@@ -15,6 +15,7 @@ const tabs = Array.from(document.querySelectorAll('.lab-tab'));
 const panels = Array.from(document.querySelectorAll('.lab-panel'));
 const resetButton = document.querySelector('[data-action="reset-layout"]');
 const saveButton = document.querySelector('[data-action="save-layout"]');
+const scopeButtons = Array.from(document.querySelectorAll('[data-lab-scope]'));
 
 const THEMES = {
   ocean: { label: 'Ocean Breeze', spacing: 12 },
@@ -215,6 +216,8 @@ const defaultWidgetLayout = [
   },
 ];
 
+const LAB_SCOPE_TODAY_WIDGETS = new Set(['focus', 'pipeline', 'leaderboard', 'kpis', 'timeline', 'filters']);
+
 const state = {
   theme: 'ocean',
   density: 'normal',
@@ -223,6 +226,7 @@ const state = {
   cellHeight: 96,
   autoStack: true,
   activeTab: 'dashboard',
+  scopeMode: 'today',
   widgets: new Map(defaultWidgetLayout.map((w) => [w.id, { ...w, active: w.defaultActive !== false }])),
 };
 
@@ -274,10 +278,21 @@ function renderWidgetCard(widget) {
   return item;
 }
 
+function shouldDisplayWidget(widget) {
+  if (!widget || widget.active !== true) {
+    return false;
+  }
+  const mode = state.scopeMode === 'all' ? 'all' : 'today';
+  if (mode === 'today') {
+    return LAB_SCOPE_TODAY_WIDGETS.has(widget.id);
+  }
+  return true;
+}
+
 function syncWidgetsWithGrid() {
   if (!gridInstance) return;
 
-  const activeWidgets = Array.from(state.widgets.values()).filter((widget) => widget.active);
+  const activeWidgets = Array.from(state.widgets.values()).filter((widget) => shouldDisplayWidget(widget));
   const existingItems = new Map();
   gridElement.querySelectorAll('.grid-stack-item.lab-card').forEach((el) => {
     existingItems.set(el.dataset.widgetId, el);
@@ -291,10 +306,36 @@ function syncWidgetsWithGrid() {
     hookCardEvents(card, widget.id);
   });
 
+  let removedAny = false;
   existingItems.forEach((element, widgetId) => {
-    if (state.widgets.get(widgetId)?.active) return;
+    if (shouldDisplayWidget(state.widgets.get(widgetId))) return;
     gridInstance.removeWidget(element);
+    removedAny = true;
   });
+
+  if (removedAny && typeof gridInstance.compact === 'function') {
+    gridInstance.compact();
+  }
+}
+
+function refreshScopeButtons() {
+  const mode = state.scopeMode === 'all' ? 'all' : 'today';
+  scopeButtons.forEach((button) => {
+    const buttonMode = button.dataset.labScope === 'all' ? 'all' : 'today';
+    const isActive = buttonMode === mode;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function applyScope(mode) {
+  const normalized = mode === 'all' ? 'all' : 'today';
+  if (state.scopeMode !== normalized) {
+    state.scopeMode = normalized;
+  }
+  refreshScopeButtons();
+  syncWidgetsWithGrid();
+  updateSpotlight();
 }
 
 function hookCardEvents(card, widgetId) {
@@ -453,9 +494,14 @@ function wireEvents() {
     const widgetId = input.dataset.widgetToggle;
     const widget = state.widgets.get(widgetId);
     if (!widget) return;
-    state.widgets.set(widgetId, { ...widget, active: input.checked });
+    const updatedWidget = { ...widget, active: input.checked };
+    state.widgets.set(widgetId, updatedWidget);
     syncWidgetsWithGrid();
-    updateSpotlight(widgetId);
+    if (shouldDisplayWidget(updatedWidget)) {
+      updateSpotlight(widgetId);
+    } else {
+      updateSpotlight();
+    }
   });
 
   resetButton.addEventListener('click', () => {
@@ -464,6 +510,12 @@ function wireEvents() {
 
   saveButton.addEventListener('click', () => {
     captureSnapshot();
+  });
+
+  scopeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      applyScope(button.dataset.labScope);
+    });
   });
 
   tabs.forEach((tab) => {
@@ -485,8 +537,7 @@ function wireEvents() {
 function hydrate() {
   initGrid();
   buildToggleList();
-  syncWidgetsWithGrid();
-  updateSpotlight();
+  applyScope(state.scopeMode);
   applyTheme(state.theme);
   applyDensity(state.density);
   applyChrome(state.chrome);
