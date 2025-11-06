@@ -79,29 +79,54 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(!bar) return;
     const normalized = typeof route === 'string' ? route.trim().toLowerCase() : '';
     const shouldShow = ACTION_BAR_VISIBLE_ROUTES.has(normalized);
-    if(shouldShow){
-      if(bar.dataset){
-        bar.dataset.idleVisible = '1';
-        if(!bar.dataset.count) bar.dataset.count = '0';
+    const wiringState = typeof window !== 'undefined' && window.__ACTION_BAR_WIRING__
+      ? window.__ACTION_BAR_WIRING__
+      : null;
+    const wiringCountRaw = wiringState && Number.isFinite(Number(wiringState.selectedCount))
+      ? Number(wiringState.selectedCount)
+      : 0;
+    let canonicalCount = 0;
+    try {
+      const scopeIds = getCanonicalSelection({ scope: normalized });
+      if(Array.isArray(scopeIds)){
+        canonicalCount = scopeIds.length;
       }
-      try { bar.removeAttribute('data-visible'); }
-      catch (_) {}
-      if(typeof window !== 'undefined' && typeof window.updateActionBarMinimizedState === 'function'){
-        try { window.updateActionBarMinimizedState(Number(bar.dataset?.count || 0)); }
-        catch (_) {}
+    }catch (_err){}
+    const datasetCountRaw = Number(bar.dataset?.count || 0);
+    const datasetCount = Number.isFinite(datasetCountRaw) ? datasetCountRaw : 0;
+    const effectiveCount = Math.max(0, wiringCountRaw, canonicalCount, datasetCount);
+    const hasSelection = effectiveCount > 0 || bar.classList.contains('has-selection');
+
+    if(bar.dataset){
+      bar.dataset.idleVisible = shouldShow ? '1' : '0';
+      if(hasSelection){
+        bar.dataset.count = String(effectiveCount);
+      }else if(shouldShow){
+        bar.dataset.count = '0';
+      }else{
+        delete bar.dataset.count;
       }
+    }
+
+    if(hasSelection){
+      bar.setAttribute('data-visible', '1');
       if(bar.style && bar.style.display === 'none'){
         bar.style.display = '';
       }
+    }else if(!shouldShow){
+      try { bar.removeAttribute('data-visible'); }
+      catch (_) {}
     }else{
-      if(bar.dataset){
-        bar.dataset.idleVisible = '0';
-        delete bar.dataset.visible;
+      try { bar.removeAttribute('data-visible'); }
+      catch (_) {}
+      if(bar.style && bar.style.display === 'none'){
+        bar.style.display = '';
       }
-      if(!bar.classList.contains('has-selection')){
-        try { bar.removeAttribute('data-visible'); }
-        catch (_) {}
-      }
+    }
+
+    if(typeof window !== 'undefined' && typeof window.updateActionBarMinimizedState === 'function'){
+      try { window.updateActionBarMinimizedState(effectiveCount); }
+      catch (_) {}
     }
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
     catch (_) {}
