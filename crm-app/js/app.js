@@ -95,8 +95,25 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }catch (_err){}
     const datasetCountRaw = Number(bar.dataset?.count || 0);
     const datasetCount = Number.isFinite(datasetCountRaw) ? datasetCountRaw : 0;
-    const effectiveCount = Math.max(0, wiringCountRaw, canonicalCount, datasetCount);
-    const hasSelection = effectiveCount > 0 || bar.classList.contains('has-selection');
+    let apiCount = 0;
+    if(typeof window !== 'undefined'){
+      try {
+        const svc = window.SelectionService;
+        if(svc && typeof svc.count === 'function'){
+          const svcCount = Number(svc.count());
+          if(Number.isFinite(svcCount)) apiCount = Math.max(apiCount, svcCount);
+        }
+      }catch (_err){}
+      try {
+        const selection = window.Selection;
+        if(selection && typeof selection.count === 'function'){
+          const selCount = Number(selection.count());
+          if(Number.isFinite(selCount)) apiCount = Math.max(apiCount, selCount);
+        }
+      }catch (_err){}
+    }
+    const effectiveCount = Math.max(0, wiringCountRaw, canonicalCount, datasetCount, apiCount);
+    const hasSelection = effectiveCount > 0;
 
     if(bar.dataset){
       bar.dataset.idleVisible = shouldShow ? '1' : '0';
