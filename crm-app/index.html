@@ -25,6 +25,7 @@
  <link href="styles.css" rel="stylesheet"/>
  <link href="styles/dashboard.css" rel="stylesheet"/>
  <link href="styles/loaders.css" rel="stylesheet"/>
+ <link href="./labs/ux/styles.css" rel="stylesheet"/>
 </head>
 <body>
 <!-- BOOT_STAMP: crm-app-index -->
@@ -136,6 +137,7 @@
     <div class="row" role="group" aria-label="Dashboard scope">
      <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
      <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
+     <a class="btn pill" data-dashboard-labs href="#labs" title="Preview the experimental Labs dashboard" aria-label="Open the Labs experimental dashboard">Labs</a>
      <a class="btn pill" data-dashboard-labs href="./lab.html" title="Preview the experimental Labs dashboard" aria-label="Open the Labs experimental dashboard">Labs</a>
     </div>
    </div>
@@ -2224,5 +2226,6 @@
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';
     ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   </script>
+  <script src="./labs/ux/app.js"></script>
 </body>
 </html>
