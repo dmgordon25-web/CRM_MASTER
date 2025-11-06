@@ -662,7 +662,7 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store, must-revalidate',
   'Pragma': 'no-cache',
   'Expires': '0',
-  'Content-Security-Policy': "script-src 'self' 'unsafe-inline'; object-src 'none'"
+  'Content-Security-Policy': "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; object-src 'none'"
 };
 
 function send(res, statusCode, body, extraHeaders = {}) {
