@@ -967,6 +967,20 @@ function syncLabsState() {
   }
 }
 
+
+function syncLabsState() {
+  try {
+    const requested = isLabsRequested();
+    if (requested && !state.active) {
+      activateLabs();
+    } else if (!requested && state.active) {
+      deactivateLabs();
+    }
+  } catch (err) {
+    logLabsError('sync-labs-state', err);
+  }
+}
+
 function handleLabsLink(evt) {
   try {
     evt.preventDefault();
@@ -1025,4 +1039,6 @@ document.addEventListener('DOMContentLoaded', wrapHandler('labs-dom-ready', () =
     syncLabsState();
   }
 }));
+
+export { activateLabs, deactivateLabs };
 })();
