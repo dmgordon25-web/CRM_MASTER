@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab Test Page</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .test-result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .pass { background: #d4edda; color: #155724; }
+    .fail { background: #f8d7da; color: #721c24; }
+    pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Lab Diagnostics Test</h1>
+  <div id="results"></div>
+
+  <h2>Console Logs:</h2>
+  <pre id="logs"></pre>
+
+  <script>
+    const results = [];
+    const logs = [];
+
+    function log(msg) {
+      console.log(msg);
+      logs.push(msg);
+      document.getElementById('logs').textContent = logs.join('\n');
+    }
+
+    function test(name, condition) {
+      const pass = condition();
+      results.push({ name, pass });
+      const div = document.createElement('div');
+      div.className = `test-result ${pass ? 'pass' : 'fail'}`;
+      div.textContent = `${pass ? '✅' : '❌'} ${name}`;
+      document.getElementById('results').appendChild(div);
+      log(`Test: ${name} - ${pass ? 'PASS' : 'FAIL'}`);
+    }
+
+    log('=== Starting Diagnostics ===');
+
+    // Test 1: Basic DOM
+    test('DOM Ready', () => document.readyState === 'complete' || document.readyState === 'interactive');
+
+    // Test 2: localStorage
+    test('localStorage Available', () => {
+      try {
+        localStorage.setItem('test', '1');
+        localStorage.removeItem('test');
+        return true;
+      } catch (e) {
+        log('localStorage error: ' + e.message);
+        return false;
+      }
+    });
+
+    // Test 3: Fetch API
+    test('Fetch API Available', () => typeof fetch === 'function');
+
+    log('=== Tests Complete ===');
+    log('Attempting to load GridStack from CDN...');
+  </script>
+
+  <!-- Try loading GridStack -->
+  <script src="https://cdn.jsdelivr.net/npm/gridstack@10.2.0/dist/gridstack-all.js"
+          onload="log('✅ GridStack loaded successfully'); test('GridStack Library', () => typeof GridStack !== 'undefined');"
+          onerror="log('❌ GridStack failed to load');">
+  </script>
+
+  <script>
+    setTimeout(() => {
+      log('=== Final Check ===');
+      log('GridStack available: ' + (typeof GridStack !== 'undefined'));
+      if (typeof GridStack !== 'undefined') {
+        log('GridStack version: ' + (GridStack.version || 'unknown'));
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

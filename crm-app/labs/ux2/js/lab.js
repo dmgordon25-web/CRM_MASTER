@@ -3,8 +3,12 @@
    Main JavaScript Module
    =================================== */
 
+console.log('🧪 [MODULE] lab.js loading...');
+
 // Import widget configurations
 import { WIDGET_CONFIGS, createWidgetElement } from './widgets.js';
+
+console.log('🧪 [MODULE] Widgets imported:', Object.keys(WIDGET_CONFIGS).length, 'widgets');
 
 // Initialize dayjs plugins if available
 if (typeof dayjs !== 'undefined') {
@@ -34,30 +38,47 @@ const STORAGE_KEYS = {
 
 // Initialize the Lab
 async function init() {
-  console.log('🧪 Initializing Lab Environment...');
+  console.log('🧪 [1/6] Initializing Lab Environment...');
+  console.log('🧪 [DEBUG] Document ready state:', document.readyState);
+  console.log('🧪 [DEBUG] GridStack available:', typeof GridStack !== 'undefined');
 
   try {
     // Load saved theme
+    console.log('🧪 [2/6] Loading theme...');
     loadTheme();
+    console.log('✅ Theme loaded');
 
     // Initialize GridStack
+    console.log('🧪 [3/6] Initializing GridStack...');
     initializeGrid();
+    console.log('✅ GridStack initialized');
 
     // Load widgets
+    console.log('🧪 [4/6] Loading widgets...');
     await loadWidgets();
+    console.log('✅ Widgets loaded');
 
     // Setup event listeners
+    console.log('🧪 [5/6] Setting up event listeners...');
     setupEventListeners();
+    console.log('✅ Event listeners attached');
 
     // Hide loading, show shell
-    document.getElementById('lab-loading').style.display = 'none';
-    document.getElementById('lab-shell').style.display = 'flex';
+    console.log('🧪 [6/6] Showing Lab shell...');
+    const loadingEl = document.getElementById('lab-loading');
+    const shellEl = document.getElementById('lab-shell');
+    console.log('🧪 [DEBUG] Loading element:', loadingEl ? 'found' : 'NOT FOUND');
+    console.log('🧪 [DEBUG] Shell element:', shellEl ? 'found' : 'NOT FOUND');
+
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (shellEl) shellEl.style.display = 'flex';
 
     LabState.initialized = true;
-    console.log('✅ Lab Environment Ready');
+    console.log('✅ Lab Environment Ready - All systems go!');
   } catch (error) {
     console.error('❌ Lab initialization failed:', error);
-    showError('Failed to initialize Lab environment. Please check the console for details.');
+    console.error('❌ Error stack:', error.stack);
+    showError(`Failed to initialize Lab: ${error.message}`);
   }
 }
 
@@ -375,9 +396,17 @@ function showError(message) {
 }
 
 // Initialize when DOM is ready
+console.log('🧪 [MODULE] Setting up initialization...');
+console.log('🧪 [MODULE] Document ready state:', document.readyState);
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  console.log('🧪 [MODULE] DOM still loading, will wait for DOMContentLoaded...');
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('🧪 [EVENT] DOMContentLoaded fired, calling init()...');
+    init();
+  });
 } else {
+  console.log('🧪 [MODULE] DOM already ready, calling init() immediately...');
   init();
 }
 

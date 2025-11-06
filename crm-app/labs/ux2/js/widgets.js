@@ -3,6 +3,8 @@
    All existing CRM widgets mapped for Lab
    =================================== */
 
+console.log('🧪 [MODULE] widgets.js loading...');
+
 // Widget Configurations
 // Based on existing CRM widgets from dashboard/index.js and ui/dashboard_layout.js
 export const WIDGET_CONFIGS = {
