@@ -1,15 +1,29 @@
-## Checklist (must check all)
-- [ ] I read **docs/CODEX_PLAYBOOK.md** and followed the “Working protocol”.
-- [ ] I did **not** modify `tools/boot_smoke_test.mjs` (or, if I did, changes are read-only and were explicitly requested).
-- [ ] I did **not** rename/remove test-facing selectors (`row-check`, `action-bar`, `merge`, `merge-modal`, `merge-confirm`).
-- [ ] No new npm dependencies.
-- [ ] `npm run verify:build` is green on this branch.
+## Summary
+- _List key updates and intent._
 
-## What this PR does (one line)
-_
+## Risk
+- [ ] Low (Routine change, safe to rollback)
+- [ ] Medium (Some risk, requires validation)
+- [ ] High (High impact or risky change)
 
-## Acceptance
-- [ ] Acceptance bullets are listed and verified locally.
+## Artifacts
 
-## Notes
-_(optional)_
+### Timing Table
+| Command | Duration |
+| --- | --- |
+| `npm ci` | |
+| `npm run verify:build` | |
+| `npm run check:features` | |
+
+### Manifest Check
+- [ ] Manifest or lockfile reviewed
+
+### Test / Check Outcomes
+| Command | Result (PASS/FAIL/SKIP) |
+| --- | --- |
+| `npm ci` | |
+| `npm run verify:build` | |
+| `npm run check:features` | |
+
+## Rollback Plan
+- _Steps to revert or disable the change._
