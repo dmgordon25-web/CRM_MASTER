@@ -172,25 +172,73 @@ async function loadWidgets() {
 async function loadWidgetContent() {
   console.log('🔄 Loading widget content from baseline CRM...');
 
-  // For each widget, try to fetch its content from the baseline dashboard
-  for (const [widgetId, widgetData] of LabState.widgets) {
-    const config = widgetData.config;
+  // Create hidden iframe to load baseline dashboard
+  const iframe = document.createElement('iframe');
+  iframe.id = 'baseline-loader';
+  iframe.src = '../../index.html#/dashboard';
+  iframe.style.cssText = 'position:absolute;width:0;height:0;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
 
-    if (config.sourceUrl) {
-      try {
-        // If widget has a source URL, load it
-        await loadWidgetFromSource(widgetId, config.sourceUrl);
-      } catch (error) {
-        console.warn(`⚠️ Could not load widget ${widgetId} from source:`, error);
+  // Wait for baseline to load
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Baseline load timeout')), 10000);
+
+    iframe.onload = () => {
+      clearTimeout(timeout);
+      console.log('✅ Baseline dashboard loaded');
+
+      // Wait a bit for baseline to initialize its widgets
+      setTimeout(resolve, 2000);
+    };
+
+    iframe.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error('Failed to load baseline'));
+    };
+  });
+
+  // Clone widgets from baseline
+  try {
+    const baselineDoc = iframe.contentDocument || iframe.contentWindow.document;
+
+    for (const [widgetId, widgetData] of LabState.widgets) {
+      const config = widgetData.config;
+      const labWidgetBody = widgetData.element.querySelector('.lab-widget-body');
+
+      if (!labWidgetBody) continue;
+
+      // Find corresponding widget in baseline
+      const baselineWidget = baselineDoc.querySelector(`#${widgetId}, [data-widget-id="${widgetId}"]`);
+
+      if (baselineWidget) {
+        // Clone the widget content
+        const clonedContent = baselineWidget.cloneNode(true);
+        clonedContent.style.width = '100%';
+        clonedContent.style.height = '100%';
+        clonedContent.style.border = 'none';
+        clonedContent.style.boxShadow = 'none';
+        clonedContent.style.margin = '0';
+
+        // Clear loading placeholder
+        labWidgetBody.innerHTML = '';
+        labWidgetBody.appendChild(clonedContent);
+
+        console.log(`✅ Loaded widget: ${widgetId}`);
+      } else {
+        console.warn(`⚠️ Widget not found in baseline: ${widgetId}`);
         showWidgetPlaceholder(widgetId, config);
       }
-    } else {
-      // Show placeholder for widgets without source
-      showWidgetPlaceholder(widgetId, config);
+    }
+
+    console.log('✅ All widgets loaded from baseline');
+  } catch (error) {
+    console.error('❌ Error loading widgets from baseline:', error);
+
+    // Fall back to placeholders
+    for (const [widgetId, widgetData] of LabState.widgets) {
+      showWidgetPlaceholder(widgetId, widgetData.config);
     }
   }
-
-  console.log('✅ Widget content loaded');
 }
 
 // Load widget from source URL
@@ -236,43 +284,65 @@ function showWidgetPlaceholder(widgetId, config) {
 
 // Setup event listeners
 function setupEventListeners() {
+  console.log('🧪 [DEBUG] Setting up event listeners...');
+
   // Theme switcher
-  document.querySelectorAll('.lab-theme-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  const themeButtons = document.querySelectorAll('.lab-theme-btn');
+  console.log('🧪 [DEBUG] Found theme buttons:', themeButtons.length);
+
+  themeButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const theme = btn.getAttribute('data-theme');
+      console.log('🧪 [DEBUG] Theme button clicked:', theme);
       setTheme(theme);
     });
   });
 
   // Reset layout
-  document.getElementById('lab-reset-layout').addEventListener('click', () => {
-    if (confirm('Reset dashboard layout to default? This cannot be undone.')) {
-      resetLayout();
-    }
-  });
+  const resetBtn = document.getElementById('lab-reset-layout');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Reset dashboard layout to default? This cannot be undone.')) {
+        resetLayout();
+      }
+    });
+  }
 
   // Toggle edit mode
-  document.getElementById('lab-toggle-edit').addEventListener('click', () => {
-    toggleEditMode();
-  });
+  const editBtn = document.getElementById('lab-toggle-edit');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      toggleEditMode();
+    });
+  }
 
   console.log('👂 Event listeners attached');
 }
 
 // Theme Management
 function setTheme(theme) {
+  console.log(`🎨 [THEME] Setting theme to: ${theme}`);
+
   LabState.currentTheme = theme;
-  document.documentElement.setAttribute('data-lab-theme', theme);
+  const root = document.documentElement;
+  root.setAttribute('data-lab-theme', theme);
+  console.log(`🎨 [THEME] Applied attribute to root:`, root.getAttribute('data-lab-theme'));
 
   // Update active button
   document.querySelectorAll('.lab-theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
+    const btnTheme = btn.getAttribute('data-theme');
+    const isActive = btnTheme === theme;
+    btn.classList.toggle('active', isActive);
+    console.log(`🎨 [THEME] Button ${btnTheme}: active=${isActive}`);
   });
 
   // Save to storage
   localStorage.setItem(STORAGE_KEYS.THEME, theme);
+  console.log(`🎨 [THEME] Saved to localStorage`);
 
-  console.log(`🎨 Theme changed to: ${theme}`);
+  console.log(`✅ Theme changed to: ${theme}`);
 }
 
 function loadTheme() {
