@@ -1,3 +1,4 @@
+(() => {
 const GRID_COLUMNS = 12;
 const GRID_CELL_HEIGHT = 120;
 const GRID_GAP = 16;
@@ -966,6 +967,20 @@ function syncLabsState() {
   }
 }
 
+
+function syncLabsState() {
+  try {
+    const requested = isLabsRequested();
+    if (requested && !state.active) {
+      activateLabs();
+    } else if (!requested && state.active) {
+      deactivateLabs();
+    }
+  } catch (err) {
+    logLabsError('sync-labs-state', err);
+  }
+}
+
 function handleLabsLink(evt) {
   try {
     evt.preventDefault();
@@ -1026,3 +1041,4 @@ document.addEventListener('DOMContentLoaded', wrapHandler('labs-dom-ready', () =
 }));
 
 export { activateLabs, deactivateLabs };
+})();
