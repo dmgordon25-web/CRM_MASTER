@@ -6,9 +6,15 @@
 // Import widget configurations
 import { WIDGET_CONFIGS, createWidgetElement } from './widgets.js';
 
-// Initialize dayjs plugins
-dayjs.extend(window.dayjs_plugin_relativeTime);
-dayjs.extend(window.dayjs_plugin_calendar);
+// Initialize dayjs plugins if available
+if (typeof dayjs !== 'undefined') {
+  if (window.dayjs_plugin_relativeTime) {
+    dayjs.extend(window.dayjs_plugin_relativeTime);
+  }
+  if (window.dayjs_plugin_calendar) {
+    dayjs.extend(window.dayjs_plugin_calendar);
+  }
+}
 
 // Lab State
 const LabState = {
@@ -58,6 +64,10 @@ async function init() {
 // Initialize GridStack
 function initializeGrid() {
   const gridElement = document.getElementById('lab-grid');
+
+  if (typeof GridStack === 'undefined') {
+    throw new Error('GridStack library not loaded. Please check your internet connection.');
+  }
 
   LabState.grid = GridStack.init({
     column: 12,
@@ -344,18 +354,24 @@ function removeWidget(widgetId) {
 
 // Error Display
 function showError(message) {
+  console.error('Lab Error:', message);
   const loadingElement = document.getElementById('lab-loading');
-  loadingElement.innerHTML = `
-    <div style="text-align: center; padding: 24px;">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--lab-danger); margin-bottom: 16px;">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="15" y1="9" x2="9" y2="15"></line>
-        <line x1="9" y1="9" x2="15" y2="15"></line>
-      </svg>
-      <h3 style="margin: 0 0 8px 0; color: var(--lab-danger);">Error</h3>
-      <p style="margin: 0; color: var(--lab-text-muted);">${message}</p>
-    </div>
-  `;
+  if (loadingElement) {
+    loadingElement.innerHTML = `
+      <div style="text-align: center; padding: 24px; max-width: 600px; margin: 0 auto;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ef4444; margin-bottom: 16px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+        <h3 style="margin: 0 0 8px 0; color: #ef4444;">Lab Initialization Error</h3>
+        <p style="margin: 0 0 16px 0; color: #64748b;">${message}</p>
+        <a href="../../index.html" style="display: inline-block; padding: 8px 16px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px;">
+          Return to Dashboard
+        </a>
+      </div>
+    `;
+  }
 }
 
 // Initialize when DOM is ready
