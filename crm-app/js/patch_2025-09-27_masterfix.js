@@ -233,61 +233,20 @@ function runPatch(){
       if(!cb || cb.__masterfixSelectAll) return;
       cb.__masterfixSelectAll = true;
       cb.addEventListener('change', evt => {
-        const svc = window.SelectionService;
-        if(!svc || !(svc.ids instanceof Set) || !(svc.items instanceof Map)) return;
-        evt.stopImmediatePropagation();
-        const shouldCheck = !!cb.checked;
-        const table = cb.closest('table');
-        const boxes = table ? Array.from(table.tBodies?.[0]?.querySelectorAll('input[type="checkbox"]') || []) : [];
-        const ids = [];
-        boxes.forEach(box => {
-          box.checked = shouldCheck;
-          const id = resolveCheckboxId(box);
-          if(id) ids.push(id);
-        });
-        if(!ids.length){
-          queueMicro(()=>{
-            document.dispatchEvent(new CustomEvent('selection:changed', {
-              detail: { type: svc.type || 'contacts', ids: Array.from(svc.getIds ? svc.getIds() : svc.ids) }
-            }));
-          });
-          return;
-        }
-        const targetType = detectTableType(table);
-        if(shouldCheck){
-          if(svc.ids.size && svc.type !== targetType){
-            svc.ids.clear();
-            svc.items.clear();
-          }
-          svc.type = targetType;
-          ids.forEach(id => {
-            svc.ids.add(id);
-            svc.items.set(id, { type: targetType });
-          });
-        } else {
-          ids.forEach(id => {
-            svc.ids.delete(id);
-            svc.items.delete(id);
-          });
-          if(svc.ids.size === 0) svc.type = 'contacts';
-        }
-        if(typeof svc.syncChecks === 'function'){
-          try{ svc.syncChecks(); }
-          catch (err) { console && console.warn && console.warn('select-all sync', err); }
-        }
-        queueMicro(()=>{
-          const detail = { type: svc.type || 'contacts', ids: Array.from(svc.ids) };
-          try{ document.dispatchEvent(new CustomEvent('selection:changed', { detail })); }
-          catch (err) { console && console.warn && console.warn('selection dispatch', err); }
-        });
+        // BUGFIX: DO NOT stop propagation - let the correct SelectionStore handler run
+        // The old implementation directly manipulated SelectionService without using SelectionStore,
+        // which caused the Action Bar to not sync properly with selection state.
+        // The correct handler (applySelectAllToStore in app.js) is already wired up via wireSelectAllForTable.
+        // This interceptor is now a no-op and can be safely removed in future cleanup.
       }, { capture: true });
     }
 
     function installSelectAllInterceptors(){
-      ['#inprog-all','#partners-all','#pipe-all','#clients-all','#ls-all','#status-active-all','#status-clients-all','#status-longshots-all']
-        .map(sel => document.querySelector(sel))
-        .filter(Boolean)
-        .forEach(interceptSelectAll);
+      // BUGFIX: Disabled - the correct SelectionStore-based handlers are already wired via app.js
+      // The old interceptSelectAll implementation was interfering with proper Action Bar synchronization
+      // by calling stopImmediatePropagation and bypassing the SelectionStore.
+      // The tables now use the correct pattern via applySelectAllToStore in app.js.
+      // Keeping this function as a no-op for backward compatibility.
     }
 
     // --- Merge gating -----------------------------------------------------------
