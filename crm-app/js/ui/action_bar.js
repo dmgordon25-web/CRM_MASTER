@@ -1023,7 +1023,7 @@ function injectActionBarStyle(){
         border:0; cursor:pointer; pointer-events:auto; box-shadow:0 8px 20px rgba(15,23,42,.28);
       }
       #actionbar [data-role="actionbar-pill"]:focus-visible{ outline:2px solid rgba(148,163,184,.85); outline-offset:2px; }
-      #actionbar[data-minimized="1"] [data-role="actionbar-pill"]{ display:flex; }
+      #actionbar[data-minimized="1"] [data-role="actionbar-pill"]{ display:none; }
       #actionbar [data-role="actionbar-pill"] [data-role="pill-tooltip"]{
         position:absolute; top:calc(100% + 8px); right:0; background:rgba(15,23,42,0.95);
         color:#f8fafc; padding:6px 10px; border-radius:8px; font-size:12px;
