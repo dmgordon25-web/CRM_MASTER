@@ -249,17 +249,12 @@ async function loadWidgetContent() {
       }
 
       if (baselineWidget) {
-        // Clone the widget content deeply
+        // Clone the widget content deeply - preserve ALL baseline styling
         const clonedContent = baselineWidget.cloneNode(true);
 
-        // Preserve all styling but override layout
+        // Only set width for grid layout - preserve all other baseline styles
         clonedContent.style.width = '100%';
-        clonedContent.style.height = 'auto';
-        clonedContent.style.minHeight = '100%';
-        clonedContent.style.border = 'none';
-        clonedContent.style.boxShadow = 'none';
         clonedContent.style.margin = '0';
-        clonedContent.style.background = 'transparent';
 
         // Clear loading placeholder
         labWidgetBody.innerHTML = '';
