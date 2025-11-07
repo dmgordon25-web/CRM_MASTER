@@ -225,107 +225,37 @@
 }
 
 .grid-stack-item {
-  transition: transform 0.2s ease;
-}
-
-.grid-stack-item:hover {
-  transform: translateY(-2px);
+  /* Minimal styling - let baseline widgets show through */
 }
 
 .grid-stack-item-content {
-  background: var(--lab-card-bg);
-  border: 1px solid var(--lab-border);
-  border-radius: var(--lab-radius);
-  box-shadow: var(--lab-shadow);
-  overflow: hidden;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.grid-stack-item-content:hover {
-  box-shadow: var(--lab-shadow-lg);
-  border-color: var(--lab-border-hover);
-}
-
-/* Widget Styles */
-.lab-widget {
-  display: flex;
-  flex-direction: column;
+  /* Container for baseline widgets - no styling! */
+  overflow: auto;
   height: 100%;
 }
 
+/* Widget wrapper - just for layout, no styling */
+.lab-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide the Lab custom header - we'll use baseline widget headers */
 .lab-widget-header {
-  padding: calc(var(--lab-spacing-unit) * 0.75) var(--lab-spacing-unit);
-  border-bottom: 1px solid var(--lab-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--lab-card-bg);
-  cursor: move;
-  flex-shrink: 0;
+  display: none;
 }
 
-.lab-widget-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lab-text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lab-widget-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.lab-widget-action {
-  padding: 4px;
-  background: transparent;
-  border: none;
-  border-radius: var(--lab-radius-sm);
-  color: var(--lab-text-muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lab-widget-action:hover {
-  background: var(--lab-bg);
-  color: var(--lab-text);
-}
-
+/* Widget body contains the cloned baseline widget */
 .lab-widget-body {
-  padding: var(--lab-spacing-unit);
   flex: 1;
   overflow: auto;
-  background: var(--lab-card-bg);
+  /* No padding, no styling - let baseline widget render as-is */
 }
 
-/* Widget Content Wrappers */
-.lab-widget-content {
-  color: var(--lab-text);
-}
-
-.lab-widget-content iframe,
-.lab-widget-content .card,
-.lab-widget-content > div {
-  width: 100% !important;
-  height: 100% !important;
-  border: none;
-}
-
-/* Remove baseline card styles for embedded widgets */
-.lab-widget-body .card {
-  box-shadow: none !important;
-  border: none !important;
-  background: transparent !important;
-  margin: 0 !important;
-  padding: 0 !important;
+/* Baseline widgets render exactly as they do in baseline */
+.lab-widget-body > * {
+  /* Do not override any baseline styles */
 }
 
 /* Resize Handle */
@@ -350,11 +280,8 @@
 
 /* Edit Mode Indicator */
 .lab-edit-mode .grid-stack-item-content {
-  border: 2px dashed var(--lab-primary);
-}
-
-.lab-edit-mode .lab-widget-header {
-  background: var(--lab-primary-light);
+  outline: 2px dashed var(--lab-primary);
+  outline-offset: -2px;
 }
 
 /* Loading State */
