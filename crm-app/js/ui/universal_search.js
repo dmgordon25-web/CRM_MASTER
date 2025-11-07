@@ -201,10 +201,10 @@
   function openRecord(id, type) {
     hideResults();
     searchInput.value = '';
-    
+
     if (type === 'contact') {
-      if (window.openContactModal && typeof window.openContactModal === 'function') {
-        window.openContactModal(id);
+      if (window.renderContactModal && typeof window.renderContactModal === 'function') {
+        window.renderContactModal(id);
       }
     } else if (type === 'partner') {
       if (window.openPartnerEditModal && typeof window.openPartnerEditModal === 'function') {
