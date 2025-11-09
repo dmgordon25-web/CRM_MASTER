@@ -1,6 +1,64 @@
 /* Manifest with relative paths (relative to crm-app/js). Dedupe and phase separation. */
-import patchManifest from '../../patches/manifest.json' assert { type: 'json' };
 import { normalizeModuleId, isSafeMode } from './boot_hardener.js';
+
+const isNodeRuntime = typeof process !== 'undefined'
+  && !!process?.versions?.node
+  && process?.release?.name === 'node';
+
+async function loadPatchManifest() {
+  if (isNodeRuntime) {
+    const [fs, url, path] = await Promise.all([
+      import('node:fs'),
+      import('node:url'),
+      import('node:path')
+    ]);
+    const manifestPath = path.resolve(
+      path.dirname(url.fileURLToPath(import.meta.url)),
+      '../../patches/manifest.json'
+    );
+    try {
+      const raw = fs.readFileSync(manifestPath, 'utf8');
+      return JSON.parse(raw);
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Failed to read patch manifest at ${manifestPath}: ${detail}`);
+    }
+  }
+
+  if (typeof fetch === 'function') {
+    const manifestUrl = new URL('../../patches/manifest.json', import.meta.url);
+    let response;
+    try {
+      response = await fetch(manifestUrl, {
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Failed to request patch manifest (${manifestUrl}): ${detail}`);
+    }
+
+    if (!response || !response.ok) {
+      const statusText = response && response.statusText ? response.statusText : 'Unknown error';
+      const status = response && typeof response.status === 'number' ? response.status : '??';
+      throw new Error(`Failed to load patch manifest (${status} ${statusText})`);
+    }
+
+    try {
+      return await response.json();
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Invalid JSON in patch manifest (${manifestUrl}): ${detail}`);
+    }
+  }
+
+  const mod = await import('../../patches/manifest.json', {
+    assert: { type: 'json' }
+  });
+  return mod?.default ?? mod;
+}
+
+const patchManifest = await loadPatchManifest();
 
 const rawPatchList = Array.isArray(patchManifest?.patches)
   ? patchManifest.patches
