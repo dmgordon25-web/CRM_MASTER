@@ -1,5 +1,6 @@
 /* Node script to validate manifest lists. Exits 0 when OK, 2 on fatal. */
 const fs = require('fs'), path = require('path');
+const { spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
@@ -25,19 +26,62 @@ function normalizeSpec(spec) {
 /* merge-proof parse beacon */ void 0;
 
 async function loadManifestExports() {
-  let mod;
+  const manifestUrl = pathToFileURL(bootManifestPath).href;
+  const loaderScript = [
+    'const manifestUrl = ' + JSON.stringify(manifestUrl) + ';',
+    'async function main() {',
+    '  const mod = await import(manifestUrl);',
+    '  const core = Array.isArray(mod.CORE) ? Array.from(mod.CORE) : null;',
+    '  const patchesExport = Array.isArray(mod.PATCHES) ? Array.from(mod.PATCHES) : null;',
+    '  const legacyPatches = (!patchesExport && Array.isArray(mod.patches)) ? Array.from(mod.patches) : null;',
+    '  const patches = patchesExport || legacyPatches;',
+    '  const payload = { core, patchesRaw: patchesExport || legacyPatches, patches };',
+    '  process.stdout.write(JSON.stringify(payload));',
+    '}',
+    'main().catch((err) => {',
+    "  const detail = err && err.stack ? err.stack : (err && err.message ? err.message : String(err));",
+    '  console.error(detail);',
+    '  process.exit(1);',
+    '});',
+  ].join('\n');
+
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', loaderScript], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  if (child.error) {
+    console.error('[AUDIT] Failed to execute manifest loader subprocess');
+    console.error(child.error && child.error.message ? child.error.message : child.error);
+    writeManifestReport('FAIL (manifest.js subprocess)');
+    process.exit(2);
+  }
+
+  if (child.status !== 0) {
+    console.error('[AUDIT] Subprocess failed when importing crm-app/js/boot/manifest.js');
+    if (child.stderr) {
+      console.error(child.stderr.trim() || child.stderr);
+    }
+    writeManifestReport('FAIL (manifest.js import)');
+    process.exit(2);
+  }
+
+  let payload;
   try {
-    mod = await import(pathToFileURL(bootManifestPath).href);
+    payload = JSON.parse(child.stdout || '');
   } catch (err) {
-    console.error('[AUDIT] Failed to import crm-app/js/boot/manifest.js');
+    console.error('[AUDIT] Invalid data returned from manifest loader subprocess');
+    if (child.stdout) {
+      console.error(child.stdout.trim() || child.stdout);
+    }
     console.error(err && err.message ? err.message : err);
     writeManifestReport('FAIL (manifest.js import)');
     process.exit(2);
   }
 
-  const { CORE, PATCHES } = mod;
+  const { core: CORE, patchesRaw, patches } = payload || {};
 
-  if (!Array.isArray(PATCHES)) {
+  if (!Array.isArray(patchesRaw)) {
     console.error('[AUDIT] manifest.js must export PATCHES as an array');
     writeManifestReport('FAIL (manifest.js export shape)');
     process.exit(2);
@@ -50,9 +94,9 @@ async function loadManifestExports() {
   }
 
   return {
-    patchesRaw: PATCHES.slice(),
+    patchesRaw: patchesRaw.slice(),
     core: CORE.map(normalizeSpec),
-    patches: PATCHES.map(normalizeSpec),
+    patches: Array.isArray(patches) ? patches.map(normalizeSpec) : patchesRaw.map(normalizeSpec),
   };
 }
 
