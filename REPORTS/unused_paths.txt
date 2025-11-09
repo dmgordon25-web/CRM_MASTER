@@ -1,0 +1,15 @@
+crm-app/_graveyard/README.md
+crm-app/_graveyard/js/_legacy/patch_2025-09-27_workbench.js
+crm-app/_graveyard/js/store/db_core.js
+crm-app/_graveyard/js/ui/FormFooter.tsx
+crm-app/_graveyard/js/ui/GhostButton.tsx
+crm-app/_graveyard/js/ui/PrimaryButton.tsx
+crm-app/_graveyard/js/ui/strings.ts
+crm-app/_graveyard/js/views/data_tables.js
+crm-app/css/app.css
+crm-app/fixtures/demo_pack.json
+crm-app/js/exporter.js
+crm-app/js/labs/entry.js
+crm-app/js/labs/vendor/mock_chart.js
+crm-app/js/labs/widgets.js
+crm-app/js/settings/dashboard_prefs.js
