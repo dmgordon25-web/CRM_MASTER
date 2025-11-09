@@ -3,6 +3,7 @@ import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabel
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
+import dashboardState from './state/dashboard_state.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
   ? __filename
@@ -128,23 +129,6 @@ function runPatch(){
     const LEADERBOARD_SORT_OPTIONS = new Set(['volume','active','conversion']);
     const LEADERBOARD_FILTER_OPTIONS = new Set(['all','active','funded']);
 
-    function readStoredDashboardMode(){
-      if(typeof localStorage === 'undefined') return null;
-      try{
-        const value = localStorage.getItem('dashboard:mode');
-        return value === 'all' ? 'all' : (value === 'today' ? 'today' : null);
-      }catch (_err) {
-        return null;
-      }
-    }
-
-    function writeStoredDashboardMode(mode){
-      if(typeof localStorage === 'undefined') return;
-      try{
-        if(mode) localStorage.setItem('dashboard:mode', mode);
-      }catch (_err) {}
-    }
-
     function canonicalWidgetKey(input){
       if(input == null) return null;
       const str = String(input).trim();
@@ -244,7 +228,6 @@ function runPatch(){
       dataLoaded: false,
       lastLoad: 0,
       loadingPromise: null,
-      pendingRender: null,
       dashboard: JSON.parse(JSON.stringify(DASHBOARD_WIDGET_DEFAULTS)),
       dashboardLoaded: false,
       dashboardPromise: null,
@@ -478,7 +461,7 @@ function runPatch(){
         console.info('[A_BEACON] dnd:widgets:drop', { from: fromIndex, to: toIndex });
         if(fromIndex !== toIndex){
           persistWidgetOrder(order);
-          queueDashboardRender({});
+          dashboardState.refresh({ reason: 'dashboard:order-changed' });
         }
       };
 
@@ -507,8 +490,12 @@ function runPatch(){
       });
     }
 
-    const storedInitialMode = readStoredDashboardMode();
-    if(storedInitialMode) state.dashboard.mode = storedInitialMode;
+    const storedInitialMode = typeof dashboardState?.getMode === 'function'
+      ? dashboardState.getMode()
+      : null;
+    if(storedInitialMode === 'all' || storedInitialMode === 'today'){
+      state.dashboard.mode = storedInitialMode;
+    }
 
     function canonicalStage(value){
       if(typeof window.canonicalizeStage === 'function'){
@@ -621,18 +608,25 @@ function runPatch(){
           if(typeof source.kpis[key] === 'boolean') kpis[key] = source.kpis[key];
         });
       }
-      const storedMode = readStoredDashboardMode();
       const hasExplicitMode = Object.prototype.hasOwnProperty.call(source, 'mode');
-      let mode;
-      if(hasExplicitMode && source.mode === 'all') mode = 'all';
-      else if(hasExplicitMode && source.mode === 'today') mode = 'today';
-      else if(storedMode) mode = storedMode;
-      else mode = 'today';
+      let mode = typeof dashboardState?.getMode === 'function'
+        ? dashboardState.getMode()
+        : 'today';
+      if(hasExplicitMode){
+        mode = source.mode === 'all' ? 'all' : 'today';
+        if(typeof dashboardState?.setMode === 'function'){
+          dashboardState.setMode(mode, { notify: false, refresh: false, reason: 'dashboard:hydrate' });
+        }
+      }else if(mode !== 'all' && mode !== 'today'){
+        mode = 'today';
+        if(typeof dashboardState?.setMode === 'function'){
+          dashboardState.setMode(mode, { notify: false, refresh: false, reason: 'dashboard:hydrate' });
+        }
+      }
       const rawOrder = Array.isArray(base.order) ? base.order
         : Array.isArray(base.dashboardOrder) ? base.dashboardOrder
         : readStoredWidgetOrder();
       const order = normalizeWidgetOrder(rawOrder);
-      writeStoredDashboardMode(mode);
       writeStoredWidgetOrder(order);
       return { mode, widgets, graphs, widgetCards, kpis, order };
     }
@@ -685,6 +679,15 @@ function runPatch(){
           btn.classList.toggle('active', mode === state.dashboard.mode);
         });
       }
+    }
+
+    if(typeof dashboardState?.subscribe === 'function'){
+      dashboardState.subscribe((nextState, changed) => {
+        if(changed && changed.has('mode')){
+          state.dashboard.mode = nextState.mode === 'all' ? 'all' : 'today';
+          updateDashboardModeControls();
+        }
+      });
     }
 
     function toggleSectionVisibility(id, show){
@@ -1091,7 +1094,10 @@ function runPatch(){
           if(!key) return;
           const value = select.value || 'all';
           state.filters[key] = value;
-          queueDashboardRender({sections:['filters','kpis','pipeline','today','leaderboard','stale','focus']});
+          dashboardState.refresh({
+            sections:['filters','kpis','pipeline','today','leaderboard','stale','focus'],
+            reason: 'dashboard:filters-updated'
+          });
         });
       }
     }
@@ -1843,32 +1849,37 @@ function runPatch(){
       exportCSV(filename, data.headers, data.rows);
     }
 
-    function queueDashboardRender(options){
-      if(state.pendingRender){
-        state.pendingRender.forceReload = state.pendingRender.forceReload || !!(options && options.forceReload);
-        if(options && Array.isArray(options.sections)){
-          options.sections.forEach(section => state.pendingRender.sections.add(section));
-        }
-        state.pendingRender.includeReports = state.pendingRender.includeReports || !!options?.includeReports;
-        return;
+    function normalizeRefreshSections(input){
+      if(input instanceof Set){
+        const copy = new Set();
+        input.forEach(section => { if(section) copy.add(section); });
+        return copy;
       }
-      const sectionsSet = new Set(options && Array.isArray(options.sections) ? options.sections : []);
-      state.pendingRender = {
-        forceReload: !!(options && options.forceReload),
-        sections: sectionsSet,
-        includeReports: !!(options && options.includeReports)
-      };
-      Promise.resolve().then(async ()=>{
-        const payload = state.pendingRender;
-        state.pendingRender = null;
-        const releaseLoading = beginDashboardLoading();
-        try {
-          await renderDashboard({forceReload: payload.forceReload, sections: payload.sections});
-          if(payload.includeReports) await renderReports();
-        } finally {
-          releaseLoading();
+      const set = new Set();
+      if(Array.isArray(input)){
+        input.forEach(section => { if(section) set.add(section); });
+      }
+      return set;
+    }
+
+    async function handleDashboardRefresh(request){
+      const sections = normalizeRefreshSections(request && request.sections);
+      const releaseLoading = beginDashboardLoading();
+      try {
+        await renderDashboard({
+          forceReload: !!(request && request.forceReload),
+          sections
+        });
+        if(request && request.includeReports){
+          await renderReports();
         }
-      });
+      } finally {
+        releaseLoading();
+      }
+    }
+
+    if(typeof dashboardState?.registerRefreshHandler === 'function'){
+      dashboardState.registerRefreshHandler(handleDashboardRefresh);
     }
 
     async function markTaskDone(taskId){
@@ -1884,7 +1895,10 @@ function runPatch(){
         await dbPut('tasks', record);
         task.done = true;
         task.raw = record;
-        queueDashboardRender({forceReload:false, sections:['kpis','today','focus'], includeReports:false});
+        dashboardState.refresh({
+          sections:['kpis','today','focus'],
+          reason: 'dashboard:task-done'
+        });
         document.dispatchEvent(new CustomEvent('task:updated',{detail:{id:taskId,status:'done',source:'dashboard'}}));
         if(typeof window.dispatchAppDataChanged === 'function'){
           window.dispatchAppDataChanged({source:'dashboard', action:'task-done', taskId});
@@ -1901,11 +1915,12 @@ function runPatch(){
         updateDashboardModeControls();
         return;
       }
-      const widgets = Object.assign({}, state.dashboard.widgets);
-      state.dashboard = normalizeDashboardSettings({ mode: normalized, widgets, order: state.dashboard.order });
+      state.dashboard.mode = normalized;
       state.dashboardLoaded = true;
       updateDashboardModeControls();
-      queueDashboardRender({forceReload:false, sections:['filters','kpis','pipeline','today','leaderboard','stale','focus']});
+      if(typeof dashboardState?.setMode === 'function'){
+        dashboardState.setMode(normalized, { reason: 'dashboard:mode-toggle' });
+      }
       try{
         if(window.Settings && typeof window.Settings.save === 'function'){
           await window.Settings.save({ dashboard: { mode: normalized } });
@@ -2000,9 +2015,18 @@ function runPatch(){
       document.addEventListener(evtName, evt => {
         const detail = evt?.detail || {};
         if(evtName === 'task:updated'){
-          queueDashboardRender({forceReload:true, sections:['kpis','today','focus']});
+          dashboardState.refresh({
+            forceReload:true,
+            sections:['kpis','today','focus'],
+            reason: 'event:task-updated'
+          });
         }else{
-          queueDashboardRender({forceReload:true, sections:['filters','kpis','pipeline','today','leaderboard','stale','focus'], includeReports:true});
+          dashboardState.refresh({
+            forceReload:true,
+            sections:['filters','kpis','pipeline','today','leaderboard','stale','focus'],
+            includeReports:true,
+            reason: `event:${evtName}`
+          });
         }
       });
     });
@@ -2033,14 +2057,21 @@ function runPatch(){
       const lanes = extractPartialLaneTokens(detail.partial);
       if(lanes.length){
         if(lanes.some(isPipelineLaneToken)){
-          queueDashboardRender({forceReload:true, sections:['pipeline']});
+          dashboardState.refresh({
+            forceReload:true,
+            sections:['pipeline'],
+            reason: 'event:pipeline-partial'
+          });
         }
         return;
       }
       const scope = detail.scope;
       if(scope && scope !== 'settings') return;
       state.dashboardLoaded = false;
-      queueDashboardRender({forceReload:false, sections:['filters','kpis','pipeline','today','leaderboard','stale','focus']});
+      dashboardState.refresh({
+        sections:['filters','kpis','pipeline','today','leaderboard','stale','focus'],
+        reason: 'event:app-data-changed'
+      });
     });
 
     if(typeof window.registerRenderHook === 'function'){

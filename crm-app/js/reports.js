@@ -1,4 +1,5 @@
 import { normalizeStatus } from './pipeline/constants.js';
+import dashboardState from './state/dashboard_state.js';
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){
@@ -112,7 +113,8 @@ import { normalizeStatus } from './pipeline/constants.js';
     const [contacts, partners, tasks, documents] = await Promise.all([
       dbGetAll('contacts'), dbGetAll('partners'), dbGetAll('tasks'), dbGetAll('documents')
     ]);
-    const R = (window.DASH_RANGE==='tm') ? (x=> inThisMonth(x)) : (_=>true);
+    const range = typeof dashboardState?.getRange === 'function' ? dashboardState.getRange() : 'all';
+    const R = range === 'tm' ? (x=> inThisMonth(x)) : (_=>true);
 
     const contactById = new Map((contacts||[]).map(c=>[String(c.id), c]));
     const now = new Date();
@@ -633,6 +635,18 @@ import { normalizeStatus } from './pipeline/constants.js';
     wireReportsView();
     renderReportsView();
   });
+
+  if(typeof dashboardState?.subscribe === 'function'){
+    dashboardState.subscribe((state, changed) => {
+      if(changed && changed.has('range')){
+        try{
+          const res = typeof window.renderReports === 'function' ? window.renderReports() : null;
+          if(res && typeof res.then === 'function') res.catch(()=>{});
+        }catch(_err){}
+        renderReportsView();
+      }
+    });
+  }
 
   window.renderReportsView = renderReportsView;
 })();
