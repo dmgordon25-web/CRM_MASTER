@@ -17,7 +17,6 @@
   async function exportTable(tableName) {
     try {
       let table, filename;
-      
       switch(tableName) {
         case 'pipeline':
           table = document.getElementById('tbl-pipeline');
@@ -45,9 +44,16 @@
         return;
       }
 
+      await waitForTableLayout();
+
+      if (!table.isConnected) {
+        console.warn('Table detached before export:', tableName);
+        return;
+      }
+
       const csv = tableToCSV(table);
       downloadCSV(csv, filename);
-      
+
       if (window.Toast && typeof window.Toast.success === 'function') {
         window.Toast.success('CSV exported successfully');
       }
@@ -60,52 +66,20 @@
   }
 
   function tableToCSV(table) {
-    const rows = [];
     const BOM = '\ufeff'; // UTF-8 BOM for Excel
+    const rows = [];
 
-    // Get headers
-    const headerRow = table.querySelector('thead tr');
-    if (headerRow) {
-      const headers = Array.from(headerRow.querySelectorAll('th'))
-        .filter(th => {
-          // Skip checkbox columns
-          const checkbox = th.querySelector('input[type="checkbox"]');
-          return !checkbox;
-        })
-        .map(th => {
-          // Get button text if it exists, otherwise cell text
-          const btn = th.querySelector('.sort-btn');
-          const text = btn ? btn.textContent.replace(/[↕↑↓]/g, '').trim() : th.textContent.trim();
-          return escapeCSV(text);
-        });
-      
-      if (headers.length > 0) {
-        rows.push(headers.join(','));
-      }
+    const { headers, visibility } = extractHeaders(table);
+    if (headers.length > 0) {
+      rows.push(headers.map(escapeCSV).join(','));
     }
 
-    // Get data rows
     const dataRows = table.querySelectorAll('tbody tr:not(.empty-row)');
-    dataRows.forEach(row => {
-      const cells = Array.from(row.querySelectorAll('td'))
-        .filter((td, index) => {
-          // Skip checkbox columns (usually first column)
-          const checkbox = td.querySelector('input[type="checkbox"]');
-          return !checkbox;
-        })
-        .map(td => {
-          // Get text content, handling links
-          const link = td.querySelector('a');
-          let text = link ? link.textContent.trim() : td.textContent.trim();
-          
-          // Clean up extra whitespace
-          text = text.replace(/\s+/g, ' ').trim();
-          
-          return escapeCSV(text);
-        });
-      
-      if (cells.length > 0) {
-        rows.push(cells.join(','));
+    dataRows.forEach((row) => {
+      if (!isRowVisible(row)) return;
+      const values = extractRowValues(row, visibility);
+      if (values.length > 0) {
+        rows.push(values.map(escapeCSV).join(','));
       }
     });
 
@@ -114,15 +88,164 @@
 
   function escapeCSV(text) {
     if (text == null) return '';
-    
+
     const str = String(text);
     
     // If contains comma, quote, or newline, wrap in quotes and escape quotes
     if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
       return '"' + str.replace(/"/g, '""') + '"';
     }
-    
+
     return str;
+  }
+
+  function waitForTableLayout() {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(resolve);
+      });
+    });
+  }
+
+  function extractHeaders(table) {
+    const headers = [];
+    const visibility = [];
+    if (!table || !table.tHead) return { headers, visibility: null };
+
+    const headerRow = table.tHead.rows && table.tHead.rows[0]
+      ? table.tHead.rows[0]
+      : table.querySelector('thead tr');
+
+    if (!headerRow) return { headers, visibility: null };
+
+    let columnIndex = 0;
+    Array.from(headerRow.cells || headerRow.querySelectorAll('th')).forEach((cell) => {
+      const span = Math.max(1, cell.colSpan || 1);
+      const include = shouldIncludeHeaderCell(cell);
+      for (let offset = 0; offset < span; offset += 1) {
+        visibility[columnIndex + offset] = include;
+      }
+      if (include) {
+        headers.push(extractHeaderLabel(cell));
+      }
+      columnIndex += span;
+    });
+
+    return { headers, visibility };
+  }
+
+  function extractHeaderLabel(cell) {
+    if (!cell) return '';
+    const button = cell.querySelector('.sort-btn');
+    const source = button || cell;
+    const raw = source.textContent || '';
+    return raw.replace(/[↕↑↓]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  function extractRowValues(row, visibility) {
+    const values = [];
+    if (!row || !row.cells) return values;
+
+    let columnIndex = 0;
+    Array.from(row.cells).forEach((cell) => {
+      const span = Math.max(1, cell.colSpan || 1);
+      if (shouldIncludeDataCell(cell, visibility, columnIndex, span)) {
+        values.push(extractCellText(cell));
+      }
+      columnIndex += span;
+    });
+
+    return values;
+  }
+
+  function extractCellText(cell) {
+    if (!cell) return '';
+    const link = cell.querySelector('a');
+    const target = link || cell;
+    const raw = target.textContent || '';
+    return raw.replace(/\s+/g, ' ').trim();
+  }
+
+  function shouldIncludeHeaderCell(cell) {
+    if (!cell) return false;
+    if (isSelectionCell(cell)) return false;
+    if (isCellEffectivelyHidden(cell)) return false;
+    return true;
+  }
+
+  function shouldIncludeDataCell(cell, visibility, columnIndex, span) {
+    if (!cell) return false;
+    if (isSelectionCell(cell)) return false;
+    if (isCellEffectivelyHidden(cell)) return false;
+
+    if (!visibility || !visibility.length) {
+      return true;
+    }
+
+    for (let offset = 0; offset < span; offset += 1) {
+      if (visibility[columnIndex + offset]) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function isSelectionCell(cell) {
+    if (!cell) return false;
+    if (cell.querySelector('input[type="checkbox"]')) return true;
+    const role = cell.getAttribute && cell.getAttribute('data-role');
+    if (role === 'select') return true;
+    const dataset = cell.dataset || {};
+    if (dataset.role === 'select') return true;
+    if (dataset.column === 'select') return true;
+    return false;
+  }
+
+  function isRowVisible(row) {
+    if (!row) return false;
+    if (row.hidden) return false;
+    const attrHidden = row.getAttribute ? row.getAttribute('hidden') : null;
+    if (attrHidden === '' || attrHidden === 'true') return false;
+    if (row.getAttribute && row.getAttribute('aria-hidden') === 'true') return false;
+    const style = safeGetComputedStyle(row);
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+    if (typeof row.getClientRects === 'function' && row.getClientRects().length === 0) return false;
+    return true;
+  }
+
+  function isCellEffectivelyHidden(cell) {
+    if (!cell) return true;
+    if (cell.hidden) return true;
+    const attrHidden = cell.getAttribute ? cell.getAttribute('hidden') : null;
+    if (attrHidden === '' || attrHidden === 'true') return true;
+    if (cell.getAttribute && cell.getAttribute('aria-hidden') === 'true') return true;
+    if (cell.matches) {
+      if (cell.matches('[data-column-visible="0"], [data-column-hidden="1"], [data-hidden="1"]')) {
+        return true;
+      }
+    }
+    const style = safeGetComputedStyle(cell);
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) return true;
+    if (cell.offsetWidth === 0 && cell.offsetHeight === 0 && cell.getClientRects && cell.getClientRects().length === 0) {
+      return true;
+    }
+    return false;
+  }
+
+  function safeGetComputedStyle(element) {
+    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+      return null;
+    }
+    try {
+      return window.getComputedStyle(element);
+    } catch (_err) {
+      return null;
+    }
   }
 
   function downloadCSV(csvContent, filename) {
