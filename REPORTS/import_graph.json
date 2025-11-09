@@ -1,0 +1,3194 @@
+{
+  "generatedAt": "2025-11-09T06:32:35.066Z",
+  "nodes": [
+    {
+      "id": "crm-app/components/Loaders/InlineLoader.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/css/relationships.css",
+      "reasons": [
+        "import:css-import"
+      ]
+    },
+    {
+      "id": "crm-app/css/tokens.css",
+      "reasons": [
+        "import:css-import"
+      ]
+    },
+    {
+      "id": "crm-app/index.html",
+      "reasons": [
+        "entry:index",
+        "keep-list"
+      ]
+    },
+    {
+      "id": "crm-app/js/app.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot_hardener.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/boot_hardener.js",
+      "reasons": [
+        "html:inline-module:static",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/contracts/probe_utils.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/contracts/services.js",
+      "reasons": [
+        "manifest:CORE",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/early_trap.js",
+      "reasons": [
+        "html:script-src"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/manifest.js",
+      "reasons": [
+        "html:inline-module:static",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/phase_runner.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/phases.js",
+      "reasons": [
+        "manifest:CORE",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/boot/splash_sequence.js",
+      "reasons": [
+        "import:dynamic"
+      ]
+    },
+    {
+      "id": "crm-app/js/bulk_log.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/calendar_actions.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/calendar_ics.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/calendar_impl.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/calendar.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/calendar/index.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/commissions.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/compose.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/contact_stage_tracker.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/contacts_merge_orchestrator.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/contacts_merge.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/contacts.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/contacts/form.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/contacts/modal.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/core/capabilities_probe.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/core/renderGuard.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/dash_range.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/dashboard/index.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/dashboard/kpis.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/dashboard/widgets/portfolio_mix.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/dashboard/widgets/referral_leaders.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/data/seed.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/data/settings.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/db_compat.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/db.js",
+      "reasons": [
+        "manifest:CORE",
+        "keep-list",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/debug/overlay.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/diagnostics_quiet.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/doc/doc_center_enhancer.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/doccenter_rules.js",
+      "reasons": [
+        "manifest:patch",
+        "keep-list"
+      ]
+    },
+    {
+      "id": "crm-app/js/email/merge_vars.js",
+      "reasons": [
+        "manifest:CORE",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/email/templates_store.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/env.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/filters.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/header_ui.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/ical.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/importer_contacts.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/importer_helpers.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/importer_partners.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/importer.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/merge/merge_core.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/migrations.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/notifications.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/notifications/notifier.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/pages/email_templates.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/pages/notifications.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/pages/workbench.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners_detail.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners_merge_orchestrator.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners_merge.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners_modal.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/partners/list.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_contact_linking_5A.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_contact_linking_5B.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_doccenter2.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_masterfix.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_merge_ui.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-09-27_release_prep.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-10-02_medium_nice.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-10-03_automation_seed.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_2025-10-03_calendar_ics_button.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_20250923_baseline.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_20250924_bootstrap_ready.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patches/loader.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patches/patch_2025-10-23_session_beacon.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/patches/polish_overlay_ready.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/pipeline/constants.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/pipeline/kanban_dnd.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/pipeline/stages.js",
+      "reasons": [
+        "manifest:CORE",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/post_funding.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/presets.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/print.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/qa.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/quick_add.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/relationships/index.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/relationships/map.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/render.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/reports.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/reports/referrals.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/router/history.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/router/init.js",
+      "reasons": [
+        "html:module-script-src",
+        "html:script-src"
+      ]
+    },
+    {
+      "id": "crm-app/js/router/patterns.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/router/view_teardown.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/seed_data.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/selftest_panel.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/selftest.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/comms_adapter.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/pipelineStages.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/selection_adapter.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/selection_fallback.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/selection_reset.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/selection.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/services/softDelete.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/settings_forms.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/settings/flags.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/snapshot.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/state/actionBarGuards.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/state/dashboard_state.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/state/selectionStore.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/table/table_export.js",
+      "reasons": [
+        "html:post-first-paint"
+      ]
+    },
+    {
+      "id": "crm-app/js/tasks.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/tasks/api.js",
+      "reasons": [
+        "import:dynamic"
+      ]
+    },
+    {
+      "id": "crm-app/js/tasks/store.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/tasks/task_utils.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/templates.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui_shims.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/action_bar.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/advanced_mode.js",
+      "reasons": [
+        "html:post-first-paint"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/Confirm.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/dashboard_layout.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/debug_overlay.js",
+      "reasons": [
+        "html:post-first-paint"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/drag_core.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/form_footer.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/GhostButton.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/header_toolbar.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/help_hints.js",
+      "reasons": [
+        "html:post-first-paint"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/legend_popover.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/loading_block.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/merge_modal.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/modal_singleton.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/modals/partner_edit/index.js",
+      "reasons": [
+        "import:static",
+        "import:dynamic"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/notifications_panel.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/partner_edit_modal.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/PrimaryButton.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/quick_add_unified.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/quick_add_validation.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/quick_create_menu.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/route_lifecycle.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/route_toast_sentinel.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/settings_form.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/status_banners.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/strings.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/table_layout.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/toast_helpers.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/Toast.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/js/ui/universal_search.js",
+      "reasons": [
+        "html:post-first-paint"
+      ]
+    },
+    {
+      "id": "crm-app/js/util/favorites.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/util/strings.js",
+      "reasons": [
+        "manifest:patch",
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/util/touch_log.js",
+      "reasons": [
+        "import:static"
+      ]
+    },
+    {
+      "id": "crm-app/js/utils.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/js/ux/svg_sanitizer.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/patches/manifest.json",
+      "reasons": [
+        "keep-list"
+      ]
+    },
+    {
+      "id": "crm-app/seed_data_inline.js",
+      "reasons": [
+        "manifest:CORE"
+      ]
+    },
+    {
+      "id": "crm-app/seed_test_data.js",
+      "reasons": [
+        "manifest:patch"
+      ]
+    },
+    {
+      "id": "crm-app/styles.css",
+      "reasons": [
+        "html:stylesheet"
+      ]
+    },
+    {
+      "id": "crm-app/styles/dashboard.css",
+      "reasons": [
+        "html:stylesheet"
+      ]
+    },
+    {
+      "id": "crm-app/styles/loaders.css",
+      "reasons": [
+        "html:stylesheet"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/router/init.js",
+      "type": "entry",
+      "reason": "html:module-script-src"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/boot/early_trap.js",
+      "type": "entry",
+      "reason": "html:script-src"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/router/init.js",
+      "type": "entry",
+      "reason": "html:script-src"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/styles.css",
+      "type": "entry",
+      "reason": "html:stylesheet"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/styles/dashboard.css",
+      "type": "entry",
+      "reason": "html:stylesheet"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/styles/loaders.css",
+      "type": "entry",
+      "reason": "html:stylesheet"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/boot/boot_hardener.js",
+      "type": "import",
+      "reason": "html:inline-module:static"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/boot/manifest.js",
+      "type": "import",
+      "reason": "html:inline-module:static"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/ui/debug_overlay.js",
+      "type": "entry",
+      "reason": "html:post-first-paint"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/ui/universal_search.js",
+      "type": "entry",
+      "reason": "html:post-first-paint"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/table/table_export.js",
+      "type": "entry",
+      "reason": "html:post-first-paint"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/ui/help_hints.js",
+      "type": "entry",
+      "reason": "html:post-first-paint"
+    },
+    {
+      "from": "crm-app/index.html",
+      "to": "crm-app/js/ui/advanced_mode.js",
+      "type": "entry",
+      "reason": "html:post-first-paint"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/env.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/db.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/core/renderGuard.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/services/selection.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/utils.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/render.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/db_compat.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ical.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/presets.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/seed_data_inline.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/seed_data.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui_shims.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/header_ui.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/email/merge_vars.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/contact_stage_tracker.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/commissions.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/post_funding.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/qa.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/bulk_log.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/print.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/app.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/settings_forms.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/compose.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/services/pipelineStages.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/services/softDelete.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/pages/workbench.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/pages/email_templates.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/pages/notifications.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/boot/contracts/services.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/boot/phases.js",
+      "type": "manifest",
+      "reason": "manifest:CORE"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_20250923_baseline.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_20250924_bootstrap_ready.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_doccenter2.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_contact_linking_5A.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_contact_linking_5B.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_merge_ui.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_masterfix.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-09-27_release_prep.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patches/polish_overlay_ready.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-10-02_medium_nice.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-10-03_calendar_ics_button.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patch_2025-10-03_automation_seed.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/contacts_merge.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/contacts_merge_orchestrator.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/pipeline/kanban_dnd.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patches/patch_2025-10-23_session_beacon.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/Toast.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/Confirm.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/data/settings.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/data/seed.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/migrations.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/templates.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/filters.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/state/selectionStore.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/state/actionBarGuards.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/notifications_panel.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/action_bar.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/merge_modal.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/debug/overlay.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/quick_add.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/doccenter_rules.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners_detail.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners_modal.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners/list.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners_merge.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/partners_merge_orchestrator.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/dash_range.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/importer.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/reports.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/notifications.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/calendar_impl.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/calendar_actions.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/calendar.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/calendar_ics.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/diagnostics_quiet.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/doc/doc_center_enhancer.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/email/templates_store.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/importer_contacts.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/importer_helpers.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/importer_partners.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/merge/merge_core.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/notifications/notifier.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patches/loader.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/selftest.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/selftest_panel.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/seed_test_data.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/snapshot.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/GhostButton.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/PrimaryButton.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/form_footer.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/header_toolbar.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/table_layout.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/route_toast_sentinel.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/quick_add_unified.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/settings_form.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ui/strings.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/util/strings.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/ux/svg_sanitizer.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/services/selection_adapter.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/services/selection_fallback.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/core/capabilities_probe.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+      "type": "manifest",
+      "reason": "manifest:patch"
+    },
+    {
+      "from": "crm-app/js/router/init.js",
+      "to": "crm-app/js/router/patterns.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/router/init.js",
+      "to": "crm-app/js/router/history.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/styles.css",
+      "to": "crm-app/css/tokens.css",
+      "type": "css-import",
+      "reason": "import:css-import"
+    },
+    {
+      "from": "crm-app/styles.css",
+      "to": "crm-app/css/relationships.css",
+      "type": "css-import",
+      "reason": "import:css-import"
+    },
+    {
+      "from": "crm-app/js/boot/manifest.js",
+      "to": "crm-app/js/boot_hardener.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/strings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/dashboard/widgets/portfolio_mix.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/dashboard/widgets/referral_leaders.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/util/favorites.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/legend_popover.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/table_layout.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/render.js",
+      "to": "crm-app/js/ui/quick_add_unified.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/dashboard/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/dashboard/kpis.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/relationships/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/ui/action_bar.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/components/Loaders/InlineLoader.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/app.js",
+      "to": "crm-app/js/settings/flags.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/settings_forms.js",
+      "to": "crm-app/js/ui/strings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/compose.js",
+      "to": "crm-app/js/email/templates_store.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/compose.js",
+      "to": "crm-app/js/email/merge_vars.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/services/pipelineStages.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/ui/legend_popover.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/ui/status_banners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/workbench.js",
+      "to": "crm-app/js/ui/action_bar.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/email_templates.js",
+      "to": "crm-app/js/email/templates_store.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/email_templates.js",
+      "to": "crm-app/js/email/merge_vars.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pages/notifications.js",
+      "to": "crm-app/js/notifications/notifier.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/boot/contracts/services.js",
+      "to": "crm-app/js/boot/contracts/probe_utils.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/boot/contracts/services.js",
+      "to": "crm-app/js/settings/flags.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/boot/phases.js",
+      "to": "crm-app/js/boot/contracts/probe_utils.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/boot/phases.js",
+      "to": "crm-app/js/settings/flags.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250923_baseline.js",
+      "to": "crm-app/js/ui/partner_edit_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250923_baseline.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250923_baseline.js",
+      "to": "crm-app/js/services/selection_reset.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "to": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "to": "crm-app/js/contacts_merge_orchestrator.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "to": "crm-app/js/partners_merge_orchestrator.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_20250926_ctc_actionbar.js",
+      "to": "crm-app/js/ui/partner_edit_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "to": "crm-app/js/ui/partner_edit_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+      "to": "crm-app/js/ui/route_lifecycle.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+      "to": "crm-app/js/state/dashboard_state.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts_merge.js",
+      "to": "crm-app/js/contacts_merge_orchestrator.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts_merge_orchestrator.js",
+      "to": "crm-app/js/ui/merge_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts_merge_orchestrator.js",
+      "to": "crm-app/js/merge/merge_core.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pipeline/kanban_dnd.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pipeline/kanban_dnd.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pipeline/kanban_dnd.js",
+      "to": "crm-app/js/router/history.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pipeline/kanban_dnd.js",
+      "to": "crm-app/js/router/view_teardown.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/data/seed.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/filters.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/notifications_panel.js",
+      "to": "crm-app/js/notifications/notifier.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/notifications_panel.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/action_bar.js",
+      "to": "crm-app/js/ui/merge_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/action_bar.js",
+      "to": "crm-app/js/quick_add.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/action_bar.js",
+      "to": "crm-app/js/ui/quick_create_menu.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/merge_modal.js",
+      "to": "crm-app/js/merge/merge_core.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/merge_modal.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/quick_add.js",
+      "to": "crm-app/js/ui/strings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/quick_add.js",
+      "to": "crm-app/js/ui/quick_add_unified.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/quick_add.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/quick_add.js",
+      "to": "crm-app/js/ui/quick_create_menu.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/ui/modal_singleton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/ui/form_footer.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/contacts/form.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/ui/route_lifecycle.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/services/selection_reset.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/util/touch_log.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/util/favorites.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts.js",
+      "to": "crm-app/js/tasks/task_utils.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/ui/modal_singleton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/util/touch_log.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/util/favorites.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/ui/route_lifecycle.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/services/selection_reset.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/reports/referrals.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_detail.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_detail.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_detail.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_modal.js",
+      "to": "crm-app/js/contacts/form.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_modal.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners/list.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_merge.js",
+      "to": "crm-app/js/ui/action_bar.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_merge_orchestrator.js",
+      "to": "crm-app/js/ui/merge_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/partners_merge_orchestrator.js",
+      "to": "crm-app/js/merge/merge_core.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dash_range.js",
+      "to": "crm-app/js/state/dashboard_state.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/ui/strings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/util/strings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/importer_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/importer_partners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/importer.js",
+      "to": "crm-app/js/importer_contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/reports.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/reports.js",
+      "to": "crm-app/js/state/dashboard_state.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/calendar/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/quick_create_menu.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/status_banners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/ui/modal_singleton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/db.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_impl.js",
+      "to": "crm-app/js/tasks/store.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar_actions.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar.js",
+      "to": "crm-app/js/boot/contracts/services.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar.js",
+      "to": "crm-app/js/db.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar.js",
+      "to": "crm-app/js/calendar_impl.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/loader.js",
+      "to": "crm-app/js/boot/manifest.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/loader.js",
+      "to": "crm-app/js/boot/boot_hardener.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/loader.js",
+      "to": "crm-app/js/boot/phase_runner.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/loader.js",
+      "to": "crm-app/js/boot/phases.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/loader.js",
+      "to": "crm-app/js/boot/splash_sequence.js",
+      "type": "dynamic",
+      "reason": "import:dynamic"
+    },
+    {
+      "from": "crm-app/js/ui/loading_block.js",
+      "to": "crm-app/components/Loaders/InlineLoader.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/form_footer.js",
+      "to": "crm-app/js/ui/GhostButton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/form_footer.js",
+      "to": "crm-app/js/ui/PrimaryButton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/header_toolbar.js",
+      "to": "crm-app/js/ui/quick_create_menu.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/header_toolbar.js",
+      "to": "crm-app/js/quick_add.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/header_toolbar.js",
+      "to": "crm-app/js/router/history.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/header_toolbar.js",
+      "to": "crm-app/js/router/view_teardown.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_add_unified.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_add_unified.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_add_unified.js",
+      "to": "crm-app/js/partners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_add_unified.js",
+      "to": "crm-app/js/ui/quick_add_validation.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/settings_form.js",
+      "to": "crm-app/js/data/settings.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+      "to": "crm-app/js/ui/action_bar.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/router/history.js",
+      "to": "crm-app/js/ui/route_lifecycle.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/router/history.js",
+      "to": "crm-app/js/router/view_teardown.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/pipeline/constants.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/modals/partner_edit/index.js",
+      "to": "crm-app/js/ui/partner_edit_modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/drag_core.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/route_lifecycle.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/dashboard_layout.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/legend_popover.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/status_banners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/ui/loading_block.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/index.js",
+      "to": "crm-app/js/state/dashboard_state.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/dashboard/kpis.js",
+      "to": "crm-app/js/pipeline/stages.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/relationships/index.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/relationships/index.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/relationships/index.js",
+      "to": "crm-app/js/relationships/map.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/status_banners.js",
+      "to": "crm-app/components/Loaders/InlineLoader.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/partner_edit_modal.js",
+      "to": "crm-app/js/ui/modal_singleton.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/partner_edit_modal.js",
+      "to": "crm-app/js/ui/form_footer.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/partner_edit_modal.js",
+      "to": "crm-app/js/contacts/modal.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/partner_edit_modal.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/partner_edit_modal.js",
+      "to": "crm-app/js/partners.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/ui/toast_helpers.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/contacts.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/tasks.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/ui/quick_add_validation.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/tasks/api.js",
+      "type": "dynamic",
+      "reason": "import:dynamic"
+    },
+    {
+      "from": "crm-app/js/ui/quick_create_menu.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "dynamic",
+      "reason": "import:dynamic"
+    },
+    {
+      "from": "crm-app/js/contacts/form.js",
+      "to": "crm-app/js/ui/modals/partner_edit/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/tasks/task_utils.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/reports/referrals.js",
+      "to": "crm-app/js/pipeline/constants.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/calendar/index.js",
+      "to": "crm-app/js/db.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/tasks/store.js",
+      "to": "crm-app/js/calendar/index.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/ui/dashboard_layout.js",
+      "to": "crm-app/js/ui/drag_core.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/contacts/modal.js",
+      "to": "crm-app/js/services/comms_adapter.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/tasks/api.js",
+      "to": "crm-app/js/db.js",
+      "type": "static",
+      "reason": "import:static"
+    },
+    {
+      "from": "crm-app/js/tasks/api.js",
+      "to": "crm-app/js/tasks/store.js",
+      "type": "static",
+      "reason": "import:static"
+    }
+  ],
+  "missing": [
+    {
+      "id": "crm-app/js/boot_hardener.js",
+      "reason": "missing-file"
+    }
+  ],
+  "reachable": [
+    "crm-app/components/Loaders/InlineLoader.js",
+    "crm-app/css/relationships.css",
+    "crm-app/css/tokens.css",
+    "crm-app/index.html",
+    "crm-app/js/app.js",
+    "crm-app/js/boot/boot_hardener.js",
+    "crm-app/js/boot/contracts/probe_utils.js",
+    "crm-app/js/boot/contracts/services.js",
+    "crm-app/js/boot/early_trap.js",
+    "crm-app/js/boot/manifest.js",
+    "crm-app/js/boot/phase_runner.js",
+    "crm-app/js/boot/phases.js",
+    "crm-app/js/boot/splash_sequence.js",
+    "crm-app/js/boot_hardener.js",
+    "crm-app/js/bulk_log.js",
+    "crm-app/js/calendar.js",
+    "crm-app/js/calendar/index.js",
+    "crm-app/js/calendar_actions.js",
+    "crm-app/js/calendar_ics.js",
+    "crm-app/js/calendar_impl.js",
+    "crm-app/js/commissions.js",
+    "crm-app/js/compose.js",
+    "crm-app/js/contact_stage_tracker.js",
+    "crm-app/js/contacts.js",
+    "crm-app/js/contacts/form.js",
+    "crm-app/js/contacts/modal.js",
+    "crm-app/js/contacts_merge.js",
+    "crm-app/js/contacts_merge_orchestrator.js",
+    "crm-app/js/core/capabilities_probe.js",
+    "crm-app/js/core/renderGuard.js",
+    "crm-app/js/dash_range.js",
+    "crm-app/js/dashboard/index.js",
+    "crm-app/js/dashboard/kpis.js",
+    "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+    "crm-app/js/dashboard/widgets/portfolio_mix.js",
+    "crm-app/js/dashboard/widgets/referral_leaders.js",
+    "crm-app/js/data/seed.js",
+    "crm-app/js/data/settings.js",
+    "crm-app/js/db.js",
+    "crm-app/js/db_compat.js",
+    "crm-app/js/debug/overlay.js",
+    "crm-app/js/diagnostics_quiet.js",
+    "crm-app/js/doc/doc_center_enhancer.js",
+    "crm-app/js/doccenter_rules.js",
+    "crm-app/js/email/merge_vars.js",
+    "crm-app/js/email/templates_store.js",
+    "crm-app/js/env.js",
+    "crm-app/js/filters.js",
+    "crm-app/js/header_ui.js",
+    "crm-app/js/ical.js",
+    "crm-app/js/importer.js",
+    "crm-app/js/importer_contacts.js",
+    "crm-app/js/importer_helpers.js",
+    "crm-app/js/importer_partners.js",
+    "crm-app/js/merge/merge_core.js",
+    "crm-app/js/migrations.js",
+    "crm-app/js/notifications.js",
+    "crm-app/js/notifications/notifier.js",
+    "crm-app/js/pages/email_templates.js",
+    "crm-app/js/pages/notifications.js",
+    "crm-app/js/pages/workbench.js",
+    "crm-app/js/partners.js",
+    "crm-app/js/partners/list.js",
+    "crm-app/js/partners_detail.js",
+    "crm-app/js/partners_merge.js",
+    "crm-app/js/partners_merge_orchestrator.js",
+    "crm-app/js/partners_modal.js",
+    "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+    "crm-app/js/patch_2025-09-26_phase2_automations.js",
+    "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+    "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+    "crm-app/js/patch_2025-09-27_contact_linking_5A.js",
+    "crm-app/js/patch_2025-09-27_contact_linking_5B.js",
+    "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+    "crm-app/js/patch_2025-09-27_doccenter2.js",
+    "crm-app/js/patch_2025-09-27_masterfix.js",
+    "crm-app/js/patch_2025-09-27_merge_ui.js",
+    "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+    "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+    "crm-app/js/patch_2025-09-27_release_prep.js",
+    "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+    "crm-app/js/patch_2025-10-02_medium_nice.js",
+    "crm-app/js/patch_2025-10-03_automation_seed.js",
+    "crm-app/js/patch_2025-10-03_calendar_ics_button.js",
+    "crm-app/js/patch_20250923_baseline.js",
+    "crm-app/js/patch_20250924_bootstrap_ready.js",
+    "crm-app/js/patch_20250926_ctc_actionbar.js",
+    "crm-app/js/patches/loader.js",
+    "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+    "crm-app/js/patches/patch_2025-10-23_session_beacon.js",
+    "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js",
+    "crm-app/js/patches/polish_overlay_ready.js",
+    "crm-app/js/pipeline/constants.js",
+    "crm-app/js/pipeline/kanban_dnd.js",
+    "crm-app/js/pipeline/stages.js",
+    "crm-app/js/post_funding.js",
+    "crm-app/js/presets.js",
+    "crm-app/js/print.js",
+    "crm-app/js/qa.js",
+    "crm-app/js/quick_add.js",
+    "crm-app/js/relationships/index.js",
+    "crm-app/js/relationships/map.js",
+    "crm-app/js/render.js",
+    "crm-app/js/reports.js",
+    "crm-app/js/reports/referrals.js",
+    "crm-app/js/router/history.js",
+    "crm-app/js/router/init.js",
+    "crm-app/js/router/patterns.js",
+    "crm-app/js/router/view_teardown.js",
+    "crm-app/js/seed_data.js",
+    "crm-app/js/selftest.js",
+    "crm-app/js/selftest_panel.js",
+    "crm-app/js/services/comms_adapter.js",
+    "crm-app/js/services/pipelineStages.js",
+    "crm-app/js/services/selection.js",
+    "crm-app/js/services/selection_adapter.js",
+    "crm-app/js/services/selection_fallback.js",
+    "crm-app/js/services/selection_reset.js",
+    "crm-app/js/services/softDelete.js",
+    "crm-app/js/settings/flags.js",
+    "crm-app/js/settings_forms.js",
+    "crm-app/js/snapshot.js",
+    "crm-app/js/state/actionBarGuards.js",
+    "crm-app/js/state/dashboard_state.js",
+    "crm-app/js/state/selectionStore.js",
+    "crm-app/js/table/table_export.js",
+    "crm-app/js/tasks.js",
+    "crm-app/js/tasks/api.js",
+    "crm-app/js/tasks/store.js",
+    "crm-app/js/tasks/task_utils.js",
+    "crm-app/js/templates.js",
+    "crm-app/js/ui/Confirm.js",
+    "crm-app/js/ui/GhostButton.js",
+    "crm-app/js/ui/PrimaryButton.js",
+    "crm-app/js/ui/Toast.js",
+    "crm-app/js/ui/action_bar.js",
+    "crm-app/js/ui/advanced_mode.js",
+    "crm-app/js/ui/dashboard_layout.js",
+    "crm-app/js/ui/debug_overlay.js",
+    "crm-app/js/ui/drag_core.js",
+    "crm-app/js/ui/form_footer.js",
+    "crm-app/js/ui/header_toolbar.js",
+    "crm-app/js/ui/help_hints.js",
+    "crm-app/js/ui/legend_popover.js",
+    "crm-app/js/ui/loading_block.js",
+    "crm-app/js/ui/merge_modal.js",
+    "crm-app/js/ui/modal_singleton.js",
+    "crm-app/js/ui/modals/partner_edit/index.js",
+    "crm-app/js/ui/notifications_panel.js",
+    "crm-app/js/ui/partner_edit_modal.js",
+    "crm-app/js/ui/quick_add_unified.js",
+    "crm-app/js/ui/quick_add_validation.js",
+    "crm-app/js/ui/quick_create_menu.js",
+    "crm-app/js/ui/route_lifecycle.js",
+    "crm-app/js/ui/route_toast_sentinel.js",
+    "crm-app/js/ui/settings_form.js",
+    "crm-app/js/ui/status_banners.js",
+    "crm-app/js/ui/strings.js",
+    "crm-app/js/ui/table_layout.js",
+    "crm-app/js/ui/toast_helpers.js",
+    "crm-app/js/ui/universal_search.js",
+    "crm-app/js/ui_shims.js",
+    "crm-app/js/util/favorites.js",
+    "crm-app/js/util/strings.js",
+    "crm-app/js/util/touch_log.js",
+    "crm-app/js/utils.js",
+    "crm-app/js/ux/svg_sanitizer.js",
+    "crm-app/patches/manifest.json",
+    "crm-app/seed_data_inline.js",
+    "crm-app/seed_test_data.js",
+    "crm-app/styles.css",
+    "crm-app/styles/dashboard.css",
+    "crm-app/styles/loaders.css"
+  ]
+}
