@@ -88,6 +88,7 @@ PIPELINE_STAGES.forEach((label) => {
 
 const PIPELINE_GUARD_KEY = '__WIRED_PIPELINE_KANBAN__';
 let pipelineGuard = null;
+let pendingPipelineReadyCleanup = null;
 
 function escapeHtml(value){
   return String(value ?? '')
@@ -396,60 +397,90 @@ export function wireKanbanDnD(){
 }
 
 function whenDocumentReady(run, guard){
-  if(typeof document === 'undefined'){ run(); return; }
+  if(typeof document === 'undefined'){
+    run();
+    return null;
+  }
   if(document.readyState === 'loading'){
-    const onReady = () => { run(); };
+    let cleanup = () => {};
+    const onReady = () => {
+      cleanup();
+      run();
+    };
+    cleanup = () => {
+      if(typeof document === 'undefined'){
+        return;
+      }
+      try { document.removeEventListener('DOMContentLoaded', onReady); }
+      catch(_removeErr){}
+    };
     try {
       document.addEventListener('DOMContentLoaded', onReady, { once: true });
     } catch (_err) {
       document.addEventListener('DOMContentLoaded', onReady, false);
     }
     if(guard && typeof guard.addCleanup === 'function'){
-      guard.addCleanup(() => {
-        try { document.removeEventListener('DOMContentLoaded', onReady); }
-        catch(_removeErr){}
-      });
+      guard.addCleanup(() => { cleanup(); });
     }
-    return;
+    return cleanup;
   }
   run();
+  return null;
 }
 
 function activatePipelineDnD(context){
-  const host = (context && context.root) || getRouteRoot('pipeline');
-  const guard = ensureViewGuard(host, PIPELINE_GUARD_KEY);
-  if(!guard){
-    return;
-  }
-  pipelineGuard = guard;
-  guard.addCleanup(() => {
-    if(pipelineGuard === guard){
-      pipelineGuard = null;
-    }
-  });
-  guard.addCleanup(() => detachAll());
-
-  const rerun = () => wireKanbanDnD();
-  whenDocumentReady(rerun, guard);
-
-  if(typeof window !== 'undefined' && window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
-    const hook = () => wireKanbanDnD();
-    try { window.RenderGuard.registerHook(hook); }
+  if(typeof pendingPipelineReadyCleanup === 'function'){
+    try { pendingPipelineReadyCleanup(); }
     catch(_err){}
-    guard.addCleanup(() => {
-      try { window.RenderGuard.unregisterHook?.(hook); }
-      catch(_removeErr){}
-    });
+    pendingPipelineReadyCleanup = null;
   }
 
-  if(context && typeof context.markBound === 'function'){
-    context.markBound();
+  const run = () => {
+    pendingPipelineReadyCleanup = null;
+    const host = (context && context.root) || getRouteRoot('pipeline');
+    const guard = ensureViewGuard(host, PIPELINE_GUARD_KEY);
+    if(!guard){
+      return;
+    }
+    pipelineGuard = guard;
+    guard.addCleanup(() => {
+      if(pipelineGuard === guard){
+        pipelineGuard = null;
+      }
+    });
+    guard.addCleanup(() => detachAll());
+
+    wireKanbanDnD();
+
+    if(typeof window !== 'undefined' && window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
+      const hook = () => wireKanbanDnD();
+      try { window.RenderGuard.registerHook(hook); }
+      catch(_err){}
+      guard.addCleanup(() => {
+        try { window.RenderGuard.unregisterHook?.(hook); }
+        catch(_removeErr){}
+      });
+    }
+
+    if(context && typeof context.markBound === 'function'){
+      context.markBound();
+    }
+  };
+
+  const cleanup = whenDocumentReady(run);
+  if(typeof cleanup === 'function'){
+    pendingPipelineReadyCleanup = cleanup;
   }
 }
 
 function deactivatePipelineDnD(context){
   const host = (context && context.root) || getRouteRoot('pipeline');
   const targetGuard = pipelineGuard || (host ? getViewGuard(host, PIPELINE_GUARD_KEY) : null);
+  if(typeof pendingPipelineReadyCleanup === 'function'){
+    try { pendingPipelineReadyCleanup(); }
+    catch(_err){}
+    pendingPipelineReadyCleanup = null;
+  }
   detachAll();
   if(targetGuard){
     try { targetGuard.release(); }
