@@ -66,8 +66,9 @@ const subscribers = new Set();
 let persistTimer = null;
 const pendingPersistKeys = new Set();
 let refreshHandler = null;
-let refreshQueue = null;
 let refreshInFlightPromise = null;
+let pendingRefresh = null;
+let pendingRefreshScheduled = false;
 
 function snapshot(){
   return { range: state.range, mode: state.mode };
@@ -123,49 +124,67 @@ function normalizeRefreshOptions(options){
   return normalized;
 }
 
-function triggerRefresh(options){
-  if(!refreshHandler) return Promise.resolve();
-  const normalized = normalizeRefreshOptions(options);
-  if(refreshQueue){
-    refreshQueue.forceReload = refreshQueue.forceReload || normalized.forceReload;
-    refreshQueue.includeReports = refreshQueue.includeReports || normalized.includeReports;
-    normalized.sections.forEach(section => refreshQueue.sections.add(section));
-    if(normalized.reason){
-      refreshQueue.reasons.add(normalized.reason);
-    }
-    return refreshQueue.promise;
-  }
-  refreshQueue = {
-    forceReload: normalized.forceReload,
-    includeReports: normalized.includeReports,
-    sections: normalized.sections,
-    reasons: new Set(normalized.reason ? [normalized.reason] : []),
-    promise: Promise.resolve().then(async () => {
-      const payload = refreshQueue;
-      refreshQueue = null;
-      if(!refreshHandler) return;
+function mergePendingRefresh(target, normalized){
+  target.forceReload = target.forceReload || normalized.forceReload;
+  target.includeReports = target.includeReports || normalized.includeReports;
+  normalized.sections.forEach(section => target.sections.add(section));
+  if(normalized.reason) target.reasons.add(normalized.reason);
+}
 
-      const previous = refreshInFlightPromise;
-      if(previous){
-        try{
-          await previous;
-        }catch(err){
-          if(ROOT && ROOT.console && typeof ROOT.console.warn === 'function'){
-            ROOT.console.warn('[dashboard_state] previous refresh failed', err);
-          }
-        }
+function schedulePendingRefreshProcessing(){
+  if(pendingRefreshScheduled) return;
+  pendingRefreshScheduled = true;
+  Promise.resolve().then(runPendingRefreshes).catch(err => {
+    pendingRefreshScheduled = false;
+    if(ROOT && ROOT.console && typeof ROOT.console.error === 'function'){
+      ROOT.console.error('[dashboard_state] refresh queue processing failed', err);
+    }
+  });
+}
+
+async function waitForInFlightRefresh(){
+  const previous = refreshInFlightPromise;
+  if(!previous) return;
+  try{
+    await previous;
+  }catch(err){
+    if(ROOT && ROOT.console && typeof ROOT.console.warn === 'function'){
+      ROOT.console.warn('[dashboard_state] previous refresh failed', err);
+    }
+  }
+}
+
+async function runPendingRefreshes(){
+  try{
+    while(pendingRefresh){
+      const payload = pendingRefresh;
+      pendingRefresh = null;
+
+      const resolve = typeof payload.resolve === 'function' ? payload.resolve : () => {};
+      const reject = typeof payload.reject === 'function' ? payload.reject : () => {};
+
+      const sections = new Set(payload.sections);
+      const reasons = new Set(payload.reasons);
+
+      await waitForInFlightRefresh();
+
+      if(!refreshHandler){
+        resolve();
+        payload.resolve = null;
+        payload.reject = null;
+        continue;
       }
 
       const detail = {
         forceReload: payload.forceReload,
         includeReports: payload.includeReports,
-        sections: Array.from(payload.sections),
-        reasons: Array.from(payload.reasons)
+        sections: Array.from(sections),
+        reasons: Array.from(reasons)
       };
 
       const current = (async () => {
         try{
-          await refreshHandler(detail);
+          return await refreshHandler(detail);
         }finally{
           if(refreshInFlightPromise === current){
             refreshInFlightPromise = null;
@@ -174,10 +193,50 @@ function triggerRefresh(options){
       })();
 
       refreshInFlightPromise = current;
-      return current;
-    })
+
+      try{
+        const result = await current;
+        resolve(result);
+      }catch(err){
+        reject(err);
+      }finally{
+        payload.resolve = null;
+        payload.reject = null;
+      }
+    }
+  }finally{
+    pendingRefreshScheduled = false;
+    if(pendingRefresh){
+      schedulePendingRefreshProcessing();
+    }
+  }
+}
+
+function triggerRefresh(options){
+  if(!refreshHandler) return Promise.resolve();
+  const normalized = normalizeRefreshOptions(options);
+
+  if(pendingRefresh){
+    mergePendingRefresh(pendingRefresh, normalized);
+    return pendingRefresh.promise;
+  }
+
+  const request = {
+    forceReload: normalized.forceReload,
+    includeReports: normalized.includeReports,
+    sections: new Set(normalized.sections),
+    reasons: new Set(normalized.reason ? [normalized.reason] : [])
   };
-  return refreshQueue.promise;
+
+  request.promise = new Promise((resolve, reject) => {
+    request.resolve = resolve;
+    request.reject = reject;
+  });
+
+  pendingRefresh = request;
+  schedulePendingRefreshProcessing();
+
+  return request.promise;
 }
 
 function applyStateChange(key, value, presetKey, options){
