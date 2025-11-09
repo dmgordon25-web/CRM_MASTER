@@ -96,13 +96,43 @@ async function writeJsonReport(filePath, payload) {
   await fs.writeFile(filePath, `${data}\n`, 'utf8');
 }
 
+async function readLifecycleCounters(page) {
+  const sample = await page.evaluate(() => {
+    const binds = Number(window.__DIAG_BINDS__ || 0);
+    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+    return {
+      hash: window.location.hash,
+      binds,
+      unbinds,
+      diff: binds - unbinds
+    };
+  });
+  return sample;
+}
+
+async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
+  await page.waitForFunction((target) => {
+    const binds = Number(window.__DIAG_BINDS__ || 0);
+    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+    const diff = binds - unbinds;
+    if (!Number.isFinite(diff)) return false;
+    const pending = Number(window.__DIAG_PENDING__ || 0);
+    if (Number.isFinite(pending) && pending > 0) {
+      return false;
+    }
+    return diff === target;
+  }, { timeout }, expectedDiff);
+}
+
 async function captureRouteParity(page, consoleErrors, networkErrors) {
   const steps = [
     { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' },
     { hash: '#/pipeline', selector: '.kanban-board, [data-ui="kanban-root"]' },
     { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' }
   ];
-  const snapshots = [];
+  const baseline = await readLifecycleCounters(page);
+  const baselineDiff = baseline.diff;
+  const snapshots = [{ ...baseline, label: 'baseline' }];
   for (const step of steps) {
     await page.evaluate((targetHash) => {
       window.location.hash = targetHash;
@@ -113,23 +143,23 @@ async function captureRouteParity(page, consoleErrors, networkErrors) {
     }, { timeout: 5000 }, step.selector);
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
-    const sample = await page.evaluate(() => ({
-      hash: window.location.hash,
-      binds: Number(window.__DIAG_BINDS__ || 0),
-      unbinds: Number(window.__DIAG_UNBINDS__ || 0)
-    }));
-    snapshots.push(sample);
+    await waitForLifecycleDiff(page, baselineDiff);
+    const sample = await readLifecycleCounters(page);
+    snapshots.push({ ...sample, label: step.hash });
   }
-  const final = snapshots[snapshots.length - 1] || { binds: 0, unbinds: 0 };
+  const final = snapshots[snapshots.length - 1] || { binds: 0, unbinds: 0, diff: 0, label: 'final' };
   const report = {
+    baseline,
     sequence: snapshots,
     final,
-    parityOk: final.binds === final.unbinds,
-    diff: final.binds - final.unbinds
+    baselineDiff,
+    finalDiff: final.diff,
+    parityOk: final.diff === baselineDiff,
+    delta: final.diff - baselineDiff
   };
   await writeJsonReport(routeParityReportPath, report);
   if (!report.parityOk) {
-    throw new Error(`route-lifecycle-parity (${report.diff})`);
+    throw new Error(`route-lifecycle-parity (${report.delta})`);
   }
 }
 
