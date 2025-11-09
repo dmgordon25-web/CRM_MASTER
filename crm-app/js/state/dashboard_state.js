@@ -67,7 +67,7 @@ let persistTimer = null;
 const pendingPersistKeys = new Set();
 let refreshHandler = null;
 let refreshQueue = null;
-let refreshInFlight = false;
+let refreshInFlightPromise = null;
 
 function snapshot(){
   return { range: state.range, mode: state.mode };
@@ -144,19 +144,37 @@ function triggerRefresh(options){
       const payload = refreshQueue;
       refreshQueue = null;
       if(!refreshHandler) return;
-      if(refreshInFlight) return;
-      refreshInFlight = true;
-      try{
-        const detail = {
-          forceReload: payload.forceReload,
-          includeReports: payload.includeReports,
-          sections: Array.from(payload.sections),
-          reasons: Array.from(payload.reasons)
-        };
-        await refreshHandler(detail);
-      }finally{
-        refreshInFlight = false;
+
+      const previous = refreshInFlightPromise;
+      if(previous){
+        try{
+          await previous;
+        }catch(err){
+          if(ROOT && ROOT.console && typeof ROOT.console.warn === 'function'){
+            ROOT.console.warn('[dashboard_state] previous refresh failed', err);
+          }
+        }
       }
+
+      const detail = {
+        forceReload: payload.forceReload,
+        includeReports: payload.includeReports,
+        sections: Array.from(payload.sections),
+        reasons: Array.from(payload.reasons)
+      };
+
+      const current = (async () => {
+        try{
+          await refreshHandler(detail);
+        }finally{
+          if(refreshInFlightPromise === current){
+            refreshInFlightPromise = null;
+          }
+        }
+      })();
+
+      refreshInFlightPromise = current;
+      return current;
     })
   };
   return refreshQueue.promise;
