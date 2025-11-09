@@ -2,8 +2,17 @@
    asserts diagnostics splash is hidden and dashboard text is present. */
 import { spawn } from 'node:child_process';
 import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import { runContractLint } from './contract_lint.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..');
+const reportsDir = path.join(repoRoot, 'REPORTS');
+const bootTimingReportPath = path.join(reportsDir, 'boot_timing.json');
+const routeParityReportPath = path.join(reportsDir, 'route_parity.json');
 
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -78,6 +87,79 @@ async function ensureNoConsoleErrors(errors, networkErrors = []) {
   }
   if (errors.length) {
     throw new Error(`Console error detected: ${errors[0]}`);
+  }
+}
+
+async function writeJsonReport(filePath, payload) {
+  const data = JSON.stringify(payload, null, 2);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${data}\n`, 'utf8');
+}
+
+async function readLifecycleCounters(page) {
+  const sample = await page.evaluate(() => {
+    const binds = Number(window.__DIAG_BINDS__ || 0);
+    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+    return {
+      hash: window.location.hash,
+      binds,
+      unbinds,
+      diff: binds - unbinds
+    };
+  });
+  return sample;
+}
+
+async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
+  await page.waitForFunction((target) => {
+    const binds = Number(window.__DIAG_BINDS__ || 0);
+    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+    const diff = binds - unbinds;
+    if (!Number.isFinite(diff)) return false;
+    const pending = Number(window.__DIAG_PENDING__ || 0);
+    if (Number.isFinite(pending) && pending > 0) {
+      return false;
+    }
+    return diff === target;
+  }, { timeout }, expectedDiff);
+}
+
+async function captureRouteParity(page, consoleErrors, networkErrors) {
+  const steps = [
+    { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' },
+    { hash: '#/pipeline', selector: '.kanban-board, [data-ui="kanban-root"]' },
+    { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' }
+  ];
+  const baseline = await readLifecycleCounters(page);
+  const baselineDiff = baseline.diff;
+  const snapshots = [{ ...baseline, label: 'baseline' }];
+  for (const step of steps) {
+    await page.evaluate((targetHash) => {
+      window.location.hash = targetHash;
+    }, step.hash);
+    await page.waitForFunction((selector) => {
+      const node = document.querySelector(selector);
+      return !!node;
+    }, { timeout: 5000 }, step.selector);
+    await assertSplashHidden(page);
+    await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    await waitForLifecycleDiff(page, baselineDiff);
+    const sample = await readLifecycleCounters(page);
+    snapshots.push({ ...sample, label: step.hash });
+  }
+  const final = snapshots[snapshots.length - 1] || { binds: 0, unbinds: 0, diff: 0, label: 'final' };
+  const report = {
+    baseline,
+    sequence: snapshots,
+    final,
+    baselineDiff,
+    finalDiff: final.diff,
+    parityOk: final.diff === baselineDiff,
+    delta: final.diff - baselineDiff
+  };
+  await writeJsonReport(routeParityReportPath, report);
+  if (!report.parityOk) {
+    throw new Error(`route-lifecycle-parity (${report.delta})`);
   }
 }
 
@@ -245,6 +327,28 @@ async function main() {
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
+    const bootTiming = await page.evaluate(() => {
+      const names = ['crm:first-route-ready', 'crm:post-first-paint-start'];
+      const marks = {};
+      for (const name of names) {
+        const entries = performance.getEntriesByName(name, 'mark') || [];
+        marks[name] = {
+          count: entries.length,
+          last: entries.length ? entries[entries.length - 1].startTime : null,
+          entries: entries.map((entry) => ({
+            startTime: entry.startTime,
+            duration: entry.duration
+          }))
+        };
+      }
+      return {
+        timeOrigin: performance.timeOrigin,
+        now: performance.now(),
+        marks
+      };
+    });
+    await writeJsonReport(bootTimingReportPath, bootTiming);
+
     const toastBaselineErrors = consoleErrors.length;
     const toastStatus = await page.evaluate(async () => {
       const toast = typeof window.Toast?.show === 'function'
@@ -346,6 +450,8 @@ async function main() {
 
     if (!uiRendered) throw new Error('Dashboard UI did not render');
     await assertSplashHidden(page);
+
+    await captureRouteParity(page, consoleErrors, networkErrors);
 
     const routeNavBaseline = consoleErrors.length;
     const routes = [

@@ -44,3 +44,14 @@ jobs:
 
       - name: Boot smoke test
         run: npm run test:boot
+
+      - name: Upload boot diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-diagnostics
+          path: |
+            REPORTS/manifest_check.txt
+            REPORTS/boot_timing.json
+            REPORTS/route_parity.json
+          if-no-files-found: warn
