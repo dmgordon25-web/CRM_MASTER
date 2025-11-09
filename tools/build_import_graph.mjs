@@ -313,11 +313,18 @@ async function readPatchManifest() {
 
 function applyImportMap(spec) {
   for (const [prefix, target] of importMapPrefixes) {
-    if (spec.startsWith(prefix)) {
-      return spec.replace(prefix, target);
-    }
+    if (!spec.startsWith(prefix)) continue;
+
+    const remainder = spec.slice(prefix.length);
+    const normalizedTarget = target.startsWith('./') ? target.slice(2) : target;
+    const base = normalizedTarget.endsWith('/') ? normalizedTarget : `${normalizedTarget}/`;
+
+    return {
+      spec: `${base}${remainder}`,
+      baseDir: appRoot
+    };
   }
-  return spec;
+  return { spec };
 }
 
 function normalizeSpec(spec) {
@@ -342,7 +349,9 @@ function resolveImport(spec, importer) {
   if (normalized.startsWith('data:')) return null;
   if (normalized.startsWith('//')) return null;
 
-  normalized = applyImportMap(normalized);
+  const mapResult = applyImportMap(normalized);
+  normalized = mapResult.spec;
+  const mappedBaseDir = mapResult.baseDir;
 
   const isManifestImporter = importer && path.resolve(importer) === manifestModulePath;
 
@@ -357,7 +366,9 @@ function resolveImport(spec, importer) {
   }
 
   let baseDir;
-  if (isManifestImporter) {
+  if (mappedBaseDir) {
+    baseDir = mappedBaseDir;
+  } else if (isManifestImporter) {
     baseDir = jsRoot;
   } else if (!importer) {
     baseDir = appRoot;
