@@ -1,5 +1,7 @@
 import { PIPELINE_STAGES, NORMALIZE_STAGE, stageKeyFromLabel } from './stages.js';
 import { renderStageChip, canonicalStage, toneForStage, toneClassName } from './constants.js';
+import { onEnter, onLeave } from '../router/history.js';
+import { ensureViewGuard, getRouteRoot, releaseViewGuard, getViewGuard } from '../router/view_teardown.js';
 
 const fromHere = (p) => new URL(p, import.meta.url).href;
 
@@ -75,14 +77,6 @@ function cleanupDetachedBoards(){
 
 exposeCounters();
 
-function viewFromDetail(detail){
-  if (!detail) return '';
-  if (typeof detail === 'string') return detail.toLowerCase();
-  if (typeof detail.view === 'string') return detail.view.toLowerCase();
-  if (typeof detail.target === 'string') return detail.target.toLowerCase();
-  return '';
-}
-
 const STAGE_LABEL_SET = new Set(PIPELINE_STAGES);
 const KEY_TO_LABEL = new Map();
 PIPELINE_STAGES.forEach((label) => {
@@ -91,6 +85,9 @@ PIPELINE_STAGES.forEach((label) => {
   KEY_TO_LABEL.set(normalizeKey(label), label);
   KEY_TO_LABEL.set(label.toLowerCase(), label);
 });
+
+const PIPELINE_GUARD_KEY = '__WIRED_PIPELINE_KANBAN__';
+let pipelineGuard = null;
 
 function escapeHtml(value){
   return String(value ?? '')
@@ -398,27 +395,78 @@ export function wireKanbanDnD(){
   installDnD(root, laneList);
 }
 
-// Auto-wire after render
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => wireKanbanDnD(), { once:true });
-} else {
-  wireKanbanDnD();
+function whenDocumentReady(run, guard){
+  if(typeof document === 'undefined'){ run(); return; }
+  if(document.readyState === 'loading'){
+    const onReady = () => { run(); };
+    try {
+      document.addEventListener('DOMContentLoaded', onReady, { once: true });
+    } catch (_err) {
+      document.addEventListener('DOMContentLoaded', onReady, false);
+    }
+    if(guard && typeof guard.addCleanup === 'function'){
+      guard.addCleanup(() => {
+        try { document.removeEventListener('DOMContentLoaded', onReady); }
+        catch(_removeErr){}
+      });
+    }
+    return;
+  }
+  run();
 }
 
-try {
-  // Re-wire on our render guard
-  if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    window.RenderGuard.registerHook(() => wireKanbanDnD());
+function activatePipelineDnD(context){
+  const host = (context && context.root) || getRouteRoot('pipeline');
+  const guard = ensureViewGuard(host, PIPELINE_GUARD_KEY);
+  if(!guard){
+    return;
   }
-} catch (_) {}
-
-try {
-  document.addEventListener('app:navigate', (evt) => {
-    const view = viewFromDetail(evt?.detail);
-    if (!view) return;
-    if (view !== 'pipeline') {
-      detachAll();
+  pipelineGuard = guard;
+  guard.addCleanup(() => {
+    if(pipelineGuard === guard){
+      pipelineGuard = null;
     }
   });
-} catch (_) {}
+  guard.addCleanup(() => detachAll());
+
+  const rerun = () => wireKanbanDnD();
+  whenDocumentReady(rerun, guard);
+
+  if(typeof window !== 'undefined' && window.RenderGuard && typeof window.RenderGuard.registerHook === 'function'){
+    const hook = () => wireKanbanDnD();
+    try { window.RenderGuard.registerHook(hook); }
+    catch(_err){}
+    guard.addCleanup(() => {
+      try { window.RenderGuard.unregisterHook?.(hook); }
+      catch(_removeErr){}
+    });
+  }
+
+  if(context && typeof context.markBound === 'function'){
+    context.markBound();
+  }
+}
+
+function deactivatePipelineDnD(context){
+  const host = (context && context.root) || getRouteRoot('pipeline');
+  const targetGuard = pipelineGuard || (host ? getViewGuard(host, PIPELINE_GUARD_KEY) : null);
+  detachAll();
+  if(targetGuard){
+    try { targetGuard.release(); }
+    catch(_err){ releaseViewGuard(host, PIPELINE_GUARD_KEY); }
+    if(pipelineGuard === targetGuard){
+      pipelineGuard = null;
+    }
+    if(context && typeof context.markUnbound === 'function'){
+      context.markUnbound();
+    }
+    return;
+  }
+  if(host){
+    releaseViewGuard(host, PIPELINE_GUARD_KEY);
+  }
+}
+
+onEnter('pipeline', activatePipelineDnD);
+onLeave('pipeline', deactivatePipelineDnD);
 
