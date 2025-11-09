@@ -35,7 +35,7 @@ function toggleDashboardMode(mode) {
   // Fallback: try to call setDashboardMode directly
   if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
     try {
-      window.setDashboardMode(mode, { force: true });
+      window.setDashboardMode(mode, { force: true, skipPersist: true, skipBus: true });
       return true;
     } catch (err) {
       // Silently fail

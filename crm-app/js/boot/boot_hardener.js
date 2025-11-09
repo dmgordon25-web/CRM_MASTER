@@ -633,7 +633,7 @@ function maybeRenderAll() {
       const normalized = mode === 'all' ? 'all' : 'today';
       const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
       if (!button && typeof window?.setDashboardMode === 'function') {
-        window.setDashboardMode(normalized, { force: true, skipPersist: true });
+        window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
       }
       if (!button && getActiveDashboardMode() === normalized) {
         await wait(Math.max(160, postDelay));
@@ -645,7 +645,7 @@ function maybeRenderAll() {
       }
       if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
         try {
-          window.setDashboardMode(normalized, { force: true, skipPersist: true });
+          window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
         } catch (_) {}
       } else {
         dispatchSyntheticClick(button, `mode:${normalized}`);
