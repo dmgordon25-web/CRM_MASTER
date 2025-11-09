@@ -14,7 +14,7 @@ const markPerf = (name) => {
   } catch (_) {}
 };
 
-const POST_PAINT_SOURCES = (() => {
+function getPostPaintSources() {
   if (!globalScope) return [];
   const seen = new Set();
   const rawList = Array.isArray(globalScope.__CRM_POST_FIRST_PAINT_MODULES__)
@@ -42,7 +42,7 @@ const POST_PAINT_SOURCES = (() => {
       seen.add(entry);
       return true;
     });
-})();
+}
 
 let postPaintScheduled = false;
 
@@ -54,10 +54,11 @@ function schedulePostFirstPaintModules(){
   const beginPostPaint = () => {
     markPerf('crm:post-first-paint-start');
 
-    if (POST_PAINT_SOURCES.length === 0) return;
+    const sources = getPostPaintSources();
+    if (sources.length === 0) return;
 
     const loadDeferred = () => {
-      POST_PAINT_SOURCES.forEach((spec) => {
+      sources.forEach((spec) => {
         import(/* @vite-ignore */ spec).catch((error) => {
           try {
             console.error('[router] deferred module failed to load', spec, error);
