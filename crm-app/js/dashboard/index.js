@@ -6,9 +6,11 @@ import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
+import dashboardState from '../state/dashboard_state.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
+const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
 let releaseDashboardRouteToken = null;
 
 function setDebugWidths(values) {
@@ -2826,10 +2828,18 @@ function buildDefaultMap(keys) {
   return map;
 }
 
+function readDashboardBusMode() {
+  if (dashboardStateApi && typeof dashboardStateApi.getMode === 'function') {
+    const mode = dashboardStateApi.getMode();
+    return mode === 'all' ? 'all' : 'today';
+  }
+  return 'today';
+}
+
 function defaultPrefs() {
   const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS));
   return {
-    mode: 'today',
+    mode: readDashboardBusMode(),
     widgets,
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
@@ -2907,6 +2917,11 @@ function sanitizePrefs(settings) {
   lastPersistedLayoutColumns = normalizedLayout.value;
   if (normalizedLayout.coerced) {
     persistDashboardLayoutColumns(normalizedLayout.value, { force: true });
+  }
+  if (dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
+    try {
+      dashboardStateApi.setMode(prefs.mode, { notify: false, refresh: false, reason: 'dashboard:index:hydrate' });
+    } catch (_err) {}
   }
   return prefs;
 }
@@ -3082,8 +3097,11 @@ function applyTodayPrioritiesHighlight() {
 }
 
 function getDashboardMode() {
-  if (prefCache.value && prefCache.value.mode === 'all') return 'all';
-  return 'today';
+  if (prefCache.value) {
+    if (prefCache.value.mode === 'all') return 'all';
+    if (prefCache.value.mode === 'today') return 'today';
+  }
+  return readDashboardBusMode();
 }
 
 function applyModeButtonState(mode) {
@@ -3113,10 +3131,13 @@ function persistDashboardMode(mode) {
 function setDashboardMode(mode, options = {}) {
   const normalized = mode === 'all' ? 'all' : 'today';
   const current = getDashboardMode();
-  if (current === normalized && !options.force) {
+  const force = !!options.force;
+  const fromBus = options.fromBus === true;
+  const skipBus = options.skipBus === true || fromBus;
+  if (current === normalized && !force) {
     applyModeButtonState(normalized);
     applyTodayPrioritiesHighlight();
-    return;
+    return normalized;
   }
   if (!prefCache.value) {
     prefCache.value = defaultPrefs();
@@ -3127,9 +3148,16 @@ function setDashboardMode(mode, options = {}) {
   maybeHydrateCelebrations(prefCache.value);
   ensureWidgetDnD();
   applyTodayPrioritiesHighlight();
-  if (!options.skipPersist) {
+  const skipPersist = options.skipPersist === true || fromBus;
+  if (!skipPersist) {
     persistDashboardMode(normalized);
   }
+  if (!skipBus && dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
+    try {
+      dashboardStateApi.setMode(normalized, { reason: 'dashboard:index:set-mode' });
+    } catch (_err) {}
+  }
+  return normalized;
 }
 
 function syncModeFromButtons() {
@@ -3138,7 +3166,7 @@ function syncModeFromButtons() {
   const inferred = activeBtn && activeBtn.getAttribute('data-dashboard-mode') === 'all' ? 'all' : 'today';
   const current = getDashboardMode();
   if (inferred === current) return;
-  setDashboardMode(inferred, { skipPersist: true });
+  setDashboardMode(inferred, { skipPersist: true, skipBus: true });
 }
 
 function ensureTodayModeObserver() {
@@ -3394,11 +3422,11 @@ function init() {
       const alternate = current === 'today' ? 'all' : 'today';
       
       // Toggle to alternate mode to force re-render
-      setDashboardMode(alternate, { skipPersist: true, force: true });
+      setDashboardMode(alternate, { skipPersist: true, force: true, skipBus: true });
       
       // Toggle back to desired mode after one RAF
       raf(() => {
-        setDashboardMode(current, { skipPersist: true, force: true });
+        setDashboardMode(current, { skipPersist: true, force: true, skipBus: true });
         
         // Emit ready event after toggle completes
         raf(() => {
@@ -3465,6 +3493,15 @@ function init() {
     scheduleApply();
   });
   refreshTodayHighlightWiring();
+}
+
+if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
+  try {
+    dashboardStateApi.subscribe((state, changed) => {
+      if (!changed || typeof changed.has !== 'function' || !changed.has('mode')) return;
+      setDashboardMode(state.mode, { skipPersist: true, fromBus: true, force: true, skipBus: true });
+    });
+  } catch (_err) {}
 }
 
 init();
