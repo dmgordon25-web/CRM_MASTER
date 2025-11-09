@@ -1,29 +1,45 @@
 // dash_range.js — Dashboard timeframe toggle
+import dashboardState from './state/dashboard_state.js';
+
 (function(){
   if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if(window.__INIT_FLAGS__.dash_range) return;
   window.__INIT_FLAGS__.dash_range = true;
 
-  try{ window.DASH_RANGE = localStorage.getItem('dash:range') || 'all'; }
-  catch (_) { window.DASH_RANGE = window.DASH_RANGE || 'all'; } // 'all' | 'tm'
+  const api = dashboardState || (window.dashboardState);
+  if(!api) return;
+
   function $(s,r){ return (r||document).querySelector(s); }
 
   function sync(){
     const btn = $('#dash-range');
-    if(btn) btn.textContent = window.DASH_RANGE==='all' ? 'All Time ▾' : 'This Month ▾';
+    if(!btn) return;
+    const range = typeof api.getRange === 'function' ? api.getRange() : 'all';
+    btn.textContent = range === 'tm' ? 'This Month ▾' : 'All Time ▾';
   }
 
   function cycle(){
-    window.DASH_RANGE = (window.DASH_RANGE==='all') ? 'tm' : 'all';
-    try{ localStorage.setItem('dash:range', window.DASH_RANGE); }catch (_) {}
-    sync();
-    if(typeof window.renderAll === 'function') window.renderAll();
+    const current = typeof api.getRange === 'function' ? api.getRange() : 'all';
+    const next = current === 'all' ? 'tm' : 'all';
+    if(typeof api.setRange === 'function'){
+      api.setRange(next, { reason: 'dash-range:toggle' });
+    }
   }
 
   const btn = $('#dash-range');
   if(btn && !btn.__wired){
     btn.__wired = true;
     btn.addEventListener('click', cycle);
+  }
+
+  const unsubscribe = typeof api.subscribe === 'function'
+    ? api.subscribe((state, changed) => {
+        if(changed && changed.has('range')) sync();
+      })
+    : null;
+
+  if(typeof window.addEventListener === 'function' && typeof unsubscribe === 'function'){
+    window.addEventListener('beforeunload', unsubscribe, { once: true });
   }
 
   sync();
