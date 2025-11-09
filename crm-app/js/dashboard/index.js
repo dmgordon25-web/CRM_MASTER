@@ -3134,10 +3134,7 @@ function setDashboardMode(mode, options = {}) {
   const force = !!options.force;
   const fromBus = options.fromBus === true;
   const skipPersist = options.skipPersist === true || fromBus;
-  let skipBus = options.skipBus === true || fromBus;
-  if (!skipBus && skipPersist && !('skipBus' in options)) {
-    skipBus = true;
-  }
+  const skipBus = options.skipBus === true || fromBus;
   if (current === normalized && !force) {
     applyModeButtonState(normalized);
     applyTodayPrioritiesHighlight();
