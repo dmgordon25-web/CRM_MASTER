@@ -3133,7 +3133,11 @@ function setDashboardMode(mode, options = {}) {
   const current = getDashboardMode();
   const force = !!options.force;
   const fromBus = options.fromBus === true;
-  const skipBus = options.skipBus === true || fromBus;
+  const skipPersist = options.skipPersist === true || fromBus;
+  let skipBus = options.skipBus === true || fromBus;
+  if (!skipBus && skipPersist && !('skipBus' in options)) {
+    skipBus = true;
+  }
   if (current === normalized && !force) {
     applyModeButtonState(normalized);
     applyTodayPrioritiesHighlight();
@@ -3148,7 +3152,6 @@ function setDashboardMode(mode, options = {}) {
   maybeHydrateCelebrations(prefCache.value);
   ensureWidgetDnD();
   applyTodayPrioritiesHighlight();
-  const skipPersist = options.skipPersist === true || fromBus;
   if (!skipPersist) {
     persistDashboardMode(normalized);
   }
