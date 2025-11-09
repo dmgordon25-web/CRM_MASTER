@@ -39,5 +39,8 @@ jobs:
         run: |
           node -e "const p=require('puppeteer');(async()=>{const b=await p.launch({headless:'new',args:['--no-sandbox','--disable-setuid-sandbox']});const v=await b.version();console.log('Launched:',v);await b.close();})();"
 
-      - name: verify:build
-        run: npm run verify:build
+      - name: Manifest audit
+        run: npm run audit:manifest
+
+      - name: Boot smoke test
+        run: npm run test:boot

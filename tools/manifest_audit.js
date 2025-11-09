@@ -1,11 +1,13 @@
 /* Node script to validate manifest lists. Exits 0 when OK, 2 on fatal. */
 const fs = require('fs'), path = require('path');
+const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
 const jsRoot = path.join(repoRoot, 'crm-app', 'js');
 const manifestDir = path.join(jsRoot, 'boot');
 const patchesManifestPath = path.join(repoRoot, 'crm-app', 'patches', 'manifest.json');
 const bootManifestPath = path.join(manifestDir, 'manifest.js');
+const manifestReportPath = path.join(repoRoot, 'REPORTS', 'manifest_check.txt');
 
 function readJSON(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -22,13 +24,47 @@ function normalizeSpec(spec) {
 
 /* merge-proof parse beacon */ void 0;
 
-function loadManifest() {
-  const code = fs.readFileSync(bootManifestPath, 'utf8');
-  const coreMatch = [...code.matchAll(/CORE\s*=\s*\[(.*?)\]/gs)][0];
-  const patchMatch = [...code.matchAll(/PATCHES\s*=\s*\[(.*?)\]/gs)][0];
-  if (!coreMatch || !patchMatch) return { core: [], patches: [] };
-  const getList = (s) => (s.match(/'([^']+)'/g) || []).map((x) => normalizeSpec(x.slice(1, -1)));
-  return { core: getList(coreMatch[1]), patches: getList(patchMatch[1]) };
+async function loadManifestExports() {
+  let mod;
+  try {
+    mod = await import(pathToFileURL(bootManifestPath).href);
+  } catch (err) {
+    console.error('[AUDIT] Failed to import crm-app/js/boot/manifest.js');
+    console.error(err && err.message ? err.message : err);
+    writeManifestReport('FAIL (manifest.js import)');
+    process.exit(2);
+  }
+
+  const { CORE, PATCHES } = mod;
+
+  if (!Array.isArray(PATCHES)) {
+    console.error('[AUDIT] manifest.js must export PATCHES as an array');
+    writeManifestReport('FAIL (manifest.js export shape)');
+    process.exit(2);
+  }
+
+  if (!Array.isArray(CORE)) {
+    console.error('[AUDIT] manifest.js must export CORE as an array');
+    writeManifestReport('FAIL (manifest.js export shape)');
+    process.exit(2);
+  }
+
+  return {
+    patchesRaw: PATCHES.slice(),
+    core: CORE.map(normalizeSpec),
+    patches: PATCHES.map(normalizeSpec),
+  };
+}
+
+function writeManifestReport(message) {
+  try {
+    fs.mkdirSync(path.dirname(manifestReportPath), { recursive: true });
+    fs.writeFileSync(manifestReportPath, `${message}\n`, 'utf8');
+  } catch (err) {
+    console.error('[AUDIT] Failed to write manifest report');
+    console.error(err && err.message ? err.message : err);
+    process.exit(2);
+  }
 }
 
 function fileExists(spec) {
@@ -37,8 +73,8 @@ function fileExists(spec) {
   return fs.existsSync(path.resolve(jsRoot, normalized));
 }
 
-(function main(){
-  const { core: CORE, patches: PATCHES } = loadManifest();
+(async function main(){
+  const { core: CORE, patches: PATCHES, patchesRaw } = await loadManifestExports();
 
   let patchManifestRaw;
   try {
@@ -46,6 +82,7 @@ function fileExists(spec) {
   } catch (err) {
     console.error('[AUDIT] Failed to parse crm-app/patches/manifest.json');
     console.error(err.message || err);
+    writeManifestReport('FAIL (invalid manifest.json)');
     process.exit(2);
   }
 
@@ -58,6 +95,7 @@ function fileExists(spec) {
 
   if (!patchManifestList) {
     console.error('[AUDIT] Invalid crm-app/patches/manifest.json structure; expected an array or { patches: [] }');
+    writeManifestReport('FAIL (invalid manifest.json structure)');
     process.exit(2);
   }
 
@@ -66,23 +104,26 @@ function fileExists(spec) {
   const manifestsNormalized = normalizedPatchManifest.every((entry, idx) => entry === patchManifestList[idx]);
   if (!manifestsNormalized) {
     console.error('[AUDIT] crm-app/patches/manifest.json entries must be relative to crm-app/js using ./ prefixes');
+    writeManifestReport('FAIL (manifest.json normalization)');
     process.exit(2);
   }
 
-  const sameLength = normalizedPatchManifest.length === PATCHES.length;
-  const sameItems = sameLength && PATCHES.every((entry, idx) => entry === normalizedPatchManifest[idx]);
+  const jsExportLength = patchesRaw.length;
+  const sameLength = normalizedPatchManifest.length === jsExportLength;
+  const sameItems = sameLength && patchesRaw.every((entry, idx) => entry === normalizedPatchManifest[idx]);
   if (!sameItems) {
-    const limit = Math.max(PATCHES.length, normalizedPatchManifest.length);
+    const limit = Math.max(jsExportLength, normalizedPatchManifest.length);
     let diffIndex = -1;
     for (let i = 0; i < limit; i += 1) {
-      if (PATCHES[i] !== normalizedPatchManifest[i]) {
+      if (patchesRaw[i] !== normalizedPatchManifest[i]) {
         diffIndex = i;
         break;
       }
     }
     console.error('[AUDIT] PATCHES mismatch between manifests. First diff at index:', diffIndex);
     console.error('patches/manifest.json tail:', normalizedPatchManifest.slice(-6));
-    console.error('boot/manifest.js tail:', PATCHES.slice(-6));
+    console.error('boot/manifest.js tail:', patchesRaw.slice(-6));
+    writeManifestReport('FAIL (JS export != JSON)');
     process.exit(3);
   }
 
@@ -96,6 +137,7 @@ function fileExists(spec) {
   if (tailLen > 0 && PATCHES.length < tailLen) {
     console.error('[AUDIT] Manifest too short to contain required tail files.');
     console.error('[AUDIT] Required tail length:', tailLen, 'Actual length:', PATCHES.length);
+    writeManifestReport('FAIL (tail rule)');
     process.exit(4);
   }
 
@@ -123,6 +165,7 @@ function fileExists(spec) {
           break;
         }
       }
+      writeManifestReport('FAIL (tail rule)');
       process.exit(4);
     }
   }
@@ -190,6 +233,7 @@ function fileExists(spec) {
   const bad = CORE.filter(p => CORE_DISALLOWED.some(pref => p.startsWith(pref)));
   if (bad.length) {
     console.error('[MANIFEST AUDIT] CORE contains disallowed paths:', bad);
+    writeManifestReport('FAIL (CORE disallowed entries)');
     process.exit(1);
   }
 
@@ -204,12 +248,19 @@ function fileExists(spec) {
     for (const [label, list] of errors) {
       console.error(label, list);
     }
+    writeManifestReport('FAIL (audit errors)');
     process.exit(2);
   } else {
     console.log('[MANIFEST AUDIT] PASS');
+    writeManifestReport('OK (JS export == JSON)');
     if (unphased.length) {
       console.warn('Unphased files (warn only):', unphased);
     }
     process.exit(0);
   }
-})();
+})().catch((err) => {
+  console.error('[AUDIT] Unexpected error in manifest audit');
+  console.error(err && err.stack ? err.stack : err);
+  writeManifestReport('FAIL (unexpected error)');
+  process.exit(2);
+});

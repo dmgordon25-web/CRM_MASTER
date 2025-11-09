@@ -1,5 +1,84 @@
 /* Manifest with relative paths (relative to crm-app/js). Dedupe and phase separation. */
 import { normalizeModuleId, isSafeMode } from './boot_hardener.js';
+
+const isNodeRuntime = typeof process !== 'undefined'
+  && !!process?.versions?.node
+  && process?.release?.name === 'node';
+
+async function loadPatchManifest() {
+  if (isNodeRuntime) {
+    const [fs, url, path] = await Promise.all([
+      import('node:fs'),
+      import('node:url'),
+      import('node:path')
+    ]);
+    const manifestPath = path.resolve(
+      path.dirname(url.fileURLToPath(import.meta.url)),
+      '../../patches/manifest.json'
+    );
+    try {
+      const raw = fs.readFileSync(manifestPath, 'utf8');
+      return JSON.parse(raw);
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Failed to read patch manifest at ${manifestPath}: ${detail}`);
+    }
+  }
+
+  if (typeof fetch === 'function') {
+    const manifestUrl = new URL('../../patches/manifest.json', import.meta.url);
+    let response;
+    try {
+      response = await fetch(manifestUrl, {
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Failed to request patch manifest (${manifestUrl}): ${detail}`);
+    }
+
+    if (!response || !response.ok) {
+      const statusText = response && response.statusText ? response.statusText : 'Unknown error';
+      const status = response && typeof response.status === 'number' ? response.status : '??';
+      throw new Error(`Failed to load patch manifest (${status} ${statusText})`);
+    }
+
+    try {
+      return await response.json();
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      throw new Error(`Invalid JSON in patch manifest (${manifestUrl}): ${detail}`);
+    }
+  }
+
+  const mod = await import('../../patches/manifest.json', {
+    assert: { type: 'json' }
+  });
+  return mod?.default ?? mod;
+}
+
+const patchManifest = await loadPatchManifest();
+
+const rawPatchList = Array.isArray(patchManifest?.patches)
+  ? patchManifest.patches
+  : (Array.isArray(patchManifest) ? patchManifest : null);
+
+if (!Array.isArray(rawPatchList)) {
+  throw new Error('Invalid patch manifest: expected an array or { patches: [] }');
+}
+
+const PATCH_LIST = rawPatchList.map((spec) => {
+  if (typeof spec !== 'string') {
+    throw new TypeError('Invalid patch manifest entry; expected string');
+  }
+  const trimmed = spec.trim();
+  if (!trimmed) {
+    throw new Error('Invalid patch manifest entry; empty string');
+  }
+  return trimmed;
+});
+
 export const CORE = [
   './env.js',
   './db.js',
@@ -34,94 +113,7 @@ export const CORE = [
   './boot/phases.js'
 ];
 
-export const PATCHES = [
-  './patch_20250923_baseline.js',
-  './patch_20250924_bootstrap_ready.js',
-  './patch_20250926_ctc_actionbar.js',
-  './patch_2025-09-26_phase1_pipeline_partners.js',
-  './patch_2025-09-26_phase2_automations.js',
-  './patch_2025-09-26_phase3_dashboard_reports.js',
-  './patch_2025-09-26_phase4_polish_regression.js',
-  './patch_2025-09-27_doccenter2.js',
-  './patch_2025-09-27_contact_linking_5A.js',
-  './patch_2025-09-27_contact_linking_5B.js',
-  './patch_2025-09-27_contact_linking_5C.js',
-  './patch_2025-09-27_merge_ui.js',
-  './patch_2025-09-27_phase6_polish_telemetry.js',
-  './patch_2025-09-27_nth_bundle_and_qa.js',
-  './patch_2025-09-27_masterfix.js',
-  './patch_2025-09-27_release_prep.js',
-  './patches/polish_overlay_ready.js',
-  './patch_2025-10-02_baseline_ux_cleanup.js',
-  './patch_2025-10-02_medium_nice.js',
-  './patch_2025-10-03_calendar_ics_button.js',
-  './patch_2025-10-03_automation_seed.js',
-  './contacts_merge.js',
-  './contacts_merge_orchestrator.js',
-  './pipeline/kanban_dnd.js',
-  './patches/patch_2025-10-23_session_beacon.js',
-  './ui/Toast.js',
-  './ui/Confirm.js',
-  './data/settings.js',
-  './data/seed.js',
-  './migrations.js',
-  './templates.js',
-  './filters.js',
-  './state/selectionStore.js',
-  './state/actionBarGuards.js',
-  './ui/notifications_panel.js',
-  './ui/action_bar.js',
-  './ui/merge_modal.js',
-  './debug/overlay.js',
-  './quick_add.js',
-  './doccenter_rules.js',
-  './contacts.js',
-  './partners.js',
-  './partners_detail.js',
-  './partners_modal.js',
-  './partners/list.js',
-  './partners_merge.js',
-  './partners_merge_orchestrator.js',
-  './dash_range.js',
-  './importer.js',
-  './reports.js',
-  './notifications.js',
-  './calendar_impl.js',
-  './calendar_actions.js',
-  './calendar.js',
-  './calendar_ics.js',
-  './diagnostics_quiet.js',
-  './doc/doc_center_enhancer.js',
-  './email/templates_store.js',
-  './importer_contacts.js',
-  './importer_helpers.js',
-  './importer_partners.js',
-  './merge/merge_core.js',
-  './notifications/notifier.js',
-  './patches/loader.js',
-  './selftest.js',
-  './selftest_panel.js',
-  '../seed_test_data.js',
-  './snapshot.js',
-  './ui/GhostButton.js',
-  './ui/PrimaryButton.js',
-  './ui/loading_block.js',
-  './ui/form_footer.js',
-  './ui/header_toolbar.js',
-  './ui/table_layout.js',
-  './ui/route_toast_sentinel.js',
-  './ui/quick_add_unified.js',
-  './ui/settings_form.js',
-  './ui/strings.js',
-  './util/strings.js',
-  './ux/svg_sanitizer.js',
-  './services/selection_adapter.js',
-  './services/selection_fallback.js',
-  './core/capabilities_probe.js',
-  './patches/patch_2025-10-23_unify_quick_create.js',
-  './patches/patch_2025-10-23_actionbar_drag.js',
-
-];
+export const PATCHES = Object.freeze([...PATCH_LIST]);
 
 export const patches = PATCHES;
 
