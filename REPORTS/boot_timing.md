@@ -13,4 +13,4 @@ The following modules now load after the first route settles and the initial pai
 - `./js/ui/help_hints.js`
 - `./js/ui/advanced_mode.js`
 
-Loading is triggered via a post-first-paint hook that prefers `requestIdleCallback` with a `setTimeout` fallback to avoid delaying interaction readiness.
+Loading is triggered via a post-first-paint hook inside `js/router/init.js`. The router records `crm:first-route-ready`, waits for the first paint to settle, marks `crm:post-first-paint-start`, and then schedules the deferred imports with a `requestIdleCallback` (or `setTimeout` fallback) so they no longer compete with the initial route render.
