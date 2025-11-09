@@ -1,6 +1,7 @@
 import './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
+import './ui/styles/inject_theme.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
