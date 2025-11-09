@@ -1,5 +1,7 @@
-import { bindQuickCreateMenu, bindHeaderQuickCreateOnce } from './quick_create_menu.js';
+import { bindQuickCreateMenu, bindHeaderQuickCreateOnce, closeQuickCreateMenu } from './quick_create_menu.js';
 import { getQuickAddMenuOptions } from '../quick_add.js';
+import { onEnter, onLeave } from '../router/history.js';
+import { ensureViewGuard, getViewGuard, releaseViewGuard } from '../router/view_teardown.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
@@ -8,6 +10,8 @@ const BUTTON_ID = 'btn-header-new';
 const UNIFIED_NEW_DEFAULT = true;
 let ensureControlsRef = null;
 let headerOnlyBeaconed = false;
+const HEADER_GUARD_KEY = '__WIRED_HEADER_TOOLBAR__';
+let headerLifecycleGuard = null;
 
 const headerState = (() => {
   if (typeof window === 'undefined') {
@@ -402,13 +406,91 @@ function initHeaderToolbar() {
   scheduleHeaderEnsure();
 }
 
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initHeaderToolbar, { once: true });
-  } else {
+function mountHeaderToolbarLifecycle(context) {
+  if (typeof document === 'undefined') return;
+  const doc = document;
+  const root = doc.body || doc.documentElement;
+  if (!root) return;
+  const guard = ensureViewGuard(root, HEADER_GUARD_KEY);
+  if (!guard) {
+    return;
+  }
+  headerLifecycleGuard = guard;
+  guard.addCleanup(() => {
+    if (headerLifecycleGuard === guard) {
+      headerLifecycleGuard = null;
+    }
+  });
+
+  const run = () => {
     initHeaderToolbar();
+  };
+
+  if (doc.readyState === 'loading') {
+    const onReady = () => run();
+    try {
+      doc.addEventListener('DOMContentLoaded', onReady, { once: true });
+    } catch (_err) {
+      doc.addEventListener('DOMContentLoaded', onReady);
+    }
+    guard.addCleanup(() => {
+      try { doc.removeEventListener('DOMContentLoaded', onReady); }
+      catch (_err) {}
+    });
+  } else {
+    run();
+  }
+
+  guard.addCleanup(() => {
+    const observer = headerState.observer;
+    if (observer && typeof observer.disconnect === 'function') {
+      try { observer.disconnect(); }
+      catch (_err) {}
+    }
+    headerState.observer = null;
+    headerState.pending = false;
+  });
+
+  guard.addCleanup(() => {
+    teardownQuickCreateBinding();
+    headerState.host = null;
+    headerState.toggle = null;
+    headerState.header = null;
+    headerState.wired = false;
+  });
+
+  guard.addCleanup(() => closeQuickCreateMenu());
+
+  if (context && typeof context.markBound === 'function') {
+    context.markBound();
   }
 }
+
+function unmountHeaderToolbarLifecycle(context) {
+  if (typeof document === 'undefined') return;
+  const doc = document;
+  const root = doc.body || doc.documentElement;
+  if (!root) return;
+  const guard = headerLifecycleGuard || getViewGuard(root, HEADER_GUARD_KEY);
+  if (!guard) {
+    releaseViewGuard(root, HEADER_GUARD_KEY);
+    return;
+  }
+  try { guard.release(); }
+  catch (_err) { releaseViewGuard(root, HEADER_GUARD_KEY); }
+  if (headerLifecycleGuard === guard) {
+    headerLifecycleGuard = null;
+  }
+  if (context && typeof context.markUnbound === 'function') {
+    context.markUnbound();
+  }
+}
+
+const HEADER_ROUTES = ['dashboard', 'pipeline', 'partners', 'longshots', 'notifications', 'calendar', 'reports', 'workbench', 'settings', 'templates', 'print'];
+HEADER_ROUTES.forEach((route) => {
+  onEnter(route, mountHeaderToolbarLifecycle);
+  onLeave(route, unmountHeaderToolbarLifecycle);
+});
 (function(){
   if(typeof window === 'undefined' || typeof document === 'undefined') return;
 

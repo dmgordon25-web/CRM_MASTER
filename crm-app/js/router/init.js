@@ -1,4 +1,5 @@
 import { mergeMatchers, normalizeBasePath, normalizePathname, resolveRoute } from './patterns.js';
+import { startRouteHistory } from './history.js';
 
 const globalScope = typeof window !== 'undefined' ? window : null;
 const markPerf = (name) => {
@@ -180,5 +181,6 @@ function applyRouteFromPath(){
 
 applyRouteFromPath();
 schedulePostFirstPaintModules();
+startRouteHistory();
 
 export { MATCHERS as ROUTER_MATCHERS, applyRouteFromPath };
