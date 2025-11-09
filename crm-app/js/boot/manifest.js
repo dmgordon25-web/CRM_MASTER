@@ -86,6 +86,7 @@ export const CORE = [
   './services/selection.js',
   './utils.js',
   './render.js',
+  './ui/styles/inject_theme.js',
   './db_compat.js',
   './ical.js',
   './presets.js',
