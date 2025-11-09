@@ -40,6 +40,87 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const featureFlags = flags || {};
   const notificationsEnabled = featureFlags.notificationsMVP === true;
 
+  let labsBundlePromise = null;
+
+  function loadLabsBundle(){
+    if(!labsBundlePromise){
+      try { console.info('[labs] requesting bundle'); }
+      catch (_) {}
+      labsBundlePromise = import(fromHere('./labs/entry.js'))
+        .then((mod) => {
+          try { console.info('[labs] bundle ready'); }
+          catch (_) {}
+          return mod;
+        })
+        .catch((error) => {
+          labsBundlePromise = null;
+          throw error;
+        });
+    }
+    return labsBundlePromise;
+  }
+
+  function bootLabs(root){
+    if(!root || root.__labsLoaderPromise) return;
+    if(root.dataset) delete root.dataset.labsReady;
+    root.innerHTML = '';
+    const loadingCard = document.createElement('section');
+    loadingCard.className = 'card';
+    loadingCard.dataset.qa = 'labs-loading';
+    loadingCard.innerHTML = '<strong>Loading Labs...</strong><p class="muted">Fetching experimental widgets.</p>';
+    root.appendChild(loadingCard);
+    root.setAttribute('aria-busy', 'true');
+
+    root.__labsLoaderPromise = loadLabsBundle()
+      .then((mod) => {
+        const init = typeof mod?.initLabs === 'function'
+          ? mod.initLabs
+          : typeof mod?.default === 'function'
+            ? mod.default
+            : null;
+        if(!init){
+          throw new Error('Labs module missing initLabs export');
+        }
+        return init(root);
+      })
+      .then(() => {
+        if(root.dataset) root.dataset.labsReady = '1';
+      })
+      .catch((error) => {
+        if(root.dataset) root.dataset.labsReady = 'error';
+        root.innerHTML = '';
+        const errorCard = document.createElement('section');
+        errorCard.className = 'card';
+        errorCard.dataset.qa = 'labs-error';
+        errorCard.innerHTML = '<h2>Labs unavailable</h2><p class="muted">We could not load the Labs workspace. Please try again.</p>';
+        const retryRow = document.createElement('div');
+        retryRow.className = 'row';
+        retryRow.style.gap = '8px';
+        retryRow.style.marginTop = '12px';
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'btn';
+        retryBtn.dataset.qa = 'labs-retry';
+        retryBtn.textContent = 'Retry';
+        retryBtn.addEventListener('click', () => {
+          if(root.dataset) delete root.dataset.labsReady;
+          if(root.__labsLoaderPromise) return;
+          bootLabs(root);
+        });
+        retryRow.appendChild(retryBtn);
+        errorCard.appendChild(retryRow);
+        root.appendChild(errorCard);
+        try { console.warn('[labs] bootstrap failed', error); }
+        catch (_) {}
+        try { root.removeAttribute('data-mounted'); }
+        catch (_) {}
+      })
+      .finally(() => {
+        root.removeAttribute('aria-busy');
+        root.__labsLoaderPromise = null;
+      });
+  }
+
   function getActionBarNode(){
     if(typeof document === 'undefined') return null;
     return document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
@@ -1714,7 +1795,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     dashboard: '#/dashboard',
     longshots: '#/long-shots',
     pipeline: '#/pipeline',
-    partners: '#/partners'
+    partners: '#/partners',
+    labs: '#/labs'
   };
   if(notificationsEnabled){
     VIEW_HASH.notifications = '#/notifications';
@@ -1797,6 +1879,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
             } catch (_err) {}
           }
         }
+      }
+    },
+    labs: {
+      id: 'view-labs',
+      ui: 'labs-root',
+      mount(root){
+        if(!root) return;
+        if(root.dataset && root.dataset.labsReady === '1') return;
+        bootLabs(root);
       }
     },
     pipeline: { id: 'view-pipeline', ui: 'kanban-root' },

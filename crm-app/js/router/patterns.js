@@ -1,5 +1,6 @@
 const ROUTE_TABLE = [
   { segments: ['dashboard'], hash: '#/dashboard' },
+  { segments: ['labs'], hash: '#/labs' },
   { segments: ['partners'], hash: '#/partners' },
   { segments: ['workbench'], hash: '#/workbench' },
   { segments: [], hash: '#/dashboard', allowIndex: true }
