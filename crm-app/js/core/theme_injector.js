@@ -1,4 +1,4 @@
-import { acquireRouteLifecycleToken } from '../route_lifecycle.js';
+import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 
 const STYLE_DEFINITIONS = [
   {
