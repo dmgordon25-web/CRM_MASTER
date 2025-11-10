@@ -1,7 +1,6 @@
 import './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
-import './ui/styles/inject_theme.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
@@ -1797,6 +1796,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     longshots: '#/long-shots',
     pipeline: '#/pipeline',
     partners: '#/partners',
+    calendar: '#/calendar',
+    reports: '#/reports',
+    templates: '#/templates',
+    settings: '#/settings',
+    print: '#/print',
     labs: '#/labs'
   };
   if(notificationsEnabled){
@@ -2124,7 +2128,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       return currentPipelineStageFilter;
     }
     currentPipelineStageFilter = normalized;
-    if(!skipHashSync){
+    const shouldSyncHash = !skipHashSync && activeView === 'pipeline';
+    if(shouldSyncHash){
       const targetHash = pipelineHashForStage(normalized);
       if(typeof window !== 'undefined' && window.location){
         const currentHash = typeof window.location.hash === 'string'
@@ -2251,6 +2256,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const normalizedTarget = String(targetHash).trim().toLowerCase();
     const current = normalizedHash();
     if(current === normalizedTarget) return;
+    try {
+      if(typeof globalThis.history === 'object'
+        && globalThis.history
+        && typeof globalThis.history.replaceState === 'function'){
+        globalThis.history.replaceState(null, '', targetHash);
+        return;
+      }
+    } catch (_) {}
     goto(targetHash);
   }
 

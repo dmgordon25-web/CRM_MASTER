@@ -83,6 +83,7 @@ export const CORE = [
   './env.js',
   './db.js',
   './core/renderGuard.js',
+  './core/theme_injector.js',
   './services/selection.js',
   './utils.js',
   './render.js',
