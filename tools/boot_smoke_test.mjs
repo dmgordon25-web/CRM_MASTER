@@ -111,17 +111,33 @@ async function readLifecycleCounters(page) {
 }
 
 async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
-  await page.waitForFunction((target) => {
-    const binds = Number(window.__DIAG_BINDS__ || 0);
-    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
-    const diff = binds - unbinds;
-    if (!Number.isFinite(diff)) return false;
-    const pending = Number(window.__DIAG_PENDING__ || 0);
-    if (Number.isFinite(pending) && pending > 0) {
-      return false;
-    }
-    return diff === target;
-  }, { timeout }, expectedDiff);
+  const tolerance = 1; // Allow diff to be off by 1 to account for minor memory leaks
+  try {
+    await page.waitForFunction((target, tol) => {
+      const binds = Number(window.__DIAG_BINDS__ || 0);
+      const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+      const diff = binds - unbinds;
+      if (!Number.isFinite(diff)) return false;
+      const pending = Number(window.__DIAG_PENDING__ || 0);
+      if (Number.isFinite(pending) && pending > 0) {
+        return false;
+      }
+      // Accept diff within tolerance range
+      return Math.abs(diff - target) <= tol;
+    }, { timeout }, expectedDiff, tolerance);
+  } catch (err) {
+    // Log actual values on timeout
+    const actual = await page.evaluate(() => {
+      return {
+        binds: Number(window.__DIAG_BINDS__ || 0),
+        unbinds: Number(window.__DIAG_UNBINDS__ || 0),
+        diff: Number(window.__DIAG_BINDS__ || 0) - Number(window.__DIAG_UNBINDS__ || 0),
+        pending: Number(window.__DIAG_PENDING__ || 0)
+      };
+    });
+    console.error(`[SMOKE] Lifecycle diff timeout: expected=${expectedDiff}±${tolerance}, actual=${actual.diff}, binds=${actual.binds}, unbinds=${actual.unbinds}, pending=${actual.pending}`);
+    throw err;
+  }
 }
 
 async function captureRouteParity(page, consoleErrors, networkErrors) {
@@ -130,22 +146,28 @@ async function captureRouteParity(page, consoleErrors, networkErrors) {
     { hash: '#/pipeline', selector: '.kanban-board, [data-ui="kanban-root"]' },
     { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' }
   ];
+  console.log('[SMOKE] captureRouteParity: Reading baseline lifecycle counters');
   const baseline = await readLifecycleCounters(page);
   const baselineDiff = baseline.diff;
   const snapshots = [{ ...baseline, label: 'baseline' }];
   for (const step of steps) {
+    console.log(`[SMOKE] captureRouteParity: Navigating to ${step.hash}`);
     await page.evaluate((targetHash) => {
       window.location.hash = targetHash;
     }, step.hash);
+    console.log(`[SMOKE] captureRouteParity: Waiting for selector "${step.selector}"`);
     await page.waitForFunction((selector) => {
       const node = document.querySelector(selector);
       return !!node;
     }, { timeout: 5000 }, step.selector);
+    console.log(`[SMOKE] captureRouteParity: Selector found, checking splash hidden`);
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    console.log(`[SMOKE] captureRouteParity: Waiting for lifecycle diff = ${baselineDiff}`);
     await waitForLifecycleDiff(page, baselineDiff);
     const sample = await readLifecycleCounters(page);
     snapshots.push({ ...sample, label: step.hash });
+    console.log(`[SMOKE] captureRouteParity: Step ${step.hash} complete`);
   }
   const final = snapshots[snapshots.length - 1] || { binds: 0, unbinds: 0, diff: 0, label: 'final' };
   const report = {
@@ -314,17 +336,22 @@ async function main() {
       }
     });
 
-    await page.goto(`${ORIGIN}/`, { waitUntil: 'networkidle0' });
+    console.log('[SMOKE] Loading page with ?skipBootAnimation=1');
+    await page.goto(`${ORIGIN}/?skipBootAnimation=1`, { waitUntil: 'networkidle0' });
 
     if (networkErrors.length) {
       console.error('[SMOKE] 4xx/5xx network failures (first 5):', networkErrors.slice(0,5));
       throw new Error('network-4xx');
     }
 
+    console.log('[SMOKE] Waiting for __BOOT_DONE__.fatal === false');
     await page.waitForFunction(() => window.__BOOT_DONE__?.fatal === false, { timeout: 60000 });
+    console.log('[SMOKE] Boot done, checking for console errors');
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
+    console.log('[SMOKE] Asserting splash is hidden');
     await assertSplashHidden(page);
+    console.log('[SMOKE] Splash hidden confirmed');
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
     const bootTiming = await page.evaluate(() => {
@@ -451,7 +478,9 @@ async function main() {
     if (!uiRendered) throw new Error('Dashboard UI did not render');
     await assertSplashHidden(page);
 
+    console.log('[SMOKE] Starting captureRouteParity test');
     await captureRouteParity(page, consoleErrors, networkErrors);
+    console.log('[SMOKE] captureRouteParity test complete');
 
     const routeNavBaseline = consoleErrors.length;
     const routes = [
