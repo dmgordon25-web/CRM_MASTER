@@ -515,15 +515,15 @@ function maybeRenderAll() {
   async function animateTabCycle({ instant = false } = {}) {
     // ULTRA-OPTIMIZED: Absolute minimum timeouts for CI (5s smoke test includes splash hiding)
     // Must account for: boot animation + splash_sequence.js overhead + FINAL_DELAY
-    // If instant=true (CI mode), use 0ms delays to run animation as fast as possible
+    // If instant=true (CI mode), use minimal delays for route lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - tabs activate in <50ms typically
     const MODE_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - mode changes are instant
-    const TAB_POST_DELAY = instant ? 0 : 30; // Bare minimum between tabs (8×30ms = 240ms) or 0 for CI
-    const TAB_RETURN_POST_DELAY = instant ? 0 : 30;
-    const MODE_POST_DELAY = instant ? 0 : 100; // Minimal mode pause (3×100ms = 300ms) or 0 for CI
-    const MODE_FINAL_POST_DELAY = instant ? 0 : 100;
-    const EXTRA_FINAL_DELAY = instant ? 0 : 50;
+    const TAB_POST_DELAY = instant ? 10 : 30; // Instant: 10ms for event loop processing (8×10ms = 80ms)
+    const TAB_RETURN_POST_DELAY = instant ? 10 : 30;
+    const MODE_POST_DELAY = instant ? 10 : 100; // Instant: 10ms for cleanup (3×10ms = 30ms)
+    const MODE_FINAL_POST_DELAY = instant ? 10 : 100;
+    const EXTRA_FINAL_DELAY = instant ? 10 : 50;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
