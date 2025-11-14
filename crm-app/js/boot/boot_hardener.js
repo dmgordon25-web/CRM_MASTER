@@ -822,32 +822,16 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Animate tab cycling before hiding splash (skip in safe mode, run instant if skipBootAnimation URL param)
+    // Animate tab cycling before hiding splash
     const urlParams = new URLSearchParams(window.location.search);
     const skipBootAnimation = urlParams.get('skipBootAnimation') === '1';
-    const skipAnimation = safe;
 
-    if (!skipAnimation) {
+    if (!safe) {
       if (skipBootAnimation) {
-        console.info('[BOOT] Running INSTANT tab animation sequence (CI mode)');
-        await animateTabCycle({ instant: true });
-        // Extra settling delay for lifecycle counters to stabilize
-        await new Promise(resolve => setTimeout(resolve, 200));
-        console.info('[BOOT] Instant animation complete, lifecycle settling complete');
-
-        // Reset lifecycle diagnostic counters for clean test baseline
+        console.log('[BOOT] CI mode detected - running minimal boot animation');
+        // CI mode: Skip the animation entirely, routes will initialize on demand
         if (typeof window !== 'undefined') {
-          const currentBinds = Number(window.__DIAG_BINDS__ || 0);
-          const currentUnbinds = Number(window.__DIAG_UNBINDS__ || 0);
-          const currentDiff = currentBinds - currentUnbinds;
-          console.info(`[BOOT] Resetting lifecycle counters (current: binds=${currentBinds}, unbinds=${currentUnbinds}, diff=${currentDiff})`);
-
-          // Set both counters to maintain the current diff but start from a clean baseline
-          window.__DIAG_BINDS__ = currentDiff;
-          window.__DIAG_UNBINDS__ = 0;
-          window.__DIAG_PENDING__ = 0;
-
-          console.info(`[BOOT] Lifecycle counters reset (new: binds=${window.__DIAG_BINDS__}, unbinds=${window.__DIAG_UNBINDS__}, diff=${currentDiff})`);
+          window.__BOOT_ANIMATION_COMPLETE__ = true;
         }
       } else {
         console.info('[BOOT] Starting tab animation sequence');

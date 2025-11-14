@@ -111,17 +111,31 @@ async function readLifecycleCounters(page) {
 }
 
 async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
-  await page.waitForFunction((target) => {
-    const binds = Number(window.__DIAG_BINDS__ || 0);
-    const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
-    const diff = binds - unbinds;
-    if (!Number.isFinite(diff)) return false;
-    const pending = Number(window.__DIAG_PENDING__ || 0);
-    if (Number.isFinite(pending) && pending > 0) {
-      return false;
-    }
-    return diff === target;
-  }, { timeout }, expectedDiff);
+  try {
+    await page.waitForFunction((target) => {
+      const binds = Number(window.__DIAG_BINDS__ || 0);
+      const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
+      const diff = binds - unbinds;
+      if (!Number.isFinite(diff)) return false;
+      const pending = Number(window.__DIAG_PENDING__ || 0);
+      if (Number.isFinite(pending) && pending > 0) {
+        return false;
+      }
+      return diff === target;
+    }, { timeout }, expectedDiff);
+  } catch (err) {
+    // Log actual values on timeout
+    const actual = await page.evaluate(() => {
+      return {
+        binds: Number(window.__DIAG_BINDS__ || 0),
+        unbinds: Number(window.__DIAG_UNBINDS__ || 0),
+        diff: Number(window.__DIAG_BINDS__ || 0) - Number(window.__DIAG_UNBINDS__ || 0),
+        pending: Number(window.__DIAG_PENDING__ || 0)
+      };
+    });
+    console.error(`[SMOKE] Lifecycle diff timeout: expected=${expectedDiff}, actual=${actual.diff}, binds=${actual.binds}, unbinds=${actual.unbinds}, pending=${actual.pending}`);
+    throw err;
+  }
 }
 
 async function captureRouteParity(page, consoleErrors, networkErrors) {
