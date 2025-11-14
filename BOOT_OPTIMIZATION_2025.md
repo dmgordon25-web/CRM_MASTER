@@ -53,35 +53,35 @@ This document describes the boot performance optimizations implemented to reduce
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ PHASE 1: Tab Cycling (Single Pass)                     │
-│ Duration: ~1,200ms (8 tabs × 150ms)                    │
+│ Duration: ~800ms (8 tabs × 100ms)                      │
 ├─────────────────────────────────────────────────────────┤
-│ 1. Dashboard        →  150ms wait                      │
-│ 2. Longshots        →  150ms wait                      │
-│ 3. Pipeline         →  150ms wait                      │
-│ 4. Partners         →  150ms wait                      │
-│ 5. Contacts         →  150ms wait                      │
-│ 6. Calendar         →  150ms wait                      │
-│ 7. Reports          →  150ms wait                      │
-│ 8. Workbench        →  150ms wait                      │
+│ 1. Dashboard        →  100ms wait                      │
+│ 2. Longshots        →  100ms wait                      │
+│ 3. Pipeline         →  100ms wait                      │
+│ 4. Partners         →  100ms wait                      │
+│ 5. Contacts         →  100ms wait                      │
+│ 6. Calendar         →  100ms wait                      │
+│ 7. Reports          →  100ms wait                      │
+│ 8. Workbench        →  100ms wait                      │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
 │ PHASE 2: Return to Dashboard                           │
-│ Duration: ~150ms                                        │
+│ Duration: ~100ms                                        │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
 │ PHASE 3: Dashboard Mode Toggles                        │
-│ Duration: ~3,000ms (3 toggles × 1,000ms)               │
+│ Duration: ~900ms (3 toggles × 300ms)                   │
 ├─────────────────────────────────────────────────────────┤
-│ 1. Set to Today     →  1 second pause                  │
-│ 2. Toggle to All    →  1 second pause                  │
-│ 3. Toggle to Today  →  1 second pause                  │
+│ 1. Set to Today     →  300ms pause                     │
+│ 2. Toggle to All    →  300ms pause                     │
+│ 3. Toggle to Today  →  300ms pause                     │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
 │ PHASE 4: Widget Ready & Verification                   │
-│ Duration: ~400ms                                        │
+│ Duration: ~200-700ms                                    │
 ├─────────────────────────────────────────────────────────┤
 │ • Wait for dashboard:widgets:ready event               │
 │ • Verify mode is set to 'today'                        │
@@ -98,7 +98,7 @@ This document describes the boot performance optimizations implemented to reduce
 │ • Set window.__SPLASH_HIDDEN__ = true                  │
 └─────────────────────────────────────────────────────────┘
 
-TOTAL OPTIMIZED BOOT TIME: ~5.25 seconds (CI-friendly)
+TOTAL OPTIMIZED BOOT TIME: ~2.5-3 seconds (well under CI 5s limit)
 ```
 
 ## Performance Improvements
@@ -110,20 +110,22 @@ TOTAL OPTIMIZED BOOT TIME: ~5.25 seconds (CI-friendly)
 - **Estimated total time**: 7-13 seconds (but felt longer due to splash hiding early)
 
 ### After Optimization
-- **Tab cycling**: Single pass, 8 tabs × 150ms = 1.2 seconds
-- **Dashboard toggles**: 3 toggles × 1 second = 3 seconds
-- **Verification & delays**: ~1 second
-- **Total boot time**: ~5.25 seconds (CI-friendly, under 5s smoke test limit)
+- **Tab cycling**: Single pass, 8 tabs × 100ms = 800ms
+- **Dashboard toggles**: 3 toggles × 300ms = 900ms
+- **Verification & delays**: ~700-1000ms
+- **Total boot time**: ~2.5-3 seconds (well under 5s CI smoke test limit)
 - **Perceived improvement**: Splash now stays visible until completion ✅
+- **CI stability**: 40-50% time buffer under the 5-second timeout
 
 ## Key Benefits
 
-1. ✅ **Fast & Predictable Boot Time**: Consistent ~5.25 second boot sequence (CI-friendly)
+1. ✅ **Fast & Predictable Boot Time**: Consistent ~2.5-3 second boot sequence
 2. ✅ **Splash Screen Synchronization**: Splash hides AFTER last toggle (as requested)
-3. ✅ **Single Pass Tab Cycling**: Each tab clicked only once with equal spacing (150ms)
-4. ✅ **Dashboard Toggle Optimization**: Reduced from 4 to 3 toggles with 1s pauses
+3. ✅ **Single Pass Tab Cycling**: Each tab clicked only once with equal spacing (100ms)
+4. ✅ **Dashboard Toggle Optimization**: Reduced from 4 to 3 toggles with 300ms pauses
 5. ✅ **Eliminated Redundant Operations**: Removed partner cycling overhead
-6. ✅ **CI Stability**: Boot completes well within 5-second smoke test timeout
+6. ✅ **Excellent CI Stability**: Boot completes in ~50% of the 5-second timeout (2-2.5s buffer)
+7. ✅ **Minimal User Wait**: 70% faster than original 7-13 second boot time
 
 ## Testing Recommendations
 
@@ -134,7 +136,7 @@ TOTAL OPTIMIZED BOOT TIME: ~5.25 seconds (CI-friendly)
 
 2. **Timing Verification**:
    - Check console for `[PERF] overlay hidden in Xms` message
-   - Target: 4,750-5,500ms for normal boot (CI-friendly)
+   - Target: 2,000-3,000ms for normal boot (well under CI limit)
    - Safe mode should skip animation entirely
 
 3. **Safe Mode Testing**:
@@ -212,10 +214,10 @@ elapsed = overlayHiddenAt - bootStart
 
 ## Known Issues & Limitations
 
-1. **5.25 second boot time** is optimized for CI stability
-   - Balances thorough initialization with performance
-   - Stays well under 5-second CI smoke test timeout
-   - Further optimization available via safe mode or fast boot flag
+1. **2.5-3 second boot time** is optimized for CI stability
+   - Minimal delays ensure fast, reliable boot
+   - Well under 5-second CI smoke test timeout (40-50% buffer)
+   - Further speed available via safe mode (instant boot)
 
 2. **All tabs are still activated** during boot
    - Intentional for "warm-up" and consistency
@@ -232,11 +234,11 @@ elapsed = overlayHiddenAt - bootStart
 Optimize boot performance and fix splash screen timing
 
 PERFORMANCE IMPROVEMENTS:
-- Single-pass tab cycling with equal 150ms spacing (8 tabs total)
+- Single-pass tab cycling with equal 100ms spacing (8 tabs total)
 - Reduced dashboard toggles from 4 to 3 (Today → All → Today)
 - Removed partner cycling overhead (~900ms saved)
-- Equal spacing between all tab clicks (150ms intervals)
-- CI-friendly timing: completes well within 5s smoke test timeout
+- Minimal delays optimized for CI stability (300ms toggle pauses)
+- CI-friendly timing: completes in ~50% of 5s timeout (2-2.5s buffer)
 
 SPLASH SCREEN FIX:
 - Splash now waits for window.__BOOT_ANIMATION_COMPLETE__ flag
@@ -245,13 +247,13 @@ SPLASH SCREEN FIX:
 - Proper synchronization with boot animation sequence
 
 BOOT SEQUENCE:
-1. Cycle through 8 tabs once (150ms each = 1.2s)
-2. Return to dashboard (150ms)
-3. Toggle: Today → All → Today (3s total, 1s pauses)
-4. Wait for widgets ready + verification (400ms)
+1. Cycle through 8 tabs once (100ms each = 800ms)
+2. Return to dashboard (100ms)
+3. Toggle: Today → All → Today (900ms total, 300ms pauses)
+4. Wait for widgets ready + verification (200-700ms)
 5. Hide splash screen (500ms final delay)
 
-Total optimized boot time: ~5.25 seconds (CI-friendly, predictable)
+Total optimized boot time: ~2.5-3 seconds (well under CI 5s limit)
 
 Files modified:
 - crm-app/js/boot/boot_hardener.js
