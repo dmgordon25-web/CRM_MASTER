@@ -512,17 +512,18 @@ function maybeRenderAll() {
   }
 }
 
-  async function animateTabCycle() {
+  async function animateTabCycle({ instant = false } = {}) {
     // ULTRA-OPTIMIZED: Absolute minimum timeouts for CI (5s smoke test includes splash hiding)
     // Must account for: boot animation + splash_sequence.js overhead + FINAL_DELAY
+    // If instant=true (CI mode), use 0ms delays to run animation as fast as possible
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
-    const TAB_WAIT_TIMEOUT = 150; // Minimal - tabs activate in <50ms typically
-    const MODE_WAIT_TIMEOUT = 150; // Minimal - mode changes are instant
-    const TAB_POST_DELAY = 30; // Bare minimum between tabs (8×30ms = 240ms)
-    const TAB_RETURN_POST_DELAY = 30;
-    const MODE_POST_DELAY = 100; // Minimal mode pause (3×100ms = 300ms)
-    const MODE_FINAL_POST_DELAY = 100;
-    const EXTRA_FINAL_DELAY = 50;
+    const TAB_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - tabs activate in <50ms typically
+    const MODE_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - mode changes are instant
+    const TAB_POST_DELAY = instant ? 0 : 30; // Bare minimum between tabs (8×30ms = 240ms) or 0 for CI
+    const TAB_RETURN_POST_DELAY = instant ? 0 : 30;
+    const MODE_POST_DELAY = instant ? 0 : 100; // Minimal mode pause (3×100ms = 300ms) or 0 for CI
+    const MODE_FINAL_POST_DELAY = instant ? 0 : 100;
+    const EXTRA_FINAL_DELAY = instant ? 0 : 50;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -612,7 +613,7 @@ function maybeRenderAll() {
         return false;
       }
       if (getActiveTabName() === target) {
-        await wait(Math.max(140, postDelay));
+        await wait(instant ? postDelay : Math.max(140, postDelay));
         return true;
       }
       dispatchSyntheticClick(button, `tab:${target}`);
@@ -624,7 +625,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
         return false;
       }
-      await wait(Math.max(140, postDelay));
+      await wait(instant ? postDelay : Math.max(140, postDelay));
       console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
       return true;
     }
@@ -636,7 +637,7 @@ function maybeRenderAll() {
         window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
       }
       if (!button && getActiveDashboardMode() === normalized) {
-        await wait(Math.max(160, postDelay));
+        await wait(instant ? postDelay : Math.max(160, postDelay));
         return true;
       }
       if (!button) {
@@ -658,7 +659,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
         return false;
       }
-      await wait(Math.max(160, postDelay));
+      await wait(instant ? postDelay : Math.max(160, postDelay));
       console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
       return true;
     }
@@ -698,7 +699,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, 500); // Ultra-minimal for CI (reduced from 2500ms)
+        }, instant ? 100 : 500); // Instant mode: 100ms, normal: 500ms
 
         const handler = () => {
           clearTimeout(timeout);
@@ -821,19 +822,21 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Animate tab cycling before hiding splash (skip in safe mode or if skipBootAnimation URL param is set)
+    // Animate tab cycling before hiding splash (skip in safe mode, run instant if skipBootAnimation URL param)
     const urlParams = new URLSearchParams(window.location.search);
     const skipBootAnimation = urlParams.get('skipBootAnimation') === '1';
-    const skipAnimation = safe || skipBootAnimation;
+    const skipAnimation = safe;
 
     if (!skipAnimation) {
-      console.info('[BOOT] Starting tab animation sequence');
-      await animateTabCycle();
-    } else {
       if (skipBootAnimation) {
-        console.info('[BOOT] Skipping boot animation (skipBootAnimation URL parameter detected)');
+        console.info('[BOOT] Running INSTANT tab animation sequence (CI mode)');
+        await animateTabCycle({ instant: true });
+      } else {
+        console.info('[BOOT] Starting tab animation sequence');
+        await animateTabCycle();
       }
-      // Set the completion flag so splash_sequence.js doesn't wait for it
+    } else {
+      // Safe mode: skip animation entirely
       if (typeof window !== 'undefined') {
         window.__BOOT_ANIMATION_COMPLETE__ = true;
       }
