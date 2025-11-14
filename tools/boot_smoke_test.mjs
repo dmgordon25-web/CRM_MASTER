@@ -130,22 +130,28 @@ async function captureRouteParity(page, consoleErrors, networkErrors) {
     { hash: '#/pipeline', selector: '.kanban-board, [data-ui="kanban-root"]' },
     { hash: '#/dashboard', selector: '[data-ui="dashboard-root"]' }
   ];
+  console.log('[SMOKE] captureRouteParity: Reading baseline lifecycle counters');
   const baseline = await readLifecycleCounters(page);
   const baselineDiff = baseline.diff;
   const snapshots = [{ ...baseline, label: 'baseline' }];
   for (const step of steps) {
+    console.log(`[SMOKE] captureRouteParity: Navigating to ${step.hash}`);
     await page.evaluate((targetHash) => {
       window.location.hash = targetHash;
     }, step.hash);
+    console.log(`[SMOKE] captureRouteParity: Waiting for selector "${step.selector}"`);
     await page.waitForFunction((selector) => {
       const node = document.querySelector(selector);
       return !!node;
     }, { timeout: 5000 }, step.selector);
+    console.log(`[SMOKE] captureRouteParity: Selector found, checking splash hidden`);
     await assertSplashHidden(page);
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
+    console.log(`[SMOKE] captureRouteParity: Waiting for lifecycle diff = ${baselineDiff}`);
     await waitForLifecycleDiff(page, baselineDiff);
     const sample = await readLifecycleCounters(page);
     snapshots.push({ ...sample, label: step.hash });
+    console.log(`[SMOKE] captureRouteParity: Step ${step.hash} complete`);
   }
   const final = snapshots[snapshots.length - 1] || { binds: 0, unbinds: 0, diff: 0, label: 'final' };
   const report = {
@@ -314,6 +320,7 @@ async function main() {
       }
     });
 
+    console.log('[SMOKE] Loading page with ?skipBootAnimation=1');
     await page.goto(`${ORIGIN}/?skipBootAnimation=1`, { waitUntil: 'networkidle0' });
 
     if (networkErrors.length) {
@@ -321,10 +328,14 @@ async function main() {
       throw new Error('network-4xx');
     }
 
+    console.log('[SMOKE] Waiting for __BOOT_DONE__.fatal === false');
     await page.waitForFunction(() => window.__BOOT_DONE__?.fatal === false, { timeout: 60000 });
+    console.log('[SMOKE] Boot done, checking for console errors');
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
+    console.log('[SMOKE] Asserting splash is hidden');
     await assertSplashHidden(page);
+    console.log('[SMOKE] Splash hidden confirmed');
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
     const bootTiming = await page.evaluate(() => {
@@ -451,7 +462,9 @@ async function main() {
     if (!uiRendered) throw new Error('Dashboard UI did not render');
     await assertSplashHidden(page);
 
+    console.log('[SMOKE] Starting captureRouteParity test');
     await captureRouteParity(page, consoleErrors, networkErrors);
+    console.log('[SMOKE] captureRouteParity test complete');
 
     const routeNavBaseline = consoleErrors.length;
     const routes = [
