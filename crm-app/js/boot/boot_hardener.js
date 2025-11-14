@@ -519,11 +519,11 @@ function maybeRenderAll() {
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - tabs activate in <50ms typically
     const MODE_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - mode changes are instant
-    const TAB_POST_DELAY = instant ? 10 : 30; // Instant: 10ms for event loop processing (8×10ms = 80ms)
-    const TAB_RETURN_POST_DELAY = instant ? 10 : 30;
-    const MODE_POST_DELAY = instant ? 10 : 100; // Instant: 10ms for cleanup (3×10ms = 30ms)
-    const MODE_FINAL_POST_DELAY = instant ? 10 : 100;
-    const EXTRA_FINAL_DELAY = instant ? 10 : 50;
+    const TAB_POST_DELAY = instant ? 30 : 30; // Instant: 30ms for proper event cleanup (8×30ms = 240ms)
+    const TAB_RETURN_POST_DELAY = instant ? 30 : 30;
+    const MODE_POST_DELAY = instant ? 30 : 100; // Instant: 30ms for cleanup (3×30ms = 90ms)
+    const MODE_FINAL_POST_DELAY = instant ? 30 : 100;
+    const EXTRA_FINAL_DELAY = instant ? 100 : 50; // Instant: 100ms settling time for lifecycle parity
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -699,7 +699,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, instant ? 100 : 500); // Instant mode: 100ms, normal: 500ms
+        }, instant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
 
         const handler = () => {
           clearTimeout(timeout);
@@ -831,6 +831,9 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       if (skipBootAnimation) {
         console.info('[BOOT] Running INSTANT tab animation sequence (CI mode)');
         await animateTabCycle({ instant: true });
+        // Extra settling delay for lifecycle counters to stabilize
+        await new Promise(resolve => setTimeout(resolve, 200));
+        console.info('[BOOT] Instant animation complete, lifecycle settling complete');
       } else {
         console.info('[BOOT] Starting tab animation sequence');
         await animateTabCycle();
