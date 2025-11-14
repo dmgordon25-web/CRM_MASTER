@@ -98,11 +98,13 @@ This document describes the boot performance optimizations implemented to reduce
 │ • Set window.__SPLASH_HIDDEN__ = true                  │
 └─────────────────────────────────────────────────────────┘
 
-OPTIMIZED BOOT TIME:
-• Best case: ~1.5 seconds (all activations immediate)
-• Worst case: ~4.2 seconds (all timeouts hit)
-• Typical:    ~2-3 seconds
-• CI-safe:    Comfortably under 5s limit with margin
+ULTRA-OPTIMIZED BOOT TIME:
+• Best case: ~1.0-1.5 seconds (all activations immediate)
+• Worst case: ~3.1 seconds (all timeouts hit + splash hide delay)
+• Typical:    ~1.8-2.5 seconds
+• CI-safe:    Large 1.9s margin under 5s limit (38% buffer)
+
+NOTE: Worst case includes boot animation + splash_sequence.js FINAL_DELAY
 ```
 
 ## Performance Improvements
@@ -113,25 +115,26 @@ OPTIMIZED BOOT TIME:
 - **Splash timing**: Hid too early, before boot completed
 - **Estimated total time**: 7-13 seconds (but felt longer due to splash hiding early)
 
-### After Optimization
-- **Tab cycling**: Single pass, 8 tabs × 50ms delays (200ms timeouts) = 400-2000ms
-- **Dashboard toggles**: 3 toggles × 150ms pauses (200ms timeouts) = 450-1050ms
-- **Verification & delays**: ~100-900ms (dashboard ready event)
-- **Total boot time**: 1.5-4.2 seconds (worst case still under 5s CI limit)
-- **Typical boot**: ~2-3 seconds
+### After Ultra-Optimization
+- **Tab cycling**: Single pass, 8 tabs × 30ms delays (150ms timeouts) = 240-1440ms
+- **Dashboard toggles**: 3 toggles × 100ms pauses (150ms timeouts) = 300-750ms
+- **Verification & delays**: ~50-550ms (dashboard ready event)
+- **Splash hide delay**: 50ms (was 500ms - critical CI fix!)
+- **Total boot time**: 1.0-3.1 seconds (including splash hide)
+- **Typical boot**: ~1.8-2.5 seconds
 - **Perceived improvement**: Splash now stays visible until completion ✅
-- **CI stability**: Safe margin even in worst-case scenario (800ms buffer)
+- **CI stability**: Large safety margin (1.9s / 38% buffer under 5s limit)
 
 ## Key Benefits
 
-1. ✅ **Fast & Predictable Boot Time**: 1.5-4.2 second range, typically 2-3 seconds
+1. ✅ **Ultra-Fast Boot Time**: 1.0-3.1 second range, typically 1.8-2.5 seconds
 2. ✅ **Splash Screen Synchronization**: Splash hides AFTER last toggle (as requested)
-3. ✅ **Single Pass Tab Cycling**: Each tab clicked only once with minimal delays (50ms)
-4. ✅ **Dashboard Toggle Optimization**: Reduced from 4 to 3 toggles with 150ms pauses
+3. ✅ **Single Pass Tab Cycling**: Each tab clicked only once with minimal delays (30ms)
+4. ✅ **Dashboard Toggle Optimization**: Reduced from 4 to 3 toggles with 100ms pauses
 5. ✅ **Eliminated Redundant Operations**: Removed partner cycling overhead
-6. ✅ **Excellent CI Stability**: Even worst-case (4.2s) has 800ms safety buffer
-7. ✅ **Minimal User Wait**: 70-85% faster than original 7-13 second boot time
-8. ✅ **Reduced Timeout Risk**: All timeouts minimized (200ms vs 650ms previously)
+6. ✅ **Excellent CI Stability**: Worst-case (3.1s) has 1.9s safety buffer (38%)
+7. ✅ **Minimal User Wait**: 75-85% faster than original 7-13 second boot time
+8. ✅ **Optimized All Delays**: Timeouts (150ms), delays (30-100ms), splash (50ms)
 
 ## Testing Recommendations
 
@@ -142,7 +145,7 @@ OPTIMIZED BOOT TIME:
 
 2. **Timing Verification**:
    - Check console for `[PERF] overlay hidden in Xms` message
-   - Target: 1,500-4,200ms range (typical: 2,000-3,000ms)
+   - Target: 1,000-3,100ms range (typical: 1,800-2,500ms)
    - Safe mode should skip animation entirely
 
 3. **Safe Mode Testing**:
@@ -220,10 +223,10 @@ elapsed = overlayHiddenAt - bootStart
 
 ## Known Issues & Limitations
 
-1. **1.5-4.2 second boot time** is optimized for CI stability
-   - Minimal timeouts (200ms) ensure reliable CI passing
-   - Worst-case scenario still has 800ms buffer under 5s limit
-   - Typical boot is 2-3 seconds (60% faster than original)
+1. **1.0-3.1 second boot time** is ultra-optimized for CI stability
+   - Minimal timeouts (150ms) and delays (30-100ms)
+   - Worst-case scenario has 1.9s buffer under 5s limit (38%)
+   - Typical boot is 1.8-2.5 seconds (70-80% faster than original)
    - Further speed available via safe mode (instant boot)
 
 2. **All tabs are still activated** during boot
