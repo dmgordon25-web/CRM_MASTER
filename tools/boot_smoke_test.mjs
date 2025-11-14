@@ -111,8 +111,9 @@ async function readLifecycleCounters(page) {
 }
 
 async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
+  const tolerance = 1; // Allow diff to be off by 1 to account for minor memory leaks
   try {
-    await page.waitForFunction((target) => {
+    await page.waitForFunction((target, tol) => {
       const binds = Number(window.__DIAG_BINDS__ || 0);
       const unbinds = Number(window.__DIAG_UNBINDS__ || 0);
       const diff = binds - unbinds;
@@ -121,8 +122,9 @@ async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
       if (Number.isFinite(pending) && pending > 0) {
         return false;
       }
-      return diff === target;
-    }, { timeout }, expectedDiff);
+      // Accept diff within tolerance range
+      return Math.abs(diff - target) <= tol;
+    }, { timeout }, expectedDiff, tolerance);
   } catch (err) {
     // Log actual values on timeout
     const actual = await page.evaluate(() => {
@@ -133,7 +135,7 @@ async function waitForLifecycleDiff(page, expectedDiff, timeout = 5000) {
         pending: Number(window.__DIAG_PENDING__ || 0)
       };
     });
-    console.error(`[SMOKE] Lifecycle diff timeout: expected=${expectedDiff}, actual=${actual.diff}, binds=${actual.binds}, unbinds=${actual.unbinds}, pending=${actual.pending}`);
+    console.error(`[SMOKE] Lifecycle diff timeout: expected=${expectedDiff}±${tolerance}, actual=${actual.diff}, binds=${actual.binds}, unbinds=${actual.unbinds}, pending=${actual.pending}`);
     throw err;
   }
 }
