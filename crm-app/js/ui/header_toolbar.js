@@ -471,6 +471,12 @@ function unmountHeaderToolbarLifecycle(context) {
   const doc = document;
   const root = doc.body || doc.documentElement;
   if (!root) return;
+
+  // Always call markUnbound to match the markBound from mount, regardless of guard state
+  if (context && typeof context.markUnbound === 'function') {
+    context.markUnbound();
+  }
+
   const guard = headerLifecycleGuard || getViewGuard(root, HEADER_GUARD_KEY);
   if (!guard) {
     releaseViewGuard(root, HEADER_GUARD_KEY);
@@ -480,9 +486,6 @@ function unmountHeaderToolbarLifecycle(context) {
   catch (_err) { releaseViewGuard(root, HEADER_GUARD_KEY); }
   if (headerLifecycleGuard === guard) {
     headerLifecycleGuard = null;
-  }
-  if (context && typeof context.markUnbound === 'function') {
-    context.markUnbound();
   }
 }
 
