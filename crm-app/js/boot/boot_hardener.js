@@ -513,15 +513,16 @@ function maybeRenderAll() {
 }
 
   async function animateTabCycle() {
-    // OPTIMIZED: Single pass through all tabs with equal spacing (500ms)
+    // OPTIMIZED: Single pass through all tabs with equal spacing
+    // Balanced for performance (CI timeout) while respecting 1s toggle pauses
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = 650;
     const MODE_WAIT_TIMEOUT = 550;
-    const TAB_POST_DELAY = 500; // Equal spacing between tabs
-    const TAB_RETURN_POST_DELAY = 500;
-    const MODE_POST_DELAY = 1000; // 1 second pause between toggles
+    const TAB_POST_DELAY = 150; // Fast but equal spacing between tabs (CI: 8×150ms = 1.2s)
+    const TAB_RETURN_POST_DELAY = 150;
+    const MODE_POST_DELAY = 1000; // 1 second pause between toggles (per requirement)
     const MODE_FINAL_POST_DELAY = 1000;
-    const EXTRA_FINAL_DELAY = 500;
+    const EXTRA_FINAL_DELAY = 400;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
