@@ -314,7 +314,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${ORIGIN}/`, { waitUntil: 'networkidle0' });
+    await page.goto(`${ORIGIN}/?skipBootAnimation=1`, { waitUntil: 'networkidle0' });
 
     if (networkErrors.length) {
       console.error('[SMOKE] 4xx/5xx network failures (first 5):', networkErrors.slice(0,5));

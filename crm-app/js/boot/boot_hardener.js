@@ -821,10 +821,16 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Animate tab cycling before hiding splash (skip in safe mode)
-    if (!safe) {
+    // Animate tab cycling before hiding splash (skip in safe mode or if skipBootAnimation URL param is set)
+    const urlParams = new URLSearchParams(window.location.search);
+    const skipBootAnimation = urlParams.get('skipBootAnimation') === '1';
+    const skipAnimation = safe || skipBootAnimation;
+
+    if (!skipAnimation) {
       console.info('[BOOT] Starting tab animation sequence');
       await animateTabCycle();
+    } else if (skipBootAnimation) {
+      console.info('[BOOT] Skipping boot animation (skipBootAnimation URL parameter detected)');
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
