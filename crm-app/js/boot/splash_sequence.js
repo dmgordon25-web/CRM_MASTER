@@ -4,7 +4,7 @@ const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
 const TOGGLE_DELAY = 1000; // Time to wait for each toggle to render (1 second per user request)
 const TAB_DELAY = 600; // Time to wait for each tab to render
-const FINAL_DELAY = 500; // Final delay before hiding splash
+const FINAL_DELAY = 50; // Minimal delay before hiding splash (CI-optimized from 500ms)
 
 let splashSequenceRan = false;
 

@@ -513,16 +513,16 @@ function maybeRenderAll() {
 }
 
   async function animateTabCycle() {
-    // OPTIMIZED: Minimal timeouts and delays for CI stability (5s smoke test)
-    // Critical: TAB_WAIT_TIMEOUT * 8 tabs + MODE_WAIT_TIMEOUT * 3 toggles must be < 5000ms
+    // ULTRA-OPTIMIZED: Absolute minimum timeouts for CI (5s smoke test includes splash hiding)
+    // Must account for: boot animation + splash_sequence.js overhead + FINAL_DELAY
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
-    const TAB_WAIT_TIMEOUT = 200; // Reduced from 650ms - tabs activate quickly in practice
-    const MODE_WAIT_TIMEOUT = 200; // Reduced from 550ms - mode changes are fast
-    const TAB_POST_DELAY = 50; // Minimal delay between tabs (8×50ms = 400ms)
-    const TAB_RETURN_POST_DELAY = 50;
-    const MODE_POST_DELAY = 150; // Minimal mode pause (3×150ms = 450ms)
-    const MODE_FINAL_POST_DELAY = 150;
-    const EXTRA_FINAL_DELAY = 100;
+    const TAB_WAIT_TIMEOUT = 150; // Minimal - tabs activate in <50ms typically
+    const MODE_WAIT_TIMEOUT = 150; // Minimal - mode changes are instant
+    const TAB_POST_DELAY = 30; // Bare minimum between tabs (8×30ms = 240ms)
+    const TAB_RETURN_POST_DELAY = 30;
+    const MODE_POST_DELAY = 100; // Minimal mode pause (3×100ms = 300ms)
+    const MODE_FINAL_POST_DELAY = 100;
+    const EXTRA_FINAL_DELAY = 50;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -698,7 +698,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, 800); // Reduced from 2500ms for CI stability
+        }, 500); // Ultra-minimal for CI (reduced from 2500ms)
 
         const handler = () => {
           clearTimeout(timeout);
@@ -718,8 +718,8 @@ function maybeRenderAll() {
     try {
       console.info('[BOOT_ANIMATION] Starting OPTIMIZED boot animation sequence');
 
-      // PHASE 1: Cycle through ALL tabs once with minimal spacing (50ms)
-      console.info('[BOOT_ANIMATION] Cycling through all tabs (once each, 50ms intervals)');
+      // PHASE 1: Cycle through ALL tabs once with ultra-minimal spacing (30ms)
+      console.info('[BOOT_ANIMATION] Cycling through all tabs (once each, 30ms intervals)');
       for (const tab of TAB_SEQUENCE) {
         await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
       }
@@ -728,8 +728,8 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Returning to dashboard');
       await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
 
-      // PHASE 3: Dashboard toggles: Today → All → Today with 150ms pauses (CI-optimized)
-      console.info('[BOOT_ANIMATION] Dashboard toggles: Today → All → Today (150ms pauses)');
+      // PHASE 3: Dashboard toggles: Today → All → Today with 100ms pauses (ultra-optimized)
+      console.info('[BOOT_ANIMATION] Dashboard toggles: Today → All → Today (100ms pauses)');
       await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
       await ensureDashboardMode('all', { postDelay: MODE_POST_DELAY });
       await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
