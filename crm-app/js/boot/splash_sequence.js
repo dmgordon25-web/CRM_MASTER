@@ -126,57 +126,43 @@ function hideSplash() {
 
 /**
  * Run the full splash initialization sequence
+ * OPTIMIZED: Now waits for boot animation to complete instead of duplicating the sequence
  */
 export async function runSplashSequence() {
   if (splashSequenceRan) {
     return;
   }
-  
+
   splashSequenceRan = true;
-  
+
   try {
-    // Wait for dashboard to be ready
-    await waitForDashboard();
-    await wait(1000); // Wait for page to be quiet and loaded
-    
-    // === Cycle through all tabs once ===
-    
-    const tabs = ['leads', 'pipeline', 'partners', 'contacts', 'dashboard'];
-    for (const tab of tabs) {
-      if (navigateToTab(tab)) {
-        await wait(TAB_DELAY);
-      }
+    // === Wait for boot animation to complete ===
+    console.info('[SPLASH] Waiting for boot animation to complete...');
+
+    const maxWait = 30000; // Maximum 30 seconds
+    const checkInterval = 100;
+    let waited = 0;
+
+    while (!window.__BOOT_ANIMATION_COMPLETE__ && waited < maxWait) {
+      await wait(checkInterval);
+      waited += checkInterval;
     }
-    
-    // Ensure we're back on dashboard for the toggle sequence
-    navigateToTab('dashboard');
-    await wait(TAB_DELAY);
-    
-    // === Toggle All/Today 2x with 1 second pauses ===
-    
-    // Toggle to "All" (1st time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY); // 1 second pause
-    
-    // Toggle to "Today" (1st time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY); // 1 second pause
-    
-    // Toggle to "All" (2nd time)
-    toggleDashboardMode('all');
-    await wait(TOGGLE_DELAY); // 1 second pause
-    
-    // Toggle back to "Today" (2nd time)
-    toggleDashboardMode('today');
-    await wait(TOGGLE_DELAY); // 1 second pause
-    
-    // Final delay before hiding splash
+
+    if (window.__BOOT_ANIMATION_COMPLETE__) {
+      console.info('[SPLASH] Boot animation complete, hiding splash after final delay');
+    } else {
+      console.warn('[SPLASH] Boot animation did not complete in time, hiding splash anyway');
+    }
+
+    // Final safety delay
     await wait(FINAL_DELAY);
-    
+
     // === Hide the splash page ===
     hideSplash();
-    
+    console.info('[SPLASH] Splash screen hidden');
+
   } catch (err) {
+    console.error('[SPLASH] Error in splash sequence:', err);
     // Hide splash anyway on error
     hideSplash();
   }
