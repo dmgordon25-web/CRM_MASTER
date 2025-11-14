@@ -829,8 +829,14 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     if (!skipAnimation) {
       console.info('[BOOT] Starting tab animation sequence');
       await animateTabCycle();
-    } else if (skipBootAnimation) {
-      console.info('[BOOT] Skipping boot animation (skipBootAnimation URL parameter detected)');
+    } else {
+      if (skipBootAnimation) {
+        console.info('[BOOT] Skipping boot animation (skipBootAnimation URL parameter detected)');
+      }
+      // Set the completion flag so splash_sequence.js doesn't wait for it
+      if (typeof window !== 'undefined') {
+        window.__BOOT_ANIMATION_COMPLETE__ = true;
+      }
     }
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
