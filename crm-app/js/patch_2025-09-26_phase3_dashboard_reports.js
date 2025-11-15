@@ -1,5 +1,6 @@
 // patch_2025-09-26_phase3_dashboard_reports.js — Phase 3 dashboard + reports
 import { PIPELINE_STAGE_KEYS, stageKeyFromLabel as canonicalStageKey, stageLabelFromKey as canonicalStageLabel } from './pipeline/stages.js';
+import { deriveBaselineSnapshot, computeWidgetVisibility } from './dashboard/baseline_snapshot.js';
 import { openContactModal } from './contacts.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
@@ -869,186 +870,25 @@ function runPatch(){
       return contact.createdTs || null;
     }
 
-    function groupTasks(tasks){
-      const groups = new Map();
-      tasks.forEach(task => {
-        if(!task.contactId) return;
-        if(!groups.has(task.contactId)){
-          const contact = state.contactMap.get(task.contactId) || null;
-          groups.set(task.contactId, {contact, tasks: []});
-        }
-        const group = groups.get(task.contactId);
-        group.tasks.push(task);
-      });
-      return Array.from(groups.values()).map(group => {
-        group.tasks.sort((a,b)=> (a.dueTs||0) - (b.dueTs||0) || a.title.localeCompare(b.title));
-        return group;
-      }).sort((a,b)=>{
-        const nameA = displayName(a.contact).toLowerCase();
-        const nameB = displayName(b.contact).toLowerCase();
-        return nameA.localeCompare(nameB, undefined, {numeric:true, sensitivity:'base'});
-      });
-    }
-
-    function isAppointmentTask(task){
-      if(!task) return false;
-      const raw = task.raw || {};
-      const fields = [raw.type, raw.kind, raw.category, raw.appointmentType, raw.template];
-      for(const field of fields){
-        if(typeof field === 'string'){
-          const lower = field.toLowerCase();
-          if(lower.includes('appointment') || lower.includes('meeting') || lower.includes('consult') || lower.includes('review') || lower.includes('call')){
-            return true;
-          }
-        }
-      }
-      const title = String(task.title || raw.title || raw.name || '').toLowerCase();
-      return /(appointment|meeting|consult|review|call)/.test(title);
-    }
-
     function buildDashboardAggregates(){
       const contacts = filteredContacts();
       const contactIds = contacts.map(c=>c.id);
       const tasks = filteredTasks(contactIds);
-      const now = new Date();
-      const today = startOfDay(now);
-      const todayTs = today ? today.getTime() : Date.now();
-      const yearStart = new Date(now.getFullYear(),0,1).getTime();
-      const sevenDaysAgo = now.getTime() - (7*DAY_MS);
-
-      let kpiNewLeads7d = 0;
-      let kpiActivePipeline = 0;
-      const pipelineCounts = Object.fromEntries(LANE_ORDER.map(stage => [stage, 0]));
-      const ytdFunded = [];
-      const staleDeals = [];
-      const partnerStats = new Map();
-
-      contacts.forEach(contact => {
-        if(!contact) return;
-        const created = contact.createdTs || 0;
-        if(created && created >= sevenDaysAgo) kpiNewLeads7d += 1;
-        const lane = contact.lane;
-        if(pipelineCounts.hasOwnProperty(lane)) pipelineCounts[lane] += 1;
-        if(PIPELINE_LANES.includes(lane)) kpiActivePipeline += 1;
-        if(contact.fundedTs && contact.fundedTs >= yearStart) ytdFunded.push(contact);
-        if(PIPELINE_LANES.includes(lane)){
-          const stageTs = contact.stageMap ? contact.stageMap[canonicalStage(contact.stage)] : null;
-          const entered = stageTs || contact.stageMap?.[laneKeyFromStage(contact.stage)] || contact.stageMap?.[contact.stage] || contact.createdTs;
-          if(entered){
-            const days = Math.floor((todayTs - entered) / DAY_MS);
-            if(days > 14){
-              staleDeals.push({contact, days});
-            }
-          }
-        }
-        const partnerIds = Array.isArray(contact.partners) ? contact.partners : [];
-        if(partnerIds.length){
-          const isActive = PIPELINE_LANES.includes(lane);
-          const isLost = contact.lane === 'lost' || contact.lane === 'denied';
-          const isFundedYtd = contact.fundedTs && contact.fundedTs >= yearStart;
-          const amount = Number(contact.loanAmount||0) || 0;
-          partnerIds.forEach(pid => {
-            if(!pid || pid === PARTNER_NONE_ID) return;
-            const stat = partnerStats.get(pid) || { id: pid, total: 0, active: 0, funded: 0, lost: 0, volume: 0 };
-            stat.total += 1;
-            if(isActive) stat.active += 1;
-            if(isLost) stat.lost += 1;
-            if(isFundedYtd){
-              stat.funded += 1;
-              stat.volume += amount;
-            }
-            partnerStats.set(pid, stat);
-          });
-        }
-      });
-
-      const fundedVolumeYtd = ytdFunded.reduce((sum, contact)=> sum + Number(contact.loanAmount||0), 0);
-      const cycleDurations = [];
-      ytdFunded.forEach(contact => {
-        const fundedTs = contact.fundedTs;
-        const startTs = getStageTimestamp(contact, ['long-shot','application','preapproved']);
-        if(fundedTs && startTs){
-          cycleDurations.push(Math.max(0, (fundedTs - startTs) / DAY_MS));
-        }
-      });
-      const avgCycle = cycleDurations.length ? cycleDurations.reduce((a,b)=> a+b, 0) / cycleDurations.length : 0;
-
-      const dueToday = [];
-      const overdue = [];
-      tasks.forEach(task => {
-        if(!task.due) return;
-        const dueStart = startOfDay(task.due);
-        if(!dueStart) return;
-        const diff = Math.floor((dueStart.getTime() - todayTs) / DAY_MS);
-        if(diff === 0) dueToday.push(task);
-        else if(diff < 0) overdue.push(task);
-      });
-
-      const dueTodaySorted = dueToday.slice().sort((a,b)=>{
-        const diff = (a.dueTs||0) - (b.dueTs||0);
-        if(diff !== 0) return diff;
-        return String(a.title||'').localeCompare(String(b.title||''), undefined, {numeric:true, sensitivity:'base'});
-      });
-
-      const appointments = state.tasks.filter(task => {
-        if(!task || !task.dueTs) return false;
-        if(task.dueTs < todayTs) return false;
-        return isAppointmentTask(task);
-      }).sort((a,b)=> (a.dueTs||0) - (b.dueTs||0) || String(a.title||'').localeCompare(String(b.title||''))).slice(0,5);
-
-      const recentLeads = contacts.filter(contact => {
-        if(!contact || contact.deleted) return false;
-        if(!contact.createdTs) return false;
-        if(PIPELINE_LANES.includes(contact.lane)) return true;
-        return contact.lane === 'long-shot';
-      }).sort((a,b)=> (b.createdTs||0) - (a.createdTs||0)).slice(0,5);
-
-      const referralsYtd = ytdFunded.filter(contact => contact.partners.length > 0).length;
-
-      const leaderboard = Array.from(partnerStats.values()).map(stat => {
-        const partner = state.partnerMap.get(stat.id) || {name:'Partner', tier:'', company:''};
-        return {
-          id: stat.id,
-          name: partner.name || partner.company || 'Partner',
-          tier: partner.tier || '',
-          volume: stat.volume,
-          fundedCount: stat.funded,
-          activeCount: stat.active,
-          totalCount: stat.total,
-          lostCount: stat.lost,
-          conversion: stat.total ? stat.funded / stat.total : 0
-        };
-      });
-
-      staleDeals.sort((a,b)=> b.days - a.days);
-
-      return {
+      return deriveBaselineSnapshot({
         contacts,
-        tasks,
-        pipelineCounts,
-        ytdFunded,
-        staleDeals,
-        leaderboard,
-        focus: {
-          tasksToday: dueTodaySorted.slice(0,5),
-          nextAppointments: appointments,
-          recentLeads
-        },
-        dueGroups: {
-          today: groupTasks(dueToday),
-          overdue: groupTasks(overdue)
-        },
-        kpis: {
-          kpiNewLeads7d,
-          kpiActivePipeline,
-          kpiFundedYTD: ytdFunded.length,
-          kpiFundedVolumeYTD: fundedVolumeYtd,
-          kpiAvgCycleLeadToFunded: avgCycle,
-          kpiTasksToday: dueToday.length,
-          kpiTasksOverdue: overdue.length,
-          kpiReferralsYTD: referralsYtd
-        }
-      };
+        visibleTasks: tasks,
+        allTasks: state.tasks,
+        contactById: id => state.contactMap.get(id) || null,
+        partnerById: id => state.partnerMap.get(id) || null,
+        pipelineLaneOrder: LANE_ORDER,
+        pipelineActiveLanes: PIPELINE_LANES,
+        partnerNoneId: PARTNER_NONE_ID,
+        canonicalStage,
+        laneKeyFromStage,
+        formatContactName: displayName,
+        now: new Date(),
+        startOfDay
+      });
     }
 
     function renderFilters(){
@@ -1513,17 +1353,8 @@ function runPatch(){
         }
         toggleSectionVisibility('dashboard-focus', showFocus);
 
-        // Define which widgets should be visible in 'today' mode
-        const todayModeWidgets = new Set(['today']);
-        
-        const widgetVisible = key => {
-          // In 'today' mode, show only today-specific widgets
-          if(state.dashboard.mode === 'today'){
-            return todayModeWidgets.has(key);
-          }
-          // In 'all' mode, show widgets that aren't explicitly disabled
-          return state.dashboard.widgets[key] !== false;
-        };
+        const widgetVisibility = computeWidgetVisibility(state.dashboard.mode, state.dashboard.widgets);
+        const widgetVisible = key => widgetVisibility[key] !== false;
         
         const shouldRenderWidget = key => {
           if(!widgetVisible(key)) return false;
