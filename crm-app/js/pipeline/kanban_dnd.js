@@ -474,6 +474,11 @@ function activatePipelineDnD(context){
 }
 
 function deactivatePipelineDnD(context){
+  // Always call markUnbound to match the markBound from activate, regardless of guard state
+  if(context && typeof context.markUnbound === 'function'){
+    context.markUnbound();
+  }
+
   const host = (context && context.root) || getRouteRoot('pipeline');
   const targetGuard = pipelineGuard || (host ? getViewGuard(host, PIPELINE_GUARD_KEY) : null);
   if(typeof pendingPipelineReadyCleanup === 'function'){
@@ -487,9 +492,6 @@ function deactivatePipelineDnD(context){
     catch(_err){ releaseViewGuard(host, PIPELINE_GUARD_KEY); }
     if(pipelineGuard === targetGuard){
       pipelineGuard = null;
-    }
-    if(context && typeof context.markUnbound === 'function'){
-      context.markUnbound();
     }
     return;
   }
