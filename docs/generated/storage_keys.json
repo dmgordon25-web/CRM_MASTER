@@ -1,10 +1,4 @@
 {
-  "dash:range": [
-    "crm-app/js/dash_range.js"
-  ],
-  "dashboard:mode": [
-    "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js"
-  ],
   "APP_DEV": [
     "crm-app/js/patch_2025-09-26_phase4_polish_regression.js"
   ],
@@ -17,5 +11,8 @@
   "SAFE": [
     "crm-app/js/boot/boot_hardener.js",
     "crm-app/js/boot/phases.js"
+  ],
+  "BOOT_ANIMATION": [
+    "crm-app/js/boot/boot_hardener.js"
   ]
 }
