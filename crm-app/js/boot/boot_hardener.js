@@ -514,16 +514,16 @@ function maybeRenderAll() {
 
   async function animateTabCycle({ instant = false } = {}) {
     // Boot animation with two modes:
-    // - Normal mode: Smooth, visible animation per user requirements (1s toggle pauses)
+    // - Normal mode: Fast but visible initialization sequence (2-3 seconds total)
     // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for tab to activate
     const MODE_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for mode to change
-    const TAB_POST_DELAY = instant ? 30 : 500; // Normal: 500ms visible delay, CI: 30ms minimal (8×500ms = 4s)
-    const TAB_RETURN_POST_DELAY = instant ? 30 : 500;
-    const MODE_POST_DELAY = instant ? 30 : 1000; // Normal: 1s pause per user requirement, CI: 30ms (3×1s = 3s)
-    const MODE_FINAL_POST_DELAY = instant ? 30 : 1000;
-    const EXTRA_FINAL_DELAY = instant ? 100 : 500; // Final settling delay
+    const TAB_POST_DELAY = instant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
+    const TAB_RETURN_POST_DELAY = instant ? 30 : 100;
+    const MODE_POST_DELAY = instant ? 30 : 300; // Normal: 300ms visible pause, CI: 30ms (3×300ms = 900ms)
+    const MODE_FINAL_POST_DELAY = instant ? 30 : 300;
+    const EXTRA_FINAL_DELAY = instant ? 100 : 200; // Final settling delay
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
