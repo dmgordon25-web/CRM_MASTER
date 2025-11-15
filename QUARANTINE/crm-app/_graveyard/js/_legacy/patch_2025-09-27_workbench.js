@@ -1,3 +1,4 @@
+// LEGACY; not used by runtime.
 import { getDB } from '/js/store/db_core.js';
 
 export const __esModule = true;

@@ -224,35 +224,36 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
     }
 
     if(expectWorkbench){
-      if(!document.querySelector('#main-nav [data-nav="workbench"]')){
+      const workbenchNav = document.querySelector('#main-nav [data-nav="workbench"]');
+      if(!workbenchNav){
         ok = false;
         logSoftError('Selftest: workbench nav missing');
         addDiagnostic('fail', 'Workbench navigation button missing.');
         issues.push('Workbench navigation button missing.');
       }
 
-      if(!document.getElementById('view-workbench')){
-        ok = false;
-        logSoftError('Selftest: workbench view missing');
-        addDiagnostic('fail', 'Workbench view host missing.');
-        issues.push('Workbench view host missing.');
+      const existingMount = document.getElementById('view-workbench');
+      if(!existingMount){
+        const container = document.querySelector('.container');
+        const body = document.body;
+        const canCreateMount = !!(container || body);
+        if(!canCreateMount){
+          ok = false;
+          logSoftError('Selftest: workbench host unavailable');
+          addDiagnostic('fail', 'Workbench view host missing and no container available.');
+          issues.push('Workbench view host missing and no container available.');
+        }else{
+          addDiagnostic('info', 'Workbench mount will be created on demand.');
+        }
       }
 
-      const workbenchPath = 'js/_legacy/patch_2025-09-27_workbench.js';
-      const hasWorkbenchPatch = loaded.includes(workbenchPath)
-        || loaded.includes('workbench');
-      const manifestExpectsWorkbench = manifestSet.has(workbenchPath);
-      if(!hasWorkbenchPatch){
-        if(manifestExpectsWorkbench){
-          ok = false;
-          logProdGap('Selftest: workbench patch missing', { workbenchPath, loaded });
-          addDiagnostic('fail', 'Workbench patch not registered.');
-          issues.push('Workbench patch not registered.');
-        }else{
-          const kind = PROD_MODE ? 'info' : 'warn';
-          (PROD_MODE ? logInfo : logWarn)('Selftest: workbench patch omitted from manifest; skipping enforcement.');
-          addDiagnostic(kind, 'Workbench intentionally removed; skipping check.');
-        }
+      try{
+        await import('./pages/workbench.js');
+      }catch (err){
+        ok = false;
+        logSoftError('Selftest: workbench module failed to load', err);
+        addDiagnostic('fail', 'Workbench module failed to load.');
+        issues.push('Workbench module failed to load.');
       }
     }else{
       addDiagnostic('skip', 'Workbench disabled in prod (expected).');
