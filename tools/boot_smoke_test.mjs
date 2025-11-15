@@ -349,6 +349,26 @@ async function main() {
 
     console.log('[SMOKE] Waiting for __BOOT_DONE__.fatal === false');
     await page.waitForFunction(() => window.__BOOT_DONE__?.fatal === false, { timeout: 60000 });
+    const bootSummary = await page.evaluate(() => window.__BOOT_DONE__);
+    if (!bootSummary || bootSummary.fatal !== false) {
+      throw new Error('boot-summary-missing');
+    }
+    if (!Number.isFinite(Number(bootSummary.core)) || !Number.isFinite(Number(bootSummary.patches))) {
+      throw new Error('boot-summary-shape');
+    }
+    if (typeof bootSummary.safe !== 'boolean') {
+      throw new Error('boot-summary-safe-flag');
+    }
+    const animationSummary = await page.evaluate(() => window.__BOOT_ANIMATION_COMPLETE__);
+    if (!animationSummary || typeof animationSummary !== 'object') {
+      throw new Error('boot-animation-summary-missing');
+    }
+    if (!Number.isFinite(Number(animationSummary.at))) {
+      throw new Error('boot-animation-at-missing');
+    }
+    if (animationSummary.bypassed !== true) {
+      throw new Error('boot-animation-expected-bypass');
+    }
     console.log('[SMOKE] Boot done, checking for console errors');
     await ensureNoConsoleErrors(consoleErrors, networkErrors);
 
