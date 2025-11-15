@@ -154,6 +154,7 @@ let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
 let headerImportScheduled = false;
+let bootAnimationDecisionCache = null;
 
 const hideSplashOnce = (() => {
   let done = false;
@@ -355,6 +356,25 @@ function truthyFlag(v) {
   return s === '1' || s === 'true' || s === 'yes';
 }
 
+const FALSY_BOOT_VALUES = new Set(['0', 'false', 'no', 'off']);
+
+function interpretBootAnimationValue(value) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower === 'instant') {
+    return { enabled: true, instant: true };
+  }
+  if (truthyFlag(lower)) {
+    return { enabled: true, instant: false };
+  }
+  if (FALSY_BOOT_VALUES.has(lower)) {
+    return { enabled: false, instant: false };
+  }
+  return null;
+}
+
 export function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
@@ -364,6 +384,106 @@ export function isSafeMode() {
     if (truthyFlag(localStorage.getItem('SAFE'))) return true;
   } catch (_) {}
   return false;
+}
+
+function getBootAnimationDecision({ safeOverride } = {}) {
+  if (bootAnimationDecisionCache) return bootAnimationDecisionCache;
+
+  const safe = typeof safeOverride === 'boolean' ? safeOverride : isSafeMode();
+  if (safe) {
+    bootAnimationDecisionCache = {
+      enabled: false,
+      instant: true,
+      source: 'safe',
+      safe: true,
+      reason: 'safe mode'
+    };
+  } else {
+    let resolved = null;
+    let source = 'default';
+
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.has('bootAnimation')) {
+        resolved = interpretBootAnimationValue(params.get('bootAnimation'));
+        if (!resolved) {
+          resolved = { enabled: false, instant: false };
+        }
+        source = 'query';
+      } else if (params.has('skipBootAnimation')) {
+        const rawSkip = params.get('skipBootAnimation');
+        const interpretedSkip = interpretBootAnimationValue(rawSkip);
+        const skip = interpretedSkip
+          ? !!interpretedSkip.enabled
+          : truthyFlag(rawSkip);
+        resolved = { enabled: !skip, instant: false };
+        source = 'legacy';
+      }
+    } catch (_) {}
+
+    if (!resolved) {
+      try {
+        const stored = localStorage.getItem('BOOT_ANIMATION');
+        const interpreted = interpretBootAnimationValue(stored);
+        if (interpreted) {
+          resolved = interpreted;
+        } else if (stored != null) {
+          resolved = { enabled: false, instant: false };
+        }
+        if (stored != null) {
+          source = 'storage';
+        }
+      } catch (_) {}
+    }
+
+    if (!resolved) {
+      resolved = { enabled: false, instant: false };
+      source = 'default';
+    }
+
+    const enabled = !!resolved.enabled;
+    const instant = resolved.instant === true;
+    const reason = (() => {
+      if (source === 'query') {
+        return enabled ? 'debug mode' : 'query param';
+      }
+      if (source === 'storage') {
+        return enabled ? 'debug mode' : 'localStorage';
+      }
+      if (source === 'legacy') {
+        return enabled ? 'debug mode' : 'legacy param (skipBootAnimation)';
+      }
+      return 'default';
+    })();
+
+    bootAnimationDecisionCache = {
+      enabled,
+      instant,
+      source,
+      safe: false,
+      reason
+    };
+  }
+
+  const decision = bootAnimationDecisionCache;
+  const logDetail = decision.reason || (decision.safe ? 'safe mode' : 'default');
+  try {
+    console.info(`[BOOT] animation: ${decision.enabled ? 'enabled' : 'disabled'} (${logDetail})`);
+  } catch (_) {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.__BOOT_ANIMATION_MODE__ = {
+        enabled: decision.enabled ? 1 : 0,
+        source: decision.source,
+        reason: decision.reason,
+        safe: decision.safe ? 1 : 0,
+        instant: decision.instant ? 1 : 0
+      };
+    }
+  } catch (_) {}
+
+  return decision;
 }
 
 function waitForDomReady() {
@@ -512,18 +632,28 @@ function maybeRenderAll() {
   }
 }
 
-  async function animateTabCycle({ instant = false } = {}) {
+  async function animateTabCycle({ instant = false, decision: explicitDecision } = {}) {
+    const decision = explicitDecision || getBootAnimationDecision({});
+    const shouldAnimate = !!decision.enabled;
+    const useInstant = shouldAnimate ? !!(decision.instant ?? instant) : true;
+
+    function markAnimationComplete() {
+      if (typeof window === 'undefined') return;
+      try { window.__BOOT_ANIMATION_COMPLETE__ = true; }
+      catch (_) {}
+    }
+
     // Boot animation with two modes:
     // - Normal mode: Fast but visible initialization sequence (2-3 seconds total)
     // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
-    const TAB_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for tab to activate
-    const MODE_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for mode to change
-    const TAB_POST_DELAY = instant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
-    const TAB_RETURN_POST_DELAY = instant ? 30 : 100;
-    const MODE_POST_DELAY = instant ? 30 : 300; // Normal: 300ms visible pause, CI: 30ms (3×300ms = 900ms)
-    const MODE_FINAL_POST_DELAY = instant ? 30 : 300;
-    const EXTRA_FINAL_DELAY = instant ? 100 : 200; // Final settling delay
+    const TAB_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for tab to activate
+    const MODE_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for mode to change
+    const TAB_POST_DELAY = useInstant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
+    const TAB_RETURN_POST_DELAY = useInstant ? 30 : 100;
+    const MODE_POST_DELAY = useInstant ? 30 : 300; // Normal: 300ms visible pause, CI: 30ms (3×300ms = 900ms)
+    const MODE_FINAL_POST_DELAY = useInstant ? 30 : 300;
+    const EXTRA_FINAL_DELAY = useInstant ? 100 : 200; // Final settling delay
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -613,7 +743,7 @@ function maybeRenderAll() {
         return false;
       }
       if (getActiveTabName() === target) {
-        await wait(instant ? postDelay : Math.max(140, postDelay));
+        await wait(useInstant ? postDelay : Math.max(140, postDelay));
         return true;
       }
       dispatchSyntheticClick(button, `tab:${target}`);
@@ -625,7 +755,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
         return false;
       }
-      await wait(instant ? postDelay : Math.max(140, postDelay));
+      await wait(useInstant ? postDelay : Math.max(140, postDelay));
       console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
       return true;
     }
@@ -637,7 +767,7 @@ function maybeRenderAll() {
         window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
       }
       if (!button && getActiveDashboardMode() === normalized) {
-        await wait(instant ? postDelay : Math.max(160, postDelay));
+        await wait(useInstant ? postDelay : Math.max(160, postDelay));
         return true;
       }
       if (!button) {
@@ -659,7 +789,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
         return false;
       }
-      await wait(instant ? postDelay : Math.max(160, postDelay));
+      await wait(useInstant ? postDelay : Math.max(160, postDelay));
       console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
       return true;
     }
@@ -699,7 +829,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, instant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
+        }, useInstant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
 
         const handler = () => {
           clearTimeout(timeout);
@@ -714,6 +844,24 @@ function maybeRenderAll() {
           resolve();
         }
       });
+    }
+
+    if (!shouldAnimate) {
+      try {
+        console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
+      } catch (_) {}
+      try {
+        await ensureTabActive('dashboard', { postDelay: 0 });
+        if (getActiveDashboardMode() !== 'today') {
+          await ensureDashboardMode('today', { postDelay: 0 });
+        }
+        await waitForDashboardReady();
+      } catch (err) {
+        console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
+      } finally {
+        markAnimationComplete();
+      }
+      return;
     }
 
     try {
@@ -745,13 +893,11 @@ function maybeRenderAll() {
         await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
         await wait(EXTRA_FINAL_DELAY);
       }
-
-      if (typeof window !== 'undefined') {
-        window.__BOOT_ANIMATION_COMPLETE__ = true;
-      }
       console.info('[BOOT_ANIMATION] OPTIMIZED boot animation sequence complete');
     } catch (err) {
       console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
+    } finally {
+      markAnimationComplete();
     }
   }
 
@@ -822,27 +968,8 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Animate tab cycling before hiding splash
-    const urlParams = new URLSearchParams(window.location.search);
-    const skipBootAnimation = urlParams.get('skipBootAnimation') === '1';
-
-    if (!safe) {
-      if (skipBootAnimation) {
-        console.log('[BOOT] CI mode detected - running minimal boot animation');
-        // CI mode: Skip the animation entirely, routes will initialize on demand
-        if (typeof window !== 'undefined') {
-          window.__BOOT_ANIMATION_COMPLETE__ = true;
-        }
-      } else {
-        console.info('[BOOT] Starting tab animation sequence');
-        await animateTabCycle();
-      }
-    } else {
-      // Safe mode: skip animation entirely
-      if (typeof window !== 'undefined') {
-        window.__BOOT_ANIMATION_COMPLETE__ = true;
-      }
-    }
+    const animationDecision = getBootAnimationDecision({ safeOverride: safe });
+    await animateTabCycle({ decision: animationDecision });
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
     hideSplashOnce();
@@ -856,6 +983,11 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
       ? 'required_import'
       : 'boot_failure';
+    try {
+      if (typeof window !== 'undefined') {
+        window.__BOOT_ANIMATION_COMPLETE__ = true;
+      }
+    } catch (_) {}
     recordFatal(reason, String(err?.stack || err), err);
     throw err;
   }
