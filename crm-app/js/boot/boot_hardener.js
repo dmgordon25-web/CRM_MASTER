@@ -513,17 +513,17 @@ function maybeRenderAll() {
 }
 
   async function animateTabCycle({ instant = false } = {}) {
-    // ULTRA-OPTIMIZED: Absolute minimum timeouts for CI (5s smoke test includes splash hiding)
-    // Must account for: boot animation + splash_sequence.js overhead + FINAL_DELAY
-    // If instant=true (CI mode), use minimal delays for route lifecycle cleanup
+    // Boot animation with two modes:
+    // - Normal mode: Smooth, visible animation per user requirements (1s toggle pauses)
+    // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
-    const TAB_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - tabs activate in <50ms typically
-    const MODE_WAIT_TIMEOUT = instant ? 100 : 150; // Minimal - mode changes are instant
-    const TAB_POST_DELAY = instant ? 30 : 30; // Instant: 30ms for proper event cleanup (8×30ms = 240ms)
-    const TAB_RETURN_POST_DELAY = instant ? 30 : 30;
-    const MODE_POST_DELAY = instant ? 30 : 100; // Instant: 30ms for cleanup (3×30ms = 90ms)
-    const MODE_FINAL_POST_DELAY = instant ? 30 : 100;
-    const EXTRA_FINAL_DELAY = instant ? 100 : 50; // Instant: 100ms settling time for lifecycle parity
+    const TAB_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for tab to activate
+    const MODE_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for mode to change
+    const TAB_POST_DELAY = instant ? 30 : 500; // Normal: 500ms visible delay, CI: 30ms minimal (8×500ms = 4s)
+    const TAB_RETURN_POST_DELAY = instant ? 30 : 500;
+    const MODE_POST_DELAY = instant ? 30 : 1000; // Normal: 1s pause per user requirement, CI: 30ms (3×1s = 3s)
+    const MODE_FINAL_POST_DELAY = instant ? 30 : 1000;
+    const EXTRA_FINAL_DELAY = instant ? 100 : 500; // Final settling delay
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
