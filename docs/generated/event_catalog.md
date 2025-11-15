@@ -61,7 +61,6 @@ Found in:
 - crm-app/js/ui/table_layout.js
 - crm-app/js/ui/universal_search.js
 - crm-app/js/table/table_export.js
-- crm-app/js/settings/dashboard_prefs.js
 - crm-app/js/services/selection_fallback.js
 - crm-app/js/relationships/index.js
 - crm-app/js/pipeline/kanban_dnd.js
@@ -144,7 +143,6 @@ Found in:
 
 Found in:
 - crm-app/js/patch_2025-09-26_phase4_polish_regression.js
-- crm-app/js/pipeline/kanban_dnd.js
 - crm-app/js/dashboard/index.js
 
 ## app:view:changed
@@ -175,6 +173,7 @@ Found in:
 
 Found in:
 - crm-app/js/app.js
+- crm-app/js/dash_range.js
 - crm-app/js/patches/patch_2025-10-23_session_beacon.js
 - crm-app/js/debug/overlay.js
 
@@ -246,7 +245,6 @@ Found in:
 - crm-app/js/ui/quick_add_validation.js
 - crm-app/js/ui/quick_create_menu.js
 - crm-app/js/table/column_chooser.js
-- crm-app/js/settings/dashboard_prefs.js
 - crm-app/js/services/selection_fallback.js
 - crm-app/js/pages/workbench.js
 - crm-app/js/contacts/form.js
@@ -315,7 +313,6 @@ Found in:
 - crm-app/js/table/column_chooser.js
 - crm-app/js/table/csv_export.js
 - crm-app/js/table/table_export.js
-- crm-app/js/settings/dashboard_prefs.js
 - crm-app/js/relationships/map.js
 - crm-app/js/partners/list.js
 - crm-app/js/pages/email_templates.js
@@ -374,7 +371,6 @@ Found in:
 ## dashboard:hidden-change
 
 Found in:
-- crm-app/js/settings/dashboard_prefs.js
 - crm-app/js/dashboard/index.js
 
 ## dashboard:layout-columns
@@ -385,7 +381,6 @@ Found in:
 ## dashboard:layout-mode
 
 Found in:
-- crm-app/js/settings/dashboard_prefs.js
 - crm-app/js/dashboard/index.js
 
 ## dashboard:widgets:ready

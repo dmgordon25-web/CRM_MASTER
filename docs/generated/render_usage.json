@@ -11,7 +11,6 @@
   ],
   "callsRenderAll": [
     "crm-app/js/app.js",
-    "crm-app/js/dash_range.js",
     "crm-app/js/patch_20250926_ctc_actionbar.js",
     "crm-app/js/settings_forms.js",
     "crm-app/js/patches/loader.js",
