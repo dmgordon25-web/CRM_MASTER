@@ -829,7 +829,7 @@ function maybeRenderAll() {
       return true;
     }
 
-    async function ensureDashboardMode(mode, { postDelay = MODE_POST_DELAY } = {}) {
+    async function ensureDashboardMode(mode, { postDelay = 300 } = {}) {
       const normalized = mode === 'all' ? 'all' : 'today';
       const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
       if (!button && typeof window?.setDashboardMode === 'function') {
