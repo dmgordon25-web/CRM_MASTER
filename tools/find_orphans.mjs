@@ -134,6 +134,8 @@ async function augmentWithPostPaintModules(adjacency) {
 async function augmentWithSourceImports(adjacency, modules) {
   const staticImportRegex = /import\s+(?:[^'";]+?\s+from\s+)?['"]([^'"\n]+)['"]/g;
   const dynamicImportRegex = /import\(\s*['"]([^'"\n]+)['"]\s*\)/g;
+  const dynamicFromHereRegex = /import\(\s*fromHere\(\s*(['"])([^'"\n]+)\1\s*\)\s*\)/g;
+  const dynamicNewUrlRegex = /import\(\s*new URL\(\s*(['"])([^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)\s*\)/g;
   for (const moduleId of modules) {
     const fullPath = path.join(repoRoot, moduleId);
     let source;
@@ -155,6 +157,22 @@ async function augmentWithSourceImports(adjacency, modules) {
     dynamicImportRegex.lastIndex = 0;
     while ((match = dynamicImportRegex.exec(source))) {
       const spec = match[1];
+      const resolved = resolveImport(moduleId, spec);
+      if (resolved) {
+        addEdge(adjacency, moduleId, resolved);
+      }
+    }
+    dynamicFromHereRegex.lastIndex = 0;
+    while ((match = dynamicFromHereRegex.exec(source))) {
+      const spec = match[2];
+      const resolved = resolveImport(moduleId, spec);
+      if (resolved) {
+        addEdge(adjacency, moduleId, resolved);
+      }
+    }
+    dynamicNewUrlRegex.lastIndex = 0;
+    while ((match = dynamicNewUrlRegex.exec(source))) {
+      const spec = match[2];
       const resolved = resolveImport(moduleId, spec);
       if (resolved) {
         addEdge(adjacency, moduleId, resolved);
