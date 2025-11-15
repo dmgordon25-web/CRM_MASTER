@@ -2,6 +2,12 @@
 
 Boot contracts keep the loader deterministic. They expose tiny, idempotent readiness probes so the boot hardener can promote each phase from HARD → SOFT without racing the DOM or leaking errors to the console.
 
+## Boot timeline contract
+
+1. **HARD path** – `boot_hardener` loads core modules, executes HARD probes, then patches. Once those succeed it resolves the contract with `window.__BOOT_DONE__ = { fatal: false, at, core, patches, safe }` and dispatches a `document` event `boot:done` exactly once.
+2. **SOFT path** – the animation pipeline resolves to `window.__BOOT_ANIMATION_COMPLETE__ = { at, bypassed }`. `bypassed` is `true` when animation is explicitly disabled (e.g., Safe Mode or `skipBootAnimation`). The helper also emits a one-shot `boot:animation-complete` event.
+3. **Splash visibility** – `splash_sequence.js` waits for the HARD signal. If it is fatal it hides `#boot-splash` immediately and reveals `#diagnostics-splash`. Otherwise it waits for `__BOOT_ANIMATION_COMPLETE__` (or a bypass) and hides both splash elements, setting `window.__SPLASH_HIDDEN__ = true`.
+
 ## Stable boot rule (HARD vs. SOFT)
 
 1. **Module import** – all entries listed in `ensureCoreThenPatches` are imported as ES modules. Top-level code must be side-effect free: no DOM reads, no timers, no storage access.
