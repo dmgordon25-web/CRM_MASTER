@@ -154,6 +154,66 @@ let overlayHiddenAt = null;
 let perfPingNoted = false;
 let logFallbackNoted = false;
 let headerImportScheduled = false;
+let bootAnimationDecisionCache = null;
+
+// Boot contract signals -----------------------------------------------------
+// `__BOOT_DONE__` transitions exactly once when the HARD path completes.
+// `__BOOT_ANIMATION_COMPLETE__` transitions exactly once when the SOFT path
+// (tab animation) either finishes or is bypassed. Both signals dispatch DOM
+// events so the splash controller can deterministically react without timers.
+const bootCompletionSignal = (() => {
+  let resolved = false;
+  let payload = null;
+  return {
+    resolve(nextPayload) {
+      if (resolved) {
+        return payload;
+      }
+      payload = nextPayload;
+      resolved = true;
+      try { window.__BOOT_DONE__ = payload; }
+      catch (_) {}
+      dispatchBootEvent('boot:done', payload);
+      return payload;
+    },
+    value() {
+      return payload;
+    },
+    isResolved() {
+      return resolved;
+    }
+  };
+})();
+
+const animationCompletionSignal = (() => {
+  let resolved = false;
+  let bypassed = false;
+  let at = null;
+  return {
+    resolve({ bypass = false, reason } = {}) {
+      const now = Date.now();
+      if (!resolved) {
+        resolved = true;
+        at = now;
+        bypassed = !!bypass;
+      } else if (bypass && !bypassed) {
+        bypassed = true;
+      }
+      const payload = { at, bypassed };
+      try { window.__BOOT_ANIMATION_COMPLETE__ = payload; }
+      catch (_) {}
+      dispatchBootEvent('boot:animation-complete', { ...payload, reason });
+      return payload;
+    },
+    value() {
+      if (!resolved) return null;
+      return { at, bypassed };
+    },
+    isResolved() {
+      return resolved;
+    }
+  };
+})();
 
 const hideSplashOnce = (() => {
   let done = false;
@@ -184,6 +244,23 @@ function finalizeSplashAndHeader() {
 function noteOverlayHidden() {
   if (overlayHiddenAt == null) {
     overlayHiddenAt = timeSource();
+  }
+}
+
+function dispatchBootEvent(type, detail) {
+  if (!documentRef || typeof documentRef.dispatchEvent !== 'function') {
+    return;
+  }
+  try {
+    const event = typeof CustomEvent === 'function'
+      ? new CustomEvent(type, { detail })
+      : new Event(type);
+    documentRef.dispatchEvent(event);
+  } catch (err) {
+    try {
+      const fallback = new Event(type);
+      documentRef.dispatchEvent(fallback);
+    } catch (_) {}
   }
 }
 
@@ -355,6 +432,25 @@ function truthyFlag(v) {
   return s === '1' || s === 'true' || s === 'yes';
 }
 
+const FALSY_BOOT_VALUES = new Set(['0', 'false', 'no', 'off']);
+
+function interpretBootAnimationValue(value) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower === 'instant') {
+    return { enabled: true, instant: true };
+  }
+  if (truthyFlag(lower)) {
+    return { enabled: true, instant: false };
+  }
+  if (FALSY_BOOT_VALUES.has(lower)) {
+    return { enabled: false, instant: false };
+  }
+  return null;
+}
+
 export function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
@@ -364,6 +460,106 @@ export function isSafeMode() {
     if (truthyFlag(localStorage.getItem('SAFE'))) return true;
   } catch (_) {}
   return false;
+}
+
+function getBootAnimationDecision({ safeOverride } = {}) {
+  if (bootAnimationDecisionCache) return bootAnimationDecisionCache;
+
+  const safe = typeof safeOverride === 'boolean' ? safeOverride : isSafeMode();
+  if (safe) {
+    bootAnimationDecisionCache = {
+      enabled: false,
+      instant: true,
+      source: 'safe',
+      safe: true,
+      reason: 'safe mode'
+    };
+  } else {
+    let resolved = null;
+    let source = 'default';
+
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.has('bootAnimation')) {
+        resolved = interpretBootAnimationValue(params.get('bootAnimation'));
+        if (!resolved) {
+          resolved = { enabled: false, instant: false };
+        }
+        source = 'query';
+      } else if (params.has('skipBootAnimation')) {
+        const rawSkip = params.get('skipBootAnimation');
+        const interpretedSkip = interpretBootAnimationValue(rawSkip);
+        const skip = interpretedSkip
+          ? !!interpretedSkip.enabled
+          : truthyFlag(rawSkip);
+        resolved = { enabled: !skip, instant: false };
+        source = 'legacy';
+      }
+    } catch (_) {}
+
+    if (!resolved) {
+      try {
+        const stored = localStorage.getItem('BOOT_ANIMATION');
+        const interpreted = interpretBootAnimationValue(stored);
+        if (interpreted) {
+          resolved = interpreted;
+        } else if (stored != null) {
+          resolved = { enabled: false, instant: false };
+        }
+        if (stored != null) {
+          source = 'storage';
+        }
+      } catch (_) {}
+    }
+
+    if (!resolved) {
+      resolved = { enabled: false, instant: false };
+      source = 'default';
+    }
+
+    const enabled = !!resolved.enabled;
+    const instant = resolved.instant === true;
+    const reason = (() => {
+      if (source === 'query') {
+        return enabled ? 'debug mode' : 'query param';
+      }
+      if (source === 'storage') {
+        return enabled ? 'debug mode' : 'localStorage';
+      }
+      if (source === 'legacy') {
+        return enabled ? 'debug mode' : 'legacy param (skipBootAnimation)';
+      }
+      return 'default';
+    })();
+
+    bootAnimationDecisionCache = {
+      enabled,
+      instant,
+      source,
+      safe: false,
+      reason
+    };
+  }
+
+  const decision = bootAnimationDecisionCache;
+  const logDetail = decision.reason || (decision.safe ? 'safe mode' : 'default');
+  try {
+    console.info(`[BOOT] animation: ${decision.enabled ? 'enabled' : 'disabled'} (${logDetail})`);
+  } catch (_) {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.__BOOT_ANIMATION_MODE__ = {
+        enabled: decision.enabled ? 1 : 0,
+        source: decision.source,
+        reason: decision.reason,
+        safe: decision.safe ? 1 : 0,
+        instant: decision.instant ? 1 : 0
+      };
+    }
+  } catch (_) {}
+
+  return decision;
 }
 
 function waitForDomReady() {
@@ -463,9 +659,9 @@ function buildFatalPayload(reason, detail, err) {
 }
 
 function recordFatal(reason, detail, err) {
-  try {
-    window.__BOOT_DONE__ = { fatal: true, reason, detail, at: Date.now() };
-  } catch (_) {}
+  const summary = { fatal: true, reason, detail, at: Date.now() };
+  bootCompletionSignal.resolve(summary);
+  animationCompletionSignal.resolve({ bypass: true, reason: 'fatal' });
   overlay.show();
   const payload = buildFatalPayload(reason, detail, err);
   finalizeOnce('fatal', payload);
@@ -473,9 +669,7 @@ function recordFatal(reason, detail, err) {
 }
 
 function recordSuccess(meta) {
-  try {
-    window.__BOOT_DONE__ = { fatal: false, at: Date.now(), ...meta };
-  } catch (_) {}
+  bootCompletionSignal.resolve({ fatal: false, at: Date.now(), ...meta });
   overlay.hide();
   try { globalScope?.requestAnimationFrame?.(() => { try { globalScope.overlay && typeof overlay.hide === 'function' && overlay.hide(); } catch (_) {} }); } catch (_) {}
   if (!perfPingNoted) {
@@ -512,7 +706,15 @@ function maybeRenderAll() {
   }
 }
 
-  async function animateTabCycle({ instant = false } = {}) {
+  async function animateTabCycle({ instant = false, decision: explicitDecision } = {}) {
+    const decision = explicitDecision || getBootAnimationDecision({});
+    const shouldAnimate = !!decision.enabled;
+    const useInstant = shouldAnimate ? !!(decision.instant ?? instant) : true;
+
+    const markAnimationComplete = ({ bypass = false, reason } = {}) => {
+      animationCompletionSignal.resolve({ bypass, reason });
+    };
+
     // Boot animation with two modes:
     // - Normal mode: Fast but visible initialization sequence (2-3 seconds total)
     // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
@@ -610,7 +812,7 @@ function maybeRenderAll() {
         return false;
       }
       if (getActiveTabName() === target) {
-        await wait(instant ? postDelay : Math.max(140, postDelay));
+        await wait(useInstant ? postDelay : Math.max(140, postDelay));
         return true;
       }
       dispatchSyntheticClick(button, `tab:${target}`);
@@ -622,7 +824,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
         return false;
       }
-      await wait(instant ? postDelay : Math.max(140, postDelay));
+      await wait(useInstant ? postDelay : Math.max(140, postDelay));
       console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
       return true;
     }
@@ -634,7 +836,7 @@ function maybeRenderAll() {
         window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
       }
       if (!button && getActiveDashboardMode() === normalized) {
-        await wait(instant ? postDelay : Math.max(160, postDelay));
+        await wait(useInstant ? postDelay : Math.max(160, postDelay));
         return true;
       }
       if (!button) {
@@ -656,7 +858,7 @@ function maybeRenderAll() {
         console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
         return false;
       }
-      await wait(instant ? postDelay : Math.max(160, postDelay));
+      await wait(useInstant ? postDelay : Math.max(160, postDelay));
       console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
       return true;
     }
@@ -696,7 +898,7 @@ function maybeRenderAll() {
         const timeout = setTimeout(() => {
           console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
           resolve();
-        }, instant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
+        }, useInstant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
 
         const handler = () => {
           clearTimeout(timeout);
@@ -711,6 +913,24 @@ function maybeRenderAll() {
           resolve();
         }
       });
+    }
+
+    if (!shouldAnimate) {
+      try {
+        console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
+      } catch (_) {}
+      try {
+        await ensureTabActive('dashboard', { postDelay: 0 });
+        if (getActiveDashboardMode() !== 'today') {
+          await ensureDashboardMode('today', { postDelay: 0 });
+        }
+        await waitForDashboardReady();
+      } catch (err) {
+        console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
+      } finally {
+        markAnimationComplete({ bypass: true, reason: 'disabled' });
+      }
+      return;
     }
 
     try {
@@ -737,6 +957,8 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] OPTIMIZED boot animation sequence complete');
     } catch (err) {
       console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
+    } finally {
+      markAnimationComplete({ bypass: false, reason: 'complete' });
     }
   }
 
@@ -764,15 +986,6 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     const safe = isSafeMode();
     state.safe = safe;
-    if (safe) {
-      hideSplashOnce();
-      (function(){
-        const el = document.getElementById('boot-splash');
-        if (el) { requestAnimationFrame(()=>{ el.style.display='none'; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }); }
-      }());
-      finalizeSplashAndHeader();
-    }
-
     if (typeof window !== 'undefined') {
       try {
         const expected = safe
@@ -807,34 +1020,10 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Animate tab cycling before hiding splash
-    const urlParams = new URLSearchParams(window.location.search);
-    const skipBootAnimation = urlParams.get('skipBootAnimation') === '1';
-
-    if (!safe) {
-      if (skipBootAnimation) {
-        console.log('[BOOT] CI mode detected - running minimal boot animation');
-        // CI mode: Skip the animation entirely, routes will initialize on demand
-        if (typeof window !== 'undefined') {
-          window.__BOOT_ANIMATION_COMPLETE__ = true;
-        }
-      } else {
-        console.info('[BOOT] Starting tab animation sequence');
-        await animateTabCycle();
-      }
-    } else {
-      // Safe mode: skip animation entirely
-      if (typeof window !== 'undefined') {
-        window.__BOOT_ANIMATION_COMPLETE__ = true;
-      }
-    }
+    const animationDecision = getBootAnimationDecision({ safeOverride: safe });
+    await animateTabCycle({ decision: animationDecision });
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
-    hideSplashOnce();
-    (function(){
-      const el = document.getElementById('boot-splash');
-      if (el) { requestAnimationFrame(()=>{ el.style.display='none'; window.__SPLASH_HIDDEN__=true; console.info('[A_BEACON] splash hidden'); }); }
-    }());
     finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {

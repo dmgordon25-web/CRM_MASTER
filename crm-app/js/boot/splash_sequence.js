@@ -1,206 +1,177 @@
-/* splash_sequence.js - Proper splash page initialization with dashboard toggles and tab cycling */
+/* Splash coordinator: waits for boot contracts and hides the splash exactly once */
 
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
-const TOGGLE_DELAY = 1000; // Time to wait for each toggle to render (1 second per user request)
-const TAB_DELAY = 600; // Time to wait for each tab to render
-const FINAL_DELAY = 50; // Minimal delay before hiding splash (CI-optimized from 500ms)
 
 let splashSequenceRan = false;
 
-/**
- * Wait for a specified number of milliseconds
- */
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Toggle between All and Today modes on the dashboard
- */
-function toggleDashboardMode(mode) {
-  if (typeof document === 'undefined') return false;
-  
-  // Try to find and click the mode button
-  const modeButton = document.querySelector(`[data-dashboard-mode="${mode}"]`);
-  if (modeButton && typeof modeButton.click === 'function') {
-    try {
-      modeButton.click();
-      return true;
-    } catch (err) {
-      // Silently fail
-    }
-  }
-  
-  // Fallback: try to call setDashboardMode directly
-  if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
-    try {
-      window.setDashboardMode(mode, { force: true, skipPersist: true, skipBus: true });
-      return true;
-    } catch (err) {
-      // Silently fail
-    }
-  }
-  
-  return false;
-}
-
-/**
- * Navigate to a specific tab
- */
-function navigateToTab(tabName) {
-  if (typeof document === 'undefined') return false;
-  
-  const navButton = document.querySelector(`#main-nav button[data-nav="${tabName}"]`);
-  if (navButton && typeof navButton.click === 'function') {
-    try {
-      navButton.click();
-      return true;
-    } catch (err) {
-      // Silently fail
-    }
-  }
-  
-  return false;
-}
-
-/**
- * Wait for dashboard to be visible and ready
- */
-async function waitForDashboard() {
-  if (typeof document === 'undefined') return false;
-  
-  const maxAttempts = 50;
-  const checkInterval = 100;
-  
-  for (let i = 0; i < maxAttempts; i++) {
-    const dashboard = document.querySelector('main[data-ui="dashboard-root"]') || 
-                     document.getElementById('dashboard-view') ||
-                     document.querySelector('[data-nav="dashboard"].active');
-    
-    if (dashboard) {
-      return true;
-    }
-    
-    await wait(checkInterval);
-  }
-  
-  return false;
-}
-
-/**
- * Hide the splash screen
- */
-function hideSplash() {
-  if (typeof document === 'undefined') return;
-  
+function setHidden(el) {
+  if (!el) return;
   try {
-    const diagnosticsSplash = document.querySelector(SPLASH_SELECTOR);
-    if (diagnosticsSplash) {
-      diagnosticsSplash.style.opacity = '0';
-      diagnosticsSplash.style.pointerEvents = 'none';
-      diagnosticsSplash.style.visibility = 'hidden';
-      diagnosticsSplash.style.display = 'none';
-      diagnosticsSplash.setAttribute('data-state', 'hidden');
-      if (diagnosticsSplash.dataset) {
-        diagnosticsSplash.dataset.overlayHidden = '1';
-      }
-    }
-    
-    const bootSplash = document.querySelector(BOOT_SPLASH_SELECTOR);
-    if (bootSplash) {
-      bootSplash.style.opacity = '0';
-      bootSplash.style.pointerEvents = 'none';
-      bootSplash.style.visibility = 'hidden';
-      bootSplash.style.display = 'none';
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        window.__SPLASH_HIDDEN__ = true;
-      } catch (_) {}
-    }
-  } catch (err) {
-    // Silently fail
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    el.style.visibility = 'hidden';
+    el.style.display = 'none';
+    el.setAttribute('data-state', 'hidden');
+  } catch (_) {}
+}
+
+function hideBootSplash() {
+  if (typeof document === 'undefined') return;
+  const bootSplash = document.querySelector(BOOT_SPLASH_SELECTOR);
+  if (bootSplash) {
+    setHidden(bootSplash);
   }
 }
 
-/**
- * Run the full splash initialization sequence
- * OPTIMIZED: Now waits for boot animation to complete instead of duplicating the sequence
- */
+function hideAllSplash() {
+  if (typeof document === 'undefined') return;
+  const diagnosticsSplash = document.querySelector(SPLASH_SELECTOR);
+  if (diagnosticsSplash) {
+    setHidden(diagnosticsSplash);
+    if (diagnosticsSplash.dataset) {
+      diagnosticsSplash.dataset.overlayHidden = '1';
+    }
+  }
+  hideBootSplash();
+  if (typeof window !== 'undefined') {
+    try {
+      window.__SPLASH_HIDDEN__ = true;
+    } catch (_) {}
+  }
+}
+
+function showDiagnosticsSplash() {
+  if (typeof document === 'undefined') return;
+  const diagnosticsSplash = document.querySelector(SPLASH_SELECTOR);
+  if (!diagnosticsSplash) return;
+  try {
+    diagnosticsSplash.style.display = '';
+    diagnosticsSplash.style.opacity = '1';
+    diagnosticsSplash.style.pointerEvents = 'auto';
+    diagnosticsSplash.style.visibility = 'visible';
+    diagnosticsSplash.removeAttribute('hidden');
+    diagnosticsSplash.setAttribute('data-state', 'visible');
+  } catch (_) {}
+}
+
+function snapshotBootDone() {
+  if (typeof window === 'undefined') return null;
+  const value = window.__BOOT_DONE__;
+  if (!value || typeof value !== 'object') return null;
+  if (!('fatal' in value)) return null;
+  return value;
+}
+
+function snapshotAnimationComplete() {
+  if (typeof window === 'undefined') return null;
+  const raw = window.__BOOT_ANIMATION_COMPLETE__;
+  if (!raw) return null;
+  if (raw === true) {
+    return { at: Date.now(), bypassed: false };
+  }
+  if (typeof raw === 'object') {
+    const at = Number(raw.at);
+    const bypassed = raw.bypassed === true;
+    return {
+      at: Number.isFinite(at) ? at : Date.now(),
+      bypassed
+    };
+  }
+  return { at: Date.now(), bypassed: !!raw };
+}
+
+function isAnimationDisabled() {
+  if (typeof window === 'undefined') return false;
+  const mode = window.__BOOT_ANIMATION_MODE__;
+  if (mode && typeof mode === 'object') {
+    if ('enabled' in mode) {
+      return Number(mode.enabled) === 0;
+    }
+  }
+  return false;
+}
+
+function waitForDocumentEvent(type) {
+  if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') {
+    return Promise.resolve(undefined);
+  }
+  return new Promise((resolve) => {
+    document.addEventListener(type, (event) => resolve(event), { once: true });
+  });
+}
+
+async function waitForBootDone() {
+  const snapshot = snapshotBootDone();
+  if (snapshot) return snapshot;
+  const event = await waitForDocumentEvent('boot:done');
+  if (event && event.detail) return event.detail;
+  return snapshotBootDone();
+}
+
+async function waitForAnimationGate() {
+  const snapshot = snapshotAnimationComplete();
+  if (snapshot) return snapshot;
+  if (isAnimationDisabled()) {
+    return { at: Date.now(), bypassed: true };
+  }
+  const event = await waitForDocumentEvent('boot:animation-complete');
+  if (event && event.detail) {
+    const detail = event.detail;
+    const at = Number(detail.at);
+    return {
+      at: Number.isFinite(at) ? at : Date.now(),
+      bypassed: detail.bypassed === true
+    };
+  }
+  return snapshotAnimationComplete();
+}
+
 export async function runSplashSequence() {
   if (splashSequenceRan) {
     return;
   }
-
   splashSequenceRan = true;
 
   try {
-    // === Wait for boot animation to complete ===
-    console.info('[SPLASH] Waiting for boot animation to complete...');
-
-    const maxWait = 30000; // Maximum 30 seconds
-    const checkInterval = 100;
-    let waited = 0;
-
-    while (!window.__BOOT_ANIMATION_COMPLETE__ && waited < maxWait) {
-      await wait(checkInterval);
-      waited += checkInterval;
+    const bootDone = await waitForBootDone();
+    if (!bootDone) {
+      hideAllSplash();
+      return;
     }
 
-    if (window.__BOOT_ANIMATION_COMPLETE__) {
-      console.info('[SPLASH] Boot animation complete, hiding splash after final delay');
-    } else {
-      console.warn('[SPLASH] Boot animation did not complete in time, hiding splash anyway');
+    if (bootDone.fatal) {
+      showDiagnosticsSplash();
+      hideBootSplash();
+      if (typeof window !== 'undefined') {
+        try { window.__SPLASH_HIDDEN__ = true; } catch (_) {}
+      }
+      return;
     }
 
-    // Final safety delay
-    await wait(FINAL_DELAY);
-
-    // === Hide the splash page ===
-    hideSplash();
-    console.info('[SPLASH] Splash screen hidden');
-
+    await waitForAnimationGate();
+    hideAllSplash();
   } catch (err) {
-    console.error('[SPLASH] Error in splash sequence:', err);
-    // Hide splash anyway on error
-    hideSplash();
+    console.error('[SPLASH] sequence failed:', err);
+    hideAllSplash();
   }
 }
 
-/**
- * Initialize and start the sequence when appropriate
- */
 export function initSplashSequence() {
-  if (typeof window === 'undefined') return;
-  
-  // Wait for boot to be done
-  const bootDone = window.__BOOT_DONE__;
-  if (bootDone && typeof bootDone.then === 'function') {
-    bootDone.then(() => {
-      // Give services time to initialize
-      setTimeout(() => {
-        runSplashSequence();
-      }, 500);
-    }).catch(err => {
-      console.warn('[splash-seq] Boot failed, hiding splash', err);
-      hideSplash();
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const start = () => {
+    runSplashSequence().catch((err) => {
+      console.error('[SPLASH] unhandled sequence error:', err);
+      hideAllSplash();
     });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
   } else {
-    // Boot is already done or not tracked
-    setTimeout(() => {
-      runSplashSequence();
-    }, 1000);
+    Promise.resolve().then(start);
   }
 }
 
-// Auto-initialize if in browser environment
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  // Wait for DOM to be ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSplashSequence, { once: true });
-  } else {
-    // DOM is already ready
-    initSplashSequence();
-  }
+  initSplashSequence();
 }
