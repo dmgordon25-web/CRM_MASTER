@@ -25,6 +25,7 @@
  <link href="styles.css" rel="stylesheet"/>
  <link href="styles/dashboard.css" rel="stylesheet"/>
  <link href="styles/loaders.css" rel="stylesheet"/>
+  <link href="css/dashboard-autolayout.css" rel="stylesheet"/>
 </head>
 <body>
 <!-- BOOT_STAMP: crm-app-index -->
@@ -1645,17 +1646,25 @@
     <section class="settings-panel" data-panel="dashboard">
      <header class="panel-head">
       <h2>Dashboard</h2>
-      <p class="muted">Choose which widgets appear when viewing the full dashboard.</p>
+      <p class="muted">Customize widget visibility, order, and dashboard preferences.</p>
      </header>
      <div class="settings-panel-grid">
       <div class="card">
-       <h3>Widget Visibility</h3>
-       <p class="widget-summary muted">Toggle sections on or off for the All view.</p>
+       <h3>Widget Visibility & Order</h3>
+       <p class="widget-summary muted">Toggle widgets on/off and set their display order (1 = first).</p>
        <div class="settings-toggle-list" id="dashboard-widget-list"></div>
       </div>
       <div class="card">
-       <h3>Focus Mode</h3>
-       <p class="widget-summary muted">Switch between Today and All directly from the dashboard header. Your last choice is saved on this device.</p>
+       <h3>Dashboard Preferences</h3>
+       <p class="widget-summary muted">Customize dashboard behavior and default view.</p>
+       <label class="switch">
+        <input id="dashboard-default-to-all" type="checkbox"/>
+        <span>Default to All view</span>
+       </label>
+       <label class="switch">
+        <input id="dashboard-include-today-in-all" type="checkbox" checked/>
+        <span>Include Today widgets in All view</span>
+       </label>
       </div>
      </div>
     </section>

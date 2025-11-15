@@ -240,8 +240,207 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     dashboardState.kpis = kpis;
   }
 
-  function renderDashboardSettings(){
-    const list = document.getElementById('dashboard-widget-list');
+  // Enhanced dashboard settings rendering with order controls
+  // This replaces the renderDashboardSettings function in settings_forms.js
+
+  function renderDashboardSettings() {
+  const list = document.getElementById('dashboard-widget-list');
+  if (!list) return;
+  
+  // Load config from new dashboard config system
+  let config;
+  try {
+  const stored = localStorage.getItem('dashboard:config:v2');
+  if (stored) {
+  config = JSON.parse(stored);
+  }
+  } catch (err) {
+  console.warn('Failed to load dashboard config:', err);
+  }
+  
+  // Fallback to default widgets if config not available
+  if (!config || !config.widgets) {
+  config = {
+  widgets: DASHBOARD_WIDGET_ENTRIES.map((w, i) => ({
+  id: w.key,
+  visible: true,
+  order: i + 1
+  })),
+  defaultToAll: false,
+  includeTodayInAll: true
+  };
+  }
+  
+  // Create widget config map for easier lookup
+  const widgetConfigMap = new Map(config.widgets.map(w => [w.id, w]));
+  
+  // Render table with visibility toggle and order input
+  const rows = DASHBOARD_WIDGET_ENTRIES.map(entry => {
+  const widgetConfig = widgetConfigMap.get(entry.key) || { visible: true, order: 999 };
+  const checked = widgetConfig.visible ? ' checked' : '';
+  const order = widgetConfig.order || 999;
+  const description = entry.description || '';
+    
+  return `
+  <tr data-widget-id="${entry.key}">
+  <td style="width:60px;text-align:center;">
+  <input type="checkbox" 
+  data-dashboard-widget="${entry.key}" 
+  ${checked} 
+  style="width:18px;height:18px;cursor:pointer;">
+  </td>
+  <td style="width:80px;">
+  <input type="number" 
+  data-widget-order="${entry.key}" 
+  value="${order}" 
+  min="1" 
+  max="999" 
+  style="width:60px;padding:4px;text-align:center;">
+  </td>
+  <td style="font-weight:600;">${entry.label}</td>
+  <td style="color:var(--muted);font-size:0.9rem;">${description}</td>
+  </tr>`;
+  }).join('');
+  
+  list.innerHTML = `
+  <div class="dashboard-toggle-group">
+  <table style="width:100%;border-collapse:collapse;">
+  <thead>
+  <tr style="border-bottom:2px solid #e2e8f0;">
+  <th style="width:60px;text-align:center;padding:8px;font-weight:600;">Visible</th>
+  <th style="width:80px;text-align:center;padding:8px;font-weight:600;">Order</th>
+  <th style="padding:8px;font-weight:600;">Widget</th>
+  <th style="padding:8px;font-weight:600;">Description</th>
+  </tr>
+  </thead>
+  <tbody>
+  ${rows}
+  </tbody>
+  </table>
+  </div>`;
+  
+  // Wire up event handlers
+  if (!list.__wired) {
+  list.__wired = true;
+    
+  // Handle visibility toggles
+  list.addEventListener('change', evt => {
+  if (hydrating) return;
+      
+  const target = evt.target;
+  if (!target) return;
+      
+  // Handle checkbox changes
+  if (target.type === 'checkbox' && target.dataset.dashboardWidget) {
+  const key = target.dataset.dashboardWidget;
+  const visible = target.checked;
+        
+  // Update config
+  const config = loadDashboardConfigForSettings();
+  const widget = config.widgets.find(w => w.id === key);
+  if (widget) {
+  widget.visible = visible;
+  } else {
+  config.widgets.push({ id: key, visible, order: 999 });
+  }
+  saveDashboardConfigFromSettings(config);
+        
+  console.log(`Dashboard widget ${key} visibility: ${visible}`);
+  }
+      
+  // Handle order changes
+  if (target.type === 'number' && target.dataset.widgetOrder) {
+  const key = target.dataset.widgetOrder;
+  const order = parseInt(target.value, 10);
+        
+  if (isNaN(order) || order < 1) {
+  target.value = 1;
+  return;
+  }
+        
+  // Update config
+  const config = loadDashboardConfigForSettings();
+  const widget = config.widgets.find(w => w.id === key);
+  if (widget) {
+  widget.order = order;
+  } else {
+  config.widgets.push({ id: key, visible: true, order });
+  }
+  saveDashboardConfigFromSettings(config);
+        
+  console.log(`Dashboard widget ${key} order: ${order}`);
+  }
+  });
+  }
+  
+  // Wire up preference toggles
+  const defaultToAllCheckbox = document.getElementById('dashboard-default-to-all');
+  const includeTodayCheckbox = document.getElementById('dashboard-include-today-in-all');
+  
+  if (defaultToAllCheckbox && !defaultToAllCheckbox.__wired) {
+  defaultToAllCheckbox.__wired = true;
+  defaultToAllCheckbox.checked = config.defaultToAll || false;
+  defaultToAllCheckbox.addEventListener('change', evt => {
+  const config = loadDashboardConfigForSettings();
+  config.defaultToAll = evt.target.checked;
+  saveDashboardConfigFromSettings(config);
+  console.log(`Dashboard default to all: ${evt.target.checked}`);
+  });
+  }
+  
+  if (includeTodayCheckbox && !includeTodayCheckbox.__wired) {
+  includeTodayCheckbox.__wired = true;
+  includeTodayCheckbox.checked = config.includeTodayInAll !== false;
+  includeTodayCheckbox.addEventListener('change', evt => {
+  const config = loadDashboardConfigForSettings();
+  config.includeTodayInAll = evt.target.checked;
+  saveDashboardConfigFromSettings(config);
+  console.log(`Dashboard include today in all: ${evt.target.checked}`);
+  });
+  }
+  }
+
+  // Helper functions for config management in settings
+function loadDashboardConfigForSettings() {
+  try {
+    const stored = localStorage.getItem('dashboard:config:v2');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (err) {
+    console.warn('Failed to load dashboard config:', err);
+  }
+  
+  // Return default config
+  return {
+    widgets: DASHBOARD_WIDGET_ENTRIES.map((w, i) => ({
+      id: w.key,
+      visible: true,
+      order: i + 1,
+      size: 'medium'
+    })),
+    defaultToAll: false,
+    includeTodayInAll: true
+  };
+}
+
+function saveDashboardConfigFromSettings(config) {
+  try {
+    localStorage.setItem('dashboard:config:v2', JSON.stringify(config));
+    
+    // Dispatch event to update dashboard if it's visible
+    if (typeof document !== 'undefined') {
+      document.dispatchEvent(new CustomEvent('dashboard:config:updated', { detail: config }));
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Failed to save dashboard config:', err);
+    return false;
+  }
+}
+
+
     if(!list) return;
     const sections = [
       { title: 'Widgets', entries: DASHBOARD_WIDGET_ENTRIES, attr: 'dashboard-widget', state: dashboardState.widgets },

@@ -1,6 +1,11 @@
 import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
 import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
+import { applyDashboardConfig, getInitialDashboardMode, loadDashboardConfig } from './config.js';
+
+// Feature flag: Disable edit mode for settings-based auto-layout
+const DISABLE_DASHBOARD_EDIT_MODE = true;
+
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -672,6 +677,10 @@ function updateLayoutToggleButton(enabled) {
 }
 
 function updateDashboardEditingState(enabled, options = {}) {
+  // Disable edit mode when feature flag is set
+  if (DISABLE_DASHBOARD_EDIT_MODE) {
+    enabled = false;
+  }
   const next = !!enabled;
   dashDnDState.editing = next;
   const wasUpdating = dashDnDState.updatingEditing;
@@ -1958,6 +1967,14 @@ function setNodeWidthStyle(node, widthKey, columns) {
 }
 
 function ensureWidgetResizeControl(node) {
+  // Skip resize handles when edit mode is disabled
+  if (DISABLE_DASHBOARD_EDIT_MODE) {
+    const existingHandle = node?.querySelector(':scope > .dash-resize-handle');
+    if (existingHandle) {
+      existingHandle.remove();
+    }
+    return null;
+  }
   if (!doc || !node) return null;
   let handle = node.querySelector(':scope > .dash-resize-handle');
   if (!handle || !handle.querySelector('.dash-resize-grip')) {
@@ -3147,6 +3164,13 @@ function setDashboardMode(mode, options = {}) {
   applyModeButtonState(normalized);
   applySurfaceVisibility(prefCache.value);
   maybeHydrateCelebrations(prefCache.value);
+  
+  // Apply configuration-based widget visibility and order
+  try {
+    applyDashboardConfig(normalized);
+  } catch (err) {
+    if (console && console.warn) console.warn('[Dashboard] Failed to apply config:', err);
+  }
   ensureWidgetDnD();
   applyTodayPrioritiesHighlight();
   if (!skipPersist) {

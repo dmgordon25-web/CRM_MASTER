@@ -518,9 +518,12 @@ function maybeRenderAll() {
     // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for tab to activate
+    const MODE_WAIT_TIMEOUT = instant ? 100 : 200; // Allow time for mode to change
     const TAB_POST_DELAY = instant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
     const TAB_RETURN_POST_DELAY = instant ? 30 : 100;
-    const FINAL_SETTLE_DELAY = instant ? 100 : 200; // Final settling delay
+    const MODE_POST_DELAY = instant ? 30 : 300; // Normal: 300ms visible pause, CI: 30ms (3×300ms = 900ms)
+    const MODE_FINAL_POST_DELAY = instant ? 30 : 300;
+    const EXTRA_FINAL_DELAY = instant ? 100 : 200; // Final settling delay
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -726,10 +729,22 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Returning to dashboard');
       await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
 
-      // PHASE 3: Wait for dashboard to be ready
+      // PHASE 3: Dashboard toggles: Today → All → Today with 100ms pauses (ultra-optimized)
+      console.info('[BOOT_ANIMATION] Dashboard toggles: Today → All → Today (100ms pauses)');
+      await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
+      await ensureDashboardMode('all', { postDelay: MODE_POST_DELAY });
+      await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
+
+      // PHASE 4: Final verification and completion
       console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
       await waitForDashboardReady();
-      await wait(FINAL_SETTLE_DELAY);
+
+      await wait(EXTRA_FINAL_DELAY);
+      if (getActiveDashboardMode() !== 'today') {
+        console.warn('[BOOT_ANIMATION] Dashboard mode did not settle on today; retrying');
+        await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
+        await wait(EXTRA_FINAL_DELAY);
+      }
 
       if (typeof window !== 'undefined') {
         window.__BOOT_ANIMATION_COMPLETE__ = true;

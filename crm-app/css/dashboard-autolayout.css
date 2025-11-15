@@ -1,0 +1,77 @@
+/* Dashboard Auto-Layout System - Disable Edit Mode UI */
+
+/* Hide edit mode toggle button */
+button.dash-layout-toggle[data-dashboard-action="layout-toggle"] {
+  display: none !important;
+}
+
+/* Hide resize handles */
+.dash-resize-handle {
+  display: none !important;
+}
+
+/* Remove grid overlay */
+.dash-gridlines {
+  display: none !important;
+}
+
+/* Dashboard Auto-Layout with CSS Grid */
+main[data-ui="dashboard-root"] {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 16px !important;
+  grid-auto-flow: dense !important;
+}
+
+/* Mobile: Single column */
+@media (max-width: 768px) {
+  main[data-ui="dashboard-root"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Widget size classes */
+[data-dash-widget].widget-small {
+  grid-column: span 1 !important;
+}
+
+[data-dash-widget].widget-medium {
+  grid-column: span 1 !important;
+}
+
+[data-dash-widget].widget-large {
+  grid-column: span 2 !important;
+}
+
+/* On mobile, all widgets span full width */
+@media (max-width: 768px) {
+  [data-dash-widget].widget-small,
+  [data-dash-widget].widget-medium,
+  [data-dash-widget].widget-large {
+    grid-column: span 1 !important;
+  }
+}
+
+/* Max height for tall widgets with scroll */
+[data-dash-widget] {
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Special handling for specific widgets that need more height */
+[data-dash-widget="statusStack"],
+[data-dash-widget="pipeline"],
+[data-dash-widget="pipelineCalendar"] {
+  max-height: 800px;
+}
+
+/* Widget order (set via inline styles from settings) */
+[data-dash-widget][style*="order"] {
+  /* Order is applied inline from settings */
+}
+
+/* Hide widgets based on settings visibility */
+[data-dash-widget][data-widget-hidden="true"] {
+  display: none !important;
+}
