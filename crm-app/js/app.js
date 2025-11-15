@@ -92,7 +92,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         const errorCard = document.createElement('section');
         errorCard.className = 'card';
         errorCard.dataset.qa = 'labs-error';
-        errorCard.innerHTML = '<h2>Labs unavailable</h2><p class="muted">We could not load the Labs workspace. Please try again.</p>';
+        errorCard.innerHTML = '<h2>Labs unavailable</h2><p class="muted">Labs are not available in this build. This does <strong>not</strong> affect your main CRM data.</p>';
         const retryRow = document.createElement('div');
         retryRow.className = 'row';
         retryRow.style.gap = '8px';
