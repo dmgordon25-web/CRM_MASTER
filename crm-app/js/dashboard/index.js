@@ -13,6 +13,9 @@ const win = typeof window === 'undefined' ? null : window;
 const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
 let releaseDashboardRouteToken = null;
 
+// Labs-only: edit mode and drag/drop are disabled in normal runtime
+const DASHBOARD_EDITING_LABS_ENABLED = false;
+
 function setDebugWidths(values) {
   if (!win || typeof win !== 'object') return;
   const root = win.__DND_DEBUG__ && typeof win.__DND_DEBUG__ === 'object' ? win.__DND_DEBUG__ : (win.__DND_DEBUG__ = {});
@@ -266,7 +269,7 @@ const dashDnDState = {
 };
 
 function isDashboardEditingEnabled() {
-  return !!dashDnDState.editing;
+  return DASHBOARD_EDITING_LABS_ENABLED && !!dashDnDState.editing;
 }
 
 function applyRootEditingState(container, enabled) {
@@ -645,6 +648,12 @@ function dispatchLayoutModeEvent(enabled) {
 function updateLayoutToggleButton(enabled) {
   const button = layoutToggleState.button || resolveLayoutToggleButton();
   if (!button) return;
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    button.hidden = true;
+    button.setAttribute('aria-hidden', 'true');
+    button.dataset.layoutMode = 'view';
+    return;
+  }
   const next = !!enabled;
   button.setAttribute('aria-pressed', next ? 'true' : 'false');
   if (button.classList) {
@@ -672,6 +681,16 @@ function updateLayoutToggleButton(enabled) {
 }
 
 function updateDashboardEditingState(enabled, options = {}) {
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    dashDnDState.editing = false;
+    const container = dashDnDState.container || getDashboardContainerNode();
+    if (container) {
+      applyRootEditingState(container, false);
+      applyWidgetEditingMarkers(container, false);
+    }
+    exposeDashboardDnDHandlers();
+    return;
+  }
   const next = !!enabled;
   dashDnDState.editing = next;
   const wasUpdating = dashDnDState.updatingEditing;
@@ -717,6 +736,18 @@ function updateDashboardEditingState(enabled, options = {}) {
 }
 
 function applyLayoutToggleMode(enabled, options = {}) {
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    layoutToggleState.mode = false;
+    updateLayoutToggleButton(false);
+    updateDashboardEditingState(false, { commit: false, persist: false });
+    if (options.commit !== false) {
+      setDashboardLayoutMode(false, { persist: false });
+    }
+    if (options.dispatch !== false && options.commit !== false) {
+      dispatchLayoutModeEvent(false);
+    }
+    return;
+  }
   const next = !!enabled;
   layoutToggleState.mode = next;
   updateLayoutToggleButton(next);
@@ -787,6 +818,22 @@ function handleLayoutToggleStorage(evt) {
 }
 
 function ensureLayoutToggle() {
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    const button = resolveLayoutToggleButton();
+    if (button) {
+      detachLayoutToggleButton(button);
+      button.hidden = true;
+      button.setAttribute('aria-hidden', 'true');
+    }
+    layoutToggleState.button = button || null;
+    layoutToggleState.viewLabel = null;
+    layoutToggleState.editLabel = null;
+    layoutToggleState.wired = false;
+    layoutToggleState.bootstrapped = true;
+    layoutToggleState.mode = false;
+    releaseLayoutToggleGlobals();
+    return null;
+  }
   const button = resolveLayoutToggleButton();
   if (!button) {
     if (layoutToggleState.button && layoutToggleState.wired) {
@@ -1529,7 +1576,7 @@ function syncStoredDashboardOrder(orderLike) {
 }
 
 function ensureDashboardDragStyles() {
-  if (!doc) return;
+  if (!doc || !DASHBOARD_EDITING_LABS_ENABLED) return;
   if (doc.getElementById(DASHBOARD_STYLE_ID)) return;
   ensureStyle(DASHBOARD_STYLE_ORIGIN, `
 [data-ui="dashboard-root"] > [data-dash-widget] {
@@ -1986,11 +2033,14 @@ function ensureWidgetResizeControl(node) {
 function applyWidgetWidths(container) {
   const host = container || dashDnDState.container || getDashboardContainerNode();
   if (!host) return;
+  const allowResizeChrome = DASHBOARD_EDITING_LABS_ENABLED;
   const columns = dashDnDState.lastAppliedColumns || dashDnDState.columns || getPreferredLayoutColumns();
   const nodes = collectWidgetNodes(host);
   nodes.forEach(node => {
     if (!node) return;
-    ensureWidgetResizeControl(node);
+    if (allowResizeChrome) {
+      ensureWidgetResizeControl(node);
+    }
     const dataset = node.dataset || {};
     const key = dataset.dashWidget || dataset.widgetId || node.id || '';
     const widthKey = resolveWidgetWidth(key, node);
@@ -2408,10 +2458,10 @@ function ensureDashboardWidgets(container) {
   applyDashboardLayoutClasses(container);
   const nodes = collectWidgetNodes(container);
   if (!nodes.length) {
-    ensureDashboardDragStyles();
+    if (DASHBOARD_EDITING_LABS_ENABLED) ensureDashboardDragStyles();
     return nodes;
   }
-  ensureDashboardDragStyles();
+  if (DASHBOARD_EDITING_LABS_ENABLED) ensureDashboardDragStyles();
   const canonicalIndex = buildCanonicalWidgetKeyIndex(container);
   const seen = new Set();
   nodes.forEach((node, index) => {
@@ -2436,7 +2486,9 @@ function ensureDashboardWidgets(container) {
     seen.add(uniqueKey);
     node.dataset.dashWidget = uniqueKey;
     node.setAttribute('data-dash-widget', uniqueKey);
-    ensureWidgetHandle(node);
+    if (DASHBOARD_EDITING_LABS_ENABLED) {
+      ensureWidgetHandle(node);
+    }
     if (node.classList) {
       if (node.classList.contains('dash-full-width')) {
         node.classList.remove('dash-full-width');
@@ -2726,7 +2778,8 @@ function ensureWidgetDnD() {
   if (dashDnDState.container && dashDnDState.container !== container) {
     teardownWidgetDnD('container-replaced');
   }
-  if (typeof ensureLayoutToggle === 'function' && !dashDnDState.updatingEditing) {
+  ensureLayoutResetButton();
+  if (DASHBOARD_EDITING_LABS_ENABLED && typeof ensureLayoutToggle === 'function' && !dashDnDState.updatingEditing) {
     ensureLayoutToggle();
   }
   dashDnDState.container = container;
@@ -2753,6 +2806,18 @@ function ensureWidgetDnD() {
     dashDnDState.active = false;
     cleanupPointerHandlersFor(container);
     exposeDashboardDnDHandlers();
+    return;
+  }
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    dashDnDState.active = false;
+    wireTileTap(container);
+    exposeDashboardDnDHandlers();
+    if (celebrationsState.shouldRender) {
+      if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
+        celebrationsState.pendingHydration = false;
+        scheduleCelebrationsHydration();
+      }
+    }
     return;
   }
   const gap = resolveGridGap(container);
