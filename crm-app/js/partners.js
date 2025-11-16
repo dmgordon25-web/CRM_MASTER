@@ -846,7 +846,8 @@ function ensurePartnersBoot(ctx){
           partnerId: String(rec.id || ''),
           action: wasSaved ? 'update' : 'create',
           source: 'partner:modal',
-          sourceHint: dialog.__partnerSourceHint || dialog.dataset?.sourceHint || ''
+          sourceHint: dialog.__partnerSourceHint || dialog.dataset?.sourceHint || '',
+          partial: { scope: 'partners', ids: [String(rec.id || '')], reason: 'partner-modal' }
         };
         if(typeof window.dispatchAppDataChanged === 'function'){
           window.dispatchAppDataChanged(changeDetail);
