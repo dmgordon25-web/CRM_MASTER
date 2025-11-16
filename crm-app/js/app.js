@@ -3100,12 +3100,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const forceFull = detail && detail.mode === 'full-repaint';
       const shouldFullRender = forceFull || !hasScope || unknownScope;
       if(!shouldFullRender){
+        let scopedHandled = false;
         scopeCandidates.forEach(scope => {
           const key = String(scope||'').toLowerCase();
           if(key === 'selection') return;
-          refreshByScope(key, detail.action);
+          scopedHandled = refreshByScope(key, detail.action) || scopedHandled;
         });
-        return;
+        if(scopedHandled) return;
       }
       if(window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
         try{ window.RenderGuard.requestRender(); }
