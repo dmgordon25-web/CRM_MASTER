@@ -975,6 +975,10 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     overlay && overlay.show && overlay.show('Loading…');
   } catch (_) {}
 
+  // Boot contract: track fatal error to ensure __BOOT_DONE__ is ALWAYS set in finally block
+  let fatalError = null;
+  let animationError = null;
+
   try {
     const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
     state.core = coreRecords.map(({ path }) => path);
@@ -1020,12 +1024,10 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
-    // Boot animation with timeout protection to ensure __BOOT_DONE__ contract is honored
+    // Boot animation with timeout protection - animation failures are non-fatal
     const animationDecision = getBootAnimationDecision({ safeOverride: safe });
-    let animationError = null;
     try {
       // Wrap animation in a timeout to prevent indefinite hangs
-      // The animation is SOFT - it should not block the boot contract
       const ANIMATION_TIMEOUT = 10000; // 10 seconds max for animation
       await Promise.race([
         animateTabCycle({ decision: animationDecision }),
@@ -1048,19 +1050,33 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
         }
       } catch (_) {}
     }
-
-    // CRITICAL: Always set __BOOT_DONE__ after core+patches are loaded
-    // Animation failures are non-fatal and should not prevent boot completion
-    recordSuccess({ core: state.core.length, patches: state.patches.length, safe, animationError: animationError ? String(animationError.message || animationError) : undefined });
-    finalizeSplashAndHeader();
-    return { reason: 'ok' };
   } catch (err) {
-    const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
-      ? 'required_import'
-      : 'boot_failure';
-    recordFatal(reason, String(err?.stack || err), err);
-    throw err;
+    fatalError = err;
+  } finally {
+    // CRITICAL BOOT CONTRACT: Always set __BOOT_DONE__ in finally block
+    // This ensures the contract is honored even if there are errors during boot
+    if (fatalError) {
+      const reason = (fatalError && typeof fatalError === 'object' && fatalError.path && requiredSet.has(fatalError.path))
+        ? 'required_import'
+        : 'boot_failure';
+      recordFatal(reason, String(fatalError?.stack || fatalError), fatalError);
+    } else {
+      recordSuccess({
+        core: state.core.length,
+        patches: state.patches.length,
+        safe: state.safe,
+        animationError: animationError ? String(animationError.message || animationError) : undefined
+      });
+      finalizeSplashAndHeader();
+    }
   }
+
+  // Propagate fatal errors after boot contract is honored
+  if (fatalError) {
+    throw fatalError;
+  }
+
+  return { reason: 'ok' };
 }
 
 export const __private = { normalize: normalizeModuleId, dynImport, isSafeMode };
