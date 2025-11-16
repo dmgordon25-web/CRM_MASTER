@@ -720,11 +720,8 @@ function maybeRenderAll() {
     // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
     const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
     const TAB_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for tab to activate
-    const MODE_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for mode to change
     const TAB_POST_DELAY = useInstant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
     const TAB_RETURN_POST_DELAY = useInstant ? 30 : 100;
-    const MODE_POST_DELAY = useInstant ? 30 : 300; // Normal: 300ms visible pause, CI: 30ms (3×300ms = 900ms)
-    const MODE_FINAL_POST_DELAY = useInstant ? 30 : 300;
     const EXTRA_FINAL_DELAY = useInstant ? 100 : 200; // Final settling delay
 
     function wait(ms) {
@@ -791,21 +788,6 @@ function maybeRenderAll() {
       return '';
     }
 
-    function getActiveDashboardMode() {
-      try {
-        const activeBtn = documentRef?.querySelector('[data-dashboard-mode].active');
-        if (activeBtn) {
-          const value = activeBtn.getAttribute('data-dashboard-mode');
-          return value === 'all' ? 'all' : 'today';
-        }
-      } catch (_) {}
-      try {
-        const fallback = documentRef?.body?.dataset?.dashboardMode;
-        if (fallback) return fallback === 'all' ? 'all' : 'today';
-      } catch (_) {}
-      return '';
-    }
-
     async function ensureTabActive(tabName, { postDelay = TAB_POST_DELAY } = {}) {
       const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
       if (!target) return false;
@@ -832,70 +814,6 @@ function maybeRenderAll() {
       return true;
     }
 
-    async function ensureDashboardMode(mode, { postDelay = MODE_POST_DELAY } = {}) {
-      const normalized = mode === 'all' ? 'all' : 'today';
-      const button = documentRef?.querySelector(`[data-dashboard-mode="${normalized}"]`);
-      if (!button && typeof window?.setDashboardMode === 'function') {
-        window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
-      }
-      if (!button && getActiveDashboardMode() === normalized) {
-        await wait(useInstant ? postDelay : Math.max(160, postDelay));
-        return true;
-      }
-      if (!button) {
-        console.warn(`[BOOT_ANIMATION] dashboard mode button missing for ${normalized}`);
-        return false;
-      }
-      if (typeof window !== 'undefined' && typeof window.setDashboardMode === 'function') {
-        try {
-          window.setDashboardMode(normalized, { force: true, skipPersist: true, skipBus: true });
-        } catch (_) {}
-      } else {
-        dispatchSyntheticClick(button, `mode:${normalized}`);
-      }
-      const success = await waitFor(() => getActiveDashboardMode() === normalized, {
-        timeout: MODE_WAIT_TIMEOUT,
-        interval: 50
-      });
-      if (!success) {
-        console.warn(`[BOOT_ANIMATION] Dashboard mode did not reach ${normalized}`);
-        return false;
-      }
-      await wait(useInstant ? postDelay : Math.max(160, postDelay));
-      console.info(`[BOOT_ANIMATION] Set dashboard mode to: ${normalized}`);
-      return true;
-    }
-
-    function getAvailablePartners() {
-      try {
-        const select = documentRef?.querySelector('select[data-filter-key="partner"]');
-        if (!select) return [];
-        const options = Array.from(select.querySelectorAll('option'));
-        return options
-          .filter((opt) => opt.value && opt.value !== 'all')
-          .map((opt) => ({ id: opt.value, name: opt.textContent.trim() }))
-          .slice(0, 2);
-      } catch (err) {
-        console.warn('[BOOT_ANIMATION] Failed to get partners:', err);
-        return [];
-      }
-    }
-
-    function setPartnerFilter(partnerId) {
-      try {
-        const select = documentRef?.querySelector('select[data-filter-key="partner"]');
-        if (!select) return false;
-        select.value = partnerId;
-        const event = new Event('change', { bubbles: true });
-        select.dispatchEvent(event);
-        console.info(`[BOOT_ANIMATION] Set partner filter to: ${partnerId}`);
-        return true;
-      } catch (err) {
-        console.warn(`[BOOT_ANIMATION] Failed to set partner filter to ${partnerId}:`, err);
-        return false;
-      }
-    }
-
     function waitForDashboardReady() {
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -919,20 +837,22 @@ function maybeRenderAll() {
     }
 
     if (!shouldAnimate) {
+      // Skip-mode must still signal completion immediately so smoke tests and
+      // splash logic can proceed without waiting for any optional activation
+      // helpers to finish.
+      markAnimationComplete({ bypass: true, reason: 'disabled' });
       try {
         console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
       } catch (_) {}
       try {
         await ensureTabActive('dashboard', { postDelay: 0 });
-        if (getActiveDashboardMode() !== 'today') {
-          await ensureDashboardMode('today', { postDelay: 0 });
-        }
         await waitForDashboardReady();
       } catch (err) {
         console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
-      } finally {
-        markAnimationComplete({ bypass: true, reason: 'disabled' });
       }
+      // markAnimationComplete is intentionally idempotent; signaling early
+      // keeps __BOOT_ANIMATION_COMPLETE__ available even if the minimal
+      // helpers take longer than expected.
       return;
     }
 
@@ -949,22 +869,11 @@ function maybeRenderAll() {
       console.info('[BOOT_ANIMATION] Returning to dashboard');
       await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
 
-      // PHASE 3: Dashboard toggles: Today → All → Today with 100ms pauses (ultra-optimized)
-      console.info('[BOOT_ANIMATION] Dashboard toggles: Today → All → Today (100ms pauses)');
-      await ensureDashboardMode('today', { postDelay: MODE_POST_DELAY });
-      await ensureDashboardMode('all', { postDelay: MODE_POST_DELAY });
-      await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
-
-      // PHASE 4: Final verification and completion
+      // PHASE 3: Final verification and completion without dashboard mode thrash
       console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
       await waitForDashboardReady();
 
       await wait(EXTRA_FINAL_DELAY);
-      if (getActiveDashboardMode() !== 'today') {
-        console.warn('[BOOT_ANIMATION] Dashboard mode did not settle on today; retrying');
-        await ensureDashboardMode('today', { postDelay: MODE_FINAL_POST_DELAY });
-        await wait(EXTRA_FINAL_DELAY);
-      }
       console.info('[BOOT_ANIMATION] OPTIMIZED boot animation sequence complete');
     } catch (err) {
       console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
@@ -1032,9 +941,11 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
     await readyPromise;
 
     const animationDecision = getBootAnimationDecision({ safeOverride: safe });
-    await animateTabCycle({ decision: animationDecision });
+    const animationPromise = animateTabCycle({ decision: animationDecision });
 
     recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+
+    await animationPromise;
     finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {
