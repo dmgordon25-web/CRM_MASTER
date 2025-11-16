@@ -1,91 +1,139 @@
-// Labs Dashboard - Main Entry Point
-// Mission Control Interface with Creative Freedom
+// Labs CRM Dashboard - Visually Stunning Version of Actual CRM
+// Uses real data from CRM database
 
-import { readLabsConfig, writeLabsConfig, findLabsWidgetMeta } from './config.js';
-import { WIDGET_RENDERERS } from './widgets.js';
+import { ensureDatabase, getAllContacts, getAllPartners, getAllTasks } from './data.js';
+import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 
-let currentConfig = null;
 let dashboardRoot = null;
+let crmData = {
+  contacts: [],
+  partners: [],
+  tasks: []
+};
 
-// Initialize Labs Dashboard
-export async function initLabsDashboard(root) {
+// Initialize Labs CRM Dashboard
+export async function initLabsCRMDashboard(root) {
   if (!root) {
     console.error('[labs] No root element provided');
     return;
   }
 
   dashboardRoot = root;
-  currentConfig = readLabsConfig();
 
+  // Show loading state
+  showLoading();
+
+  // Connect to database and load data
+  const dbReady = await ensureDatabase();
+  if (!dbReady) {
+    showError('Failed to connect to CRM database');
+    return;
+  }
+
+  await loadCRMData();
   renderDashboard();
   attachEventListeners();
-  startAnimations();
 }
 
-// Render the full dashboard
+// Load CRM data from database
+async function loadCRMData() {
+  try {
+    const [contacts, partners, tasks] = await Promise.all([
+      getAllContacts(),
+      getAllPartners(),
+      getAllTasks()
+    ]);
+
+    crmData = { contacts, partners, tasks };
+
+    console.info(`[labs] Loaded ${contacts.length} contacts, ${partners.length} partners, ${tasks.length} tasks`);
+  } catch (err) {
+    console.error('[labs] Failed to load CRM data:', err);
+  }
+}
+
+// Show loading state
+function showLoading() {
+  if (!dashboardRoot) return;
+
+  dashboardRoot.innerHTML = `
+    <div class="labs-loading">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading CRM Data...</div>
+    </div>
+  `;
+}
+
+// Show error state
+function showError(message) {
+  if (!dashboardRoot) return;
+
+  dashboardRoot.innerHTML = `
+    <div class="labs-error">
+      <h2>⚠️ Error</h2>
+      <p>${message}</p>
+      <button class="labs-btn-primary" onclick="location.reload()">Reload</button>
+    </div>
+  `;
+}
+
+// Render the full CRM dashboard
 function renderDashboard() {
   if (!dashboardRoot) return;
 
   dashboardRoot.innerHTML = '';
-  dashboardRoot.className = `labs-dashboard theme-${currentConfig.theme} layout-${currentConfig.layout}`;
-  dashboardRoot.dataset.qa = 'labs-dashboard';
+  dashboardRoot.className = 'labs-crm-dashboard';
+  dashboardRoot.dataset.qa = 'labs-crm-dashboard';
 
   // Render header
   const header = createHeader();
   dashboardRoot.appendChild(header);
 
-  // Render controls
-  const controls = createControls();
-  dashboardRoot.appendChild(controls);
-
   // Render widget grid
   const grid = createWidgetGrid();
   dashboardRoot.appendChild(grid);
 
-  // Render widgets
+  // Render all widgets
   renderWidgets(grid);
 }
 
 // Create dashboard header
 function createHeader() {
   const header = document.createElement('header');
-  header.className = 'labs-header';
+  header.className = 'labs-crm-header';
   header.dataset.qa = 'labs-header';
 
   header.innerHTML = `
     <div class="labs-header-content">
       <div class="labs-branding">
         <h1 class="labs-title">
-          <span class="labs-icon-mission">🚀</span>
-          Mission Control
-          <span class="labs-badge-new">LABS</span>
+          <span class="labs-icon-main">🚀</span>
+          CRM Labs
+          <span class="labs-badge-beta">BETA</span>
         </h1>
-        <p class="labs-subtitle">Experimental Dashboard • Unleash Innovation</p>
+        <p class="labs-subtitle">Experimental Visual Dashboard • Real CRM Data</p>
+      </div>
+      <div class="labs-header-stats">
+        <div class="header-stat">
+          <div class="stat-value">${crmData.contacts.length}</div>
+          <div class="stat-label">Contacts</div>
+        </div>
+        <div class="header-stat">
+          <div class="stat-value">${crmData.partners.length}</div>
+          <div class="stat-label">Partners</div>
+        </div>
+        <div class="header-stat">
+          <div class="stat-value">${crmData.tasks.length}</div>
+          <div class="stat-label">Tasks</div>
+        </div>
       </div>
       <div class="labs-header-actions">
-        <button class="labs-btn-icon" data-action="refresh" title="Refresh All">
+        <button class="labs-btn-icon" data-action="refresh" title="Refresh Data">
           <span class="icon-refresh">⟳</span>
         </button>
         <button class="labs-btn-icon" data-action="settings" title="Settings">
           <span class="icon-settings">⚙</span>
         </button>
-        <button class="labs-btn-icon" data-action="fullscreen" title="Fullscreen">
-          <span class="icon-fullscreen">⛶</span>
-        </button>
-      </div>
-    </div>
-    <div class="labs-status-bar">
-      <div class="status-item">
-        <span class="status-dot active"></span>
-        <span class="status-label">System Online</span>
-      </div>
-      <div class="status-item">
-        <span class="status-icon">📊</span>
-        <span class="status-label">${currentConfig.widgets.filter(w => w.visible).length} Active Widgets</span>
-      </div>
-      <div class="status-item">
-        <span class="status-icon">⚡</span>
-        <span class="status-label">Real-time Updates</span>
       </div>
     </div>
   `;
@@ -93,96 +141,45 @@ function createHeader() {
   return header;
 }
 
-// Create dashboard controls
-function createControls() {
-  const controls = document.createElement('div');
-  controls.className = 'labs-controls';
-  controls.dataset.qa = 'labs-controls';
-
-  controls.innerHTML = `
-    <div class="labs-control-group">
-      <label class="labs-label">
-        <span class="label-text">Theme:</span>
-        <select class="labs-select" data-control="theme">
-          <option value="neon" ${currentConfig.theme === 'neon' ? 'selected' : ''}>Neon</option>
-          <option value="cyber" ${currentConfig.theme === 'cyber' ? 'selected' : ''}>Cyber</option>
-          <option value="aurora" ${currentConfig.theme === 'aurora' ? 'selected' : ''}>Aurora</option>
-          <option value="matrix" ${currentConfig.theme === 'matrix' ? 'selected' : ''}>Matrix</option>
-        </select>
-      </label>
-      <label class="labs-label">
-        <span class="label-text">Layout:</span>
-        <select class="labs-select" data-control="layout">
-          <option value="masonry" ${currentConfig.layout === 'masonry' ? 'selected' : ''}>Masonry</option>
-          <option value="grid" ${currentConfig.layout === 'grid' ? 'selected' : ''}>Grid</option>
-          <option value="flow" ${currentConfig.layout === 'flow' ? 'selected' : ''}>Flow</option>
-        </select>
-      </label>
-      <label class="labs-checkbox">
-        <input type="checkbox" data-control="animations" ${currentConfig.animations ? 'checked' : ''}>
-        <span class="checkbox-label">Animations</span>
-      </label>
-      <label class="labs-checkbox">
-        <input type="checkbox" data-control="compact" ${currentConfig.compactMode ? 'checked' : ''}>
-        <span class="checkbox-label">Compact Mode</span>
-      </label>
-    </div>
-    <div class="labs-quick-actions">
-      <button class="labs-btn-secondary" data-action="customize">
-        <span class="btn-icon">✨</span>
-        Customize Widgets
-      </button>
-      <button class="labs-btn-secondary" data-action="export">
-        <span class="btn-icon">📥</span>
-        Export Data
-      </button>
-    </div>
-  `;
-
-  return controls;
-}
-
 // Create widget grid container
 function createWidgetGrid() {
   const grid = document.createElement('div');
-  grid.className = `labs-widget-grid layout-${currentConfig.layout}`;
+  grid.className = 'labs-crm-grid';
   grid.dataset.qa = 'labs-widget-grid';
-
-  if (currentConfig.compactMode) {
-    grid.classList.add('compact');
-  }
 
   return grid;
 }
 
-// Render all visible widgets
+// Render all CRM widgets
 function renderWidgets(grid) {
-  const visibleWidgets = currentConfig.widgets
-    .filter(w => w.visible)
-    .sort((a, b) => a.order - b.order);
+  const { contacts, partners, tasks } = crmData;
 
-  visibleWidgets.forEach((widget, index) => {
-    const meta = findLabsWidgetMeta(widget.id);
-    if (!meta) return;
+  // Define widget layout
+  const widgets = [
+    { id: 'kpis', renderer: CRM_WIDGET_RENDERERS.kpis, args: [contacts], size: 'large' },
+    { id: 'pipelineMomentum', renderer: CRM_WIDGET_RENDERERS.pipelineMomentum, args: [contacts], size: 'large' },
+    { id: 'pipelineOverview', renderer: CRM_WIDGET_RENDERERS.pipelineOverview, args: [contacts], size: 'large' },
+    { id: 'partnerPortfolio', renderer: CRM_WIDGET_RENDERERS.partnerPortfolio, args: [partners], size: 'medium' },
+    { id: 'referralLeaderboard', renderer: CRM_WIDGET_RENDERERS.referralLeaderboard, args: [partners], size: 'medium' },
+    { id: 'staleDeals', renderer: CRM_WIDGET_RENDERERS.staleDeals, args: [contacts], size: 'medium' },
+    { id: 'today', renderer: CRM_WIDGET_RENDERERS.today, args: [tasks, contacts], size: 'medium' },
+    { id: 'activePipeline', renderer: CRM_WIDGET_RENDERERS.activePipeline, args: [contacts], size: 'large' }
+  ];
 
-    const renderer = WIDGET_RENDERERS[widget.id];
-    if (!renderer) {
+  widgets.forEach((widget, index) => {
+    if (!widget.renderer) {
       console.warn(`[labs] No renderer for widget: ${widget.id}`);
       return;
     }
 
     const container = document.createElement('div');
-    container.className = `labs-widget-container size-${meta.size}`;
+    container.className = `labs-widget-container size-${widget.size}`;
     container.dataset.widgetId = widget.id;
     container.dataset.qa = `labs-widget-container-${widget.id}`;
     container.style.animationDelay = `${index * 0.05}s`;
 
-    if (widget.pinned) {
-      container.classList.add('pinned');
-    }
-
     try {
-      renderer(container);
+      widget.renderer(container, ...widget.args);
       grid.appendChild(container);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
@@ -195,145 +192,60 @@ function attachEventListeners() {
   if (!dashboardRoot) return;
 
   // Header action buttons
-  dashboardRoot.addEventListener('click', (e) => {
+  dashboardRoot.addEventListener('click', async (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
     if (!action) return;
 
     switch (action) {
       case 'refresh':
-        refreshDashboard();
+        await refreshDashboard();
         break;
       case 'settings':
-        showSettings();
-        break;
-      case 'fullscreen':
-        toggleFullscreen();
-        break;
-      case 'customize':
-        showCustomizeModal();
-        break;
-      case 'export':
-        exportDashboardData();
+        showNotification('Settings coming soon!', 'info');
         break;
     }
   });
 
-  // Control changes
-  dashboardRoot.addEventListener('change', (e) => {
-    const control = e.target.closest('[data-control]')?.dataset.control;
-    if (!control) return;
-
-    switch (control) {
-      case 'theme':
-        updateTheme(e.target.value);
-        break;
-      case 'layout':
-        updateLayout(e.target.value);
-        break;
-      case 'animations':
-        updateAnimations(e.target.checked);
-        break;
-      case 'compact':
-        updateCompactMode(e.target.checked);
-        break;
+  // Widget refresh buttons
+  dashboardRoot.addEventListener('click', async (e) => {
+    if (e.target.closest('.labs-widget-refresh')) {
+      await refreshDashboard();
     }
   });
 
-  // Widget interactions
-  dashboardRoot.addEventListener('click', (e) => {
-    const widgetAction = e.target.closest('.labs-widget-action');
-    if (widgetAction) {
-      const container = widgetAction.closest('.labs-widget-container');
-      if (container) {
-        expandWidget(container);
-      }
-    }
-  });
-}
-
-// Start animations
-function startAnimations() {
-  if (!currentConfig.animations) return;
-
-  // Pulse animations for live indicators
-  const pulseElements = dashboardRoot?.querySelectorAll('.animate-pulse');
-  pulseElements?.forEach(el => {
-    el.style.animation = 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite';
-  });
-
-  // Slide-in animations
-  const slideElements = dashboardRoot?.querySelectorAll('.animate-slide-in');
-  slideElements?.forEach((el, idx) => {
-    el.style.animation = `slideIn 0.5s ease-out ${idx * 0.05}s both`;
-  });
-}
-
-// Dashboard actions
-function refreshDashboard() {
-  const grid = dashboardRoot?.querySelector('.labs-widget-grid');
-  if (grid) {
-    grid.style.opacity = '0.5';
-    setTimeout(() => {
-      renderDashboard();
-      grid.style.opacity = '1';
-      showNotification('Dashboard refreshed', 'success');
-    }, 300);
+  // Listen for CRM data changes
+  if (typeof document !== 'undefined') {
+    document.addEventListener('app:data:changed', handleDataChange);
   }
 }
 
-function showSettings() {
-  showNotification('Settings panel coming soon!', 'info');
+// Handle data change events from main CRM
+async function handleDataChange(event) {
+  console.info('[labs] CRM data changed, refreshing...', event.detail);
+  await refreshDashboard();
 }
 
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    dashboardRoot?.requestFullscreen?.();
-  } else {
-    document.exitFullscreen?.();
+// Refresh dashboard data and widgets
+async function refreshDashboard() {
+  const grid = dashboardRoot?.querySelector('.labs-crm-grid');
+  if (!grid) return;
+
+  // Add loading overlay
+  grid.style.opacity = '0.5';
+  grid.style.pointerEvents = 'none';
+
+  try {
+    await loadCRMData();
+    grid.innerHTML = '';
+    renderWidgets(grid);
+    showNotification('Dashboard refreshed', 'success');
+  } catch (err) {
+    console.error('[labs] Refresh failed:', err);
+    showNotification('Refresh failed', 'error');
+  } finally {
+    grid.style.opacity = '1';
+    grid.style.pointerEvents = 'auto';
   }
-}
-
-function showCustomizeModal() {
-  showNotification('Widget customization coming soon!', 'info');
-}
-
-function exportDashboardData() {
-  showNotification('Export feature coming soon!', 'info');
-}
-
-// Config updates
-function updateTheme(theme) {
-  currentConfig.theme = theme;
-  writeLabsConfig(currentConfig);
-  dashboardRoot.className = `labs-dashboard theme-${theme} layout-${currentConfig.layout}`;
-  showNotification(`Theme changed to ${theme}`, 'success');
-}
-
-function updateLayout(layout) {
-  currentConfig.layout = layout;
-  writeLabsConfig(currentConfig);
-  renderDashboard();
-  showNotification(`Layout changed to ${layout}`, 'success');
-}
-
-function updateAnimations(enabled) {
-  currentConfig.animations = enabled;
-  writeLabsConfig(currentConfig);
-  if (enabled) {
-    startAnimations();
-  }
-  showNotification(`Animations ${enabled ? 'enabled' : 'disabled'}`, 'success');
-}
-
-function updateCompactMode(enabled) {
-  currentConfig.compactMode = enabled;
-  writeLabsConfig(currentConfig);
-  renderDashboard();
-  showNotification(`Compact mode ${enabled ? 'enabled' : 'disabled'}`, 'success');
-}
-
-function expandWidget(container) {
-  container.classList.toggle('expanded');
 }
 
 // Notification system
@@ -355,4 +267,4 @@ function showNotification(message, type = 'info') {
 }
 
 // Export
-export default initLabsDashboard;
+export default initLabsCRMDashboard;

@@ -1,5 +1,5 @@
-// Labs Entry Point - Mission Control Dashboard
-// Loads the experimental labs dashboard with creative widgets
+// Labs Entry Point - CRM Labs Dashboard
+// Loads the visually stunning version of the actual CRM tool
 
 let dashboardModulePromise = null;
 
@@ -18,14 +18,14 @@ export async function initLabs(root) {
 
   try {
     const module = await loadDashboard();
-    const initDashboard = module.initLabsDashboard || module.default;
+    const initDashboard = module.initLabsCRMDashboard || module.default;
 
     if (typeof initDashboard !== 'function') {
-      throw new Error('Labs dashboard missing initLabsDashboard export');
+      throw new Error('Labs dashboard missing initLabsCRMDashboard export');
     }
 
     await initDashboard(root);
-    console.info('[labs] Mission Control dashboard rendered');
+    console.info('[labs] CRM Labs dashboard rendered');
   } catch (err) {
     console.error('[labs] Failed to initialize:', err);
 
@@ -33,8 +33,9 @@ export async function initLabs(root) {
     root.innerHTML = `
       <div class="labs-error">
         <h2>⚠️ Labs Dashboard Error</h2>
-        <p>Failed to load Mission Control dashboard.</p>
+        <p>Failed to load CRM Labs dashboard.</p>
         <pre>${err.message}</pre>
+        <button class="labs-btn-primary" onclick="location.reload()">Reload</button>
       </div>
     `;
   }
