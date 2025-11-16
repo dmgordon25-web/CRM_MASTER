@@ -9,6 +9,7 @@ import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 import dashboardState from '../state/dashboard_state.js';
 import {
   DASHBOARD_WIDGETS,
+  buildDefaultConfig,
   normalizeDashboardConfig,
   readDashboardConfig,
   writeDashboardConfig,
@@ -2917,6 +2918,23 @@ function buildDefaultMap(keys) {
   return map;
 }
 
+function isDashboardConfigCustomized(config) {
+  const normalized = normalizeDashboardConfig(config);
+  const defaults = normalizeDashboardConfig(buildDefaultConfig());
+  if (normalized.defaultToAll !== defaults.defaultToAll) return true;
+  if (normalized.includeTodayInAll !== defaults.includeTodayInAll) return true;
+  if (normalized.widgets.length !== defaults.widgets.length) return true;
+  for (let index = 0; index < normalized.widgets.length; index += 1) {
+    const current = normalized.widgets[index];
+    const fallback = defaults.widgets[index];
+    if (!current || !fallback) return true;
+    if (current.id !== fallback.id) return true;
+    if (current.visible !== fallback.visible) return true;
+    if (current.order !== fallback.order) return true;
+  }
+  return false;
+}
+
 function readDashboardBusMode() {
   if (dashboardStateApi && typeof dashboardStateApi.getMode === 'function') {
     const mode = dashboardStateApi.getMode();
@@ -2965,13 +2983,15 @@ function clonePrefs(prefs) {
 
 function sanitizePrefs(settings) {
   const prefs = defaultPrefs();
+  const config = getDashboardConfigState();
+  const hasCustomConfig = isDashboardConfigCustomized(config);
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
   if (!dash || typeof dash !== 'object') {
     lastPersistedLayoutColumns = prefs.layout.columns;
     persistDashboardLayoutColumns(prefs.layout.columns, { force: true });
     return prefs;
   }
-  const widgetSource = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
+  const widgetSource = !hasCustomConfig && dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
   if (widgetSource) {
     Object.keys(prefs.widgets).forEach(key => {
       if (typeof widgetSource[key] === 'boolean') prefs.widgets[key] = widgetSource[key];
@@ -3011,7 +3031,7 @@ function sanitizePrefs(settings) {
   const normalizedLayout = layoutSource && Object.prototype.hasOwnProperty.call(layoutSource, 'columns')
     ? normalizeColumnCount(layoutSource.columns)
     : normalizeColumnCount(undefined);
-  prefs.mode = dash.mode === 'all' ? 'all' : 'today';
+  prefs.mode = hasCustomConfig ? prefs.mode : (dash.mode === 'all' ? 'all' : 'today');
   const widthSource = layoutSource && typeof layoutSource.widths === 'object' ? layoutSource.widths : null;
   prefs.layout.columns = normalizedLayout.value;
   prefs.layout.widths = normalizeWidthMap(widthSource);
@@ -3019,7 +3039,6 @@ function sanitizePrefs(settings) {
   if (normalizedLayout.coerced) {
     persistDashboardLayoutColumns(normalizedLayout.value, { force: true });
   }
-  const config = getDashboardConfigState();
   prefs.configFlags = { includeTodayInAll: !config || config.includeTodayInAll !== false };
   if (dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
