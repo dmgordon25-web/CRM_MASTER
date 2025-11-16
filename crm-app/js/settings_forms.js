@@ -1,4 +1,11 @@
 import { STR, text } from './ui/strings.js';
+import {
+  DASHBOARD_WIDGETS,
+  normalizeDashboardConfig,
+  readDashboardConfig,
+  writeDashboardConfig,
+  isTodayWidget
+} from './dashboard/config.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
 function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
 
@@ -24,7 +31,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     if(typeof document === 'undefined') return;
     const SETTINGS_STYLE_ID = 'settings-inline-style';
     const SETTINGS_STYLE_ORIGIN = 'crm:settings:inline';
-    const SETTINGS_STYLE_TEXT = '#dashboard-widget-list{ display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:10px; }\n#dashboard-widget-list label.switch{ display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border-subtle,#DDD); border-radius:10px; background:#fff; }';
+    const SETTINGS_STYLE_TEXT = '#dashboard-widget-list{ width:100%; overflow:auto; }\n#dashboard-widget-list table{ width:100%; border-collapse:collapse; }';
 
     function ensureSettingsStyle(){
       const head = document.head || document.querySelector('head') || document.documentElement;
@@ -67,28 +74,11 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   const signatureState = { rows: [], defaultId: null };
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
-  const DASHBOARD_WIDGET_ENTRIES = [
-    {key:'focus', label:'Focus Summary', description:'Quick snapshot of key metrics and current priorities'},
-    {key:'filters', label:'Filters', description:'Advanced filtering controls for dashboard data'},
-    {key:'kpis', label:'KPIs', description:'Key performance indicators at a glance'},
-    {key:'pipeline', label:'Pipeline Overview', description:'Visual representation of your pipeline stages'},
-    {key:'today', label:"Today's Work", description:'Tasks and priorities due today'},
-    {key:'leaderboard', label:'Referral Leaderboard', description:'Top-performing referral partners ranked'},
-    {key:'stale', label:'Stale Deals', description:'Contacts that need follow-up attention'},
-    {key:'goalProgress', label:'Production Goals', description:'Monthly targets vs actual progress'},
-    {key:'numbersPortfolio', label:'Partner Portfolio', description:'Partner tier distribution and metrics'},
-    {key:'numbersReferrals', label:'Referral Leaders', description:'Top 3 partners by referral volume'},
-    {key:'numbersMomentum', label:'Pipeline Momentum', description:'Stage-by-stage pipeline breakdown'},
-    {key:'pipelineCalendar', label:'Pipeline Calendar', description:'Upcoming milestones and deadlines in calendar view'},
-    {key:'priorityActions', label:'Priority Actions', description:'Overdue and high-impact follow-ups'},
-    {key:'milestones', label:'Milestones Ahead', description:'Upcoming events and touchpoints'},
-    {key:'docPulse', label:'Document Pulse', description:'Outstanding document requests across clients'},
-    {key:'relationshipOpportunities', label:'Relationship Opportunities', description:'Pipeline borrowers needing outreach'},
-    {key:'clientCareRadar', label:'Client Care Radar', description:'Funded clients ready for nurture'},
-    {key:'closingWatch', label:'Closing Watchlist', description:'Deals approaching the finish line'},
-    {key:'docCenter', label:'Document Center', description:'Manage document checklists and requests'},
-    {key:'statusStack', label:'Status Panels', description:'Collapsible tables by pipeline status'}
-  ];
+  const DASHBOARD_WIDGET_ENTRIES = DASHBOARD_WIDGETS.map(widget => ({
+    key: widget.id,
+    label: widget.label,
+    description: widget.today ? 'Shows time-sensitive insights for today.' : 'Appears in the all view by default.'
+  }));
   const DASHBOARD_GRAPH_ENTRIES = [
     {key:'goalProgress', label:'Production Goals'},
     {key:'numbersPortfolio', label:'Partner Portfolio'},
@@ -243,75 +233,84 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   function renderDashboardSettings(){
     const list = document.getElementById('dashboard-widget-list');
     if(!list) return;
-    const sections = [
-      { title: 'Widgets', entries: DASHBOARD_WIDGET_ENTRIES, attr: 'dashboard-widget', state: dashboardState.widgets },
-      { title: 'Graphs', entries: DASHBOARD_GRAPH_ENTRIES, attr: 'dashboard-graph', state: dashboardState.graphs },
-      { title: 'Widget Cards', entries: DASHBOARD_WIDGET_CARD_ENTRIES, attr: 'dashboard-card', state: dashboardState.widgetCards },
-      { title: 'KPIs', entries: DASHBOARD_KPI_ENTRIES, attr: 'dashboard-kpi', state: dashboardState.kpis }
-    ];
-    list.innerHTML = sections.map((section, index) => {
-      const rows = section.entries.map(entry => {
-        const checked = section.state[entry.key] !== false ? ' checked' : '';
-        const description = entry.description || '';
-        return `
-          <tr>
-            <td style="width:60px;text-align:center;">
-              <input type="checkbox" data-${section.attr}="${entry.key}"${checked} style="width:18px;height:18px;cursor:pointer;">
-            </td>
-            <td style="font-weight:600;">${entry.label}</td>
-            <td style="color:var(--muted);font-size:0.9rem;">${description}</td>
-          </tr>`;
-      }).join('');
-      const margin = index === 0 ? 'margin:12px 0 8px;font-size:1rem;' : 'margin:24px 0 8px;font-size:1rem;';
+    const config = normalizeDashboardConfig(readDashboardConfig());
+    const rows = config.widgets.map(entry => {
+      const meta = DASHBOARD_WIDGETS.find(w => w.id === entry.id) || { label: entry.id };
+      const checked = entry.visible !== false ? 'checked' : '';
+      const order = Number(entry.order) || 1;
+      const todayBadge = isTodayWidget(entry.id) ? '<span class="pill" style="background:#f1f5f9;color:#0f172a;">Today</span>' : '';
       return `
-        <div class="dashboard-toggle-group">
-          <h4 style="${margin}">${section.title}</h4>
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr style="border-bottom:2px solid #e2e8f0;">
-                <th style="width:60px;text-align:center;padding:8px;font-weight:600;">Show</th>
-                <th style="padding:8px;font-weight:600;">Widget</th>
-                <th style="padding:8px;font-weight:600;">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </div>`;
+        <tr data-widget-row="${entry.id}">
+          <td style="width:64px;text-align:center;">
+            <input type="checkbox" data-dashboard-widget="${entry.id}" ${checked} aria-label="Toggle ${meta.label}">
+          </td>
+          <td style="font-weight:600;display:flex;align-items:center;gap:8px;">
+            <span>${meta.label}</span>
+            ${todayBadge}
+          </td>
+          <td style="width:120px;">
+            <input type="number" min="1" data-dashboard-order="${entry.id}" value="${order}" style="width:80px;">
+          </td>
+        </tr>`;
     }).join('');
+
+    list.innerHTML = `
+      <table class="dashboard-settings-table">
+        <thead>
+          <tr>
+            <th style="width:64px;text-align:center;">Show</th>
+            <th>Widget</th>
+            <th style="width:120px;">Order</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="dashboard-settings-flags">
+        <label class="row" style="align-items:center;gap:10px;">
+          <input type="checkbox" data-dashboard-flag="defaultToAll" ${config.defaultToAll ? 'checked' : ''}> Default to All view
+        </label>
+        <label class="row" style="align-items:center;gap:10px;">
+          <input type="checkbox" data-dashboard-flag="includeTodayInAll" ${config.includeTodayInAll ? 'checked' : ''}> Include Today widgets in All view
+        </label>
+      </div>`;
+
+    const persist = () => {
+      const rows = Array.from(list.querySelectorAll('tbody tr[data-widget-row]'));
+      const updated = rows.map((row, index) => {
+        const id = row.getAttribute('data-widget-row') || '';
+        const visibleInput = row.querySelector('input[data-dashboard-widget]');
+        const orderInput = row.querySelector('input[data-dashboard-order]');
+        const order = Number(orderInput?.value) || index + 1;
+        return { id, visible: !!visibleInput?.checked, order };
+      });
+      const flags = Array.from(list.querySelectorAll('input[data-dashboard-flag]')).reduce((acc, input) => {
+        if(!(input instanceof HTMLInputElement)) return acc;
+        acc[input.dataset.dashboardFlag] = input.checked;
+        return acc;
+      }, {});
+      writeDashboardConfig({ widgets: updated, defaultToAll: !!flags.defaultToAll, includeTodayInAll: !!flags.includeTodayInAll });
+      try {
+        document.dispatchEvent(new CustomEvent('app:data:changed', { detail: { scope: 'settings' } }));
+      } catch (_err) {}
+    };
+
     if(!list.__wired){
       list.__wired = true;
       list.addEventListener('change', evt => {
         if(hydrating) return;
-        const target = evt.target instanceof HTMLInputElement ? evt.target : evt.target?.closest('input[type="checkbox"]');
-        if(!target || !(target instanceof HTMLInputElement)) return;
-        const dataset = target.dataset || {};
-        let scope = '';
-        let key = '';
-        if(dataset.dashboardWidget){
-          scope = 'widgets';
-          key = dataset.dashboardWidget;
-        }else if(dataset.dashboardGraph){
-          scope = 'graphs';
-          key = dataset.dashboardGraph;
-        }else if(dataset.dashboardCard){
-          scope = 'widgetCards';
-          key = dataset.dashboardCard;
-        }else if(dataset.dashboardKpi){
-          scope = 'kpis';
-          key = dataset.dashboardKpi;
+        const target = evt.target;
+        if(!(target instanceof HTMLInputElement)) return;
+        if(target.dataset.dashboardWidget || target.dataset.dashboardFlag){
+          persist();
         }
-        if(!scope || !key) return;
-        if(!dashboardState[scope]) dashboardState[scope] = {};
-        dashboardState[scope][key] = target.checked;
-        if(!ensureSettings()) return;
-        const payload = { dashboard: {} };
-        if(scope === 'widgets') payload.dashboard.widgets = Object.assign({}, dashboardState.widgets);
-        else if(scope === 'graphs') payload.dashboard.graphs = Object.assign({}, dashboardState.graphs);
-        else if(scope === 'widgetCards') payload.dashboard.widgetCards = Object.assign({}, dashboardState.widgetCards);
-        else if(scope === 'kpis') payload.dashboard.kpis = Object.assign({}, dashboardState.kpis);
-        window.Settings.save(payload).catch(err => console && console.warn && console.warn('dashboard settings save failed', err));
+      });
+      list.addEventListener('input', evt => {
+        const target = evt.target;
+        if(!(target instanceof HTMLInputElement)) return;
+        if(target.dataset.dashboardOrder){
+          if(hydrating) return;
+          persist();
+        }
       });
     }
   }

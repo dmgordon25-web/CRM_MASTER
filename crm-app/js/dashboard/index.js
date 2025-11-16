@@ -7,6 +7,13 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 import dashboardState from '../state/dashboard_state.js';
+import {
+  DASHBOARD_WIDGETS,
+  normalizeDashboardConfig,
+  readDashboardConfig,
+  writeDashboardConfig,
+  isTodayWidget
+} from './config.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -230,6 +237,22 @@ function refreshWidgetIdLookup() {
   });
 }
 
+function getDashboardConfigState() {
+  if (dashboardConfigState) return dashboardConfigState;
+  dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
+  return dashboardConfigState;
+}
+
+function persistDashboardConfigState(next) {
+  dashboardConfigState = writeDashboardConfig(next || getDashboardConfigState());
+  return dashboardConfigState;
+}
+
+function resetDashboardConfigState() {
+  dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
+  return dashboardConfigState;
+}
+
 function resolveWidgetKeyFromId(rawId) {
   if (rawId == null) return '';
   const normalized = String(rawId).trim();
@@ -246,6 +269,7 @@ const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
 const prefCache = { value: null, loading: null };
 let lastPersistedLayoutColumns = null;
 let pendingLayoutPersist = null;
+let dashboardConfigState = null;
 
 const DASHBOARD_WIDGET_EDITING_CLASS = 'dash-widget-editing';
 
@@ -2903,13 +2927,24 @@ function readDashboardBusMode() {
 
 function defaultPrefs() {
   const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS));
+  const config = getDashboardConfigState();
+  if (config && Array.isArray(config.widgets)) {
+    config.widgets.forEach(entry => {
+      if (!entry || !entry.id) return;
+      if (Object.prototype.hasOwnProperty.call(widgets, entry.id)) {
+        widgets[entry.id] = entry.visible !== false;
+      }
+    });
+  }
+  const preferredMode = config && config.defaultToAll ? 'all' : readDashboardBusMode();
   return {
-    mode: readDashboardBusMode(),
+    mode: preferredMode,
     widgets,
     kpis: buildDefaultMap(KPI_KEYS),
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
     widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS)),
-    layout: { columns: DASHBOARD_MIN_COLUMNS, widths: {} }
+    layout: { columns: DASHBOARD_MIN_COLUMNS, widths: {} },
+    configFlags: { includeTodayInAll: !config || config.includeTodayInAll !== false }
   };
 }
 
@@ -2923,7 +2958,8 @@ function clonePrefs(prefs) {
     kpis: Object.assign({}, prefs.kpis),
     graphs: Object.assign({}, prefs.graphs),
     widgetCards: Object.assign({}, prefs.widgetCards),
-    layout: { columns: normalizedColumns, widths: Object.assign({}, widthSource || {}) }
+    layout: { columns: normalizedColumns, widths: Object.assign({}, widthSource || {}) },
+    configFlags: Object.assign({ includeTodayInAll: true }, prefs.configFlags || {})
   };
 }
 
@@ -2983,6 +3019,8 @@ function sanitizePrefs(settings) {
   if (normalizedLayout.coerced) {
     persistDashboardLayoutColumns(normalizedLayout.value, { force: true });
   }
+  const config = getDashboardConfigState();
+  prefs.configFlags = { includeTodayInAll: !config || config.includeTodayInAll !== false };
   if (dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
       dashboardStateApi.setMode(prefs.mode, { notify: false, refresh: false, reason: 'dashboard:index:hydrate' });
@@ -3161,6 +3199,49 @@ function applyTodayPrioritiesHighlight() {
   }
 }
 
+function resolveConfigWidgetKey(node) {
+  if (!node) return '';
+  const dataset = node.dataset || {};
+  const idCandidate = dataset.widgetId || dataset.dashWidget || dataset.widget || node.id || '';
+  return resolveWidgetKeyFromId(idCandidate);
+}
+
+function applyWidgetSizing(node, key) {
+  if (!node || !node.classList) return;
+  const meta = DASHBOARD_WIDGETS.find(widget => widget.id === key);
+  const size = meta && meta.size ? meta.size : 'medium';
+  node.classList.remove('dash-size-small', 'dash-size-medium', 'dash-size-large', 'dash-span-2');
+  node.classList.add(`dash-size-${size}`);
+  if (size === 'large') {
+    node.classList.add('dash-span-2');
+  }
+}
+
+function applyDashboardConfigLayout(mode) {
+  const container = getDashboardContainerNode();
+  if (!container) return;
+  const config = getDashboardConfigState();
+  const orderMap = new Map();
+  const normalized = normalizeDashboardConfig(config);
+  dashboardConfigState = normalized;
+  writeDashboardConfig(normalized);
+  normalized.widgets.forEach((entry, index) => {
+    orderMap.set(entry.id, Number.isFinite(entry.order) ? entry.order : index + 1);
+  });
+  const nodes = collectWidgetNodes(container);
+  const keyed = nodes.map(node => ({ key: resolveConfigWidgetKey(node), node }));
+  const sorted = keyed.sort((a, b) => {
+    const orderA = orderMap.has(a.key) ? orderMap.get(a.key) : Number.MAX_SAFE_INTEGER;
+    const orderB = orderMap.has(b.key) ? orderMap.get(b.key) : Number.MAX_SAFE_INTEGER;
+    if (orderA === orderB) return (a.key || '').localeCompare(b.key || '');
+    return orderA - orderB;
+  });
+  sorted.forEach(entry => {
+    applyWidgetSizing(entry.node, entry.key);
+    container.appendChild(entry.node);
+  });
+}
+
 function getDashboardMode() {
   if (prefCache.value) {
     if (prefCache.value.mode === 'all') return 'all';
@@ -3300,6 +3381,9 @@ function applySurfaceVisibility(prefs) {
   const handledCards = new Set();
   const mode = prefs && prefs.mode === 'all' ? 'all' : 'today';
   const restrictToToday = mode === 'today';
+  const configFlags = prefs && prefs.configFlags && typeof prefs.configFlags === 'object'
+    ? prefs.configFlags
+    : { includeTodayInAll: true };
   const visibleKeys = [];
 
   Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
@@ -3321,7 +3405,10 @@ function applySurfaceVisibility(prefs) {
     if (GRAPH_KEYS.has(key)) handledGraphs.add(key);
     if (WIDGET_CARD_KEYS.has(key)) handledCards.add(key);
     // Force show today widgets when in today mode, regardless of other settings
-    const show = (forceTodayVisibility || (widgetEnabled && graphEnabled && cardEnabled)) && (!restrictToToday || isTodayWidget);
+    const allowedByMode = restrictToToday
+      ? isTodayWidget
+      : (configFlags.includeTodayInAll !== false || !isTodayWidget);
+    const show = (forceTodayVisibility || (widgetEnabled && graphEnabled && cardEnabled)) && allowedByMode;
     applyNodeVisibility(node, show);
     if (show) visibleKeys.push(key);
   });
@@ -3334,7 +3421,9 @@ function applySurfaceVisibility(prefs) {
     } catch (_err) {
       node = null;
     }
-    const show = graphPrefs[key] !== false && (!restrictToToday || TODAY_WIDGET_KEYS.has(key));
+    const show = graphPrefs[key] !== false && (
+      restrictToToday ? TODAY_WIDGET_KEYS.has(key) : (configFlags.includeTodayInAll !== false || !TODAY_WIDGET_KEYS.has(key))
+    );
     applyNodeVisibility(node, show);
   });
 
@@ -3346,10 +3435,13 @@ function applySurfaceVisibility(prefs) {
     } catch (_err) {
       node = null;
     }
-    const show = cardPrefs[key] !== false && (!restrictToToday || TODAY_WIDGET_KEYS.has(key));
+    const show = cardPrefs[key] !== false && (
+      restrictToToday ? TODAY_WIDGET_KEYS.has(key) : (configFlags.includeTodayInAll !== false || !TODAY_WIDGET_KEYS.has(key))
+    );
     applyNodeVisibility(node, show);
   });
 
+  applyDashboardConfigLayout(mode);
   applyWidgetWidths();
   setDebugSelectedIds(visibleKeys);
   setDebugTodayMode(restrictToToday);
@@ -3399,6 +3491,7 @@ function scheduleApply() {
   pendingApply = true;
   Promise.resolve().then(async () => {
     pendingApply = false;
+    dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
     let prefs = null;
     try {
       ensureDashboardLegend();
