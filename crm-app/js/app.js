@@ -249,21 +249,26 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function createListLoadingController(){
     const doc = typeof document === 'undefined' ? null : document;
-    const TABLE_IDS = [
-      'tbl-inprog',
-      'tbl-status-active',
-      'tbl-status-clients',
-      'tbl-status-longshots',
-      'tbl-partners',
-      'tbl-pipeline',
-      'tbl-clients',
-      'tbl-doc-templates',
-      'tbl-msg-templates',
-      'tbl-longshots',
-      'tbl-funded',
-      'tbl-ledger-received',
-      'tbl-ledger-projected',
-    ];
+    const TABLE_IDS_BY_VIEW = {
+      dashboard: [
+        'tbl-inprog',
+        'tbl-status-active',
+        'tbl-status-clients',
+        'tbl-status-longshots',
+        'tbl-longshots',
+        'tbl-funded'
+      ],
+      contacts: [
+        'tbl-clients',
+        'tbl-status-active',
+        'tbl-status-clients',
+        'tbl-status-longshots'
+      ],
+      partners: ['tbl-partners'],
+      pipeline: ['tbl-pipeline'],
+      commissions: ['tbl-ledger-received', 'tbl-ledger-projected'],
+      settings: ['tbl-doc-templates', 'tbl-msg-templates']
+    };
     const DEFAULT_OPTIONS = Object.freeze({ lines: 6, reserve: 'table', minHeight: 280 });
     let depth = 0;
     let activeReleases = [];
@@ -289,8 +294,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
     const collectHosts = () => {
       if(!doc) return [];
+      const resolveView = () => {
+        if(activeView) return activeView;
+        try{ return viewFromHash(normalizedHash()); }
+        catch (_err){ return null; }
+      };
+      const currentView = resolveView();
+      const tableIds = TABLE_IDS_BY_VIEW[currentView] || TABLE_IDS_BY_VIEW.dashboard || [];
       const hosts = new Set();
-      TABLE_IDS.forEach(id => {
+      tableIds.forEach(id => {
         const table = doc.getElementById(id);
         if(!table) return;
         const host = findHost(table);
@@ -3001,6 +3013,23 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     let burstStart = 0;
     let burstWarned = false;
     const BURST_WINDOW = 600;
+    const KNOWN_SCOPES = new Set([
+      'dashboard','partners','contacts','notifications','tasks','pipeline','longshots','commissions','calendar','settings','workbench'
+    ]);
+    const DASHBOARD_DATA_SCOPES = new Set(['contacts','partners','pipeline','tasks']);
+    const notifyDashboardInvalidation = (scopes) => {
+      const list = Array.isArray(scopes) ? scopes : [scopes];
+      const dataApi = typeof window.invalidateDashboardData === 'function' ? window.invalidateDashboardData : null;
+      const settingsApi = typeof window.invalidateDashboardSettings === 'function' ? window.invalidateDashboardSettings : null;
+      if(dataApi){
+        try{ dataApi(list); }
+        catch (_err){}
+      }
+      if(settingsApi && list.some(scope => String(scope||'').toLowerCase() === 'settings')){
+        try{ settingsApi(list); }
+        catch (_err){}
+      }
+    };
     const handler = function(evt){
       const detail = evt && evt.detail ? evt.detail : {};
       const now = Date.now();
@@ -3023,7 +3052,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       const partial = detail ? detail.partial : null;
       const detailScope = typeof detail.scope === 'string' ? detail.scope : null;
       const partialScope = partial && typeof partial === 'object' && typeof partial.scope === 'string' ? partial.scope : null;
-      if(detailScope !== 'selection' && partialScope !== 'selection'){
+      const normalizedDetailScope = detailScope ? detailScope.toLowerCase() : null;
+      const normalizedPartialScope = partialScope ? partialScope.toLowerCase() : null;
+      const selectionOnly = normalizedDetailScope === 'selection' || normalizedPartialScope === 'selection';
+      if(!selectionOnly){
         clearAllSelectionScopes();
       }
       if(partial){
@@ -3038,7 +3070,42 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           return;
         }
         const scopeSource = detailScope || partialScope;
-        if(scopeSource && refreshByScope(scopeSource, detail.action)) return;
+        if(scopeSource){
+          const scopeKey = String(scopeSource || '').toLowerCase();
+          if(DASHBOARD_DATA_SCOPES.has(scopeKey) || scopeKey === 'settings'){
+            notifyDashboardInvalidation(scopeKey);
+          }
+          if(scopeKey === 'selection') return;
+          if(scopeKey === 'pipeline' && lanes.some(token => typeof token === 'string' && token.startsWith('pipeline:'))){
+            return;
+          }
+          if(KNOWN_SCOPES.has(scopeKey)){
+            const handled = refreshByScope(scopeKey, detail.action);
+            if(handled) return;
+          }
+        }
+      }
+      if(selectionOnly){
+        return;
+      }
+      const scopeCandidates = [];
+      if(detailScope) scopeCandidates.push(detailScope);
+      if(partialScope && partialScope !== detailScope) scopeCandidates.push(partialScope);
+      scopeCandidates.forEach(scope => {
+        const key = String(scope||'').toLowerCase();
+        if(DASHBOARD_DATA_SCOPES.has(key) || key === 'settings') notifyDashboardInvalidation(key);
+      });
+      const hasScope = scopeCandidates.length > 0;
+      const unknownScope = scopeCandidates.some(scope => !KNOWN_SCOPES.has(String(scope||'').toLowerCase()));
+      const forceFull = detail && detail.mode === 'full-repaint';
+      const shouldFullRender = forceFull || !hasScope || unknownScope;
+      if(!shouldFullRender){
+        scopeCandidates.forEach(scope => {
+          const key = String(scope||'').toLowerCase();
+          if(key === 'selection') return;
+          refreshByScope(key, detail.action);
+        });
+        return;
       }
       if(window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
         try{ window.RenderGuard.requestRender(); }

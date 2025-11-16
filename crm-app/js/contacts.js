@@ -1907,6 +1907,7 @@ export function normalizeContactId(input) {
         Object.assign(c, u);
         if((statusChanged || milestoneChanged) && u.id != null){
           const statusDetail = {
+            scope:'contacts',
             source:'contact:modal',
             action:'status',
             contactId:String(u.id||''),
@@ -1919,6 +1920,7 @@ export function normalizeContactId(input) {
             statusDetail.statusBefore = prevStatusKey;
             if(statusChanged) statusDetail.from = prevStatusKey;
           }
+          statusDetail.partial = { scope:'contacts', ids:[String(u.id||'')], reason:'status-change' };
           if(typeof window.dispatchAppDataChanged === 'function'){
             window.dispatchAppDataChanged(statusDetail);
           }else{
@@ -1933,7 +1935,8 @@ export function normalizeContactId(input) {
           scope:'contacts',
           contactId:String(u.id||''),
           action: existed ? 'update' : 'create',
-          source:'contact:modal'
+          source:'contact:modal',
+          partial: { scope:'contacts', ids:[String(u.id||'')], reason:'modal-save' }
         };
         if(typeof window.dispatchAppDataChanged === 'function'){
           window.dispatchAppDataChanged(detail);

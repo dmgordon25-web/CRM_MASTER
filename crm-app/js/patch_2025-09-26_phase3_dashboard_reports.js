@@ -213,6 +213,9 @@ function runPatch(){
       return LEADERBOARD_FILTER_OPTIONS.has(key) ? key : 'all';
     }
 
+    const DATA_DIRTY_SCOPES = new Set(['contacts','partners','pipeline','tasks']);
+    const SETTINGS_DIRTY_SCOPES = new Set(['settings']);
+
     const state = {
       contacts: [],
       partners: [],
@@ -227,10 +230,12 @@ function runPatch(){
       reportView: 'stage',
       reportData: {},
       dataLoaded: false,
+      dataDirty: false,
       lastLoad: 0,
       loadingPromise: null,
       dashboard: JSON.parse(JSON.stringify(DASHBOARD_WIDGET_DEFAULTS)),
       dashboardLoaded: false,
+      dashboardDirty: false,
       dashboardPromise: null,
       lastAggregates: null
     };
@@ -633,7 +638,7 @@ function runPatch(){
     }
 
     async function loadDashboardSettings(force){
-      if(force){
+      if(force || state.dashboardDirty){
         state.dashboardLoaded = false;
         state.dashboardPromise = null;
       }
@@ -660,6 +665,7 @@ function runPatch(){
           state.dashboard = normalizeDashboardSettings(null);
         }
         state.dashboardLoaded = true;
+        state.dashboardDirty = false;
         state.dashboardPromise = null;
         return state.dashboard;
       })();
@@ -788,6 +794,35 @@ function runPatch(){
       };
     }
 
+    function markDashboardDataDirty(){
+      state.dataDirty = true;
+    }
+
+    function markDashboardSettingsDirty(){
+      state.dashboardDirty = true;
+    }
+
+    function invalidateDashboardData(scopes){
+      const list = Array.isArray(scopes) ? scopes : [scopes];
+      if(list.some(scope => DATA_DIRTY_SCOPES.has(String(scope||'').toLowerCase()))){
+        markDashboardDataDirty();
+      }
+    }
+
+    function invalidateDashboardSettings(scopes){
+      const list = Array.isArray(scopes) ? scopes : [scopes];
+      if(list.some(scope => SETTINGS_DIRTY_SCOPES.has(String(scope||'').toLowerCase()))){
+        markDashboardSettingsDirty();
+      }
+    }
+
+    if(typeof window.invalidateDashboardData !== 'function'){
+      window.invalidateDashboardData = invalidateDashboardData;
+    }
+    if(typeof window.invalidateDashboardSettings !== 'function'){
+      window.invalidateDashboardSettings = invalidateDashboardSettings;
+    }
+
     function normalizeTask(raw){
       if(!raw || raw.id==null) return null;
       const id = String(raw.id);
@@ -807,8 +842,7 @@ function runPatch(){
 
     async function loadData(force){
       if(state.loadingPromise) return state.loadingPromise;
-      const now = Date.now();
-      if(!force && state.dataLoaded && now - state.lastLoad < 400) return state;
+      if(!force && state.dataLoaded && !state.dataDirty) return state;
       state.loadingPromise = (async ()=>{
         await openDB();
         const contactsRaw = typeof window.getAllContacts === 'function' ? await window.getAllContacts() : await dbGetAll('contacts');
@@ -820,6 +854,7 @@ function runPatch(){
         state.partnerMap = new Map(state.partners.map(p=>[p.id, p]));
         state.tasks = (tasksRaw||[]).map(normalizeTask).filter(Boolean);
         state.dataLoaded = true;
+        state.dataDirty = false;
         state.lastLoad = Date.now();
         state.loadingPromise = null;
         return state;
