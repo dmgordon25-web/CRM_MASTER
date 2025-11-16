@@ -1020,10 +1020,38 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
 
     await readyPromise;
 
+    // Boot animation with timeout protection to ensure __BOOT_DONE__ contract is honored
     const animationDecision = getBootAnimationDecision({ safeOverride: safe });
-    await animateTabCycle({ decision: animationDecision });
+    let animationError = null;
+    try {
+      // Wrap animation in a timeout to prevent indefinite hangs
+      // The animation is SOFT - it should not block the boot contract
+      const ANIMATION_TIMEOUT = 10000; // 10 seconds max for animation
+      await Promise.race([
+        animateTabCycle({ decision: animationDecision }),
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Boot animation timeout after ${ANIMATION_TIMEOUT}ms`));
+          }, ANIMATION_TIMEOUT);
+        })
+      ]);
+    } catch (err) {
+      // Animation failures are non-fatal - log and continue
+      animationError = err;
+      try {
+        console.warn('[BOOT] Animation failed or timed out (non-fatal):', err);
+      } catch (_) {}
+      // Ensure animation completion signal is set even on failure
+      try {
+        if (typeof animationCompletionSignal !== 'undefined' && animationCompletionSignal.resolve) {
+          animationCompletionSignal.resolve({ bypass: true, reason: 'timeout_or_error' });
+        }
+      } catch (_) {}
+    }
 
-    recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+    // CRITICAL: Always set __BOOT_DONE__ after core+patches are loaded
+    // Animation failures are non-fatal and should not prevent boot completion
+    recordSuccess({ core: state.core.length, patches: state.patches.length, safe, animationError: animationError ? String(animationError.message || animationError) : undefined });
     finalizeSplashAndHeader();
     return { reason: 'ok' };
   } catch (err) {
