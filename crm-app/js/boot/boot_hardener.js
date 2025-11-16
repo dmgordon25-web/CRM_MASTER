@@ -837,6 +837,10 @@ function maybeRenderAll() {
     }
 
     if (!shouldAnimate) {
+      // Skip-mode must still signal completion immediately so smoke tests and
+      // splash logic can proceed without waiting for any optional activation
+      // helpers to finish.
+      markAnimationComplete({ bypass: true, reason: 'disabled' });
       try {
         console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
       } catch (_) {}
@@ -845,9 +849,10 @@ function maybeRenderAll() {
         await waitForDashboardReady();
       } catch (err) {
         console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
-      } finally {
-        markAnimationComplete({ bypass: true, reason: 'disabled' });
       }
+      // markAnimationComplete is intentionally idempotent; signaling early
+      // keeps __BOOT_ANIMATION_COMPLETE__ available even if the minimal
+      // helpers take longer than expected.
       return;
     }
 
