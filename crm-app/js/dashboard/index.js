@@ -2,16 +2,15 @@ import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, 
 import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
 import { applyDashboardConfig, getInitialDashboardMode, loadDashboardConfig } from './config.js';
-
-// Feature flag: Disable edit mode for settings-based auto-layout
-const DISABLE_DASHBOARD_EDIT_MODE = true;
-
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 import dashboardState from '../state/dashboard_state.js';
+
+// Feature flag: Disable edit mode for settings-based auto-layout
+const DISABLE_DASHBOARD_EDIT_MODE = true;
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
