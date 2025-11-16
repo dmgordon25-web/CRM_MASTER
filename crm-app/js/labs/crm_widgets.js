@@ -274,7 +274,7 @@ export function renderReferralLeaderboardWidget(container, partners) {
 // ========================================
 // STALE DEALS WIDGET - Urgency Cards
 // ========================================
-export function renderStaleDeal sWidget(container, contacts) {
+export function renderStaleDealsWidget(container, contacts) {
   const staleDeals = getStaleDeals(contacts, 14);
 
   const widget = document.createElement('div');
