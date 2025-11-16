@@ -962,6 +962,93 @@ function maybeRenderAll() {
     }
   }
 
+async function bootWithTimeout({ CORE, PATCHES, REQUIRED, state, requiredSet }) {
+  let animationError = null;
+  console.log('[BOOT] Starting boot sequence');
+
+  const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
+  state.core = coreRecords.map(({ path }) => path);
+  console.log('[BOOT] Core modules loaded:', state.core.length);
+
+  await waitForDomReady();
+  console.log('[BOOT] DOM ready');
+  await evaluatePrereqs(coreRecords, 'hard');
+  console.log('[BOOT] Hard prereqs evaluated');
+  overlay.hide();
+  const readyPromise = scheduleReadyFinalization();
+
+  const safe = isSafeMode();
+  state.safe = safe;
+  if (typeof window !== 'undefined') {
+    try {
+      const expected = safe
+        ? []
+        : (PATCHES || []).map((spec) => {
+          try { return normalizeModuleId(spec); }
+          catch (_) { return spec; }
+        });
+      window.__EXPECTED_PATCHES__ = expected;
+      window.__SAFE_MODE__ = safe ? 1 : 0;
+    } catch (_) {}
+  }
+
+  const patchRecords = safe
+    ? []
+    : await loadModules(PATCHES, { fatalOnFailure: false });
+
+  if (safe && PATCHES.length) {
+    console.warn('[BOOT] SAFE MODE active — skipping patches');
+    postLog('boot.safe_mode', {});
+  }
+  state.patches = patchRecords.map(({ path }) => path);
+  console.log('[BOOT] Patches loaded:', state.patches.length);
+
+  maybeRenderAll();
+  console.log('[BOOT] maybeRenderAll called');
+
+  const waiters = gatherServiceWaiters(coreRecords);
+  if (waiters.length) {
+    console.log('[BOOT] Waiting for', waiters.length, 'service waiters');
+    await Promise.all(waiters.map((fn) => fn()));
+  }
+
+  await evaluatePrereqs(coreRecords, 'soft');
+  console.log('[BOOT] Soft prereqs evaluated');
+
+  console.log('[BOOT] Waiting for readyPromise');
+  await readyPromise;
+  console.log('[BOOT] readyPromise resolved');
+
+  // Boot animation with timeout protection - animation failures are non-fatal
+  const animationDecision = getBootAnimationDecision({ safeOverride: safe });
+  console.log('[BOOT] Animation decision:', animationDecision);
+  try {
+    // Wrap animation in a timeout to prevent indefinite hangs
+    const ANIMATION_TIMEOUT = 10000; // 10 seconds max for animation
+    await Promise.race([
+      animateTabCycle({ decision: animationDecision }),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Boot animation timeout after ${ANIMATION_TIMEOUT}ms`));
+        }, ANIMATION_TIMEOUT);
+      })
+    ]);
+    console.log('[BOOT] Animation completed successfully');
+  } catch (err) {
+    // Animation failures are non-fatal - log and continue
+    animationError = err;
+    console.warn('[BOOT] Animation failed or timed out (non-fatal):', err);
+    // Ensure animation completion signal is set even on failure
+    try {
+      if (typeof animationCompletionSignal !== 'undefined' && animationCompletionSignal.resolve) {
+        animationCompletionSignal.resolve({ bypass: true, reason: 'timeout_or_error' });
+      }
+    } catch (_) {}
+  }
+
+  return { animationError };
+}
+
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
   const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
@@ -978,89 +1065,45 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
   // Boot contract: track fatal error to ensure __BOOT_DONE__ is ALWAYS set in finally block
   let fatalError = null;
   let animationError = null;
+  let bootTimedOut = false;
 
   try {
-    const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
-    state.core = coreRecords.map(({ path }) => path);
+    // Wrap entire boot process in a 30-second timeout
+    // This ensures we always reach the finally block even if boot hangs
+    const MASTER_BOOT_TIMEOUT = 30000;
+    console.log('[BOOT] Master boot timeout:', MASTER_BOOT_TIMEOUT, 'ms');
 
-    await waitForDomReady();
-    await evaluatePrereqs(coreRecords, 'hard');
-    overlay.hide();
-    const readyPromise = scheduleReadyFinalization();
+    const result = await Promise.race([
+      bootWithTimeout({ CORE, PATCHES, REQUIRED, state, requiredSet }),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          bootTimedOut = true;
+          reject(new Error(`Master boot timeout after ${MASTER_BOOT_TIMEOUT}ms - boot process hung`));
+        }, MASTER_BOOT_TIMEOUT);
+      })
+    ]);
 
-    const safe = isSafeMode();
-    state.safe = safe;
-    if (typeof window !== 'undefined') {
-      try {
-        const expected = safe
-          ? []
-          : (PATCHES || []).map((spec) => {
-            try { return normalizeModuleId(spec); }
-            catch (_) { return spec; }
-          });
-        window.__EXPECTED_PATCHES__ = expected;
-        window.__SAFE_MODE__ = safe ? 1 : 0;
-      } catch (_) {}
-    }
-
-    const patchRecords = safe
-      ? []
-      : await loadModules(PATCHES, { fatalOnFailure: false });
-
-    if (safe && PATCHES.length) {
-      console.warn('[BOOT] SAFE MODE active — skipping patches');
-      postLog('boot.safe_mode', {});
-    }
-    state.patches = patchRecords.map(({ path }) => path);
-
-    maybeRenderAll();
-
-    const waiters = gatherServiceWaiters(coreRecords);
-    if (waiters.length) {
-      await Promise.all(waiters.map((fn) => fn()));
-    }
-
-    await evaluatePrereqs(coreRecords, 'soft');
-
-    await readyPromise;
-
-    // Boot animation with timeout protection - animation failures are non-fatal
-    const animationDecision = getBootAnimationDecision({ safeOverride: safe });
-    try {
-      // Wrap animation in a timeout to prevent indefinite hangs
-      const ANIMATION_TIMEOUT = 10000; // 10 seconds max for animation
-      await Promise.race([
-        animateTabCycle({ decision: animationDecision }),
-        new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Boot animation timeout after ${ANIMATION_TIMEOUT}ms`));
-          }, ANIMATION_TIMEOUT);
-        })
-      ]);
-    } catch (err) {
-      // Animation failures are non-fatal - log and continue
-      animationError = err;
-      try {
-        console.warn('[BOOT] Animation failed or timed out (non-fatal):', err);
-      } catch (_) {}
-      // Ensure animation completion signal is set even on failure
-      try {
-        if (typeof animationCompletionSignal !== 'undefined' && animationCompletionSignal.resolve) {
-          animationCompletionSignal.resolve({ bypass: true, reason: 'timeout_or_error' });
-        }
-      } catch (_) {}
-    }
+    animationError = result.animationError;
   } catch (err) {
     fatalError = err;
+    console.error('[BOOT] Fatal error during boot:', err);
+    if (bootTimedOut) {
+      console.error('[BOOT] Boot process exceeded master timeout - this indicates a hang in one of the boot steps');
+    }
   } finally {
     // CRITICAL BOOT CONTRACT: Always set __BOOT_DONE__ in finally block
     // This ensures the contract is honored even if there are errors during boot
+    console.log('[BOOT] Finally block executing - setting __BOOT_DONE__');
     if (fatalError) {
       const reason = (fatalError && typeof fatalError === 'object' && fatalError.path && requiredSet.has(fatalError.path))
         ? 'required_import'
+        : bootTimedOut
+        ? 'boot_timeout'
         : 'boot_failure';
+      console.log('[BOOT] Recording fatal error, reason:', reason);
       recordFatal(reason, String(fatalError?.stack || fatalError), fatalError);
     } else {
+      console.log('[BOOT] Recording success');
       recordSuccess({
         core: state.core.length,
         patches: state.patches.length,
@@ -1069,6 +1112,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       });
       finalizeSplashAndHeader();
     }
+    console.log('[BOOT] __BOOT_DONE__ has been set');
   }
 
   // Propagate fatal errors after boot contract is honored
