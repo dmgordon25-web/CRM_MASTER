@@ -117,7 +117,7 @@ async function processPendingQueue(){
     if(state.pendingRequest){
       const nextPromise = processPendingQueue();
       state.activePromise = nextPromise;
-      return nextPromise;
+      nextPromise.catch(() => {});
     }
   }
 }
