@@ -95,11 +95,16 @@ function focusModal(){
 }
 
 function queueRequest(request){
-  state.pendingRequest = request;
+  const deferred = {};
+  const promise = new Promise((resolve, reject) => {
+    deferred.resolve = resolve;
+    deferred.reject = reject;
+  });
+  state.pendingRequest = Object.assign({}, request, { deferred });
   if(!state.activePromise){
     state.activePromise = processPendingQueue();
   }
-  return state.activePromise;
+  return promise;
 }
 
 async function processPendingQueue(){
@@ -111,7 +116,15 @@ async function processPendingQueue(){
   state.pendingRequest = null;
   try{
     const result = await performOpen(next.id, next.meta, next.isNew);
+    if(next.deferred && typeof next.deferred.resolve === 'function'){
+      next.deferred.resolve(result);
+    }
     return result;
+  }catch(err){
+    if(next.deferred && typeof next.deferred.reject === 'function'){
+      next.deferred.reject(err);
+    }
+    throw err;
   }finally{
     state.activePromise = null;
     if(state.pendingRequest){
