@@ -15,6 +15,7 @@ export const BASELINE_WIDGET_POLICY = Object.freeze({
   numbersReferrals: { today: false, all: true },
   numbersMomentum: { today: false, all: true },
   pipelineCalendar: { today: false, all: true },
+  todo: { today: true, all: true },
   priorityActions: { today: false, all: true },
   milestones: { today: false, all: true },
   docPulse: { today: false, all: true },

@@ -20,10 +20,13 @@ import { openPartnerEditor } from './editors/partner_entry.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
+import { renderTodoWidget, getTodoTasksForDashboard } from './dashboard/widgets/todo_widget.js';
+import { openTaskEditor } from './ui/quick_create_menu.js';
 import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
+import { recordTask } from './tasks/store.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -49,6 +52,7 @@ import { syncTableLayout } from './ui/table_layout.js';
     '#dashboard-kpis',
     '#dashboard-pipeline-overview',
     '#dashboard-today',
+    '#dashboard-todo',
     '#referral-leaderboard',
     '#dashboard-stale',
     '#dashboard-insights',
@@ -1335,6 +1339,20 @@ import { syncTableLayout } from './ui/table_layout.js';
       console.warn('Referral leaders widget render failed:', err);
     }
 
+    const dashboardTasks = Array.isArray(tasks) ? tasks.slice() : [];
+
+    const notifyTasksChanged = (taskId) => {
+      const detail = { scope: 'tasks' };
+      if (taskId) detail.ids = [taskId];
+      if (typeof window.dispatchAppDataChanged === 'function') {
+        try { window.dispatchAppDataChanged(detail); }
+        catch (_err) {}
+      } else if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+        try { document.dispatchEvent(new CustomEvent('app:data:changed', { detail })); }
+        catch (_err) {}
+      }
+    };
+
     const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
       const dueDate = toDate(t.due);
       const contact = contactById.get(String(t.contactId||''));
@@ -1399,6 +1417,31 @@ import { syncTableLayout } from './ui/table_layout.js';
         <div class="insight-meta ${cls}">${phr} · ${task.dueLabel}</div>
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
+
+    const todoHost = document.getElementById('dashboard-todo');
+    if (todoHost) {
+      const refreshTodo = () => {
+        renderTodoWidget({
+          root: todoHost,
+          tasks: getTodoTasksForDashboard(dashboardTasks, { limit: 10 }),
+          onComplete: async (task) => {
+            const updated = Object.assign({}, task, { done: true, status: 'done', completedAt: Date.now(), updatedAt: Date.now() });
+            await dbPut('tasks', updated);
+            recordTask(updated);
+            const idx = dashboardTasks.findIndex(t => String(t && t.id) === String(updated.id));
+            if (idx >= 0) dashboardTasks[idx] = updated;
+            else dashboardTasks.push(updated);
+            notifyTasksChanged(updated.id);
+            refreshTodo();
+          },
+          onAdd: () => {
+            try { openTaskEditor(); }
+            catch (_err) {}
+          }
+        });
+      };
+      refreshTodo();
+    }
 
     try{
       renderPipelineMomentumWidget({
