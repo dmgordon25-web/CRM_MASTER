@@ -1,15 +1,22 @@
 const debugEnabled = () => typeof window !== 'undefined' && window.__ENV__ && window.__ENV__.DEBUG === true;
 
 let modalModulePromise = null;
+const HISTORY_LIMIT = 20;
+const history = [];
+
 const state = {
   status: 'idle',
   currentId: null,
   lastMeta: null,
-  pending: null,
-  queue: null,
+  pendingRequest: null,
+  activePromise: null,
+  modalRoot: null,
+  closeListener: null,
 };
-const history = [];
-const HISTORY_LIMIT = 20;
+
+// Inventory: dashboard widgets, partners list rows, partner quick create, calendar, workbench,
+// relationships map, pipeline leaderboard clicks, dashboard reports, and universal quick-create menu
+// now delegate here. Legacy paths invoked ui/partner_edit_modal.js directly.
 
 function logDebug(message, payload){
   if(!debugEnabled()) return;
@@ -35,6 +42,10 @@ function buildSourceHint(meta){
   return ctx ? `${base}:${ctx}` : base;
 }
 
+function normalizeMeta(meta){
+  return meta && typeof meta === 'object' ? { ...meta } : {};
+}
+
 function loadModalModule(){
   if(!modalModulePromise){
     modalModulePromise = import('../modals/partner_editor_modal.js');
@@ -42,17 +53,83 @@ function loadModalModule(){
   return modalModulePromise;
 }
 
+function detachCloseListener(){
+  if(state.modalRoot && state.closeListener){
+    try{ state.modalRoot.removeEventListener('close', state.closeListener); }
+    catch(_err){}
+  }
+  state.modalRoot = null;
+  state.closeListener = null;
+}
+
+function attachCloseListener(root){
+  if(!(root instanceof HTMLElement)){
+    detachCloseListener();
+    return;
+  }
+  detachCloseListener();
+  const handler = () => {
+    const statusBefore = state.status;
+    state.status = 'idle';
+    state.currentId = null;
+    pushHistory({ action: 'closed', statusBefore });
+    processPendingQueue();
+  };
+  try{ root.addEventListener('close', handler); }
+  catch(_err){}
+  state.modalRoot = root;
+  state.closeListener = handler;
+}
+
+function focusModal(){
+  const root = state.modalRoot;
+  if(!root || typeof root.querySelector !== 'function') return;
+  const focusTarget = root.querySelector('.dlg') || root;
+  if(focusTarget && typeof focusTarget.focus === 'function'){
+    try{ focusTarget.focus({ preventScroll: true }); }
+    catch(_err){
+      try{ focusTarget.focus(); }
+      catch(__err){}
+    }
+  }
+}
+
+function queueRequest(request){
+  state.pendingRequest = request;
+  if(!state.activePromise){
+    state.activePromise = processPendingQueue();
+  }
+  return state.activePromise;
+}
+
+async function processPendingQueue(){
+  if(!state.pendingRequest){
+    state.activePromise = null;
+    return null;
+  }
+  const next = state.pendingRequest;
+  state.pendingRequest = null;
+  try{
+    const result = await performOpen(next.id, next.meta, next.isNew);
+    return result;
+  }finally{
+    state.activePromise = null;
+    if(state.pendingRequest){
+      return processPendingQueue();
+    }
+  }
+}
+
 async function performOpen(targetId, meta, isNew){
-  const metaObj = meta && typeof meta === 'object' ? { ...meta } : {};
+  const metaObj = normalizeMeta(meta);
   const statusBefore = state.status;
   pushHistory({
     action: isNew ? 'new' : 'open',
     id: targetId || '',
-    source: metaObj.source || '',
-    context: metaObj.context || '',
+    meta: metaObj,
     statusBefore,
   });
-  logDebug('start', { targetId, meta: metaObj, isNew });
+  logDebug('start', { targetId, meta: metaObj, isNew, statusBefore });
   state.status = 'opening';
   state.currentId = isNew ? null : (targetId || null);
   state.lastMeta = metaObj;
@@ -63,62 +140,76 @@ async function performOpen(targetId, meta, isNew){
     if(typeof mount !== 'function'){
       throw new Error('partner modal unavailable');
     }
-    state.status = 'open';
     const result = await mount(targetId, Object.assign({}, metaObj, { sourceHint: buildSourceHint(metaObj) }));
+    state.status = 'open';
+    attachCloseListener(result);
+    pushHistory({ action: 'opened', id: targetId || '', statusAfter: state.status });
+    if(!isNew && state.currentId && targetId === state.currentId){
+      focusModal();
+    }
     return result || null;
   }catch(err){
     pushHistory({ action: 'error', id: targetId || '', error: String(err || '') });
-    throw err;
-  }finally{
     state.status = 'idle';
     state.currentId = null;
-    const queued = state.queue;
-    state.queue = null;
-    if(queued){
-      logDebug('processing queued request', queued);
-      state.pending = performOpen(queued.partnerId, queued.meta, queued.isNew);
-      state.pending.catch(() => {});
+    detachCloseListener();
+    throw err;
+  }finally{
+    if(state.status === 'opening'){
+      state.status = 'idle';
+      state.currentId = null;
     }
   }
 }
 
-export function openPartnerEditor(partnerId, meta){
+export function closePartnerEditor(reason){
+  const statusBefore = state.status;
+  if(statusBefore === 'idle') return;
+  state.status = 'closing';
+  pushHistory({ action: 'close', reason, statusBefore });
+  const root = state.modalRoot;
+  if(root && typeof root.close === 'function'){
+    try{ root.close(); }
+    catch(_err){}
+  }
+  detachCloseListener();
+  state.status = 'idle';
+  state.currentId = null;
+  processPendingQueue();
+}
+
+export function openPartnerEditor(partnerId, meta = {}){
   const targetId = partnerId == null ? '' : String(partnerId);
   const statusBefore = state.status;
-  if((statusBefore === 'opening' || statusBefore === 'closing') && state.currentId && targetId && state.currentId !== targetId){
-    logDebug('open requested during transition for different partner', { currentId: state.currentId, targetId });
+  if(statusBefore === 'opening'){
+    if(state.currentId && targetId && state.currentId === targetId){
+      return state.activePromise || Promise.resolve(null);
+    }
+    return queueRequest({ id: targetId, meta, isNew: false });
   }
-
-  if(statusBefore === 'opening' || statusBefore === 'closing'){
-    state.queue = { partnerId: targetId, meta, isNew: false };
-    return state.pending || Promise.resolve(null);
-  }
-
   if(statusBefore === 'open'){
     if(state.currentId && targetId && state.currentId === targetId){
-      logDebug('focus existing partner editor', { targetId });
-      return state.pending || Promise.resolve(null);
+      focusModal();
+      return state.activePromise || Promise.resolve(state.modalRoot);
     }
-    state.queue = { partnerId: targetId, meta, isNew: false };
-    return state.pending || Promise.resolve(null);
+    return queueRequest({ id: targetId, meta, isNew: false });
   }
-
-  state.pending = performOpen(targetId, meta, false);
-  return state.pending;
+  if(statusBefore === 'closing'){
+    return queueRequest({ id: targetId, meta, isNew: false });
+  }
+  return queueRequest({ id: targetId, meta, isNew: false });
 }
 
-export function openNewPartnerEditor(meta){
+export function openNewPartnerEditor(meta = {}){
   const statusBefore = state.status;
-  if(statusBefore === 'opening' || statusBefore === 'closing' || statusBefore === 'open'){
-    state.queue = { partnerId: '', meta, isNew: true };
-    return state.pending || Promise.resolve(null);
+  if(statusBefore === 'opening' || statusBefore === 'open' || statusBefore === 'closing'){
+    return queueRequest({ id: '', meta, isNew: true });
   }
-  state.pending = performOpen('', meta, true);
-  return state.pending;
+  return queueRequest({ id: '', meta, isNew: true });
 }
 
 if(typeof window !== 'undefined'){
   window.__DBG_dumpPartnerEditorHistory = function(){ return Array.from(history); };
 }
 
-export default { openPartnerEditor, openNewPartnerEditor };
+export default { openPartnerEditor, openNewPartnerEditor, closePartnerEditor };
