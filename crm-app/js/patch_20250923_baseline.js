@@ -311,9 +311,11 @@ function runPatch(){
       }
     }else{
       try {
-        const result = openContactEditor({ id, __isNew: false }, {
+        const normalizedId = String(id).trim();
+        const result = openContactEditor(normalizedId, {
           allowAutoOpen: true,
-          sourceHint: 'baseline:row-open',
+          source: 'contacts:baseline-capture',
+          context: 'row-click',
           trigger: nameCell,
           suppressErrorToast: true
         });
