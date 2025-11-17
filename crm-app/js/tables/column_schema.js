@@ -1,0 +1,74 @@
+const columnSchemas = {
+  contacts: [
+    { id: 'name', label: 'Name', required: true, simple: true, sortKey: 'name' },
+    { id: 'email', label: 'Email', required: true, simple: true, sortKey: 'email' },
+    { id: 'phone', label: 'Phone', required: false, simple: true, sortKey: 'phone' },
+    { id: 'status', label: 'Status', required: false, simple: true, sortKey: 'status' },
+    { id: 'stage', label: 'Stage', required: false, simple: true, sortKey: 'stage' },
+    { id: 'owner', label: 'Owner', required: false, simple: true, sortKey: 'owner' },
+    { id: 'loanType', label: 'Loan Type', required: false, simple: false, sortKey: 'loanType' },
+    { id: 'loanAmount', label: 'Loan Amount', required: false, simple: true, sortKey: 'loanAmount' },
+    { id: 'lastTouch', label: 'Last Touch', required: false, simple: true, sortKey: 'lastTouch' },
+    { id: 'nextAction', label: 'Next Action', required: false, simple: true, sortKey: 'nextAction' },
+    { id: 'fundedDate', label: 'Funded Date', required: false, simple: true, sortKey: 'fundedDate' },
+    { id: 'createdAt', label: 'Created', required: false, simple: false, sortKey: 'createdAt' },
+    { id: 'updatedAt', label: 'Updated', required: false, simple: false, sortKey: 'updatedAt' }
+  ],
+  longshots: [
+    { id: 'name', label: 'Name', required: true, simple: true, sortKey: 'name' },
+    { id: 'status', label: 'Status', required: true, simple: true, sortKey: 'status' },
+    { id: 'stage', label: 'Stage', required: false, simple: true, sortKey: 'stage' },
+    { id: 'owner', label: 'Owner', required: false, simple: true, sortKey: 'owner' },
+    { id: 'loanAmount', label: 'Loan Amount', required: false, simple: true, sortKey: 'loanAmount' },
+    { id: 'lastTouch', label: 'Last Touch', required: false, simple: true, sortKey: 'lastTouch' },
+    { id: 'nextAction', label: 'Next Action', required: false, simple: true, sortKey: 'nextAction' },
+    { id: 'createdAt', label: 'Created', required: false, simple: false, sortKey: 'createdAt' },
+    { id: 'updatedAt', label: 'Updated', required: false, simple: false, sortKey: 'updatedAt' }
+  ],
+  pipeline: [
+    { id: 'name', label: 'Name', required: true, simple: true, sortKey: 'name' },
+    { id: 'stage', label: 'Stage', required: true, simple: true, sortKey: 'stage' },
+    { id: 'owner', label: 'Owner', required: false, simple: true, sortKey: 'owner' },
+    { id: 'loanAmount', label: 'Loan Amount', required: false, simple: true, sortKey: 'loanAmount' },
+    { id: 'loanType', label: 'Loan Type', required: false, simple: false, sortKey: 'loanType' },
+    { id: 'lastTouch', label: 'Last Touch', required: false, simple: true, sortKey: 'lastTouch' },
+    { id: 'nextAction', label: 'Next Action', required: false, simple: true, sortKey: 'nextAction' },
+    { id: 'createdAt', label: 'Created', required: false, simple: false, sortKey: 'createdAt' },
+    { id: 'updatedAt', label: 'Updated', required: false, simple: false, sortKey: 'updatedAt' }
+  ],
+  clients: [
+    { id: 'name', label: 'Name', required: true, simple: true, sortKey: 'name' },
+    { id: 'stage', label: 'Stage', required: true, simple: true, sortKey: 'stage' },
+    { id: 'owner', label: 'Owner', required: false, simple: true, sortKey: 'owner' },
+    { id: 'fundedDate', label: 'Funded Date', required: false, simple: true, sortKey: 'fundedDate' },
+    { id: 'loanAmount', label: 'Loan Amount', required: false, simple: true, sortKey: 'loanAmount' },
+    { id: 'lastTouch', label: 'Last Touch', required: false, simple: true, sortKey: 'lastTouch' },
+    { id: 'updatedAt', label: 'Updated', required: false, simple: false, sortKey: 'updatedAt' }
+  ],
+  partners: [
+    { id: 'name', label: 'Name', required: true, simple: true, sortKey: 'name' },
+    { id: 'company', label: 'Company', required: false, simple: true, sortKey: 'company' },
+    { id: 'tier', label: 'Tier', required: false, simple: true, sortKey: 'tier' },
+    { id: 'owner', label: 'Owner', required: false, simple: true, sortKey: 'owner' },
+    { id: 'lastTouch', label: 'Last Touch', required: false, simple: true, sortKey: 'lastTouch' },
+    { id: 'nextTouch', label: 'Next Action', required: false, simple: true, sortKey: 'nextTouch' },
+    { id: 'createdAt', label: 'Created', required: false, simple: false, sortKey: 'createdAt' },
+    { id: 'updatedAt', label: 'Updated', required: false, simple: false, sortKey: 'updatedAt' }
+  ]
+};
+
+function getColumnSchema(viewKey){
+  if(!viewKey) return [];
+  return columnSchemas[viewKey] ? columnSchemas[viewKey].slice() : [];
+}
+
+function getRequiredColumns(viewKey){
+  return getColumnSchema(viewKey).filter((col) => col.required);
+}
+
+function getSimpleColumns(viewKey){
+  return getColumnSchema(viewKey).filter((col) => col.simple !== false);
+}
+
+export { columnSchemas, getColumnSchema, getRequiredColumns, getSimpleColumns };
+export default columnSchemas;

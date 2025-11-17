@@ -7,6 +7,7 @@ import { normalizeStatus } from './pipeline/constants.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
+import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 
 // app.js
 export function goto(hash){
@@ -2526,6 +2527,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
   initSettingsNav();
   document.addEventListener('DOMContentLoaded', initSettingsNav);
+  initColumnsSettingsPanel();
 
   function clearRowHighlights(row){
     if(!row) return;
