@@ -1,5 +1,6 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
-import { openContactEditor as openContactEditorBridge } from '../contacts.js';
+import { openContactEditor as openContactEntry, openNewContactEditor } from '../editors/contact_entry.js';
+import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js';
 import { validateTask } from '../tasks.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
 
@@ -46,7 +47,6 @@ const state = {
 };
 
 let bootBeaconEmitted = false;
-let partnerModulePromise = null;
 const headerQuickCreateState = { button: null, bound: false, cleanup: null, controller: null };
 const taskModalState = { overlay: null, form: null, typeSelect: null, entitySelect: null, taskTypeSelect: null, noteInput: null, dueInput: null, status: null, saveBtn: null, loadingToken: 0, busy: false, validation: null };
 const TASK_MODAL_HTML = '<div data-role="panel" style="background:#fff;width:100%;max-width:420px;border-radius:12px;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;font-family:inherit;"><div data-role="header" style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #ececec;"><span style="font-size:18px;font-weight:600;">New Task</span><button type="button" data-role="close" aria-label="Close" style="border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:#475467;">×</button></div><form data-role="form" style="display:flex;flex-direction:column;gap:12px;padding:16px;"><label style="display:flex;flex-direction:column;gap:4px;font-size:14px;color:#344054;">Task Type<select name="taskType" style="padding:8px;border:1px solid #d0d5dd;border-radius:8px;"><option value="Call">Call</option><option value="Email">Email</option><option value="SMS">SMS</option><option value="Meeting">Meeting</option><option value="Postal">Postal</option><option value="Follow-up">Follow-up</option></select></label><label style="display:flex;flex-direction:column;gap:4px;font-size:14px;color:#344054;">Link to<select name="linkedType" style="padding:8px;border:1px solid #d0d5dd;border-radius:8px;"><option value="contact">Contact</option><option value="partner">Partner</option></select></label><label style="display:flex;flex-direction:column;gap:4px;font-size:14px;color:#344054;">Who<select name="linkedId" style="padding:8px;border:1px solid #d0d5dd;border-radius:8px;"><option value="">Loading…</option></select></label><label style="display:flex;flex-direction:column;gap:4px;font-size:14px;color:#344054;">Due date<input name="due" type="date" style="padding:8px;border:1px solid #d0d5dd;border-radius:8px;" /></label><label style="display:flex;flex-direction:column;gap:4px;font-size:14px;color:#344054;">Notes<textarea name="note" rows="3" style="padding:8px;border:1px solid #d0d5dd;border-radius:8px;resize:vertical;"></textarea></label><div data-role="status" aria-live="polite" style="min-height:18px;font-size:13px;color:#475467;"></div><div style="display:flex;gap:8px;justify-content:flex-end;"><button type="button" data-role="cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #d0d5dd;background:#fff;color:#344054;cursor:pointer;">Cancel</button><button type="submit" data-role="save" style="padding:8px 14px;border-radius:8px;border:1px solid #1570ef;background:#1570ef;color:#fff;cursor:pointer;">Save Task</button></div></form></div>';
@@ -610,8 +610,12 @@ export function isQuickCreateMenuOpen(source) {
 }
 
 function defaultOpenContactEditor(prefill) {
+  const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    return openContactEditorBridge(prefill);
+    if(prefill && prefill.id){
+      return openContactEntry(prefill.id, meta);
+    }
+    return openNewContactEditor(meta);
   } catch (err) {
     try {
       if (console && typeof console.warn === 'function') {
@@ -623,36 +627,15 @@ function defaultOpenContactEditor(prefill) {
   }
 }
 
-function loadPartnerModule() {
-  if (typeof window.openPartnerEditModal === 'function') {
-    return Promise.resolve(window.openPartnerEditModal);
-  }
-  if (!partnerModulePromise) {
-    try {
-      partnerModulePromise = import('./modals/partner_edit/index.js')
-        .then((mod) => {
-          const opener = mod && typeof mod.openPartnerEditModal === 'function'
-            ? mod.openPartnerEditModal
-            : null;
-          return opener || (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
-        })
-        .catch(() => null);
-    } catch (_) {
-      partnerModulePromise = Promise.resolve(null);
-    }
-  }
-  return partnerModulePromise;
-}
-
 function defaultOpenPartnerEditor() {
-  return Promise.resolve(loadPartnerModule())
-    .then((opener) => {
-      if (typeof opener === 'function') {
-        return callSafely(opener, '', { allowAutoOpen: true });
-      }
-      toastWarn('Partner modal unavailable');
-      return null;
-    });
+  try {
+    return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
+  } catch (err) {
+    try { if (console && typeof console.warn === 'function') console.warn('[quick-create] partner editor open failed', err); }
+    catch (_) {}
+    toastWarn('Partner modal unavailable');
+    return null;
+  }
 }
 
 function defaultOpenTaskEditor() {

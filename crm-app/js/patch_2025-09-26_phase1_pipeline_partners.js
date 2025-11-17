@@ -2,7 +2,7 @@
 import { NORMALIZE_STAGE, stageKeyFromLabel, stageLabelFromKey, PIPELINE_STAGE_KEYS } from './pipeline/stages.js';
 import { normalizeStatusForStage, normalizeMilestoneForStatus, toneForStatus, toneClassName, canonicalStatusKey } from './pipeline/constants.js';
 import { openPartnerEditModal } from './ui/partner_edit_modal.js';
-import { openContactEditor } from './contacts.js';
+import { openContactEditor } from './editors/contact_entry.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 
 const MODULE_LABEL = typeof __filename === 'string'
@@ -1015,9 +1015,9 @@ function runPatch(){
         const id = card.getAttribute('data-card-id');
         if(!id) return;
         try {
-          const result = openContactEditor({ id, __isNew: false }, {
+          const result = openContactEditor(id, {
             allowAutoOpen: true,
-            sourceHint: 'pipeline:board-card',
+            source: 'pipeline:board-card',
             trigger: card,
             suppressErrorToast: true
           });

@@ -1,8 +1,8 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
-import { openContactEditor } from './contacts.js';
+import { openContactEditor } from './editors/contact_entry.js';
 import { openTaskEditor } from './ui/quick_create_menu.js';
-import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { openPartnerEditor } from './editors/partner_entry.js';
 import { attachStatusBanner } from './ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import { toastWarn, toastInfo } from './ui/toast_helpers.js';
@@ -452,7 +452,7 @@ async function openCalendarEventTarget(target, event, context = {}){
         toastWarn('Partner not available');
         return { opened: false, reason: 'partner-missing-id' };
       }
-      const result = await Promise.resolve(openPartnerEditModal(target.id, { sourceHint, trigger }));
+      const result = await Promise.resolve(openPartnerEditor(target.id, { source: 'calendar', context: sourceHint, trigger }));
       return { opened: true, kind: 'partner', partnerId: target.id, result };
     }
     if(target.kind === 'contact'){
@@ -460,7 +460,7 @@ async function openCalendarEventTarget(target, event, context = {}){
         toastWarn('Contact not available');
         return { opened: false, reason: 'contact-missing-id' };
       }
-      const result = await openContactEditor({ id: target.id, __isNew: false }, { sourceHint, trigger, allowAutoOpen: true, suppressErrorToast: true });
+      const result = await openContactEditor(target.id, { source: 'calendar', context: sourceHint, trigger, allowAutoOpen: true, suppressErrorToast: true });
       return { opened: true, kind: 'contact', contactId: target.id, result };
     }
   }catch (error){

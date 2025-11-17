@@ -1,5 +1,5 @@
-import { openPartnerEditModal } from './ui/partner_edit_modal.js';
-import { openContactEditor } from './contacts.js';
+import { openPartnerEditor } from './editors/partner_entry.js';
+import { openContactEditor } from './editors/contact_entry.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 
 let __wired = false;
@@ -290,26 +290,23 @@ function runPatch(){
           }
         }catch(_err){}
       }
-      if(typeof openPartnerEditModal === 'function'){
+      if(typeof openPartnerEditor === 'function'){
         try{
-          const result = openPartnerEditModal(id, {
+          const result = openPartnerEditor(id, {
             trigger,
-            sourceHint: 'partners:baseline-capture'
+            source: 'partners:baseline-capture',
+            context: 'row-click'
           });
           if(result && typeof result.catch === 'function'){
             result.catch(err => {
-              try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
+              try{ console && console.warn && console.warn('openPartnerEditor failed', err); }
               catch(_warnErr){}
             });
           }
         }catch(err){
-          try{ console && console.warn && console.warn('openPartnerEditModal error', err); }
+          try{ console && console.warn && console.warn('openPartnerEditor error', err); }
           catch(_err){}
         }
-        return;
-      }
-      if(typeof window.requestPartnerModal === 'function'){
-        window.requestPartnerModal(id);
         return;
       }
     }else{
