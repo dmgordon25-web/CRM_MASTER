@@ -34,21 +34,22 @@ function persist(viewKey, order, hidden){
   const existing = config[viewKey] || { order: [], hidden: [] };
   const baseOrder = Array.isArray(existing.order) ? existing.order.filter((id) => allowedIds.has(id)) : [];
   const baseHidden = new Set(Array.isArray(existing.hidden) ? existing.hidden.filter((id) => allowedIds.has(id)) : []);
+  const requestedHidden = new Set((hidden || []).filter((id) => allowedIds.has(id)));
   const nextOrder = [];
   const seen = new Set();
+  const nextHidden = new Set(baseHidden);
+  requestedHidden.forEach((id) => nextHidden.add(id));
   (order || []).forEach((id) => {
     if(!allowedIds.has(id) || seen.has(id)) return;
     seen.add(id);
     nextOrder.push(id);
+    nextHidden.delete(id);
   });
   baseOrder.forEach((id) => {
-    if(!allowedIds.has(id) || seen.has(id)) return;
+    if(!allowedIds.has(id) || seen.has(id) || nextHidden.has(id)) return;
     seen.add(id);
     nextOrder.push(id);
   });
-  const nextHidden = new Set(baseHidden);
-  (hidden || []).forEach((id) => { if(allowedIds.has(id)) nextHidden.add(id); });
-  nextOrder.forEach((id) => nextHidden.delete(id));
   config[viewKey] = { order: nextOrder, hidden: Array.from(nextHidden) };
   columnsConfig = saveColumnConfig(config);
   const detail = { view: viewKey, mode: currentMode(), config: columnsConfig };
