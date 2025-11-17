@@ -72,6 +72,7 @@ const DASHBOARD_DEFAULT_WIDTHS = {
 const TODAY_WIDGET_KEYS = new Set([
   'focus',
   'today',
+  'todo',
   CELEBRATIONS_WIDGET_KEY
 ]);
 
