@@ -3,6 +3,8 @@ import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
+import { applyContactFieldVisibility } from './editors/contact_fields.js';
+import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -1056,6 +1058,26 @@ export function normalizeContactId(input) {
           </aside>
         </div>
       </div>`;
+    applyContactFieldVisibility(body, getUiMode());
+    if(dlg){
+      if(dlg.__uiModeUnsub){
+        try{ dlg.__uiModeUnsub(); }
+        catch (_err){}
+        dlg.__uiModeUnsub = null;
+      }
+      dlg.__uiModeUnsub = onUiModeChanged((mode) => applyContactFieldVisibility(body, mode));
+      if(!dlg.__uiModeCleanup){
+        const cleanupMode = () => {
+          if(dlg.__uiModeUnsub){
+            try{ dlg.__uiModeUnsub(); }
+            catch (_err){}
+            dlg.__uiModeUnsub = null;
+          }
+        };
+        dlg.addEventListener('close', cleanupMode);
+        dlg.__uiModeCleanup = cleanupMode;
+      }
+    }
     const buyerSel = $('#c-buyer', body);
     const listingSel = $('#c-listing', body);
     const referralPartnerSel = $('#c-referral-partner', body);

@@ -3,6 +3,8 @@ import { createFormFooter } from './form_footer.js';
 import { registerModalActions } from '../contacts/modal.js';
 import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
 import { validatePartner } from '../partners.js';
+import { applyPartnerFieldVisibility } from '../editors/partner_fields.js';
+import { getUiMode, onUiModeChanged } from './ui_mode.js';
 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
@@ -517,6 +519,26 @@ async function renderPartnerEditor(root, partnerId){
   const partnerForm = root.querySelector('#partner-form');
   resetPartnerForm(partnerForm);
   populatePartnerForm(root, record);
+  applyPartnerFieldVisibility(partnerForm, getUiMode());
+  if(root){
+    if(root.__uiModeUnsub){
+      try{ root.__uiModeUnsub(); }
+      catch (_err){}
+      root.__uiModeUnsub = null;
+    }
+    root.__uiModeUnsub = onUiModeChanged((mode) => applyPartnerFieldVisibility(partnerForm, mode));
+    if(!root.__uiModeCleanup){
+      const cleanupMode = () => {
+        if(root.__uiModeUnsub){
+          try{ root.__uiModeUnsub(); }
+          catch (_err){}
+          root.__uiModeUnsub = null;
+        }
+      };
+      root.addEventListener('close', cleanupMode);
+      root.__uiModeCleanup = cleanupMode;
+    }
+  }
   dispatchPartnerReady(root, partnerForm, record);
   await renderLinkedCustomers(root, record.id);
 

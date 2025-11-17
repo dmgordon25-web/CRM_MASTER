@@ -8,6 +8,8 @@ import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
+import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
+import { closeContactEditor } from './editors/contact_entry.js';
 
 // app.js
 export function goto(hash){
@@ -150,6 +152,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   const DEFAULT_ROUTE = 'dashboard';
+  const ADVANCED_VIEWS = new Set(['reports', 'workbench', 'labs']);
 
   function applyActionBarIdleVisibility(route){
     const bar = getActionBarNode();
@@ -195,6 +198,50 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       btn.setAttribute('aria-hidden', 'true');
       btn.setAttribute('tabindex', '-1');
       btn.disabled = true;
+    }
+  }
+
+  function applyUiModeNavigation(mode){
+    const simple = mode === 'simple';
+    const navKeys = ['reports', 'workbench', 'labs'];
+    navKeys.forEach((key) => {
+      const btn = document.querySelector(`#main-nav button[data-nav="${key}"]`);
+      if(!btn) return;
+      btn.style.display = simple ? 'none' : '';
+      btn.setAttribute('aria-hidden', simple ? 'true' : 'false');
+      btn.disabled = simple;
+      if(simple){
+        btn.setAttribute('tabindex', '-1');
+      }else if(btn.hasAttribute('tabindex')){
+        btn.removeAttribute('tabindex');
+      }
+    });
+    const workbenchView = document.getElementById('view-workbench');
+    if(workbenchView){
+      workbenchView.classList.toggle('hidden', simple);
+      if(simple){
+        workbenchView.setAttribute('aria-hidden', 'true');
+      }else{
+        workbenchView.removeAttribute('aria-hidden');
+      }
+    }
+    const reportsView = document.getElementById('view-reports');
+    if(reportsView){
+      reportsView.classList.toggle('hidden', simple);
+      if(simple){
+        reportsView.setAttribute('aria-hidden', 'true');
+      }else{
+        reportsView.removeAttribute('aria-hidden');
+      }
+    }
+    const labsView = document.getElementById('view-labs');
+    if(labsView){
+      labsView.classList.toggle('hidden', simple);
+      if(simple){
+        labsView.setAttribute('aria-hidden', 'true');
+      }else{
+        labsView.removeAttribute('aria-hidden');
+      }
     }
   }
 
@@ -391,6 +438,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(DEFAULT_ROUTE);
   applyNotificationsNavVisibility(notificationsEnabled);
+  applyUiModeNavigation(getUiMode());
 
   function ensureDefaultRoute(){
     if(typeof window === 'undefined' || !window?.location) return;
@@ -2242,6 +2290,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     return String(value || '').trim().toLowerCase();
   }
 
+  function isAdvancedOnlyView(view){
+    const normalized = normalizeView(view);
+    return ADVANCED_VIEWS.has(normalized);
+  }
+
   function normalizedHash(){
     try{
       if(typeof window !== 'undefined' && window.location){
@@ -2329,6 +2382,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function activate(view){
     let normalized = normalizeView(view);
     if(!normalized) return;
+    if(isSimpleMode() && isAdvancedOnlyView(normalized)){
+      normalized = DEFAULT_ROUTE;
+    }
     if(normalized === 'notifications' && !notificationsEnabled){
       normalized = DEFAULT_ROUTE;
     }
@@ -2384,6 +2440,12 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           ? window.location.hash
           : '';
         const mappedView = viewFromHash(currentHash);
+        if(mappedView && isSimpleMode() && isAdvancedOnlyView(mappedView)){
+          suppressHashUpdate = true;
+          try{ activate(DEFAULT_ROUTE); }
+          finally{ suppressHashUpdate = false; }
+          return;
+        }
         if(mappedView === 'workbench'){
           bypass = true;
         }else if(mappedView){
@@ -2414,6 +2476,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   $('#main-nav').addEventListener('click', (e)=>{
     const btn = e.target.closest('button[data-nav]'); if(!btn) return;
     const navTarget = btn.getAttribute('data-nav');
+    if(isSimpleMode() && isAdvancedOnlyView(navTarget)){
+      e.preventDefault();
+      activate(DEFAULT_ROUTE);
+      return;
+    }
     if(navTarget === 'workbench') return;
     e.preventDefault();
     activate(navTarget);
@@ -2452,6 +2519,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
     async function goWB(evt){
       if(evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+      if(isSimpleMode()){
+        activate(DEFAULT_ROUTE);
+        return;
+      }
       const mount = ensureWorkbenchMount();
       activate('workbench');
       try{
@@ -2487,6 +2558,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       goWB();
     }
   })();
+
+  onUiModeChanged((mode) => {
+    applyUiModeNavigation(mode);
+    if(mode === 'simple' && isAdvancedOnlyView(activeView)){
+      activate(DEFAULT_ROUTE);
+    }else{
+      scheduleAppRender();
+    }
+    try{ closeContactEditor('ui-mode'); }
+    catch (_err){}
+    try{ closePartnerEditModal(); }
+    catch (_err){}
+  });
 
   initSelectionBindings();
 

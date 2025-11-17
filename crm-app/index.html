@@ -1510,13 +1510,22 @@
          <input checked="" id="toggle-autobackup" type="checkbox"/>
          <span>Auto Backup on Close</span>
         </label>
-        <label class="switch">
-         <input checked="" id="toggle-advanced-mode" type="checkbox"/>
-         <span>Advanced Mode</span>
-        </label>
-        <p class="muted fine-print" style="margin-top:8px;">
-         Simple mode hides rarely-used fields and advanced features for a cleaner interface.
-        </p>
+        <div class="stack" data-ui-mode-selector>
+         <div class="muted" style="font-weight:600;margin-bottom:4px;">UI Mode</div>
+         <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center;">
+          <label class="switch">
+           <input name="ui-mode" type="radio" value="simple"/>
+           <span>Simple Mode</span>
+          </label>
+          <label class="switch">
+           <input checked="" name="ui-mode" type="radio" value="advanced"/>
+           <span>Advanced Mode</span>
+          </label>
+         </div>
+         <p class="muted fine-print" style="margin-top:8px;">
+          Simple mode hides rarely-used fields and advanced features for a cleaner interface.
+         </p>
+        </div>
        </div>
        <div class="card">
         <h3>Maintenance</h3>
@@ -2232,7 +2241,7 @@
           './js/ui/universal_search.js',
           './js/table/table_export.js',
           './js/ui/help_hints.js',
-          './js/ui/advanced_mode.js'
+          './js/ui/ui_mode.js'
         ];
         window.__CRM_POST_FIRST_PAINT_MODULES__ = modules.map((spec) => {
           try {
@@ -2248,7 +2257,7 @@
         './js/ui/universal_search.js',
         './js/table/table_export.js',
         './js/ui/help_hints.js',
-        './js/ui/advanced_mode.js'
+        './js/ui/ui_mode.js'
       ];
     }
   </script>

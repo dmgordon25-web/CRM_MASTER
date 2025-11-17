@@ -176,6 +176,10 @@ function extractGeneralSettings(source){
   return defaults;
 }
 
+function normalizeUiMode(value){
+  return value === 'simple' ? 'simple' : 'advanced';
+}
+
 function isValidTimeZone(value){
   if(typeof value !== 'string' || !value){
     return false;
@@ -483,7 +487,8 @@ function shouldValidateGeneral(partial){
       dashboard: normalizeDashboard(base.dashboard),
       favorites: normalizeFavoriteSnapshot(base.favorites),
       dashboardOrder: normalizeDashboardOrder(base.dashboardOrder),
-      updatedAt: base.updatedAt || null
+      updatedAt: base.updatedAt || null,
+      uiMode: normalizeUiMode(base.uiMode)
     };
     const general = extractGeneralSettings(base);
     normalized.timezone = general.timezone;
@@ -622,6 +627,9 @@ function shouldValidateGeneral(partial){
       };
       next.favorites = normalizeFavoriteSnapshot(mergedFavorites);
     }
+    if(Object.prototype.hasOwnProperty.call(source, 'uiMode')){
+      next.uiMode = normalizeUiMode(source.uiMode);
+    }
     for(const key of Object.keys(source)){
       if(key === 'goals' || key === 'signature' || key === 'loProfile') continue;
       if(key === 'dashboard') continue;
@@ -668,12 +676,16 @@ function shouldValidateGeneral(partial){
     await writeRecord(next);
     updateSignatureCache(next.signature);
     updateProfileCache(next.loProfile);
-    const detail = { scope: 'settings' };
+    const detail = { scope: 'settings', settings: clone(next), uiMode: next.uiMode };
     if(typeof window.dispatchAppDataChanged === 'function'){
       window.dispatchAppDataChanged(detail);
     }else if(window.document && typeof window.document.dispatchEvent === 'function'){
       window.document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
     }
+    try{
+      const settingsDetail = { scope: 'uiMode', uiMode: next.uiMode, settings: clone(next) };
+      window.document?.dispatchEvent?.(new CustomEvent('app:settings:changed', { detail: settingsDetail }));
+    }catch (_err){}
     if(!opts.silent && window.Toast && typeof window.Toast.show === 'function'){
       window.Toast.show('Saved');
     }

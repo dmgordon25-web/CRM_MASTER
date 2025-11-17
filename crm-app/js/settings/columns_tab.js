@@ -1,6 +1,6 @@
 import { getColumnSchema } from '../tables/column_schema.js';
 import { getColumnsForView, loadColumnConfig, saveColumnConfig } from '../tables/column_config.js';
-import { isAdvancedModeEnabled } from '../ui/advanced_mode.js';
+import { getUiMode, onUiModeChanged } from '../ui/ui_mode.js';
 
 const VIEW_LABELS = {
   longshots: 'Leads',
@@ -14,7 +14,7 @@ let wired = false;
 
 function currentMode(){
   try{
-    return isAdvancedModeEnabled() ? 'advanced' : 'simple';
+    return getUiMode();
   }catch (_err){
     return 'advanced';
   }
@@ -101,6 +101,9 @@ function renderAvailableList(viewKey, container){
   const snapshot = getColumnsForView(viewKey, mode, ensureConfig());
   columnsConfig = snapshot.config;
   const hiddenColumns = snapshot.hiddenColumns;
+  const advancedOnly = mode === 'simple'
+    ? getColumnSchema(viewKey).filter((col) => col.simple === false)
+    : [];
   container.innerHTML = '';
   if(!hiddenColumns.length){
     const empty = document.createElement('div');
@@ -109,6 +112,12 @@ function renderAvailableList(viewKey, container){
       ? 'All simple columns are already visible.'
       : 'All optional columns are visible.';
     container.appendChild(empty);
+    if(advancedOnly.length){
+      const locked = document.createElement('div');
+      locked.className = 'muted fine-print';
+      locked.textContent = `Additional columns (${advancedOnly.map((c) => c.label).join(', ')}) are available in Advanced Mode.`;
+      container.appendChild(locked);
+    }
     return;
   }
   hiddenColumns.forEach((col) => {
@@ -284,7 +293,7 @@ export function initColumnsSettingsPanel(){
   }else{
     run();
   }
-  document.addEventListener('advancedmode:change', run);
+  onUiModeChanged(run);
   window.RenderGuard?.registerHook?.(run);
 }
 
