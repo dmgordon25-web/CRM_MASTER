@@ -13,6 +13,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'numbersReferrals', label: 'Referral Leaders', size: 'medium' },
   { id: 'numbersMomentum', label: 'Pipeline Momentum', size: 'large' },
   { id: 'pipelineCalendar', label: 'Pipeline Calendar', size: 'large' },
+  { id: 'todo', label: 'To-Do', size: 'medium', today: true },
   { id: 'priorityActions', label: 'Priority Actions', size: 'medium', today: true },
   { id: 'milestones', label: 'Milestones Ahead', size: 'medium' },
   { id: 'docPulse', label: 'Document Pulse', size: 'medium' },
