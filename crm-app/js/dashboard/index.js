@@ -2,7 +2,7 @@ import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, 
 import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
-import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
+import { openPartnerEditor } from '../editors/partner_entry.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
@@ -2553,17 +2553,17 @@ function tryOpenPartner(partnerId) {
   const id = partnerId == null ? '' : String(partnerId).trim();
   if (!id) return;
   try {
-    const result = openPartnerEditModal(id);
+    const result = openPartnerEditor(id, { source: 'dashboard', context: 'widget-click' });
     if (result && typeof result.catch === 'function') {
       result.catch(err => {
         try {
-          if (console && console.warn) console.warn('[dashboard] openPartnerEditModal failed', err);
+          if (console && console.warn) console.warn('[dashboard] openPartnerEditor failed', err);
         } catch (_warnErr) {}
       });
     }
   } catch (err) {
     try {
-      if (console && console.warn) console.warn('[dashboard] openPartnerEditModal failed', err);
+      if (console && console.warn) console.warn('[dashboard] openPartnerEditor failed', err);
     } catch (_warnErr) {}
   }
 }

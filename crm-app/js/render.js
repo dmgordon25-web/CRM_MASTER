@@ -15,8 +15,8 @@ import {
   toneForStage,
   toneClassName
 } from './pipeline/constants.js';
-import { openContactModal, openContactEditor } from './contacts.js';
-import { openPartnerEditModal as openPartnerModal } from './ui/modals/partner_edit/index.js';
+import { openContactEditor } from './editors/contact_entry.js';
+import { openPartnerEditor } from './editors/partner_entry.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
@@ -969,65 +969,48 @@ import { syncTableLayout } from './ui/table_layout.js';
       return null;
     }
     
-    const openers = [];
-    if(typeof openContactEditor === 'function'){
-      openers.push((id, opts) => openContactEditor({ id, __isNew: false }, Object.assign({
-        allowAutoOpen: true,
-        suppressErrorToast: true
-      }, opts)));
+    if(typeof openContactEditor !== 'function'){
+      try{ console && console.warn && console.warn('contact modal unavailable', { contactId }); }
+      catch(_err){}
+      return null;
     }
-    if(typeof openContactModal === 'function') openers.push(openContactModal);
-    if(typeof window !== 'undefined' && typeof window.renderContactModal === 'function'){
-      openers.push(window.renderContactModal);
-    }
-    for(const fn of openers){
-      if(typeof fn !== 'function') continue;
-      try{
-        const result = fn(contactId, options);
-        if(result && typeof result.catch === 'function'){
-          result.catch(err => {
-            try{ console && console.warn && console.warn('openContactModal failed', err); }
-            catch(_err){}
-          });
-        }
-        return result;
-      }catch (err){
-        try{ console && console.warn && console.warn('openContactModal failed', err); }
-        catch(_err){}
+
+    try{
+      const result = openContactEditor(contactId, Object.assign({ source: 'render', context: options && options.context }, options));
+      if(result && typeof result.catch === 'function'){
+        result.catch(err => {
+          try{ console && console.warn && console.warn('openContactEditor failed', err); }
+          catch(_err){}
+        });
       }
+      return result;
+    }catch (err){
+      try{ console && console.warn && console.warn('openContactEditor failed', err); }
+      catch(_err){}
     }
-    try{ console && console.warn && console.warn('contact modal unavailable', { contactId }); }
-    catch(_err){}
     return null;
   }
 
   function dispatchPartnerModal(partnerId, options){
     if(!partnerId) return null;
-    const openers = [];
-    if(typeof openPartnerModal === 'function') openers.push(openPartnerModal);
-    if(typeof window !== 'undefined'){
-      if(typeof window.openPartnerEditModal === 'function') openers.push(window.openPartnerEditModal);
-      if(typeof window.requestPartnerModal === 'function') openers.push(window.requestPartnerModal);
-      if(typeof window.openPartnerEdit === 'function') openers.push(window.openPartnerEdit);
+    if(typeof openPartnerEditor !== 'function'){
+      try{ console && console.warn && console.warn('partner modal unavailable', { partnerId }); }
+      catch(_err){}
+      return null;
     }
-    for(const fn of openers){
-      if(typeof fn !== 'function') continue;
-      try{
-        const result = fn(partnerId, options);
-        if(result && typeof result.catch === 'function'){
-          result.catch(err => {
-            try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
-            catch(_err){}
-          });
-        }
-        return result;
-      }catch (err){
-        try{ console && console.warn && console.warn('openPartnerEditModal failed', err); }
-        catch(_err){}
+    try{
+      const result = openPartnerEditor(partnerId, Object.assign({ source: 'render', context: options && options.context }, options));
+      if(result && typeof result.catch === 'function'){
+        result.catch(err => {
+          try{ console && console.warn && console.warn('openPartnerEditor failed', err); }
+          catch(_err){}
+        });
       }
+      return result;
+    }catch (err){
+      try{ console && console.warn && console.warn('openPartnerEditor failed', err); }
+      catch(_err){}
     }
-    try{ console && console.warn && console.warn('partner modal unavailable', { partnerId }); }
-    catch(_err){}
     return null;
   }
 
