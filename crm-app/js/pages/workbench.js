@@ -4,6 +4,8 @@ import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { ensureActionBarPostPaintRefresh } from '../ui/action_bar.js';
+import { getColumnsForView } from '../tables/column_config.js';
+import { isAdvancedModeEnabled } from '../ui/advanced_mode.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -372,6 +374,45 @@ const LENS_CONFIGS = Object.values(RAW_LENS_CONFIGS).map((raw) => {
   };
 });
 
+function resolveColumnMode(){
+  try{
+    return isAdvancedModeEnabled() ? 'advanced' : 'simple';
+  }catch (_err){
+    return 'advanced';
+  }
+}
+
+function mapSchemaColumns(config, mode){
+  const { visibleColumns } = getColumnsForView(config.key, mode);
+  const mapped = visibleColumns
+    .map((col) => {
+      const field = config.fieldsMap.get(col.id);
+      if(!field) return null;
+      const sortKey = col.sortKey && config.fieldsMap.has(col.sortKey) ? col.sortKey : field.key;
+      return {
+        field: field.key,
+        label: col.label || field.label,
+        type: field.type,
+        formatter: field.formatter,
+        isName: field.key === 'name',
+        sortKey
+      };
+    })
+    .filter(Boolean);
+  return mapped;
+}
+
+function applyColumnPreferencesToConfigs(mode = resolveColumnMode()){
+  LENS_CONFIGS.forEach((config) => {
+    const mapped = mapSchemaColumns(config, mode);
+    if(mapped.length){
+      config.columns = mapped;
+    }
+  });
+}
+
+applyColumnPreferencesToConfigs(resolveColumnMode());
+
 const CONFIG_BY_KEY = new Map(LENS_CONFIGS.map((config) => [config.key, config]));
 
 const ROW_BATCH_SIZE = 250;
@@ -431,6 +472,7 @@ const state = {
   lensDrafts: new Map(),
   selectionUnsubscribe: null,
   dataListener: null,
+  columnListener: null,
   dataCache: {
     contacts: null,
     partners: null,
@@ -1114,6 +1156,48 @@ function destroyDataListener(){
   state.dataListener = null;
 }
 
+function applyColumnPreferencesToLens(lensState, mode = resolveColumnMode()){
+  if(!lensState || !lensState.config) return;
+  const mapped = mapSchemaColumns(lensState.config, mode);
+  if(mapped.length){
+    lensState.config.columns = mapped;
+  }
+  if(!lensState.sort.field || !lensState.config.fieldsMap.has(lensState.sort.field)){
+    const fallback = lensState.config.defaultSort?.field && lensState.config.fieldsMap.has(lensState.config.defaultSort.field)
+      ? lensState.config.defaultSort.field
+      : (lensState.config.columns[0]?.sortKey || lensState.config.columns[0]?.field || lensState.config.fields[0]?.key || '');
+    lensState.sort.field = fallback || '';
+  }
+  if(lensState.elements && lensState.elements.thead){
+    renderTableHeader(lensState);
+    syncSortControls(lensState);
+    if(lensState.dataLoaded){
+      renderTable(lensState);
+    }else{
+      updateStatusMessage(lensState);
+    }
+  }
+  const layoutManager = ensureTableLayoutManager(lensState);
+  if(layoutManager) layoutManager.scheduleMeasure();
+}
+
+function refreshAllColumns(mode = resolveColumnMode()){
+  applyColumnPreferencesToConfigs(mode);
+  state.lensStates.forEach((lensState) => applyColumnPreferencesToLens(lensState, mode));
+}
+
+function attachColumnListener(){
+  if(state.columnListener) return;
+  const handler = () => refreshAllColumns(resolveColumnMode());
+  state.columnListener = handler;
+  if(typeof document !== 'undefined'){
+    document.addEventListener('settings:columns:changed', handler);
+  }
+  if(typeof window !== 'undefined'){
+    window.addEventListener('advancedmode:change', handler);
+  }
+}
+
 async function loadContacts(){
   if(Array.isArray(state.dataCache.contacts) && !state.dataCache.contactsError){
     return state.dataCache.contacts;
@@ -1374,7 +1458,9 @@ function assignLensStateFromQuery(lensState, query){
 }
 
 function getSortOptions(lensState){
-  return lensState.config.sortFields.length ? lensState.config.sortFields : lensState.config.columns.map((col) => ({ key: col.field, label: col.label }));
+  return lensState.config.sortFields.length
+    ? lensState.config.sortFields
+    : lensState.config.columns.map((col) => ({ key: col.sortKey || col.field, label: col.label }));
 }
 
 function renderPresetChips(lensState){
@@ -1885,6 +1971,69 @@ function syncSelectionForLens(lensState){
       try { header.setAttribute('aria-checked', 'false'); }
       catch (_err){}
     }
+  }
+}
+
+function renderTableHeader(lensState){
+  const thead = lensState.elements?.thead;
+  const table = lensState.elements?.table;
+  if(!thead || !table) return;
+  const config = lensState.config;
+  thead.innerHTML = '';
+  const headerRow = document.createElement('tr');
+  headerRow.classList.add('status-row');
+
+  const selectAllTh = document.createElement('th');
+  selectAllTh.setAttribute('data-role', 'select');
+  selectAllTh.dataset.compact = '1';
+  selectAllTh.dataset.column = 'select';
+  selectAllTh.style.width = '40px';
+  selectAllTh.style.minWidth = '40px';
+  selectAllTh.style.textAlign = 'center';
+  selectAllTh.style.padding = '8px';
+  const selectAll = document.createElement('input');
+  selectAll.type = 'checkbox';
+  selectAll.setAttribute('data-role', 'select-all');
+  selectAll.setAttribute('data-ui', 'row-check-all');
+  selectAll.setAttribute('aria-label', 'Select all');
+  selectAll.setAttribute('role', 'checkbox');
+  selectAll.setAttribute('aria-checked', 'false');
+  selectAll.style.cursor = 'pointer';
+  selectAll.style.display = 'inline-block';
+  selectAll.style.margin = '0';
+  selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
+  selectAllTh.appendChild(selectAll);
+  headerRow.appendChild(selectAllTh);
+
+  config.columns.forEach((column) => {
+    const th = document.createElement('th');
+    th.textContent = column.label;
+    if(th.dataset){
+      th.dataset.field = column.field || '';
+      th.dataset.wrap = column.isName ? '1' : '0';
+      th.dataset.column = column.isName ? 'name' : (column.field || '');
+    }
+    if(column.type === 'number'){
+      th.classList.add('numeric');
+    }
+    th.style.cursor = 'pointer';
+    const sortField = column.sortKey && config.fieldsMap.has(column.sortKey) ? column.sortKey : column.field;
+    th.addEventListener('click', () => handleHeaderSort(lensState, sortField));
+    headerRow.appendChild(th);
+  });
+
+  const gutterTh = document.createElement('th');
+  gutterTh.setAttribute('data-role', 'gutter');
+  gutterTh.setAttribute('aria-hidden', 'true');
+  gutterTh.tabIndex = -1;
+  gutterTh.dataset.compact = '1';
+  gutterTh.dataset.column = 'gutter';
+  headerRow.appendChild(gutterTh);
+
+  thead.appendChild(headerRow);
+  if(typeof window !== 'undefined' && typeof window.ensureRowCheckHeaders === 'function'){
+    try { window.ensureRowCheckHeaders(table); }
+    catch (_err) {}
   }
 }
 
@@ -2443,11 +2592,14 @@ function toggleWindow(lensState, open){
 }
 
 function handleHeaderSort(lensState, field){
-  if(!field) return;
-  if(lensState.sort.field === field){
+  const sortField = lensState.config.fieldsMap.has(field)
+    ? field
+    : (lensState.config.columns[0]?.sortKey || lensState.config.columns[0]?.field || '');
+  if(!sortField) return;
+  if(lensState.sort.field === sortField){
     lensState.sort.direction = lensState.sort.direction === 'asc' ? 'desc' : 'asc';
   }else{
-    lensState.sort.field = field;
+    lensState.sort.field = sortField;
     lensState.sort.direction = lensState.config.defaultSort?.direction || 'asc';
   }
   syncSortControls(lensState);
@@ -2894,67 +3046,11 @@ function buildWindow(lensState){
   }
 
   const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
-  headerRow.classList.add('status-row');
-
-  const selectAllTh = document.createElement('th');
-  selectAllTh.setAttribute('data-role', 'select');
-  selectAllTh.dataset.compact = '1';
-  selectAllTh.dataset.column = 'select';
-  selectAllTh.style.width = '40px';
-  selectAllTh.style.minWidth = '40px';
-  selectAllTh.style.textAlign = 'center';
-  selectAllTh.style.padding = '8px';
-  const selectAll = document.createElement('input');
-  selectAll.type = 'checkbox';
-  selectAll.setAttribute('data-role', 'select-all');
-  selectAll.setAttribute('data-ui', 'row-check-all');
-  selectAll.setAttribute('aria-label', 'Select all');
-  selectAll.setAttribute('role', 'checkbox');
-  selectAll.setAttribute('aria-checked', 'false');
-  selectAll.style.cursor = 'pointer';
-  selectAll.style.display = 'inline-block';
-  selectAll.style.margin = '0';
-  selectAll.addEventListener('change', (event) => handleSelectAllChange(event, lensState));
-  selectAllTh.appendChild(selectAll);
-  headerRow.appendChild(selectAllTh);
-
-  config.columns.forEach((column) => {
-    const th = document.createElement('th');
-    th.textContent = column.label;
-    if(th.dataset){
-      th.dataset.field = column.field || '';
-      th.dataset.wrap = column.isName ? '1' : '0';
-      th.dataset.column = column.isName ? 'name' : (column.field || '');
-    }
-    if(column.type === 'number'){
-      th.classList.add('numeric');
-    }
-    th.style.cursor = 'pointer';
-    th.addEventListener('click', () => handleHeaderSort(lensState, column.field));
-    headerRow.appendChild(th);
-  });
-
-  const gutterTh = document.createElement('th');
-  gutterTh.setAttribute('data-role', 'gutter');
-  gutterTh.setAttribute('aria-hidden', 'true');
-  gutterTh.tabIndex = -1;
-  gutterTh.dataset.compact = '1';
-  gutterTh.dataset.column = 'gutter';
-  headerRow.appendChild(gutterTh);
-
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
   const tbody = document.createElement('tbody');
+  table.appendChild(thead);
   table.appendChild(tbody);
   tableWrap.appendChild(table);
   body.appendChild(tableWrap);
-
-  if(typeof window !== 'undefined' && typeof window.ensureRowCheckHeaders === 'function'){
-    try { window.ensureRowCheckHeaders(table); }
-    catch (_err) {}
-  }
 
   section.appendChild(body);
 
@@ -2980,6 +3076,8 @@ function buildWindow(lensState){
     thead,
     tbody
   };
+
+  renderTableHeader(lensState);
 
   lensState.statusBanner = attachStatusBanner(status, { tone: 'muted' });
   renderPresetChips(lensState);
@@ -3063,6 +3161,8 @@ async function setupWorkbench(target){
   if(!mount) return;
   await Promise.all([loadLayout(), loadSavedQueries(), loadLensDrafts()]);
   ensureLensStates();
+  attachColumnListener();
+  refreshAllColumns(resolveColumnMode());
   buildShell();
   restoreLensDrafts();
   syncUI();
