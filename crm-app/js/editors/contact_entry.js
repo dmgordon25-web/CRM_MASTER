@@ -102,7 +102,9 @@ function queueRequest(request){
   });
   state.pendingRequest = Object.assign({}, request, { deferred });
   if(!state.activePromise){
-    state.activePromise = processPendingQueue();
+    const nextPromise = processPendingQueue();
+    state.activePromise = nextPromise;
+    nextPromise.catch(() => {});
   }
   return promise;
 }
