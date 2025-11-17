@@ -5,7 +5,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { ensureActionBarPostPaintRefresh } from '../ui/action_bar.js';
 import { getColumnsForView } from '../tables/column_config.js';
-import { isAdvancedModeEnabled } from '../ui/advanced_mode.js';
+import { getUiMode, onUiModeChanged } from '../ui/ui_mode.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -376,7 +376,7 @@ const LENS_CONFIGS = Object.values(RAW_LENS_CONFIGS).map((raw) => {
 
 function resolveColumnMode(){
   try{
-    return isAdvancedModeEnabled() ? 'advanced' : 'simple';
+    return getUiMode();
   }catch (_err){
     return 'advanced';
   }
@@ -412,6 +412,10 @@ function applyColumnPreferencesToConfigs(mode = resolveColumnMode()){
 }
 
 applyColumnPreferencesToConfigs(resolveColumnMode());
+
+onUiModeChanged((mode) => {
+  applyColumnPreferencesToConfigs(mode);
+});
 
 const CONFIG_BY_KEY = new Map(LENS_CONFIGS.map((config) => [config.key, config]));
 
@@ -1192,9 +1196,7 @@ function attachColumnListener(){
   state.columnListener = handler;
   if(typeof document !== 'undefined'){
     document.addEventListener('settings:columns:changed', handler);
-  }
-  if(typeof window !== 'undefined'){
-    window.addEventListener('advancedmode:change', handler);
+    document.addEventListener('app:ui-mode:changed', handler);
   }
 }
 
