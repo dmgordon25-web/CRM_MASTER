@@ -128,6 +128,8 @@ function queueRequest(request){
         if(relay) return relay;
         throw err;
       },
+      () => state.activePromise,
+      () => state.activePromise,
     );
   }
   if(!state.activePromise){
