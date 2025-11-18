@@ -76,13 +76,13 @@ const PIPELINE_STAGE_TO_CANONICAL_STAGE = Object.freeze({
 const KNOWN_STAGE_KEYS = new Set([...CANONICAL_STAGE_ORDER, ...ALLOWED_TRANSITIONS.keys()]);
 
 export function canonicalStageKey(value) {
-  const labelKey = stageKeyFromLabel(value);
-  if (labelKey && KNOWN_STAGE_KEYS.has(labelKey)) return labelKey;
-
   const pipelineKey = canonicalStage(value);
   if (pipelineKey && PIPELINE_STAGE_TO_CANONICAL_STAGE[pipelineKey]) {
     return PIPELINE_STAGE_TO_CANONICAL_STAGE[pipelineKey];
   }
+
+  const labelKey = stageKeyFromLabel(value);
+  if (labelKey && KNOWN_STAGE_KEYS.has(labelKey)) return labelKey;
 
   const lowered = String(value ?? '').trim().toLowerCase();
   if (KNOWN_STAGE_KEYS.has(lowered)) return lowered;
