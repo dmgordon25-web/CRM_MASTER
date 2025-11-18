@@ -62,7 +62,12 @@ function renderTaskItem(task, options) {
   label.className = 'todo-row';
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
+  checkbox.checked = task && task.done === true;
   checkbox.setAttribute('aria-label', `Complete ${task.title || 'task'}`);
+  const busyIds = Array.isArray(options?.busyIds) ? new Set(options.busyIds) : (options?.busyIds || new Set());
+  if (busyIds.has(String(task.id || ''))) {
+    checkbox.disabled = true;
+  }
   const title = document.createElement('span');
   title.className = 'todo-title';
   title.textContent = task.title || task.note || task.text || 'Task';
@@ -75,13 +80,14 @@ function renderTaskItem(task, options) {
   label.appendChild(meta);
   item.appendChild(label);
 
-  if (typeof options?.onComplete === 'function') {
+  if (typeof options?.onToggle === 'function') {
     checkbox.addEventListener('change', () => {
-      if (checkbox.disabled || checkbox.checked === false) return;
+      if (checkbox.disabled) return;
+      const nextChecked = checkbox.checked === true;
       checkbox.disabled = true;
       Promise.resolve()
-        .then(() => options.onComplete(task))
-        .catch(() => { checkbox.checked = false; })
+        .then(() => options.onToggle(task, nextChecked))
+        .catch(() => { checkbox.checked = !nextChecked; })
         .finally(() => { checkbox.disabled = false; });
     });
   }
@@ -92,6 +98,7 @@ export function renderTodoWidget(options = {}) {
   const root = options.root || options.host || null;
   if (!root) return;
   const tasks = Array.isArray(options.tasks) ? options.tasks : [];
+  const adding = options.adding === true;
 
   root.innerHTML = '';
   root.classList.add('todo-widget');
@@ -107,17 +114,36 @@ export function renderTodoWidget(options = {}) {
   header.appendChild(title);
   header.appendChild(document.createElement('span')).className = 'grow';
 
+  const addForm = document.createElement('form');
+  addForm.className = 'todo-add';
+  addForm.setAttribute('aria-label', 'Add a new task');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Add a task';
+  input.setAttribute('data-qa', 'todo-add-task-input');
+  input.style.flex = '1';
+  input.style.minWidth = '0';
   const addButton = document.createElement('button');
-  addButton.type = 'button';
+  addButton.type = 'submit';
   addButton.className = 'btn subtle';
-  addButton.textContent = 'Add Task';
+  addButton.textContent = adding ? 'Saving…' : 'Add';
   addButton.setAttribute('data-qa', 'todo-add-task');
-  addButton.addEventListener('click', () => {
-    if (typeof options.onAdd === 'function') {
-      options.onAdd();
-    }
+  addButton.disabled = adding;
+  addForm.appendChild(input);
+  addForm.appendChild(addButton);
+  addForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (typeof options.onAdd !== 'function' || addButton.disabled) return;
+    const value = input.value ? input.value.trim() : '';
+    if (!value) return;
+    addButton.disabled = true;
+    Promise.resolve()
+      .then(() => options.onAdd(value))
+      .then((ok) => { if (ok !== false) input.value = ''; })
+      .catch(() => {})
+      .finally(() => { addButton.disabled = false; addButton.textContent = 'Add'; });
   });
-  header.appendChild(addButton);
+  header.appendChild(addForm);
   root.appendChild(header);
 
   const list = document.createElement('ul');

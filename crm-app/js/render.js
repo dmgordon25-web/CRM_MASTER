@@ -21,12 +21,11 @@ import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
 import { renderTodoWidget, getTodoTasksForDashboard } from './dashboard/widgets/todo_widget.js';
-import { openTaskEditor } from './ui/quick_create_menu.js';
 import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
-import { recordTask } from './tasks/store.js';
+import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './tasks/api.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -1420,27 +1419,82 @@ import { recordTask } from './tasks/store.js';
 
     const todoHost = document.getElementById('dashboard-todo');
     if (todoHost) {
-      const refreshTodo = () => {
+      let todoTasks = Array.isArray(dashboardTasks) ? dashboardTasks.slice() : [];
+      let busyTodoIds = new Set();
+      let addingTodo = false;
+
+      const renderTodo = () => {
         renderTodoWidget({
           root: todoHost,
-          tasks: getTodoTasksForDashboard(dashboardTasks, { limit: 10 }),
-          onComplete: async (task) => {
-            const updated = Object.assign({}, task, { done: true, status: 'done', completedAt: Date.now(), updatedAt: Date.now() });
-            await dbPut('tasks', updated);
-            recordTask(updated);
-            const idx = dashboardTasks.findIndex(t => String(t && t.id) === String(updated.id));
-            if (idx >= 0) dashboardTasks[idx] = updated;
-            else dashboardTasks.push(updated);
-            notifyTasksChanged(updated.id);
-            refreshTodo();
-          },
-          onAdd: () => {
-            try { openTaskEditor(); }
-            catch (_err) {}
-          }
+          tasks: getTodoTasksForDashboard(todoTasks, { limit: 10 }),
+          busyIds: busyTodoIds,
+          adding: addingTodo,
+          onToggle: (task, checked) => handleTodoToggle(task, checked),
+          onAdd: (title) => handleTodoAdd(title)
         });
       };
-      refreshTodo();
+
+      const refreshTodoTasks = async () => {
+        try {
+          const latest = await listTasksForDashboard({ filter: 'today', limit: 25 });
+          todoTasks = Array.isArray(latest) ? latest.slice() : [];
+        } catch (err) {
+          if (console && typeof console.warn === 'function') console.warn('todo load failed', err);
+        }
+        renderTodo();
+      };
+
+      const handleTodoToggle = async (task, checked) => {
+        const id = task && task.id ? String(task.id) : '';
+        if (!id) return false;
+        busyTodoIds = new Set(busyTodoIds);
+        busyTodoIds.add(id);
+        const optimistic = Object.assign({}, task, { done: checked, status: checked ? 'done' : 'open', updatedAt: Date.now() });
+        if (checked) optimistic.completedAt = optimistic.completedAt || Date.now();
+        else if (optimistic.completedAt) delete optimistic.completedAt;
+        todoTasks = todoTasks.map(t => (String(t && t.id) === id ? optimistic : t));
+        renderTodo();
+        let result = null;
+        try {
+          result = await updateTaskStatus({ id, done: checked, status: optimistic.status, task });
+        } catch (err) {
+          if (console && typeof console.warn === 'function') console.warn('todo update failed', err);
+        }
+        busyTodoIds.delete(id);
+        if (result && result.status === 'ok' && result.task) {
+          todoTasks = todoTasks.map(t => (String(t && t.id) === id ? result.task : t));
+          notifyTasksChanged(id);
+        } else {
+          todoTasks = todoTasks.map(t => (String(t && t.id) === id ? task : t));
+        }
+        renderTodo();
+        return !!(result && result.status === 'ok');
+      };
+
+      const handleTodoAdd = async (title) => {
+        const trimmed = title && title.trim();
+        if (!trimmed) return false;
+        if (addingTodo) return false;
+        addingTodo = true;
+        renderTodo();
+        let result = null;
+        try {
+          result = await createDashboardTask({ title: trimmed });
+        } catch (err) {
+          if (console && typeof console.warn === 'function') console.warn('todo create failed', err);
+        }
+        addingTodo = false;
+        if (result && result.status === 'ok' && result.task) {
+          todoTasks = [result.task].concat(todoTasks);
+          notifyTasksChanged(result.task.id);
+        }
+        renderTodo();
+        refreshTodoTasks();
+        return !!(result && result.status === 'ok');
+      };
+
+      renderTodo();
+      refreshTodoTasks();
     }
 
     try{
