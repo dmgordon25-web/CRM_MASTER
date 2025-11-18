@@ -5,6 +5,7 @@ import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 import { applyContactFieldVisibility } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
+import { closeContactEditor as closeContactEntry } from './editors/contact_entry.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -1322,7 +1323,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             result = await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function') throw new Error('Task API unavailable');
             result = await fn(payload);
@@ -2220,7 +2221,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function'){
               throw new Error('Task API unavailable');
@@ -2273,7 +2274,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function') throw new Error('Task API unavailable');
             await fn(payload);
@@ -3337,6 +3338,12 @@ function mountContactRowGateway(surface){
 
 function unmountContactRowGateway(surface){
   const state = getContactRowState();
+  try{ closeContactEntry('route-leave'); }
+  catch(_err){}
+  if(typeof window !== 'undefined' && typeof window.__DBG_resetContactEditor === 'function'){
+    try{ window.__DBG_resetContactEditor('route-leave'); }
+    catch(_err){}
+  }
   if(surface){
     state.activeSurfaces.delete(surface);
   }else{
