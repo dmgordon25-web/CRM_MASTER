@@ -32,13 +32,15 @@ function normalizeRow(record = {}, fields = []) {
 
 function normalizePartnerRow(record = {}) {
   const normalized = normalizeRow(record, PARTNER_TEMPLATE_FIELDS);
-  if (!normalized.partnerId && record.partnerId != null) normalized.partnerId = record.partnerId;
+  const partnerIdentifier = record.partnerId ?? record.id;
+  if (!normalized.partnerId && partnerIdentifier != null) normalized.partnerId = partnerIdentifier;
   return normalized;
 }
 
 function normalizeContactRow(record = {}) {
   const normalized = normalizeRow(record, CONTACT_TEMPLATE_FIELDS);
-  if (!normalized.contactId && record.contactId != null) normalized.contactId = record.contactId;
+  const contactIdentifier = record.contactId ?? record.id;
+  if (!normalized.contactId && contactIdentifier != null) normalized.contactId = contactIdentifier;
   return normalized;
 }
 
