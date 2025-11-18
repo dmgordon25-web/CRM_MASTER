@@ -1,61 +1,79 @@
-// Labs CRM Dashboard - Visually Stunning Version of Actual CRM
-// Uses real data from CRM database
+// Labs CRM Dashboard - Canonical mirror with modern UI shell
 
-import { ensureDatabase, getAllContacts, getAllPartners, getAllTasks } from './data.js';
+import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 
 let dashboardRoot = null;
-let crmData = {
-  contacts: [],
-  partners: [],
-  tasks: []
-};
+let labsModel = null;
+let activeSection = 'overview';
 
-// Initialize Labs CRM Dashboard
-export async function initLabsCRMDashboard(root) {
-  if (!root) {
-    console.error('[labs] No root element provided');
-    return;
+const SECTIONS = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    description: 'KPI snapshot, focus, and celebrations',
+    widgets: [
+      { id: 'kpis', size: 'large' },
+      { id: 'statusStack', size: 'large' },
+      { id: 'focus', size: 'medium' },
+      { id: 'today', size: 'medium' },
+      { id: 'goalProgress', size: 'medium' },
+      { id: 'upcomingCelebrations', size: 'medium' }
+    ]
+  },
+  {
+    id: 'pipeline',
+    label: 'Pipeline',
+    description: 'Momentum, funnel, and closing watchlist',
+    widgets: [
+      { id: 'pipelineMomentum', size: 'large' },
+      { id: 'pipelineOverview', size: 'large' },
+      { id: 'activePipeline', size: 'medium' },
+      { id: 'closingWatch', size: 'medium' },
+      { id: 'staleDeals', size: 'medium' },
+      { id: 'pipelineCalendar', size: 'medium' }
+    ]
+  },
+  {
+    id: 'partners',
+    label: 'Partners',
+    description: 'Referral performance and portfolio mix',
+    widgets: [
+      { id: 'partnerPortfolio', size: 'medium' },
+      { id: 'referralLeaderboard', size: 'medium' },
+      { id: 'numbersMomentum', size: 'large' },
+      { id: 'numbersPortfolio', size: 'medium' },
+      { id: 'numbersReferrals', size: 'medium' }
+    ]
+  },
+  {
+    id: 'activities',
+    label: 'Activities',
+    description: 'Tasks, to-do, milestones, and priority actions',
+    widgets: [
+      { id: 'todo', size: 'medium' },
+      { id: 'priorityActions', size: 'medium' },
+      { id: 'milestones', size: 'medium' },
+      { id: 'today', size: 'medium' },
+      { id: 'focus', size: 'medium' }
+    ]
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    description: 'Documentation, relationship radar, and favorites',
+    widgets: [
+      { id: 'docPulse', size: 'medium' },
+      { id: 'relationshipOpportunities', size: 'medium' },
+      { id: 'clientCareRadar', size: 'medium' },
+      { id: 'docCenter', size: 'medium' },
+      { id: 'favorites', size: 'medium' }
+    ]
   }
+];
 
-  dashboardRoot = root;
-
-  // Show loading state
-  showLoading();
-
-  // Connect to database and load data
-  const dbReady = await ensureDatabase();
-  if (!dbReady) {
-    showError('Failed to connect to CRM database');
-    return;
-  }
-
-  await loadCRMData();
-  renderDashboard();
-  attachEventListeners();
-}
-
-// Load CRM data from database
-async function loadCRMData() {
-  try {
-    const [contacts, partners, tasks] = await Promise.all([
-      getAllContacts(),
-      getAllPartners(),
-      getAllTasks()
-    ]);
-
-    crmData = { contacts, partners, tasks };
-
-    console.info(`[labs] Loaded ${contacts.length} contacts, ${partners.length} partners, ${tasks.length} tasks`);
-  } catch (err) {
-    console.error('[labs] Failed to load CRM data:', err);
-  }
-}
-
-// Show loading state
 function showLoading() {
   if (!dashboardRoot) return;
-
   dashboardRoot.innerHTML = `
     <div class="labs-loading">
       <div class="loading-spinner"></div>
@@ -64,10 +82,8 @@ function showLoading() {
   `;
 }
 
-// Show error state
 function showError(message) {
   if (!dashboardRoot) return;
-
   dashboardRoot.innerHTML = `
     <div class="labs-error">
       <h2>⚠️ Error</h2>
@@ -77,31 +93,36 @@ function showError(message) {
   `;
 }
 
-// Render the full CRM dashboard
-function renderDashboard() {
-  if (!dashboardRoot) return;
+async function hydrateModel() {
+  labsModel = await buildLabsModel();
+}
 
+function renderShell() {
+  if (!dashboardRoot) return;
   dashboardRoot.innerHTML = '';
   dashboardRoot.className = 'labs-crm-dashboard';
   dashboardRoot.dataset.qa = 'labs-crm-dashboard';
 
-  // Render header
   const header = createHeader();
+  const nav = createNavigation();
+  const sectionHost = document.createElement('div');
+  sectionHost.className = 'labs-section-host';
+  sectionHost.dataset.qa = 'labs-section-host';
+
   dashboardRoot.appendChild(header);
+  dashboardRoot.appendChild(nav);
+  dashboardRoot.appendChild(sectionHost);
 
-  // Render widget grid
-  const grid = createWidgetGrid();
-  dashboardRoot.appendChild(grid);
-
-  // Render all widgets
-  renderWidgets(grid);
+  renderSection(activeSection);
 }
 
-// Create dashboard header
 function createHeader() {
   const header = document.createElement('header');
   header.className = 'labs-crm-header';
   header.dataset.qa = 'labs-header';
+  const contactCount = formatNumber(labsModel?.contacts?.length || 0);
+  const partnerCount = formatNumber(labsModel?.partners?.length || 0);
+  const taskCount = formatNumber(labsModel?.tasks?.length || 0);
 
   header.innerHTML = `
     <div class="labs-header-content">
@@ -111,75 +132,83 @@ function createHeader() {
           CRM Labs
           <span class="labs-badge-beta">BETA</span>
         </h1>
-        <p class="labs-subtitle">Experimental Visual Dashboard • Real CRM Data</p>
+        <p class="labs-subtitle">Canonical data • Alternate shell • Modern visuals</p>
       </div>
       <div class="labs-header-stats">
         <div class="header-stat">
-          <div class="stat-value">${crmData.contacts.length}</div>
+          <div class="stat-value">${contactCount}</div>
           <div class="stat-label">Contacts</div>
         </div>
         <div class="header-stat">
-          <div class="stat-value">${crmData.partners.length}</div>
+          <div class="stat-value">${partnerCount}</div>
           <div class="stat-label">Partners</div>
         </div>
         <div class="header-stat">
-          <div class="stat-value">${crmData.tasks.length}</div>
+          <div class="stat-value">${taskCount}</div>
           <div class="stat-label">Tasks</div>
         </div>
       </div>
       <div class="labs-header-actions">
-        <button class="labs-btn-icon" data-action="refresh" title="Refresh Data">
-          <span class="icon-refresh">⟳</span>
-        </button>
-        <button class="labs-btn-icon" data-action="settings" title="Settings">
-          <span class="icon-settings">⚙</span>
-        </button>
+        <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
+        <button class="labs-btn-ghost" data-action="settings">Experiments</button>
       </div>
     </div>
   `;
-
   return header;
 }
 
-// Create widget grid container
-function createWidgetGrid() {
-  const grid = document.createElement('div');
-  grid.className = 'labs-crm-grid';
-  grid.dataset.qa = 'labs-widget-grid';
-
-  return grid;
+function createNavigation() {
+  const nav = document.createElement('div');
+  nav.className = 'labs-nav';
+  nav.dataset.qa = 'labs-nav';
+  const tabs = SECTIONS.map((section) => `
+    <button class="labs-nav-tab ${section.id === activeSection ? 'active' : ''}" data-section="${section.id}">
+      <span class="labs-nav-label">${section.label}</span>
+      <span class="labs-nav-sub">${section.description}</span>
+    </button>
+  `).join('');
+  nav.innerHTML = tabs;
+  return nav;
 }
 
-// Render all CRM widgets
-function renderWidgets(grid) {
-  const { contacts, partners, tasks } = crmData;
+function renderSection(sectionId) {
+  const host = dashboardRoot?.querySelector('.labs-section-host');
+  if (!host) return;
+  const section = SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
+  activeSection = section.id;
 
-  // Define widget layout
-  const widgets = [
-    { id: 'kpis', renderer: CRM_WIDGET_RENDERERS.kpis, args: [contacts], size: 'large' },
-    { id: 'pipelineMomentum', renderer: CRM_WIDGET_RENDERERS.pipelineMomentum, args: [contacts], size: 'large' },
-    { id: 'pipelineOverview', renderer: CRM_WIDGET_RENDERERS.pipelineOverview, args: [contacts], size: 'large' },
-    { id: 'partnerPortfolio', renderer: CRM_WIDGET_RENDERERS.partnerPortfolio, args: [partners], size: 'medium' },
-    { id: 'referralLeaderboard', renderer: CRM_WIDGET_RENDERERS.referralLeaderboard, args: [partners], size: 'medium' },
-    { id: 'staleDeals', renderer: CRM_WIDGET_RENDERERS.staleDeals, args: [contacts], size: 'medium' },
-    { id: 'today', renderer: CRM_WIDGET_RENDERERS.today, args: [tasks, contacts], size: 'medium' },
-    { id: 'activePipeline', renderer: CRM_WIDGET_RENDERERS.activePipeline, args: [contacts], size: 'large' }
-  ];
+  host.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'labs-crm-grid';
+  grid.dataset.qa = `labs-grid-${section.id}`;
+  host.appendChild(grid);
 
-  widgets.forEach((widget, index) => {
-    if (!widget.renderer) {
-      console.warn(`[labs] No renderer for widget: ${widget.id}`);
-      return;
-    }
+  renderWidgets(grid, section.widgets);
+  updateNavState();
+}
 
+function updateNavState() {
+  const tabs = dashboardRoot?.querySelectorAll('.labs-nav-tab');
+  if (!tabs) return;
+  tabs.forEach((tab) => {
+    const section = tab.dataset.section;
+    tab.classList.toggle('active', section === activeSection);
+  });
+}
+
+function renderWidgets(grid, widgetList = []) {
+  if (!labsModel) return;
+  widgetList.forEach((widget, index) => {
+    const renderer = CRM_WIDGET_RENDERERS[widget.id];
+    if (!renderer) return;
     const container = document.createElement('div');
-    container.className = `labs-widget-container size-${widget.size}`;
+    container.className = `labs-widget-container size-${widget.size || 'medium'}`;
     container.dataset.widgetId = widget.id;
-    container.dataset.qa = `labs-widget-container-${widget.id}`;
-    container.style.animationDelay = `${index * 0.05}s`;
+    container.dataset.qa = `labs-widget-${widget.id}`;
+    container.style.animationDelay = `${index * 0.04}s`;
 
     try {
-      widget.renderer(container, ...widget.args);
+      renderer(container, labsModel);
       grid.appendChild(container);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
@@ -187,84 +216,86 @@ function renderWidgets(grid) {
   });
 }
 
-// Attach event listeners
-function attachEventListeners() {
-  if (!dashboardRoot) return;
-
-  // Header action buttons
-  dashboardRoot.addEventListener('click', async (e) => {
-    const action = e.target.closest('[data-action]')?.dataset.action;
-    if (!action) return;
-
-    switch (action) {
-      case 'refresh':
-        await refreshDashboard();
-        break;
-      case 'settings':
-        showNotification('Settings coming soon!', 'info');
-        break;
-    }
-  });
-
-  // Widget refresh buttons
-  dashboardRoot.addEventListener('click', async (e) => {
-    if (e.target.closest('.labs-widget-refresh')) {
-      await refreshDashboard();
-    }
-  });
-
-  // Listen for CRM data changes
-  if (typeof document !== 'undefined') {
-    document.addEventListener('app:data:changed', handleDataChange);
-  }
-}
-
-// Handle data change events from main CRM
-async function handleDataChange(event) {
-  console.info('[labs] CRM data changed, refreshing...', event.detail);
-  await refreshDashboard();
-}
-
-// Refresh dashboard data and widgets
 async function refreshDashboard() {
   const grid = dashboardRoot?.querySelector('.labs-crm-grid');
   if (!grid) return;
-
-  // Add loading overlay
+  grid.setAttribute('aria-busy', 'true');
   grid.style.opacity = '0.5';
-  grid.style.pointerEvents = 'none';
-
   try {
-    await loadCRMData();
-    grid.innerHTML = '';
-    renderWidgets(grid);
+    await hydrateModel();
+    renderSection(activeSection);
     showNotification('Dashboard refreshed', 'success');
   } catch (err) {
     console.error('[labs] Refresh failed:', err);
     showNotification('Refresh failed', 'error');
   } finally {
+    grid.removeAttribute('aria-busy');
     grid.style.opacity = '1';
-    grid.style.pointerEvents = 'auto';
   }
 }
 
-// Notification system
+function attachEventListeners() {
+  if (!dashboardRoot) return;
+  dashboardRoot.addEventListener('click', async (event) => {
+    const navButton = event.target.closest('.labs-nav-tab');
+    if (navButton && navButton.dataset.section) {
+      renderSection(navButton.dataset.section);
+      return;
+    }
+
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (!action) return;
+    if (action === 'refresh') {
+      await refreshDashboard();
+    }
+    if (action === 'settings') {
+      showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
+    }
+  });
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('app:data:changed', async (evt) => {
+      console.info('[labs] CRM data changed, refreshing...', evt.detail);
+      await refreshDashboard();
+    });
+  }
+}
+
 function showNotification(message, type = 'info') {
   const notification = document.createElement('div');
   notification.className = `labs-notification ${type}`;
   notification.textContent = message;
-
   dashboardRoot?.appendChild(notification);
-
-  setTimeout(() => {
-    notification.classList.add('show');
-  }, 10);
-
+  requestAnimationFrame(() => notification.classList.add('show'));
   setTimeout(() => {
     notification.classList.remove('show');
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+    setTimeout(() => notification.remove(), 250);
+  }, 2600);
 }
 
-// Export
+export async function initLabsCRMDashboard(root) {
+  if (!root) {
+    console.error('[labs] No root element provided');
+    return;
+  }
+  dashboardRoot = root;
+  showLoading();
+
+  const dbReady = await ensureDatabase();
+  if (!dbReady) {
+    showError('Failed to connect to CRM database');
+    return;
+  }
+
+  try {
+    await hydrateModel();
+    renderShell();
+    attachEventListeners();
+    console.info('[labs] CRM Labs dashboard rendered');
+  } catch (err) {
+    console.error('[labs] Failed to initialize:', err);
+    showError(err.message || 'Unable to render Labs dashboard');
+  }
+}
+
 export default initLabsCRMDashboard;
