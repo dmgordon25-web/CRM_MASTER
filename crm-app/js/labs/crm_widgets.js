@@ -191,18 +191,19 @@ export function renderReferralLeaderboardWidget(container, model) {
 export function renderStaleDealsWidget(container, model) {
   const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts, 14);
   const dealsHTML = staleDeals.slice(0, 6).map((deal, idx) => {
-    const daysSince = deal.days || Math.floor((Date.now() - (deal.updatedTs || deal.createdTs || 0)) / (1000 * 60 * 60 * 24));
+    const dealContact = deal.contact || deal;
+    const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
     const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
-    const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(deal.stage)] || {};
+    const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(dealContact.stage)] || {};
     return `
       <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
         <div class="stale-header">
-          <div class="stale-name">${deal.displayName || deal.name || 'Unknown'}</div>
+          <div class="stale-name">${dealContact.displayName || dealContact.name || 'Unknown'}</div>
           <div class="stale-days">${daysSince}d</div>
         </div>
         <div class="stale-details">
-          <span class="stale-stage">${stageConfig.label || deal.stage}</span>
-          ${deal.loanAmount ? `<span class="stale-amount">${formatCurrency(deal.loanAmount)}</span>` : ''}
+          <span class="stale-stage">${stageConfig.label || dealContact.stage}</span>
+          ${dealContact.loanAmount ? `<span class="stale-amount">${formatCurrency(dealContact.loanAmount)}</span>` : ''}
         </div>
         <div class="stale-urgency-bar" style="--urgency:${Math.min(daysSince / 30, 1)}"></div>
       </div>
