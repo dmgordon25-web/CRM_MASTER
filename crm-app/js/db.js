@@ -491,6 +491,12 @@ export const dbGet = (...args) => {
   return fn(...args);
 };
 
+export const dbGetAll = (...args) => {
+  const fn = __dbScope && typeof __dbScope.dbGetAll === 'function' ? __dbScope.dbGetAll : null;
+  if(!fn) throw new Error('dbGetAll unavailable');
+  return fn(...args);
+};
+
 export const dbPut = (...args) => {
   const fn = __dbScope && typeof __dbScope.dbPut === 'function' ? __dbScope.dbPut : null;
   if(!fn) throw new Error('dbPut unavailable');

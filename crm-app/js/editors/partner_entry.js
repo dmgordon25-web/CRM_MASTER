@@ -62,9 +62,23 @@ function detachCloseListener(){
   state.closeListener = null;
 }
 
+function hardReset(reason){
+  const snapshot = { ...state };
+  pushHistory({ action: 'hard-reset', reason, snapshot });
+  detachCloseListener();
+  state.status = 'idle';
+  state.currentId = null;
+  state.pendingRequest = null;
+  state.activePromise = null;
+  state.modalRoot = null;
+  state.closeListener = null;
+}
+
 function attachCloseListener(root){
-  if(!(root instanceof HTMLElement)){
-    detachCloseListener();
+  if(!(root instanceof HTMLElement) || !root.isConnected){
+    pushHistory({ action: 'attach-close-skipped', reason: 'invalid-root' });
+    logDebug('attachCloseListener: invalid root', { root });
+    hardReset('invalid-root');
     return;
   }
   detachCloseListener();
@@ -83,7 +97,12 @@ function attachCloseListener(root){
 
 function focusModal(){
   const root = state.modalRoot;
-  if(!root || typeof root.querySelector !== 'function') return;
+  if(!root || !root.isConnected){
+    pushHistory({ action: 'focus-failed', reason: 'root-detached' });
+    logDebug('focusModal: missing root', { root });
+    return;
+  }
+  if(typeof root.querySelector !== 'function') return;
   const focusTarget = root.querySelector('.dlg') || root;
   if(focusTarget && typeof focusTarget.focus === 'function'){
     try{ focusTarget.focus({ preventScroll: true }); }
@@ -96,6 +115,10 @@ function focusModal(){
 
 function queueRequest(request){
   state.pendingRequest = request;
+  pushHistory({ action: 'queue', id: request && request.id ? String(request.id) : '', meta: request && request.meta, isNew: request && request.isNew });
+  if(state.activePromise){
+    logDebug('queueRequest: active promise in flight', { request });
+  }
   if(!state.activePromise){
     state.activePromise = processPendingQueue();
   }
@@ -103,6 +126,8 @@ function queueRequest(request){
 }
 
 async function processPendingQueue(){
+  pushHistory({ action: 'process-start', pending: !!state.pendingRequest, status: state.status });
+  logDebug('processPendingQueue:start', { pending: !!state.pendingRequest, status: state.status });
   if(!state.pendingRequest){
     state.activePromise = null;
     return null;
@@ -110,9 +135,12 @@ async function processPendingQueue(){
   const next = state.pendingRequest;
   state.pendingRequest = null;
   try{
+    pushHistory({ action: 'process-open', id: next && next.id ? String(next.id) : '', isNew: next && next.isNew });
     const result = await performOpen(next.id, next.meta, next.isNew);
     return result;
   }finally{
+    pushHistory({ action: 'process-end', pending: !!state.pendingRequest });
+    logDebug('processPendingQueue:end', { pending: !!state.pendingRequest });
     state.activePromise = null;
     if(state.pendingRequest){
       return processPendingQueue();
@@ -143,6 +171,7 @@ async function performOpen(targetId, meta, isNew){
     const result = await mount(targetId, Object.assign({}, metaObj, { sourceHint: buildSourceHint(metaObj) }));
     state.status = 'open';
     attachCloseListener(result);
+    logDebug('opened', { targetId, status: state.status, rootConnected: !!(result && result.isConnected) });
     pushHistory({ action: 'opened', id: targetId || '', statusAfter: state.status });
     if(!isNew && state.currentId && targetId === state.currentId){
       focusModal();
@@ -150,9 +179,8 @@ async function performOpen(targetId, meta, isNew){
     return result || null;
   }catch(err){
     pushHistory({ action: 'error', id: targetId || '', error: String(err || '') });
-    state.status = 'idle';
-    state.currentId = null;
-    detachCloseListener();
+    logDebug('performOpen failed', { err });
+    hardReset('open-failed');
     throw err;
   }finally{
     if(state.status === 'opening'){
@@ -167,6 +195,7 @@ export function closePartnerEditor(reason){
   if(statusBefore === 'idle') return;
   state.status = 'closing';
   pushHistory({ action: 'close', reason, statusBefore });
+  logDebug('closePartnerEditor', { reason, statusBefore });
   const root = state.modalRoot;
   if(root && typeof root.close === 'function'){
     try{ root.close(); }
@@ -181,6 +210,8 @@ export function closePartnerEditor(reason){
 export function openPartnerEditor(partnerId, meta = {}){
   const targetId = partnerId == null ? '' : String(partnerId);
   const statusBefore = state.status;
+  pushHistory({ action: 'invoke-open', id: targetId, meta: normalizeMeta(meta), statusBefore });
+  logDebug('openPartnerEditor invoked', { targetId, statusBefore, meta });
   if(statusBefore === 'opening'){
     if(state.currentId && targetId && state.currentId === targetId){
       return state.activePromise || Promise.resolve(null);
@@ -202,6 +233,8 @@ export function openPartnerEditor(partnerId, meta = {}){
 
 export function openNewPartnerEditor(meta = {}){
   const statusBefore = state.status;
+  pushHistory({ action: 'invoke-open-new', statusBefore, meta: normalizeMeta(meta) });
+  logDebug('openNewPartnerEditor invoked', { statusBefore, meta });
   if(statusBefore === 'opening' || statusBefore === 'open' || statusBefore === 'closing'){
     return queueRequest({ id: '', meta, isNew: true });
   }
@@ -210,6 +243,10 @@ export function openNewPartnerEditor(meta = {}){
 
 if(typeof window !== 'undefined'){
   window.__DBG_dumpPartnerEditorHistory = function(){ return Array.from(history); };
+  window.__DBG_resetPartnerEditor = function(reason = 'manual'){
+    hardReset(reason);
+    return { ...state };
+  };
 }
 
 export default { openPartnerEditor, openNewPartnerEditor, closePartnerEditor };
