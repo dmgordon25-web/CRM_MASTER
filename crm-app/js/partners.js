@@ -9,6 +9,7 @@ import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 import { REFERRAL_ROLLUP_RANGES, computeReferralRollup } from './reports/referrals.js';
 import { openContactModal } from './contacts.js';
+import { closePartnerEditor as closePartnerEntry } from './editors/partner_entry.js';
 
 export function validatePartner(model){
   const source = model && typeof model === 'object' ? model : {};
@@ -1134,6 +1135,12 @@ function ensurePartnersBoot(ctx){
 
   function unmountPartnerRowGateway(){
     const state = getPartnerRowState();
+    try{ closePartnerEntry('route-leave'); }
+    catch(_err){}
+    if(typeof window !== 'undefined' && typeof window.__DBG_resetPartnerEditor === 'function'){
+      try{ window.__DBG_resetPartnerEditor('route-leave'); }
+      catch(_err){}
+    }
     state.active = false;
     if(state.domReadyListener && typeof document !== 'undefined'){
       try { document.removeEventListener('DOMContentLoaded', state.domReadyListener); }

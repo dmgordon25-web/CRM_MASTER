@@ -5,6 +5,7 @@ import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 import { applyContactFieldVisibility } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
+import { closeContactEditor as closeContactEntry } from './editors/contact_entry.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -3337,6 +3338,12 @@ function mountContactRowGateway(surface){
 
 function unmountContactRowGateway(surface){
   const state = getContactRowState();
+  try{ closeContactEntry('route-leave'); }
+  catch(_err){}
+  if(typeof window !== 'undefined' && typeof window.__DBG_resetContactEditor === 'function'){
+    try{ window.__DBG_resetContactEditor('route-leave'); }
+    catch(_err){}
+  }
   if(surface){
     state.activeSurfaces.delete(surface);
   }else{
