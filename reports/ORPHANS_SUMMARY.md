@@ -1,6 +1,6 @@
 # Orphaned Module Cleanup (November 2025)
 
-> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; this document is a descriptive snapshot.
 
 ## Summary
 - Added `tools/find_orphans.mjs`, a reachability auditor that merges the generated `import_graph.json` with on-disk module scans, manifest-driven dynamic imports, and inline boot loader hints to classify every `crm-app/js` module.

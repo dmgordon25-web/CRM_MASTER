@@ -1,5 +1,7 @@
 # R08-MAX Sprint 0 + Sprint 1 Verification Report
 
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; the `crm-app/js/table/...` modules summarized below are historical artifacts now located in `QUARANTINE/` and superseded by `crm-app/js/tables/column_schema.js` and `crm-app/js/tables/column_config.js`.
+
 **Date:** 2025-11-04
 **Branch:** claude/r08-max-sprint-unified-011CUmumUHyEMF5QAPcZ9kCd
 
@@ -122,6 +124,8 @@ This PR delivers Sprint 0 (Critical Fixes) and foundational Sprint 1 infrastruct
 - Contacts: name, status, stage, owner, loanAmount, loanType, lastTouch, nextAction, email, phone, createdAt, updatedAt
 - Partners: name, company, tier, owner, lastTouch, nextTouch, email, phone, createdAt, updatedAt
 - Workbench: Lens-specific columns for leads, pipeline, clients, partners views
+
+> Current status: these `crm-app/js/table/...` modules were archived to `QUARANTINE/crm-app/js/table/` after the R08-MAX branch. Production table configuration now lives in `crm-app/js/tables/column_schema.js` and `crm-app/js/tables/column_config.js`.
 
 ---
 

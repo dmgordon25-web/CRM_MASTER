@@ -2,7 +2,8 @@
 setlocal
 pushd "%~dp0"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\Start CRM.ps1"
+REM Standard launcher: run dev_server directly via Node (no PowerShell hop)
+node tools/dev_server.mjs
 set "EXIT_CODE=%ERRORLEVEL%"
 
 popd

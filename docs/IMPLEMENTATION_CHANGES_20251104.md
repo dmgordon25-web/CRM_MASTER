@@ -1,6 +1,6 @@
 # Implementation Changes - November 4, 2025
 
-> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; this document is a descriptive snapshot.
 
 ## Summary
 This document tracks the changes made in response to the critical feedback provided for further review before merging.
@@ -51,7 +51,7 @@ This document tracks the changes made in response to the critical feedback provi
 - Column visibility for simple mode is enforced via `crm-app/js/settings/columns_tab.js` using `simple === false` schema flags.
 - Toggle in Settings already exists and is functional.
 
-**File Changed:** `crm-app/js/ui/advanced_mode.js` (lines 50-150)
+**File Changed:** `crm-app/js/ui/ui_mode.js` (lines 50-150)
 
 **Usage:** Toggle "Advanced Mode" in Settings → General
 
@@ -184,7 +184,7 @@ This document tracks the changes made in response to the critical feedback provi
 ### Files Modified
 1. `crm-app/js/dashboard/index.js` - Today widget filtering
 2. `crm-app/styles.css` - Pipeline table styling
-3. `crm-app/js/ui/advanced_mode.js` - Simple mode implementation
+3. `crm-app/js/ui/ui_mode.js` - Simple mode implementation
 
 ### Files Created
 1. `docs/FIELD_STATUS_AUDIT.md` - Comprehensive field audit
