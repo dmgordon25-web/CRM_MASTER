@@ -2,6 +2,12 @@ import { STR, text } from './ui/strings.js';
 import { safeMax, normalizePhone, normalizeEmail } from './util/strings.js';
 import { stageKeyFromLabel } from './pipeline/stages.js';
 import { normalizeStatus } from './pipeline/constants.js';
+import {
+  buildContactDedupeKeys,
+  buildPartnerDedupeKeys,
+  validateContact,
+  validatePartner
+} from './validation/schema.js';
 import { toastError, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import './importer_helpers.js';
 import './importer_partners.js';
@@ -198,31 +204,8 @@ function renderDryRunPreview(result){
   return lines.join('\n');
 }
 
-function buildContactKeys(record) {
-  const keys = [];
-  const contactId = canon(record.contactId || record.id);
-  if (contactId) keys.push(`id:${contactId}`);
-  const email = normalizeEmail(record.email);
-  if (email) keys.push(`em:${email}`);
-  const phone = normalizePhone(record.phone);
-  if (phone) keys.push(`ph:${phone}`);
-  const fallback = `${lc(record.first)}|${lc(record.last)}|${lc(record.city)}`;
-  if (fallback.replace(/\|/g, '').trim()) keys.push(`fb:${fallback}`);
-  return keys;
-}
-
-function buildPartnerKeys(record) {
-  const keys = [];
-  const partnerId = canon(record.partnerId || record.id);
-  if (partnerId) keys.push(`id:${partnerId}`);
-  const email = normalizeEmail(record.email);
-  if (email) keys.push(`em:${email}`);
-  const phone = normalizePhone(record.phone);
-  if (phone) keys.push(`ph:${phone}`);
-  const fallback = `${lc(record.name)}|${lc(record.company)}|${lc(record.city)}`;
-  if (fallback.replace(/\|/g, '').trim()) keys.push(`fb:${fallback}`);
-  return keys;
-}
+const buildContactKeys = buildContactDedupeKeys;
+const buildPartnerKeys = buildPartnerDedupeKeys;
 
 function clampContact(record, stats) {
   const next = Object.assign({}, record);
@@ -503,6 +486,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         }
       });
       const incoming = clampPartner(baseRecord, clampStats);
+      const validation = validatePartner(incoming);
+      Object.assign(incoming, validation.normalized || {});
+      if(!validation.ok){
+        incoming.needsReview = true;
+        incoming.validationErrors = validation.errors.slice();
+      }
       incoming._dedupeKeys = buildPartnerKeys(incoming);
 
       if(mode==='replace' && !isDryRun){
@@ -648,6 +637,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       });
 
       const incoming = clampContact(base, clampStats);
+      const validation = validateContact(incoming);
+      Object.assign(incoming, validation.normalized || {});
+      if(!validation.ok){
+        incoming.needsReview = true;
+        incoming.validationErrors = validation.errors.slice();
+      }
       incoming._dedupeKeys = buildContactKeys(incoming);
 
       if(mode==='replace' && !isDryRun){
