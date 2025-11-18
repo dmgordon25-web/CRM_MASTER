@@ -121,6 +121,14 @@ function queueRequest(request){
   pushHistory({ action: 'queue', id: request && request.id ? String(request.id) : '', meta: request && request.meta, isNew: request && request.isNew });
   if(state.activePromise){
     logDebug('queueRequest: active promise in flight', { request });
+    return state.activePromise.then(
+      (value) => value,
+      (err) => {
+        const relay = state.activePromise;
+        if(relay) return relay;
+        throw err;
+      },
+    );
   }
   if(!state.activePromise){
     state.activePromise = processPendingQueue();
@@ -138,13 +146,14 @@ async function processPendingQueue(){
   const next = state.pendingRequest;
   state.pendingRequest = null;
   let failed = false;
+  let error = null;
   try{
     pushHistory({ action: 'process-open', id: next && next.id ? String(next.id) : '', isNew: next && next.isNew });
     const result = await performOpen(next.id, next.meta, next.isNew);
     return result;
   }catch(err){
     failed = true;
-    throw err;
+    error = err;
   }finally{
     pushHistory({ action: 'process-end', pending: !!state.pendingRequest });
     logDebug('processPendingQueue:end', { pending: !!state.pendingRequest });
@@ -154,8 +163,15 @@ async function processPendingQueue(){
       if(!failed){
         return nextPromise;
       }
+      // Ensure the failed promise rejects while still surfacing the queued promise for callers.
+      // Avoid unhandled rejections from the queued branch by attaching a noop handler.
+      nextPromise.catch(() => {});
+      throw error;
     }else{
       state.activePromise = null;
+      if(failed){
+        throw error;
+      }
     }
   }
 }
