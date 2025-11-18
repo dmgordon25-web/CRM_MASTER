@@ -275,6 +275,7 @@ import { getUiMode } from './ui/ui_mode.js';
     }
     return null;
   }
+  const displayDate = (value)=>{ const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString() : '—'; };
   function daysAgo(date, ref){ if(!date) return null; const diff = Math.floor((ref.getTime()-date.getTime())/86400000); return diff; }
   const stageLabels = {
     'long shot':translate('stage.long-shot'),
@@ -1671,7 +1672,6 @@ import { getUiMode } from './ui/ui_mode.js';
 
     const partnerMap = new Map(partners.map(p=>[String(p.id), p]));
     const isoDate = (value)=>{ const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0,10) : ''; };
-    const displayDate = (value)=>{ const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString() : '—'; };
     const contactLink = (c)=> {
       const nameParts = [];
       if(c && c.first) nameParts.push(c.first);
