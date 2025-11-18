@@ -7,20 +7,20 @@ const DEFAULT_VIEW_CONFIG = {
     hidden: ['stage', 'loanType', 'loanAmount', 'lastTouch', 'nextAction', 'fundedDate', 'createdAt', 'updatedAt']
   },
   longshots: {
-    order: ['name', 'status', 'owner', 'lastTouch', 'nextAction', 'loanAmount'],
-    hidden: ['stage', 'createdAt', 'updatedAt']
+    order: ['name', 'loanType', 'loanAmount', 'referredBy', 'lastTouch'],
+    hidden: ['status', 'stage', 'owner', 'nextAction', 'createdAt', 'updatedAt']
   },
   pipeline: {
-    order: ['name', 'stage', 'owner', 'loanAmount', 'lastTouch', 'nextAction'],
-    hidden: ['loanType', 'createdAt', 'updatedAt']
+    order: ['name', 'stage', 'loanType', 'loanAmount', 'referredBy'],
+    hidden: ['owner', 'lastTouch', 'nextAction', 'createdAt', 'updatedAt']
   },
   clients: {
-    order: ['name', 'stage', 'owner', 'fundedDate', 'loanAmount', 'updatedAt'],
-    hidden: ['lastTouch']
+    order: ['name', 'stage', 'loanType', 'loanAmount', 'fundedDate'],
+    hidden: ['owner', 'lastTouch', 'updatedAt']
   },
   partners: {
-    order: ['name', 'company', 'tier', 'owner', 'lastTouch', 'nextTouch'],
-    hidden: ['createdAt', 'updatedAt']
+    order: ['name', 'company', 'tier', 'referrals', 'funded', 'active', 'volume', 'conversion', 'email', 'phone'],
+    hidden: ['owner', 'lastTouch', 'nextTouch', 'createdAt', 'updatedAt']
   }
 };
 
