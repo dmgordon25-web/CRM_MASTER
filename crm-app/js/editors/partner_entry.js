@@ -137,16 +137,25 @@ async function processPendingQueue(){
   }
   const next = state.pendingRequest;
   state.pendingRequest = null;
+  let failed = false;
   try{
     pushHistory({ action: 'process-open', id: next && next.id ? String(next.id) : '', isNew: next && next.isNew });
     const result = await performOpen(next.id, next.meta, next.isNew);
     return result;
+  }catch(err){
+    failed = true;
+    throw err;
   }finally{
     pushHistory({ action: 'process-end', pending: !!state.pendingRequest });
     logDebug('processPendingQueue:end', { pending: !!state.pendingRequest });
-    state.activePromise = null;
     if(state.pendingRequest){
-      return processPendingQueue();
+      const nextPromise = processPendingQueue();
+      state.activePromise = nextPromise;
+      if(!failed){
+        return nextPromise;
+      }
+    }else{
+      state.activePromise = null;
     }
   }
 }
