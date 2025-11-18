@@ -1,0 +1,8442 @@
+{
+  "generatedAt": "2025-11-18T08:22:55.340Z",
+  "fields": {
+    "contacts": [
+      {
+        "id": "name",
+        "label": "Name",
+        "required": true,
+        "simple": true,
+        "typeHint": "name"
+      },
+      {
+        "id": "email",
+        "label": "Email",
+        "required": true,
+        "simple": true,
+        "typeHint": "email"
+      },
+      {
+        "id": "phone",
+        "label": "Phone",
+        "required": false,
+        "simple": true,
+        "typeHint": "phone"
+      },
+      {
+        "id": "status",
+        "label": "Status",
+        "required": false,
+        "simple": true,
+        "typeHint": "status"
+      },
+      {
+        "id": "stage",
+        "label": "Stage",
+        "required": false,
+        "simple": true,
+        "typeHint": "stage"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "required": false,
+        "simple": true,
+        "typeHint": "owner"
+      },
+      {
+        "id": "loanType",
+        "label": "Loan Type",
+        "required": false,
+        "simple": false,
+        "typeHint": "loanType"
+      },
+      {
+        "id": "loanAmount",
+        "label": "Loan Amount",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanAmount"
+      },
+      {
+        "id": "lastTouch",
+        "label": "Last Touch",
+        "required": false,
+        "simple": true,
+        "typeHint": "lastTouch"
+      },
+      {
+        "id": "nextAction",
+        "label": "Next Action",
+        "required": false,
+        "simple": true,
+        "typeHint": "nextAction"
+      },
+      {
+        "id": "fundedDate",
+        "label": "Funded Date",
+        "required": false,
+        "simple": true,
+        "typeHint": "fundedDate"
+      },
+      {
+        "id": "createdAt",
+        "label": "Created",
+        "required": false,
+        "simple": false,
+        "typeHint": "createdAt"
+      },
+      {
+        "id": "updatedAt",
+        "label": "Updated",
+        "required": false,
+        "simple": false,
+        "typeHint": "updatedAt"
+      }
+    ],
+    "longshots": [
+      {
+        "id": "name",
+        "label": "Name",
+        "required": true,
+        "simple": true,
+        "typeHint": "name"
+      },
+      {
+        "id": "status",
+        "label": "Status",
+        "required": false,
+        "simple": true,
+        "typeHint": "status"
+      },
+      {
+        "id": "stage",
+        "label": "Stage",
+        "required": false,
+        "simple": true,
+        "typeHint": "stage"
+      },
+      {
+        "id": "loanType",
+        "label": "Loan Type",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanType"
+      },
+      {
+        "id": "loanAmount",
+        "label": "Loan Amount",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanAmount"
+      },
+      {
+        "id": "referredBy",
+        "label": "Referred By",
+        "required": false,
+        "simple": true,
+        "typeHint": "referredBy"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "required": false,
+        "simple": true,
+        "typeHint": "owner"
+      },
+      {
+        "id": "lastTouch",
+        "label": "Last Touch",
+        "required": false,
+        "simple": true,
+        "typeHint": "lastTouch"
+      },
+      {
+        "id": "nextAction",
+        "label": "Next Action",
+        "required": false,
+        "simple": true,
+        "typeHint": "nextAction"
+      },
+      {
+        "id": "createdAt",
+        "label": "Created",
+        "required": false,
+        "simple": false,
+        "typeHint": "createdAt"
+      },
+      {
+        "id": "updatedAt",
+        "label": "Updated",
+        "required": false,
+        "simple": false,
+        "typeHint": "updatedAt"
+      }
+    ],
+    "pipeline": [
+      {
+        "id": "name",
+        "label": "Name",
+        "required": true,
+        "simple": true,
+        "typeHint": "name"
+      },
+      {
+        "id": "stage",
+        "label": "Stage",
+        "required": true,
+        "simple": true,
+        "typeHint": "stage"
+      },
+      {
+        "id": "loanType",
+        "label": "Loan Type",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanType"
+      },
+      {
+        "id": "loanAmount",
+        "label": "Loan Amount",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanAmount"
+      },
+      {
+        "id": "referredBy",
+        "label": "Referred By",
+        "required": false,
+        "simple": true,
+        "typeHint": "referredBy"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "required": false,
+        "simple": true,
+        "typeHint": "owner"
+      },
+      {
+        "id": "lastTouch",
+        "label": "Last Touch",
+        "required": false,
+        "simple": true,
+        "typeHint": "lastTouch"
+      },
+      {
+        "id": "nextAction",
+        "label": "Next Action",
+        "required": false,
+        "simple": true,
+        "typeHint": "nextAction"
+      },
+      {
+        "id": "createdAt",
+        "label": "Created",
+        "required": false,
+        "simple": false,
+        "typeHint": "createdAt"
+      },
+      {
+        "id": "updatedAt",
+        "label": "Updated",
+        "required": false,
+        "simple": false,
+        "typeHint": "updatedAt"
+      }
+    ],
+    "clients": [
+      {
+        "id": "name",
+        "label": "Name",
+        "required": true,
+        "simple": true,
+        "typeHint": "name"
+      },
+      {
+        "id": "stage",
+        "label": "Stage",
+        "required": true,
+        "simple": true,
+        "typeHint": "stage"
+      },
+      {
+        "id": "loanType",
+        "label": "Loan Type",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanType"
+      },
+      {
+        "id": "loanAmount",
+        "label": "Loan Amount",
+        "required": false,
+        "simple": true,
+        "typeHint": "loanAmount"
+      },
+      {
+        "id": "fundedDate",
+        "label": "Funded Date",
+        "required": false,
+        "simple": true,
+        "typeHint": "fundedDate"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "required": false,
+        "simple": true,
+        "typeHint": "owner"
+      },
+      {
+        "id": "lastTouch",
+        "label": "Last Touch",
+        "required": false,
+        "simple": true,
+        "typeHint": "lastTouch"
+      },
+      {
+        "id": "updatedAt",
+        "label": "Updated",
+        "required": false,
+        "simple": false,
+        "typeHint": "updatedAt"
+      }
+    ],
+    "partners": [
+      {
+        "id": "name",
+        "label": "Name",
+        "required": true,
+        "simple": true,
+        "typeHint": "name"
+      },
+      {
+        "id": "company",
+        "label": "Company",
+        "required": false,
+        "simple": true,
+        "typeHint": "company"
+      },
+      {
+        "id": "tier",
+        "label": "Tier",
+        "required": false,
+        "simple": true,
+        "typeHint": "tier"
+      },
+      {
+        "id": "referrals",
+        "label": "Referrals",
+        "required": false,
+        "simple": true,
+        "typeHint": "referrals"
+      },
+      {
+        "id": "funded",
+        "label": "Funded",
+        "required": false,
+        "simple": true,
+        "typeHint": "funded"
+      },
+      {
+        "id": "active",
+        "label": "Active",
+        "required": false,
+        "simple": true,
+        "typeHint": "active"
+      },
+      {
+        "id": "volume",
+        "label": "Volume",
+        "required": false,
+        "simple": true,
+        "typeHint": "volume"
+      },
+      {
+        "id": "conversion",
+        "label": "Conversion",
+        "required": false,
+        "simple": true,
+        "typeHint": "conversion"
+      },
+      {
+        "id": "email",
+        "label": "Email",
+        "required": false,
+        "simple": true,
+        "typeHint": "email"
+      },
+      {
+        "id": "phone",
+        "label": "Phone",
+        "required": false,
+        "simple": true,
+        "typeHint": "phone"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "required": false,
+        "simple": true,
+        "typeHint": "owner"
+      },
+      {
+        "id": "lastTouch",
+        "label": "Last Touch",
+        "required": false,
+        "simple": true,
+        "typeHint": "lastTouch"
+      },
+      {
+        "id": "nextTouch",
+        "label": "Next Action",
+        "required": false,
+        "simple": true,
+        "typeHint": "nextTouch"
+      },
+      {
+        "id": "createdAt",
+        "label": "Created",
+        "required": false,
+        "simple": false,
+        "typeHint": "createdAt"
+      },
+      {
+        "id": "updatedAt",
+        "label": "Updated",
+        "required": false,
+        "simple": false,
+        "typeHint": "updatedAt"
+      }
+    ]
+  },
+  "pipeline": {
+    "stages": [
+      "Long Shot",
+      "Application",
+      "Pre-Approved",
+      "Processing",
+      "Underwriting",
+      "Approved",
+      "CTC",
+      "Funded"
+    ],
+    "stageKeys": [
+      "long-shot",
+      "application",
+      "preapproved",
+      "processing",
+      "underwriting",
+      "approved",
+      "cleared-to-close",
+      "funded"
+    ],
+    "stageLabels": [
+      "Long Shot",
+      "Application",
+      "Pre-Approved",
+      "Processing",
+      "Underwriting",
+      "Approved",
+      "CTC",
+      "Funded"
+    ],
+    "statusKeys": [
+      "inprogress",
+      "active",
+      "client",
+      "paused",
+      "lost",
+      "nurture"
+    ],
+    "stageAliases": {
+      "CTC": "clear_to_close",
+      "Clear to Close": "clear_to_close",
+      "Clear-to-Close": "clear_to_close",
+      "Clear To Close": "clear_to_close",
+      "Clear 2 Close": "clear_to_close",
+      "Clear2Close": "clear_to_close",
+      "clear to close": "clear_to_close",
+      "clear-to-close": "clear_to_close",
+      "Cleared to Close": "clear_to_close",
+      "Cleared-To-Close": "clear_to_close",
+      "cleared-to-close": "clear_to_close",
+      "cleared to close": "clear_to_close",
+      "clear_to_close": "clear_to_close",
+      "ctc": "clear_to_close",
+      "Long Shot": "new",
+      "Long-Shot": "new",
+      "LongShot": "new",
+      "long-shot": "new",
+      "long shot": "new",
+      "longshot": "new",
+      "lead": "new",
+      "leads": "new",
+      "prospect": "new",
+      "New Lead": "new",
+      "Buyer Lead": "new",
+      "buyer lead": "new",
+      "application": "qualified",
+      "Application": "qualified",
+      "Application Started": "qualified",
+      "App Started": "qualified",
+      "Nurture": "qualified",
+      "nurture": "qualified",
+      "Pre-Approved": "qualified",
+      "PreApproved": "qualified",
+      "preapproved": "qualified",
+      "Preapproved": "qualified",
+      "Pre Approved": "qualified",
+      "Pre-App": "qualified",
+      "Pre App": "qualified",
+      "pre app": "qualified",
+      "Pre Application": "qualified",
+      "Pre-Application": "qualified",
+      "Preapproval": "qualified",
+      "Pre-Approval": "qualified",
+      "Docs Gathering": "negotiating",
+      "Doc Gathering": "negotiating",
+      "Docs-Gathering": "negotiating",
+      "Processing": "negotiating",
+      "processing": "negotiating",
+      "Underwriting": "negotiating",
+      "underwriting": "negotiating",
+      "Under-write": "negotiating",
+      "Underwrite": "negotiating",
+      "Under Writing": "negotiating",
+      "approved": "negotiating",
+      "Approved": "negotiating",
+      "funded": "won",
+      "Funded": "won",
+      "Funded/Closed": "won",
+      "funded/closed": "won",
+      "Post Close": "won",
+      "Post-Close": "won",
+      "postclose": "won",
+      "Past Client": "won",
+      "Past Clients": "won",
+      "client": "won",
+      "clients": "won",
+      "closed": "won",
+      "Closed Won": "won",
+      "post-close": "won",
+      "Post Funded": "won",
+      "Post-Funded": "won",
+      "post-funded": "won",
+      "won": "won",
+      "lost": "lost",
+      "Lost": "lost",
+      "denied": "lost",
+      "Denied": "lost",
+      "cancelled": "lost",
+      "canceled": "lost",
+      "withdrawn": "lost",
+      "Closed Lost": "lost"
+    },
+    "statusAliases": {
+      "CTC": "cleared-to-close",
+      "Clear to Close": "cleared-to-close",
+      "Clear-to-Close": "cleared-to-close"
+    },
+    "milestones": [
+      "Intro Call",
+      "Application Sent",
+      "Application Submitted",
+      "UW in Progress",
+      "Conditions Out",
+      "Clear to Close",
+      "Docs Out",
+      "Funded / Post-Close"
+    ],
+    "tones": [
+      "progress",
+      "success",
+      "warning",
+      "danger"
+    ]
+  },
+  "references": {
+    "inprogress": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          272,
+          417,
+          457,
+          849,
+          968,
+          1133,
+          1170,
+          1211,
+          1496,
+          1828,
+          2121
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          646
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          1064,
+          1148,
+          1148
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          547
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+        "lines": [
+          273
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1646
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          126,
+          145,
+          145
+        ]
+      },
+      {
+        "file": "crm-app/js/utils.js",
+        "lines": [
+          169
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          205,
+          221,
+          222,
+          223,
+          224,
+          299,
+          300,
+          314,
+          315,
+          316,
+          347,
+          352,
+          523,
+          523,
+          536,
+          540,
+          544,
+          626,
+          641,
+          642
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          77
+        ]
+      }
+    ],
+    "active": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          303,
+          311,
+          322,
+          346,
+          346,
+          368,
+          388,
+          392,
+          687,
+          693,
+          694,
+          694,
+          695,
+          1757,
+          1995,
+          2029,
+          2192,
+          2210,
+          2260,
+          2266,
+          2271,
+          2283,
+          2359,
+          2391,
+          2393,
+          2395,
+          2397,
+          2564,
+          2605,
+          2608
+        ]
+      },
+      {
+        "file": "crm-app/js/calendar.js",
+        "lines": [
+          195,
+          196,
+          197,
+          197,
+          197,
+          198,
+          202,
+          202,
+          208,
+          209
+        ]
+      },
+      {
+        "file": "crm-app/js/calendar_impl.js",
+        "lines": [
+          766,
+          1444,
+          1927,
+          2099,
+          2112,
+          2115,
+          2127,
+          2134,
+          2141,
+          2144,
+          2168
+        ]
+      },
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          273
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          157,
+          171,
+          214,
+          215,
+          216,
+          242,
+          243,
+          244
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          418,
+          929,
+          935,
+          1202,
+          1203,
+          1203,
+          1204,
+          1396,
+          1398,
+          1429,
+          1804,
+          1805,
+          3160,
+          3160,
+          3212,
+          3275,
+          3275,
+          3280,
+          3280,
+          3294,
+          3294,
+          3342,
+          3343,
+          3360,
+          3366,
+          3368,
+          3370,
+          3374
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts_merge.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts_merge_orchestrator.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/doccenter_rules.js",
+        "lines": [
+          361,
+          369,
+          388,
+          392,
+          493,
+          497
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          7,
+          29,
+          69,
+          315,
+          350,
+          350,
+          373,
+          377,
+          479,
+          484,
+          572,
+          573,
+          574,
+          576,
+          576,
+          605,
+          605,
+          614,
+          614,
+          622,
+          622,
+          630,
+          630
+        ]
+      },
+      {
+        "file": "crm-app/js/importer.js",
+        "lines": [
+          833,
+          834
+        ]
+      },
+      {
+        "file": "crm-app/js/partners.js",
+        "lines": [
+          997,
+          1046,
+          1051,
+          1065,
+          1111,
+          1112,
+          1146,
+          1151
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          120,
+          136,
+          164,
+          164,
+          200,
+          206,
+          206,
+          211,
+          213,
+          213,
+          213,
+          220,
+          267,
+          268,
+          360,
+          361,
+          385,
+          386
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_merge_orchestrator.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          14,
+          18,
+          49,
+          50,
+          954,
+          954,
+          955,
+          1046,
+          1076,
+          1077,
+          1082,
+          1495,
+          1499,
+          1515,
+          1515,
+          1522,
+          1522,
+          1527,
+          1528,
+          1528,
+          1528,
+          1528,
+          1549,
+          1550,
+          1550,
+          1561,
+          1577,
+          1622,
+          1622,
+          1635,
+          1636,
+          1637,
+          1638,
+          1639,
+          1640,
+          1641,
+          1642,
+          1642,
+          1643,
+          1643,
+          1643,
+          1653
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          14,
+          130,
+          131,
+          686,
+          1017,
+          1159,
+          1159,
+          1170,
+          1171,
+          1172,
+          1196,
+          1197,
+          1197,
+          1208,
+          1224,
+          1270,
+          1270,
+          1272,
+          1272,
+          1285,
+          1286,
+          1287,
+          1288,
+          1289,
+          1290,
+          1291,
+          1292,
+          1292,
+          1293,
+          1293,
+          1293,
+          1303,
+          1507,
+          1508,
+          1511
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          3,
+          530,
+          614,
+          634,
+          655
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_contact_linking_5A.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_contact_linking_5B.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_doccenter2.js",
+        "lines": [
+          3,
+          276,
+          277,
+          281,
+          380,
+          386,
+          386,
+          456,
+          464,
+          476,
+          477,
+          840
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          4,
+          339,
+          339
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_merge_ui.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+        "lines": [
+          3,
+          39,
+          44,
+          273,
+          274,
+          274,
+          275,
+          297,
+          297,
+          298,
+          298,
+          367,
+          411,
+          423,
+          423,
+          424,
+          424,
+          425,
+          438,
+          484,
+          484,
+          490,
+          490,
+          494,
+          496,
+          500
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+        "lines": [
+          3,
+          91,
+          91,
+          91,
+          1247,
+          1251,
+          1281,
+          1284,
+          1300
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+        "lines": [
+          3,
+          696,
+          697,
+          699,
+          702
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-02_baseline_ux_cleanup.js",
+        "lines": [
+          69
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-02_medium_nice.js",
+        "lines": [
+          3,
+          341,
+          347,
+          348,
+          348,
+          349,
+          489,
+          494,
+          559,
+          806,
+          807,
+          808
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-03_automation_seed.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-03_calendar_ics_button.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250923_baseline.js",
+        "lines": [
+          6,
+          270
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250924_bootstrap_ready.js",
+        "lines": [
+          2,
+          29
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          8,
+          30,
+          31,
+          31,
+          32,
+          32,
+          63,
+          527,
+          528,
+          528,
+          529,
+          533,
+          533,
+          534,
+          535,
+          614,
+          670,
+          1241
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          37,
+          467,
+          467,
+          1164,
+          1174,
+          1210,
+          1213,
+          1213,
+          1218,
+          1218,
+          1238,
+          1239,
+          1239,
+          1263,
+          1263,
+          1492,
+          1668
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          346
+        ]
+      },
+      {
+        "file": "crm-app/js/selftest.js",
+        "lines": [
+          275,
+          276,
+          279,
+          295
+        ]
+      },
+      {
+        "file": "crm-app/js/util/favorites.js",
+        "lines": [
+          66,
+          69,
+          75,
+          99,
+          102,
+          106,
+          106,
+          108,
+          112,
+          115,
+          119,
+          129,
+          133,
+          142,
+          150,
+          170,
+          200,
+          205,
+          212,
+          214,
+          215
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/action_bar.js",
+        "lines": [
+          38,
+          661,
+          676,
+          682,
+          684,
+          689,
+          690,
+          843,
+          1040,
+          1064,
+          1065,
+          1208,
+          1222,
+          1537,
+          1540
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/drag_core.js",
+        "lines": [
+          236,
+          237,
+          237,
+          238,
+          438,
+          439,
+          443
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/loading_block.js",
+        "lines": [
+          94,
+          97,
+          159,
+          170,
+          182,
+          187
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/merge_modal.js",
+        "lines": [
+          5,
+          89,
+          89,
+          90,
+          90,
+          91,
+          92,
+          124,
+          128,
+          218,
+          284,
+          285,
+          559,
+          563,
+          681,
+          924,
+          925,
+          991,
+          1066,
+          1066,
+          1067,
+          1072,
+          1077
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          282,
+          466,
+          469,
+          483,
+          488,
+          573,
+          574,
+          812,
+          812,
+          818
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/quick_add_validation.js",
+        "lines": [
+          52,
+          74,
+          106,
+          111,
+          115
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/quick_create_menu.js",
+        "lines": [
+          41,
+          441,
+          465,
+          486,
+          503
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/route_lifecycle.js",
+        "lines": [
+          59,
+          60,
+          60,
+          61,
+          66,
+          66,
+          67,
+          68,
+          93,
+          132,
+          140,
+          199
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_config.js",
+        "lines": [
+          22
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          58,
+          58
+        ]
+      },
+      {
+        "file": "crm-app/js/state/actionBarGuards.js",
+        "lines": [
+          14,
+          123
+        ]
+      },
+      {
+        "file": "crm-app/js/settings/columns_tab.js",
+        "lines": [
+          251,
+          252,
+          253,
+          254,
+          254,
+          255,
+          256,
+          256,
+          257,
+          258,
+          259,
+          259,
+          262,
+          271
+        ]
+      },
+      {
+        "file": "crm-app/js/services/selection_fallback.js",
+        "lines": [
+          164
+        ]
+      },
+      {
+        "file": "crm-app/js/router/history.js",
+        "lines": [
+          41,
+          49,
+          71,
+          79,
+          79,
+          79,
+          88,
+          91,
+          91,
+          91,
+          92,
+          113,
+          116,
+          118,
+          131,
+          147
+        ]
+      },
+      {
+        "file": "crm-app/js/relationships/map.js",
+        "lines": [
+          276,
+          276,
+          277,
+          278,
+          279,
+          280,
+          286,
+          288,
+          291,
+          305,
+          305,
+          306,
+          306
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          205,
+          225,
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          301,
+          302,
+          303,
+          304,
+          316,
+          317,
+          318,
+          319,
+          320,
+          353,
+          627
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/kanban_dnd.js",
+        "lines": [
+          32
+        ]
+      },
+      {
+        "file": "crm-app/js/patches/polish_overlay_ready.js",
+        "lines": [
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/email_templates.js",
+        "lines": [
+          325,
+          326,
+          340,
+          341,
+          351,
+          353
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/notifications.js",
+        "lines": [
+          124,
+          126,
+          139,
+          141,
+          145,
+          216
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          1271,
+          1434,
+          1435,
+          1486,
+          1487,
+          1487,
+          1489,
+          1501,
+          1944,
+          1945,
+          1951,
+          1952,
+          3128
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          86,
+          419,
+          425,
+          426,
+          428,
+          454,
+          458,
+          475
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/dashboard.js",
+        "lines": [
+          166,
+          166
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          83,
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_entry.js",
+        "lines": [
+          12,
+          74,
+          128,
+          140,
+          141,
+          143,
+          145,
+          155,
+          175,
+          178,
+          250,
+          257
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/partner_entry.js",
+        "lines": [
+          12,
+          74,
+          128,
+          135,
+          136,
+          137,
+          140,
+          144,
+          145,
+          148,
+          149,
+          151,
+          158,
+          177,
+          186,
+          260,
+          267
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          147,
+          165,
+          169,
+          184,
+          190,
+          192,
+          241,
+          258,
+          258
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          285,
+          487,
+          488,
+          584,
+          689,
+          691,
+          752,
+          2108,
+          2109,
+          2169,
+          2215,
+          2834,
+          2840,
+          2905,
+          3185,
+          3278,
+          3281,
+          3282,
+          3284,
+          3333,
+          3333,
+          3334,
+          3334
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          36,
+          38
+        ]
+      },
+      {
+        "file": "crm-app/js/core/theme_injector.js",
+        "lines": [
+          12,
+          72
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts/form.js",
+        "lines": [
+          6,
+          48,
+          48,
+          49,
+          79,
+          220,
+          221
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts/modal.js",
+        "lines": [
+          11,
+          428,
+          429,
+          504,
+          504,
+          506,
+          509,
+          547,
+          551
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/boot_hardener.js",
+        "lines": [
+          272,
+          776,
+          776,
+          777,
+          778,
+          783,
+          784,
+          784,
+          785,
+          927
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/contracts/services.js",
+        "lines": [
+          24
+        ]
+      }
+    ],
+    "client": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          304,
+          310,
+          312,
+          2030,
+          2030,
+          2171
+        ]
+      },
+      {
+        "file": "crm-app/js/calendar_impl.js",
+        "lines": [
+          55,
+          148,
+          148,
+          148,
+          2000,
+          2000,
+          2002,
+          2002,
+          2110,
+          2111,
+          2124,
+          2124,
+          2126,
+          2126,
+          2166,
+          2167
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          236,
+          395,
+          419,
+          1578,
+          3149,
+          3149,
+          3149
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          8,
+          37,
+          70,
+          325,
+          351,
+          351,
+          373,
+          374,
+          381,
+          479,
+          493,
+          606,
+          606,
+          615,
+          615,
+          623,
+          623,
+          631,
+          631
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          163,
+          164,
+          165,
+          166,
+          469,
+          469,
+          913,
+          922,
+          922,
+          994
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          69,
+          75,
+          114,
+          407,
+          408,
+          418,
+          419,
+          429,
+          429,
+          432,
+          1431,
+          1488,
+          1494,
+          1579,
+          1651,
+          1661,
+          1674
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-02_medium_nice.js",
+        "lines": [
+          248
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          88
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          38,
+          42,
+          696,
+          696,
+          946,
+          1657,
+          1664,
+          1664,
+          1669,
+          1669,
+          1763,
+          1778,
+          1779,
+          1790,
+          2046,
+          2047,
+          2047,
+          2049,
+          2051,
+          2051,
+          2087,
+          2091
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          144,
+          147,
+          147,
+          150,
+          150,
+          150
+        ]
+      },
+      {
+        "file": "crm-app/js/settings_forms.js",
+        "lines": [
+          95
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/action_bar.js",
+        "lines": [
+          1210,
+          1211,
+          1235,
+          1236
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/dashboard_layout.js",
+        "lines": [
+          111
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/drag_core.js",
+        "lines": [
+          650,
+          650,
+          656,
+          657,
+          659,
+          660,
+          1053,
+          1054,
+          1064,
+          1064,
+          1094,
+          1095,
+          1166,
+          1167,
+          1196,
+          1197,
+          1216,
+          1217
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          280,
+          284
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/quick_create_menu.js",
+        "lines": [
+          387,
+          388
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          86,
+          129
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/table_layout.js",
+        "lines": [
+          96
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_config.js",
+        "lines": [
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          42
+        ]
+      },
+      {
+        "file": "crm-app/js/table/table_export.js",
+        "lines": [
+          25,
+          26,
+          27
+        ]
+      },
+      {
+        "file": "crm-app/js/settings/columns_tab.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          113,
+          114,
+          205,
+          232,
+          233,
+          234,
+          234,
+          235,
+          236,
+          305,
+          306,
+          321,
+          322,
+          355,
+          628
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          24,
+          317,
+          318,
+          460,
+          2318,
+          2319,
+          2321,
+          2436,
+          2436,
+          2436
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          29
+        ]
+      },
+      {
+        "file": "crm-app/js/data/settings.js",
+        "lines": [
+          58,
+          94,
+          415
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          23
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/config.js",
+        "lines": [
+          21
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          152,
+          176,
+          199,
+          943,
+          2131,
+          2220,
+          2640,
+          2641,
+          2650,
+          2651
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6,
+          6
+        ]
+      }
+    ],
+    "paused": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          411,
+          411,
+          420
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          1487
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1651
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          205,
+          237,
+          237,
+          238,
+          239,
+          240,
+          241,
+          274,
+          287,
+          287,
+          310,
+          310,
+          315,
+          316,
+          317,
+          318,
+          319,
+          320,
+          323,
+          326,
+          326,
+          354,
+          632
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          12
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          67,
+          67,
+          105,
+          128,
+          246
+        ]
+      }
+    ],
+    "lost": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          1998,
+          2003,
+          2031,
+          2031
+        ]
+      },
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          229
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          382,
+          397,
+          412,
+          421,
+          1419,
+          1582
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6,
+          138,
+          200,
+          220,
+          222,
+          222
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          181,
+          192,
+          200,
+          334,
+          366,
+          368,
+          673,
+          1335,
+          1371,
+          1483,
+          1491,
+          1495,
+          1500,
+          1517,
+          1517,
+          1866
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          265
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          29,
+          36,
+          778,
+          1563
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          569
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          525,
+          557
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+        "lines": [
+          952,
+          952
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          92,
+          92,
+          104,
+          117
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          289,
+          289,
+          301,
+          1164,
+          1171,
+          1172,
+          1210
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          55,
+          69,
+          126,
+          355,
+          517
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          113,
+          141,
+          141
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          76
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          29,
+          123,
+          123,
+          124,
+          125,
+          126,
+          127,
+          128,
+          129,
+          130,
+          205,
+          242,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          272,
+          285,
+          285,
+          308,
+          308,
+          309,
+          324,
+          324,
+          325,
+          356,
+          634
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          131,
+          131,
+          143
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          70,
+          70,
+          74,
+          76,
+          421
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          65,
+          65,
+          66,
+          82,
+          102,
+          103,
+          105,
+          127,
+          178,
+          179,
+          245
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          185,
+          190,
+          193,
+          260,
+          260
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          7,
+          7
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "nurture": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2029
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          381,
+          387,
+          394,
+          396,
+          401,
+          408,
+          410,
+          422,
+          1419,
+          1579,
+          1581
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          133,
+          1486
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          264
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          29,
+          35,
+          114
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          524
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+        "lines": [
+          871,
+          872,
+          951,
+          951,
+          953,
+          953
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          103,
+          116
+        ]
+      },
+      {
+        "file": "crm-app/js/post_funding.js",
+        "lines": [
+          2,
+          19,
+          26,
+          36
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          288,
+          288,
+          300,
+          939,
+          940,
+          1064,
+          1651,
+          1651,
+          1763,
+          1773,
+          1773,
+          1773,
+          1776,
+          1780,
+          1790,
+          1974
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          54,
+          68,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/dashboard_layout.js",
+        "lines": [
+          111,
+          124,
+          125
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          80,
+          80,
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          112,
+          140
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          75,
+          139
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          78,
+          205,
+          248,
+          249,
+          250,
+          251,
+          252,
+          253,
+          253,
+          271,
+          284,
+          284,
+          298,
+          307,
+          307,
+          314,
+          315,
+          323,
+          323,
+          351,
+          631
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          129
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          12,
+          291
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          64,
+          64,
+          126,
+          244
+        ]
+      },
+      {
+        "file": "crm-app/js/data/settings.js",
+        "lines": [
+          58
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          152,
+          176,
+          199
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "CTC": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          13
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          110,
+          110,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          1547,
+          1578,
+          1620
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-03_automation_seed.js",
+        "lines": [
+          16
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          33,
+          42
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          9,
+          41,
+          42,
+          43,
+          44,
+          45
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          73,
+          89
+        ]
+      }
+    ],
+    "Clear to Close": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          442,
+          451
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-03_automation_seed.js",
+        "lines": [
+          16
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          83
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          109
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          27,
+          34,
+          43,
+          164
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          41
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          241
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          57
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          88
+        ]
+      }
+    ],
+    "Clear-to-Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          35,
+          44
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          43
+        ]
+      }
+    ],
+    "long-shot": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          1857,
+          1882,
+          1883,
+          1929,
+          2028
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          7
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          372,
+          385,
+          387,
+          401,
+          1579
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          252,
+          1115
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          518,
+          1521
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          33,
+          33
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          513,
+          514,
+          544
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          106,
+          119,
+          811
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          280
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          66
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          64,
+          248,
+          298,
+          314,
+          569
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          58,
+          65
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          52
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          207,
+          242
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4
+        ]
+      }
+    ],
+    "application": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          1941,
+          2028,
+          2792
+        ]
+      },
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          53
+        ]
+      },
+      {
+        "file": "crm-app/js/compose.js",
+        "lines": [
+          645,
+          883,
+          908
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          270,
+          295,
+          373,
+          385,
+          388,
+          402,
+          402,
+          438,
+          885,
+          967,
+          982,
+          1210,
+          1302,
+          1452,
+          1495,
+          1593,
+          2120
+        ]
+      },
+      {
+        "file": "crm-app/js/importer.js",
+        "lines": [
+          972
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          131,
+          132,
+          142,
+          143
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          256,
+          1108,
+          1132
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          749,
+          1466,
+          1521
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          561,
+          733
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          488,
+          517,
+          531,
+          546
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+        "lines": [
+          1069
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+        "lines": [
+          272
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250923_baseline.js",
+        "lines": [
+          47
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          95,
+          109,
+          127,
+          131
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          33,
+          281,
+          281,
+          293,
+          878,
+          1987,
+          1992
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          46,
+          60,
+          104,
+          236,
+          246,
+          247,
+          277,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/snapshot.js",
+        "lines": [
+          13
+        ]
+      },
+      {
+        "file": "crm-app/js/templates.js",
+        "lines": [
+          89,
+          99
+        ]
+      },
+      {
+        "file": "crm-app/js/utils.js",
+        "lines": [
+          168
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/action_bar.js",
+        "lines": [
+          102,
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/dashboard_layout.js",
+        "lines": [
+          185,
+          191
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/header_toolbar.js",
+        "lines": [
+          61
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/help_hints.js",
+        "lines": [
+          3
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/modal_singleton.js",
+        "lines": [
+          134
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          105,
+          142
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/quick_create_menu.js",
+        "lines": [
+          188
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          67,
+          79
+        ]
+      },
+      {
+        "file": "crm-app/js/tasks/api.js",
+        "lines": [
+          12,
+          20
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          73,
+          299,
+          315
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          128
+        ]
+      },
+      {
+        "file": "crm-app/js/patches/patch_2025-10-23_actionbar_drag.js",
+        "lines": [
+          20,
+          26
+        ]
+      },
+      {
+        "file": "crm-app/js/patches/patch_2025-10-23_unify_quick_create.js",
+        "lines": [
+          23
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          10,
+          813
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          106,
+          374
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          54,
+          54,
+          90,
+          118,
+          236
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          207
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/boot_hardener.js",
+        "lines": [
+          418
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/early_trap.js",
+        "lines": [
+          147
+        ]
+      }
+    ],
+    "preapproved": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2029
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          9
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          374,
+          385,
+          389,
+          403,
+          1414
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          134
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          254,
+          255,
+          1115
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          517,
+          1521
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          30,
+          30
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          515,
+          516
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          83,
+          84,
+          96
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          81,
+          300,
+          316
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          60
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          55,
+          93
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          207
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          5
+        ]
+      }
+    ],
+    "processing": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2029
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          10
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          375,
+          385,
+          390,
+          390,
+          404,
+          404,
+          1583
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          144,
+          1958
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          84,
+          257,
+          676,
+          682,
+          697,
+          1132
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          518
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          97,
+          110
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          33,
+          282,
+          282,
+          294
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          47,
+          61,
+          246,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          68,
+          69,
+          137
+        ]
+      },
+      {
+        "file": "crm-app/js/state/dashboard_state.js",
+        "lines": [
+          140
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          95,
+          227,
+          301,
+          317
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          10
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          108,
+          376
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          57,
+          57,
+          120,
+          238
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "underwriting": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2029
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          376,
+          385,
+          391,
+          391,
+          405,
+          405,
+          1583
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          145
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          258,
+          1108,
+          1132
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          734,
+          736,
+          737,
+          739
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          519
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          98,
+          111
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          33,
+          283,
+          283,
+          295
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          48,
+          62,
+          246,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          107
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          70,
+          138
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          97,
+          228,
+          302,
+          318
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          10
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          109,
+          377
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          58,
+          58,
+          121,
+          239
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "approved": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2029,
+          2029,
+          2029
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          9,
+          12
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          374,
+          377,
+          385,
+          385,
+          389,
+          392,
+          403,
+          406,
+          1414,
+          1584
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6,
+          6,
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          134,
+          135,
+          136,
+          149
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          254,
+          255,
+          259,
+          1115
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          517,
+          1521
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          30,
+          30,
+          31,
+          31
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          515,
+          516,
+          520
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          83,
+          83,
+          84,
+          84,
+          96,
+          99,
+          112
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          34,
+          284,
+          284,
+          296
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          49,
+          63,
+          246,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          71
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          81,
+          82,
+          101,
+          229,
+          300,
+          303,
+          316,
+          319,
+          630
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          24,
+          60,
+          60,
+          60
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          110,
+          378
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          55,
+          56,
+          59,
+          59,
+          93,
+          122,
+          240
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          207
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "cleared-to-close": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          13,
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          378,
+          385,
+          393,
+          407,
+          1416,
+          1584
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          155
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          260,
+          1108,
+          1109,
+          1132
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          516,
+          1520
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          32,
+          32
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          521,
+          529
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          79,
+          79,
+          80,
+          81,
+          82,
+          100,
+          113,
+          212,
+          214,
+          233,
+          234
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          34,
+          285,
+          285,
+          297
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          50,
+          64,
+          246,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          109
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          72,
+          136
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          33,
+          34,
+          35,
+          54,
+          231,
+          304,
+          320,
+          565,
+          567
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          61
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          111,
+          379
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          60,
+          60,
+          61,
+          123,
+          241
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          30,
+          36
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "funded": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          307,
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/calendar_impl.js",
+        "lines": [
+          34
+        ]
+      },
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          22,
+          33,
+          33,
+          65,
+          86,
+          92,
+          93,
+          228,
+          228,
+          229,
+          243,
+          248,
+          249,
+          313,
+          313,
+          319
+        ]
+      },
+      {
+        "file": "crm-app/js/compose.js",
+        "lines": [
+          482
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          275,
+          379,
+          385,
+          394,
+          408,
+          980,
+          980,
+          1122,
+          1580,
+          1870,
+          1870
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          8,
+          8,
+          42,
+          42,
+          178,
+          178,
+          178,
+          179,
+          179,
+          179,
+          290,
+          290,
+          291,
+          291,
+          331,
+          331,
+          332,
+          332,
+          332,
+          383,
+          383,
+          383,
+          416,
+          416,
+          416,
+          417,
+          417,
+          495,
+          495,
+          496,
+          496,
+          499,
+          499,
+          500,
+          500
+        ]
+      },
+      {
+        "file": "crm-app/js/ical.js",
+        "lines": [
+          2,
+          85,
+          87,
+          87,
+          90
+        ]
+      },
+      {
+        "file": "crm-app/js/importer.js",
+        "lines": [
+          20,
+          262,
+          602,
+          602
+        ]
+      },
+      {
+        "file": "crm-app/js/notifications.js",
+        "lines": [
+          26,
+          102,
+          102,
+          175,
+          175,
+          274,
+          279,
+          535,
+          535
+        ]
+      },
+      {
+        "file": "crm-app/js/partners.js",
+        "lines": [
+          119,
+          189,
+          189,
+          189,
+          189,
+          193,
+          193,
+          194,
+          194,
+          197,
+          201,
+          204,
+          248,
+          291,
+          291,
+          291,
+          291,
+          292
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6,
+          66,
+          68,
+          68,
+          68,
+          69,
+          69,
+          89,
+          119,
+          163,
+          163,
+          199,
+          201,
+          201,
+          202,
+          203,
+          206,
+          211,
+          212,
+          212,
+          212
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          50,
+          158,
+          159,
+          1482,
+          1489,
+          1489,
+          1489,
+          1490,
+          1490,
+          1495,
+          1502,
+          1514,
+          1514,
+          1518,
+          1523,
+          1523,
+          1534,
+          1534,
+          1534,
+          1534,
+          1538,
+          1538,
+          1538,
+          1538,
+          1550,
+          1550,
+          1578,
+          1593,
+          1622,
+          1622
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          262,
+          493,
+          494,
+          494,
+          494,
+          958,
+          958,
+          959,
+          960,
+          1108,
+          1112,
+          1112,
+          1129,
+          1132,
+          1277,
+          1278,
+          1279,
+          1281,
+          1283
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          30,
+          131,
+          752,
+          752,
+          753,
+          753,
+          753,
+          771,
+          772,
+          1160,
+          1160,
+          1168,
+          1169,
+          1197,
+          1197,
+          1225,
+          1240,
+          1269,
+          1269,
+          1272,
+          1272,
+          1519,
+          1519,
+          1527,
+          1531,
+          1531,
+          1532,
+          1545,
+          1551,
+          1551,
+          1552,
+          1552,
+          1557,
+          1557,
+          1601,
+          1601
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          522
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_merge_ui.js",
+        "lines": [
+          44
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250923_baseline.js",
+        "lines": [
+          108,
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          89,
+          101,
+          114
+        ]
+      },
+      {
+        "file": "crm-app/js/post_funding.js",
+        "lines": [
+          2,
+          46,
+          62,
+          62,
+          85,
+          85,
+          94,
+          100
+        ]
+      },
+      {
+        "file": "crm-app/js/presets.js",
+        "lines": [
+          8,
+          8,
+          42,
+          42,
+          42
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          34,
+          44,
+          286,
+          286,
+          298,
+          466,
+          466,
+          942,
+          948,
+          948,
+          1164,
+          1169,
+          1210,
+          1212,
+          1212,
+          1215,
+          1217,
+          1217,
+          1236,
+          1237,
+          1237,
+          1263,
+          1263,
+          1309,
+          1310,
+          1310,
+          1311,
+          1311,
+          1311,
+          1313,
+          1313,
+          1314,
+          1314,
+          1322,
+          1324,
+          1327,
+          1327,
+          1327,
+          1327,
+          1328,
+          1328,
+          1329,
+          1329,
+          1330,
+          1331,
+          1331,
+          1331,
+          1331,
+          1331,
+          1335,
+          1335,
+          1337,
+          1337,
+          1338,
+          1339,
+          1339,
+          1340,
+          1341,
+          1345,
+          1367,
+          1372,
+          1372,
+          1375,
+          1375,
+          1377,
+          1705,
+          1706,
+          1706,
+          1764,
+          1779,
+          1779,
+          1779,
+          1779,
+          1785,
+          1794,
+          1805,
+          1887,
+          2072,
+          2072,
+          2089,
+          2089
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          52,
+          66,
+          124,
+          124,
+          124,
+          125,
+          125,
+          126,
+          130,
+          130,
+          132,
+          136,
+          136,
+          136,
+          147,
+          237,
+          246,
+          250,
+          250,
+          251,
+          259,
+          266,
+          266,
+          278,
+          355,
+          499,
+          499,
+          500,
+          511,
+          512,
+          517,
+          528,
+          528,
+          529,
+          529,
+          529,
+          530,
+          530,
+          531,
+          531,
+          531,
+          539,
+          543,
+          544,
+          551,
+          552,
+          559,
+          559,
+          559,
+          565,
+          578,
+          581,
+          586,
+          586,
+          588,
+          595
+        ]
+      },
+      {
+        "file": "crm-app/js/settings_forms.js",
+        "lines": [
+          642,
+          642,
+          644,
+          644,
+          652,
+          652,
+          652,
+          652,
+          654
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          110
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          73,
+          95,
+          96,
+          99,
+          104,
+          109,
+          116
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_config.js",
+        "lines": [
+          7,
+          18,
+          22
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          13,
+          13,
+          47,
+          47,
+          57,
+          57
+        ]
+      },
+      {
+        "file": "crm-app/js/reports/referrals.js",
+        "lines": [
+          56,
+          62,
+          63,
+          97,
+          106,
+          108,
+          109,
+          112,
+          115,
+          115,
+          115,
+          122,
+          123,
+          130,
+          131,
+          139,
+          140
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          104,
+          107,
+          120,
+          232,
+          305,
+          321,
+          629
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          11,
+          195,
+          242,
+          242,
+          326,
+          327,
+          328,
+          329,
+          330,
+          461,
+          461,
+          461
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          112,
+          380,
+          421
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          62,
+          62,
+          96,
+          105,
+          124,
+          178,
+          242
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_fields.js",
+        "lines": [
+          81,
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/data/settings.js",
+        "lines": [
+          313
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          166,
+          166,
+          186,
+          186,
+          190,
+          195,
+          203,
+          206,
+          206,
+          208,
+          209,
+          257,
+          257,
+          261,
+          302
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "Long Shot": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          104
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          61
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          3,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          130
+        ]
+      }
+    ],
+    "Application": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          373,
+          438,
+          447,
+          447,
+          448,
+          840,
+          1497
+        ]
+      },
+      {
+        "file": "crm-app/js/doccenter_rules.js",
+        "lines": [
+          254,
+          260,
+          266,
+          272,
+          278,
+          284,
+          290
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          105
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          256
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          109,
+          828
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          760
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          46
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          81,
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          105,
+          317
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/quick_add_unified.js",
+        "lines": [
+          262
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          67
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          74,
+          75,
+          87,
+          88,
+          137,
+          160,
+          161,
+          352,
+          354,
+          356
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          4,
+          30,
+          31,
+          38,
+          38,
+          39,
+          40,
+          128,
+          129
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          236
+        ]
+      }
+    ],
+    "Pre-Approved": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          9
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          374
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          253,
+          254,
+          255
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          79
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          5,
+          23,
+          24,
+          25,
+          26,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33
+        ]
+      }
+    ],
+    "Processing": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          10
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          375
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          107,
+          1958
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          257,
+          432,
+          675,
+          1355,
+          1360,
+          1361
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          110
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          47
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          68,
+          69,
+          137
+        ]
+      },
+      {
+        "file": "crm-app/js/state/dashboard_state.js",
+        "lines": [
+          134,
+          210,
+          237
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          94,
+          138
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          238
+        ]
+      }
+    ],
+    "Underwriting": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          376
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          258
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          111
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          48
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          107
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          70,
+          138
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          96,
+          138
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          7,
+          34,
+          35,
+          36,
+          37
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          239
+        ]
+      }
+    ],
+    "Approved": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          9,
+          12
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          374,
+          377
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14,
+          15
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          106,
+          109
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          253,
+          254,
+          255,
+          259
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          112
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          49
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          71
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          79,
+          80,
+          83,
+          102
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          5,
+          8,
+          23,
+          23,
+          24,
+          25,
+          25,
+          26,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          240
+        ]
+      }
+    ],
+    "Funded": [
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          314
+        ]
+      },
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          379,
+          453,
+          980
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14,
+          15,
+          42,
+          383,
+          417
+        ]
+      },
+      {
+        "file": "crm-app/js/ical.js",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/partners.js",
+        "lines": [
+          111,
+          115,
+          232,
+          243,
+          279,
+          289
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          119
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          111,
+          1490,
+          1501,
+          1549,
+          1549,
+          1560,
+          1578
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          262,
+          1278,
+          1279,
+          1280,
+          1280
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          76,
+          76,
+          76,
+          986,
+          986,
+          986,
+          987,
+          987,
+          987,
+          988,
+          988,
+          988,
+          988,
+          1168,
+          1169,
+          1181,
+          1181,
+          1181,
+          1181,
+          1185,
+          1185,
+          1185,
+          1185,
+          1196,
+          1196,
+          1207,
+          1225,
+          1545,
+          1546,
+          1549,
+          1549,
+          1549,
+          1549,
+          1557,
+          1578,
+          1578,
+          1579,
+          1618
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_merge_ui.js",
+        "lines": [
+          44
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          114
+        ]
+      },
+      {
+        "file": "crm-app/js/post_funding.js",
+        "lines": [
+          11,
+          43,
+          63,
+          86,
+          101
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          5
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          948,
+          1322,
+          1324,
+          1326,
+          1327,
+          1331,
+          1339
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          52,
+          436,
+          573,
+          577,
+          577,
+          582
+        ]
+      },
+      {
+        "file": "crm-app/js/settings_forms.js",
+        "lines": [
+          101,
+          101,
+          102,
+          102,
+          103,
+          103,
+          644,
+          644,
+          654
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          84,
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          110
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          73,
+          95,
+          96,
+          99,
+          109,
+          116
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          13,
+          47,
+          57
+        ]
+      },
+      {
+        "file": "crm-app/js/reports/referrals.js",
+        "lines": [
+          52,
+          60,
+          105,
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          105,
+          106,
+          118,
+          119,
+          140,
+          140,
+          166,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          10,
+          46,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          194,
+          242,
+          242,
+          461
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          66
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          242
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_fields.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/data/settings.js",
+        "lines": [
+          100,
+          101,
+          102,
+          313,
+          313,
+          315,
+          316
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          151,
+          167,
+          186,
+          194,
+          203,
+          205,
+          245,
+          286,
+          301,
+          301,
+          302,
+          303
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          89,
+          90,
+          91
+        ]
+      }
+    ],
+    "Clear To Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          47
+        ]
+      }
+    ],
+    "Clear 2 Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          48
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          44
+        ]
+      }
+    ],
+    "Clear2Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          49
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          45
+        ]
+      }
+    ],
+    "clear to close": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          151
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-03_automation_seed.js",
+        "lines": [
+          16
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          50
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          58,
+          59
+        ]
+      }
+    ],
+    "clear-to-close": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          392,
+          442,
+          1415
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          152
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          516
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          80,
+          216,
+          236
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          51
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          56
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      }
+    ],
+    "Cleared to Close": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          378
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          14,
+          15
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          260,
+          261
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          113
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          50,
+          51
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          72,
+          136
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          52,
+          139
+        ]
+      }
+    ],
+    "Cleared-To-Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          53
+        ]
+      }
+    ],
+    "cleared to close": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          1415
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          154
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          55,
+          565
+        ]
+      }
+    ],
+    "clear_to_close": [
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          51,
+          65,
+          246
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          27,
+          42,
+          43,
+          44,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          56,
+          57,
+          139
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          76
+        ]
+      }
+    ],
+    "ctc": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          1415
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          150
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          261,
+          1108,
+          1109
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          516,
+          1520,
+          1535,
+          1535,
+          1536
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          32
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          528
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          1,
+          72,
+          73,
+          74,
+          75,
+          82,
+          215,
+          235,
+          1892,
+          1893,
+          1901,
+          1902,
+          1904,
+          1905,
+          1910,
+          1910,
+          1911
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          83
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          57,
+          230
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          61
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          61
+        ]
+      },
+      {
+        "file": "crm-app/js/data/seed.js",
+        "lines": [
+          46,
+          49,
+          74
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/phases.js",
+        "lines": [
+          74
+        ]
+      }
+    ],
+    "Long-Shot": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          62
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          22
+        ]
+      }
+    ],
+    "LongShot": [
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          437,
+          535,
+          537,
+          539,
+          586,
+          611,
+          611
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+        "lines": [
+          951,
+          952,
+          953
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          806,
+          818,
+          1342,
+          1343,
+          1343,
+          1343,
+          1345,
+          1349
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          63
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          21
+        ]
+      }
+    ],
+    "long shot": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          127
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          280,
+          303,
+          2108,
+          2111
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          57,
+          71,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          65,
+          249,
+          569,
+          571
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "longshot": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          149,
+          305,
+          306,
+          313,
+          1857,
+          1880,
+          1880,
+          1881,
+          1881,
+          1882,
+          1883,
+          1887,
+          1888,
+          1889,
+          1891,
+          1892,
+          1912,
+          1918,
+          1918,
+          1918,
+          1918,
+          1921,
+          1931,
+          2028,
+          3103
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          3147,
+          3433,
+          3451
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          10,
+          52,
+          72,
+          306,
+          352,
+          385,
+          502
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          126
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          311,
+          313,
+          314,
+          315,
+          351,
+          352,
+          353,
+          373,
+          432,
+          438,
+          441,
+          451,
+          475,
+          591
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_nth_bundle_and_qa.js",
+        "lines": [
+          961,
+          963,
+          967
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          810
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          39,
+          43,
+          1651,
+          1665,
+          1665,
+          1670,
+          2093,
+          2094,
+          2096,
+          2098,
+          2108,
+          2109,
+          2110,
+          2110,
+          2111,
+          2111,
+          2113,
+          2113,
+          2116,
+          2116,
+          2132,
+          2134,
+          2136
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          144,
+          146,
+          146,
+          149,
+          149,
+          149
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/header_toolbar.js",
+        "lines": [
+          492
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_config.js",
+        "lines": [
+          9
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/table/table_export.js",
+        "lines": [
+          29,
+          30
+        ]
+      },
+      {
+        "file": "crm-app/js/settings/columns_tab.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          66,
+          250,
+          569
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          12,
+          22,
+          27,
+          281
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          105,
+          373
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          52,
+          53,
+          53,
+          90,
+          117,
+          235
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/core/theme_injector.js",
+        "lines": [
+          21
+        ]
+      },
+      {
+        "file": "crm-app/js/boot/boot_hardener.js",
+        "lines": [
+          721
+        ]
+      }
+    ],
+    "lead": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          149,
+          2028,
+          2028
+        ]
+      },
+      {
+        "file": "crm-app/js/calendar_impl.js",
+        "lines": [
+          55,
+          149,
+          149,
+          149
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          285,
+          387,
+          396,
+          903,
+          942,
+          1002,
+          1061,
+          1579,
+          1579,
+          1877
+        ]
+      },
+      {
+        "file": "crm-app/js/importer.js",
+        "lines": [
+          29,
+          262,
+          607,
+          607
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          67
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          47,
+          48,
+          93,
+          124,
+          125,
+          128,
+          130,
+          223,
+          224,
+          224,
+          225,
+          225,
+          226,
+          226,
+          227,
+          227,
+          228,
+          228,
+          229,
+          229,
+          230,
+          230,
+          231,
+          231,
+          232,
+          232,
+          233,
+          233,
+          234,
+          234,
+          235,
+          235,
+          236,
+          236,
+          237,
+          237,
+          238,
+          238,
+          659,
+          659,
+          1422,
+          1434,
+          1456,
+          1459,
+          1544,
+          1554,
+          1558,
+          1574,
+          1598,
+          1601,
+          1604,
+          1607,
+          1609,
+          1615,
+          1625,
+          1627,
+          1636,
+          1645,
+          1659,
+          1661,
+          1664,
+          1665,
+          1671,
+          1674,
+          1675,
+          1681
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          251,
+          255,
+          467,
+          1115
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          58,
+          86,
+          103,
+          103,
+          128,
+          129,
+          226,
+          518,
+          973,
+          1122,
+          1148,
+          1150,
+          1151,
+          1152,
+          1152,
+          1154,
+          1157,
+          1191,
+          1201,
+          1205,
+          1221,
+          1245,
+          1248,
+          1251,
+          1254,
+          1256,
+          1262,
+          1275,
+          1277,
+          1286,
+          1295,
+          1309,
+          1311,
+          1314,
+          1315,
+          1321,
+          1324,
+          1325,
+          1331,
+          1420,
+          1423,
+          1423,
+          1832,
+          1839,
+          1892,
+          1938
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          33
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          172,
+          185,
+          512
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_merge_ui.js",
+        "lines": [
+          33,
+          61,
+          611,
+          611
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_phase6_polish_telemetry.js",
+        "lines": [
+          1332
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+        "lines": [
+          285
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          668,
+          1339
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          21,
+          57,
+          1411,
+          1412
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          216,
+          235,
+          243,
+          259,
+          259,
+          276
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/dashboard_layout.js",
+        "lines": [
+          99,
+          99
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          80
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          333,
+          333
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          56,
+          139
+        ]
+      },
+      {
+        "file": "crm-app/js/table/table_export.js",
+        "lines": [
+          31
+        ]
+      },
+      {
+        "file": "crm-app/js/state/dashboard_state.js",
+        "lines": [
+          8,
+          14
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          67,
+          68,
+          72,
+          252
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          130
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          280
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          238,
+          239,
+          246,
+          265
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_fields.js",
+        "lines": [
+          59
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/partner_entry.js",
+        "lines": [
+          18
+        ]
+      },
+      {
+        "file": "crm-app/js/data/settings.js",
+        "lines": [
+          46,
+          46,
+          391
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          11,
+          250,
+          288
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/config.js",
+        "lines": [
+          9
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          139,
+          139,
+          186,
+          186
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4,
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/referral_leaders.js",
+        "lines": [
+          68
+        ]
+      }
+    ],
+    "leads": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          149,
+          2028
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          387,
+          396,
+          1579
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          125
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          1122
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          668
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          235,
+          243,
+          259,
+          259,
+          276
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          80
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          56,
+          139
+        ]
+      },
+      {
+        "file": "crm-app/js/table/table_export.js",
+        "lines": [
+          31
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          68
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          280
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4
+        ]
+      }
+    ],
+    "prospect": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2028
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          129
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_release_prep.js",
+        "lines": [
+          286
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1651
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          69,
+          251
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          12
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          4
+        ]
+      }
+    ],
+    "New Lead": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          807,
+          872
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          984
+        ]
+      },
+      {
+        "file": "crm-app/js/settings_forms.js",
+        "lines": [
+          99
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          70
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          19
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          44
+        ]
+      }
+    ],
+    "Buyer Lead": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          71
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          20
+        ]
+      }
+    ],
+    "buyer lead": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          72
+        ]
+      }
+    ],
+    "Application Started": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          438
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          75
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          38
+        ]
+      }
+    ],
+    "App Started": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          76
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          39
+        ]
+      }
+    ],
+    "Nurture": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          381,
+          422,
+          427
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          264
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          35
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          116
+        ]
+      },
+      {
+        "file": "crm-app/js/post_funding.js",
+        "lines": [
+          20,
+          21
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          949
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          54
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          112
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          75,
+          139
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          77
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          40
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          244
+        ]
+      }
+    ],
+    "PreApproved": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          80
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          23
+        ]
+      }
+    ],
+    "Preapproved": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          82
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          24
+        ]
+      }
+    ],
+    "Pre Approved": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          83
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          25
+        ]
+      }
+    ],
+    "Pre-App": [
+      {
+        "file": "crm-app/js/contact_stage_tracker.js",
+        "lines": [
+          9
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          374,
+          981
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          253,
+          254,
+          255
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1847
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          81
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          79,
+          84,
+          88,
+          90
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          5,
+          23,
+          24,
+          25,
+          26,
+          26,
+          27,
+          28,
+          28,
+          29,
+          30,
+          31,
+          31,
+          32,
+          33,
+          33
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          51
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_fields.js",
+        "lines": [
+          82
+        ]
+      }
+    ],
+    "Pre App": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          83,
+          85,
+          87
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          25,
+          27,
+          30
+        ]
+      }
+    ],
+    "pre app": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          135,
+          140,
+          142
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          86
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          60
+        ]
+      }
+    ],
+    "Pre Application": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          87
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          30
+        ]
+      }
+    ],
+    "Pre-Application": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          88
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          31
+        ]
+      }
+    ],
+    "Preapproval": [
+      {
+        "file": "crm-app/js/compose.js",
+        "lines": [
+          16,
+          495
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          89
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          32
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/email_templates.js",
+        "lines": [
+          15
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          52,
+          53
+        ]
+      }
+    ],
+    "Pre-Approval": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          981
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1847
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          90
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          33
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          51
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_fields.js",
+        "lines": [
+          82
+        ]
+      }
+    ],
+    "Docs Gathering": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          91,
+          138
+        ]
+      }
+    ],
+    "Doc Gathering": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          92
+        ]
+      }
+    ],
+    "Docs-Gathering": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          93
+        ]
+      }
+    ],
+    "Under-write": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          98
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          35
+        ]
+      }
+    ],
+    "Underwrite": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          99
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          36
+        ]
+      }
+    ],
+    "Under Writing": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          100
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          37
+        ]
+      }
+    ],
+    "Funded/Closed": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          106
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          46
+        ]
+      }
+    ],
+    "funded/closed": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          159
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          107
+        ]
+      }
+    ],
+    "Post Close": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          108
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          52
+        ]
+      }
+    ],
+    "Post-Close": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          380,
+          453
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          263,
+          809
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          34
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          115
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          53
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          111
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          74
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          109,
+          166,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          53
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          243
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          45,
+          63,
+          69,
+          75
+        ]
+      }
+    ],
+    "postclose": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          86
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          110,
+          283
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      }
+    ],
+    "Past Client": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          425,
+          428
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          1488,
+          1651
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          86
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          111,
+          112
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          50,
+          51
+        ]
+      }
+    ],
+    "Past Clients": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          1488,
+          1651
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          86
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          112
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          51
+        ]
+      }
+    ],
+    "clients": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          304,
+          310,
+          312,
+          2030,
+          2171
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          395,
+          1578,
+          3149,
+          3149,
+          3149
+        ]
+      },
+      {
+        "file": "crm-app/js/filters.js",
+        "lines": [
+          8,
+          37,
+          70,
+          325,
+          351,
+          351,
+          373,
+          374,
+          381,
+          479,
+          493,
+          606,
+          606,
+          615,
+          615,
+          623,
+          623,
+          631,
+          631
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          163,
+          166,
+          469,
+          469
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          1488,
+          1494,
+          1579,
+          1651,
+          1661,
+          1674
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          38,
+          42,
+          1657,
+          1664,
+          1669,
+          1669,
+          1763,
+          1790,
+          2046,
+          2047,
+          2049,
+          2051
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          144,
+          147,
+          150,
+          150,
+          150
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          86
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_config.js",
+        "lines": [
+          17
+        ]
+      },
+      {
+        "file": "crm-app/js/tables/column_schema.js",
+        "lines": [
+          42
+        ]
+      },
+      {
+        "file": "crm-app/js/table/table_export.js",
+        "lines": [
+          25,
+          26,
+          27
+        ]
+      },
+      {
+        "file": "crm-app/js/settings/columns_tab.js",
+        "lines": [
+          8
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          114
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          24,
+          317,
+          318,
+          460
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          29
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          943
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      }
+    ],
+    "closed": [
+      {
+        "file": "crm-app/js/commissions.js",
+        "lines": [
+          229
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          68,
+          121,
+          137,
+          165,
+          165,
+          202,
+          206,
+          206,
+          211,
+          214,
+          214,
+          214,
+          221
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          159,
+          162
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          752
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-10-02_medium_nice.js",
+        "lines": [
+          773,
+          776,
+          777
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          87
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          517
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/merge_modal.js",
+        "lines": [
+          196,
+          682,
+          912,
+          954
+        ]
+      },
+      {
+        "file": "crm-app/js/reports/referrals.js",
+        "lines": [
+          65
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          107,
+          115,
+          233
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          3206
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/contact_entry.js",
+        "lines": [
+          100
+        ]
+      },
+      {
+        "file": "crm-app/js/editors/partner_entry.js",
+        "lines": [
+          100
+        ]
+      }
+    ],
+    "Closed Won": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          116
+        ]
+      }
+    ],
+    "post-close": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          380,
+          385,
+          395,
+          408,
+          409,
+          1123,
+          1419,
+          1578,
+          1580
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          161,
+          1485
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          263,
+          1283
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          29,
+          34
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          523
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          85,
+          86,
+          87,
+          88,
+          102,
+          115
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          34,
+          287,
+          287,
+          299
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          53,
+          67,
+          246,
+          250,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          111,
+          140,
+          140
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          74
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          117,
+          236,
+          270,
+          283,
+          283,
+          306,
+          322
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          421
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          63,
+          63,
+          96,
+          105,
+          125,
+          178,
+          243
+        ]
+      },
+      {
+        "file": "crm-app/js/email/templates_store.js",
+        "lines": [
+          44,
+          62,
+          68,
+          74
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "Post Funded": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          118
+        ]
+      }
+    ],
+    "Post-Funded": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          119,
+          140
+        ]
+      }
+    ],
+    "post-funded": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          120
+        ]
+      }
+    ],
+    "won": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          1998,
+          2002,
+          2030,
+          2030
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6,
+          199,
+          200,
+          220,
+          221,
+          221
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          89
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          1168
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          84
+        ]
+      },
+      {
+        "file": "crm-app/js/reports/referrals.js",
+        "lines": [
+          54,
+          56
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          28,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          121,
+          140
+        ]
+      },
+      {
+        "file": "crm-app/js/pages/workbench.js",
+        "lines": [
+          11
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          58,
+          58,
+          62,
+          64
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          81,
+          97
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          6,
+          6
+        ]
+      }
+    ],
+    "Lost": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2003
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          382,
+          421
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          138
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          1491,
+          1500
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          265
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          36
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          117
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          55
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          85,
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          113
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          76
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          29,
+          122,
+          124,
+          130
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          78
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          245
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          185,
+          193
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          1550
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          7
+        ]
+      }
+    ],
+    "denied": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2031
+        ]
+      },
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          383,
+          398,
+          413,
+          1419,
+          1582
+        ]
+      },
+      {
+        "file": "crm-app/js/partners_detail.js",
+        "lines": [
+          6
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase1_pipeline_partners.js",
+        "lines": [
+          181,
+          192,
+          200,
+          334,
+          366,
+          368,
+          673,
+          1335,
+          1371,
+          1371,
+          1484,
+          1491,
+          1866
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          266
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          29,
+          37,
+          778,
+          1563
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase4_polish_regression.js",
+        "lines": [
+          569
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          526,
+          557
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          90,
+          91,
+          91,
+          105,
+          118
+        ]
+      },
+      {
+        "file": "crm-app/js/qa.js",
+        "lines": [
+          4
+        ]
+      },
+      {
+        "file": "crm-app/js/render.js",
+        "lines": [
+          290,
+          290,
+          302
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          56,
+          70,
+          355
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          114,
+          141
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          77
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          122,
+          125,
+          243,
+          273,
+          286,
+          286,
+          309,
+          325,
+          635
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/stages.js",
+        "lines": [
+          132,
+          132,
+          143
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/crm_widgets.js",
+        "lines": [
+          421
+        ]
+      },
+      {
+        "file": "crm-app/js/labs/data.js",
+        "lines": [
+          66,
+          102,
+          105
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/baseline_snapshot.js",
+        "lines": [
+          185
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/kpis.js",
+        "lines": [
+          7
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/pipeline_momentum.js",
+        "lines": [
+          27
+        ]
+      }
+    ],
+    "Denied": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          383
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          266
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase3_dashboard_reports.js",
+        "lines": [
+          37
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_20250926_ctc_actionbar.js",
+        "lines": [
+          118
+        ]
+      },
+      {
+        "file": "crm-app/js/reports.js",
+        "lines": [
+          56
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/partner_edit_modal.js",
+        "lines": [
+          114
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/strings.js",
+        "lines": [
+          77
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          126
+        ]
+      }
+    ],
+    "cancelled": [
+      {
+        "file": "crm-app/js/calendar_impl.js",
+        "lines": [
+          478
+        ]
+      },
+      {
+        "file": "crm-app/js/tasks/api.js",
+        "lines": [
+          359
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          127,
+          246,
+          637,
+          651,
+          651
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/index.js",
+        "lines": [
+          2643,
+          2649,
+          2653,
+          2665
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/todo_widget.js",
+        "lines": [
+          35
+        ]
+      }
+    ],
+    "canceled": [
+      {
+        "file": "crm-app/js/patch_2025-09-26_phase2_automations.js",
+        "lines": [
+          357,
+          361,
+          361,
+          361,
+          712,
+          840,
+          841,
+          843
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_contact_linking_5C.js",
+        "lines": [
+          244
+        ]
+      },
+      {
+        "file": "crm-app/js/tasks/api.js",
+        "lines": [
+          359
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          128,
+          245,
+          636
+        ]
+      },
+      {
+        "file": "crm-app/js/dashboard/widgets/todo_widget.js",
+        "lines": [
+          35
+        ]
+      }
+    ],
+    "withdrawn": [
+      {
+        "file": "crm-app/js/app.js",
+        "lines": [
+          2031
+        ]
+      },
+      {
+        "file": "crm-app/js/ui/legend_popover.js",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          129,
+          247
+        ]
+      }
+    ],
+    "Closed Lost": [
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          130
+        ]
+      }
+    ],
+    "Intro Call": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          296,
+          446,
+          983
+        ]
+      },
+      {
+        "file": "crm-app/js/patch_2025-09-27_masterfix.js",
+        "lines": [
+          549
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          159,
+          351
+        ]
+      }
+    ],
+    "Application Sent": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          447
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          160,
+          356
+        ]
+      }
+    ],
+    "Application Submitted": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          448
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          161,
+          352,
+          354
+        ]
+      }
+    ],
+    "UW in Progress": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          449
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          162,
+          353
+        ]
+      }
+    ],
+    "Conditions Out": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          450
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          163
+        ]
+      }
+    ],
+    "Docs Out": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          452
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          165
+        ]
+      }
+    ],
+    "Funded / Post-Close": [
+      {
+        "file": "crm-app/js/contacts.js",
+        "lines": [
+          453
+        ]
+      },
+      {
+        "file": "crm-app/js/pipeline/constants.js",
+        "lines": [
+          166,
+          355
+        ]
+      }
+    ]
+  }
+}
