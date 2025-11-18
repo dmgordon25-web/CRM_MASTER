@@ -122,6 +122,12 @@ function queueRequest(request){
   if(state.activePromise){
     logDebug('queueRequest: active promise in flight', { request });
     return state.activePromise.then(
+      (value) => value,
+      (err) => {
+        const relay = state.activePromise;
+        if(relay) return relay;
+        throw err;
+      },
       () => state.activePromise,
       () => state.activePromise,
     );
