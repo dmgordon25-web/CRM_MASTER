@@ -1,5 +1,7 @@
 # Stabilization Delivery Week-01 Test Results
 
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; legacy `crm-app/js/table/...` modules referenced in earlier branches now reside in `QUARANTINE/` and are replaced in production by `crm-app/js/tables/column_schema.js` and `crm-app/js/tables/column_config.js`.
+
 ## Environment
 - **Working Directory:** `/home/user/CRM_MASTER`
 - **Branch:** `claude/stabilization-delivery-week-011CUmrexUar2mc7xkKQw1nX`
@@ -70,7 +72,7 @@
 |-----------|--------|------|--------------|
 | **Style Injection Dedupe** | ✅ PASS | `crm-app/js/state/actionBarGuards.js` | STYLE_ID guard present |
 | **Style Injection Dedupe** | ✅ PASS | `crm-app/js/ui/action_bar.js` | Inline style dedupe guard verified |
-| **Style Injection Dedupe** | ✅ PASS | `crm-app/css/app.css` | Action bar CSS rules present |
+| **Style Injection Dedupe** | ✅ PASS | `crm-app/styles.css` | Action bar CSS rules present |
 | **Singleton Modals** | ✅ EXISTS | `crm-app/js/ui/modal_singleton.js` | `ensureSingletonModal` function verified |
 | **CSV BOM Export** | ✅ EXISTS | `crm-app/js/pages/workbench.js` | `csvFromLines` adds `\ufeff` BOM |
 | **Copy Adapter (Leads)** | ✅ EXISTS | `crm-app/js/ui/strings.js` | `'stage.long-shot': 'Lead'` mapping verified |
@@ -97,10 +99,10 @@
 - **Implementation:** `document.getElementById('ab-inline-style')` guard
 - **Status:** Verified working
 
-### 4. Shared Table Registry ✅
-- **Files:** Contacts (contacts.js), Partners (partners.js), Workbench (pages/workbench.js)
+### 4. Table Column Configuration Helpers ✅
+- **Files:** `crm-app/js/tables/column_schema.js`, `crm-app/js/tables/column_config.js`
 - **Common Selectors:** `[data-ui="row-check"]`, `[data-ui="row-check-all"]`, `[data-ui="action-bar"]`
-- **Status:** Consistent implementation across surfaces
+- **Status:** Centralized column metadata for current flows; legacy `crm-app/js/table/...` registry/presets remain quarantined
 
 ### 5. CSV Export with BOM ✅
 - **File:** `crm-app/js/pages/workbench.js`

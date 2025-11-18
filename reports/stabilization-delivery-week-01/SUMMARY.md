@@ -1,5 +1,7 @@
 # Stabilization Delivery Week-01 Summary
 
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; legacy `crm-app/js/table/...` modules referenced in earlier branches now live under `QUARANTINE/` and have been superseded by the `crm-app/js/tables/` configuration helpers.
+
 ## What Changed
 
 **Short answer:** Nothing - this is a **stabilization and verification** delivery, not a feature delivery.
@@ -24,10 +26,10 @@ All required architecture baselines were already implemented in previous work:
    - Verified by passing `actionbar:style-dedupe` test
    - Prevents duplicate `<style>` nodes on repeated toggles
 
-4. **Shared Table Registry** (contacts.js, partners.js, workbench.js)
-   - Consistent selectors: `[data-ui="row-check"]`, `[data-ui="row-check-all"]`, `[data-ui="action-bar"]`
-   - Unified selection model across Contacts, Partners, Workbench surfaces
-   - Single rendering path via `render.js` → `renderTableBody()`
+4. **Table Column Configuration Helpers** (`crm-app/js/tables/column_schema.js`, `crm-app/js/tables/column_config.js`)
+   - Column schemas defined centrally for current views (consumed by settings and workbench)
+   - Legacy `crm-app/js/table/...` registry/preset modules from R08-MAX remain quarantined for historical reference
+   - Shared selectors (`[data-ui="row-check"]`, `[data-ui="row-check-all"]`, `[data-ui="action-bar"]`) continue to power selection UX
 
 5. **Row→Modal Gateway** (contacts.js:3110-3112)
    - `[data-ui="name-link"]` opens correct editor (Contact/Partner)
@@ -107,7 +109,7 @@ npm run sweep:s2                # ⚠️ PARTIAL - 1 PASS (actionbar:style-dedup
    - **Files Checked:**
      - `crm-app/js/state/actionBarGuards.js` - STYLE_ID constant
      - `crm-app/js/ui/action_bar.js` - Inline style dedupe guard
-     - `crm-app/css/app.css` - #actionbar position:fixed rule
+     - `crm-app/styles.css` - #actionbar position:fixed rule
 
 4. **CSV BOM Export**
    - **File:** workbench.js line 729

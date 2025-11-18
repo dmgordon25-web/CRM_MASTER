@@ -1,9 +1,11 @@
 # CRM Boot Performance Optimization - 2025
 
-> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; this document is a descriptive snapshot.
 
 ## Overview
 This document describes the boot performance optimizations implemented to reduce boot time and improve user experience.
+
+The live boot path is manifest-driven: `crm-app/index.html` imports `crm-app/js/router/init.js` and calls `ensureCoreThenPatches` from `crm-app/js/boot/boot_hardener.js` with `CORE`, `PATCHES`, and `REQUIRED` entries defined in `crm-app/js/boot/manifest.js`. The splash timing improvements below build on top of that manifest orchestration.
 
 ## Problem Statement
 - **Boot time was 5+ minutes** before tables loaded, tabs switched, and widgets settled

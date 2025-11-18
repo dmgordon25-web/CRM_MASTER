@@ -1,5 +1,7 @@
 # Implementation Summary - Feedback Items Completed
 
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; this document is a descriptive snapshot.
+
 ## ✅ COMPLETED ITEMS (Non-Dashboard)
 
 ### 1. Universal - Select All Checkbox (TOP PRIORITY) ✅
@@ -219,7 +221,7 @@ table.list-table thead th {
 ### 8. Simple/Advanced User Mode Toggle ✅
 **Status:** FULLY IMPLEMENTED
 
-**New File:** `/workspace/crm-app/js/ui/advanced_mode.js`
+**New File:** `crm-app/js/ui/ui_mode.js`
 
 **Implementation:**
 - Toggle added to Settings → General → Preferences
@@ -297,7 +299,7 @@ These items require deeper dashboard refactoring:
 1. `/workspace/crm-app/js/ui/universal_search.js` - Universal search functionality
 2. `/workspace/crm-app/js/table/table_export.js` - Table CSV export handler
 3. `/workspace/crm-app/js/ui/help_hints.js` - Interactive tooltip system for help hints
-4. `/workspace/crm-app/js/ui/advanced_mode.js` - Simple/Advanced mode toggle system
+4. `crm-app/js/ui/ui_mode.js` - Simple/Advanced mode toggle system
 
 ---
 

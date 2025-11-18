@@ -1,6 +1,6 @@
 # Dashboard Features Analysis & Implementation Guide
 
-> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+> Updated for current code as of 2025-11-18. Code under `crm-app/` is the source of truth; this document is a descriptive snapshot.
 
 ## Executive Summary
 
