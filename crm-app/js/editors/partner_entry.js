@@ -77,6 +77,14 @@ function hardReset(reason, options = {}){
   state.closeListener = null;
 }
 
+export function getPartnerEditorState(){
+  return { ...state };
+}
+
+export function resetPartnerEditorForRouteLeave(){
+  hardReset('route-leave', { preserveQueue: false });
+}
+
 function attachCloseListener(root){
   if(!(root instanceof HTMLElement) || !root.isConnected){
     pushHistory({ action: 'attach-close-skipped', reason: 'invalid-root' });
@@ -117,6 +125,11 @@ function focusModal(){
 }
 
 function queueRequest(request){
+  if(!state.activePromise && state.status !== 'idle' && state.status !== 'open'){
+    pushHistory({ action: 'auto-hard-reset', reason: 'inconsistent-status-before-open', status: state.status });
+    logDebug('queueRequest: resetting inconsistent state before open', { status: state.status });
+    hardReset('inconsistent-before-open', { preserveQueue: false });
+  }
   state.pendingRequest = request;
   pushHistory({ action: 'queue', id: request && request.id ? String(request.id) : '', meta: request && request.meta, isNew: request && request.isNew });
   if(state.activePromise){
