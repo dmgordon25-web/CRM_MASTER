@@ -114,6 +114,10 @@ function cloneGeneralDefaults(){
   };
 }
 
+function cloneSimpleModeDefaults(){
+  return { showLoanDetails: false, showRelationshipDetails: false, showAddress: false };
+}
+
 function coerceHourValue(value){
   if(typeof value === 'number' && Number.isFinite(value)){
     return Math.trunc(value);
@@ -176,6 +180,22 @@ function extractGeneralSettings(source){
   return defaults;
 }
 
+function extractSimpleModeSettings(source){
+  const defaults = cloneSimpleModeDefaults();
+  if(!source || typeof source !== 'object') return defaults;
+  const simple = source.simpleMode && typeof source.simpleMode === 'object' ? source.simpleMode : {};
+  if(Object.prototype.hasOwnProperty.call(simple, 'showLoanDetails')){
+    defaults.showLoanDetails = coerceBooleanLike(simple.showLoanDetails) === true;
+  }
+  if(Object.prototype.hasOwnProperty.call(simple, 'showRelationshipDetails')){
+    defaults.showRelationshipDetails = coerceBooleanLike(simple.showRelationshipDetails) === true;
+  }
+  if(Object.prototype.hasOwnProperty.call(simple, 'showAddress')){
+    defaults.showAddress = coerceBooleanLike(simple.showAddress) === true;
+  }
+  return defaults;
+}
+
 function normalizeUiMode(value){
   return value === 'simple' ? 'simple' : 'advanced';
 }
@@ -227,6 +247,17 @@ export function validateSettings(settings){
     errors.push({ path: 'notifications.enabled', reason: 'Enabled must be true or false' });
   }
 
+  const simpleMode = extractSimpleModeSettings(settings);
+  if(typeof simpleMode.showLoanDetails !== 'boolean'){
+    errors.push({ path: 'simpleMode.showLoanDetails', reason: 'Value must be true or false' });
+  }
+  if(typeof simpleMode.showRelationshipDetails !== 'boolean'){
+    errors.push({ path: 'simpleMode.showRelationshipDetails', reason: 'Value must be true or false' });
+  }
+  if(typeof simpleMode.showAddress !== 'boolean'){
+    errors.push({ path: 'simpleMode.showAddress', reason: 'Value must be true or false' });
+  }
+
   return { ok: errors.length === 0, errors };
 }
 
@@ -237,6 +268,7 @@ function applyGeneralSettingsCoercion(target){
   target.workHours = general.workHours;
   target.email = general.email;
   target.notifications = general.notifications;
+  target.simpleMode = extractSimpleModeSettings(target);
   return target;
 }
 
@@ -246,6 +278,7 @@ function shouldValidateGeneral(partial){
   if(Object.prototype.hasOwnProperty.call(partial, 'workHours')) return true;
   if(Object.prototype.hasOwnProperty.call(partial, 'email')) return true;
   if(Object.prototype.hasOwnProperty.call(partial, 'notifications')) return true;
+  if(Object.prototype.hasOwnProperty.call(partial, 'simpleMode')) return true;
   return false;
 }
 
@@ -495,6 +528,7 @@ function shouldValidateGeneral(partial){
     normalized.workHours = general.workHours;
     normalized.email = general.email;
     normalized.notifications = general.notifications;
+    normalized.simpleMode = extractSimpleModeSettings(base);
     return normalized;
   }
 
@@ -626,6 +660,10 @@ function shouldValidateGeneral(partial){
         partners: Array.isArray(source.favorites.partners) ? source.favorites.partners : currentFavorites.partners
       };
       next.favorites = normalizeFavoriteSnapshot(mergedFavorites);
+    }
+    if(Object.prototype.hasOwnProperty.call(source, 'simpleMode')){
+      const mergedSimple = Object.assign({}, current.simpleMode || {}, source.simpleMode || {});
+      next.simpleMode = extractSimpleModeSettings({ simpleMode: mergedSimple });
     }
     if(Object.prototype.hasOwnProperty.call(source, 'uiMode')){
       next.uiMode = normalizeUiMode(source.uiMode);

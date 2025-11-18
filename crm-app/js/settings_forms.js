@@ -1,4 +1,5 @@
 import { STR, text } from './ui/strings.js';
+import { normalizeSimpleModeSettings, SIMPLE_MODE_DEFAULTS } from './editors/contact_fields.js';
 import {
   DASHBOARD_WIDGETS,
   normalizeDashboardConfig,
@@ -74,6 +75,7 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   const signatureState = { rows: [], defaultId: null };
   const PROFILE_KEY = 'profile:v1';
   const SIGNATURE_KEY = 'signature:v1';
+  const simpleModeState = Object.assign({}, SIMPLE_MODE_DEFAULTS);
   const DASHBOARD_WIDGET_ENTRIES = DASHBOARD_WIDGETS.map(widget => ({
     key: widget.id,
     label: widget.label,
@@ -124,6 +126,12 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     kpis: Object.assign({}, dashboardDefaults.kpis)
   };
   let hydrating = false;
+
+  const SIMPLE_MODE_TOGGLES = {
+    showLoanDetails: 'toggle-simple-loan',
+    showRelationshipDetails: 'toggle-simple-relationships',
+    showAddress: 'toggle-simple-address'
+  };
 
   function generateRowId(){
     try{ if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID(); }
@@ -434,6 +442,49 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     renderProfileBadge();
   }
 
+  function getSimpleModeToggleElements(){
+    const map = {};
+    Object.entries(SIMPLE_MODE_TOGGLES).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if(el instanceof HTMLInputElement) map[key] = el;
+    });
+    return map;
+  }
+
+  function syncSimpleModeControls(preferences){
+    const toggles = getSimpleModeToggleElements();
+    if(!Object.keys(toggles).length) return;
+    const prefs = normalizeSimpleModeSettings(preferences || simpleModeState);
+    Object.assign(simpleModeState, prefs);
+    Object.entries(toggles).forEach(([key, el]) => {
+      el.checked = prefs[key] === true;
+    });
+  }
+
+  function persistSimpleModeControls(){
+    const toggles = getSimpleModeToggleElements();
+    if(!Object.keys(toggles).length || !ensureSettings()) return;
+    const payload = {};
+    Object.entries(toggles).forEach(([key, el]) => {
+      payload[key] = !!el.checked;
+    });
+    Object.assign(simpleModeState, payload);
+    const saveResult = window.Settings.save({ simpleMode: payload }, { silent: true });
+    Promise.resolve(saveResult).catch(err => {
+      console.warn('[settings] simple mode save failed', err);
+    });
+  }
+
+  function wireSimpleModeControls(){
+    const toggles = getSimpleModeToggleElements();
+    Object.values(toggles).forEach((el) => {
+      if(el.__wiredSimpleMode) return;
+      el.__wiredSimpleMode = true;
+      el.addEventListener('change', persistSimpleModeControls);
+    });
+    syncSimpleModeControls(simpleModeState);
+  }
+
   function normalizeSignatureRows(){
     return signatureState.rows
       .map(row => ({
@@ -715,6 +766,8 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       hydrateGoals(data.goals || {});
       hydrateProfile(data.loProfile || {});
       syncSignatureState(data.signature || {});
+      wireSimpleModeControls();
+      syncSimpleModeControls(data.simpleMode || simpleModeState);
       await hydrateSignatures(data);
     }catch (err) {
       console.warn('[soft]', text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);

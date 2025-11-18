@@ -3,7 +3,7 @@ import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
-import { applyContactFieldVisibility } from './editors/contact_fields.js';
+import { applyContactFieldVisibility, normalizeSimpleModeSettings, SIMPLE_MODE_DEFAULTS } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor as closeContactEntry, getContactEditorState, resetContactEditorForRouteLeave } from './editors/contact_entry.js';
 
@@ -774,6 +774,16 @@ export function normalizeContactId(input) {
       closeDialog();
       return null;
     }
+    let simpleModeSettings = SIMPLE_MODE_DEFAULTS;
+    if(window.Settings && typeof window.Settings.get === 'function'){
+      try{
+        const settingsData = await window.Settings.get();
+        simpleModeSettings = normalizeSimpleModeSettings(settingsData && settingsData.simpleMode);
+      }catch (err){
+        try{ console && console.warn && console.warn('[contact-editor] settings load failed', err); }
+        catch(_warn){}
+      }
+    }
     const [contacts, partners] = await Promise.all([dbGetAll('contacts'), dbGetAll('partners')]);
     const draft = createContactDraft(contactRecord?.id || requestedId);
     const c = Object.assign(draft, contactRecord || {});
@@ -1059,14 +1069,15 @@ export function normalizeContactId(input) {
           </aside>
         </div>
       </div>`;
-    applyContactFieldVisibility(body, getUiMode());
+    const applyFieldVisibility = (mode) => applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
+    applyFieldVisibility(getUiMode());
     if(dlg){
       if(dlg.__uiModeUnsub){
         try{ dlg.__uiModeUnsub(); }
         catch (_err){}
         dlg.__uiModeUnsub = null;
       }
-      dlg.__uiModeUnsub = onUiModeChanged((mode) => applyContactFieldVisibility(body, mode));
+      dlg.__uiModeUnsub = onUiModeChanged((mode) => applyFieldVisibility(mode));
       if(!dlg.__uiModeCleanup){
         const cleanupMode = () => {
           if(dlg.__uiModeUnsub){

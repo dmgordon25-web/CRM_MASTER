@@ -1522,12 +1522,27 @@
            <span>Advanced Mode</span>
           </label>
          </div>
-         <p class="muted fine-print" style="margin-top:8px;">
-          Simple mode hides rarely-used fields and advanced features for a cleaner interface.
-         </p>
-        </div>
+        <p class="muted fine-print" style="margin-top:8px;">
+         Simple mode hides rarely-used fields and advanced features for a cleaner interface.
+        </p>
        </div>
-       <div class="card">
+        <div class="stack" data-simple-mode-selector>
+         <div class="muted" style="font-weight:600;margin-bottom:4px;">Simple Mode Visibility</div>
+         <label class="switch">
+          <input id="toggle-simple-loan" type="checkbox"/>
+          <span>Show loan detail fields in simple mode</span>
+         </label>
+         <label class="switch">
+          <input id="toggle-simple-relationships" type="checkbox"/>
+          <span>Show relationship fields in simple mode</span>
+         </label>
+         <label class="switch">
+          <input id="toggle-simple-address" type="checkbox"/>
+          <span>Show property address fields in simple mode</span>
+         </label>
+        </div>
+      </div>
+      <div class="card">
         <h3>Maintenance</h3>
         <p class="widget-summary muted">Housekeeping actions that affect the entire workspace.</p>
         <button class="btn danger" id="btn-delete-all">Delete All Local Data</button>
