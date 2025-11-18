@@ -1,7 +1,10 @@
 // Labs CRM Data Helper
 // Connects to actual CRM database and provides data for Labs dashboard
 
-import { openDB, dbGetAll, dbGet } from '../db.js';
+import { openDB, dbGetAll } from '../db.js';
+import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
+import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
+import { stageLabelFromKey } from '../pipeline/stages.js';
 
 // Ensure database is open
 export async function ensureDatabase() {
@@ -18,7 +21,7 @@ export async function ensureDatabase() {
 export async function getAllContacts() {
   try {
     const contacts = await dbGetAll('contacts');
-    return Array.isArray(contacts) ? contacts.filter(c => !c.isDeleted) : [];
+    return Array.isArray(contacts) ? contacts.filter((c) => !c.isDeleted) : [];
   } catch (err) {
     console.error('[labs] Failed to fetch contacts:', err);
     return [];
@@ -47,101 +50,64 @@ export async function getAllTasks() {
   }
 }
 
-// Stage normalization (from pipeline logic)
-const STAGE_NORMALIZATION = {
-  'long-shot': 'longshot',
-  'longshot': 'longshot',
-  'application': 'application',
-  'preapproved': 'qualified',
-  'pre-approved': 'qualified',
-  'processing': 'processing',
-  'underwriting': 'underwriting',
-  'approved': 'approved',
-  'cleared-to-close': 'cleared-to-close',
-  'ctc': 'cleared-to-close',
-  'funded': 'funded',
-  'post-close': 'post-close',
-  'nurture': 'nurture',
-  'lost': 'lost',
-  'denied': 'lost',
-  'paused': 'paused'
-};
-
-export function normalizeStage(stage) {
-  if (!stage) return 'unknown';
-  const lower = String(stage).toLowerCase().trim();
-  return STAGE_NORMALIZATION[lower] || lower;
+function normalizeTimestamp(value) {
+  if (!value) return null;
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber) && asNumber > 0) return asNumber;
+  const date = new Date(value);
+  const ts = date.getTime();
+  return Number.isNaN(ts) ? null : ts;
 }
 
-// KPI calculation helpers
-export function calculateKPIs(contacts) {
-  const kpis = {
-    newLeads: 0,
-    qualified: 0,
-    won: 0,
-    lost: 0,
-    activePipeline: 0,
-    totalValue: 0
+function normalizeContact(contact = {}) {
+  const normalizedWorkflow = normalizeWorkflow(contact);
+  const createdTs = normalizeTimestamp(contact.createdTs || contact.createdAt || contact.created);
+  const updatedTs = normalizeTimestamp(contact.updatedAt || contact.updatedTs || contact.updated);
+  const fundedTs = normalizeTimestamp(contact.fundedTs || contact.funded_at || contact.fundedAt);
+  const stageMap = contact.stageMap || {};
+  return {
+    ...contact,
+    stage: normalizedWorkflow.stage,
+    status: normalizedWorkflow.status,
+    milestone: normalizedWorkflow.milestone,
+    lane: normalizedWorkflow.stage,
+    createdTs: createdTs || null,
+    updatedTs: updatedTs || createdTs || null,
+    fundedTs: fundedTs || null,
+    stageMap
   };
-
-  contacts.forEach(contact => {
-    const stage = normalizeStage(contact.stage);
-
-    if (stage === 'longshot' || stage === 'application') {
-      kpis.newLeads++;
-    }
-    if (stage === 'qualified' || stage === 'preapproved') {
-      kpis.qualified++;
-    }
-    if (stage === 'funded' || stage === 'post-close') {
-      kpis.won++;
-      if (contact.loanAmount) {
-        kpis.totalValue += parseFloat(contact.loanAmount) || 0;
-      }
-    }
-    if (stage === 'lost' || stage === 'denied') {
-      kpis.lost++;
-    }
-    if (!['lost', 'denied', 'funded', 'post-close', 'paused'].includes(stage)) {
-      kpis.activePipeline++;
-    }
-  });
-
-  return kpis;
 }
 
-// Group contacts by stage for pipeline visualization
-export function groupByStage(contacts) {
+function normalizeTask(task = {}) {
+  const dueTs = normalizeTimestamp(task.dueTs || task.dueDate || task.due);
+  return {
+    ...task,
+    due: task.due || task.dueDate || (dueTs ? new Date(dueTs).toISOString() : null),
+    dueTs: dueTs || null,
+    completed: !!task.completed
+  };
+}
+
+// KPI calculation helpers powered by canonical baseline snapshot
+export function calculateKPIsFromSnapshot(snapshot) {
+  if (!snapshot || !snapshot.kpis) return null;
+  return snapshot.kpis;
+}
+
+// Group contacts by stage for pipeline visualization using canonical model
+export function groupByStage(contacts = []) {
   const groups = {};
-  const stageOrder = [
-    'longshot',
-    'application',
-    'qualified',
-    'processing',
-    'underwriting',
-    'approved',
-    'cleared-to-close',
-    'funded',
-    'post-close',
-    'nurture',
-    'lost',
-    'paused'
-  ];
-
-  stageOrder.forEach(stage => {
-    groups[stage] = [];
-  });
-
-  contacts.forEach(contact => {
-    const stage = normalizeStage(contact.stage);
+  const order = CANONICAL_STAGE_ORDER.concat(['lost']);
+  order.forEach((stage) => { groups[stage] = []; });
+  contacts.forEach((contact) => {
+    const stage = canonicalStageKey(contact.stage || contact.lane);
     if (groups[stage]) {
       groups[stage].push(contact);
     } else {
-      if (!groups.other) groups.other = [];
+      groups.other = groups.other || [];
       groups.other.push(contact);
     }
   });
-
   return groups;
 }
 
@@ -149,7 +115,7 @@ export function groupByStage(contacts) {
 export function groupPartnersByTier(partners) {
   const tiers = {};
 
-  partners.forEach(partner => {
+  partners.forEach((partner) => {
     const tier = partner.tier || 'Unknown';
     if (!tiers[tier]) {
       tiers[tier] = [];
@@ -163,7 +129,7 @@ export function groupPartnersByTier(partners) {
 // Get top referral partners
 export function getTopReferralPartners(partners, limit = 10) {
   return partners
-    .filter(p => p.referralVolume || p.name)
+    .filter((p) => p.referralVolume || p.name)
     .sort((a, b) => (b.referralVolume || 0) - (a.referralVolume || 0))
     .slice(0, limit);
 }
@@ -173,14 +139,14 @@ export function getStaleDeals(contacts, days = 14) {
   const now = Date.now();
   const threshold = days * 24 * 60 * 60 * 1000;
 
-  return contacts.filter(contact => {
-    const stage = normalizeStage(contact.stage);
-    if (['lost', 'funded', 'post-close'].includes(stage)) {
-      return false; // Ignore completed/lost
+  return contacts.filter((contact) => {
+    const stage = canonicalStageKey(contact.stage);
+    if (['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage)) {
+      return false;
     }
 
-    const updated = contact.updatedAt || contact.createdAt || 0;
-    return (now - updated) > threshold;
+    const updated = contact.updatedTs || contact.updatedAt || contact.createdTs || 0;
+    return updated && (now - updated) > threshold;
   });
 }
 
@@ -190,7 +156,7 @@ export function getUpcomingCelebrations(contacts, days = 7) {
   const now = new Date();
   const targetDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
 
-  contacts.forEach(contact => {
+  contacts.forEach((contact) => {
     if (contact.birthday) {
       const bday = new Date(contact.birthday);
       bday.setFullYear(now.getFullYear());
@@ -223,28 +189,68 @@ export function getUpcomingCelebrations(contacts, days = 7) {
 export function getTodayTasks(tasks) {
   const today = new Date().toISOString().split('T')[0];
 
-  return tasks.filter(task => {
+  return tasks.filter((task) => {
     if (task.completed) return false;
-    if (!task.dueDate) return false;
-    return task.dueDate.startsWith(today);
+    const dueString = task.due || task.dueDate;
+    if (!dueString) return false;
+    return String(dueString).startsWith(today);
   });
 }
 
-// Stage display configuration
-export const STAGE_CONFIG = {
-  longshot: { label: 'Leads', color: '#94a3b8', icon: '👋' },
-  application: { label: 'Application', color: '#06b6d4', icon: '📝' },
-  qualified: { label: 'Qualified', color: '#8b5cf6', icon: '✓' },
-  processing: { label: 'Processing', color: '#3b82f6', icon: '⚙️' },
-  underwriting: { label: 'Underwriting', color: '#6366f1', icon: '🔍' },
-  approved: { label: 'Approved', color: '#10b981', icon: '✓' },
-  'cleared-to-close': { label: 'Clear to Close', color: '#059669', icon: '🎯' },
-  funded: { label: 'Funded', color: '#22c55e', icon: '✓' },
-  'post-close': { label: 'Post-Close', color: '#84cc16', icon: '🎉' },
-  nurture: { label: 'Nurture', color: '#f59e0b', icon: '💚' },
-  lost: { label: 'Lost', color: '#ef4444', icon: '✗' },
-  paused: { label: 'Paused', color: '#64748b', icon: '⏸' }
-};
+// Stage display configuration derived from canonical workflow
+const STAGE_PALETTE = ['#94a3b8', '#06b6d4', '#8b5cf6', '#3b82f6', '#6366f1', '#10b981', '#059669', '#22c55e', '#84cc16', '#0ea5e9'];
+const STAGE_ICONS = ['👋', '📝', '✅', '⚙️', '🔍', '👍', '🎯', '💰', '🎉', '🔁'];
+export const STAGE_CONFIG = CANONICAL_STAGE_ORDER.reduce((acc, stage, index) => {
+  const lane = classifyLane(stage);
+  acc[stage] = {
+    label: lane.label || stageLabelFromKey(stage),
+    color: STAGE_PALETTE[index % STAGE_PALETTE.length],
+    icon: STAGE_ICONS[index % STAGE_ICONS.length]
+  };
+  return acc;
+}, { lost: { label: 'Lost', color: '#ef4444', icon: '✗' } });
+
+export function normalizeStagesForDisplay(stageKey) {
+  return canonicalStageKey(stageKey);
+}
+
+export async function buildLabsModel() {
+  const [contactsRaw, partners, tasksRaw] = await Promise.all([
+    getAllContacts(),
+    getAllPartners(),
+    getAllTasks()
+  ]);
+
+  const contacts = contactsRaw.map(normalizeContact);
+  const tasks = tasksRaw.map(normalizeTask);
+  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+  const partnerMap = new Map(partners.map((p) => [p.id, p]));
+  const laneOrder = CANONICAL_STAGE_ORDER.concat(['lost']);
+  const activeLanes = laneOrder.filter((lane) => !['funded', 'post-close', 'past-client', 'returning', 'lost'].includes(lane));
+
+  const snapshot = deriveBaselineSnapshot({
+    contacts,
+    visibleTasks: tasks,
+    allTasks: tasks,
+    contactById: (id) => contactMap.get(id) || null,
+    partnerById: (id) => partnerMap.get(id) || null,
+    pipelineLaneOrder: laneOrder,
+    pipelineActiveLanes: activeLanes,
+    canonicalStage: canonicalStageKey
+  });
+
+  const celebrations = getUpcomingCelebrations(contacts, 30);
+
+  return {
+    contacts,
+    partners,
+    tasks,
+    snapshot,
+    celebrations,
+    laneOrder,
+    activeLanes
+  };
+}
 
 // Format currency
 export function formatCurrency(amount) {
