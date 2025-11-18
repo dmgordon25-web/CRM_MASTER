@@ -1,7 +1,7 @@
 import { columnSchemas, getColumnSchema } from './column_schema.js';
 
 const STORAGE_KEY = 'columns:config:v1';
-const DEFAULT_VIEW_CONFIG = {
+const ADVANCED_DEFAULT_VIEW_CONFIG = {
   contacts: {
     order: ['name', 'email', 'phone', 'status', 'owner'],
     hidden: ['stage', 'loanType', 'loanAmount', 'lastTouch', 'nextAction', 'fundedDate', 'createdAt', 'updatedAt']
@@ -24,14 +24,31 @@ const DEFAULT_VIEW_CONFIG = {
   }
 };
 
+function buildDefaultViewConfig(mode = 'advanced'){
+  if(mode === 'simple'){
+    const config = {};
+    Object.keys(columnSchemas).forEach((viewKey) => {
+      const schema = getColumnSchema(viewKey);
+      const simpleColumns = schema.filter((col) => col.required || col.simple !== false);
+      const order = simpleColumns.map((col) => col.id);
+      const visibleSet = new Set(order);
+      const hidden = schema.filter((col) => !col.required && !visibleSet.has(col.id)).map((col) => col.id);
+      config[viewKey] = { order, hidden };
+    });
+    return config;
+  }
+  return ADVANCED_DEFAULT_VIEW_CONFIG;
+}
+
 function normalizeViewConfig(entry){
   const order = Array.isArray(entry?.order) ? entry.order.filter((id) => typeof id === 'string' && id.trim()) : [];
   const hidden = Array.isArray(entry?.hidden) ? entry.hidden.filter((id) => typeof id === 'string' && id.trim()) : [];
   return { order, hidden };
 }
 
-function normalizeConfig(raw){
+function normalizeConfig(raw, mode = 'advanced'){
   const config = {};
+  const defaults = buildDefaultViewConfig(mode);
   if(raw && typeof raw === 'object'){
     Object.keys(raw).forEach((key) => {
       config[key] = normalizeViewConfig(raw[key]);
@@ -41,7 +58,7 @@ function normalizeConfig(raw){
     if(config[viewKey]){
       config[viewKey] = normalizeViewConfig(config[viewKey]);
     }else{
-      const fallback = DEFAULT_VIEW_CONFIG[viewKey] || { order: [], hidden: [] };
+      const fallback = defaults[viewKey] || { order: [], hidden: [] };
       config[viewKey] = normalizeViewConfig(fallback);
     }
   });
@@ -113,7 +130,7 @@ function getColumnsForView(viewKey, mode = 'advanced', cachedConfig = null){
   const schema = getColumnSchema(viewKey);
   if(!schema.length) return { visibleColumns: [], hiddenColumns: [], config: normalizeConfig(cachedConfig || loadColumnConfig()) };
   const filteredSchema = schema.filter((col) => mode !== 'simple' || col.simple !== false);
-  const config = normalizeConfig(cachedConfig || loadColumnConfig());
+  const config = normalizeConfig(cachedConfig || loadColumnConfig(), mode);
   const viewConfig = config[viewKey] || { order: [], hidden: [] };
   const { visibleColumns, hiddenColumns } = applyOrder(filteredSchema, viewConfig);
   return { visibleColumns, hiddenColumns, config };
