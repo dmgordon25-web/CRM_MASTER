@@ -1322,7 +1322,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             result = await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function') throw new Error('Task API unavailable');
             result = await fn(payload);
@@ -2220,7 +2220,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function'){
               throw new Error('Task API unavailable');
@@ -2273,7 +2273,7 @@ export function normalizeContactId(input) {
           if(typeof createViaApp === 'function'){
             await createViaApp(payload);
           }else{
-            const mod = await import(new URL('../tasks/api.js', import.meta.url));
+            const mod = await import(new URL('./tasks/api.js', import.meta.url));
             const fn = mod.createMinimalTask || mod.createTask || mod.default;
             if(typeof fn !== 'function') throw new Error('Task API unavailable');
             await fn(payload);
