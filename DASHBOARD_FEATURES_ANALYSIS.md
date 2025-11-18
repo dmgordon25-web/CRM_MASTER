@@ -1,5 +1,7 @@
 # Dashboard Features Analysis & Implementation Guide
 
+> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+
 ## Executive Summary
 
 After comprehensive analysis of the CRM codebase, I've discovered that **most of the requested dashboard features already exist** but may need configuration or UI exposure. Below is a detailed breakdown of existing vs. missing features.
@@ -184,58 +186,32 @@ Dashboard columns are configurable:
 ## ❌ MISSING FEATURES (Need Implementation)
 
 ### 1. **Table Column Configuration**
-**Status:** ❌ NOT IMPLEMENTED
+**Status:** ✅ IMPLEMENTED (Settings → Columns)
 **Priority:** HIGH
 
-**Requirements:**
-- Add/remove/reorder columns on tables (Contacts, Partners, Pipeline, etc.)
-- Settings tab with drag-drop interface:
-  - Left panel: Available columns
-  - Right panel: Active columns
-  - Required fields greyed out in simple mode
-- Alternative: Right-click column header context menu
-- Persist preferences per-table to localStorage
-- Simple mode should disable some columns
+**Current Implementation:**
+- Drag/drop column ordering and visibility are handled in `crm-app/js/settings/columns_tab.js` backed by `crm-app/js/tables/column_config.js` and `crm-app/js/tables/column_schema.js`.
+- Per-view configs persist to localStorage (`crm:columns`) and emit `settings:columns:changed` events.
+- Simple mode support is enforced by filtering columns with `simple === false` when `ui-mode` is set to `simple` via `crm-app/js/ui/ui_mode.js`.
 
-**Implementation Approach:**
-1. Create `crm-app/js/settings/column_config.js`
-2. Add settings tab: "Column Configuration"
-3. Build drag-drop UI with two lists
-4. Hook into table rendering (render.js)
-5. Add column visibility toggling
-6. Persist to `localStorage` with key per table
-
-**Estimated Effort:** 4-6 hours
+**Remaining Gaps:**
+- No right-click column header context menu.
+- UI polish and affordances could be improved for discoverability.
 
 ---
 
 ### 2. **Simple/Advanced User Mode**
-**Status:** ❌ NOT IMPLEMENTED
+**Status:** ✅ IMPLEMENTED (Toggle under Settings → General)
 **Priority:** HIGH
 
-**Requirements:**
-- Toggle between Simple and Advanced modes
-- **Simple Mode:**
-  - Hide Workbench tab
-  - Hide Client pages
-  - Show only required fields in modals (like quick-add)
-  - Grey out optional columns in column config
-  - Simplified dashboard (fewer widgets)
-- **Advanced Mode:**
-  - Show all features
-  - Full column configuration
-  - All tabs visible
+**Current Implementation:**
+- Mode state is managed by `crm-app/js/ui/ui_mode.js` with storage key `crm:uiMode`, DOM class toggles (`ui-simple-mode` / `ui-advanced-mode`), and Settings integration.
+- Navigation and page visibility respond to mode in `crm-app/js/app.js` and downstream listeners (e.g., `crm-app/js/pages/workbench.js`, contact/partner flows) via `getUiMode`/`onUiModeChanged`.
+- Column configuration honors simple mode by hiding `simple === false` columns in `crm-app/js/settings/columns_tab.js`.
 
-**Implementation Approach:**
-1. Create `crm-app/js/settings/user_mode.js`
-2. Add toggle in Settings: "User Mode: Simple | Advanced"
-3. Store in `localStorage.setItem('userMode', 'simple|advanced')`
-4. Add CSS class to body: `[data-user-mode="simple"]`
-5. Hide tabs with CSS: `body[data-user-mode="simple"] #workbench-tab { display: none; }`
-6. Filter modal fields based on mode
-7. Update table column config to respect mode
-
-**Estimated Effort:** 3-4 hours
+**Remaining Gaps:**
+- Some modal field pruning still relies on per-form logic rather than a central schema flag.
+- Dashboard widget simplification remains manual; there is no automatic widget filtering for simple mode.
 
 ---
 

@@ -1,5 +1,7 @@
 # CRM Boot Performance Optimization - 2025
 
+> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+
 ## Overview
 This document describes the boot performance optimizations implemented to reduce boot time and improve user experience.
 
@@ -24,7 +26,7 @@ This document describes the boot performance optimizations implemented to reduce
 2. **Single-Pass Tab Cycling with Equal Spacing**
    - **Old**: Multiple passes through tabs with variable timing
    - **New**: Single pass through ALL tabs (dashboard → longshots → pipeline → partners → contacts → calendar → reports → workbench → dashboard)
-   - **Equal spacing**: 500ms intervals between each tab
+   - **Equal spacing**: Driven by `TAB_POST_DELAY` (30ms in instant/CI mode, 100ms in normal mode)
    - **Total tabs**: 8 (including return to dashboard)
 
 3. **Reduced Dashboard Toggles**
@@ -34,10 +36,10 @@ This document describes the boot performance optimizations implemented to reduce
 
 4. **Updated Timing Constants**
    ```javascript
-   const TAB_POST_DELAY = 500; // Equal spacing between tabs
-   const MODE_POST_DELAY = 1000; // 1 second pause between toggles
-   const MODE_FINAL_POST_DELAY = 1000;
-   const EXTRA_FINAL_DELAY = 500;
+   const TAB_WAIT_TIMEOUT = useInstant ? 100 : 200;
+   const TAB_POST_DELAY = useInstant ? 30 : 100;
+   const TAB_RETURN_POST_DELAY = useInstant ? 30 : 100;
+   const EXTRA_FINAL_DELAY = useInstant ? 100 : 200;
    ```
 
 **File: `crm-app/js/boot/splash_sequence.js`**
@@ -50,19 +52,21 @@ This document describes the boot performance optimizations implemented to reduce
 
 #### Boot Sequence Flow (Optimized)
 
+> Timing below follows the current `animateTabCycle` settings (`TAB_POST_DELAY` 30-100ms, `TAB_WAIT_TIMEOUT` 100-200ms) rather than earlier 500ms placeholders.
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ PHASE 1: Tab Cycling (Single Pass)                     │
-│ Duration: ~400-2000ms (8 tabs × 50-250ms)              │
+│ Duration: ~400-2000ms (8 tabs × 30-250ms)              │
 ├─────────────────────────────────────────────────────────┤
-│ 1. Dashboard        →  50ms wait (200ms timeout)       │
-│ 2. Longshots        →  50ms wait (200ms timeout)       │
-│ 3. Pipeline         →  50ms wait (200ms timeout)       │
-│ 4. Partners         →  50ms wait (200ms timeout)       │
-│ 5. Contacts         →  50ms wait (200ms timeout)       │
-│ 6. Calendar         →  50ms wait (200ms timeout)       │
-│ 7. Reports          →  50ms wait (200ms timeout)       │
-│ 8. Workbench        →  50ms wait (200ms timeout)       │
+│ 1. Dashboard        →  30-100ms wait (200ms timeout)   │
+│ 2. Longshots        →  30-100ms wait (200ms timeout)   │
+│ 3. Pipeline         →  30-100ms wait (200ms timeout)   │
+│ 4. Partners         →  30-100ms wait (200ms timeout)   │
+│ 5. Contacts         →  30-100ms wait (200ms timeout)   │
+│ 6. Calendar         →  30-100ms wait (200ms timeout)   │
+│ 7. Reports          →  30-100ms wait (200ms timeout)   │
+│ 8. Workbench        →  30-100ms wait (200ms timeout)   │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
