@@ -26,6 +26,8 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.j
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
 import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './tasks/api.js';
+import { getColumnsForView } from './tables/column_config.js';
+import { getUiMode } from './ui/ui_mode.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -210,6 +212,10 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
   function fullName(c){ return [c.first,c.last].filter(Boolean).join(' ') || c.name || '—'; }
   function safe(v){ return String(v==null?'':v).replace(/[&<>]/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch])); }
   function attr(v){ return String(v==null?'':v).replace(/[&<>"']/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch])); }
+  function resolveColumnMode(){
+    try{ return getUiMode(); }
+    catch (_err){ return 'advanced'; }
+  }
   function avatarCharToken(ch){
     if(!ch) return '';
     const upper = ch.toLocaleUpperCase();
@@ -436,6 +442,43 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
     th.style.minWidth = '36px';
     th.style.textAlign = 'center';
     head.insertBefore(th, head.cells[1] || null);
+  }
+
+  function renderContactHeader(table, columns, selectId){
+    if(!table) return;
+    const head = table.tHead || table.createTHead();
+    const row = head.rows[0] || head.insertRow();
+    const selectCell = `<th data-role="select" data-column="select" style="width:44px;text-align:center;"><input aria-label="Select all" data-ui="row-check-all" data-role="select-all"${selectId ? ` id="${attr(selectId)}"` : ''} type="checkbox"></th>`;
+    const headerCells = columns.map((col) => `<th data-column="${attr(col.id)}">${safe(col.label || col.id)}</th>`);
+    row.innerHTML = [selectCell, ...headerCells].join('');
+  }
+
+  function renderPartnerHeader(table, columns){
+    if(!table) return;
+    const head = table.tHead || table.createTHead();
+    const row = head.rows[0] || head.insertRow();
+    const selectCell = '<th data-role="select" data-column="select" style="width:44px;text-align:center;"><input aria-label="Select all" data-ui="row-check-all" data-role="select-all" id="partners-all" type="checkbox"></th>';
+    const sortableMeta = {
+      name: { sortKey: 'name' },
+      company: { sortKey: 'company' },
+      tier: { sortKey: 'tier' },
+      referrals: { sortKey: 'referrals', type: 'number' },
+      funded: { sortKey: 'funded', type: 'number' },
+      active: { sortKey: 'active', type: 'number' },
+      volume: { sortKey: 'volume', type: 'number' },
+      conversion: { sortKey: 'conversion', type: 'number' },
+      email: { sortKey: 'email' },
+      phone: { sortKey: 'phone' }
+    };
+    const headerCells = columns.map((col) => {
+      const meta = sortableMeta[col.id];
+      if(meta){
+        const typeAttr = meta.type ? ` data-type="${attr(meta.type)}"` : '';
+        return `<th data-column="${attr(col.id)}"><button class="sort-btn" data-key="${attr(meta.sortKey)}"${typeAttr} type="button">${safe(col.label || col.id)} <span aria-hidden="true" class="sort-icon">↕</span></button></th>`;
+      }
+      return `<th data-column="${attr(col.id)}">${safe(col.label || col.id)}</th>`;
+    });
+    row.innerHTML = [selectCell, ...headerCells].join('');
   }
 
   function extractFavoritesSnapshot(rawSettings){
@@ -1137,6 +1180,9 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
 
   function renderPartnersTable(partners, contacts){
     const table = document.getElementById('tbl-partners');
+    const mode = resolveColumnMode();
+    const { visibleColumns } = getColumnsForView('partners', mode);
+    if(table) renderPartnerHeader(table, visibleColumns);
     if(table) ensureFavoriteColumn(table);
     const tbPartners = table && table.tBodies && table.tBodies[0] ? table.tBodies[0] : $('#tbl-partners tbody');
     if(!tbPartners) return;
@@ -1174,19 +1220,47 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
       const conversionLabel = totalReferrals > 0 ? percentValue(conversionRate) : '—';
       const favoriteCell = `<td class="favorite-cell" data-column="favorite">${renderFavoriteToggle('partner', p.id, isFavorite)}</td>`;
       const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
-      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}" data-referrals="${attr(String(totalReferrals))}" data-funded="${attr(String(fundedCount))}" data-active="${attr(String(activeCount))}" data-volume="${attr(String(volumeAmount))}" data-conversion="${attr(String(conversionRate))}"${favoriteAttr}>
-        <td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>
-        ${favoriteCell}
-        <td class="cell-edit" data-partner-id="${pid}" data-column="name"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>
-        <td data-column="company">${safe(company)}</td>
-        <td data-column="tier">${safe(tier)}</td>
-        <td class="numeric" data-column="referrals">${referralsLabel}</td>
-        <td class="numeric" data-column="funded">${fundedLabel}</td>
-        <td class="numeric" data-column="active">${activeLabel}</td>
-        <td class="numeric" data-column="volume">${volumeLabel}</td>
-        <td class="numeric" data-column="conversion">${conversionLabel}</td>
-        <td data-column="email">${safe(email)}</td>
-        <td data-column="phone">${safe(phone)}</td></tr>`;
+      const cells = [
+        `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${pid}" data-partner-id="${pid}"></td>`,
+        favoriteCell,
+        ...visibleColumns.map((col) => {
+          switch (col.id) {
+            case 'name':
+              return `<td class="cell-edit" data-partner-id="${pid}" data-column="name"><a href="#" class="link partner-name" data-ui="partner-name" data-partner-id="${pid}">${renderAvatar(name || company)}<span class="name-text">${safe(name)}</span></a></td>`;
+            case 'company':
+              return `<td data-column="company">${safe(company)}</td>`;
+            case 'tier':
+              return `<td data-column="tier">${safe(tier)}</td>`;
+            case 'referrals':
+              return `<td class="numeric" data-column="referrals">${referralsLabel}</td>`;
+            case 'funded':
+              return `<td class="numeric" data-column="funded">${fundedLabel}</td>`;
+            case 'active':
+              return `<td class="numeric" data-column="active">${activeLabel}</td>`;
+            case 'volume':
+              return `<td class="numeric" data-column="volume">${volumeLabel}</td>`;
+            case 'conversion':
+              return `<td class="numeric" data-column="conversion">${conversionLabel}</td>`;
+            case 'email':
+              return `<td data-column="email">${safe(email)}</td>`;
+            case 'phone':
+              return `<td data-column="phone">${safe(phone)}</td>`;
+            case 'owner':
+              return `<td data-column="owner">${safe(p.owner || '')}</td>`;
+            case 'lastTouch':
+              return `<td data-column="lastTouch">${safe(p.lastTouch || '')}</td>`;
+            case 'nextTouch':
+              return `<td data-column="nextTouch">${safe(p.nextTouch || '')}</td>`;
+            case 'createdAt':
+              return `<td data-column="createdAt">${safe(displayDate(p.createdAt) || '—')}</td>`;
+            case 'updatedAt':
+              return `<td data-column="updatedAt">${safe(displayDate(p.updatedAt) || '—')}</td>`;
+            default:
+              return `<td data-column="${attr(col.id)}">—</td>`;
+          }
+        })
+      ];
+      return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(tierTone)} data-id="${pid}" data-partner-id="${pid}" data-email="${emailKey}" data-name="${nameKey}" data-company="${companyKey}" data-phone="${phoneKey}" data-tier="${tierKey}" data-referrals="${attr(String(totalReferrals))}" data-funded="${attr(String(fundedCount))}" data-active="${attr(String(activeCount))}" data-volume="${attr(String(volumeAmount))}" data-conversion="${attr(String(conversionRate))}"${favoriteAttr}>${cells.join('')}</tr>`;
     }).join('');
     renderTableBody(table, tbPartners, partnerRows);
     $all('#tbl-partners tbody tr').forEach(tr => {
@@ -1585,6 +1659,11 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
       return STAGES_CLIENT.includes(stageKey);
     });
 
+    const columnMode = resolveColumnMode();
+    const pipelineColumns = getColumnsForView('pipeline', columnMode).visibleColumns;
+    const clientColumns = getColumnsForView('clients', columnMode).visibleColumns;
+    const longshotColumns = getColumnsForView('longshots', columnMode).visibleColumns;
+
     setText($('#count-inprog'), inpr.length);
     setText($('#count-active'), pipe.length);
     setText($('#count-clients'), clientsTbl.length);
@@ -1603,6 +1682,47 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
       const displayName = safe(full);
       const titleAttr = attr(full || '');
       return `<a href="#" class="status-name-link contact-name" data-role="contact-name" data-ui="name-link" data-id="${attr(c.id||'')}" title="${titleAttr}">${avatar}<span class="name-text">${displayName}</span></a>`;
+    };
+
+    const buildContactCell = (contact, columnId, ctx = {}) => {
+      const stageMeta = ctx.stageMeta || stageInfo(contact.stage);
+      const loanLabel = ctx.loanLabel ?? (contact.loanType || contact.loanProgram || '');
+      const amountVal = ctx.amountVal ?? (Number(contact.loanAmount || 0) || 0);
+      const formatDate = ctx.formatDate || displayDate;
+      switch (columnId) {
+        case 'name':
+          return `<td class="contact-name" data-column="name" data-role="contact-name">${contactLink(contact)}</td>`;
+        case 'stage':
+          return `<td data-column="stage">${stageMeta.html}</td>`;
+        case 'status':
+          return `<td data-column="status">${safe(contact.status || contact.stage || '—')}</td>`;
+        case 'loanType':
+          return `<td data-column="loanType">${safe(loanLabel || '')}</td>`;
+        case 'loanAmount':
+          return `<td class="numeric" data-column="loanAmount">${amountVal ? money(amountVal) : '—'}</td>`;
+        case 'referredBy':
+          return `<td data-column="referredBy">${safe(contact.referredBy || '')}</td>`;
+        case 'fundedDate':
+          return `<td data-column="fundedDate">${safe(formatDate(contact.fundedDate) || '—')}</td>`;
+        case 'owner': {
+          const owner = contact.owner || contact.ownerName || '';
+          return `<td data-column="owner">${safe(owner || '—')}</td>`;
+        }
+        case 'lastTouch': {
+          const lastVal = contact.lastContact || contact.nextFollowUp || '';
+          return `<td data-column="lastTouch">${safe(lastVal || '—')}</td>`;
+        }
+        case 'nextAction': {
+          const nextVal = contact.nextFollowUp || '';
+          return `<td data-column="nextAction">${safe(nextVal || '—')}</td>`;
+        }
+        case 'createdAt':
+          return `<td data-column="createdAt">${safe(formatDate(contact.createdAt) || '—')}</td>`;
+        case 'updatedAt':
+          return `<td data-column="updatedAt">${safe(formatDate(contact.updatedAt) || '—')}</td>`;
+        default:
+          return `<td data-column="${attr(columnId)}">—</td>`;
+      }
     };
 
     const relOpportunities = inpr.map(c=>{
@@ -1878,6 +1998,7 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
     ensureStatusStackLegend();
 
     const tblPipeline = document.getElementById('tbl-pipeline');
+    if(tblPipeline) renderContactHeader(tblPipeline, pipelineColumns, 'pipe-all');
     if(tblPipeline) ensureFavoriteColumn(tblPipeline);
     const tbPipe = tblPipeline && tblPipeline.tBodies && tblPipeline.tBodies[0] ? tblPipeline.tBodies[0] : $('#tbl-pipeline tbody');
     if(tbPipe){
@@ -1913,16 +2034,17 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
         const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
-        ${favoriteCell}
-        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
-        <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
-        <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.referredBy||'')}</td></tr>`;
+        const cells = [
+          `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
+          favoriteCell,
+          ...pipelineColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+        ];
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');
       renderTableBody(tblPipeline, tbPipe, pipelineRows);
     }
     const tblClients = document.getElementById('tbl-clients');
+    if(tblClients) renderContactHeader(tblClients, clientColumns, 'clients-all');
     if(tblClients) ensureFavoriteColumn(tblClients);
     const tbClients = tblClients && tblClients.tBodies && tblClients.tBodies[0] ? tblClients.tBodies[0] : $('#tbl-clients tbody');
     if(tbClients){
@@ -1959,16 +2081,17 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
         const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>
-        <td><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
-        ${favoriteCell}
-        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
-        <td>${stageMeta.html}</td><td>${safe(loanLabel||'')}</td>
-        <td>${amountVal ? money(amountVal) : '—'}</td><td>${safe(c.fundedDate||'')}</td></tr>`;
+        const cells = [
+          `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
+          favoriteCell,
+          ...clientColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+        ];
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');
       renderTableBody(tblClients, tbClients, clientRows);
     }
     const tblLongshots = document.getElementById('tbl-longshots');
+    if(tblLongshots) renderContactHeader(tblLongshots, longshotColumns, 'ls-all');
     if(tblLongshots) ensureFavoriteColumn(tblLongshots);
     const tbLs = tblLongshots && tblLongshots.tBodies && tblLongshots.tBodies[0] ? tblLongshots.tBodies[0] : $('#tbl-longshots tbody');
     if(tbLs){
@@ -1983,6 +2106,7 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
         const emailAttr = attr((c.email||'').trim().toLowerCase());
         const phoneAttr = attr(normalizePhone(c.phone||''));
         const longshotStageKey = normalizeStatus(c.stage) || normalizeStatus(c.status) || 'long shot';
+        const stageMeta = stageInfo(c.stage || c.status || longshotStageKey);
         const longshotClass = classToken(longshotStageKey);
         const longshotTone = colorForStage(longshotStageKey) || colorForStage('long shot');
         const rowClasses = ['status-row','contact-stage-row'];
@@ -2002,16 +2126,12 @@ import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './
         const refAttr = attr(refTokens.map(val => String(val||'').toLowerCase()).filter(Boolean).join('|'));
         const favoriteCell = `<td class="favorite-cell" data-column="favorite">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
         const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
-        const referredLabel = safe(c.referredBy||'');
-        const referredTitle = attr(c.referredBy||'');
-        const lastLabel = safe(c.lastContact||'');
-        const lastTitle = attr(c.lastContact||'');
-        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>
-        <td data-column="select" data-role="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>
-        ${favoriteCell}
-        <td class="contact-name" data-column="name" data-role="contact-name">${contactLink(c)}</td>
-        <td data-column="loanType">${safe(loanLabel||'')}</td><td class="numeric" data-column="loanAmount">${amountVal ? money(amountVal) : '—'}</td>
-        <td data-column="referred" title="${referredTitle}">${referredLabel}</td><td data-column="last" title="${lastTitle}">${lastLabel || '—'}</td></tr>`;
+        const cells = [
+          `<td data-column="select" data-role="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
+          favoriteCell,
+          ...longshotColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+        ];
+        return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');
       renderTableBody(tblLongshots, tbLs, longshotRows);
     }
