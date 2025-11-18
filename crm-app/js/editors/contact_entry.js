@@ -62,14 +62,17 @@ function detachCloseListener(){
   state.closeListener = null;
 }
 
-function hardReset(reason){
+function hardReset(reason, options = {}){
+  const { preserveQueue = false } = options;
   const snapshot = { ...state };
   pushHistory({ action: 'hard-reset', reason, snapshot });
   detachCloseListener();
   state.status = 'idle';
   state.currentId = null;
-  state.pendingRequest = null;
-  state.activePromise = null;
+  if(!preserveQueue){
+    state.pendingRequest = null;
+    state.activePromise = null;
+  }
   state.modalRoot = null;
   state.closeListener = null;
 }
@@ -197,7 +200,7 @@ async function performOpen(targetId, meta, isNew){
   }catch(err){
     pushHistory({ action: 'error', id: targetId || '', error: String(err || '') });
     logDebug('performOpen failed', { err });
-    hardReset('open-failed');
+    hardReset('open-failed', { preserveQueue: true });
     throw err;
   }finally{
     if(state.status === 'opening'){
