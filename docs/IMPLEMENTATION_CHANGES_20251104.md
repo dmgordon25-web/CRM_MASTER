@@ -1,5 +1,7 @@
 # Implementation Changes - November 4, 2025
 
+> Updated for current code as of 2025-11-18. Code under crm-app/ is the source of truth; this document is a descriptive snapshot.
+
 ## Summary
 This document tracks the changes made in response to the critical feedback provided for further review before merging.
 
@@ -11,7 +13,7 @@ This document tracks the changes made in response to the critical feedback provi
 **Issue:** All widgets were showing on boot even with "today" toggle on.
 
 **Fix Applied:**
-- Modified `/workspace/crm-app/js/dashboard/index.js`
+- Modified `crm-app/js/dashboard/index.js`
 - Reduced `TODAY_WIDGET_KEYS` to only include:
   - `'today'` (main today widget)
   - `CELEBRATIONS_WIDGET_KEY` (upcoming birthdays/anniversaries)
@@ -27,7 +29,7 @@ This document tracks the changes made in response to the critical feedback provi
 - Column widths not optimized
 
 **Fixes Applied:**
-- Modified `/workspace/crm-app/styles.css`
+- Modified `crm-app/styles.css`
 - Added specific styling for `#tbl-pipeline` and `#tbl-clients` tables:
   - Increased row padding to 14px (was 10px)
   - Set Name column (2nd column) to `min-width: 180px, max-width: 280px`
@@ -44,20 +46,17 @@ This document tracks the changes made in response to the critical feedback provi
 - Only show required fields in modals
 
 **Implementation:**
-- Extended `/workspace/crm-app/js/ui/advanced_mode.js`
-- Added logic to hide/show navigation buttons and pages based on mode:
-  - Workbench nav button and page
-  - Reports (Client Portfolio) nav button and page
-- Added `applySimpleModeToModals()` function to hide non-required fields
-- Fields marked with `data-simple-hide` attribute will be hidden in simple mode
-- Toggle in Settings already exists and is functional
+- Mode selection is managed by `crm-app/js/ui/ui_mode.js` with persisted state (`crm:uiMode`) and Settings bindings.
+- Navigation and page visibility react to mode in `crm-app/js/app.js` and downstream listeners (e.g., workbench page, contacts/partners tables).
+- Column visibility for simple mode is enforced via `crm-app/js/settings/columns_tab.js` using `simple === false` schema flags.
+- Toggle in Settings already exists and is functional.
 
 **File Changed:** `crm-app/js/ui/advanced_mode.js` (lines 50-150)
 
 **Usage:** Toggle "Advanced Mode" in Settings → General
 
 ### 4. Comprehensive Field & Status Audit ✓
-**Created:** `/workspace/docs/FIELD_STATUS_AUDIT.md`
+**Created:** `docs/FIELD_STATUS_AUDIT.md`
 
 **Contents:**
 - Complete inventory of all contact and partner fields
