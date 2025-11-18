@@ -64,11 +64,28 @@ const ALLOWED_TRANSITIONS = new Map([
   ['lost', new Set(['returning'])]
 ]);
 
+const PIPELINE_STAGE_TO_CANONICAL_STAGE = Object.freeze({
+  new: 'long-shot',
+  qualified: 'application',
+  negotiating: 'processing',
+  clear_to_close: 'cleared-to-close',
+  won: 'funded',
+  lost: 'lost'
+});
+
+const KNOWN_STAGE_KEYS = new Set([...CANONICAL_STAGE_ORDER, ...ALLOWED_TRANSITIONS.keys()]);
+
 export function canonicalStageKey(value) {
-  const raw = canonicalStage(value) || stageKeyFromLabel(value);
-  if (raw) return raw;
+  const labelKey = stageKeyFromLabel(value);
+  if (labelKey && KNOWN_STAGE_KEYS.has(labelKey)) return labelKey;
+
+  const pipelineKey = canonicalStage(value);
+  if (pipelineKey && PIPELINE_STAGE_TO_CANONICAL_STAGE[pipelineKey]) {
+    return PIPELINE_STAGE_TO_CANONICAL_STAGE[pipelineKey];
+  }
+
   const lowered = String(value ?? '').trim().toLowerCase();
-  if (CANONICAL_STAGE_ORDER.includes(lowered)) return lowered;
+  if (KNOWN_STAGE_KEYS.has(lowered)) return lowered;
   return '';
 }
 
