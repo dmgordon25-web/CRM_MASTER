@@ -15,10 +15,7 @@ function cloneTask(task){
 }
 
 function seedFallback(){
-  const dataset = GLOBAL_SCOPE && GLOBAL_SCOPE.__SEED_DATA__;
-  if(!dataset || typeof dataset !== 'object') return [];
-  const list = dataset.tasks;
-  return Array.isArray(list) ? list.map(item => cloneTask(item)).filter(Boolean) : [];
+  return [];
 }
 
 function dueStamp(task){
@@ -56,21 +53,17 @@ async function loadFromStore(){
     ? GLOBAL_SCOPE.dbGetAll
     : null;
   if(!getter){
-    return seedFallback();
+    return [];
   }
   try{
     const records = await getter.call(GLOBAL_SCOPE, 'tasks');
-    if(Array.isArray(records)){
-      if(records.length) return records;
-      const fallback = seedFallback();
-      return fallback.length ? fallback : records;
-    }
+    if(Array.isArray(records)) return records;
   }catch (err){
     if(console && typeof console.warn === 'function'){
       console.warn('tasks store load failed', err);
     }
   }
-  return seedFallback();
+  return [];
 }
 
 async function ensureHydrated(){
