@@ -213,7 +213,7 @@ async function performOpen(targetId, meta, isNew){
   }catch(err){
     pushHistory({ action: 'error', id: targetId || '', error: String(err || '') });
     logDebug('performOpen failed', { err });
-    hardReset('open-failed', { preserveQueue: false });
+    hardReset('open-failed', { preserveQueue: true });
     throw err;
   }finally{
     if(state.status === 'opening'){
