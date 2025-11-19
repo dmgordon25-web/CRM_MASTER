@@ -25,9 +25,10 @@ import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, 
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
-import { createDashboardTask, listTasksForDashboard, updateTaskStatus } from './tasks/api.js';
+import { listTasksForDashboard, updateTaskStatus } from './tasks/api.js';
 import { getColumnsForView } from './tables/column_config.js';
 import { getUiMode } from './ui/ui_mode.js';
+import { openTaskEditor } from './ui/quick_create_menu.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -1413,7 +1414,7 @@ import { getUiMode } from './ui/ui_mode.js';
       console.warn('Referral leaders widget render failed:', err);
     }
 
-    const dashboardTasks = Array.isArray(tasks) ? tasks.slice() : [];
+    const dashboardTasks = [];
 
     const notifyTasksChanged = (taskId) => {
       const detail = { scope: 'tasks' };
@@ -1498,6 +1499,11 @@ import { getUiMode } from './ui/ui_mode.js';
       let busyTodoIds = new Set();
       let addingTodo = false;
 
+      const getDashboardMode = () => {
+        const active = document.querySelector('[data-dashboard-mode].active');
+        return active && active.dataset && active.dataset.dashboardMode === 'all' ? 'all' : 'today';
+      };
+
       const renderTodo = () => {
         renderTodoWidget({
           root: todoHost,
@@ -1511,7 +1517,9 @@ import { getUiMode } from './ui/ui_mode.js';
 
       const refreshTodoTasks = async () => {
         try {
-          const latest = await listTasksForDashboard({ filter: 'today', limit: 25 });
+          const mode = getDashboardMode();
+          const filter = mode === 'all' ? 'all' : 'today';
+          const latest = await listTasksForDashboard({ filter, limit: 25 });
           todoTasks = Array.isArray(latest) ? latest.slice() : [];
         } catch (err) {
           if (console && typeof console.warn === 'function') console.warn('todo load failed', err);
@@ -1552,23 +1560,44 @@ import { getUiMode } from './ui/ui_mode.js';
         if (addingTodo) return false;
         addingTodo = true;
         renderTodo();
-        let result = null;
         try {
-          result = await createDashboardTask({ title: trimmed });
+          const modal = openTaskEditor();
+          const noteField = document.querySelector('#qc-task-modal textarea[name="note"]');
+          if (noteField && typeof noteField.value === 'string') {
+            noteField.value = trimmed;
+            noteField.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (modal && typeof modal.focus === 'function') {
+            try { modal.focus(); }
+            catch (_) {}
+          }
         } catch (err) {
-          if (console && typeof console.warn === 'function') console.warn('todo create failed', err);
+          if (console && typeof console.warn === 'function') console.warn('todo quick-create failed', err);
         }
         addingTodo = false;
-        if (result && result.status === 'ok' && result.task) {
-          todoTasks = [result.task].concat(todoTasks);
-          notifyTasksChanged(result.task.id);
-        }
         renderTodo();
+        return true;
+      };
+
+      const handleTasksChanged = (event) => {
+        const scope = event && event.detail && event.detail.scope ? event.detail.scope : '';
+        if (scope && scope !== 'tasks') return;
         refreshTodoTasks();
-        return !!(result && result.status === 'ok');
+      };
+
+      const wireModeListeners = () => {
+        if (todoHost.__todoModeWired) return;
+        todoHost.__todoModeWired = true;
+        const buttons = document.querySelectorAll('[data-dashboard-mode]');
+        buttons.forEach((btn) => {
+          if (!btn || typeof btn.addEventListener !== 'function') return;
+          btn.addEventListener('click', refreshTodoTasks);
+        });
       };
 
       renderTodo();
+      document.addEventListener('app:data:changed', handleTasksChanged);
+      wireModeListeners();
       refreshTodoTasks();
     }
 
