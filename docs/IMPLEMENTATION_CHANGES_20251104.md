@@ -55,7 +55,23 @@ This document tracks the changes made in response to the critical feedback provi
 
 **Usage:** Toggle "Advanced Mode" in Settings → General
 
-### 4. Comprehensive Field & Status Audit ✓
+### 4. Column Configuration in Settings ✓
+**Coverage:**
+- Workbench / Contacts
+- Pipeline
+- Partners
+- Leads
+
+**Implementation:**
+- Settings → Columns provides per-table ordering and visibility backed by `crm-app/js/settings/columns_tab.js`, `crm-app/js/tables/column_config.js`, and `crm-app/js/tables/column_schema.js`.
+- Preferences persist to `crm:columns` and emit `settings:columns:changed` for live updates.
+- Simple vs Advanced defaults hide columns marked `simple === false` when UI mode is set to simple.
+
+**Future Enhancements (optional):**
+- Right-click/inline header toggles for discoverability.
+- Additional UX polish on the drag/drop affordances.
+
+### 5. Comprehensive Field & Status Audit ✓
 **Created:** `docs/FIELD_STATUS_AUDIT.md`
 
 **Contents:**
@@ -82,21 +98,9 @@ This document tracks the changes made in response to the critical feedback provi
 
 ---
 
-## ⏳ REMAINING TASKS
+## ⏳ BACKLOG / FUTURE WORK
 
-### 5. Column Configuration in Settings 🔴 **NOT STARTED**
-**Requirements:**
-- Add new Settings tab for column management
-- Drag/drop interface to activate/deactivate columns
-- Required fields mandatory (cannot be disabled)
-- In simple mode, columns should be greyed out and unavailable
-- Columns should be sortable on pages
-
-**Complexity:** HIGH (requires new UI component, drag/drop, persistence)
-
-**Estimated Effort:** 4-6 hours
-
-### 6. Import/Export Consistency Verification 🟡 **NEEDS TESTING**
+### 1. Import/Export Consistency Verification 🟡 **NEEDS TESTING**
 **Requirements:**
 - CSV templates in settings should match expected imports
 - Export format should match import format
@@ -108,7 +112,7 @@ This document tracks the changes made in response to the critical feedback provi
 
 **Action Needed:** Manual testing and verification
 
-### 7. Seeding Process Verification 🟡 **NEEDS TESTING**
+### 2. Seeding Process Verification 🟡 **NEEDS TESTING**
 **Requirements:**
 - Verify seeding covers all scenarios and statuses
 - Verify everything is saved locally
@@ -120,7 +124,7 @@ This document tracks the changes made in response to the critical feedback provi
 
 **Action Needed:** Manual testing
 
-### 8. Data Validation & Duplicate Checks 🟡 **PARTIALLY IMPLEMENTED**
+### 3. Data Validation & Duplicate Checks 🟡 **PARTIALLY IMPLEMENTED**
 **Requirements:**
 - Validate all fields on save
 - Duplicate checks on import
@@ -140,7 +144,7 @@ This document tracks the changes made in response to the critical feedback provi
 
 **Action Needed:** Enhance validation and add UI warnings
 
-### 9. Milestone-Status Workflow Enforcement 🟢 **MOSTLY COMPLETE**
+### 4. Milestone-Status Workflow Enforcement 🟢 **MOSTLY COMPLETE**
 **Requirements:**
 - Link milestones with status
 - Enforce workflow logic (e.g., CTC contacts should not be in Application)
@@ -159,7 +163,7 @@ This document tracks the changes made in response to the critical feedback provi
 
 **Verification Needed:** Test that automations fire correctly on stage changes
 
-### 10. Modal Navigation Freezing Issues 🟡 **NEEDS INVESTIGATION**
+### 5. Modal Navigation Freezing Issues 🟡 **NEEDS INVESTIGATION**
 **Requirements:**
 - Fix issues where clicking partner → contact freezes tool
 - Ensure 100% reliability when opening/closing modals
@@ -178,7 +182,6 @@ This document tracks the changes made in response to the critical feedback provi
 - Improve modal lifecycle management
 
 ---
-
 ## 🔧 Technical Notes
 
 ### Files Modified

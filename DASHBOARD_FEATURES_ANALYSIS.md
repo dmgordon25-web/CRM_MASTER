@@ -4,7 +4,7 @@
 
 ## Executive Summary
 
-After comprehensive analysis of the CRM codebase, I've discovered that **most of the requested dashboard features already exist** but may need configuration or UI exposure. Below is a detailed breakdown of existing vs. missing features.
+Most requested dashboard features are already live, including column configuration, draggable/resizable widgets, and simple/advanced mode defaults. Backlog items are now limited to UX polish (e.g., clearer resize affordances), future layout refactors (separate KPI widgets), and long-term enhancements noted below.
 
 ---
 
@@ -141,10 +141,10 @@ if (editing) {
 ---
 
 ### 5. **Resizable Widgets**
-**Status:** ✅ IMPLEMENTED (Partial)
+**Status:** ✅ IMPLEMENTED (UX can be polished)
 **Location:** `crm-app/js/dashboard/index.js:42-46`
 
-Resize handles are defined but may not be fully wired:
+Resize handles and size classes are live:
 ```javascript
 const DASHBOARD_RESIZE_HANDLES = [
   { key: 'e', qa: 'resize-e', label: 'Resize from right edge' },
@@ -160,30 +160,30 @@ const DASHBOARD_RESIZE_HANDLES = [
 
 **Current State:**
 - Width changes are supported (1/3, 1/2, 2/3, full)
-- Resize handles defined but may need activation
+- Resize affordances are minimal; discoverability could be improved with clearer handles or hints
 - `bumpDebugResized()` tracking exists
 
 ---
 
 ### 6. **Column Configuration**
-**Status:** ⚠️ PARTIALLY IMPLEMENTED (Dashboard-level only)
-**Location:** `crm-app/js/dashboard/index.js`
+**Status:** ✅ IMPLEMENTED (multi-table)
+**Coverage:**
+- Workbench / Contacts
+- Pipeline
+- Partners
+- Leads
 
-Dashboard columns are configurable:
-- **Min:** 3 columns (line 39)
-- **Max:** 4 columns (line 40)
-- **Change Event:** `dashboard:layout-columns` (line 3485)
-- **Persistence:** localStorage
+**How it works:**
+- Configurable via Settings → Columns (`crm-app/js/settings/columns_tab.js` backed by `crm-app/js/tables/column_config.js` and `column_schema.js`).
+- Per-view configs persist to localStorage (`crm:columns`) and emit `settings:columns:changed` events.
+- Simple vs Advanced mode is respected by filtering `simple === false` columns when UI mode is set to simple.
 
-**What's Missing:**
-- Per-TABLE column configuration (not per-widget)
-- Settings UI for column selection
-- Right-click context menu for tables
-- Simple mode integration
+**Notes:**
+- Fancy UX (e.g., right-click toggles on column headers) is **not implemented**; could be a future enhancement.
 
 ---
 
-## ❌ MISSING FEATURES (Need Implementation)
+## 🔄 FEATURE STATUS & BACKLOG NOTES
 
 ### 1. **Table Column Configuration**
 **Status:** ✅ IMPLEMENTED (Settings → Columns)
@@ -216,35 +216,18 @@ Dashboard columns are configurable:
 ---
 
 ### 3. **Separate KPI Widgets**
-**Status:** ❌ NOT IMPLEMENTED (KPIs are grouped)
+**Status:** ⏳ BACKLOG (not implemented)
 **Priority:** MEDIUM
 
 **Current State:**
-- KPIs are in a single grid container: `#dashboard-kpis`
-- KPI keys defined in array (dashboard/index.js:74-83):
-  ```javascript
-  const KPI_KEYS = [
-    'kpiNewLeads7d', 'kpiActivePipeline', 'kpiFundedYTD',
-    'kpiFundedVolumeYTD', 'kpiAvgCycleLeadToFunded',
-    'kpiTasksToday', 'kpiTasksOverdue', 'kpiReferralsYTD'
-  ];
-  ```
+- KPIs are grouped together inside a single block: `#dashboard-kpis`.
+- KPI keys are defined in `dashboard/index.js` and rendered as tiles inside one container.
+- The block can feel visually cramped on smaller widths.
 
-**Requirements:**
-- Break apart into individual draggable widgets
-- Each KPI as separate `[data-dash-widget]` element
-- Allow independent positioning
-- Allow hiding individual KPIs (not all-or-nothing)
-
-**Implementation Approach:**
-1. Modify `crm-app/js/dashboard/kpis.js`
-2. Change from single grid to individual cards
-3. Wrap each KPI in `<section data-dash-widget="kpiNewLeads7d">...</section>`
-4. Update widget resolvers in dashboard/index.js
-5. Add drag handles to each KPI card
-6. Update preferences to store per-KPI visibility
-
-**Estimated Effort:** 2-3 hours
+**Future Intent:**
+- Split each KPI into its own widget tile with cleaner sizing.
+- Make KPIs individually rearrangeable/resizable once the dashboard layout stabilizes.
+- Preserve per-KPI visibility settings when refactoring the layout.
 
 ---
 
@@ -386,96 +369,31 @@ localStorage.getItem('crm:dashboard:widget-order');
 
 ## 📋 IMPLEMENTATION ROADMAP
 
-### **Phase 1: Boot Optimization** ✅ COMPLETED
-- [x] Remove partner cycling
-- [x] Single-pass tab cycling with equal spacing
-- [x] Reduce dashboard toggles from 4 to 3
-- [x] Fix splash screen timing
-- [x] Documentation
+### Dashboard widget layout and behavior
+- Verify edit mode UI (toggle visibility, grid overlay, drag/drop) and keep it discoverable.
+- Enforce drilldown guards while editing layouts.
+- Audit clickable rows/items so normal mode consistently opens drilldowns.
+- Polish resize affordances without changing the underlying size-class support.
+
+### KPI block and metrics
+- Current: shared KPI block inside `#dashboard-kpis` with multiple tiles.
+- Near-term: improve spacing/sizing so the block fits its content and wraps cleanly.
+- Future: split into separate KPI widgets that can be positioned and toggled individually.
+
+### Column configuration and UI mode
+- Current: implemented across Workbench/Contacts, Pipeline, Partners, and Leads via Settings → Columns with Simple vs Advanced defaults.
+- Future enhancements: optional header context menus or inline toggles for quick show/hide.
+
+### Simple/Advanced mode
+- Current: implemented with Settings toggle, navigation gating, and schema-based column filtering.
+- Future: centralize form field pruning to reduce per-modal logic.
+
+### Boot optimization
+- Completed: partner cycling removal, tab spacing simplification, reduced dashboard toggles, splash timing fixes, and related documentation.
 
 **Result:** Boot time optimized to ~8.5 seconds
 
 ---
-
-### **Phase 2: Dashboard UI Improvements** (NEXT)
-**Timeline:** 1-2 days
-
-1. **Verify Edit Mode UI** (1 hour)
-   - Find layout toggle button
-   - Test edit mode activation
-   - Verify grid overlay visibility
-   - Test drag and drop
-
-2. **Disable Drilldowns in Edit Mode** (1 hour)
-   - Add edit mode guard to click handlers
-   - Test in both modes
-   - Add cursor visual feedback
-
-3. **Audit Clickable Items** (2-3 hours)
-   - Check each widget for drilldowns
-   - Add missing click handlers
-   - Test all drilldown paths
-
-4. **Separate KPI Widgets** (2-3 hours)
-   - Break apart KPI grid
-   - Create individual widget cards
-   - Update drag/drop configuration
-   - Test positioning and hiding
-
----
-
-### **Phase 3: Column Configuration** (NEXT)
-**Timeline:** 1 day
-
-1. **Backend Logic** (2-3 hours)
-   - Create column config service
-   - Define column metadata per table
-   - Implement localStorage persistence
-   - Add required field validation
-
-2. **Settings UI** (2-3 hours)
-   - Add "Column Configuration" tab
-   - Build drag-drop interface
-   - Implement available ↔ active lists
-   - Wire up save/reset buttons
-
-3. **Table Integration** (2 hours)
-   - Hook into render.js
-   - Apply column visibility
-   - Update table headers
-   - Test with all tables
-
-4. **Alternative: Context Menu** (1 hour)
-   - Right-click column headers
-   - Show/hide column menu
-   - Quick toggle implementation
-
----
-
-### **Phase 4: Simple/Advanced Mode** (NEXT)
-**Timeline:** 0.5 days
-
-1. **Core Implementation** (2 hours)
-   - Create user mode service
-   - Add settings toggle
-   - Store preference
-   - Apply body class
-
-2. **Simple Mode Rules** (2 hours)
-   - Hide Workbench tab
-   - Hide Client pages
-   - Filter modal fields
-   - Limit column config
-   - Simplify dashboard
-
-3. **Testing** (1 hour)
-   - Test mode switching
-   - Verify tab visibility
-   - Check modal field filtering
-   - Validate column restrictions
-
----
-
 ## 🎯 QUICK WINS
 
 ### Immediate Actions (No Code Required)
@@ -508,10 +426,10 @@ localStorage.getItem('crm:dashboard:widget-order');
 | Grid Snapping | ✅ Complete | drag_core.js:607 | 0 hours |
 | Overlap Prevention | ✅ Complete | drag_core.js:859 | 0 hours |
 | Edit Mode Toggle | ✅ Complete | dashboard/index.js:789 | 0 hours (verify UI) |
-| Resizable Widgets | ⚠️ Partial | dashboard/index.js:42 | 1-2 hours |
-| Table Column Config | ❌ Missing | N/A | 4-6 hours |
-| Simple/Advanced Mode | ❌ Missing | N/A | 3-4 hours |
-| Separate KPIs | ❌ Missing | dashboard/kpis.js | 2-3 hours |
+| Resizable Widgets | ✅ Implemented (polish later) | dashboard/index.js:42 | UX polish |
+| Table Column Config | ✅ Complete | settings/columns_tab.js | 0 hours |
+| Simple/Advanced Mode | ✅ Complete | ui/ui_mode.js | 0 hours |
+| Separate KPIs | ⏳ Backlog | dashboard/kpis.js | 2-3 hours |
 | Disable Drilldowns in Edit | ⚠️ Needs Check | dashboard/index.js:2813 | 1 hour |
 | All Items Clickable | ⚠️ Needs Audit | Various widgets | 2-3 hours |
 
@@ -519,38 +437,18 @@ localStorage.getItem('crm:dashboard:widget-order');
 
 ## 🚀 RECOMMENDED NEXT STEPS
 
-### Option A: Verify & Polish Existing Features (Quick)
-**Timeline:** 2-3 hours
-1. Verify edit mode button exists and works
-2. Test drag-and-drop functionality
-3. Check grid overlay visibility
-4. Disable drilldowns in edit mode
-5. Document how to use features
-
-### Option B: Implement Missing Features (Comprehensive)
-**Timeline:** 2-3 days
-1. Table column configuration (6 hours)
-2. Simple/Advanced user mode (4 hours)
-3. Separate KPI widgets (3 hours)
-4. Clickable items audit (3 hours)
-5. Testing and polish (2 hours)
-
-### Option C: Hybrid Approach (Recommended)
-**Timeline:** 1 day
-1. Morning: Verify existing features (2 hours)
-2. Afternoon: Separate KPI widgets (3 hours)
-3. Disable drilldowns in edit mode (1 hour)
-4. Evening: Start column configuration (2 hours)
-5. Next day: Complete column config + simple mode
+- Verify edit mode guardrails: disable drilldowns while editing and keep the toggle easy to find.
+- Audit clickable items across widgets to ensure drilldowns work consistently in view mode.
+- Polish resize UX and messaging so users understand available size classes.
+- Improve KPI block spacing now; plan the separate KPI widgets refactor as a follow-up.
+- Optional enhancement: add header/context toggles for faster column show/hide controls.
 
 ---
-
 ## 📝 NOTES
 
 - **Boot optimization is DONE** ✅
-- **Dashboard features mostly exist** - need verification and polish
-- **Column config and simple mode** are the only truly missing features
-- **Total effort for all missing features:** ~15-20 hours
+- **Core dashboard features are live**; remaining work is UX polish and backlog items noted above.
+- **Column config and simple mode** are implemented; focus is on refinement and discoverability.
 
 ---
 
