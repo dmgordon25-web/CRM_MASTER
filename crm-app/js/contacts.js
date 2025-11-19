@@ -6,8 +6,18 @@ import { clearSelectionForSurface } from './services/selection_reset.js';
 import { applyContactFieldVisibility, normalizeSimpleModeSettings, SIMPLE_MODE_DEFAULTS } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor as closeContactEntry, getContactEditorState, resetContactEditorForRouteLeave } from './editors/contact_entry.js';
+import { getTasksApi } from './app_services.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function createTaskViaService(payload){
+  const api = await getTasksApi();
+  const fn = api?.createMinimalTask || api?.createTask || api?.default;
+  if(typeof fn !== 'function'){
+    throw new Error('Task API unavailable');
+  }
+  return fn(payload);
+}
 
 function resolveContactName(model){
   if(!model || typeof model !== 'object') return '';
@@ -1329,16 +1339,7 @@ export function normalizeContactId(input) {
         const payload = { linkedType:'contact', linkedId:contactId, note, tags:[tagValue] };
         milestoneActionBtn.disabled = true;
         try{
-          let result = null;
-          const createViaApp = window.App?.tasks?.createMinimal;
-          if(typeof createViaApp === 'function'){
-            result = await createViaApp(payload);
-          }else{
-            const mod = await import(new URL('./tasks/api.js', import.meta.url));
-            const fn = mod.createMinimalTask || mod.createTask || mod.default;
-            if(typeof fn !== 'function') throw new Error('Task API unavailable');
-            result = await fn(payload);
-          }
+          const result = await createTaskViaService(payload);
           if(result && result.status === 'error'){
             throw new Error('Task API returned error');
           }
@@ -2228,17 +2229,7 @@ export function normalizeContactId(input) {
         Promise.resolve().then(async () => {
           const payload = { linkedType: 'contact', linkedId, due, note };
           if(!note){ delete payload.note; }
-          const createViaApp = window.App?.tasks?.createMinimal;
-          if(typeof createViaApp === 'function'){
-            await createViaApp(payload);
-          }else{
-            const mod = await import(new URL('./tasks/api.js', import.meta.url));
-            const fn = mod.createMinimalTask || mod.createTask || mod.default;
-            if(typeof fn !== 'function'){
-              throw new Error('Task API unavailable');
-            }
-            await fn(payload);
-          }
+          await createTaskViaService(payload);
         }).then(() => {
           setTimeout(() => {
             try{
@@ -2281,15 +2272,7 @@ export function normalizeContactId(input) {
         setStatus('Scheduling next follow-up…');
         const payload = { linkedType:'contact', linkedId, due: currentSuggestion.due, note: currentSuggestion.note };
         Promise.resolve().then(async () => {
-          const createViaApp = window.App?.tasks?.createMinimal;
-          if(typeof createViaApp === 'function'){
-            await createViaApp(payload);
-          }else{
-            const mod = await import(new URL('./tasks/api.js', import.meta.url));
-            const fn = mod.createMinimalTask || mod.createTask || mod.default;
-            if(typeof fn !== 'function') throw new Error('Task API unavailable');
-            await fn(payload);
-          }
+          await createTaskViaService(payload);
         }).then(() => {
           const nextField = $('#c-nexttouch', body);
           if(nextField){

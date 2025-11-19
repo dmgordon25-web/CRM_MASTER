@@ -3,6 +3,7 @@ import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { ensureSingletonModal } from './ui/modal_singleton.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
+import { getTasksApi } from './app_services.js';
 import { toastError, toastSuccess } from './ui/toast_helpers.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
@@ -619,17 +620,12 @@ function ensurePartnersBoot(ctx){
       Promise.resolve().then(async () => {
         const payload = { linkedType: 'partner', linkedId, due, note };
         if(!note){ delete payload.note; }
-        const createViaApp = window.App?.tasks?.createMinimal;
-        if(typeof createViaApp === 'function'){
-          await createViaApp(payload);
-        }else{
-          const mod = await import(new URL('./tasks/api.js', import.meta.url));
-          const fn = mod.createMinimalTask || mod.createTask || mod.default;
-          if(typeof fn !== 'function'){
-            throw new Error('Task API unavailable');
-          }
-          await fn(payload);
+        const api = await getTasksApi();
+        const fn = api?.createMinimalTask || api?.createTask || api?.default;
+        if(typeof fn !== 'function'){
+          throw new Error('Task API unavailable');
         }
+        await fn(payload);
       }).then(() => {
         setTimeout(() => {
           try{

@@ -7,6 +7,7 @@ import {
   writeDashboardConfig,
   isTodayWidget
 } from './dashboard/config.js';
+import { getRenderer } from './app_services.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
 function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
 
@@ -696,8 +697,9 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
         writeProfileLocal(payload);
         writeSignatureLocal(profileState.signature || '');
         await window.Settings.save({ loProfile: payload });
-        if(window.renderAll && typeof window.renderAll === 'function'){
-          try{ window.renderAll('profiles:saved'); }
+        const renderAll = getRenderer();
+        if(typeof renderAll === 'function'){
+          try{ renderAll('profiles:saved'); }
           catch (err) { console.warn('renderAll profiles:saved failed', err); }
         }
         toastSafe(text?.('settings.toast.profile-saved') ?? __textFallback__('settings.toast.profile-saved'));

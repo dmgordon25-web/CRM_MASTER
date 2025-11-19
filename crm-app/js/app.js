@@ -10,6 +10,7 @@ import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor } from './editors/contact_entry.js';
+import { getRenderer } from './app_services.js';
 
 // app.js
 export function goto(hash){
@@ -836,7 +837,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       && typeof performance.now === 'function'
       && window.__CRM_DEBUG_PERF;
     const perfStart = perfEnabled ? performance.now() : 0;
-    const hasRenderAll = typeof window.renderAll === 'function';
+    const renderer = getRenderer();
+    const hasRenderAll = typeof renderer === 'function';
     if(!hasRenderAll){
       if(!window.__RENDER_ALL_MISSING_LOGGED__ && console && typeof console.warn === 'function'){
         window.__RENDER_ALL_MISSING_LOGGED__ = true;
@@ -861,7 +863,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       releaseListLoading = null;
     };
     try{
-      const result = window.renderAll();
+      const result = renderer();
       if(result && typeof result.then === 'function'){
         result.catch(err => console.warn('[soft] [app] renderAll failed', err))
           .finally(() => {
