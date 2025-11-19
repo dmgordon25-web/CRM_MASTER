@@ -354,7 +354,7 @@ export async function listTasksForDashboard(options = {}){
   const tasks = await getTasks();
   const filtered = tasks.filter(task => {
     if(!task || task.deleted) return false;
-    if(isDone(task)) return filter === 'all' ? true : false;
+    if(isDone(task)) return false;
     const status = normalizeTaskStatus(task);
     if(status === 'archived' || status === 'cancelled' || status === 'canceled') return false;
     const kind = (task.kind || task.type || '').toString().toLowerCase();
