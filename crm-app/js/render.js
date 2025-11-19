@@ -1844,7 +1844,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||'');
       const amount = Number(c.loanAmount||0) ? ` • ${money(c.loanAmount)}` : '';
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="rel-opps">`
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="rel-opps"> 
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1863,7 +1863,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||STR['kanban.placeholder.client']);
       const funded = c.fundedDate ? `${translate('calendar.event.funded')} ${safe(c.fundedDate)}` : STR['kanban.placeholder.client'];
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="nurture">`
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="nurture"> 
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1882,7 +1882,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const when = item.date.toISOString().slice(0,10);
       const amount = Number(c.loanAmount||0) ? money(c.loanAmount) : 'TBD';
       const statusClass = item.stage==='funded' ? 'good' : 'warn';
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}">`
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}"> 
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
