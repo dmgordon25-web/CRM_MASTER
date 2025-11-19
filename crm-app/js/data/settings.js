@@ -115,7 +115,13 @@ function cloneGeneralDefaults(){
 }
 
 function cloneSimpleModeDefaults(){
-  return { showLoanDetails: false, showRelationshipDetails: false, showAddress: false };
+  return {
+    showLoanDetails: false,
+    showRelationshipDetails: false,
+    showAddress: false,
+    showProfileExtras: false,
+    showEngagement: false
+  };
 }
 
 function coerceHourValue(value){
@@ -184,6 +190,9 @@ function extractSimpleModeSettings(source){
   const defaults = cloneSimpleModeDefaults();
   if(!source || typeof source !== 'object') return defaults;
   const simple = source.simpleMode && typeof source.simpleMode === 'object' ? source.simpleMode : {};
+  if(Object.prototype.hasOwnProperty.call(simple, 'showProfileExtras')){
+    defaults.showProfileExtras = coerceBooleanLike(simple.showProfileExtras) === true;
+  }
   if(Object.prototype.hasOwnProperty.call(simple, 'showLoanDetails')){
     defaults.showLoanDetails = coerceBooleanLike(simple.showLoanDetails) === true;
   }
@@ -192,6 +201,9 @@ function extractSimpleModeSettings(source){
   }
   if(Object.prototype.hasOwnProperty.call(simple, 'showAddress')){
     defaults.showAddress = coerceBooleanLike(simple.showAddress) === true;
+  }
+  if(Object.prototype.hasOwnProperty.call(simple, 'showEngagement')){
+    defaults.showEngagement = coerceBooleanLike(simple.showEngagement) === true;
   }
   return defaults;
 }
@@ -256,6 +268,12 @@ export function validateSettings(settings){
   }
   if(typeof simpleMode.showAddress !== 'boolean'){
     errors.push({ path: 'simpleMode.showAddress', reason: 'Value must be true or false' });
+  }
+  if(typeof simpleMode.showProfileExtras !== 'boolean'){
+    errors.push({ path: 'simpleMode.showProfileExtras', reason: 'Value must be true or false' });
+  }
+  if(typeof simpleMode.showEngagement !== 'boolean'){
+    errors.push({ path: 'simpleMode.showEngagement', reason: 'Value must be true or false' });
   }
 
   return { ok: errors.length === 0, errors };
