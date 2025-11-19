@@ -17,6 +17,7 @@ import {
 } from './pipeline/constants.js';
 import { openContactEditor } from './editors/contact_entry.js';
 import { openPartnerEditor } from './editors/partner_entry.js';
+import { registerRenderer } from './app_services.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
@@ -2146,6 +2147,7 @@ const perfLog = (mark) => {
   }
 
   window.renderAll = renderAll;
+  registerRenderer(renderAll);
   window.renderPartners = async function(){
     const table = typeof document !== 'undefined' ? document.getElementById('tbl-partners') : null;
     const host = table ? findListLoadingHost(table) : null;
