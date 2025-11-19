@@ -2581,6 +2581,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   })();
 
   onUiModeChanged((mode) => {
+    renderedRoutes.clear();
     applyUiModeNavigation(mode);
     if(mode === 'simple' && isAdvancedOnlyView(activeView)){
       activate(DEFAULT_ROUTE);
