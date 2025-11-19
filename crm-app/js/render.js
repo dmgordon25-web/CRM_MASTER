@@ -1578,7 +1578,7 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
         try {
           const modal = openTaskEditor();
           const noteField = document.querySelector('#qc-task-modal textarea[name="note"]');
-          if (noteField && typeof noteField.value === 'string' && trimmed) {
+          if (noteField && typeof noteField.value === 'string') {
             noteField.value = trimmed;
             noteField.dispatchEvent(new Event('input', { bubbles: true }));
           }
