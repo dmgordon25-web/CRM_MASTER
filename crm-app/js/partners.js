@@ -841,8 +841,10 @@ function ensurePartnersBoot(ctx){
         const changeDetail = {
           scope: 'partners',
           partnerId: String(rec.id || ''),
+          ids: [String(rec.id || '')],
           action: wasSaved ? 'update' : 'create',
           source: 'partner:modal',
+          reason: wasSaved ? 'partner-update' : 'partner-create',
           sourceHint: dialog.__partnerSourceHint || dialog.dataset?.sourceHint || '',
           partial: { scope: 'partners', ids: [String(rec.id || '')], reason: 'partner-modal' }
         };

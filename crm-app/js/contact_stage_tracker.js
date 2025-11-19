@@ -247,7 +247,17 @@
     // Persist + optional history
     await Storage.writeStage(cid, selKey);
     Storage.appendHistory(cid, selKey).catch(()=>{});
-    window.dispatchAppDataChanged?.("contact:stage:set");
+    const contactId = cid == null ? '' : String(cid);
+    try {
+      window.dispatchAppDataChanged?.({
+        scope: 'contacts',
+        action: 'update',
+        reason: 'contact:stage:set',
+        stage: selKey,
+        contactId,
+        ids: contactId ? [contactId] : undefined
+      });
+    } catch (_) {}
   }, true);
 
   // ---- Visibility hooks ----

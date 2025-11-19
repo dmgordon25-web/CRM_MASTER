@@ -84,7 +84,7 @@
         if (typeof api === 'function'){
           Promise.resolve(api(id)).then(()=>{
             row.remove();
-            document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'docs', ids:[id] }}));
+            document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'documents', ids:[id], reason:'doc-center:update' }}));
           }).catch(()=>{});
         } else {
           // Fallback: hide row to keep UI honest
@@ -196,6 +196,6 @@
   // Refresh when docs change
   document.addEventListener('app:data:changed', (e)=>{
     const scope = e && e.detail && e.detail.scope;
-    if (scope === 'docs' || scope === 'import' || scope === 'seed') setTimeout(sweep, 0);
+    if (scope === 'documents' || scope === 'import' || scope === 'seed') setTimeout(sweep, 0);
   });
 })();

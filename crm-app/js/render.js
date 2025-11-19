@@ -41,6 +41,39 @@ const perfLog = (mark) => {
   } catch (_) {}
 };
 
+const RENDER_SCOPE_TOKENS = new Set(['dashboard','contacts','pipeline','partners','tasks','longshots','documents']);
+
+function normalizeScopeInput(value, into){
+  const target = into || [];
+  if(value == null) return target;
+  if(Array.isArray(value)){
+    value.forEach((entry) => normalizeScopeInput(entry, target));
+    return target;
+  }
+  if(typeof value === 'string'){
+    const trimmed = value.trim().toLowerCase();
+    if(trimmed) target.push(trimmed);
+    return target;
+  }
+  if(typeof value === 'object'){
+    if(Array.isArray(value.scopes)) normalizeScopeInput(value.scopes, target);
+    else if(typeof value.scope === 'string') normalizeScopeInput(value.scope, target);
+    return target;
+  }
+  return target;
+}
+
+function parseRenderScopes(request){
+  const scopes = normalizeScopeInput(request, []);
+  const valid = scopes.filter(token => RENDER_SCOPE_TOKENS.has(token));
+  return valid.length ? new Set(valid) : null;
+}
+
+function shouldRenderScope(scopeSet, ...aliases){
+  if(!scopeSet || scopeSet.size === 0) return true;
+  return aliases.some(alias => scopeSet.has(alias));
+}
+
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
   const STAGES_CLIENT = ['approved','cleared-to-close','funded','post-close'];
@@ -1287,7 +1320,12 @@ const perfLog = (mark) => {
     }
   }
 
-  async function renderAll(){
+  async function renderAll(request){
+    const scopeSet = parseRenderScopes(request && typeof request === 'object' ? (request.scopes || request.scope || request) : request);
+    const wantsDashboard = shouldRenderScope(scopeSet, 'dashboard','tasks','documents');
+    const wantsContacts = shouldRenderScope(scopeSet, 'contacts','longshots');
+    const wantsPipeline = shouldRenderScope(scopeSet, 'pipeline');
+    const wantsPartners = shouldRenderScope(scopeSet, 'partners');
     return withLayoutGuard('render.js', async () => {
       const totalMark = perfMark('renderAll');
       let dashboardMark = null;
@@ -1320,7 +1358,36 @@ const perfLog = (mark) => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const contactById = new Map((contacts||[]).map(c=>[String(c.id), c]));
+        const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
+          const dueDate = toDate(t.due);
+          const contact = contactById.get(String(t.contactId||''));
+          const stageKey = contact ? normalizeStatus(contact.stage) : '';
+          const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g,' ')) : '';
+          const diffFromToday = dueDate ? Math.floor((dueDate.getTime()-today.getTime())/86400000) : null;
+          let status = 'ready';
+          if(diffFromToday!=null){
+            if(diffFromToday < 0) status = 'overdue';
+            else if(diffFromToday <= 3) status = 'soon';
+          }
+          const dueLabel = dueDate ? dueDate.toISOString().slice(0,10) : 'No date';
+          return {
+            raw: t,
+            title: t.title || t.text || 'Follow up',
+            dueDate,
+            dueLabel,
+            status,
+            diffFromToday,
+            contact,
+            name: contact ? fullName(contact) : 'General Task',
+            stage
+          };
+        }).sort((a,b)=>{
+          const ad = a.dueDate ? a.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
+          const bd = b.dueDate ? b.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
+          return ad-bd;
+        });
 
+    if(wantsDashboard){
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const nextMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
     const fundedThisMonth = (contacts||[]).filter(c=>{
@@ -1429,35 +1496,6 @@ const perfLog = (mark) => {
       if(host) host.innerHTML = '<li class="error">Error loading referral leaders. Please refresh.</li>';
       console.warn('Referral leaders widget render failed:', err);
     }
-
-    const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
-      const dueDate = toDate(t.due);
-      const contact = contactById.get(String(t.contactId||''));
-      const stageKey = contact ? normalizeStatus(contact.stage) : '';
-      const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g,' ')) : '';
-      const diffFromToday = dueDate ? Math.floor((dueDate.getTime()-today.getTime())/86400000) : null;
-      let status = 'ready';
-      if(diffFromToday!=null){
-        if(diffFromToday < 0) status = 'overdue';
-        else if(diffFromToday <= 3) status = 'soon';
-      }
-      const dueLabel = dueDate ? dueDate.toISOString().slice(0,10) : 'No date';
-      return {
-        raw: t,
-        title: t.title || t.text || 'Follow up',
-        dueDate,
-        dueLabel,
-        status,
-        diffFromToday,
-        contact,
-        name: contact ? fullName(contact) : 'General Task',
-        stage
-      };
-    }).sort((a,b)=>{
-      const ad = a.dueDate ? a.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
-      const bd = b.dueDate ? b.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
-      return ad-bd;
-    });
 
     const attention = openTasks.filter(t=> t.status==='overdue' || t.status==='soon').slice(0,6);
     html($('#needs-attn'), attention.length ? attention.map(task=>{
@@ -1614,6 +1652,8 @@ const perfLog = (mark) => {
     }
 
     perfLog(dashboardMark);
+    }
+    if(wantsContacts || wantsPipeline){
     pipelineMark = perfMark('pipeline/contacts');
     const inpr = contacts.filter(c => {
       const stageKey = normalizeStatus(c.stage);
@@ -1731,6 +1771,7 @@ const perfLog = (mark) => {
       return bd-ad;
     }).slice(0,5);
 
+    if(wantsPipeline){
     html($('#rel-opps'), relOpportunities.length ? relOpportunities.map(item=>{
       const c = item.contact;
       const name = fullName(c);
@@ -1860,6 +1901,7 @@ const perfLog = (mark) => {
         pipelineCal.innerHTML = `<ul class="pipeline-timeline">${items}</ul>`;
       }
     }
+    }
 
     const MAX_FAVORITE_WIDGET_ITEMS = 8;
 
@@ -1988,6 +2030,7 @@ const perfLog = (mark) => {
     ensurePipelineLegend();
     ensureStatusStackLegend();
 
+    if(wantsPipeline){
     const tblPipeline = document.getElementById('tbl-pipeline');
     if(tblPipeline) renderContactHeader(tblPipeline, pipelineColumns, 'pipe-all');
     if(tblPipeline) ensureFavoriteColumn(tblPipeline);
@@ -2034,6 +2077,8 @@ const perfLog = (mark) => {
       }).join('');
       renderTableBody(tblPipeline, tbPipe, pipelineRows);
     }
+    }
+    if(wantsContacts){
     const tblClients = document.getElementById('tbl-clients');
     if(tblClients) renderContactHeader(tblClients, clientColumns, 'clients-all');
     if(tblClients) ensureFavoriteColumn(tblClients);
@@ -2126,9 +2171,11 @@ const perfLog = (mark) => {
       }).join('');
       renderTableBody(tblLongshots, tbLs, longshotRows);
     }
+    }
 
     ensureKanbanStageAttributes();
     perfLog(pipelineMark);
+    }
     partnersMark = perfMark('partners');
     renderPartnersTable(partners, contacts);
     perfLog(partnersMark);
@@ -2148,7 +2195,27 @@ const perfLog = (mark) => {
 
   window.renderAll = renderAll;
   registerRenderer(renderAll);
-  window.renderPartners = async function(){
+
+  function renderScopedView(scopes, options){
+    const payload = Object.assign({}, options || {}, { scopes });
+    return renderAll(payload);
+  }
+
+  window.renderDashboardView = function(options){
+    return renderScopedView(['dashboard'], options);
+  };
+  window.renderDashboard = window.renderDashboardView;
+
+  window.renderContactsView = function(options){
+    return renderScopedView(['contacts'], options);
+  };
+
+  window.renderPipelineView = function(options){
+    return renderScopedView(['pipeline'], options);
+  };
+  window.renderKanban = window.renderPipelineView;
+
+  async function renderPartnersView(options){
     const table = typeof document !== 'undefined' ? document.getElementById('tbl-partners') : null;
     const host = table ? findListLoadingHost(table) : null;
     const releaseLoading = acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS));
@@ -2166,7 +2233,9 @@ const perfLog = (mark) => {
     } finally {
       releaseLoading();
     }
-  };
+  }
+  window.renderPartnersView = renderPartnersView;
+  window.renderPartners = renderPartnersView;
 })();
 
 (function applyDashOrderPostPaint(){
@@ -2186,3 +2255,43 @@ const perfLog = (mark) => {
 
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
 wireQuickAddUnified();
+
+export function renderDashboardView(options){
+  if(typeof window !== 'undefined' && typeof window.renderDashboardView === 'function'){
+    return window.renderDashboardView(options);
+  }
+  if(typeof window !== 'undefined' && typeof window.renderAll === 'function'){
+    return window.renderAll({ scopes: ['dashboard'], ...(options || {}) });
+  }
+  return Promise.resolve(false);
+}
+
+export function renderContactsView(options){
+  if(typeof window !== 'undefined' && typeof window.renderContactsView === 'function'){
+    return window.renderContactsView(options);
+  }
+  if(typeof window !== 'undefined' && typeof window.renderAll === 'function'){
+    return window.renderAll({ scopes: ['contacts'], ...(options || {}) });
+  }
+  return Promise.resolve(false);
+}
+
+export function renderPipelineView(options){
+  if(typeof window !== 'undefined' && typeof window.renderPipelineView === 'function'){
+    return window.renderPipelineView(options);
+  }
+  if(typeof window !== 'undefined' && typeof window.renderAll === 'function'){
+    return window.renderAll({ scopes: ['pipeline'], ...(options || {}) });
+  }
+  return Promise.resolve(false);
+}
+
+export function renderPartnersView(options){
+  if(typeof window !== 'undefined' && typeof window.renderPartnersView === 'function'){
+    return window.renderPartnersView(options);
+  }
+  if(typeof window !== 'undefined' && typeof window.renderPartners === 'function'){
+    return window.renderPartners(options);
+  }
+  return Promise.resolve(false);
+}

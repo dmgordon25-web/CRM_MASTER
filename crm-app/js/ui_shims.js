@@ -127,7 +127,15 @@
           };
           await dbPut('contacts', c);
           root.classList.add('hidden');
-          document.dispatchEvent(new Event('app:data:changed'));
+          const contactId = c && c.id ? String(c.id) : '';
+          const detail = {
+            scope: 'contacts',
+            action: 'create',
+            reason: 'ui-shims:add-contact',
+            ids: contactId ? [contactId] : undefined,
+            contactId
+          };
+          document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
           if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
         }catch (e) { console && console.warn && console.warn('[soft] Add contact failed', e); }
       });

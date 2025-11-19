@@ -42,7 +42,15 @@ function runPatch(){
     }
 
     function dispatchDataChanged(detail){
-      const payload = Object.assign({ source: 'doccenter2' }, detail||{});
+      const payload = Object.assign({ source: 'doccenter2', scope: 'documents' }, detail||{});
+      if(!payload.reason) payload.reason = 'doccenter:update';
+      if(Array.isArray(payload.ids)){
+        payload.ids = payload.ids.map(id => String(id));
+      }else{
+        const inferred = payload.inserted || payload.updated || payload.ensured || payload.docId;
+        payload.ids = inferred ? [String(inferred)] : [];
+      }
+      if(payload.contactId != null) payload.contactId = String(payload.contactId);
       if(typeof window.dispatchAppDataChanged === 'function'){
         window.dispatchAppDataChanged(payload);
       }else{
@@ -181,7 +189,7 @@ function runPatch(){
       await dbPut('documents', record);
       const docs = await loadDocsForContact(contactId);
       await syncContactAfterChange(contactId, docs, { recomputeMissing:true, touch:true });
-      dispatchDataChanged({ store:'documents', contactId, inserted:record.id });
+      dispatchDataChanged({ store:'documents', contactId, inserted:record.id, ids:[String(record.id)], reason:'doc:create' });
       return docs;
     }
 
@@ -197,7 +205,7 @@ function runPatch(){
       const docs = await loadDocsForContact(contactId);
       const options = Object.assign({ touchContact:false, recompute:true }, opts||{});
       await syncContactAfterChange(contactId, docs, { recomputeMissing:options.recompute, touch:options.touchContact });
-      dispatchDataChanged({ store:'documents', contactId, updated:next.id });
+      dispatchDataChanged({ store:'documents', contactId, updated:next.id, ids:[String(next.id)], reason:'doc:update' });
       return docs;
     }
 
@@ -931,7 +939,7 @@ function runPatch(){
         const result = await original.apply(this, arguments);
         try{
           if(contact && contact.id && result > 0){
-            dispatchDataChanged({ store:'documents', contactId: contact.id, ensured: result });
+            dispatchDataChanged({ store:'documents', contactId: contact.id, ensured: result, ids:Array.isArray(result)?result.map(String):[], reason:'doc:ensure' });
           }
         }catch (err) { console.warn('doccenter2 ensureRequiredDocs dispatch', err); }
         return result;

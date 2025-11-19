@@ -810,7 +810,7 @@ function shouldValidateGeneral(partial){
       try{ window.toast('All data deleted'); }
       catch (_err) { console && console.info && console.info('[settings] toast skipped'); }
     }
-    document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ source:'settings:deleteAll' } }));
+    document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'settings', source:'settings:deleteAll', reason:'deleteAll' } }));
     const micro = typeof queueMicrotask === 'function'
       ? queueMicrotask
       : (fn) => Promise.resolve().then(fn);

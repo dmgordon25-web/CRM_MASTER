@@ -485,7 +485,7 @@
 
         // Persist and notify
         await Storage.write(state.cid, state.items);
-        window.dispatchAppDataChanged?.("doccenter:toggle");
+        window.dispatchAppDataChanged?.({ scope:'documents', reason:'doccenter:toggle', ids:Object.keys(state.items || {}) });
       }, true);
     }
   }

@@ -74,6 +74,9 @@ function dispatchTaskUpdated(record){
         action: 'task:update',
         taskId: String(record.id),
         contactId,
+        scope: 'tasks',
+        reason: 'calendar:update',
+        ids: [String(record.id)]
       });
     }
   }catch (_err){}
