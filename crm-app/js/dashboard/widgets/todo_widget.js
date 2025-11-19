@@ -146,6 +146,14 @@ export function renderTodoWidget(options = {}) {
   const shell = document.createElement('div');
   shell.className = 'todo-widget-shell';
 
+  try {
+    root.classList.remove('hidden');
+    const card = root.closest('.insight-card');
+    if (card && card.classList) {
+      card.classList.remove('hidden');
+    }
+  } catch (_err) { /* safe guard */ }
+
   const header = document.createElement('div');
   header.className = 'todo-head';
   const icon = document.createElement('div');
@@ -183,7 +191,6 @@ export function renderTodoWidget(options = {}) {
     event.preventDefault();
     if (typeof options.onAdd !== 'function' || addButton.disabled) return;
     const value = input.value ? input.value.trim() : '';
-    if (!value) return;
     addButton.disabled = true;
     Promise.resolve()
       .then(() => options.onAdd(value))

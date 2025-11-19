@@ -1505,6 +1505,11 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       };
 
       const renderTodo = () => {
+        todoHost.classList.remove('hidden');
+        const card = todoHost.closest('.insight-card');
+        if (card && card.classList) {
+          card.classList.remove('hidden');
+        }
         renderTodoWidget({
           root: todoHost,
           tasks: getTodoTasksForDashboard(todoTasks, { limit: 10 }),
@@ -1556,7 +1561,6 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
 
       const handleTodoAdd = async (title) => {
         const trimmed = title && title.trim();
-        if (!trimmed) return false;
         if (addingTodo) return false;
         addingTodo = true;
         renderTodo();
