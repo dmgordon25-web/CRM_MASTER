@@ -1323,8 +1323,8 @@ function shouldRenderScope(scopeSet, ...aliases){
   async function renderAll(request){
     const scopeSet = parseRenderScopes(request && typeof request === 'object' ? (request.scopes || request.scope || request) : request);
     const wantsDashboard = shouldRenderScope(scopeSet, 'dashboard','tasks','documents');
-    const wantsContacts = shouldRenderScope(scopeSet, 'contacts','longshots');
-    const wantsPipeline = shouldRenderScope(scopeSet, 'pipeline');
+    const wantsContacts = shouldRenderScope(scopeSet, 'contacts','longshots','dashboard');
+    const wantsPipeline = shouldRenderScope(scopeSet, 'pipeline','dashboard');
     const wantsPartners = shouldRenderScope(scopeSet, 'partners');
     return withLayoutGuard('render.js', async () => {
       const totalMark = perfMark('renderAll');
