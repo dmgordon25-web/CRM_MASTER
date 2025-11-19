@@ -62,10 +62,10 @@ const rowFrom = (contact, partnerId) => {
   const stageKey = stageKeyFromLabel(contact && (contact.stage || contact.status || ''));
   const stageLabel = stageLabelFromKey(stageKey);
   const canonical = canonicalStage(stageKey) || canonicalStage(contact && contact.stage) || '';
-  const amount = Number(contact && (contact.loanAmount ?? contact.amount) ?? 0) || 0;
-  const lastActivity = toTimestamp(contact && (contact.updatedAt ?? contact.lastContact ?? contact.fundedDate ?? contact.createdAt));
-  const createdAt = toTimestamp(contact && (contact.createdAt ?? contact.created ?? contact.referredAt ?? contact.leadDate));
-  const fundedAt = toTimestamp(contact && (contact.fundedDate ?? contact.fundedAt ?? contact.closeDate ?? contact.closedAt));
+  const amount = Number((contact ? (contact.loanAmount ?? contact.amount) : null) ?? 0) || 0;
+  const lastActivity = toTimestamp(contact ? (contact.updatedAt ?? contact.lastContact ?? contact.fundedDate ?? contact.createdAt) : null);
+  const createdAt = toTimestamp(contact ? (contact.createdAt ?? contact.created ?? contact.referredAt ?? contact.leadDate) : null);
+  const fundedAt = toTimestamp(contact ? (contact.fundedDate ?? contact.fundedAt ?? contact.closeDate ?? contact.closedAt) : null);
   const closeDurationMs = createdAt != null && fundedAt != null ? Math.max(0, fundedAt - createdAt) : null;
   const role = deriveRole(contact, partnerId);
   const name = deriveName(contact);
