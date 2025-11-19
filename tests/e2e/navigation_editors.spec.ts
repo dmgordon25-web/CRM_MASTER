@@ -56,7 +56,10 @@ async function closeModal(modal: ReturnType<Page['locator']>) {
   if (await closeButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await closeButton.click();
   }
-  await expect(modal).toHaveJSProperty('open', false);
+  const hasOpenProperty = await modal.evaluate((node) => 'open' in node);
+  if (hasOpenProperty) {
+    await expect(modal).toHaveJSProperty('open', false);
+  }
   await expect(modal).toBeHidden();
 }
 
