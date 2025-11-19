@@ -1,8 +1,9 @@
-import { getColumnSchema } from '../tables/column_schema.js';
+import { columnSchemas, getColumnSchema } from '../tables/column_schema.js';
 import { getColumnsForView, loadColumnConfig, saveColumnConfig } from '../tables/column_config.js';
 import { getUiMode, onUiModeChanged } from '../ui/ui_mode.js';
 
 const VIEW_LABELS = {
+  contacts: 'Contacts',
   longshots: 'Leads',
   pipeline: 'Pipeline',
   clients: 'Clients',
@@ -11,6 +12,8 @@ const VIEW_LABELS = {
   'pipeline-main': 'Pipeline Table',
   'partners-main': 'Partners Table'
 };
+
+const VIEW_ORDER = ['contacts', 'longshots', 'pipeline', 'clients', 'partners', 'leads-main', 'pipeline-main', 'partners-main'];
 
 let columnsConfig = null;
 let wired = false;
@@ -28,6 +31,34 @@ function ensureConfig(){
     columnsConfig = loadColumnConfig();
   }
   return columnsConfig;
+}
+
+function resolveViewLabel(viewKey){
+  if(!viewKey) return '';
+  if(Object.prototype.hasOwnProperty.call(VIEW_LABELS, viewKey)){
+    return VIEW_LABELS[viewKey];
+  }
+  const normalized = String(viewKey)
+    .replace(/-main$/, '')
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+  return normalized.length ? normalized.join(' ') : viewKey;
+}
+
+function enumerateColumnViews(){
+  const schemaKeys = columnSchemas ? Object.keys(columnSchemas) : [];
+  const pending = new Set(schemaKeys);
+  const ordered = [];
+  VIEW_ORDER.forEach((key) => {
+    if(!pending.has(key)) return;
+    ordered.push(key);
+    pending.delete(key);
+  });
+  if(pending.size){
+    ordered.push(...Array.from(pending).sort());
+  }
+  return ordered;
 }
 
 function persist(viewKey, order, hidden){
@@ -224,7 +255,7 @@ function renderActiveList(viewKey, container){
 }
 
 function renderViewCard(viewKey){
-  const label = VIEW_LABELS[viewKey] || (viewKey ? viewKey.charAt(0).toUpperCase() + viewKey.slice(1) : '');
+  const label = resolveViewLabel(viewKey);
   const card = document.createElement('div');
   card.className = 'card';
 
@@ -281,7 +312,7 @@ function renderColumnsPanel(){
   if(!host) return;
   ensureConfig();
   host.innerHTML = '';
-  Object.keys(VIEW_LABELS).forEach((viewKey) => {
+  enumerateColumnViews().forEach((viewKey) => {
     if(!getColumnSchema(viewKey).length) return;
     const card = renderViewCard(viewKey);
     host.appendChild(card);

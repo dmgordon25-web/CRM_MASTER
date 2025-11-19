@@ -2,6 +2,13 @@ const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
 const MODAL_DEBUG_PARAM = 'modaldebug';
 const ENTITY_PARAM_HINTS = ['id', 'partnerId', 'partner', 'contactId', 'contact', 'entityId', 'recordId', 'loanId'];
 
+function reportModalError(err){
+  if(!err) return;
+  if(console && typeof console.error === 'function'){
+    console.error('[MODAL_ERROR]', err);
+  }
+}
+
 let modalDebugSticky = false;
 let modalDebugStorageHooked = false;
 
@@ -22,12 +29,12 @@ function computeModalDebugEnabled(){
         return true;
       }
     }
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
   try{
     if(window.localStorage && window.localStorage.getItem(MODAL_DEBUG_PARAM) === '1'){
       return true;
     }
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
   return false;
 }
 
@@ -42,7 +49,7 @@ function hookStorageListener(){
         modalDebugSticky = false;
       }
     });
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
 }
 
 function isModalDebugEnabled(){
@@ -90,9 +97,12 @@ function readModalContext(){
     }
     if(queryPart){
       let params;
-      try{
-        params = new URLSearchParams(queryPart);
-      }catch(_err){ params = null; }
+        try{
+          params = new URLSearchParams(queryPart);
+        }catch(err){
+          reportModalError(err);
+          params = null;
+        }
       if(params){
         if(!context.tab){
           context.tab = params.get('tab')
@@ -113,7 +123,7 @@ function readModalContext(){
       const tail = segments.slice(1).reverse().find(seg => /[0-9A-Za-z_-]{3,}/.test(seg));
       if(tail) context.entityId = tail;
     }
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
   return context;
 }
 
@@ -126,7 +136,7 @@ function postModalDebug(payload){
       && typeof navigator.sendBeacon === 'function'){
       try{
         if(navigator.sendBeacon('/__log', body)) return;
-      }catch(_err){}
+      }catch(err){ reportModalError(err); }
     }
     if(typeof fetch === 'function'){
       fetch('/__log', {
@@ -136,7 +146,7 @@ function postModalDebug(payload){
         keepalive: true
       }).catch(() => {});
     }
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
 }
 
 function emitModalOpenDebug(modalId, debugState, details = {}){
@@ -161,16 +171,16 @@ function emitModalOpenDebug(modalId, debugState, details = {}){
     if(debugState.stack){
       console.info('[MODAL_STACK]', debugState.stack);
     }
-  }catch(_err){}
-  postModalDebug(payload);
-}
+    }catch(err){ reportModalError(err); }
+    postModalDebug(payload);
+  }
 
 function emitModalCloseDebug(modalId){
   if(!isModalDebugEnabled()) return;
   const time = Date.now();
   try{
     console.info('[MODAL_CLOSE]', { modalId, time });
-  }catch(_err){}
+  }catch(err){ reportModalError(err); }
   postModalDebug({ kind: 'modal-close', modalId, ts: time });
 }
 
@@ -179,7 +189,10 @@ function prepareModalOpenDebug(modalId){
   const time = Date.now();
   let stack = '';
   try{ stack = new Error('modal-open').stack || ''; }
-  catch(_err){ stack = ''; }
+  catch(err){
+    reportModalError(err);
+    stack = '';
+  }
   const context = readModalContext();
   return { time, stack, context };
 }
@@ -199,9 +212,10 @@ function focusModalRoot(root){
   const target = shell instanceof HTMLElement ? shell : root;
   if(typeof target.focus === 'function'){
     try{ target.focus({ preventScroll: true }); }
-    catch(_err){
+    catch(err){
+      reportModalError(err);
       try{ target.focus(); }
-      catch(__err){}
+      catch(innerErr){ reportModalError(innerErr); }
     }
   }
   if(root.style){
@@ -292,21 +306,43 @@ export function closeSingletonModal(target, options = {}){
   const modalId = deriveModalId(key, root);
   const bucket = root[CLEANUP_SYMBOL];
   if(bucket && bucket.size){
-    bucket.forEach(fn => {
-      try{ fn(root); }
-      catch(_err){}
-    });
-    bucket.clear();
+    const cleaners = Array.from(bucket);
+    try{
+      cleaners.forEach(fn => {
+        if(typeof fn !== 'function') return;
+        try{ fn(root); }
+        catch(err){
+          if(console && typeof console.error === 'function'){
+            console.error('[MODAL_CLEANUP_ERROR]', err);
+          }
+        }
+      });
+    }finally{
+      bucket.clear();
+    }
   }
   if(typeof options.beforeRemove === 'function'){
     try{ options.beforeRemove(root); }
-    catch(_err){}
+    catch(err){ reportModalError(err); }
   }
   if(options.remove !== false){
     const parent = root.parentNode;
     if(parent){
-      parent.removeChild(root);
+      try{
+        parent.removeChild(root);
+      }catch(err){
+        reportModalError(err);
+        if(typeof root.remove === 'function'){
+          try{ root.remove(); }
+          catch(innerErr){ reportModalError(innerErr); }
+        }
+      }
+    }else if(typeof root.remove === 'function'){
+      try{ root.remove(); }
+      catch(err){ reportModalError(err); }
     }
+  }else if(root.style){
+    root.style.display = 'none';
   }
   root[CLEANUP_SYMBOL] = new Set();
   emitModalCloseDebug(modalId);

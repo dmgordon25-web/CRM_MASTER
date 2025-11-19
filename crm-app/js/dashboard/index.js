@@ -34,6 +34,11 @@ const CELEBRATIONS_WIDGET_KEY = 'upcomingCelebrations';
 const CELEBRATIONS_WIDGET_ID = 'dashboard-celebrations';
 const CELEBRATIONS_WIDGET_TITLE = 'Upcoming Birthdays & Anniversaries (7 days)';
 const CELEBRATIONS_WINDOW_DAYS = 7;
+const DASHBOARD_INIT_ERROR_ROLE = 'dashboard-init-error';
+
+let dashboardInitPromise = null;
+let dashboardInitialized = false;
+let dashboardEventsBound = false;
 
 const DASHBOARD_CONTAINER_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASHBOARD_ITEM_SELECTOR = ':scope > [data-dash-widget]';
@@ -202,6 +207,15 @@ const WIDGET_DOM_ID_MAP = {
   docCenter: 'doc-center-card',
   statusStack: 'dashboard-status-stack'
 };
+
+function logDashboardWidgetError(widgetKey, error) {
+  if (!error) return;
+  try {
+    if (console && typeof console.error === 'function') {
+      console.error(`[DASHBOARD_WIDGET_ERROR:${widgetKey}]`, error);
+    }
+  } catch (_) {}
+}
 
 const WIDGET_ID_LOOKUP = new Map();
 
@@ -1419,6 +1433,7 @@ async function runCelebrationsHydration() {
       try {
         contacts = await win.dbGetAll('contacts');
       } catch (err) {
+        logDashboardWidgetError(CELEBRATIONS_WIDGET_KEY, err);
         contacts = [];
         celebrationsState.hydrating = false;
         celebrationsState.hydrated = false;
@@ -1441,6 +1456,7 @@ async function runCelebrationsHydration() {
       try {
         contacts = await window.dbGetAll('contacts');
       } catch (err) {
+        logDashboardWidgetError(CELEBRATIONS_WIDGET_KEY, err);
         contacts = [];
         celebrationsState.hydrating = false;
         celebrationsState.hydrated = false;
@@ -1466,6 +1482,7 @@ async function runCelebrationsHydration() {
     try {
       items = await computeCelebrationItems(contacts, baseDate);
     } catch (err) {
+      logDashboardWidgetError(CELEBRATIONS_WIDGET_KEY, err);
       celebrationsState.hydrating = false;
       celebrationsState.hydrated = false;
       celebrationsState.lastError = err;
@@ -2372,6 +2389,65 @@ function getDashboardContainerNode() {
   }
 }
 
+function waitForDocumentReady() {
+  if (!doc) return Promise.resolve();
+  if (doc.readyState === 'loading') {
+    return new Promise(resolve => {
+      doc.addEventListener('DOMContentLoaded', resolve, { once: true });
+    });
+  }
+  return Promise.resolve();
+}
+
+function resolveDashboardInitRoot(root) {
+  if (!doc) return null;
+  if (root && typeof root.querySelector === 'function') {
+    if (typeof root.matches === 'function' && root.matches(DASHBOARD_CONTAINER_SELECTOR)) {
+      return root;
+    }
+    const scoped = root.querySelector(DASHBOARD_CONTAINER_SELECTOR);
+    if (scoped) return scoped;
+  }
+  return getDashboardContainerNode();
+}
+
+function renderDashboardInitError(container, error) {
+  if (!doc || !container) {
+    try {
+      if (console && typeof console.error === 'function') {
+        console.error('[DASHBOARD_INIT_ERROR]', error);
+      }
+    } catch (_) {}
+    return;
+  }
+  let host = null;
+  try {
+    host = container.querySelector(`[data-role="${DASHBOARD_INIT_ERROR_ROLE}"]`);
+  } catch (_err) {
+    host = null;
+  }
+  if (!host) {
+    host = doc.createElement('section');
+    host.className = 'card insight-card';
+    host.dataset.role = DASHBOARD_INIT_ERROR_ROLE;
+    const heading = doc.createElement('h2');
+    heading.textContent = 'Unable to load the dashboard';
+    const message = doc.createElement('p');
+    message.className = 'muted';
+    message.textContent = 'Check console for details.';
+    host.appendChild(heading);
+    host.appendChild(message);
+    try {
+      container.appendChild(host);
+    } catch (_err) {}
+  }
+  try {
+    if (console && typeof console.error === 'function') {
+      console.error('[DASHBOARD_INIT_ERROR]', error);
+    }
+  } catch (_) {}
+}
+
 function collectWidgetNodes(container) {
   if (!container) return [];
   const nodes = [];
@@ -3055,30 +3131,37 @@ function getSettingsPrefs() {
   if (prefCache.value) return Promise.resolve(clonePrefs(prefCache.value));
   if (prefCache.loading) return prefCache.loading.then(clonePrefs);
   prefCache.loading = (async () => {
-    let settings = null;
-    if (win && win.Settings && typeof win.Settings.get === 'function') {
-      try {
-        settings = await win.Settings.get();
-      } catch (err) {
-        if (console && console.warn) console.warn('[dashboard] settings fetch failed', err);
+    try {
+      let settings = null;
+      if (win && win.Settings && typeof win.Settings.get === 'function') {
+        try {
+          settings = await win.Settings.get();
+        } catch (err) {
+          if (console && console.warn) console.warn('[dashboard] settings fetch failed', err);
+        }
       }
+      if (settings && typeof settings === 'object') {
+        const orderFromSettings = Array.isArray(settings.dashboardOrder)
+          ? settings.dashboardOrder
+          : (settings.dashboard && Array.isArray(settings.dashboard.order) ? settings.dashboard.order : null);
+        if (orderFromSettings) syncStoredDashboardOrder(orderFromSettings);
+      }
+      const prefs = sanitizePrefs(settings);
+      prefCache.value = prefs;
+      return prefs;
+    } catch (err) {
+      prefCache.value = null;
+      throw err;
+    } finally {
+      prefCache.loading = null;
     }
-    if (settings && typeof settings === 'object') {
-      const orderFromSettings = Array.isArray(settings.dashboardOrder)
-        ? settings.dashboardOrder
-        : (settings.dashboard && Array.isArray(settings.dashboard.order) ? settings.dashboard.order : null);
-      if (orderFromSettings) syncStoredDashboardOrder(orderFromSettings);
-    }
-    const prefs = sanitizePrefs(settings);
-    prefCache.value = prefs;
-    prefCache.loading = null;
-    return prefs;
   })();
   return prefCache.loading.then(clonePrefs);
 }
 
 function invalidatePrefs() {
   prefCache.value = null;
+  prefCache.loading = null;
 }
 
 function applyNodeVisibility(node, show) {
@@ -3588,91 +3671,78 @@ function handleLayoutColumnsChange(evt) {
   ensureWidgetDnD();
 }
 
-function init() {
-  if (!doc) return;
-  ensureDashboardRouteLifecycle();
-  
-  // Ensure proper widget visibility on boot by toggling modes AFTER splash screen hides
-  const ensureProperBootState = () => {
-    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
-    
-    const performToggle = () => {
-      // Simple toggle: from current mode to alternate and back
-      const current = getDashboardMode();
-      const alternate = current === 'today' ? 'all' : 'today';
-      
-      // Toggle to alternate mode to force re-render
-      setDashboardMode(alternate, { skipPersist: true, force: true, skipBus: true });
-      
-      // Toggle back to desired mode after one RAF
-      raf(() => {
-        setDashboardMode(current, { skipPersist: true, force: true, skipBus: true });
-        
-        // Emit ready event after toggle completes
-        raf(() => {
-          if (doc) {
-            try {
-              const evt = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
-              doc.dispatchEvent(evt);
-            } catch (_) {}
-          }
-        });
-      });
-    };
-    
-    // Wait for splash screen to hide before performing toggle
-    const checkSplashHidden = () => {
-      if (win && win.__SPLASH_HIDDEN__) {
-        // Wait one more frame after splash hidden to ensure DOM is stable
-        raf(() => performToggle());
-        return;
-      }
-      // Try again after delay
-      setTimeout(checkSplashHidden, 100);
-    };
-    
-    // Start checking for splash hidden
-    setTimeout(checkSplashHidden, 200);
-  };
-  
-  if (doc.readyState === 'loading') {
-    doc.addEventListener('DOMContentLoaded', () => {
-      if (typeof ensureLayoutToggle === 'function') {
-        ensureLayoutToggle();
-      }
-      scheduleApply();
-      ensureWidgetDnD();
-      ensureProperBootState();
-    }, { once: true });
-  } else {
-    if (typeof ensureLayoutToggle === 'function') {
-      ensureLayoutToggle();
-    }
-    scheduleApply();
-    ensureWidgetDnD();
-    ensureProperBootState();
+function handleDashboardDataChanged(evt) {
+  const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
+  if (scope === 'settings') invalidatePrefs();
+  const normalizedScope = typeof scope === 'string' ? scope.toLowerCase() : '';
+  if (!normalizedScope || normalizedScope.includes('contact') || normalizedScope.includes('setting')) {
+    markCelebrationsDirty();
   }
+  scheduleApply();
+}
+
+function bindDashboardEventListeners() {
+  if (dashboardEventsBound || !doc) return;
+  dashboardEventsBound = true;
   if (win && win.RenderGuard && typeof win.RenderGuard.registerHook === 'function') {
     try {
       win.RenderGuard.registerHook(scheduleApply);
     } catch (_err) {}
   }
-  if (win) {
+  if (win && typeof win.addEventListener === 'function') {
     win.addEventListener('hashchange', scheduleApply);
   }
   doc.addEventListener('app:navigate', handleDashboardAppNavigate);
   doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
   doc.addEventListener('dashboard:layout-columns', handleLayoutColumnsChange);
-  doc.addEventListener('app:data:changed', evt => {
-    const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
-    if (scope === 'settings') invalidatePrefs();
-    const normalizedScope = typeof scope === 'string' ? scope.toLowerCase() : '';
-    if (!normalizedScope || normalizedScope.includes('contact') || normalizedScope.includes('setting')) {
-      markCelebrationsDirty();
+  doc.addEventListener('app:data:changed', handleDashboardDataChanged);
+}
+
+export function initDashboard(options = {}) {
+  if (!doc) return Promise.resolve(false);
+  if (dashboardInitialized) return Promise.resolve(true);
+  if (dashboardInitPromise) return dashboardInitPromise;
+
+  const targetRoot = options && options.root ? options.root : null;
+
+  dashboardInitPromise = (async () => {
+    await waitForDocumentReady();
+    const container = resolveDashboardInitRoot(targetRoot);
+    if (!container) {
+      const missingError = new Error('Dashboard root element not found');
+      renderDashboardInitError(getDashboardContainerNode(), missingError);
+      throw missingError;
+    }
+    ensureDashboardRouteLifecycle();
+    bindDashboardEventListeners();
+    if (typeof ensureLayoutToggle === 'function') {
+      ensureLayoutToggle();
+    }
+    try {
+      await getSettingsPrefs();
+    } catch (err) {
+      renderDashboardInitError(container, err);
+      throw err;
     }
     scheduleApply();
+    ensureWidgetDnD();
+    refreshTodayHighlightWiring();
+    if (doc) {
+      try {
+        const readyEvent = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
+        doc.dispatchEvent(readyEvent);
+      } catch (_) {}
+    }
+    return true;
+  })().then(result => {
+    dashboardInitialized = true;
+    return result;
+  }).catch(err => {
+    dashboardInitPromise = null;
+    return Promise.reject(err);
   });
-  refreshTodayHighlightWiring();
+
+  return dashboardInitPromise;
 }
 
 if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
@@ -3683,5 +3753,3 @@ if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
     });
   } catch (_err) {}
 }
-
-init();
