@@ -149,6 +149,22 @@ app.get('/health', (req, res) => {
   res.end('ok');
 });
 
+app.get('/__hello', (req, res) => {
+  const sid = `sid-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({ sid }));
+});
+
+app.post('/__bye', (req, res) => {
+  res.statusCode = 204;
+  res.end();
+});
+app.get('/__bye', (req, res) => {
+  res.statusCode = 204;
+  res.end();
+});
+
 app.post('/__log', (req, res) => {
   let body = '';
   req.on('data', (chunk) => {

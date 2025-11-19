@@ -1,6 +1,13 @@
 const CONTACT_FIELD_GROUPS = {
-  profile: { id: 'profile', label: 'Borrower Profile', simple: true },
+  core: { id: 'core', label: 'Core Contact', simple: true },
+  profileExtras: {
+    id: 'profileExtras',
+    label: 'Profile & Preferences',
+    simple: false,
+    simpleSettingKey: 'showProfileExtras'
+  },
   loanSnapshot: { id: 'loanSnapshot', label: 'Pipeline Stage', simple: true },
+  loanBasics: { id: 'loanBasics', label: 'Loan Basics', simple: true },
   loanDetails: {
     id: 'loanDetails',
     label: 'Loan & Property Details',
@@ -14,14 +21,21 @@ const CONTACT_FIELD_GROUPS = {
     simple: false,
     simpleSettingKey: 'showRelationshipDetails'
   },
-  engagement: { id: 'engagement', label: 'Engagement', simple: true },
+  engagement: {
+    id: 'engagement',
+    label: 'Engagement & Follow-Up',
+    simple: false,
+    simpleSettingKey: 'showEngagement'
+  },
   notes: { id: 'notes', label: 'Notes', simple: true }
 };
 
 const SIMPLE_MODE_DEFAULTS = {
   showLoanDetails: false,
   showRelationshipDetails: false,
-  showAddress: false
+  showAddress: false,
+  showProfileExtras: false,
+  showEngagement: false
 };
 
 function normalizeBooleanLike(value){
@@ -40,28 +54,32 @@ function normalizeBooleanLike(value){
 
 function normalizeSimpleModeSettings(source){
   const base = source && typeof source === 'object' ? source : {};
+  const profileExtras = normalizeBooleanLike(base.showProfileExtras);
   const loanDetails = normalizeBooleanLike(base.showLoanDetails);
   const relationshipDetails = normalizeBooleanLike(base.showRelationshipDetails);
   const address = normalizeBooleanLike(base.showAddress);
+  const engagement = normalizeBooleanLike(base.showEngagement);
   return {
+    showProfileExtras: profileExtras === true,
     showLoanDetails: loanDetails === true,
     showRelationshipDetails: relationshipDetails === true,
-    showAddress: address === true
+    showAddress: address === true,
+    showEngagement: engagement === true
   };
 }
 
 const CONTACT_FIELD_META = {
   profile: [
-    { id: 'first', inputId: 'c-first', label: 'First Name', required: true, simple: true, group: 'profile' },
-    { id: 'last', inputId: 'c-last', label: 'Last Name', required: true, simple: true, group: 'profile' },
-    { id: 'contactType', inputId: 'c-type', label: 'Contact Role', required: false, simple: true, group: 'profile' },
-    { id: 'priority', inputId: 'c-priority', label: 'Priority', required: false, simple: true, group: 'profile' },
-    { id: 'leadSource', inputId: 'c-source', label: 'Lead Source', required: false, simple: true, group: 'profile' },
-    { id: 'communicationPreference', inputId: 'c-pref', label: 'Communication Preference', required: false, simple: true, group: 'profile' },
-    { id: 'email', inputId: 'c-email', label: 'Primary Email', required: true, simple: true, group: 'profile' },
-    { id: 'phone', inputId: 'c-phone', label: 'Mobile / Direct Line', required: true, simple: true, group: 'profile' },
-    { id: 'secondaryEmail', inputId: 'c-email2', label: 'Secondary Email', required: false, simple: false, advancedOnly: true, group: 'profile' },
-    { id: 'secondaryPhone', inputId: 'c-phone2', label: 'Secondary Phone', required: false, simple: false, advancedOnly: true, group: 'profile' }
+    { id: 'first', inputId: 'c-first', label: 'First Name', required: true, simple: true, group: 'core' },
+    { id: 'last', inputId: 'c-last', label: 'Last Name', required: true, simple: true, group: 'core' },
+    { id: 'email', inputId: 'c-email', label: 'Primary Email', required: true, simple: true, group: 'core' },
+    { id: 'phone', inputId: 'c-phone', label: 'Mobile / Direct Line', required: true, simple: true, group: 'core' },
+    { id: 'contactType', inputId: 'c-type', label: 'Contact Role', required: false, simple: false, group: 'profileExtras' },
+    { id: 'priority', inputId: 'c-priority', label: 'Priority', required: false, simple: false, group: 'profileExtras' },
+    { id: 'leadSource', inputId: 'c-source', label: 'Lead Source', required: false, simple: false, group: 'profileExtras' },
+    { id: 'communicationPreference', inputId: 'c-pref', label: 'Communication Preference', required: false, simple: false, group: 'profileExtras' },
+    { id: 'secondaryEmail', inputId: 'c-email2', label: 'Secondary Email', required: false, simple: false, advancedOnly: true, group: 'profileExtras' },
+    { id: 'secondaryPhone', inputId: 'c-phone2', label: 'Secondary Phone', required: false, simple: false, advancedOnly: true, group: 'profileExtras' }
   ],
   loanSnapshot: [
     { id: 'stage', inputId: 'c-stage', label: 'Stage', required: true, simple: true, group: 'loanSnapshot' },
@@ -69,6 +87,8 @@ const CONTACT_FIELD_META = {
     { id: 'pipelineMilestone', inputId: 'c-milestone', label: 'Pipeline Milestone', required: false, simple: true, group: 'loanSnapshot' }
   ],
   loanDetails: [
+    { id: 'loanAmount', inputId: 'c-amount', label: 'Loan Amount', required: false, simple: true, group: 'loanBasics' },
+    { id: 'fundedDate', inputId: 'c-funded', label: 'Funded / Expected Closing', required: false, simple: true, group: 'loanBasics' },
     { id: 'closingTimeline', inputId: 'c-timeline', label: 'Closing Timeline', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
     { id: 'loanPurpose', inputId: 'c-purpose', label: 'Loan Purpose', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
     { id: 'loanProgram', inputId: 'c-loanType', label: 'Loan Program', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
@@ -76,9 +96,7 @@ const CONTACT_FIELD_META = {
     { id: 'occupancy', inputId: 'c-occupancy', label: 'Occupancy', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
     { id: 'employmentType', inputId: 'c-employment', label: 'Employment Type', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
     { id: 'creditRange', inputId: 'c-credit', label: 'Credit Range', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
-    { id: 'loanAmount', inputId: 'c-amount', label: 'Loan Amount', required: false, simple: true, group: 'loanDetails' },
     { id: 'rate', inputId: 'c-rate', label: 'Rate', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
-    { id: 'fundedDate', inputId: 'c-funded', label: 'Funded / Expected Closing', required: false, simple: true, group: 'loanDetails' },
     { id: 'preApprovalExpires', inputId: 'c-preexp', label: 'Pre-Approval Expires', required: false, simple: false, advancedOnly: true, group: 'loanDetails' },
     { id: 'docStage', inputId: 'c-docstage', label: 'Documentation Stage', required: false, simple: false, advancedOnly: true, group: 'loanDetails' }
   ],
@@ -95,8 +113,8 @@ const CONTACT_FIELD_META = {
     { id: 'referredBy', inputId: 'c-ref', label: 'Referred By', required: false, simple: false, advancedOnly: true, group: 'relationships' }
   ],
   engagement: [
-    { id: 'lastContact', inputId: 'c-lastcontact', label: 'Last Contact', required: false, simple: true, group: 'engagement' },
-    { id: 'nextFollowUp', inputId: 'c-nexttouch', label: 'Next Follow-Up', required: false, simple: true, group: 'engagement' }
+    { id: 'lastContact', inputId: 'c-lastcontact', label: 'Last Contact', required: false, simple: false, group: 'engagement' },
+    { id: 'nextFollowUp', inputId: 'c-nexttouch', label: 'Next Follow-Up', required: false, simple: false, group: 'engagement' }
   ],
   notes: [
     { id: 'notes', selector: '#c-notes', label: 'Notes', required: false, simple: true, group: 'notes' }
