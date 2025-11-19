@@ -19,7 +19,7 @@ async function openContactFromPipeline(page: Page) {
   const rows = page.locator('#tbl-pipeline tbody tr');
   await expect(rows.first()).toBeVisible();
   await rows.first().locator('.contact-name a').click();
-  const modal = page.locator('#contact-modal[open]');
+  const modal = page.locator('#contact-modal');
   await expect(modal).toBeVisible();
   await closeModal(modal);
 }
@@ -30,7 +30,7 @@ async function openPartnerEditor(page: Page) {
   await expect(rows.first()).toBeVisible();
   const target = rows.first();
   await target.locator('.partner-name').click();
-  const modal = page.locator('#partner-modal[open]');
+  const modal = page.locator('#partner-modal');
   await expect(modal).toBeVisible();
   await closeModal(modal);
 }
@@ -38,7 +38,7 @@ async function openPartnerEditor(page: Page) {
 async function openNewContactModal(page: Page) {
   await page.click('#btn-header-new');
   await page.click('#header-new-menu [data-role="header-new-contact"]');
-  const modal = page.locator('#contact-modal[open]');
+  const modal = page.locator('#contact-modal');
   await expect(modal).toBeVisible();
   await closeModal(modal);
 }
@@ -46,7 +46,7 @@ async function openNewContactModal(page: Page) {
 async function openNewPartnerModal(page: Page) {
   await page.click('#btn-header-new');
   await page.click('#header-new-menu [data-role="header-new-partner"]');
-  const modal = page.locator('#partner-modal[open]');
+  const modal = page.locator('#partner-modal');
   await expect(modal).toBeVisible();
   await closeModal(modal);
 }
@@ -55,6 +55,10 @@ async function closeModal(modal: ReturnType<Page['locator']>) {
   const closeButton = modal.locator('[data-close], button:has-text("Close"), button:has-text("Cancel")').first();
   if (await closeButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await closeButton.click();
+  }
+  const hasOpenProperty = await modal.evaluate((node) => 'open' in node);
+  if (hasOpenProperty) {
+    await expect(modal).toHaveJSProperty('open', false);
   }
   await expect(modal).toBeHidden();
 }
