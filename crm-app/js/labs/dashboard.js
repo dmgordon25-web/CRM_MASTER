@@ -17,8 +17,10 @@ const SECTIONS = [
       { id: 'statusStack', size: 'large' },
       { id: 'focus', size: 'medium' },
       { id: 'today', size: 'medium' },
+      { id: 'filters', size: 'medium' },
       { id: 'goalProgress', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' }
+      { id: 'upcomingCelebrations', size: 'medium' },
+      { id: 'favorites', size: 'medium' }
     ]
   },
   {
@@ -27,11 +29,12 @@ const SECTIONS = [
     description: 'Momentum, funnel, and closing watchlist',
     widgets: [
       { id: 'pipelineMomentum', size: 'large' },
-      { id: 'pipelineOverview', size: 'large' },
+      { id: 'pipeline', size: 'large' },
       { id: 'activePipeline', size: 'medium' },
       { id: 'closingWatch', size: 'medium' },
-      { id: 'staleDeals', size: 'medium' },
-      { id: 'pipelineCalendar', size: 'medium' }
+      { id: 'stale', size: 'medium' },
+      { id: 'pipelineCalendar', size: 'medium' },
+      { id: 'docPulse', size: 'medium' }
     ]
   },
   {
@@ -43,31 +46,23 @@ const SECTIONS = [
       { id: 'referralLeaderboard', size: 'medium' },
       { id: 'numbersMomentum', size: 'large' },
       { id: 'numbersPortfolio', size: 'medium' },
-      { id: 'numbersReferrals', size: 'medium' }
+      { id: 'numbersReferrals', size: 'medium' },
+      { id: 'relationshipOpportunities', size: 'medium' },
+      { id: 'clientCareRadar', size: 'medium' }
     ]
   },
   {
     id: 'activities',
     label: 'Activities',
-    description: 'Tasks, to-do, milestones, and priority actions',
+    description: 'Tasks, to-do, milestones, and docs',
     widgets: [
       { id: 'todo', size: 'medium' },
       { id: 'priorityActions', size: 'medium' },
       { id: 'milestones', size: 'medium' },
       { id: 'today', size: 'medium' },
-      { id: 'focus', size: 'medium' }
-    ]
-  },
-  {
-    id: 'operations',
-    label: 'Operations',
-    description: 'Documentation, relationship radar, and favorites',
-    widgets: [
-      { id: 'docPulse', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      { id: 'clientCareRadar', size: 'medium' },
       { id: 'docCenter', size: 'medium' },
-      { id: 'favorites', size: 'medium' }
+      { id: 'favorites', size: 'medium' },
+      { id: 'goalProgress', size: 'medium' }
     ]
   }
 ];
