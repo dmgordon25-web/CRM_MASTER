@@ -6,7 +6,10 @@ const VIEW_LABELS = {
   longshots: 'Leads',
   pipeline: 'Pipeline',
   clients: 'Clients',
-  partners: 'Partners'
+  partners: 'Partners',
+  'leads-main': 'Leads Table',
+  'pipeline-main': 'Pipeline Table',
+  'partners-main': 'Partners Table'
 };
 
 let columnsConfig = null;

@@ -139,6 +139,26 @@ function contactOwner(record){
   ).trim();
 }
 
+function contactEmail(record){
+  return String(record?.email || '').trim();
+}
+
+function contactPhone(record){
+  return String(record?.phone || '').trim();
+}
+
+function contactCity(record){
+  return String(record?.city || record?.location || '').trim();
+}
+
+function contactPipelineMilestone(record){
+  return String(record?.pipelineMilestone || record?.milestone || '').trim();
+}
+
+function contactReferral(record){
+  return String(record?.referredBy || '').trim();
+}
+
 function renderContactNameLink(record, id, lensKey){
   const link = document.createElement('a');
   link.href = '#';
@@ -230,13 +250,18 @@ function partnerUpdatedAt(record){
 const CONTACT_FIELDS = {
   id: { key: 'id', label: 'ID', type: 'string', accessor: (record) => toId(record?.id) },
   name: { key: 'name', label: 'Name', type: 'string', accessor: contactName },
+  email: { key: 'email', label: 'Email', type: 'string', accessor: contactEmail },
+  phone: { key: 'phone', label: 'Phone', type: 'string', accessor: contactPhone },
+  city: { key: 'city', label: 'City', type: 'string', accessor: contactCity },
   status: { key: 'status', label: 'Status', type: 'string', accessor: contactStatus },
   stage: { key: 'stage', label: 'Stage', type: 'string', accessor: contactStage, formatter: formatStage },
+  pipelineMilestone: { key: 'pipelineMilestone', label: 'Milestone', type: 'string', accessor: contactPipelineMilestone },
   owner: { key: 'owner', label: 'Owner', type: 'string', accessor: contactOwner },
   loanAmount: { key: 'loanAmount', label: 'Loan Amount', type: 'number', accessor: contactLoanAmount, formatter: formatCurrencyValue },
   loanType: { key: 'loanType', label: 'Loan Type', type: 'string', accessor: contactLoanType },
   lastTouch: { key: 'lastTouch', label: 'Last Touch', type: 'date', accessor: contactLastTouch, formatter: formatDateValue },
   nextAction: { key: 'nextAction', label: 'Next Action', type: 'date', accessor: contactNextAction, formatter: formatDateValue },
+  referredBy: { key: 'referredBy', label: 'Referral Partner', type: 'string', accessor: contactReferral },
   createdAt: { key: 'createdAt', label: 'Created', type: 'date', accessor: contactCreatedAt, formatter: formatDateValue },
   updatedAt: { key: 'updatedAt', label: 'Updated', type: 'date', accessor: contactUpdatedAt, formatter: formatDateValue },
   fundedDate: { key: 'fundedDate', label: 'Funded Date', type: 'date', accessor: contactFundedDate, formatter: formatDateValue }
@@ -248,6 +273,8 @@ const PARTNER_FIELDS = {
   company: { key: 'company', label: 'Company', type: 'string', accessor: partnerCompany },
   tier: { key: 'tier', label: 'Tier', type: 'string', accessor: partnerTier },
   owner: { key: 'owner', label: 'Owner', type: 'string', accessor: partnerOwner },
+  email: { key: 'email', label: 'Email', type: 'string', accessor: (record) => String(record?.email || '').trim() },
+  phone: { key: 'phone', label: 'Phone', type: 'string', accessor: (record) => String(record?.phone || '').trim() },
   lastTouch: { key: 'lastTouch', label: 'Last Touch', type: 'date', accessor: partnerLastTouch, formatter: formatDateValue },
   nextTouch: { key: 'nextTouch', label: 'Next Action', type: 'date', accessor: partnerNextTouch, formatter: formatDateValue },
   createdAt: { key: 'createdAt', label: 'Created', type: 'date', accessor: partnerCreatedAt, formatter: formatDateValue },
@@ -291,8 +318,8 @@ const RAW_LENS_CONFIGS = {
       if(stage.includes('nurture')) return true;
       return false;
     },
-    fieldKeys: ['name','status','stage','owner','loanType','loanAmount','lastTouch','nextAction','createdAt','updatedAt','id'],
-    filterKeys: ['name','status','stage','owner','loanType','loanAmount','lastTouch','nextAction','createdAt','updatedAt','id'],
+    fieldKeys: ['name','status','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','lastTouch','nextAction','createdAt','updatedAt','id'],
+    filterKeys: ['name','status','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','lastTouch','nextAction','createdAt','updatedAt','id'],
     columnKeys: ['name','status','owner','lastTouch','nextAction','loanAmount'],
     sortKeys: ['updatedAt','lastTouch','loanAmount','name','status'],
     defaultSort: { field: 'updatedAt', direction: 'desc' },
@@ -307,8 +334,8 @@ const RAW_LENS_CONFIGS = {
       const stage = normalizeStatus(record?.stage);
       return CONTACT_PIPELINE_STAGES.includes(stage);
     },
-    fieldKeys: ['name','stage','owner','loanType','loanAmount','lastTouch','nextAction','createdAt','updatedAt','id'],
-    filterKeys: ['name','stage','owner','loanType','loanAmount','lastTouch','nextAction','createdAt','updatedAt','id'],
+    fieldKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','lastTouch','nextAction','createdAt','updatedAt','id'],
+    filterKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','lastTouch','nextAction','createdAt','updatedAt','id'],
     columnKeys: ['name','stage','owner','loanAmount','lastTouch','nextAction'],
     sortKeys: ['updatedAt','lastTouch','nextAction','loanAmount','name'],
     defaultSort: { field: 'lastTouch', direction: 'desc' },
@@ -323,8 +350,8 @@ const RAW_LENS_CONFIGS = {
       const stage = normalizeStatus(record?.stage);
       return CONTACT_CLIENT_STAGES.includes(stage);
     },
-    fieldKeys: ['name','stage','owner','loanType','loanAmount','fundedDate','lastTouch','updatedAt','createdAt','id'],
-    filterKeys: ['name','stage','owner','loanType','loanAmount','fundedDate','lastTouch','updatedAt','createdAt','id'],
+    fieldKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','fundedDate','lastTouch','updatedAt','createdAt','id'],
+    filterKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','fundedDate','lastTouch','updatedAt','createdAt','id'],
     columnKeys: ['name','stage','owner','fundedDate','loanAmount','updatedAt'],
     sortKeys: ['fundedDate','updatedAt','loanAmount','name'],
     defaultSort: { field: 'fundedDate', direction: 'desc' },
@@ -336,8 +363,8 @@ const RAW_LENS_CONFIGS = {
     entity: 'partner',
     selectionScope: 'partners',
     baseFilter: () => true,
-    fieldKeys: ['name','company','tier','owner','lastTouch','nextTouch','createdAt','updatedAt','id'],
-    filterKeys: ['name','company','tier','owner','lastTouch','nextTouch','createdAt','updatedAt','id'],
+    fieldKeys: ['name','company','tier','owner','email','phone','lastTouch','nextTouch','createdAt','updatedAt','id'],
+    filterKeys: ['name','company','tier','owner','email','phone','lastTouch','nextTouch','createdAt','updatedAt','id'],
     columnKeys: ['name','company','tier','owner','lastTouch','nextTouch'],
     sortKeys: ['updatedAt','lastTouch','tier','name'],
     defaultSort: { field: 'updatedAt', direction: 'desc' },

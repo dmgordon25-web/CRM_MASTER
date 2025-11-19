@@ -1193,7 +1193,7 @@ const perfLog = (mark) => {
   function renderPartnersTable(partners, contacts){
     const table = document.getElementById('tbl-partners');
     const mode = resolveColumnMode();
-    const { visibleColumns } = getColumnsForView('partners', mode);
+    const { visibleColumns } = getColumnsForView('partners-main', mode);
     if(table) renderPartnerHeader(table, visibleColumns);
     if(table) ensureFavoriteColumn(table);
     const tbPartners = table && table.tBodies && table.tBodies[0] ? table.tBodies[0] : $('#tbl-partners tbody');
@@ -1634,9 +1634,9 @@ const perfLog = (mark) => {
     });
 
     const columnMode = resolveColumnMode();
-    const pipelineColumns = getColumnsForView('pipeline', columnMode).visibleColumns;
+    const pipelineColumns = getColumnsForView('pipeline-main', columnMode).visibleColumns;
     const clientColumns = getColumnsForView('clients', columnMode).visibleColumns;
-    const longshotColumns = getColumnsForView('longshots', columnMode).visibleColumns;
+    const longshotColumns = getColumnsForView('leads-main', columnMode).visibleColumns;
 
     setText($('#count-inprog'), inpr.length);
     setText($('#count-active'), pipe.length);
@@ -1662,6 +1662,13 @@ const perfLog = (mark) => {
       const loanLabel = ctx.loanLabel ?? (contact.loanType || contact.loanProgram || '');
       const amountVal = ctx.amountVal ?? (Number(contact.loanAmount || 0) || 0);
       const formatDate = ctx.formatDate || displayDate;
+      const partnerMap = ctx.partnerMap;
+      const referralFromMap = (id) => {
+        if(!id || !partnerMap) return '';
+        const partner = partnerMap.get(String(id));
+        if(!partner) return '';
+        return partner.name || partner.company || '';
+      };
       switch (columnId) {
         case 'name':
           return `<td class="contact-name" data-column="name" data-role="contact-name">${contactLink(contact)}</td>`;
@@ -1669,12 +1676,22 @@ const perfLog = (mark) => {
           return `<td data-column="stage">${stageMeta.html}</td>`;
         case 'status':
           return `<td data-column="status">${safe(contact.status || contact.stage || '—')}</td>`;
+        case 'pipelineMilestone': {
+          const milestone = contact.pipelineMilestone || contact.milestone || '';
+          return `<td data-column="pipelineMilestone">${safe(milestone || '—')}</td>`;
+        }
         case 'loanType':
           return `<td data-column="loanType">${safe(loanLabel || '')}</td>`;
         case 'loanAmount':
           return `<td class="numeric" data-column="loanAmount">${amountVal ? money(amountVal) : '—'}</td>`;
         case 'referredBy':
-          return `<td data-column="referredBy">${safe(contact.referredBy || '')}</td>`;
+          return `<td data-column="referredBy">${safe(contact.referredBy || referralFromMap(contact.referralPartnerId) || referralFromMap(contact.partnerId) || '')}</td>`;
+        case 'email':
+          return `<td data-column="email">${safe(contact.email || '—')}</td>`;
+        case 'phone':
+          return `<td data-column="phone">${safe(contact.phone || '—')}</td>`;
+        case 'city':
+          return `<td data-column="city">${safe(contact.city || '—')}</td>`;
         case 'fundedDate':
           return `<td data-column="fundedDate">${safe(formatDate(contact.fundedDate) || '—')}</td>`;
         case 'owner': {
@@ -2010,7 +2027,7 @@ const perfLog = (mark) => {
         const cells = [
           `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
           favoriteCell,
-          ...pipelineColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+          ...pipelineColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
         ];
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');
@@ -2057,7 +2074,7 @@ const perfLog = (mark) => {
         const cells = [
           `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
           favoriteCell,
-          ...clientColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+          ...clientColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
         ];
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');
@@ -2102,7 +2119,7 @@ const perfLog = (mark) => {
         const cells = [
           `<td data-column="select" data-role="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
           favoriteCell,
-          ...longshotColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate }))
+          ...longshotColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
         ];
         return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>${cells.join('')}</tr>`;
       }).join('');

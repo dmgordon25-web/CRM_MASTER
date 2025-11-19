@@ -3,22 +3,34 @@ import { columnSchemas, getColumnSchema } from './column_schema.js';
 const STORAGE_KEY = 'columns:config:v1';
 const ADVANCED_DEFAULT_VIEW_CONFIG = {
   contacts: {
-    order: ['name', 'email', 'phone', 'status', 'owner'],
-    hidden: ['stage', 'loanType', 'loanAmount', 'lastTouch', 'nextAction', 'fundedDate', 'createdAt', 'updatedAt']
+    order: ['name', 'email', 'phone', 'city', 'status', 'owner'],
+    hidden: ['stage', 'pipelineMilestone', 'loanType', 'loanAmount', 'referredBy', 'lastTouch', 'nextAction', 'fundedDate', 'createdAt', 'updatedAt']
   },
   longshots: {
-    order: ['name', 'loanType', 'loanAmount', 'referredBy', 'lastTouch'],
-    hidden: ['status', 'stage', 'owner', 'nextAction', 'createdAt', 'updatedAt']
+    order: ['name', 'status', 'loanType', 'loanAmount', 'referredBy', 'lastTouch'],
+    hidden: ['email', 'phone', 'city', 'stage', 'owner', 'nextAction', 'pipelineMilestone', 'createdAt', 'updatedAt']
   },
   pipeline: {
     order: ['name', 'stage', 'loanType', 'loanAmount', 'referredBy'],
-    hidden: ['owner', 'lastTouch', 'nextAction', 'createdAt', 'updatedAt']
+    hidden: ['status', 'email', 'phone', 'city', 'pipelineMilestone', 'owner', 'lastTouch', 'nextAction', 'createdAt', 'updatedAt']
   },
   clients: {
-    order: ['name', 'stage', 'loanType', 'loanAmount', 'fundedDate'],
-    hidden: ['owner', 'lastTouch', 'updatedAt']
+    order: ['name', 'stage', 'loanAmount', 'fundedDate', 'owner'],
+    hidden: ['email', 'phone', 'city', 'pipelineMilestone', 'loanType', 'lastTouch', 'updatedAt']
   },
   partners: {
+    order: ['name', 'company', 'tier', 'referrals', 'funded', 'active', 'volume', 'conversion', 'email', 'phone'],
+    hidden: ['owner', 'lastTouch', 'nextTouch', 'createdAt', 'updatedAt']
+  },
+  'pipeline-main': {
+    order: ['name', 'stage', 'loanAmount', 'pipelineMilestone', 'nextAction', 'owner'],
+    hidden: ['status', 'loanType', 'email', 'phone', 'city', 'referredBy', 'lastTouch', 'createdAt', 'updatedAt']
+  },
+  'leads-main': {
+    order: ['name', 'status', 'stage', 'loanAmount', 'loanType', 'owner'],
+    hidden: ['pipelineMilestone', 'email', 'phone', 'city', 'referredBy', 'lastTouch', 'nextAction', 'createdAt', 'updatedAt']
+  },
+  'partners-main': {
     order: ['name', 'company', 'tier', 'referrals', 'funded', 'active', 'volume', 'conversion', 'email', 'phone'],
     hidden: ['owner', 'lastTouch', 'nextTouch', 'createdAt', 'updatedAt']
   }
