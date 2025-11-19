@@ -1,5 +1,38 @@
 import { normalizeStatus } from '../../pipeline/constants.js';
 
+const TODO_STYLE_ID = 'todo-widget-style';
+
+function ensureTodoStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(TODO_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = TODO_STYLE_ID;
+  style.textContent = `
+    .todo-widget-shell { display:flex; flex-direction:column; gap:12px; padding:14px; background:linear-gradient(135deg, #f8fafc, #eef2ff); border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 10px 30px rgba(55, 65, 81, 0.04); }
+    .todo-head { display:flex; align-items:flex-start; gap:12px; }
+    .todo-icon { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:#e0e7ff; color:#4338ca; font-size:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.6); }
+    .todo-heading { display:flex; flex-direction:column; gap:4px; }
+    .todo-heading h4 { margin:0; font-size:17px; line-height:1.3; font-weight:700; letter-spacing:-0.01em; }
+    .todo-heading p { margin:0; color:#6b7280; font-size:13px; line-height:1.45; }
+    .todo-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
+    .todo-item { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.03); }
+    .todo-row { display:flex; align-items:center; gap:10px; }
+    .todo-row input[type="checkbox"] { width:18px; height:18px; accent-color:#10b981; flex-shrink:0; }
+    .todo-title { font-weight:600; color:#111827; flex:1; }
+    .todo-meta { color:#6b7280; font-size:12px; font-weight:500; }
+    .todo-add { display:flex; gap:10px; align-items:center; padding:10px 12px; background:#fff; border:1px dashed #cbd5e1; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02); }
+    .todo-add input[type="text"] { border:1px solid #d1d5db; border-radius:10px; padding:10px 12px; font-size:14px; background:#f9fafb; }
+    .todo-add input[type="text"]:focus { outline:2px solid #c7d2fe; border-color:#a5b4fc; background:#fff; }
+    .todo-add button { border-radius:10px; padding:10px 14px; font-weight:600; background:#4f46e5; color:#fff; border:1px solid #4338ca; box-shadow:0 6px 16px rgba(79,70,229,0.25); }
+    .todo-add button:disabled { opacity:0.6; cursor:not-allowed; }
+    .todo-empty { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px; color:#4b5563; font-size:14px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.7); }
+    .todo-empty .todo-empty-icon { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:#e0f2fe; color:#0369a1; }
+    .todo-footer-hint { color:#6b7280; font-size:13px; margin:0; display:flex; align-items:center; gap:6px; }
+    .todo-footer-hint .dot { width:6px; height:6px; border-radius:999px; background:#10b981; display:inline-block; }
+  `;
+  document.head.appendChild(style);
+}
+
 function normalizeTaskStatus(task) {
   const raw = task && (task.status || task.raw?.status || task.state);
   return raw ? normalizeStatus(raw) : '';
@@ -50,8 +83,14 @@ export function getTodoTasksForDashboard(allTasks = [], options = {}) {
 
 function renderEmptyState(list) {
   const empty = document.createElement('li');
-  empty.className = 'empty';
-  empty.textContent = 'Nothing to do — add a task to get started.';
+  empty.className = 'todo-empty';
+  const icon = document.createElement('div');
+  icon.className = 'todo-empty-icon';
+  icon.textContent = '🗒️';
+  const text = document.createElement('div');
+  text.textContent = 'Nothing to do — add a task to get started.';
+  empty.appendChild(icon);
+  empty.appendChild(text);
   list.appendChild(empty);
 }
 
@@ -100,33 +139,50 @@ export function renderTodoWidget(options = {}) {
   const tasks = Array.isArray(options.tasks) ? options.tasks : [];
   const adding = options.adding === true;
 
+  ensureTodoStyles();
   root.innerHTML = '';
   root.classList.add('todo-widget');
 
+  const shell = document.createElement('div');
+  shell.className = 'todo-widget-shell';
+
+  try {
+    root.classList.remove('hidden');
+    const card = root.closest('.insight-card');
+    if (card && card.classList) {
+      card.classList.remove('hidden');
+    }
+  } catch (_err) { /* safe guard */ }
+
   const header = document.createElement('div');
-  header.className = 'row';
-  header.style.alignItems = 'center';
-  header.style.gap = '8px';
-  const title = document.createElement('strong');
+  header.className = 'todo-head';
+  const icon = document.createElement('div');
+  icon.className = 'todo-icon';
+  icon.textContent = '✅';
+  const heading = document.createElement('div');
+  heading.className = 'todo-heading';
+  const title = document.createElement('h4');
   title.textContent = 'To-Do';
-  title.style.fontSize = '16px';
-  title.style.lineHeight = '1.4';
-  header.appendChild(title);
-  header.appendChild(document.createElement('span')).className = 'grow';
+  const subtitle = document.createElement('p');
+  subtitle.textContent = 'Check off quick follow-ups or add a new task without leaving the dashboard.';
+  heading.appendChild(title);
+  heading.appendChild(subtitle);
+  header.appendChild(icon);
+  header.appendChild(heading);
+  shell.appendChild(header);
 
   const addForm = document.createElement('form');
   addForm.className = 'todo-add';
   addForm.setAttribute('aria-label', 'Add a new task');
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Add a task';
+  input.placeholder = 'Describe the task to prefill the modal';
   input.setAttribute('data-qa', 'todo-add-task-input');
   input.style.flex = '1';
   input.style.minWidth = '0';
   const addButton = document.createElement('button');
   addButton.type = 'submit';
-  addButton.className = 'btn subtle';
-  addButton.textContent = adding ? 'Saving…' : 'Add';
+  addButton.textContent = adding ? 'Opening…' : 'Add Task';
   addButton.setAttribute('data-qa', 'todo-add-task');
   addButton.disabled = adding;
   addForm.appendChild(input);
@@ -135,25 +191,17 @@ export function renderTodoWidget(options = {}) {
     event.preventDefault();
     if (typeof options.onAdd !== 'function' || addButton.disabled) return;
     const value = input.value ? input.value.trim() : '';
-    if (!value) return;
     addButton.disabled = true;
     Promise.resolve()
       .then(() => options.onAdd(value))
       .then((ok) => { if (ok !== false) input.value = ''; })
       .catch(() => {})
-      .finally(() => { addButton.disabled = false; addButton.textContent = 'Add'; });
+      .finally(() => { addButton.disabled = false; addButton.textContent = 'Add Task'; });
   });
-  header.appendChild(addForm);
-  root.appendChild(header);
+  shell.appendChild(addForm);
 
   const list = document.createElement('ul');
   list.className = 'todo-list';
-  list.style.listStyle = 'none';
-  list.style.padding = '0';
-  list.style.margin = '12px 0 0';
-  list.style.display = 'flex';
-  list.style.flexDirection = 'column';
-  list.style.gap = '8px';
 
   if (tasks.length === 0) {
     renderEmptyState(list);
@@ -163,5 +211,15 @@ export function renderTodoWidget(options = {}) {
     });
   }
 
-  root.appendChild(list);
+  shell.appendChild(list);
+
+  const footer = document.createElement('p');
+  footer.className = 'todo-footer-hint';
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  footer.appendChild(dot);
+  footer.appendChild(document.createTextNode(' Completed tasks stay on record; they simply hide from this to-do list.'));
+  shell.appendChild(footer);
+
+  root.appendChild(shell);
 }
