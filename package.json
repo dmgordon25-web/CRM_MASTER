@@ -18,6 +18,7 @@
     "test:boot": "node tools/boot_smoke_test.mjs",
     "test:navigation": "playwright test tests/e2e/navigation_editors.spec.ts --project=chromium --workers=1 --timeout=45000",
     "test:counts": "playwright test tests/e2e/counts_workflow.spec.ts --project=chromium --workers=1 --timeout=30000",
+    "test:widgets": "playwright test tests/e2e/widget_data.spec.ts --project=chromium --workers=1 --timeout=20000",
     "dump:fields": "node tools/dump_fields.js",
     "verify:build": "npm run audit:manifest && npm run test:boot",
     "check:features": "node tools/feature_check.mjs",

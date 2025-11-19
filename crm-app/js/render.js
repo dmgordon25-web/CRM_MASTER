@@ -1758,6 +1758,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       }
     };
 
+
     const relOpportunities = inpr.map(c=>{
       const lastTouch = toDate(c.lastContact || c.nextFollowUp);
       const days = lastTouch ? daysAgo(lastTouch, now) : null;
@@ -1773,6 +1774,67 @@ function shouldRenderScope(scopeSet, ...aliases){
       return bd-ad;
     }).slice(0,5);
 
+    const nurtureCandidates = clientsTbl.map(c=>{
+      const last = toDate(c.lastContact || c.fundedDate || c.anniversary);
+      const days = last ? daysAgo(last, now) : null;
+      return {contact:c, lastTouch:last, days};
+    }).filter(row=> row.days==null || row.days>=21).sort((a,b)=>{
+      const ad = a.days==null ? Number.MAX_SAFE_INTEGER : a.days;
+      const bd = b.days==null ? Number.MAX_SAFE_INTEGER : b.days;
+      return bd-ad;
+    }).slice(0,5);
+
+    const closingCandidates = contacts.map(c=>{
+      const stageKey = normalizeStatus(c.stage);
+      const dateValue = c.expectedClosing || c.closingDate || c.fundedDate;
+      const date = toDate(dateValue);
+      return {contact:c, date, stage: stageKey};
+    }).filter(row=> row.date).sort((a,b)=> a.date.getTime()-b.date.getTime()).slice(0,5);
+
+    const pipelineTypeLabels = {task:'Task', deal:'Closing', followup:'Follow-Up', expiring:'Expiring'};
+    const pipelineEvents = (()=>{
+      const horizon = new Date(today);
+      horizon.setDate(horizon.getDate()+30);
+      const rangeStart = today.getTime();
+      const rangeEnd = horizon.getTime();
+      const events = [];
+      const addEvent = (rawDate, label, meta, type)=>{
+        const when = rawDate instanceof Date ? rawDate : toDate(rawDate);
+        if(!when) return;
+        const stamp = when.getTime();
+        if(Number.isNaN(stamp) || stamp < rangeStart || stamp > rangeEnd) return;
+        const typeKey = pipelineTypeLabels[type] ? type : 'task';
+        const typeLabel = pipelineTypeLabels[typeKey] || pipelineTypeLabels.task;
+        events.push({date: when, label, meta, type: typeKey, typeLabel});
+      };
+      openTasks.forEach(task=>{
+        if(task.dueDate){
+          const metaParts = [task.name];
+          if(task.stage) metaParts.push(task.stage);
+          addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task');
+        }
+      });
+      contacts.forEach(c=>{
+        if(c.nextFollowUp){
+          const stageKey = normalizeStatus(c.stage);
+          const stage = stageLabels[stageKey] || c.stage || STR['stage.pipeline'];
+          addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup');
+        }
+        if(c.preApprovalExpires){
+          addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring');
+        }
+      });
+      closingCandidates.forEach(item=>{
+        const c = item.contact;
+        const stage = stageLabels[item.stage] || (c.stage||'');
+        const metaParts = [stage];
+        if(Number(c.loanAmount||0)) metaParts.push(money(c.loanAmount));
+        addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal');
+      });
+      events.sort((a,b)=> a.date.getTime() - b.date.getTime());
+      return events;
+    })();
+
     if(wantsPipeline){
     html($('#rel-opps'), relOpportunities.length ? relOpportunities.map(item=>{
       const c = item.contact;
@@ -1782,7 +1844,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||'');
       const amount = Number(c.loanAmount||0) ? ` • ${money(c.loanAmount)}` : '';
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="rel-opps">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="rel-opps">`
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1794,16 +1856,6 @@ function shouldRenderScope(scopeSet, ...aliases){
       </li>`;
     }).join('') : '<li class="empty">Pipeline borrowers are up to date.</li>');
 
-    const nurtureCandidates = clientsTbl.map(c=>{
-      const last = toDate(c.lastContact || c.fundedDate || c.anniversary);
-      const days = last ? daysAgo(last, now) : null;
-      return {contact:c, lastTouch:last, days};
-    }).filter(row=> row.days==null || row.days>=21).sort((a,b)=>{
-      const ad = a.days==null ? Number.MAX_SAFE_INTEGER : a.days;
-      const bd = b.days==null ? Number.MAX_SAFE_INTEGER : b.days;
-      return bd-ad;
-    }).slice(0,5);
-
     html($('#nurture'), nurtureCandidates.length ? nurtureCandidates.map(item=>{
       const c = item.contact;
       const name = fullName(c);
@@ -1811,7 +1863,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const stageKey = normalizeStatus(c.stage);
       const stage = stageLabels[stageKey] || (c.stage||STR['kanban.placeholder.client']);
       const funded = c.fundedDate ? `${translate('calendar.event.funded')} ${safe(c.fundedDate)}` : STR['kanban.placeholder.client'];
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="nurture">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="nurture">`
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1823,13 +1875,6 @@ function shouldRenderScope(scopeSet, ...aliases){
       </li>`;
     }).join('') : '<li class="empty">All clients recently nurtured. Schedule your next campaign!</li>');
 
-    const closingCandidates = contacts.map(c=>{
-      const stageKey = normalizeStatus(c.stage);
-      const dateValue = c.expectedClosing || c.closingDate || c.fundedDate;
-      const date = toDate(dateValue);
-      return {contact:c, date, stage: stageKey};
-    }).filter(row=> row.date).sort((a,b)=> a.date.getTime()-b.date.getTime()).slice(0,5);
-
     html($('#closing-watch'), closingCandidates.length ? closingCandidates.map(item=>{
       const c = item.contact;
       const name = fullName(c);
@@ -1837,7 +1882,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       const when = item.date.toISOString().slice(0,10);
       const amount = Number(c.loanAmount||0) ? money(c.loanAmount) : 'TBD';
       const statusClass = item.stage==='funded' ? 'good' : 'warn';
-      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}">
+      return `<li data-id="${attr(c.id||'')}" data-contact-id="${attr(c.id||'')}" data-widget="closing-watch" data-date="${attr(when)}">`
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1849,46 +1894,6 @@ function shouldRenderScope(scopeSet, ...aliases){
       </li>`;
     }).join('') : '<li class="empty">No scheduled closings yet — load deals to track them here.</li>');
 
-    const horizon = new Date(today);
-    horizon.setDate(horizon.getDate()+30);
-    const rangeStart = today.getTime();
-    const rangeEnd = horizon.getTime();
-    const pipelineEvents = [];
-    const pipelineTypeLabels = {task:'Task', deal:'Closing', followup:'Follow-Up', expiring:'Expiring'};
-    const addEvent = (rawDate, label, meta, type)=>{
-      const when = rawDate instanceof Date ? rawDate : toDate(rawDate);
-      if(!when) return;
-      const stamp = when.getTime();
-      if(Number.isNaN(stamp) || stamp < rangeStart || stamp > rangeEnd) return;
-      const typeKey = pipelineTypeLabels[type] ? type : 'task';
-      const typeLabel = pipelineTypeLabels[typeKey] || pipelineTypeLabels.task;
-      pipelineEvents.push({date: when, label, meta, type: typeKey, typeLabel});
-    };
-    openTasks.forEach(task=>{
-      if(task.dueDate){
-        const metaParts = [task.name];
-        if(task.stage) metaParts.push(task.stage);
-        addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task');
-      }
-    });
-    contacts.forEach(c=>{
-      if(c.nextFollowUp){
-        const stageKey = normalizeStatus(c.stage);
-        const stage = stageLabels[stageKey] || c.stage || STR['stage.pipeline'];
-        addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup');
-      }
-      if(c.preApprovalExpires){
-        addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring');
-      }
-    });
-    closingCandidates.forEach(item=>{
-      const c = item.contact;
-      const stage = stageLabels[item.stage] || (c.stage||'');
-      const metaParts = [stage];
-      if(Number(c.loanAmount||0)) metaParts.push(money(c.loanAmount));
-      addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal');
-    });
-    pipelineEvents.sort((a,b)=> a.date.getTime() - b.date.getTime());
     const pipelineCal = $('#pipeline-calendar');
     if(pipelineCal){
       if(!pipelineEvents.length){
