@@ -1,4 +1,5 @@
 import { validateSettings } from '../data/settings.js';
+import { getSettingsApi } from '../app_context.js';
 
 const FIELD_QUERIES = {
   timezone: ['[data-field="timezone"]', '#settings-timezone', 'input[name="timezone"]', 'select[name="timezone"]'],
@@ -103,11 +104,12 @@ function gatherValues(form){
 }
 
 async function hydrateForm(form){
-  if(!form || !window.Settings || typeof window.Settings.get !== 'function'){
+  const settingsApi = getSettingsApi();
+  if(!form || !settingsApi || typeof settingsApi.get !== 'function'){
     return;
   }
   try{
-    const data = await window.Settings.get();
+    const data = await settingsApi.get();
     const timezoneField = getField(form, 'timezone');
     if(timezoneField){
       const timezoneValue = typeof data?.timezone === 'string' ? data.timezone : '';
@@ -178,13 +180,14 @@ function handleSubmit(evt){
     showValidationToast(validation.errors);
     return;
   }
-  if(!window.Settings || typeof window.Settings.save !== 'function'){
+  const settingsApi = getSettingsApi();
+  if(!settingsApi || typeof settingsApi.save !== 'function'){
     if(typeof console !== 'undefined' && console && console.warn){
       console.warn('[settings-form] Settings API unavailable for save');
     }
     return;
   }
-  const saveResult = window.Settings.save(values);
+  const saveResult = settingsApi.save(values);
   Promise.resolve(saveResult).catch(err => {
     if(typeof console !== 'undefined' && console && console.warn){
       console.warn('[settings-form] save failed', err);

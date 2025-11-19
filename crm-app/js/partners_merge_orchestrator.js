@@ -163,7 +163,17 @@ export async function openPartnersMergeByIds(idA, idB) {
             const evt = new CustomEvent("selection:changed", { detail: { clearedBy: "merge-partners" }});
             window.dispatchEvent(evt);
           } catch (_) {}
-          try { window.dispatchAppDataChanged?.("partners:merge"); } catch (_) {}
+          try {
+            window.dispatchAppDataChanged?.({
+              scope: 'partners',
+              action: 'merge',
+              reason: 'partners:merge',
+              source: 'partners:merge',
+              winnerId: String(winnerId ?? ''),
+              loserId: String(loserId ?? ''),
+              ids: [String(winnerId ?? ''), String(loserId ?? '')]
+            });
+          } catch (_) {}
 
           finish({ status: "ok", winnerId, loserId, merged });
         } catch (err) {

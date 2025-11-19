@@ -164,23 +164,30 @@
     global.registerRenderHook = registerHook;
   }
 
+  function normalizeDataChangedDetail(detail){
+    if(detail && typeof detail === 'object') return detail;
+    if(typeof detail === 'string') return { scope:'', reason: detail };
+    return { scope:'' };
+  }
+
   if (typeof global.dispatchAppDataChanged !== 'function'){
     global.dispatchAppDataChanged = function(detail){
+      const payload = normalizeDataChangedDetail(detail);
       if (isRendering()) return;
       const meter = global.__METER__ = global.__METER__ || {};
       const bucket = meter.dataChanged = meter.dataChanged || { count: 0, lastSource: '' };
       bucket.count += 1;
-      const source = detail && typeof detail === 'object' && typeof detail.source === 'string'
+      const source = payload && typeof payload.source === 'string'
         ? detail.source
         : '';
       bucket.lastSource = source;
       const doc = global.document;
       if (doc && typeof doc.dispatchEvent === 'function'){
-        doc.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+        doc.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
         return;
       }
       if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function'){
-        global.dispatchEvent(new global.CustomEvent('app:data:changed', { detail }));
+        global.dispatchEvent(new global.CustomEvent('app:data:changed', { detail: payload }));
       }
     };
   }

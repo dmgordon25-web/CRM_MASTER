@@ -152,9 +152,17 @@ function normalizeDueDate(input){
 function dispatchTaskCreated(record, contactId, source){
   let dispatched = false;
   const origin = source || 'followup';
+  const detail = {
+    scope: 'tasks',
+    ids: [String(record.id)],
+    taskId: record.id,
+    contactId,
+    action: 'task:create',
+    reason: origin
+  };
   try{
     if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
-      window.dispatchAppDataChanged({ source: origin, action:'task:create', taskId: record.id, contactId });
+      window.dispatchAppDataChanged(detail);
       dispatched = true;
     }
   }catch (err){
@@ -166,14 +174,14 @@ function dispatchTaskCreated(record, contactId, source){
   }
   if(!dispatched && typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
     try{
-      document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'tasks', ids:[record.id] } }));
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
     }catch (_err){}
   }
 }
 
 function dispatchTaskUpdated(record){
   if(!record || !record.id) return;
-  const detail = { scope:'tasks', ids:[record.id] };
+  const detail = { scope:'tasks', ids:[String(record.id)], taskId: record.id, action:'task:update', reason:'task:save' };
   try{
     if(typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function'){
       window.dispatchAppDataChanged(detail);

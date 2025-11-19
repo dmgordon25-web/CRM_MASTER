@@ -4,6 +4,21 @@ import { validateContact } from '../contacts.js';
 import { validatePartner } from '../partners.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
 
+function broadcastDataChanged(detail){
+  const payload = detail && typeof detail === 'object' ? detail : {};
+  try {
+    if(typeof window.dispatchAppDataChanged === 'function'){
+      window.dispatchAppDataChanged(payload);
+      return;
+    }
+  } catch (_) {}
+  try {
+    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+      document.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
+    }
+  } catch (_) {}
+}
+
 const DEFAULT_COPY = {
   modalTitle: 'Quick Add',
   contactTab: 'Contact',
@@ -263,14 +278,21 @@ export function wireQuickAddUnified(options = {}) {
           status: "Active",
         };
         let saved = false;
+        let assignedId = model.id != null ? model.id : null;
         let failureMessage = '';
         let failureToastShown = false;
         try {
           if (window.Contacts?.createQuick) {
-            await window.Contacts.createQuick(rec);
+            const result = await window.Contacts.createQuick(rec);
+            if(result && result.id != null && assignedId == null){
+              assignedId = result.id;
+            }
             saved = true;
           } else if (typeof window.dbPut === "function") {
-            await window.dbPut("contacts", rec);
+            const putResult = await window.dbPut("contacts", rec);
+            if((putResult ?? rec?.id) != null && assignedId == null){
+              assignedId = putResult ?? rec?.id;
+            }
             saved = true;
           } else {
             failureMessage = 'Contacts service unavailable. Contact not saved.';
@@ -282,7 +304,15 @@ export function wireQuickAddUnified(options = {}) {
           failureToastShown = toastSoftError('[soft] [quickAdd] contact save failed', err, failureMessage);
         } finally {
           contactSaving = false;
-          try { window.dispatchAppDataChanged?.("quick-add:contact"); } catch (_) {}
+          const contactId = assignedId != null ? String(assignedId) : (rec?.id != null ? String(rec.id) : '');
+          broadcastDataChanged({
+            scope: 'contacts',
+            action: 'create',
+            reason: 'quick-add:contact',
+            source: 'quick-add',
+            contactId,
+            ids: contactId ? [contactId] : undefined
+          });
           if (saved) {
             toastSuccess("Contact created");
           } else if (failureMessage && !failureToastShown) {
@@ -322,14 +352,21 @@ export function wireQuickAddUnified(options = {}) {
           tier: "Unassigned",
         };
         let saved = false;
+        let assignedId = model.id != null ? model.id : null;
         let failureMessage = '';
         let failureToastShown = false;
         try {
           if (window.Partners?.createQuick) {
-            await window.Partners.createQuick(rec);
+            const result = await window.Partners.createQuick(rec);
+            if(result && result.id != null && assignedId == null){
+              assignedId = result.id;
+            }
             saved = true;
           } else if (typeof window.dbPut === "function") {
-            await window.dbPut("partners", rec);
+            const putResult = await window.dbPut("partners", rec);
+            if((putResult ?? rec?.id) != null && assignedId == null){
+              assignedId = putResult ?? rec?.id;
+            }
             saved = true;
           } else {
             failureMessage = 'Partners service unavailable. Partner not saved.';
@@ -341,7 +378,15 @@ export function wireQuickAddUnified(options = {}) {
           failureToastShown = toastSoftError('[soft] [quickAdd] partner save failed', err, failureMessage);
         } finally {
           partnerSaving = false;
-          try { window.dispatchAppDataChanged?.("quick-add:partner"); } catch (_) {}
+          const partnerId = assignedId != null ? String(assignedId) : (rec?.id != null ? String(rec.id) : '');
+          broadcastDataChanged({
+            scope: 'partners',
+            action: 'create',
+            reason: 'quick-add:partner',
+            source: 'quick-add',
+            partnerId,
+            ids: partnerId ? [partnerId] : undefined
+          });
           if (saved) {
             toastSuccess("Partner created");
           } else if (failureMessage && !failureToastShown) {

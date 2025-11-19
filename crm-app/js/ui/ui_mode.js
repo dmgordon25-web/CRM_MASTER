@@ -1,3 +1,5 @@
+import { getSettingsApi } from '../app_context.js';
+
 const STORAGE_KEY = 'crm:uiMode';
 const MODE_SIMPLE = 'simple';
 const MODE_ADVANCED = 'advanced';
@@ -51,9 +53,10 @@ function applyMode(nextMode){
 
 async function hydrateFromSettings(){
   if(typeof window === 'undefined') return;
-  if(!window.Settings || typeof window.Settings.get !== 'function') return;
+  const settingsApi = getSettingsApi();
+  if(!settingsApi || typeof settingsApi.get !== 'function') return;
   try{
-    const data = await window.Settings.get();
+    const data = await settingsApi.get();
     const storedMode = normalizeMode(data && data.uiMode);
     if(storedMode !== currentMode){
       applyMode(storedMode);
@@ -68,8 +71,9 @@ async function hydrateFromSettings(){
 function saveModePreference(mode){
   const normalized = normalizeMode(mode);
   writeLocalFallback(normalized);
-  if(typeof window !== 'undefined' && window.Settings && typeof window.Settings.save === 'function'){
-    try{ window.Settings.save({ uiMode: normalized }, { silent: true }); }
+  const settingsApi = getSettingsApi();
+  if(settingsApi && typeof settingsApi.save === 'function'){
+    try{ settingsApi.save({ uiMode: normalized }, { silent: true }); }
     catch (_err){}
   }
 }
