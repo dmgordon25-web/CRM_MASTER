@@ -1493,7 +1493,14 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 
-    const todoHost = document.getElementById('dashboard-todo');
+    let todoHost = document.getElementById('dashboard-todo');
+    const ensureTodoHost = () => {
+      const latest = document.getElementById('dashboard-todo');
+      if (latest && todoHost !== latest) {
+        todoHost = latest;
+      }
+      return todoHost;
+    };
     if (todoHost) {
       let todoTasks = Array.isArray(dashboardTasks) ? dashboardTasks.slice() : [];
       let busyTodoIds = new Set();
@@ -1505,13 +1512,15 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       };
 
       const renderTodo = () => {
-        todoHost.classList.remove('hidden');
-        const card = todoHost.closest('.insight-card');
+        const host = ensureTodoHost();
+        if (!host) return;
+        host.classList.remove('hidden');
+        const card = host.closest('.insight-card');
         if (card && card.classList) {
           card.classList.remove('hidden');
         }
         renderTodoWidget({
-          root: todoHost,
+          root: host,
           tasks: getTodoTasksForDashboard(todoTasks, { limit: 10 }),
           busyIds: busyTodoIds,
           adding: addingTodo,
@@ -1521,6 +1530,8 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       };
 
       const refreshTodoTasks = async () => {
+        const host = ensureTodoHost();
+        if (!host) return;
         try {
           const mode = getDashboardMode();
           const filter = mode === 'all' ? 'all' : 'today';
@@ -1586,12 +1597,16 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       const handleTasksChanged = (event) => {
         const scope = event && event.detail && event.detail.scope ? event.detail.scope : '';
         if (scope && scope !== 'tasks') return;
+        const host = ensureTodoHost();
+        if (!host) return;
         refreshTodoTasks();
       };
 
       const wireModeListeners = () => {
-        if (todoHost.__todoModeWired) return;
-        todoHost.__todoModeWired = true;
+        const host = ensureTodoHost();
+        if (!host) return;
+        if (host.__todoModeWired) return;
+        host.__todoModeWired = true;
         const buttons = document.querySelectorAll('[data-dashboard-mode]');
         buttons.forEach((btn) => {
           if (!btn || typeof btn.addEventListener !== 'function') return;
