@@ -832,6 +832,10 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   };
 
   function appRender(){
+    const perfEnabled = typeof performance !== 'undefined'
+      && typeof performance.now === 'function'
+      && window.__CRM_DEBUG_PERF;
+    const perfStart = perfEnabled ? performance.now() : 0;
     const hasRenderAll = typeof window.renderAll === 'function';
     if(!hasRenderAll){
       if(!window.__RENDER_ALL_MISSING_LOGGED__ && console && typeof console.warn === 'function'){
@@ -863,11 +867,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
           .finally(() => {
             bootSplash.hide();
             release();
+            if(perfEnabled){
+              try { console.log('[PERF] renderAll', (performance.now() - perfStart).toFixed(1), 'ms'); }
+              catch (_) {}
+            }
           });
         return;
       }
       bootSplash.hide();
       release();
+      if(perfEnabled){
+        try { console.log('[PERF] renderAll', (performance.now() - perfStart).toFixed(1), 'ms'); }
+        catch (_) {}
+      }
     }catch (err) {
       console.warn('[soft] [app] renderAll failed', err);
       bootSplash.hide();
@@ -1993,6 +2005,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   };
 
   let activeView = null;
+  const renderedRoutes = new Set();
   let suppressHashUpdate = false;
 
   const PIPELINE_FILTER_VALUES = new Set(['new', 'qualified', 'won', 'lost']);
@@ -2379,6 +2392,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     } catch (_) {}
   }
 
+  function requestRenderForNavigation(route){
+    const normalized = typeof route === 'string' ? route : '';
+    if(!normalized) return;
+    if(renderedRoutes.has(normalized)) return;
+    renderedRoutes.add(normalized);
+    scheduleAppRender();
+  }
+
   function activate(view){
     let normalized = normalizeView(view);
     if(!normalized) return;
@@ -2418,7 +2439,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       applyPipelineStageFilterFromHash({ force: true, useFallback: true });
     }
     if(normalized !== 'workbench'){ syncHashForView(normalized); }
-    scheduleAppRender();
+    requestRenderForNavigation(normalized);
     if(normalized==='settings') renderExtrasRegistry();
     if(previous !== normalized || root){
       const detail = {

@@ -28,6 +28,18 @@ import { syncTableLayout } from './ui/table_layout.js';
 import { getColumnsForView } from './tables/column_config.js';
 import { getUiMode } from './ui/ui_mode.js';
 
+const perf = typeof performance !== 'undefined' ? performance : null;
+const perfReady = perf && typeof perf.now === 'function';
+const perfEnabled = () => Boolean(perfReady && typeof window !== 'undefined' && window.__CRM_DEBUG_PERF);
+const perfMark = (label) => ({ label, start: perfEnabled() ? perf.now() : 0 });
+const perfLog = (mark) => {
+  if(!mark || !mark.label || !perfEnabled() || !mark.start) return;
+  try {
+    const duration = perf.now() - mark.start;
+    console.log(`[PERF] ${mark.label} ${duration.toFixed(1)} ms`);
+  } catch (_) {}
+};
+
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
   const STAGES_CLIENT = ['approved','cleared-to-close','funded','post-close'];
@@ -1276,6 +1288,10 @@ import { getUiMode } from './ui/ui_mode.js';
 
   async function renderAll(){
     return withLayoutGuard('render.js', async () => {
+      const totalMark = perfMark('renderAll');
+      let dashboardMark = null;
+      let pipelineMark = null;
+      let partnersMark = null;
       primeLoadingPlaceholders();
       try {
         await openDB();
@@ -1368,6 +1384,7 @@ import { getUiMode } from './ui/ui_mode.js';
       }
     }
 
+    dashboardMark = perfMark('dashboard');
     const total = contacts.length;
     const funded = contacts.filter(c=> normalizeStatus(c.stage)==='funded').length;
     const loanVol = contacts.reduce((s,c)=> s + (Number(c.loanAmount||0)||0), 0);
@@ -1595,6 +1612,8 @@ import { getUiMode } from './ui/ui_mode.js';
       }
     }
 
+    perfLog(dashboardMark);
+    pipelineMark = perfMark('pipeline/contacts');
     const inpr = contacts.filter(c => {
       const stageKey = normalizeStatus(c.stage);
       const status = String(c.status||'').toLowerCase();
@@ -2091,15 +2110,19 @@ import { getUiMode } from './ui/ui_mode.js';
     }
 
     ensureKanbanStageAttributes();
+    perfLog(pipelineMark);
+    partnersMark = perfMark('partners');
     renderPartnersTable(partners, contacts);
+    perfLog(partnersMark);
 
-    if(typeof window.applyFilters==='function'){
-      try{ window.applyFilters(); }
-      catch (err) { console && console.warn && console.warn('applyFilters', err); }
-    }
+      if(typeof window.applyFilters==='function'){
+        try{ window.applyFilters(); }
+        catch (err) { console && console.warn && console.warn('applyFilters', err); }
+      }
 
       } finally {
         releaseLoadingPlaceholders();
+        perfLog(totalMark);
       }
 
     });
