@@ -3098,9 +3098,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       case 'contacts':
       case 'longshots':
         push('renderContactsView', renderContactsView);
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'pipeline':
         push('renderPipelineView', renderPipelineView);
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'notifications':
         push('renderNotifications', window.renderNotifications);

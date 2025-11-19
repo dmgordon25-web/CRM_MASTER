@@ -1325,6 +1325,8 @@ function shouldRenderScope(scopeSet, ...aliases){
     const wantsDashboard = shouldRenderScope(scopeSet, 'dashboard','tasks','documents');
     const wantsContacts = shouldRenderScope(scopeSet, 'contacts','longshots','dashboard');
     const wantsPipeline = shouldRenderScope(scopeSet, 'pipeline','dashboard');
+    const wantsContactTables = shouldRenderScope(scopeSet, 'contacts','longshots');
+    const wantsPipelineTable = shouldRenderScope(scopeSet, 'pipeline');
     const wantsPartners = shouldRenderScope(scopeSet, 'partners');
     return withLayoutGuard('render.js', async () => {
       const totalMark = perfMark('renderAll');
@@ -2030,7 +2032,7 @@ function shouldRenderScope(scopeSet, ...aliases){
     ensurePipelineLegend();
     ensureStatusStackLegend();
 
-    if(wantsPipeline){
+    if(wantsPipelineTable){
     const tblPipeline = document.getElementById('tbl-pipeline');
     if(tblPipeline) renderContactHeader(tblPipeline, pipelineColumns, 'pipe-all');
     if(tblPipeline) ensureFavoriteColumn(tblPipeline);
@@ -2078,7 +2080,7 @@ function shouldRenderScope(scopeSet, ...aliases){
       renderTableBody(tblPipeline, tbPipe, pipelineRows);
     }
     }
-    if(wantsContacts){
+    if(wantsContactTables){
     const tblClients = document.getElementById('tbl-clients');
     if(tblClients) renderContactHeader(tblClients, clientColumns, 'clients-all');
     if(tblClients) ensureFavoriteColumn(tblClients);
