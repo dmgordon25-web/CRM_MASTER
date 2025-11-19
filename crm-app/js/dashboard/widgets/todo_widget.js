@@ -218,7 +218,7 @@ export function renderTodoWidget(options = {}) {
   const dot = document.createElement('span');
   dot.className = 'dot';
   footer.appendChild(dot);
-  footer.appendChild(document.createTextNode(' Completed tasks stay in the record; reopen via the Tasks view if needed.'));
+  footer.appendChild(document.createTextNode(' Completed tasks stay on record; they simply hide from this to-do list.'));
   shell.appendChild(footer);
 
   root.appendChild(shell);

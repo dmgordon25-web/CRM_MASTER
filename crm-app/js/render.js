@@ -1495,9 +1495,33 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
 
     let todoHost = document.getElementById('dashboard-todo');
     const ensureTodoHost = () => {
-      const latest = document.getElementById('dashboard-todo');
+      let latest = document.getElementById('dashboard-todo');
+      if (!latest) {
+        latest = document.createElement('section');
+        latest.id = 'dashboard-todo';
+        latest.className = 'card';
+        latest.setAttribute('data-widget-id', 'todo');
+        const anchor = document.getElementById('dashboard-today');
+        if (anchor && anchor.parentNode) {
+          anchor.parentNode.insertBefore(latest, anchor.nextSibling);
+        } else {
+          const root = document.querySelector('[data-ui="dashboard-root"]');
+          if (root) {
+            root.appendChild(latest);
+          } else {
+            document.body.appendChild(latest);
+          }
+        }
+      }
       if (latest && todoHost !== latest) {
         todoHost = latest;
+      }
+      if (todoHost) {
+        todoHost.classList.remove('hidden');
+        const card = todoHost.closest('.insight-card');
+        if (card && card.classList) {
+          card.classList.remove('hidden');
+        }
       }
       return todoHost;
     };
@@ -1578,7 +1602,7 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
         try {
           const modal = openTaskEditor();
           const noteField = document.querySelector('#qc-task-modal textarea[name="note"]');
-          if (noteField && typeof noteField.value === 'string') {
+          if (noteField && typeof noteField.value === 'string' && trimmed) {
             noteField.value = trimmed;
             noteField.dispatchEvent(new Event('input', { bubbles: true }));
           }
