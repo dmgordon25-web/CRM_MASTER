@@ -10,6 +10,14 @@
 - Chromium smoke flow (not part of CI):
   - `npm run e2e:smoke`
 
+## Browser runtime dependencies
+- Before running any Chromium-based automation (including `npm run test:boot`), install the required system libraries and
+  bundled browser binaries:
+  - `npx playwright install-deps chromium`
+  - `npx playwright install chromium`
+  These commands ensure the Puppeteer/Playwright Chromium builds have the GTK/ATK and NSS stacks available on a fresh
+  machine so the smoke tests can launch the browser process without missing shared libraries.
+
 ## Feature gate & proof artifact
 - Local parity with CI (stamped HTML, Hello dialog, splash hide, avatar persistence, screenshot capture):
   - `npm run check:features`

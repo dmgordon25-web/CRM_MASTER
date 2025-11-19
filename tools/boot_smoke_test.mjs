@@ -17,6 +17,37 @@ const routeParityReportPath = path.join(reportsDir, 'route_parity.json');
 const PORT = process.env.PORT || 8080;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const ps = spawn(command, args, {
+      cwd: options.cwd || repoRoot,
+      stdio: options.stdio || 'inherit',
+      env: options.env ? { ...process.env, ...options.env } : process.env
+    });
+    ps.on('error', reject);
+    ps.on('exit', code => {
+      if (code === 0) return resolve();
+      reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+    });
+  });
+}
+
+async function ensureChromiumRuntime() {
+  if (process.env.SKIP_BROWSER_SETUP === '1') return;
+  const steps = [
+    { label: 'chromium system dependencies', cmd: 'npx', args: ['playwright', 'install-deps', 'chromium'] },
+    { label: 'chromium browser', cmd: 'npx', args: ['playwright', 'install', 'chromium'] }
+  ];
+  for (const step of steps) {
+    try {
+      console.log(`[SMOKE] Ensuring ${step.label} are installed...`);
+      await runCommand(step.cmd, step.args);
+    } catch (err) {
+      throw new Error(`Failed to install ${step.label}: ${err.message}`);
+    }
+  }
+}
+
 async function toggleCheckboxAndNotify(page, rootSelector, index, checked = true) {
   await page.evaluate(({ rootSelector, index, checked }) => {
     const root = document.querySelector(rootSelector)
@@ -229,6 +260,7 @@ async function main() {
   const WARN_ALLOW = [/^Deprecation:/i, /userAgentData/i];
   let warnCount = 0;
   try {
+    await ensureChromiumRuntime();
     await runContractLint();
     server = startServerProc();
     await waitForHealth();
