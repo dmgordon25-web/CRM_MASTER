@@ -90,7 +90,7 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
 .row{display:flex;gap:var(--space-3)}
 .grow{flex:1}
 .grid{display:grid;gap:var(--space-3)}
-.grid.kpi{grid-template-columns:repeat(4,1fr)}
+.grid.kpi{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:stretch}
 .grid.cols-3{grid-template-columns:repeat(3,1fr)}
 .grid.cols-2{grid-template-columns:repeat(2,1fr)}
 .grid.insights-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));align-items:stretch}
@@ -135,7 +135,7 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
 @media (max-width:640px){
   .settings-nav .btn{flex:1 1 100px}
 }
-@media (max-width:1000px){.grid.kpi{grid-template-columns:repeat(2,1fr)} }
+@media (max-width:1000px){.grid.kpi{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))} }
 .card{background:var(--panel);border:1px solid var(--card-border);border-radius:var(--radius-2xl);padding:var(--card-padding);box-shadow:var(--shadow-card);transition:box-shadow .2s ease,transform .2s ease;}
 .card:hover,.card:focus-within{box-shadow:var(--shadow-card-hover);transform:translateY(-1px);}
 .muted,.cal-cell.muted .cal-cell-head{color:var(--muted)}

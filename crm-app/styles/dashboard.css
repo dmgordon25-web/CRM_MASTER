@@ -49,6 +49,38 @@ main[data-ui="dashboard-root"] > .dash-span-2 {
   max-height: inherit;
 }
 
+#dashboard-kpis .grid.kpi {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3, 12px);
+}
+
+#dashboard-kpis .grid.kpi .card {
+  min-height: 100%;
+  padding: 16px;
+}
+
+main[data-ui="dashboard-root"] [data-widget-id] {
+  min-height: 0;
+}
+
+main[data-ui="dashboard-root"] [data-widget-id].card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}
+
+main[data-ui="dashboard-root"] [data-widget-id].card > .card-body,
+main[data-ui="dashboard-root"] [data-widget-id] .insight-list,
+main[data-ui="dashboard-root"] [data-widget-id] .status-table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+main[data-ui="dashboard-root"] .insight-card {
+  max-height: 640px;
+  overflow: hidden;
+}
+
 .dashboard-settings-table {
   width: 100%;
   border-collapse: collapse;
