@@ -56,7 +56,7 @@ async function closeModal(modal: ReturnType<Page['locator']>) {
   if (await closeButton.isVisible({ timeout: 2000 }).catch(() => false)) {
     await closeButton.click();
   }
-  await modal.waitFor({ state: 'detached' });
+  await expect(modal).toHaveJSProperty('open', false);
 }
 
 function attachErrorGuards(page: Page) {
