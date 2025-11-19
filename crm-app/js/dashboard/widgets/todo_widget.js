@@ -1,6 +1,5 @@
-import { normalizeStatus } from '../../pipeline/constants.js';
-
 const TODO_STYLE_ID = 'todo-widget-style';
+const TODO_STORAGE_KEY = 'crm.todoWidget.items';
 
 function ensureTodoStyles() {
   if (typeof document === 'undefined') return;
@@ -18,10 +17,9 @@ function ensureTodoStyles() {
     .todo-item { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.03); }
     .todo-row { display:flex; align-items:center; gap:10px; }
     .todo-row input[type="checkbox"] { width:18px; height:18px; accent-color:#10b981; flex-shrink:0; }
-    .todo-title { font-weight:600; color:#111827; flex:1; }
-    .todo-meta { color:#6b7280; font-size:12px; font-weight:500; }
+    .todo-title { font-weight:600; color:#111827; flex:1; word-break:break-word; }
     .todo-add { display:flex; gap:10px; align-items:center; padding:10px 12px; background:#fff; border:1px dashed #cbd5e1; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02); }
-    .todo-add input[type="text"] { border:1px solid #d1d5db; border-radius:10px; padding:10px 12px; font-size:14px; background:#f9fafb; }
+    .todo-add input[type="text"] { border:1px solid #d1d5db; border-radius:10px; padding:10px 12px; font-size:14px; background:#f9fafb; width:100%; }
     .todo-add input[type="text"]:focus { outline:2px solid #c7d2fe; border-color:#a5b4fc; background:#fff; }
     .todo-add button { border-radius:10px; padding:10px 14px; font-weight:600; background:#4f46e5; color:#fff; border:1px solid #4338ca; box-shadow:0 6px 16px rgba(79,70,229,0.25); }
     .todo-add button:disabled { opacity:0.6; cursor:not-allowed; }
@@ -33,52 +31,46 @@ function ensureTodoStyles() {
   document.head.appendChild(style);
 }
 
-function normalizeTaskStatus(task) {
-  const raw = task && (task.status || task.raw?.status || task.state);
-  return raw ? normalizeStatus(raw) : '';
-}
-
-function readDueDate(task) {
-  const raw = task && (task.due || task.dueDate || task.date);
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) return parsed;
-  if (typeof raw === 'string' && raw.length === 10) {
-    const alt = new Date(`${raw}T00:00:00`);
-    if (!Number.isNaN(alt.getTime())) return alt;
+function generateId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
-  return null;
+  return `todo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function taskSortKey(task) {
-  const due = readDueDate(task);
-  const dueTs = due ? due.getTime() : Number.MAX_SAFE_INTEGER;
-  const created = Number(task?.createdAt || task?.created || task?.createdTs);
-  const createdTs = Number.isFinite(created) ? created : Number.MAX_SAFE_INTEGER;
-  return { dueTs, createdTs, title: String(task?.title || task?.note || task?.text || '').toLowerCase() };
+function parseItems(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const id = item.id ? String(item.id) : null;
+        const text = item.text ? String(item.text).trim() : '';
+        if (!id || !text) return null;
+        return { id, text, createdAt: item.createdAt || item.created_at || null };
+      })
+      .filter(Boolean);
+  } catch (_err) {
+    return [];
+  }
 }
 
-export function getTodoTasksForDashboard(allTasks = [], options = {}) {
-  const limit = Number.isFinite(options.limit) ? Math.max(1, options.limit) : 10;
-  const filtered = (Array.isArray(allTasks) ? allTasks : []).filter((task) => {
-    if (!task || task.deleted) return false;
-    const status = normalizeTaskStatus(task);
-    const done = task.done === true || status === 'done' || status === 'completed';
-    if (done) return false;
-    if (status === 'archived' || status === 'cancelled' || status === 'canceled') return false;
-    const kind = (task.kind || task.type || '').toString().toLowerCase();
-    if (kind && kind.includes('note')) return false;
-    return true;
-  });
+export function loadTodoItems() {
+  if (typeof localStorage === 'undefined') return [];
+  const raw = localStorage.getItem(TODO_STORAGE_KEY);
+  return parseItems(raw);
+}
 
-  const sorted = filtered.sort((a, b) => {
-    const aKey = taskSortKey(a);
-    const bKey = taskSortKey(b);
-    if (aKey.dueTs !== bKey.dueTs) return aKey.dueTs - bKey.dueTs;
-    if (aKey.createdTs !== bKey.createdTs) return aKey.createdTs - bKey.createdTs;
-    return aKey.title.localeCompare(bKey.title, undefined, { numeric: true, sensitivity: 'base' });
-  });
-  return sorted.slice(0, limit);
+export function saveTodoItems(items) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const payload = Array.isArray(items) ? items : [];
+    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(payload));
+  } catch (_err) {
+    /* ignore storage errors */
+  }
 }
 
 function renderEmptyState(list) {
@@ -88,63 +80,41 @@ function renderEmptyState(list) {
   icon.className = 'todo-empty-icon';
   icon.textContent = '🗒️';
   const text = document.createElement('div');
-  text.textContent = 'Nothing to do — add a task to get started.';
+  text.textContent = 'No to-dos yet. Add a quick note or checklist item.';
   empty.appendChild(icon);
   empty.appendChild(text);
   list.appendChild(empty);
 }
 
-function renderTaskItem(task, options) {
-  const item = document.createElement('li');
-  item.className = 'todo-item';
+function renderItem(item, { onRemove }) {
+  const row = document.createElement('li');
+  row.className = 'todo-item';
   const label = document.createElement('label');
   label.className = 'todo-row';
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.checked = task && task.done === true;
-  checkbox.setAttribute('aria-label', `Complete ${task.title || 'task'}`);
-  const busyIds = Array.isArray(options?.busyIds) ? new Set(options.busyIds) : (options?.busyIds || new Set());
-  if (busyIds.has(String(task.id || ''))) {
-    checkbox.disabled = true;
-  }
+  checkbox.setAttribute('aria-label', `Complete ${item.text || 'item'}`);
   const title = document.createElement('span');
   title.className = 'todo-title';
-  title.textContent = task.title || task.note || task.text || 'Task';
-  const meta = document.createElement('span');
-  meta.className = 'todo-meta';
-  const due = readDueDate(task);
-  meta.textContent = due ? due.toISOString().slice(0, 10) : '';
+  title.textContent = item.text || '';
   label.appendChild(checkbox);
   label.appendChild(title);
-  label.appendChild(meta);
-  item.appendChild(label);
+  row.appendChild(label);
 
-  if (typeof options?.onToggle === 'function') {
-    checkbox.addEventListener('change', () => {
-      if (checkbox.disabled) return;
-      const nextChecked = checkbox.checked === true;
-      checkbox.disabled = true;
-      Promise.resolve()
-        .then(() => options.onToggle(task, nextChecked))
-        .catch(() => { checkbox.checked = !nextChecked; })
-        .finally(() => { checkbox.disabled = false; });
-    });
+  if (typeof onRemove === 'function') {
+    checkbox.addEventListener('change', () => onRemove(item));
   }
-  return item;
+
+  return row;
 }
 
 export function renderTodoWidget(options = {}) {
   const root = options.root || options.host || null;
-  if (!root) return;
-  const tasks = Array.isArray(options.tasks) ? options.tasks : [];
-  const adding = options.adding === true;
+  if (!root || typeof document === 'undefined') return;
 
   ensureTodoStyles();
   root.innerHTML = '';
   root.classList.add('todo-widget');
-
-  const shell = document.createElement('div');
-  shell.className = 'todo-widget-shell';
 
   try {
     root.classList.remove('hidden');
@@ -154,6 +124,11 @@ export function renderTodoWidget(options = {}) {
     }
   } catch (_err) { /* safe guard */ }
 
+  const items = loadTodoItems();
+
+  const shell = document.createElement('div');
+  shell.className = 'todo-widget-shell';
+
   const header = document.createElement('div');
   header.className = 'todo-head';
   const icon = document.createElement('div');
@@ -162,63 +137,67 @@ export function renderTodoWidget(options = {}) {
   const heading = document.createElement('div');
   heading.className = 'todo-heading';
   const title = document.createElement('h4');
-  title.textContent = 'To-Do';
+  title.textContent = 'To-do';
   const subtitle = document.createElement('p');
-  subtitle.textContent = 'Check off quick follow-ups or add a new task without leaving the dashboard.';
+  subtitle.textContent = 'Keep quick notes and checklist items right on your dashboard.';
   heading.appendChild(title);
   heading.appendChild(subtitle);
   header.appendChild(icon);
   header.appendChild(heading);
   shell.appendChild(header);
 
+  const list = document.createElement('ul');
+  list.className = 'todo-list';
+
+  if (items.length === 0) {
+    renderEmptyState(list);
+  } else {
+    items.forEach((item) => {
+      list.appendChild(renderItem(item, {
+        onRemove: (target) => {
+          const next = items.filter((entry) => entry.id !== target.id);
+          saveTodoItems(next);
+          renderTodoWidget(options);
+        }
+      }));
+    });
+  }
+
+  shell.appendChild(list);
+
   const addForm = document.createElement('form');
   addForm.className = 'todo-add';
-  addForm.setAttribute('aria-label', 'Add a new task');
+  addForm.setAttribute('aria-label', 'Add a new to-do item');
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Describe the task to prefill the modal';
+  input.placeholder = 'Add a quick note or checklist item';
   input.setAttribute('data-qa', 'todo-add-task-input');
   input.style.flex = '1';
   input.style.minWidth = '0';
   const addButton = document.createElement('button');
   addButton.type = 'submit';
-  addButton.textContent = adding ? 'Opening…' : 'Add Task';
+  addButton.textContent = 'Add';
   addButton.setAttribute('data-qa', 'todo-add-task');
-  addButton.disabled = adding;
   addForm.appendChild(input);
   addForm.appendChild(addButton);
+
   addForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (typeof options.onAdd !== 'function' || addButton.disabled) return;
     const value = input.value ? input.value.trim() : '';
-    addButton.disabled = true;
-    Promise.resolve()
-      .then(() => options.onAdd(value))
-      .then((ok) => { if (ok !== false) input.value = ''; })
-      .catch(() => {})
-      .finally(() => { addButton.disabled = false; addButton.textContent = 'Add Task'; });
+    if (!value) return;
+    const nextItems = items.concat([{ id: generateId(), text: value, createdAt: new Date().toISOString() }]);
+    saveTodoItems(nextItems);
+    renderTodoWidget(options);
   });
+
   shell.appendChild(addForm);
-
-  const list = document.createElement('ul');
-  list.className = 'todo-list';
-
-  if (tasks.length === 0) {
-    renderEmptyState(list);
-  } else {
-    tasks.forEach((task) => {
-      list.appendChild(renderTaskItem(task, options));
-    });
-  }
-
-  shell.appendChild(list);
 
   const footer = document.createElement('p');
   footer.className = 'todo-footer-hint';
   const dot = document.createElement('span');
   dot.className = 'dot';
   footer.appendChild(dot);
-  footer.appendChild(document.createTextNode(' Completed tasks stay on record; they simply hide from this to-do list.'));
+  footer.appendChild(document.createTextNode(' Items stay here until you check them off.')); 
   shell.appendChild(footer);
 
   root.appendChild(shell);

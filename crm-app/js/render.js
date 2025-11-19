@@ -20,15 +20,13 @@ import { openPartnerEditor } from './editors/partner_entry.js';
 import { renderPortfolioMixWidget } from './dashboard/widgets/portfolio_mix.js';
 import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leaders.js';
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
-import { renderTodoWidget, getTodoTasksForDashboard } from './dashboard/widgets/todo_widget.js';
+import { renderTodoWidget } from './dashboard/widgets/todo_widget.js';
 import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
-import { listTasksForDashboard, updateTaskStatus } from './tasks/api.js';
 import { getColumnsForView } from './tables/column_config.js';
 import { getUiMode } from './ui/ui_mode.js';
-import { openTaskEditor } from './ui/quick_create_menu.js';
 
 (function(){
   const STAGES_PIPE = ['application','processing','underwriting'];
@@ -1414,20 +1412,6 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       console.warn('Referral leaders widget render failed:', err);
     }
 
-    const dashboardTasks = [];
-
-    const notifyTasksChanged = (taskId) => {
-      const detail = { scope: 'tasks' };
-      if (taskId) detail.ids = [taskId];
-      if (typeof window.dispatchAppDataChanged === 'function') {
-        try { window.dispatchAppDataChanged(detail); }
-        catch (_err) {}
-      } else if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-        try { document.dispatchEvent(new CustomEvent('app:data:changed', { detail })); }
-        catch (_err) {}
-      }
-    };
-
     const openTasks = (tasks||[]).filter(t=> t && t.due && !t.done).map(t=>{
       const dueDate = toDate(t.due);
       const contact = contactById.get(String(t.contactId||''));
@@ -1526,15 +1510,6 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
       return todoHost;
     };
     if (todoHost) {
-      let todoTasks = Array.isArray(dashboardTasks) ? dashboardTasks.slice() : [];
-      let busyTodoIds = new Set();
-      let addingTodo = false;
-
-      const getDashboardMode = () => {
-        const active = document.querySelector('[data-dashboard-mode].active');
-        return active && active.dataset && active.dataset.dashboardMode === 'all' ? 'all' : 'today';
-      };
-
       const renderTodo = () => {
         const host = ensureTodoHost();
         if (!host) return;
@@ -1544,104 +1519,11 @@ import { openTaskEditor } from './ui/quick_create_menu.js';
           card.classList.remove('hidden');
         }
         renderTodoWidget({
-          root: host,
-          tasks: getTodoTasksForDashboard(todoTasks, { limit: 10 }),
-          busyIds: busyTodoIds,
-          adding: addingTodo,
-          onToggle: (task, checked) => handleTodoToggle(task, checked),
-          onAdd: (title) => handleTodoAdd(title)
-        });
-      };
-
-      const refreshTodoTasks = async () => {
-        const host = ensureTodoHost();
-        if (!host) return;
-        try {
-          const mode = getDashboardMode();
-          const filter = mode === 'all' ? 'all' : 'today';
-          const latest = await listTasksForDashboard({ filter, limit: 25 });
-          todoTasks = Array.isArray(latest) ? latest.slice() : [];
-        } catch (err) {
-          if (console && typeof console.warn === 'function') console.warn('todo load failed', err);
-        }
-        renderTodo();
-      };
-
-      const handleTodoToggle = async (task, checked) => {
-        const id = task && task.id ? String(task.id) : '';
-        if (!id) return false;
-        busyTodoIds = new Set(busyTodoIds);
-        busyTodoIds.add(id);
-        const optimistic = Object.assign({}, task, { done: checked, status: checked ? 'done' : 'open', updatedAt: Date.now() });
-        if (checked) optimistic.completedAt = optimistic.completedAt || Date.now();
-        else if (optimistic.completedAt) delete optimistic.completedAt;
-        todoTasks = todoTasks.map(t => (String(t && t.id) === id ? optimistic : t));
-        renderTodo();
-        let result = null;
-        try {
-          result = await updateTaskStatus({ id, done: checked, status: optimistic.status, task });
-        } catch (err) {
-          if (console && typeof console.warn === 'function') console.warn('todo update failed', err);
-        }
-        busyTodoIds.delete(id);
-        if (result && result.status === 'ok' && result.task) {
-          todoTasks = todoTasks.map(t => (String(t && t.id) === id ? result.task : t));
-          notifyTasksChanged(id);
-        } else {
-          todoTasks = todoTasks.map(t => (String(t && t.id) === id ? task : t));
-        }
-        renderTodo();
-        return !!(result && result.status === 'ok');
-      };
-
-      const handleTodoAdd = async (title) => {
-        const trimmed = title && title.trim();
-        if (addingTodo) return false;
-        addingTodo = true;
-        renderTodo();
-        try {
-          const modal = openTaskEditor();
-          const noteField = document.querySelector('#qc-task-modal textarea[name="note"]');
-          if (noteField && typeof noteField.value === 'string' && trimmed) {
-            noteField.value = trimmed;
-            noteField.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          if (modal && typeof modal.focus === 'function') {
-            try { modal.focus(); }
-            catch (_) {}
-          }
-        } catch (err) {
-          if (console && typeof console.warn === 'function') console.warn('todo quick-create failed', err);
-        }
-        addingTodo = false;
-        renderTodo();
-        return true;
-      };
-
-      const handleTasksChanged = (event) => {
-        const scope = event && event.detail && event.detail.scope ? event.detail.scope : '';
-        if (scope && scope !== 'tasks') return;
-        const host = ensureTodoHost();
-        if (!host) return;
-        refreshTodoTasks();
-      };
-
-      const wireModeListeners = () => {
-        const host = ensureTodoHost();
-        if (!host) return;
-        if (host.__todoModeWired) return;
-        host.__todoModeWired = true;
-        const buttons = document.querySelectorAll('[data-dashboard-mode]');
-        buttons.forEach((btn) => {
-          if (!btn || typeof btn.addEventListener !== 'function') return;
-          btn.addEventListener('click', refreshTodoTasks);
+          root: host
         });
       };
 
       renderTodo();
-      document.addEventListener('app:data:changed', handleTasksChanged);
-      wireModeListeners();
-      refreshTodoTasks();
     }
 
     try{
