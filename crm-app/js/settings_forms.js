@@ -128,9 +128,11 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
   let hydrating = false;
 
   const SIMPLE_MODE_TOGGLES = {
+    showProfileExtras: 'toggle-simple-profile',
     showLoanDetails: 'toggle-simple-loan',
     showRelationshipDetails: 'toggle-simple-relationships',
-    showAddress: 'toggle-simple-address'
+    showAddress: 'toggle-simple-address',
+    showEngagement: 'toggle-simple-engagement'
   };
 
   function generateRowId(){
