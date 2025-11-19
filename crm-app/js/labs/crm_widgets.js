@@ -628,9 +628,12 @@ export function renderFavoritesWidget(container, model) {
 export const CRM_WIDGET_RENDERERS = {
   kpis: renderKPIsWidget,
   pipelineMomentum: renderPipelineMomentumWidget,
+  pipeline: renderPipelineOverviewWidget,
   partnerPortfolio: renderPartnerPortfolioWidget,
   referralLeaderboard: renderReferralLeaderboardWidget,
+  leaderboard: renderReferralLeaderboardWidget,
   staleDeals: renderStaleDealsWidget,
+  stale: renderStaleDealsWidget,
   today: renderTodayWidget,
   pipelineOverview: renderPipelineOverviewWidget,
   activePipeline: renderActivePipelineWidget,
