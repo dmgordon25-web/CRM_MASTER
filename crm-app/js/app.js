@@ -1,4 +1,4 @@
-import './dashboard/index.js';
+import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -1897,7 +1897,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   HASH_TO_VIEW.set('#long-shots', 'longshots');
 
   const VIEW_LIFECYCLE = {
-    dashboard: { id: 'view-dashboard', ui: 'dashboard-root' },
+    dashboard: {
+      id: 'view-dashboard',
+      ui: 'dashboard-root',
+      mount(root){
+        initDashboard({ root }).catch(err => {
+          if(console && typeof console.error === 'function'){
+            console.error('[DASHBOARD_INIT_ERROR]', err);
+          }
+        });
+      }
+    },
     longshots: {
       id: 'view-longshots',
       ui: 'longshots-root',
@@ -3140,6 +3150,33 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         catch (_err){}
       }
     };
+    const APP_DATA_RENDER_DEBOUNCE_MS = 75;
+    let pendingAppRenderScope = '';
+    let appDataRenderTimer = null;
+    const queueAppDataRender = (scopeLabel = 'full') => {
+      const normalizedLabel = scopeLabel || 'full';
+      if(normalizedLabel === 'full' || !pendingAppRenderScope){
+        pendingAppRenderScope = normalizedLabel;
+      }else if(pendingAppRenderScope !== 'full' && !pendingAppRenderScope.includes(normalizedLabel)){
+        pendingAppRenderScope = `${pendingAppRenderScope},${normalizedLabel}`;
+      }
+      if(appDataRenderTimer) return;
+      appDataRenderTimer = setTimeout(() => {
+        const label = pendingAppRenderScope || 'full';
+        pendingAppRenderScope = '';
+        appDataRenderTimer = null;
+        try{
+          if(console && typeof console.log === 'function'){
+            console.log('[APP_RENDER]', label, Date.now());
+          }
+        }catch (_) {}
+        if(window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
+          try{ window.RenderGuard.requestRender(); }
+          catch (err) { if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
+        }
+        scheduleAppRender();
+      }, APP_DATA_RENDER_DEBOUNCE_MS);
+    };
     const handler = function(evt){
       const detail = evt && evt.detail ? evt.detail : {};
       const now = Date.now();
@@ -3218,11 +3255,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
         });
         if(scopedHandled) return;
       }
-      if(window.RenderGuard && typeof window.RenderGuard.requestRender === 'function'){
-        try{ window.RenderGuard.requestRender(); }
-        catch (err) { if(isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
-      }
-      scheduleAppRender();
+      const renderScopeLabel = shouldFullRender
+        ? 'full'
+        : (scopeCandidates
+          .map(scope => String(scope || '').toLowerCase())
+          .filter(label => label && label !== 'selection')
+          .join(',') || 'full');
+      queueAppDataRender(renderScopeLabel);
     };
     if(document && typeof document.addEventListener === 'function'){
       document.addEventListener('app:data:changed', handler, { passive: true });
