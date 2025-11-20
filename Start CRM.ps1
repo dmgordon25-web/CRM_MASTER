@@ -6,31 +6,18 @@ Set-Location -LiteralPath $PSScriptRoot
 $LogFile = Join-Path $PSScriptRoot 'launcher.log'
 function Log($msg){ try{ Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format s), $msg) -Encoding UTF8 }catch{} }
 
-# Read prior PID (int or JSON { pid, port })
+# Kill any existing node.exe processes to prevent zombie instances
+Log "Killing any existing node.exe processes..."
+Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
+
+# Remove stale PID file to ensure fresh start
 $pidFile = Join-Path -Path $PSScriptRoot -ChildPath '.devserver.pid'
-$pid  = $null; $port = $null
 if (Test-Path -LiteralPath $pidFile) {
   try {
-    $raw  = Get-Content -LiteralPath $pidFile -Raw -ErrorAction Stop
-    $trim = $raw.Trim()
-    if ($trim.StartsWith('{') -and $trim.EndsWith('}')) {
-      $parsed = $trim | ConvertFrom-Json -ErrorAction Stop
-      if ($parsed.PSObject.Properties.Name -contains 'pid')  { $pid  = [int]$parsed.pid }
-      if ($parsed.PSObject.Properties.Name -contains 'port') { $port = [int]$parsed.port }
-    } elseif ($trim -match '^\d+$') { $pid = [int]$trim }
-  } catch { $pid = $null; $port = $null }
-}
-
-# Is an instance running?
-$isRunning = $false
-if ($pid -and $pid -gt 0) {
-  try { if (Get-Process -Id $pid -ErrorAction Stop) { $isRunning = $true } } catch { $isRunning = $false }
-}
-if ($isRunning) {
-  Log "Already running (PID $pid, port=$port)."
-  Write-Host "CRM dev server already running (PID $pid)." -ForegroundColor Yellow
-  if ($port -and $port -gt 0) { Start-Process "http://127.0.0.1:$port/" }
-  exit 0
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+    Log "Removed stale .devserver.pid file."
+  } catch { }
 }
 
 # Resolve node.exe robustly
