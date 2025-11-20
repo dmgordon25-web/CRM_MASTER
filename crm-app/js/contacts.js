@@ -1,29 +1,165 @@
 /* crm-app/js/contacts.js */
 import { ensureSingletonModal, closeSingletonModal } from './ui/modal_singleton.js';
-import { createContactForm } from './contacts/form.js';
 
-const CONTACT_MODAL_KEY = 'contact-edit';
+export const CONTACT_MODAL_KEY = 'contact-edit';
 
-function toast(msg){
+// --- Helpers ---
+
+function toast(msg, kind = 'info'){
   if(typeof window.toast === 'function') window.toast(msg);
-  else if(console && console.log) console.log(msg);
+  else if(console && console.log) console.log(`[${kind}] ${msg}`);
 }
 
-async function normalizeNewContactPrefill(prefill){
-  if(!prefill) return null;
-  return prefill;
+function escape(val){
+  return String(val||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
 
-function normalizeContactId(input){
-  // FIX: If input is an Event object (click), ignore it.
-  if (input && typeof input === 'object') return null;
-  return typeof input === 'string' ? input.trim() : null;
+// --- Exported Utilities (Restored) ---
+
+export function normalizeNewContactPrefill(input = {}) {
+  // Handle Event objects passed by click handlers
+  if (input && (input instanceof Event || input.target)) return { __isNew: true };
+
+  const now   = Date.now();
+  const first = typeof input.firstName === 'string' ? input.firstName.trim() : '';
+  const last  = typeof input.lastName  === 'string' ? input.lastName.trim()  : '';
+  const name  = (typeof input.name === 'string' ? input.name.trim() : '') || [first, last].filter(Boolean).join(' ');
+  const id    = (input.id != null && String(input.id).trim() !== '') ? String(input.id) : `tmp-${now}`;
+
+  return {
+    id,
+    __isNew: input.__isNew !== false,
+    name,
+    firstName: first,
+    lastName: last,
+    email: typeof input.email === 'string' ? input.email.trim() : '',
+    phone: typeof input.phone === 'string' ? input.phone.trim() : '',
+    ...input,
+  };
+}
+
+export function normalizeContactId(input) {
+  if (!input) return null;
+  // CRITICAL FIX: specific check to reject Event objects
+  if (input instanceof Event || (typeof input === 'object' && input.type === 'click')) return null;
+  if (typeof input === 'object' && input.id) return String(input.id).trim();
+  return String(input).trim();
+}
+
+export function validateContact(model){
+  const errors = {};
+  const source = model || {};
+
+  // Basic validation logic
+  const name = source.name || [source.firstName, source.lastName].join(' ').trim();
+  if(!name) errors.name = 'Name is required';
+
+  return {
+    ok: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+// --- Form Renderer (Inlined to fix missing export) ---
+
+function createContactForm(data, isNew) {
+  const c = data || {};
+  const form = document.createElement('div');
+  form.className = 'contact-editor-layout';
+
+  // Safe value accessors
+  const val = (k) => escape(c[k] || '');
+
+  form.innerHTML = `
+    <div class="modal-form-grid">
+      <div class="form-group full">
+         <label>Name <span class="req">*</span></label>
+         <div class="row gap-2">
+            <input class="form-control" id="c-first" placeholder="First" value="${val('firstName')}">
+            <input class="form-control" id="c-last" placeholder="Last" value="${val('lastName')}">
+         </div>
+      </div>
+
+      <div class="form-group">
+         <label>Email</label>
+         <input type="email" class="form-control" id="c-email" value="${val('email')}">
+      </div>
+
+      <div class="form-group">
+         <label>Phone</label>
+         <input type="tel" class="form-control" id="c-phone" value="${val('phone')}">
+      </div>
+
+      <div class="form-group full">
+         <label>Stage</label>
+         <select class="form-control" id="c-stage">
+            <option value="lead" ${c.stage === 'lead' ? 'selected' : ''}>Lead</option>
+            <option value="application" ${c.stage === 'application' ? 'selected' : ''}>Application</option>
+            <option value="process" ${c.stage === 'process' ? 'selected' : ''}>In Process</option>
+            <option value="closed" ${c.stage === 'closed' ? 'selected' : ''}>Closed</option>
+         </select>
+      </div>
+
+      <div class="form-group full actions-row">
+         <button type="button" class="btn brand" id="btn-save-contact">Save Contact</button>
+      </div>
+    </div>
+  `;
+
+  // Wiring
+  const saveBtn = form.querySelector('#btn-save-contact');
+  if(saveBtn) {
+    saveBtn.onclick = async (e) => {
+      e.preventDefault();
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      // Gather Data
+      const payload = {
+        ...c,
+        firstName: form.querySelector('#c-first').value.trim(),
+        lastName: form.querySelector('#c-last').value.trim(),
+        email: form.querySelector('#c-email').value.trim(),
+        phone: form.querySelector('#c-phone').value.trim(),
+        stage: form.querySelector('#c-stage').value,
+        updatedAt: Date.now()
+      };
+
+      if(!payload.firstName && !payload.lastName){
+        toast('Name required', 'warn');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Contact';
+        return;
+      }
+
+      try {
+        await window.openDB();
+        await window.dbPut('contacts', payload);
+
+        // Notify App
+        const event = new CustomEvent('app:data:changed', {
+           detail: { scope: 'contacts', action: isNew ? 'create' : 'update', id: payload.id }
+        });
+        document.dispatchEvent(event);
+
+        toast('Saved');
+        closeContactEditor();
+      } catch(err) {
+        console.error(err);
+        toast('Save failed');
+        saveBtn.disabled = false;
+      }
+    };
+  }
+
+  return form;
 }
 
 // --- Main Modal Renderer ---
 
 window.renderContactModal = async function(contactId, options = {}){
-  const isNew = !contactId;
+  const rawId = normalizeContactId(contactId);
+  const isNew = !rawId;
 
   // 1. Acquire Singleton Shell
   const dlg = await ensureSingletonModal(CONTACT_MODAL_KEY, () => {
@@ -32,14 +168,14 @@ window.renderContactModal = async function(contactId, options = {}){
     el.innerHTML = '<div class="modal-content"><div class="modal-header"></div><div class="modal-body"></div></div>';
     document.body.appendChild(el);
 
-    // FIX: "Nuclear Option" for Focus Deadlocks.
-    // We do NOT attempt to restore focus to the invoker. It is too risky.
-    el.addEventListener('close', () => {
+    // FIX: NUCLEAR OPTION - Do NOT restore focus.
+    const cleanup = () => {
       el.removeAttribute('open');
       el.style.display = 'none';
-      // Clear state
       if(el.dataset) { el.dataset.open = '0'; el.dataset.contactId = ''; }
-    });
+    };
+    el.addEventListener('close', cleanup);
+    el.addEventListener('cancel', () => { /* Default close */ });
 
     return el;
   });
@@ -51,50 +187,59 @@ window.renderContactModal = async function(contactId, options = {}){
   if(!isNew){
     try {
       await window.openDB();
-      record = await window.dbGet('contacts', contactId);
+      record = await window.dbGet('contacts', rawId);
     } catch(e) { console.warn(e); }
 
     if(!record){
-      toast('No contact found');
-      // FIX: CRITICAL - Close the shell if data missing, otherwise we lock the screen
+      toast('Contact not found', 'warn');
+      // FIX: Force close if data missing to release focus trap
       try { dlg.close(); } catch(e){}
       return;
     }
+  } else {
+    record = normalizeNewContactPrefill(options.prefetchedRecord || {});
   }
 
-  // 3. Render Form
+  // 3. Render
   const header = dlg.querySelector('.modal-header');
   const body = dlg.querySelector('.modal-body');
 
   header.innerHTML = `
-    <h2 class="modal-title">${isNew ? 'New Contact' : 'Edit Contact'}</h2>
-    <div class="modal-header-actions">
-       <button type="button" class="btn-close" aria-label="Close">&times;</button>
-    </div>
+    <h3 class="modal-title">${isNew ? 'New Contact' : 'Edit Contact'}</h3>
+    <button type="button" class="btn-close" aria-label="Close">&times;</button>
   `;
 
   body.innerHTML = '';
-  const form = await createContactForm(isNew ? (options.prefetchedRecord || {}) : record, isNew);
-  body.appendChild(form);
+  body.appendChild(createContactForm(record, isNew));
 
-  // 4. Wire Close Button
-  header.querySelector('.btn-close').onclick = () => {
+  // 4. Wire Close
+  header.querySelector('.btn-close').onclick = (e) => {
+    e.preventDefault();
     try { dlg.close(); } catch(e){}
   };
 
   // 5. Show
-  dlg.dataset.contactId = contactId || 'new';
+  dlg.dataset.contactId = rawId || 'new';
   if(!dlg.hasAttribute('open')){
     try { dlg.showModal(); } catch(e){ dlg.setAttribute('open',''); }
   }
   dlg.style.display = '';
+  return dlg;
 };
 
-// --- Public Entry Points ---
+// --- Public Entry Points (Restored) ---
 
 export async function openContactModal(contactId, options){
   const safeId = normalizeContactId(contactId);
   return window.renderContactModal(safeId, options);
+}
+
+export async function openContactEditor(target, options){
+  // Handle "Quick Add" click events passed as target
+  const opts = options || {};
+  // If target is a DOM element, we ignore it, we just want the ID from options
+  const safeId = normalizeContactId(opts.contactId || (typeof target === 'string' ? target : null));
+  return window.renderContactModal(safeId, opts);
 }
 
 export async function openNewContactEditor(options){
