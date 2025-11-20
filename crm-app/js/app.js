@@ -3114,25 +3114,23 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     scheduleAppRender();
     await renderExtrasRegistry();
 
-    // FIX: Force correct signal for Smoke Test
-    const shouldBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
-
-    // Merge or Create. If shouldBypass is true, FORCE bypassed: true.
-    window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
-      window.__BOOT_ANIMATION_COMPLETE__ || {},
-      {
-        at: (window.__BOOT_ANIMATION_COMPLETE__ && window.__BOOT_ANIMATION_COMPLETE__.at) || Date.now(),
-        bypassed: shouldBypass || (window.__BOOT_ANIMATION_COMPLETE__ && window.__BOOT_ANIMATION_COMPLETE__.bypassed) || false
-      }
-    );
-
-    // Signal Boot Done (Merge to preserve metrics)
+    // Signal Boot Done
     window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
     window.__BOOT_DONE__.fatal = false;
     if(typeof window.__BOOT_DONE__.core !== 'number') window.__BOOT_DONE__.core = 1;
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
+    // Animation Signal Backup
+    // If splash_sequence didn't set it yet, or if we see the URL param, enforce true.
+    const shouldBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
+    window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
+      window.__BOOT_ANIMATION_COMPLETE__ || {},
+      {
+        at: Date.now(),
+        bypassed: shouldBypass || (window.__BOOT_ANIMATION_COMPLETE__?.bypassed) || false
+      }
+    );
   })();
 
   function resolveWorkbenchRenderer(){

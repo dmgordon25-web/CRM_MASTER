@@ -118,9 +118,16 @@ async function waitForBootDone() {
 async function waitForAnimationGate() {
   const snapshot = snapshotAnimationComplete();
   if (snapshot) return snapshot;
+
   if (isAnimationDisabled()) {
-    return { at: Date.now(), bypassed: true };
+    // FIX: Explicitly WRITE the global flag so the Smoke Test sees it immediately
+    const result = { at: Date.now(), bypassed: true };
+    if (typeof window !== 'undefined') {
+      window.__BOOT_ANIMATION_COMPLETE__ = result;
+    }
+    return result;
   }
+
   const event = await waitForDocumentEvent('boot:animation-complete');
   if (event && event.detail) {
     const detail = event.detail;
