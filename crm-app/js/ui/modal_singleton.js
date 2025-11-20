@@ -92,15 +92,10 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
-  // 1. Safety Blur to stop existing focus loops
-  if(document.activeElement && document.activeElement !== document.body){
-    try { document.activeElement.blur(); } catch(e){}
-  }
-
-  // 2. Force close everything else
+  // 1. Force close everything else
   closeAllOtherModals(key);
 
-  // 3. Get or Create
+  // 2. Get or Create
   const selector = `[data-modal-key="${key}"]`;
   let el = document.querySelector(selector);
 
