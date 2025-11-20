@@ -3114,17 +3114,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     scheduleAppRender();
     await renderExtrasRegistry();
 
-    // FIX: Polyfill Animation Signal for Smoke Test
-    // We use Object.assign to ensure we don't lose existing 'at' timestamps,
-    // but we FORCE 'bypassed' to true if the URL demands it.
+    // FIX: Force correct signal for Smoke Test
     const shouldBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
 
+    // Merge or Create. If shouldBypass is true, FORCE bypassed: true.
     window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
       window.__BOOT_ANIMATION_COMPLETE__ || {},
       {
-        at: Date.now(),
-        // If it's already true, keep it. If URL says skip, force true.
-        bypassed: (window.__BOOT_ANIMATION_COMPLETE__?.bypassed) || shouldBypass
+        at: (window.__BOOT_ANIMATION_COMPLETE__ && window.__BOOT_ANIMATION_COMPLETE__.at) || Date.now(),
+        bypassed: shouldBypass || (window.__BOOT_ANIMATION_COMPLETE__ && window.__BOOT_ANIMATION_COMPLETE__.bypassed) || false
       }
     );
 
