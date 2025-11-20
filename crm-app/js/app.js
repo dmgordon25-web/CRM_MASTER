@@ -413,30 +413,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   }
 
-  function forceHidePartnerModal(){
-    if(typeof document === 'undefined') return;
-    const node = document.querySelector('#partner-modal.partner-edit-modal, [data-ui="partner-edit-modal"]');
-    if(!node) return;
-    if(node.dataset){
-      node.dataset.open = '0';
-      node.dataset.opening = '0';
-      node.dataset.partnerId = '';
-      node.dataset.sourceHint = '';
-    }
-    try { node.classList.add('hidden'); }
-    catch (_) {}
-    try { node.style.display = 'none'; }
-    catch (_) {}
-    try { node.setAttribute('aria-hidden', 'true'); }
-    catch (_) {}
-    try { node.removeAttribute('open'); }
-    catch (_) {}
-  }
-
   function ensurePartnerModalClosed(){
     try { closePartnerEditModal(); }
     catch (_) {}
-    forceHidePartnerModal();
   }
 
   ensurePartnerModalClosed();
@@ -3083,49 +3062,62 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const key = String(scope || '').toLowerCase();
     if(!key) return false;
     const hits = [];
-    const push = (label, fn) => {
+    const push = (label, fn, requiredView) => {
+      if(requiredView && activeView !== requiredView){
+        return false;
+      }
       const handled = invokeRenderer(label, fn);
       hits.push(handled);
       return handled;
     };
     switch(key){
       case 'dashboard':
-        push('renderDashboardView', renderDashboardView);
+        push('renderDashboardView', renderDashboardView, 'dashboard');
         break;
       case 'partners':
-        push('renderPartnersView', renderPartnersView);
+        push('renderPartnersView', renderPartnersView, 'partners');
         break;
       case 'contacts':
       case 'longshots':
-        push('renderContactsView', renderContactsView);
-        push('renderDashboardView', renderDashboardView);
+        push('renderContactsView', renderContactsView, 'workbench');
+        if(activeView === 'dashboard'){
+          push('renderDashboardView', renderDashboardView, 'dashboard');
+        }
         break;
       case 'pipeline':
-        push('renderPipelineView', renderPipelineView);
-        push('renderDashboardView', renderDashboardView);
+        push('renderPipelineView', renderPipelineView, 'pipeline');
+        if(activeView === 'dashboard'){
+          push('renderDashboardView', renderDashboardView, 'dashboard');
+        }
         break;
       case 'notifications':
-        push('renderNotifications', window.renderNotifications);
+        push('renderNotifications', window.renderNotifications, 'notifications');
         break;
       case 'tasks':
-        push('renderDashboardView', renderDashboardView);
-        push('renderNotifications', window.renderNotifications);
+        if(activeView === 'dashboard'){
+          push('renderDashboardView', renderDashboardView, 'dashboard');
+        }
+        if(activeView === 'notifications'){
+          push('renderNotifications', window.renderNotifications, 'notifications');
+        }
         break;
       case 'documents':
-        push('renderDashboardView', renderDashboardView);
+        if(activeView === 'dashboard'){
+          push('renderDashboardView', renderDashboardView, 'dashboard');
+        }
         break;
       case 'commissions':
-        push('renderCommissions', window.renderCommissions);
-        push('renderLedger', window.renderLedger);
+        push('renderCommissions', window.renderCommissions, 'commissions');
+        push('renderLedger', window.renderLedger, 'commissions');
         break;
       case 'calendar':
-        push('renderCalendar', window.renderCalendar);
+        push('renderCalendar', window.renderCalendar, 'calendar');
         break;
       case 'settings':
-        push('renderExtrasRegistry', renderExtrasRegistry);
+        push('renderExtrasRegistry', renderExtrasRegistry, 'settings');
         break;
       case 'workbench':
-        push('renderWorkbench', resolveWorkbenchRenderer());
+        push('renderWorkbench', resolveWorkbenchRenderer(), 'workbench');
         break;
       default:
         break;

@@ -245,6 +245,21 @@ function tagModalKey(root, key){
   return el;
 }
 
+function closeAllOtherModals(currentKey){
+  if(typeof document === 'undefined') return;
+  try{
+    const allModals = document.querySelectorAll('[data-modal-key]');
+    allModals.forEach(modal => {
+      const modalKey = modal.getAttribute('data-modal-key');
+      if(modalKey && modalKey !== currentKey){
+        closeSingletonModal(modal, { remove: false });
+      }
+    });
+  }catch(err){
+    reportModalError(err);
+  }
+}
+
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
   const initialId = deriveModalId(key);
@@ -253,6 +268,7 @@ export function ensureSingletonModal(key, createFn){
   const existing = document.querySelector(selector);
   if(existing){
     const el = tagModalKey(existing, key);
+    closeAllOtherModals(key);
     focusModalRoot(el);
     if(debugState){
       const modalId = deriveModalId(key, el);
@@ -260,6 +276,7 @@ export function ensureSingletonModal(key, createFn){
     }
     return el;
   }
+  closeAllOtherModals(key);
   const created = typeof createFn === 'function' ? createFn() : null;
   if(created instanceof Promise){
     return created.then(node => {
