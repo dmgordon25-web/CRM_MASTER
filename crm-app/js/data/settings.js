@@ -7,7 +7,6 @@ const __FALLBACK_FAVORITES__ = (() => {
 
 const __FAVORITES_API__ = (typeof window !== 'undefined' && window.__CRM_FAVORITES__) ? window.__CRM_FAVORITES__ : __FALLBACK_FAVORITES__;
 const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
-const EMAIL_FROM_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateSettings(settings){ return { ok: true, errors: [] }; }
 
