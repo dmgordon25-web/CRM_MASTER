@@ -3096,20 +3096,31 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   (async function init(){
     await openDB();
     let partners = await dbGetAll('partners');
-    // Ensure "None" partner exists for orphans
+
+    // Ensure "None" partner exists (Critical for avoiding orphan errors)
     if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
       const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
       try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
 
-    // FIX: DISABLE AUTO-SEEDING
-    // This was causing "Delete All" to fail because the app would instantly re-generate data on reload.
-    // await ensureSeedData(partners);
+    // FIX: Smart Seeding Logic
+    // 1. Check if the user explicitly wiped data (flag set in settings.js)
+    const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
+
+    // 2. Only seed if NOT suppressed.
+    // - CI/New User: isSuppressed is false -> Seeds Data -> Tests PASS.
+    // - Delete All: isSuppressed is true -> Skips Seed -> Data stays deleted.
+    if (!isSuppressed) {
+       await ensureSeedData(partners);
+    }
 
     await backfillUpdatedAt();
     scheduleAppRender();
     await renderExtrasRegistry();
+
+    // Signal Boot Done for CI
+    window.__BOOT_DONE__ = { fatal: false };
   })();
 
   function resolveWorkbenchRenderer(){

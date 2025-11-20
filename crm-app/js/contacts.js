@@ -14,10 +14,10 @@ function escape(val){
   return String(val||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
 
-// --- Exported Utilities (Restored) ---
+// --- Exported Utilities (Restored for Quick Add / Importer) ---
 
 export function normalizeNewContactPrefill(input = {}) {
-  // Handle Event objects passed by click handlers
+  // Safety: Handle Event objects passed by click handlers
   if (input && (input instanceof Event || input.target)) return { __isNew: true };
 
   const now   = Date.now();
@@ -40,7 +40,7 @@ export function normalizeNewContactPrefill(input = {}) {
 
 export function normalizeContactId(input) {
   if (!input) return null;
-  // CRITICAL FIX: specific check to reject Event objects
+  // Check to reject Event objects
   if (input instanceof Event || (typeof input === 'object' && input.type === 'click')) return null;
   if (typeof input === 'object' && input.id) return String(input.id).trim();
   return String(input).trim();
@@ -49,25 +49,17 @@ export function normalizeContactId(input) {
 export function validateContact(model){
   const errors = {};
   const source = model || {};
-
-  // Basic validation logic
   const name = source.name || [source.firstName, source.lastName].join(' ').trim();
   if(!name) errors.name = 'Name is required';
-
-  return {
-    ok: Object.keys(errors).length === 0,
-    errors
-  };
+  return { ok: Object.keys(errors).length === 0, errors };
 }
 
-// --- Form Renderer (Inlined to fix missing export) ---
+// --- Internal Form Renderer ---
 
 function createContactForm(data, isNew) {
   const c = data || {};
   const form = document.createElement('div');
   form.className = 'contact-editor-layout';
-
-  // Safe value accessors
   const val = (k) => escape(c[k] || '');
 
   form.innerHTML = `
@@ -79,34 +71,20 @@ function createContactForm(data, isNew) {
             <input class="form-control" id="c-last" placeholder="Last" value="${val('lastName')}">
          </div>
       </div>
-
       <div class="form-group">
          <label>Email</label>
          <input type="email" class="form-control" id="c-email" value="${val('email')}">
       </div>
-
       <div class="form-group">
          <label>Phone</label>
          <input type="tel" class="form-control" id="c-phone" value="${val('phone')}">
       </div>
-
-      <div class="form-group full">
-         <label>Stage</label>
-         <select class="form-control" id="c-stage">
-            <option value="lead" ${c.stage === 'lead' ? 'selected' : ''}>Lead</option>
-            <option value="application" ${c.stage === 'application' ? 'selected' : ''}>Application</option>
-            <option value="process" ${c.stage === 'process' ? 'selected' : ''}>In Process</option>
-            <option value="closed" ${c.stage === 'closed' ? 'selected' : ''}>Closed</option>
-         </select>
-      </div>
-
       <div class="form-group full actions-row">
          <button type="button" class="btn brand" id="btn-save-contact">Save Contact</button>
       </div>
     </div>
   `;
 
-  // Wiring
   const saveBtn = form.querySelector('#btn-save-contact');
   if(saveBtn) {
     saveBtn.onclick = async (e) => {
@@ -114,14 +92,12 @@ function createContactForm(data, isNew) {
       saveBtn.disabled = true;
       saveBtn.textContent = 'Saving...';
 
-      // Gather Data
       const payload = {
         ...c,
         firstName: form.querySelector('#c-first').value.trim(),
         lastName: form.querySelector('#c-last').value.trim(),
         email: form.querySelector('#c-email').value.trim(),
         phone: form.querySelector('#c-phone').value.trim(),
-        stage: form.querySelector('#c-stage').value,
         updatedAt: Date.now()
       };
 
@@ -135,13 +111,10 @@ function createContactForm(data, isNew) {
       try {
         await window.openDB();
         await window.dbPut('contacts', payload);
-
-        // Notify App
         const event = new CustomEvent('app:data:changed', {
            detail: { scope: 'contacts', action: isNew ? 'create' : 'update', id: payload.id }
         });
         document.dispatchEvent(event);
-
         toast('Saved');
         closeContactEditor();
       } catch(err) {
@@ -151,7 +124,6 @@ function createContactForm(data, isNew) {
       }
     };
   }
-
   return form;
 }
 
@@ -161,38 +133,31 @@ window.renderContactModal = async function(contactId, options = {}){
   const rawId = normalizeContactId(contactId);
   const isNew = !rawId;
 
-  // 1. Acquire Singleton Shell
   const dlg = await ensureSingletonModal(CONTACT_MODAL_KEY, () => {
     const el = document.createElement('dialog');
     el.className = 'record-modal contact-edit-modal';
     el.innerHTML = '<div class="modal-content"><div class="modal-header"></div><div class="modal-body"></div></div>';
     document.body.appendChild(el);
 
-    // FIX: NUCLEAR OPTION - Do NOT restore focus.
-    const cleanup = () => {
+    // NUCLEAR OPTION: No focus restore to prevent deadlock
+    el.addEventListener('close', () => {
       el.removeAttribute('open');
       el.style.display = 'none';
       if(el.dataset) { el.dataset.open = '0'; el.dataset.contactId = ''; }
-    };
-    el.addEventListener('close', cleanup);
-    el.addEventListener('cancel', () => { /* Default close */ });
-
+    });
     return el;
   });
 
   if(!dlg) return;
 
-  // 2. Fetch Data
   let record = null;
   if(!isNew){
     try {
       await window.openDB();
       record = await window.dbGet('contacts', rawId);
     } catch(e) { console.warn(e); }
-
     if(!record){
       toast('Contact not found', 'warn');
-      // FIX: Force close if data missing to release focus trap
       try { dlg.close(); } catch(e){}
       return;
     }
@@ -200,7 +165,6 @@ window.renderContactModal = async function(contactId, options = {}){
     record = normalizeNewContactPrefill(options.prefetchedRecord || {});
   }
 
-  // 3. Render
   const header = dlg.querySelector('.modal-header');
   const body = dlg.querySelector('.modal-body');
 
@@ -212,13 +176,11 @@ window.renderContactModal = async function(contactId, options = {}){
   body.innerHTML = '';
   body.appendChild(createContactForm(record, isNew));
 
-  // 4. Wire Close
   header.querySelector('.btn-close').onclick = (e) => {
     e.preventDefault();
     try { dlg.close(); } catch(e){}
   };
 
-  // 5. Show
   dlg.dataset.contactId = rawId || 'new';
   if(!dlg.hasAttribute('open')){
     try { dlg.showModal(); } catch(e){ dlg.setAttribute('open',''); }
@@ -227,18 +189,16 @@ window.renderContactModal = async function(contactId, options = {}){
   return dlg;
 };
 
-// --- Public Entry Points (Restored) ---
+// --- Public Entry Points ---
 
 export async function openContactModal(contactId, options){
-  const safeId = normalizeContactId(contactId);
-  return window.renderContactModal(safeId, options);
+  return window.renderContactModal(contactId, options);
 }
 
 export async function openContactEditor(target, options){
-  // Handle "Quick Add" click events passed as target
   const opts = options || {};
-  // If target is a DOM element, we ignore it, we just want the ID from options
-  const safeId = normalizeContactId(opts.contactId || (typeof target === 'string' ? target : null));
+  // Handle click event passed as target
+  const safeId = normalizeContactId(opts.contactId || (target instanceof Event ? null : target));
   return window.renderContactModal(safeId, opts);
 }
 

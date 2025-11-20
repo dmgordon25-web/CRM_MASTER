@@ -800,13 +800,21 @@ function shouldValidateGeneral(partial){
 
     try {
       // 1. Wipe DB
-      await clearAllStores();
+      if(typeof window.openDB === 'function') await window.openDB();
+      const ALL_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta', 'templates', 'notifications', 'docs', 'closings', 'relationships', 'savedViews'];
 
-      // 2. Wipe Storage
-      try{ localStorage.clear(); } catch(e){}
+      if(typeof window.dbClear === 'function'){
+        for(const store of ALL_STORES){
+          try{ await window.dbClear(store); }
+          catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
+        }
+      }
+
+      // 2. Set Suppression Flag (Prevents auto-seed on next load)
+      try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
       try{ sessionStorage.clear(); } catch(e){}
 
-      // 3. Force Reload (The only way to clear Widget memory caches)
+      // 3. Force Reload (Clears memory caches)
       if(window.toast) window.toast('Wipe complete. Reloading...');
 
       setTimeout(() => {
