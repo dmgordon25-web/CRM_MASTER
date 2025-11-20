@@ -794,36 +794,19 @@ function shouldValidateGeneral(partial){
 
   async function handleDeleteAll(){
     if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
-
-    const btn = document.getElementById('btn-delete-all');
-    if(btn) btn.disabled = true;
-
-    try {
-      // 1. Wipe DB
-      if(typeof window.openDB === 'function') await window.openDB();
-      const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
-
-      if(typeof window.dbClear === 'function'){
+    if(typeof window.openDB === 'function') await window.openDB();
+    const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
+    if(typeof window.dbClear === 'function'){
         for(const s of STORES) { try{ await window.dbClear(s); } catch(e){} }
-      }
-
-      // 2. Clear Flags & Storage
-      try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
-      localStorage.clear();
-      sessionStorage.clear();
-
-      // Prevent auto-seeding on next load
-      try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
-
-      // 3. HARD RELOAD (Required to fix "Zombie Data")
-      if(window.toast) window.toast('Wiped. Reloading...');
-      setTimeout(() => window.location.reload(), 500);
-
-    } catch(e) {
-      console.warn(e);
-      if(window.toast) window.toast('Wipe failed: ' + e.message);
-      if(btn) btn.disabled = false;
     }
+    try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
+    localStorage.clear();
+    sessionStorage.clear();
+    try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
+
+    // FORCE RELOAD (Required for fix)
+    if(window.toast) window.toast('Wiped. Reloading...');
+    setTimeout(() => window.location.reload(), 500);
   }
 
   function wireDeleteAll(){

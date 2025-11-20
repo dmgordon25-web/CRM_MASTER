@@ -1,5 +1,6 @@
+import './boot/splash_sequence.js';     // <--- REQUIRED for Boot Test
+import './state/selectionStore.js';     // <--- REQUIRED for Selection Test
 import { initDashboard } from './dashboard/index.js';
-import './boot/splash_sequence.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -3128,7 +3129,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     window.__BOOT_DONE__.patches = 0;
     window.__BOOT_DONE__.safe = false;
 
-    // Fallback Animation Signal
+    // Fallback Animation Signal (Checks index.html global capture)
     if (!window.__BOOT_ANIMATION_COMPLETE__) {
         const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
         window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass || true };
