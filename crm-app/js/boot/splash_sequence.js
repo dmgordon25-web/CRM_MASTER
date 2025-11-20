@@ -83,6 +83,12 @@ function snapshotAnimationComplete() {
 
 function isAnimationDisabled() {
   if (typeof window === 'undefined') return false;
+
+  // FIX: Explicitly check for the skip param used by Smoke Tests
+  if (window.location && typeof window.location.search === 'string') {
+    if (window.location.search.includes('skipBootAnimation')) return true;
+  }
+
   const mode = window.__BOOT_ANIMATION_MODE__;
   if (mode && typeof mode === 'object') {
     if ('enabled' in mode) {

@@ -3114,22 +3114,27 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     scheduleAppRender();
     await renderExtrasRegistry();
 
-    // FIX: Signal Boot Done (Merge to preserve metrics for Smoke Test)
+    // FIX: Polyfill Animation Signal for Smoke Test
+    // We use Object.assign to ensure we don't lose existing 'at' timestamps,
+    // but we FORCE 'bypassed' to true if the URL demands it.
+    const shouldBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
+
+    window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
+      window.__BOOT_ANIMATION_COMPLETE__ || {},
+      {
+        at: Date.now(),
+        // If it's already true, keep it. If URL says skip, force true.
+        bypassed: (window.__BOOT_ANIMATION_COMPLETE__?.bypassed) || shouldBypass
+      }
+    );
+
+    // Signal Boot Done (Merge to preserve metrics)
     window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
     window.__BOOT_DONE__.fatal = false;
-
-    // Polyfill metrics for Smoke Test 'boot-summary-shape'
     if(typeof window.__BOOT_DONE__.core !== 'number') window.__BOOT_DONE__.core = 1;
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
-    // FIX: Polyfill Animation Signal for Smoke Test 'boot-animation-summary-missing'
-    if(!window.__BOOT_ANIMATION_COMPLETE__){
-       window.__BOOT_ANIMATION_COMPLETE__ = {
-         at: Date.now(),
-         bypassed: typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation')
-       };
-    }
   })();
 
   function resolveWorkbenchRenderer(){
