@@ -1161,6 +1161,12 @@ function subscribeSelection(){
 function attachDataListener(){
   if(state.dataListener) return;
   const handler = () => {
+    // TASK 2 FIX: Don't process if workbench is not currently visible
+    const workbenchView = typeof document !== 'undefined' ? document.getElementById('view-workbench') : null;
+    if (workbenchView && workbenchView.classList.contains('hidden')) {
+      return; // Workbench is hidden, skip processing
+    }
+
     state.dataCache.contacts = null;
     state.dataCache.partners = null;
     state.dataCache.contactsError = null;

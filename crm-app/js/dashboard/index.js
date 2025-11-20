@@ -3681,6 +3681,12 @@ function handleLayoutColumnsChange(evt) {
 }
 
 function handleDashboardDataChanged(evt) {
+  // TASK 2 FIX: Don't render if dashboard is not currently visible
+  const dashboardView = doc ? doc.getElementById('view-dashboard') : null;
+  if (dashboardView && dashboardView.classList.contains('hidden')) {
+    return; // Dashboard is hidden, skip rendering
+  }
+
   const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
   if (scope === 'settings') invalidatePrefs();
   const normalizedScope = typeof scope === 'string' ? scope.toLowerCase() : '';
