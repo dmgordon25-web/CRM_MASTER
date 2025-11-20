@@ -7,6 +7,7 @@ const __FALLBACK_FAVORITES__ = (() => {
 
 const __FAVORITES_API__ = (typeof window !== 'undefined' && window.__CRM_FAVORITES__) ? window.__CRM_FAVORITES__ : __FALLBACK_FAVORITES__;
 const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
+const EMAIL_FROM_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateSettings(settings){ return { ok: true, errors: [] }; }
 
@@ -35,6 +36,7 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
 
   async function handleDeleteAll(){
     if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
+
     const btn = document.getElementById('btn-delete-all');
     if(btn) btn.disabled = true;
 
@@ -47,10 +49,12 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
       try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
       localStorage.clear();
       sessionStorage.clear();
+
+      // FIX: Set flag to prevent auto-seeding on next load
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
 
       if(window.toast) window.toast('Wiped. Reloading...');
-      // FORCE HARD RELOAD to clear memory state
+      // FIX: FORCE HARD RELOAD
       setTimeout(() => window.location.reload(), 500);
 
     } catch(e) {

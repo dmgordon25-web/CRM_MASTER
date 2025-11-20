@@ -1,6 +1,6 @@
-import './boot/splash_sequence.js';     // <--- REQUIRED for Boot Test
-import './state/selectionStore.js';     // <--- REQUIRED for Selection Test
 import { initDashboard } from './dashboard/index.js';
+import './boot/splash_sequence.js'; // <--- REQUIRED FIX
+import './state/selectionStore.js'; // <--- REQUIRED FIX
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -3105,14 +3105,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     await openDB();
     let partners = await dbGetAll('partners');
 
-    // Ensure "None" partner
-    if(!partners.find(p=> String(p.id)===window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
-      const noneRecord = { id: window.NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
+    if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
+      const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
       try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
 
-    // Smart Seeding
+    // FIX: Smart Seeding (Seeds for CI, Respects User Delete)
     const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
     if (!isSuppressed) {
        await ensureSeedData(partners);
@@ -3129,7 +3128,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     window.__BOOT_DONE__.patches = 0;
     window.__BOOT_DONE__.safe = false;
 
-    // Animation Signal Backup
+    // Fallback Animation Signal
     if (!window.__BOOT_ANIMATION_COMPLETE__) {
         const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
         window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass || true };
