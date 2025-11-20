@@ -3,6 +3,12 @@
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
 
+// FIX: Capture URL param IMMEDIATELY before Router clears it
+const SKIP_ANIMATION_FLAG = typeof window !== 'undefined'
+  && window.location
+  && window.location.search
+  && window.location.search.includes('skipBootAnimation');
+
 let splashSequenceRan = false;
 
 function setHidden(el) {
@@ -84,10 +90,8 @@ function snapshotAnimationComplete() {
 function isAnimationDisabled() {
   if (typeof window === 'undefined') return false;
 
-  // FIX: Explicitly check for the skip param used by Smoke Tests
-  if (window.location && typeof window.location.search === 'string') {
-    if (window.location.search.includes('skipBootAnimation')) return true;
-  }
+  // FIX: Use the captured flag
+  if (SKIP_ANIMATION_FLAG) return true;
 
   const mode = window.__BOOT_ANIMATION_MODE__;
   if (mode && typeof mode === 'object') {
@@ -120,10 +124,10 @@ async function waitForAnimationGate() {
   if (snapshot) return snapshot;
 
   if (isAnimationDisabled()) {
-    // FIX: Explicitly WRITE the global flag so the Smoke Test sees it immediately
+    // FIX: Write global state immediately so Smoke Test sees it
     const result = { at: Date.now(), bypassed: true };
     if (typeof window !== 'undefined') {
-      window.__BOOT_ANIMATION_COMPLETE__ = result;
+        window.__BOOT_ANIMATION_COMPLETE__ = result;
     }
     return result;
   }
@@ -147,6 +151,13 @@ export async function runSplashSequence() {
   splashSequenceRan = true;
 
   try {
+    // If we are skipping, don't even wait for boot done to hide visual splash,
+    // but we DO need to wait for data to be ready.
+    if (SKIP_ANIMATION_FLAG) {
+        // Ensure the global flag is set immediately
+        window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
+    }
+
     const bootDone = await waitForBootDone();
     if (!bootDone) {
       hideAllSplash();

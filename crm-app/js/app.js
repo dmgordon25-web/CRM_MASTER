@@ -3122,13 +3122,16 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
     // Animation Signal Backup
-    // If splash_sequence didn't set it yet, or if we see the URL param, enforce true.
-    const shouldBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
+    // We attempt to read the URL again, but if splash_sequence already caught it, we respect that.
+    const rawBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
+    const existing = window.__BOOT_ANIMATION_COMPLETE__;
+
     window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
-      window.__BOOT_ANIMATION_COMPLETE__ || {},
+      existing || {},
       {
-        at: Date.now(),
-        bypassed: shouldBypass || (window.__BOOT_ANIMATION_COMPLETE__?.bypassed) || false
+        at: (existing && existing.at) || Date.now(),
+        // If existing says bypassed, keep it. If URL (still) says bypassed, use it.
+        bypassed: (existing && existing.bypassed) || rawBypass || false
       }
     );
   })();
