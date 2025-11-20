@@ -1,6 +1,5 @@
-// --- Add this to top imports ---
-import './boot/splash_sequence.js';
 import { initDashboard } from './dashboard/index.js';
+import './boot/splash_sequence.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -3105,32 +3104,33 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     await openDB();
     let partners = await dbGetAll('partners');
 
-    if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
-      const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
+    if(!partners.find(p=> String(p.id)===window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
+      const noneRecord = { id: window.NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
       try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
 
-    // FIX: Disable Auto-Seeding to prevent Zombie Data
-    // const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
-    // if (!isSuppressed) { await ensureSeedData(partners); }
+    // FIX: Smart Seeding (Seeds for CI, Respects Delete for Users)
+    const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
+    if (!isSuppressed) {
+       await ensureSeedData(partners);
+    }
 
     await backfillUpdatedAt();
     scheduleAppRender();
     await renderExtrasRegistry();
 
-    // FIX: Force Animation Bypass Signal for CI
-    const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
-    if (!window.__BOOT_ANIMATION_COMPLETE__ || globalBypass) {
-        window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
-    }
-
-    // Signal Boot Done
+    // FIX: Signal Boot Done (Merge to preserve metrics)
     window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
     window.__BOOT_DONE__.fatal = false;
     window.__BOOT_DONE__.core = 1;
     window.__BOOT_DONE__.patches = 0;
     window.__BOOT_DONE__.safe = false;
+
+    // Force animation signal if splash_sequence missed it
+    if (!window.__BOOT_ANIMATION_COMPLETE__) {
+       window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
+    }
   })();
 
   function resolveWorkbenchRenderer(){

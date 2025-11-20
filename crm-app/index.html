@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
- <head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM</title>
+  <script>
+    // CRITICAL FIX: Capture Smoke Test flag immediately before Router clears URL
+    if (location.search.indexOf('skipBootAnimation') !== -1) {
+      window.__SKIP_BOOT_ANIMATION__ = true;
+    }
+    window.__APP_VERSION__ = 'v2025.09.27';
+  </script>
   <!-- BOOT_STAMP: crm-app-index -->
  <meta charset="utf-8"/>
  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
