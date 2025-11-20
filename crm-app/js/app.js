@@ -3272,6 +3272,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     };
     const handler = function(evt){
       const detail = evt && evt.detail ? evt.detail : {};
+
+      // Force reload on Delete All
+      if (detail.reason === 'deleteAll') {
+         window.location.reload();
+         return;
+      }
+
       const now = Date.now();
       if(!burstStart || (now - burstStart) > BURST_WINDOW){
         burstStart = now;

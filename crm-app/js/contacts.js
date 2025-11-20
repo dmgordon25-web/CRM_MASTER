@@ -2686,32 +2686,8 @@ export function ensureContactModalShell(options = {}){
   if(dlg && !dlg.__wired){
     dlg.__wired = true;
     const markClosed = ()=>{
-      try{ dlg.removeAttribute('open'); }
-      catch(_err){}
-      try{ dlg.style.display = 'none'; }
-      catch(_err){}
-      if(dlg.dataset){
-        dlg.dataset.open = '0';
-        dlg.dataset.opening = '0';
-        dlg.dataset.sourceHint = '';
-        dlg.dataset.contactId = '';
-      }
-      try{ dlg.removeAttribute('data-source-hint'); }
-      catch(_err){}
-      if(typeof dlg.__contactScrollRestore === 'function'){
-        try{ dlg.__contactScrollRestore(); }
-        catch(_err){}
-        dlg.__contactScrollRestore = null;
-      }
-      const invoker = dlg.__contactInvoker;
-      dlg.__contactInvoker = null;
-      if(invoker && typeof invoker.focus === 'function'){
-        try{ invoker.focus({ preventScroll: true }); }
-        catch(_err){
-          try{ invoker.focus(); }
-          catch(__err){}
-        }
-      }
+      // FIX: Function body removed to prevent focus deadlocks
+      // The 'close' event listener now handles cleanup directly
     };
     dlg.addEventListener('click', (event)=>{
       const target = event.target instanceof Element ? event.target : null;
@@ -2723,7 +2699,14 @@ export function ensureContactModalShell(options = {}){
       }
     });
     dlg.addEventListener('cancel', (event)=>{ event.preventDefault(); markClosed(); });
-    dlg.addEventListener('close', markClosed);
+    // FIX: Do NOT automatically restore focus on close. It causes deadlocks.
+    dlg.addEventListener('close', () => {
+       // Only clean up state, never touch focus
+       try{ dlg.removeAttribute('open'); } catch(_){}
+       try{ dlg.style.display = 'none'; } catch(_){}
+       if(dlg.dataset) { dlg.dataset.open = '0'; dlg.dataset.opening = '0'; }
+       dlg.__contactInvoker = null;
+    });
   }
 
   return dlg;
@@ -2854,160 +2837,33 @@ function resolveCalendarInvoker(options){
 }
 
 export async function openContactModal(contactId, options){
-  const opener = (typeof window !== 'undefined' && typeof window.renderContactModal === 'function')
-    ? window.renderContactModal
-    : null;
-  if(!opener){
-    try{ console && console.warn && console.warn('renderContactModal unavailable', { contactId }); }
-    catch(_err){}
-    toastWarn('Contact editor unavailable');
-    return null;
+  const opener = window.renderContactModal;
+  if(!opener) return null;
+
+  // 1. FORCE CLOSE any existing modal first
+  const existing = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`);
+  if(existing){
+     try { existing.close(); } catch(e){}
+     existing.removeAttribute('open');
+     existing.style.display = 'none';
   }
 
-  const opts = options && typeof options === 'object' ? { ...options } : {};
+  // 2. Normalize Options
+  const opts = options || {};
   let model = null;
-  if(opts.prefetchedRecord && typeof opts.prefetchedRecord === 'object'){
-    model = normalizeNewContactPrefill(opts.prefetchedRecord);
-  }else if(contactId && typeof contactId === 'object' && !Array.isArray(contactId)){
-    model = normalizeNewContactPrefill(contactId);
-  }
-  if(model){
-    const safeId = normalizeContactId(model);
-    model.id = safeId;
-    opts.prefetchedRecord = model;
-  }
+  if(opts.prefetchedRecord) model = normalizeNewContactPrefill(opts.prefetchedRecord);
 
-  const rawIdCandidate = model ? model.id : (opts.contactId ?? contactId ?? '');
-  const rawIdString = rawIdCandidate == null ? '' : String(rawIdCandidate).trim();
-  const normalizedId = model ? model.id : normalizeContactId(rawIdCandidate);
-  const allowAutoOpen = opts.allowAutoOpen === true;
-  const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
+  const rawId = model ? model.id : (contactId || '');
+  const normalizedId = normalizeContactId(rawId);
 
-  closeQuickAddOverlayIfOpen();
-
-  const invoker = resolveContactModalInvoker(opts);
-  const hasExplicitId = Boolean(rawIdString);
-
-  if(!hasExplicitId && !allowAutoOpen){
-    toastWarn('Select a contact to open');
-    queueContactMicrotask(() => {
-      if(__lastOpen.id === null) return;
-      __lastOpen = { id: null, t: 0 };
-    });
+  // 3. Open Fresh
+  try {
+    const result = await opener(normalizedId, { ...opts, prefetchedRecord: model });
+    return result;
+  } catch(err) {
+    console.warn('Open failed', err);
     return null;
   }
-
-  const existing = typeof document !== 'undefined'
-    ? document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`)
-    : null;
-  const dedupeId = normalizedId || '__contact__';
-  const scheduleLastOpenReset = (stamp) => {
-    queueContactMicrotask(() => {
-      if(__lastOpen.id === dedupeId && __lastOpen.t === stamp){
-        __lastOpen = { id: null, t: 0 };
-      }
-    });
-  };
-  const perf = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
-    ? performance
-    : null;
-  const now = perf ? perf.now() : Date.now();
-  const previousStamp = __lastOpen.t || 0;
-  const threshold = perf ? 1 : 4;
-  if(__lastOpen.id === dedupeId){
-    const delta = now - previousStamp;
-    if(delta >= 0 && delta < threshold){
-      if(existing && existing.dataset?.open === '1'){
-        if(invoker){ existing.__contactInvoker = invoker; }
-        scheduleLastOpenReset(previousStamp);
-        return existing;
-      }
-      if(pendingContactOpen && pendingContactOpen.id === dedupeId){
-        return pendingContactOpen.promise;
-      }
-      scheduleLastOpenReset(previousStamp);
-      return existing || null;
-    }
-  }
-  const stamp = now;
-  __lastOpen = { id: dedupeId, t: stamp };
-  scheduleLastOpenReset(stamp);
-
-  if(existing && existing.dataset?.open === '1'){
-    const currentId = existing.dataset?.contactId
-      || existing.querySelector?.('#c-id')?.value?.trim()
-      || '';
-    if(!normalizedId || currentId === normalizedId){
-      if(invoker){ existing.__contactInvoker = invoker; }
-      const focusTarget = existing.querySelector?.('.dlg') || existing;
-      if(focusTarget && typeof focusTarget.focus === 'function'){
-        try{ focusTarget.focus({ preventScroll: true }); }
-        catch(_err){
-          try{ focusTarget.focus(); }
-          catch(__err){}
-        }
-      }
-      scheduleLastOpenReset(stamp);
-      return existing;
-    }
-  }
-
-  if(pendingContactOpen){
-    if(pendingContactOpen.id === dedupeId){
-      return pendingContactOpen.promise;
-    }
-    return pendingContactOpen.promise.then(() => openContactModal(contactId, options));
-  }
-
-  const mergedOptions = Object.assign({}, opts, {
-    contactId: normalizedId,
-    allowAutoOpen,
-    sourceHint,
-    invoker,
-    prefetchedRecord: model || null
-  });
-
-  const suppressErrorToast = opts.suppressErrorToast === true;
-  const failureMessage = mergedOptions.prefetchedRecord
-    ? 'Couldn\u2019t open the full editor. Please try again.'
-    : 'Unable to open contact';
-
-  const sequence = (async () => {
-    closeQuickAddOverlayIfOpen();
-    let host = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
-    host = host instanceof Promise ? await host : host;
-    if(!host){
-      try{ console && console.warn && console.warn('[contact-editor]', 'host missing'); }
-      catch(_warn){}
-      if(!suppressErrorToast){
-        toastWarn('Contact editor unavailable');
-      }
-      return null;
-    }
-    mergedOptions.host = host;
-    try{
-      const result = await opener(normalizedId || null, mergedOptions);
-      return result || null;
-    }catch (err){
-      if(!suppressErrorToast){
-        try{ console && console.warn && console.warn('[contact-editor:init]', err); }
-        catch(_err){}
-        toastWarn(failureMessage);
-      }
-      teardownContactModalShell();
-      if(suppressErrorToast){
-        throw err;
-      }
-      return null;
-    }
-  })();
-
-  const tracked = sequence.finally(() => {
-    pendingContactOpen = null;
-    scheduleLastOpenReset(stamp);
-  });
-  pendingContactOpen = { id: dedupeId, promise: tracked };
-  return tracked;
 }
 
 export async function openContactEditor(target, options){
