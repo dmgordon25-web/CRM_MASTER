@@ -6,27 +6,24 @@
   <title>CRM</title>
   <script>
     // CRITICAL FIX: Capture Smoke Test flag immediately before Router clears URL
-    // This prevents "boot-animation-expected-bypass" failures in CI.
     if (location.search.indexOf('skipBootAnimation') !== -1) {
       window.__SKIP_BOOT_ANIMATION__ = true;
     }
     window.__APP_VERSION__ = 'v2025.09.27';
     window.__INIT_FLAGS__ = window.__INIT_FLAGS__ || {};
     window.__ENV__ = window.__ENV__ || {};
-    // Flags to stabilize modal behavior during automated tests
     if (location.search.indexOf('safe=1') !== -1) {
       window.__SAFE_MODE__ = true;
     }
   </script>
   <link rel="stylesheet" href="./css/tokens.css">
-  <link rel="stylesheet" href="./css/app.css">
+  <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./styles/dashboard.css">
   <link rel="stylesheet" href="./styles/labs.css">
   <link rel="stylesheet" href="./css/relationships.css">
   <link rel="stylesheet" href="./styles/loaders.css">
   <style>
     body { background-color: var(--surface-ground); color: var(--text-main); }
-    /* Critical hit target fix for checkboxes */
     input[type="checkbox"] { min-width: 16px; min-height: 16px; cursor: pointer; }
   </style>
   <script src="./js/boot/early_trap.js"></script>
@@ -34,61 +31,32 @@
 <body>
   <div class="app-layout">
     <nav class="nav-rail" id="main-nav" aria-label="Main Navigation">
-      <div class="nav-brand">
-        <div class="nav-icon"></div>
-      </div>
+      <div class="nav-brand"><div class="nav-icon"></div></div>
       <div class="nav-links">
-        <button type="button" class="nav-item active" data-nav="dashboard" aria-label="Dashboard" aria-current="page">
-          <span class="icon">📊</span><span class="label">Dashboard</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="longshots" aria-label="Leads">
-          <span class="icon">🎯</span><span class="label">Leads</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="pipeline" aria-label="Pipeline">
-          <span class="icon">🚀</span><span class="label">Pipeline</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="partners" aria-label="Partners">
-          <span class="icon">🤝</span><span class="label">Partners</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="calendar" aria-label="Calendar">
-          <span class="icon">📅</span><span class="label">Calendar</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="reports" aria-label="Reports">
-          <span class="icon">📈</span><span class="label">Reports</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="workbench" aria-label="Workbench">
-          <span class="icon">🛠️</span><span class="label">Workbench</span>
-        </button>
-        <button type="button" class="nav-item" data-nav="labs" aria-label="Labs">
-          <span class="icon">🧪</span><span class="label">Labs</span>
-        </button>
+        <button type="button" class="nav-item active" data-nav="dashboard" aria-label="Dashboard"><span class="icon">📊</span><span class="label">Dashboard</span></button>
+        <button type="button" class="nav-item" data-nav="longshots" aria-label="Leads"><span class="icon">🎯</span><span class="label">Leads</span></button>
+        <button type="button" class="nav-item" data-nav="pipeline" aria-label="Pipeline"><span class="icon">🚀</span><span class="label">Pipeline</span></button>
+        <button type="button" class="nav-item" data-nav="partners" aria-label="Partners"><span class="icon">🤝</span><span class="label">Partners</span></button>
+        <button type="button" class="nav-item" data-nav="calendar" aria-label="Calendar"><span class="icon">📅</span><span class="label">Calendar</span></button>
+        <button type="button" class="nav-item" data-nav="reports" aria-label="Reports"><span class="icon">📈</span><span class="label">Reports</span></button>
+        <button type="button" class="nav-item" data-nav="workbench" aria-label="Workbench"><span class="icon">🛠️</span><span class="label">Workbench</span></button>
+        <button type="button" class="nav-item" data-nav="labs" aria-label="Labs"><span class="icon">🧪</span><span class="label">Labs</span></button>
       </div>
       <div class="nav-footer">
-        <button type="button" class="nav-item" data-nav="notifications" aria-label="Notifications">
-          <span class="icon">🔔</span><span class="label">Alerts</span>
-        </button>
-        <button type="button" class="nav-item" id="btn-open-settings" data-nav="settings" aria-label="Settings">
-          <span class="icon">⚙️</span><span class="label">Settings</span>
-        </button>
+        <button type="button" class="nav-item" data-nav="notifications" aria-label="Notifications"><span class="icon">🔔</span><span class="label">Alerts</span></button>
+        <button type="button" class="nav-item" id="btn-open-settings" data-nav="settings" aria-label="Settings"><span class="icon">⚙️</span><span class="label">Settings</span></button>
         <button type="button" class="nav-item" id="btn-seed-data-nav" style="display:none">Seed</button>
       </div>
     </nav>
     <main class="app-main">
       <header class="top-bar" id="actionbar" data-ui="action-bar">
-        <div class="bar-left">
-          <h1 class="app-title"><a href="#/dashboard" id="app-title-link">CRM</a></h1>
-        </div>
+        <div class="bar-left"><h1 class="app-title"><a href="#/dashboard" id="app-title-link">CRM</a></h1></div>
         <div class="bar-center" id="universal-search-container">
-           <div class="search-wrapper">
-             <span class="search-icon">🔍</span>
-             <input type="search" id="universal-search" placeholder="Search..." aria-label="Search contacts and partners">
-           </div>
+           <div class="search-wrapper"><span class="search-icon">🔍</span><input type="search" id="universal-search" placeholder="Search..." aria-label="Search contacts"></div>
         </div>
         <div class="bar-right" id="header-actions">
           <div class="quick-actions">
-            <button class="btn brand compact" id="btn-quick-add" data-qa="quick-add-btn" aria-haspopup="true">
-              <span>+ New</span>
-            </button>
+            <button class="btn brand compact" id="btn-quick-add" data-qa="quick-add-btn" aria-haspopup="true"><span>+ New</span></button>
           </div>
         </div>
       </header>
