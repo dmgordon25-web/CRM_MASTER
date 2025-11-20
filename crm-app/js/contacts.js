@@ -662,25 +662,23 @@ export function normalizeContactId(input) {
 
     const dlg = base;
 
-    // FIX: CAPTURE BUT DISARM focus restoration during reset
-    // We save the invoker to a local variable ('nextInvoker') but wipe it from the dialog
-    // so that when dlg.close() fires below, it doesn't trigger the "focus back" logic.
+    // FIX: DISARM FOCUS TRAP
+    // We capture the invoker but set the dialog property to NULL temporarily.
+    // This prevents the 'close' event handler from trying to restore focus
+    // while we are simply resetting the modal for a new record.
     const nextInvoker = invoker || dlg.__contactInvoker || null;
     dlg.__contactInvoker = null;
 
     if(dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function'){
-      try{ dlg.__contactScrollRestore(); }
-      catch(_err){}
+      try{ dlg.__contactScrollRestore(); } catch(_err){}
     }
     dlg.__contactScrollRestore = disableBodyScroll();
 
-    // NOW it is safe to close, because __contactInvoker is null
     if(dlg.hasAttribute('open')){
-      try{ dlg.close(); }
-      catch (_err){}
+      try{ dlg.close(); } catch (_err){}
     }
 
-    // RESTORE it so it works when the user actually closes it later
+    // Restore invoker for the actual session
     dlg.__contactInvoker = nextInvoker;
 
     // ... continue with dlg.style.display='block' ...
