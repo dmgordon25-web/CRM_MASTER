@@ -2002,6 +2002,12 @@ function runPatch(){
     }
 
     document.addEventListener('app:data:changed', evt => {
+      // TASK 2 FIX: Don't process if pipeline is not currently visible
+      const pipelineView = typeof document !== 'undefined' ? document.getElementById('view-pipeline') : null;
+      if (pipelineView && pipelineView.classList.contains('hidden')) {
+        return; // Pipeline is hidden, skip processing
+      }
+
       const detail = evt && evt.detail ? Object.assign({}, evt.detail) : null;
       if(detail && !shouldProcessPipelineDetail(detail)) return;
       Promise.resolve().then(()=> processDetail(detail));

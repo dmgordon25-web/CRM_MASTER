@@ -2405,6 +2405,42 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       normalized = DEFAULT_ROUTE;
     }
     const previous = activeView;
+
+    // TASK 1 FIX: Close any open modals before switching views to prevent freezes
+    try {
+      // Close contact editor if open
+      if (typeof closeContactEditor === 'function') {
+        closeContactEditor();
+      }
+    } catch (_err) {
+      try { console.warn('[app] Failed to close contact editor during navigation', _err); }
+      catch (_) {}
+    }
+
+    try {
+      // Close partner editor if open
+      if (typeof closePartnerEditModal === 'function') {
+        closePartnerEditModal();
+      }
+    } catch (_err) {
+      try { console.warn('[app] Failed to close partner editor during navigation', _err); }
+      catch (_) {}
+    }
+
+    try {
+      // Close any other singleton modals by selector
+      const openModals = document.querySelectorAll('[data-modal-key]');
+      openModals.forEach(modal => {
+        const key = modal.dataset.modalKey;
+        if (key) {
+          closeSingletonModal(key, { remove: false });
+        }
+      });
+    } catch (_err) {
+      try { console.warn('[app] Failed to close singleton modals during navigation', _err); }
+      catch (_) {}
+    }
+
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
     if(settingsButton){

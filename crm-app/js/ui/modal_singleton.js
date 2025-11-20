@@ -82,13 +82,15 @@ export function closeSingletonModal(target, options = {}) {
 
   if (!el) return;
 
-  // 1. Execute cleanup callbacks BEFORE closing
+  // 1. Execute cleanup callbacks BEFORE closing (wrapped individually for safety)
   if (el[CLEANUP_CALLBACKS_KEY] && Array.isArray(el[CLEANUP_CALLBACKS_KEY])) {
     el[CLEANUP_CALLBACKS_KEY].forEach(fn => {
       try {
         fn();
       } catch (e) {
-        console.warn('[Modal] Cleanup callback error', e);
+        try {
+          console.error('[Modal] Cleanup callback error:', e);
+        } catch (_) {}
       }
     });
     // Clear the callbacks after execution
@@ -99,18 +101,40 @@ export function closeSingletonModal(target, options = {}) {
   if (el.tagName === 'DIALOG' && typeof el.close === 'function') {
     // Explicitly close the dialog if it has the open attribute
     if (el.hasAttribute('open')) {
-      try { el.close(); } catch(e) { console.warn('[Modal] Close error', e); }
+      try { el.close(); } catch(e) {
+        try {
+          console.error('[Modal] Close error:', e);
+        } catch (_) {}
+      }
     }
     // Always remove the open attribute to ensure clean state
     el.removeAttribute('open');
   }
 
-  // 3. Hide DOM
+  // 3. Hide DOM (enhanced to remove any focus traps or overlay artifacts)
   el.classList.add('hidden');
   el.style.display = 'none';
   el.setAttribute('aria-hidden', 'true');
 
-  // 4. Optional: Remove from DOM (Clean slate for next time)
+  // 4. Remove any focus trap by blurring if element has focus
+  try {
+    if (el.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+  } catch (_err) {}
+
+  // 5. Optional: beforeRemove callback for additional cleanup
+  if (options.beforeRemove && typeof options.beforeRemove === 'function') {
+    try {
+      options.beforeRemove(el);
+    } catch (_err) {
+      try {
+        console.error('[Modal] beforeRemove callback error:', _err);
+      } catch (_) {}
+    }
+  }
+
+  // 6. Optional: Remove from DOM (Clean slate for next time)
   if (options.remove === true && el.parentNode) {
     el.parentNode.removeChild(el);
   }
