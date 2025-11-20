@@ -2466,6 +2466,20 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }else{
       root = document.getElementById('view-' + normalized) || null;
     }
+
+    // STALE-WHILE-HIDDEN: Check if view was marked stale while hidden and refresh if needed
+    if(root && root.dataset.isStale === '1'){
+      delete root.dataset.isStale;
+      try {
+        console.log('[app] Restoring stale view: ' + normalized);
+        // Trigger immediate refresh for this view
+        refreshByScope(normalized);
+      } catch (_err) {
+        try { console.warn('[app] Failed to refresh stale view: ' + normalized, _err); }
+        catch (_) {}
+      }
+    }
+
     if(normalized === 'pipeline'){
       applyPipelineStageFilterFromHash({ force: true, useFallback: true });
     }
@@ -3100,7 +3114,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const hits = [];
     const push = (label, fn, requiredView) => {
       if(requiredView && activeView !== requiredView){
-        // Scope is recognized but view is inactive - return true to prevent fall-through
+        // STALE-WHILE-HIDDEN: Mark view as stale instead of ignoring the update
+        const viewElement = document.getElementById('view-' + requiredView);
+        if(viewElement){
+          const isHidden = viewElement.classList.contains('hidden') ||
+                          window.getComputedStyle(viewElement).display === 'none';
+          if(isHidden){
+            // Set stale flag - view will refresh when activated
+            viewElement.dataset.isStale = '1';
+            hits.push(true);
+            return true;
+          }
+        }
+        // View is recognized but not hidden - fall through to normal rendering
         hits.push(true);
         return true;
       }
