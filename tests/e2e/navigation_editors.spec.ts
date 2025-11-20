@@ -73,6 +73,35 @@ function attachErrorGuards(page: Page) {
   return errors;
 }
 
+async function assertNoStaleModals(page: Page) {
+  const staleModals = await page.evaluate(() => {
+    const modals = Array.from(document.querySelectorAll('[data-modal-key]'));
+    return modals.filter((modal: any) => {
+      const isOpen = modal.dataset?.open === '1' ||
+                     modal.getAttribute('aria-hidden') === 'false' ||
+                     modal.hasAttribute('open') ||
+                     (modal.style && modal.style.display !== 'none');
+      return isOpen;
+    }).map((modal: any) => modal.dataset?.modalKey || modal.id || 'unknown');
+  });
+  expect(staleModals).toEqual([]);
+}
+
+async function assertSingleModalOpen(page: Page, expectedKey: string) {
+  const openModals = await page.evaluate(() => {
+    const modals = Array.from(document.querySelectorAll('[data-modal-key]'));
+    return modals.filter((modal: any) => {
+      const isOpen = modal.dataset?.open === '1' ||
+                     modal.getAttribute('aria-hidden') === 'false';
+      return isOpen;
+    }).map((modal: any) => modal.dataset?.modalKey || modal.id || 'unknown');
+  });
+  expect(openModals.length).toBeLessThanOrEqual(1);
+  if (expectedKey) {
+    expect(openModals).toContain(expectedKey);
+  }
+}
+
 test.describe('navigation editor stability', () => {
   test('editors open and close across rapid navigation', async ({ page }) => {
     const errors = attachErrorGuards(page);
@@ -81,14 +110,82 @@ test.describe('navigation editor stability', () => {
 
     for (let i = 0; i < 3; i += 1) {
       await openContactFromPipeline(page);
+      await assertNoStaleModals(page);
       await openPartnerEditor(page);
+      await assertNoStaleModals(page);
       await goTo(page, 'dashboard');
       await assertDashboardWidgetsAreNotBlank(page);
       await goTo(page, 'calendar');
       await goTo(page, 'workbench');
       await openNewContactModal(page);
+      await assertNoStaleModals(page);
       await openNewPartnerModal(page);
+      await assertNoStaleModals(page);
     }
+
+    expect(errors).toEqual([]);
+  });
+
+  test('only one modal open at a time', async ({ page }) => {
+    const errors = attachErrorGuards(page);
+    await page.goto('/index.html');
+    await page.waitForSelector('#goal-funded-label');
+
+    // Open contact modal
+    await goTo(page, 'pipeline');
+    const contactRows = page.locator('#tbl-pipeline tbody tr');
+    await expect(contactRows.first()).toBeVisible();
+    await contactRows.first().locator('.contact-name a').click();
+    const contactModal = page.locator('#contact-modal');
+    await expect(contactModal).toBeVisible();
+    await assertSingleModalOpen(page, 'contact-editor');
+
+    // Try to open partner modal - should close contact modal first
+    await goTo(page, 'partners');
+    const partnerRows = page.locator('#tbl-partners tbody tr:visible');
+    await expect(partnerRows.first()).toBeVisible();
+    await partnerRows.first().locator('.partner-name').click();
+    const partnerModal = page.locator('#partner-modal');
+    await expect(partnerModal).toBeVisible();
+    await assertSingleModalOpen(page, 'partner-edit');
+    // Contact modal should be closed
+    await expect(contactModal).toBeHidden();
+
+    await closeModal(partnerModal);
+    await assertNoStaleModals(page);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('modals remain responsive after navigation', async ({ page }) => {
+    const errors = attachErrorGuards(page);
+    await page.goto('/index.html');
+    await page.waitForSelector('#goal-funded-label');
+
+    // Navigate around a lot
+    for (let i = 0; i < 5; i += 1) {
+      await goTo(page, 'dashboard');
+      await goTo(page, 'workbench');
+      await goTo(page, 'partners');
+      await goTo(page, 'pipeline');
+    }
+
+    // Now try to open modals - they should still work
+    await goTo(page, 'partners');
+    const partnerRows = page.locator('#tbl-partners tbody tr:visible');
+    await expect(partnerRows.first()).toBeVisible();
+    await partnerRows.first().locator('.partner-name').click();
+    const partnerModal = page.locator('#partner-modal');
+    await expect(partnerModal).toBeVisible({ timeout: 5000 });
+    await closeModal(partnerModal);
+
+    await goTo(page, 'pipeline');
+    const contactRows = page.locator('#tbl-pipeline tbody tr');
+    await expect(contactRows.first()).toBeVisible();
+    await contactRows.first().locator('.contact-name a').click();
+    const contactModal = page.locator('#contact-modal');
+    await expect(contactModal).toBeVisible({ timeout: 5000 });
+    await closeModal(contactModal);
 
     expect(errors).toEqual([]);
   });
