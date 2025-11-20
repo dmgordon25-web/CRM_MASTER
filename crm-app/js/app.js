@@ -415,7 +415,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function ensurePartnerModalClosed(){
-    closeSingletonModal('partner-edit-modal', { remove: false });
+    closeSingletonModal('partner-edit-modal', { remove: true });
   }
 
   ensurePartnerModalClosed();
