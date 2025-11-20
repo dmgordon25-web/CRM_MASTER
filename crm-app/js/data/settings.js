@@ -771,7 +771,7 @@ function shouldValidateGeneral(partial){
       catch (_err) {}
     }
 
-    // FIX: Use the authoritative list from DB_META (plus safety fallbacks)
+    // FIX: Use DB_META if available, but fallback to a hardcoded COMPLETE list
     // This ensures we wipe 'templates', 'notifications', 'relationships', etc.
     const FALLBACK_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta', 'templates', 'notifications', 'docs', 'closings', 'relationships', 'savedViews'];
 
@@ -786,7 +786,7 @@ function shouldValidateGeneral(partial){
       }
     }
 
-    // Force bootstrap to run again
+    // FIX: Force seed data to re-run on next boot
     try {
       if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap');
     } catch(e){}

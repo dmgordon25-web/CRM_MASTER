@@ -92,8 +92,8 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
-  // FIX: Removed document.activeElement.blur()
-  // We used to blur to be safe, but it triggers "focusout" events that crash the Contact Editor.
+  // FIX: REMOVED document.activeElement.blur()
+  // This call was triggering 'focusout' events that crashed the Contact Editor.
 
   // 1. Force close everything else
   closeAllOtherModals(key);
