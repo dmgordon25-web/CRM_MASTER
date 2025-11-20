@@ -2,6 +2,7 @@ import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { closeSingletonModal } from './ui/modal_singleton.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
@@ -414,8 +415,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function ensurePartnerModalClosed(){
-    try { closePartnerEditModal(); }
-    catch (_) {}
+    closeSingletonModal('partner-edit-modal', { remove: false });
   }
 
   ensurePartnerModalClosed();

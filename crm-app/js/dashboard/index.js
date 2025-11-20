@@ -3593,6 +3593,11 @@ let pendingApply = false;
 function scheduleApply() {
   if (pendingApply) return;
   if (!doc) return;
+  // FIX: Stop if dashboard is hidden
+  const root = doc.getElementById('view-dashboard');
+  if (root && (root.hidden || root.style.display === 'none' || root.classList.contains('hidden'))) {
+    return;
+  }
   pendingApply = true;
   Promise.resolve().then(async () => {
     pendingApply = false;
