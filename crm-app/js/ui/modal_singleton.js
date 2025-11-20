@@ -4,6 +4,9 @@
 let currentOpenModalId = null;
 let currentModalElement = null;
 
+// Symbol for storing cleanup callbacks on modal elements
+const CLEANUP_CALLBACKS_KEY = Symbol('modalCleanupCallbacks');
+
 /**
  * Strictly ensures only one modal is open at a time.
  * Force-closes any existing modal before allowing a new one.
@@ -79,22 +82,46 @@ export function closeSingletonModal(target, options = {}) {
 
   if (!el) return;
 
-  // 1. Close Dialog
-  if (el.tagName === 'DIALOG' && typeof el.close === 'function' && el.hasAttribute('open')) {
-    try { el.close(); } catch(e) { console.warn('[Modal] Close error', e); }
+  // 1. Execute cleanup callbacks BEFORE closing
+  if (el[CLEANUP_CALLBACKS_KEY] && Array.isArray(el[CLEANUP_CALLBACKS_KEY])) {
+    el[CLEANUP_CALLBACKS_KEY].forEach(fn => {
+      try {
+        fn();
+      } catch (e) {
+        console.warn('[Modal] Cleanup callback error', e);
+      }
+    });
+    // Clear the callbacks after execution
+    el[CLEANUP_CALLBACKS_KEY] = [];
   }
 
-  // 2. Hide DOM
+  // 2. Close Dialog (hardened)
+  if (el.tagName === 'DIALOG' && typeof el.close === 'function') {
+    // Explicitly close the dialog if it has the open attribute
+    if (el.hasAttribute('open')) {
+      try { el.close(); } catch(e) { console.warn('[Modal] Close error', e); }
+    }
+    // Always remove the open attribute to ensure clean state
+    el.removeAttribute('open');
+  }
+
+  // 3. Hide DOM
   el.classList.add('hidden');
   el.style.display = 'none';
   el.setAttribute('aria-hidden', 'true');
 
-  // 3. Optional: Remove from DOM (Clean slate for next time)
+  // 4. Optional: Remove from DOM (Clean slate for next time)
   if (options.remove === true && el.parentNode) {
     el.parentNode.removeChild(el);
   }
 }
 
 export function registerModalCleanup(root, fn) {
-  // Legacy compatibility stub - no longer needed with strict destruction
+  if (!root || typeof fn !== 'function') return;
+
+  // Store cleanup callbacks on the element
+  if (!root[CLEANUP_CALLBACKS_KEY]) {
+    root[CLEANUP_CALLBACKS_KEY] = [];
+  }
+  root[CLEANUP_CALLBACKS_KEY].push(fn);
 }

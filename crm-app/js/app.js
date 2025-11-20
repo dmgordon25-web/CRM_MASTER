@@ -415,7 +415,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function ensurePartnerModalClosed(){
-    closeSingletonModal('partner-edit-modal', { remove: true });
+    closeSingletonModal('partner-edit', { remove: true });
   }
 
   ensurePartnerModalClosed();
@@ -3064,7 +3064,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const hits = [];
     const push = (label, fn, requiredView) => {
       if(requiredView && activeView !== requiredView){
-        return false;
+        // Scope is recognized but view is inactive - return true to prevent fall-through
+        hits.push(true);
+        return true;
       }
       const handled = invokeRenderer(label, fn);
       hits.push(handled);
