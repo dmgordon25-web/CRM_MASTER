@@ -415,7 +415,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   }
 
   function ensurePartnerModalClosed(){
-    closeSingletonModal('partner-edit', { remove: true });
+    try {
+      // CHANGE: Use 'partner-edit' (the correct key), NOT 'partner-edit-modal'
+      if(window.CRM_Modal && window.CRM_Modal.close){
+         window.CRM_Modal.close('partner-edit', { remove: true });
+      } else {
+         closeSingletonModal('partner-edit', { remove: true });
+      }
+    } catch (_) {}
   }
 
   ensurePartnerModalClosed();
@@ -2447,6 +2454,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       settingsButton.classList.toggle('active', normalized==='settings');
     }
     activeView = normalized;
+    // RESTORE STALE VIEW
+    const currentRoot = document.getElementById('view-' + normalized);
+    if(currentRoot && currentRoot.dataset.isStale === '1'){
+      delete currentRoot.dataset.isStale;
+      if(isDebug) console.log(`[app] Restoring stale view: ${normalized}`);
+      refreshByScope(normalized);
+    }
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
     if(normalized === 'notifications'){
@@ -3111,77 +3125,72 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function refreshByScope(scope, action){
     const key = String(scope || '').toLowerCase();
     if(!key) return false;
-    const hits = [];
-    const push = (label, fn, requiredView) => {
-      if(requiredView && activeView !== requiredView){
-        // STALE-WHILE-HIDDEN: Mark view as stale instead of ignoring the update
-        const viewElement = document.getElementById('view-' + requiredView);
-        if(viewElement){
-          const isHidden = viewElement.classList.contains('hidden') ||
-                          window.getComputedStyle(viewElement).display === 'none';
-          if(isHidden){
-            // Set stale flag - view will refresh when activated
-            viewElement.dataset.isStale = '1';
-            hits.push(true);
-            return true;
-          }
-        }
-        // View is recognized but not hidden - fall through to normal rendering
-        hits.push(true);
+
+    // MAP: scope -> DOM ID
+    const viewMap = {
+      'workbench': 'view-workbench',
+      'pipeline': 'view-pipeline',
+      'dashboard': 'view-dashboard',
+      'partners': 'view-partners',
+      'contacts': 'view-contacts'
+    };
+
+    // CHECK: Is the view hidden?
+    if(viewMap[key]){
+      const root = document.getElementById(viewMap[key]);
+      // If it exists and is hidden...
+      if(root && (root.hidden || root.classList.contains('hidden') || root.style.display === 'none')){
+        // MARK AS STALE and return TRUE (Handled)
+        root.dataset.isStale = '1';
         return true;
       }
+    }
+
+    const hits = [];
+    const push = (label, fn) => {
       const handled = invokeRenderer(label, fn);
       hits.push(handled);
       return handled;
     };
+
     switch(key){
       case 'dashboard':
-        push('renderDashboardView', renderDashboardView, 'dashboard');
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'partners':
-        push('renderPartnersView', renderPartnersView, 'partners');
+        push('renderPartnersView', renderPartnersView);
         break;
       case 'contacts':
       case 'longshots':
-        push('renderContactsView', renderContactsView, 'workbench');
-        if(activeView === 'dashboard'){
-          push('renderDashboardView', renderDashboardView, 'dashboard');
-        }
+        push('renderContactsView', renderContactsView);
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'pipeline':
-        push('renderPipelineView', renderPipelineView, 'pipeline');
-        if(activeView === 'dashboard'){
-          push('renderDashboardView', renderDashboardView, 'dashboard');
-        }
+        push('renderPipelineView', renderPipelineView);
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'notifications':
-        push('renderNotifications', window.renderNotifications, 'notifications');
+        push('renderNotifications', window.renderNotifications);
         break;
       case 'tasks':
-        if(activeView === 'dashboard'){
-          push('renderDashboardView', renderDashboardView, 'dashboard');
-        }
-        if(activeView === 'notifications'){
-          push('renderNotifications', window.renderNotifications, 'notifications');
-        }
+        push('renderDashboardView', renderDashboardView);
+        push('renderNotifications', window.renderNotifications);
         break;
       case 'documents':
-        if(activeView === 'dashboard'){
-          push('renderDashboardView', renderDashboardView, 'dashboard');
-        }
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'commissions':
-        push('renderCommissions', window.renderCommissions, 'commissions');
-        push('renderLedger', window.renderLedger, 'commissions');
+        push('renderCommissions', window.renderCommissions);
+        push('renderLedger', window.renderLedger);
         break;
       case 'calendar':
-        push('renderCalendar', window.renderCalendar, 'calendar');
+        push('renderCalendar', window.renderCalendar);
         break;
       case 'settings':
-        push('renderExtrasRegistry', renderExtrasRegistry, 'settings');
+        push('renderExtrasRegistry', renderExtrasRegistry);
         break;
       case 'workbench':
-        push('renderWorkbench', resolveWorkbenchRenderer(), 'workbench');
+        push('renderWorkbench', resolveWorkbenchRenderer());
         break;
       default:
         break;
