@@ -3100,38 +3100,40 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }catch (_) {}
   });
 
-  (async function init(){
-    await openDB();
-    let partners = await dbGetAll('partners');
+(async function init(){
+  await openDB();
+  let partners = await dbGetAll('partners');
 
-    if(!partners.find(p=> String(p.id)===window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
-      const noneRecord = { id: window.NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
-      try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
-      partners.push(noneRecord);
-    }
+  if(!partners.find(p=> String(p.id)===window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
+    const noneRecord = { id: window.NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
+    try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
+    partners.push(noneRecord);
+  }
 
-    // FIX: Smart Seeding (Seeds for CI, Respects Delete for Users)
-    const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
-    if (!isSuppressed) {
-       await ensureSeedData(partners);
-    }
+  // FIX: Smart Seeding (Seeds for CI, Respects Delete for Users)
+  const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
+  // Only seed if NOT suppressed by a recent delete
+  if (!isSuppressed) {
+      await ensureSeedData(partners);
+  }
 
-    await backfillUpdatedAt();
-    scheduleAppRender();
-    await renderExtrasRegistry();
+  await backfillUpdatedAt();
+  scheduleAppRender();
+  await renderExtrasRegistry();
 
-    // FIX: Signal Boot Done (Merge to preserve metrics)
-    window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
-    window.__BOOT_DONE__.fatal = false;
-    window.__BOOT_DONE__.core = 1;
-    window.__BOOT_DONE__.patches = 0;
-    window.__BOOT_DONE__.safe = false;
+  // Signal Boot Done
+  window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
+  window.__BOOT_DONE__.fatal = false;
+  window.__BOOT_DONE__.core = 1;
+  window.__BOOT_DONE__.patches = 0;
+  window.__BOOT_DONE__.safe = false;
 
-    // Force animation signal if splash_sequence missed it
-    if (!window.__BOOT_ANIMATION_COMPLETE__) {
-       window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
-    }
-  })();
+  // Ensure animation signal is present (uses flag from index.html if available)
+  if (!window.__BOOT_ANIMATION_COMPLETE__) {
+      const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
+      window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass || true };
+  }
+})();
 
   function resolveWorkbenchRenderer(){
     if(typeof window.renderWorkbench === 'function') return window.renderWorkbench;
