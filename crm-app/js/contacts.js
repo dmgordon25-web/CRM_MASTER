@@ -2698,7 +2698,11 @@ export function ensureContactModalShell(options = {}){
         markClosed();
       }
     });
-    dlg.addEventListener('cancel', (event)=>{ event.preventDefault(); markClosed(); });
+    // Handle Escape Key (Do NOT prevent default)
+    dlg.addEventListener('cancel', () => {
+        // Let the browser close it.
+        // The 'close' handler will handle state cleanup.
+    });
     // FIX: Do NOT automatically restore focus on close. It causes deadlocks.
     dlg.addEventListener('close', () => {
        // Only clean up state, never touch focus
