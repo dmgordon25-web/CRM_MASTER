@@ -3138,9 +3138,21 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     // CHECK: Is the view hidden?
     if(viewMap[key]){
       const root = document.getElementById(viewMap[key]);
-      // If it exists and is hidden...
-      if(root && (root.hidden || root.classList.contains('hidden') || root.style.display === 'none')){
-        // MARK AS STALE and return TRUE (Handled)
+
+      // Defensive visibility check that is safe for Unit Test stubs
+      let isHidden = false;
+      if (root) {
+        if (root.hidden) isHidden = true;
+        else if (root.classList && typeof root.classList.contains === 'function' && root.classList.contains('hidden')) isHidden = true;
+        else if (root.style && root.style.display === 'none') isHidden = true;
+        else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          try {
+            if (window.getComputedStyle(root).display === 'none') isHidden = true;
+          } catch (_) {}
+        }
+      }
+
+      if (isHidden) {
         root.dataset.isStale = '1';
         return true;
       }
