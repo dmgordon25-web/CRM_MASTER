@@ -46,7 +46,7 @@ export function closeSingletonModal(target, options = {}){
 
   if(!root) return;
 
-  // 1. Run Cleanup Callbacks (Prevent memory leaks/zombie listeners)
+  // 1. Run Registered Cleanup Callbacks
   const bucket = root[CLEANUP_SYMBOL];
   if(bucket && bucket.size){
     bucket.forEach(fn => {
@@ -55,13 +55,20 @@ export function closeSingletonModal(target, options = {}){
     bucket.clear();
   }
 
-  // 2. CRITICAL: Close the native dialog to release the Focus Trap
-  if(root.tagName === 'DIALOG' && typeof root.close === 'function' && root.open){
-    try { root.close(); } catch(e) { /* ignore */ }
-    root.removeAttribute('open');
+  // 2. Run 'beforeRemove' Hook (Critical for Partner Editor state reset)
+  if(typeof options.beforeRemove === 'function'){
+    try { options.beforeRemove(root); } catch(e) { console.warn('[Modal] beforeRemove failed', e); }
   }
 
-  // 3. Hide/Remove
+  // 3. CRITICAL: Close native dialog to release Focus Trap
+  if(root.tagName === 'DIALOG' && typeof root.close === 'function'){
+    if(root.hasAttribute('open') || root.open){
+        try { root.close(); } catch(e) { /* ignore if already closed */ }
+        root.removeAttribute('open');
+    }
+  }
+
+  // 4. Hide or Remove
   if(options.remove !== false){
     try { root.remove(); } catch(e) { if(root.parentNode) root.parentNode.removeChild(root); }
   } else {
@@ -73,7 +80,6 @@ export function closeSingletonModal(target, options = {}){
 
 function closeAllOtherModals(currentKey){
   if(typeof document === 'undefined') return;
-  // Find anything that looks like a modal and kill it
   const all = document.querySelectorAll('[data-modal-key], dialog[open], .record-modal:not(.hidden)');
   all.forEach(el => {
     const key = el.getAttribute('data-modal-key');
@@ -86,7 +92,7 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
-  // 1. Safety Blur (Stops focus fighting immediately)
+  // 1. Safety Blur to stop existing focus loops
   if(document.activeElement && document.activeElement !== document.body){
     try { document.activeElement.blur(); } catch(e){}
   }
@@ -94,7 +100,7 @@ export function ensureSingletonModal(key, createFn){
   // 2. Force close everything else
   closeAllOtherModals(key);
 
-  // 3. Resolve Element
+  // 3. Get or Create
   const selector = `[data-modal-key="${key}"]`;
   let el = document.querySelector(selector);
 
@@ -118,9 +124,9 @@ function setupModal(el, key){
   el.style.display = '';
   el.removeAttribute('aria-hidden');
 
-  // Native Dialog Open
+  // Native Dialog Open (without throwing if already open)
   if(el.tagName === 'DIALOG' && typeof el.showModal === 'function'){
-    if(!el.open){
+    if(!el.open && !el.hasAttribute('open')){
        try { el.showModal(); } catch(e) {
          el.setAttribute('open', '');
        }
