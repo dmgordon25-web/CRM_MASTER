@@ -1830,8 +1830,14 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function initSelectionBindings(){
     if(initSelectionBindings.__wired) return;
+
+    // FIX: Retry if store not ready yet
     const store = getSelectionStore();
-    if(!store) return;
+    if(!store) {
+      setTimeout(initSelectionBindings, 100);
+      return;
+    }
+
     initSelectionBindings.__wired = true;
     store.subscribe(handleSelectionSnapshot);
     const handleChange = (event)=>{
@@ -3121,10 +3127,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
-    // Animation Signal
-    // Ensure it exists, but trust splash_sequence if it already set it.
+    // FIX: Use Global Flag from index.html
+    const globalBypass = window.__SKIP_BOOT_ANIMATION__ === true;
+
     if (!window.__BOOT_ANIMATION_COMPLETE__) {
-        window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
+       window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass };
+    } else if (globalBypass) {
+       window.__BOOT_ANIMATION_COMPLETE__.bypassed = true;
     }
   })();
 

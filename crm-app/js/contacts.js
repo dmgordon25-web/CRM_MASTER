@@ -1,20 +1,20 @@
-/* crm-app/js/contacts.js */
+/* crm-app/js/contacts.js - Nuclear Freeze Fix */
 import { ensureSingletonModal, closeSingletonModal } from './ui/modal_singleton.js';
 
 export const CONTACT_MODAL_KEY = 'contact-edit';
 
-// --- Helpers ---
+// --- UTILS ---
 
 function toast(msg, kind = 'info'){
-  if(typeof window.toast === 'function') window.toast(msg);
-  else if(console && console.log) console.log(`[${kind}] ${msg}`);
+  if(window.toast) window.toast(msg);
+  else console.log(`[${kind}] ${msg}`);
 }
 
 function escape(val){
   return String(val||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
 
-// --- Exported Utilities (Restored for Quick Add / Importer) ---
+// --- Exported Utilities (Required by Quick Add / Importer) ---
 
 export function normalizeNewContactPrefill(input = {}) {
   // Safety: Handle Event objects passed by click handlers
@@ -54,7 +54,7 @@ export function validateContact(model){
   return { ok: Object.keys(errors).length === 0, errors };
 }
 
-// --- Internal Form Renderer ---
+// --- Form Renderer ---
 
 function createContactForm(data, isNew) {
   const c = data || {};
@@ -121,13 +121,14 @@ function createContactForm(data, isNew) {
         console.error(err);
         toast('Save failed');
         saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Contact';
       }
     };
   }
   return form;
 }
 
-// --- Main Modal Renderer ---
+// --- Modal Renderer ---
 
 window.renderContactModal = async function(contactId, options = {}){
   const rawId = normalizeContactId(contactId);
@@ -139,11 +140,14 @@ window.renderContactModal = async function(contactId, options = {}){
     el.innerHTML = '<div class="modal-content"><div class="modal-header"></div><div class="modal-body"></div></div>';
     document.body.appendChild(el);
 
-    // NUCLEAR OPTION: No focus restore to prevent deadlock
+    // NUCLEAR: No focus logic, simple cleanup only
     el.addEventListener('close', () => {
       el.removeAttribute('open');
       el.style.display = 'none';
-      if(el.dataset) { el.dataset.open = '0'; el.dataset.contactId = ''; }
+      if(el.dataset) {
+        el.dataset.open = '0';
+        el.dataset.contactId = '';
+      }
     });
     return el;
   });

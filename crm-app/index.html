@@ -2143,15 +2143,10 @@
 
 
   <script>
-    // CRITICAL FIX: Capture Smoke Test flag immediately before Router clears URL
-    // We bind this to window so it persists even after history.replaceState
-    (function(){
-      try {
-        if (window.location.search.indexOf('skipBootAnimation') !== -1) {
-          window.__SKIP_BOOT_ANIMATION__ = true;
-        }
-      } catch (_) {}
-    })();
+    // 1. NUCLEAR FIX: Capture flag immediately. Router cannot touch this.
+    if (location.search.indexOf('skipBootAnimation') !== -1) {
+      window.__SKIP_BOOT_ANIMATION__ = true;
+    }
 
     window.__APP_VERSION__ = 'v2025.09.27';
     window.__INIT_FLAGS__ = window.__INIT_FLAGS__ || {};
