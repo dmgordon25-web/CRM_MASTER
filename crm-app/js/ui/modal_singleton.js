@@ -92,7 +92,8 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
-  // REMOVED: Safety Blur (It was causing focus deadlocks in Contacts)
+  // FIX: Removed document.activeElement.blur()
+  // We used to blur to be safe, but it triggers "focusout" events that crash the Contact Editor.
 
   // 1. Force close everything else
   closeAllOtherModals(key);

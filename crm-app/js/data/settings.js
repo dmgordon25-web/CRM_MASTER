@@ -770,16 +770,23 @@ function shouldValidateGeneral(partial){
       try{ await window.openDB(); }
       catch (_err) {}
     }
-    // FIX: Added deals, commissions, meta to ensure true factory reset
-    const ALL_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta'];
+
+    // FIX: Use the authoritative list from DB_META (plus safety fallbacks)
+    // This ensures we wipe 'templates', 'notifications', 'relationships', etc.
+    const FALLBACK_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta', 'templates', 'notifications', 'docs', 'closings', 'relationships', 'savedViews'];
+
+    const targetStores = (window.DB_META && Array.isArray(window.DB_META.STORES))
+      ? window.DB_META.STORES
+      : FALLBACK_STORES;
 
     if(typeof window.dbClear === 'function'){
-      for(const store of ALL_STORES){
+      for(const store of targetStores){
         try{ await window.dbClear(store); }
         catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
       }
     }
-    // Force seed data to re-run on next boot by deleting the flag
+
+    // Force bootstrap to run again
     try {
       if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap');
     } catch(e){}
