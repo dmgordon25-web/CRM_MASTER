@@ -793,33 +793,26 @@ function shouldValidateGeneral(partial){
   }
 
   async function handleDeleteAll(){
-    let confirmed = true;
-    if(typeof window.confirmAction === 'function'){
-      confirmed = await window.confirmAction({
-        title: 'Delete all data',
-        message: 'Delete ALL local data?',
-        confirmLabel: 'Delete',
-        cancelLabel: 'Keep data',
-        destructive: true
-      });
-    }else if(typeof window.confirm === 'function'){
-      confirmed = window.confirm('Delete ALL local data?');
-    }
-    if(!confirmed) return;
-    await clearAllStores();
-    try{ localStorage.clear(); sessionStorage.clear(); }
-    catch (_err) {}
-    if(window.toast){
-      try{ window.toast('All data deleted'); }
-      catch (_err) { console && console.info && console.info('[settings] toast skipped'); }
-    }
-    document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'settings', source:'settings:deleteAll', reason:'deleteAll' } }));
+    if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
 
-    // Force Hard Reload to clear all memory state
-    if(window.toast) window.toast('Data wiped. Reloading...');
-    setTimeout(() => {
-        window.location.reload();
-    }, 1000);
+    // 1. Wipe DB
+    if(typeof window.openDB === 'function') await window.openDB();
+    const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
+
+    if(typeof window.dbClear === 'function'){
+        for(const s of STORES) { try{ await window.dbClear(s); } catch(e){} }
+    }
+
+    // 2. Clear Flags
+    try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
+
+    // 3. Wipe Storage
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // 4. HARD RELOAD
+    if(window.toast) window.toast('Wiped. Reloading...');
+    setTimeout(() => window.location.reload(), 500);
   }
 
   function wireDeleteAll(){
