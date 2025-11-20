@@ -2143,6 +2143,11 @@
 
 
   <script>
+    // FIX: Capture Smoke Test flag immediately before Router clears URL
+    if (location.search && location.search.includes('skipBootAnimation')) {
+      window.__SKIP_BOOT_ANIMATION__ = true;
+    }
+
     window.__APP_VERSION__ = 'v2025.09.27';
     window.__INIT_FLAGS__ = window.__INIT_FLAGS__ || {};
     window.__PATCHES_LOADED__ = [];

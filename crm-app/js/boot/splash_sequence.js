@@ -3,11 +3,8 @@
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
 
-// FIX: Capture URL param IMMEDIATELY before Router clears it
-const SKIP_ANIMATION_FLAG = typeof window !== 'undefined'
-  && window.location
-  && window.location.search
-  && window.location.search.includes('skipBootAnimation');
+// FIX: Use the global flag captured in index.html
+const SKIP_ANIMATION_FLAG = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
 
 let splashSequenceRan = false;
 
