@@ -92,6 +92,8 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
+  // REMOVED: Safety Blur (It was causing focus deadlocks in Contacts)
+
   // 1. Force close everything else
   closeAllOtherModals(key);
 

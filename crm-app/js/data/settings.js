@@ -770,7 +770,7 @@ function shouldValidateGeneral(partial){
       try{ await window.openDB(); }
       catch (_err) {}
     }
-    // Hardcoded list of ALL stores to ensure complete wipe
+    // FIX: Added deals, commissions, meta to ensure true factory reset
     const ALL_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta'];
 
     if(typeof window.dbClear === 'function'){
@@ -779,8 +779,10 @@ function shouldValidateGeneral(partial){
         catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
       }
     }
-    // Force seed data to re-run on next boot
-    try { await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
+    // Force seed data to re-run on next boot by deleting the flag
+    try {
+      if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap');
+    } catch(e){}
   }
 
   async function handleDeleteAll(){
