@@ -1,3 +1,5 @@
+// --- Add this to top imports ---
+import './boot/splash_sequence.js';
 import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
@@ -3103,38 +3105,32 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     await openDB();
     let partners = await dbGetAll('partners');
 
-    // Ensure "None" partner exists for orphans
     if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
       const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
       try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
 
-    // FIX: Smart Seeding (Seeds for CI, Respects Delete for Users)
-    const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
-    if (!isSuppressed) {
-       await ensureSeedData(partners);
-    }
+    // FIX: Disable Auto-Seeding to prevent Zombie Data
+    // const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
+    // if (!isSuppressed) { await ensureSeedData(partners); }
 
     await backfillUpdatedAt();
     scheduleAppRender();
     await renderExtrasRegistry();
 
+    // FIX: Force Animation Bypass Signal for CI
+    const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
+    if (!window.__BOOT_ANIMATION_COMPLETE__ || globalBypass) {
+        window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
+    }
+
     // Signal Boot Done
     window.__BOOT_DONE__ = window.__BOOT_DONE__ || {};
     window.__BOOT_DONE__.fatal = false;
-    if(typeof window.__BOOT_DONE__.core !== 'number') window.__BOOT_DONE__.core = 1;
-    if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
-    if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
-
-    // FIX: Use Global Flag from index.html
-    const globalBypass = window.__SKIP_BOOT_ANIMATION__ === true;
-
-    if (!window.__BOOT_ANIMATION_COMPLETE__) {
-       window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass };
-    } else if (globalBypass) {
-       window.__BOOT_ANIMATION_COMPLETE__.bypassed = true;
-    }
+    window.__BOOT_DONE__.core = 1;
+    window.__BOOT_DONE__.patches = 0;
+    window.__BOOT_DONE__.safe = false;
   })();
 
   function resolveWorkbenchRenderer(){
