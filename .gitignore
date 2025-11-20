@@ -4,3 +4,4 @@ proofs/
 !proofs/phase1.png
 
 .runs/
+test-results/
