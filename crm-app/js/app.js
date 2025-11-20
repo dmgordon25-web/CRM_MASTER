@@ -416,11 +416,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
 
   function ensurePartnerModalClosed(){
     try {
-      // CHANGE: Use 'partner-edit' (the correct key), NOT 'partner-edit-modal'
+      // FIX: Use the correct key 'partner-edit'
       if(window.CRM_Modal && window.CRM_Modal.close){
          window.CRM_Modal.close('partner-edit', { remove: true });
       } else {
-         closeSingletonModal('partner-edit', { remove: true });
+         // Legacy fallback
+         const node = document.querySelector('[data-ui="partner-edit-modal"]');
+         if(node) {
+           node.classList.add('hidden');
+           node.style.display = 'none';
+           if(node.tagName==='DIALOG' && node.open) node.close();
+         }
       }
     } catch (_) {}
   }
@@ -2454,13 +2460,16 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       settingsButton.classList.toggle('active', normalized==='settings');
     }
     activeView = normalized;
-    // RESTORE STALE VIEW
+
+    // INSERT: Restore Stale View
     const currentRoot = document.getElementById('view-' + normalized);
     if(currentRoot && currentRoot.dataset.isStale === '1'){
       delete currentRoot.dataset.isStale;
       if(isDebug) console.log(`[app] Restoring stale view: ${normalized}`);
       refreshByScope(normalized);
     }
+    // END INSERT
+
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
     if(normalized === 'notifications'){
@@ -3126,7 +3135,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     const key = String(scope || '').toLowerCase();
     if(!key) return false;
 
-    // MAP: scope -> DOM ID
+    // Map scopes to their container IDs
     const viewMap = {
       'workbench': 'view-workbench',
       'pipeline': 'view-pipeline',
@@ -3135,25 +3144,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       'contacts': 'view-contacts'
     };
 
-    // CHECK: Is the view hidden?
+    // FIX: Check visibility defensively (works in browsers AND test stubs)
     if(viewMap[key]){
       const root = document.getElementById(viewMap[key]);
-
-      // Defensive visibility check that is safe for Unit Test stubs
       let isHidden = false;
-      if (root) {
-        if (root.hidden) isHidden = true;
-        else if (root.classList && typeof root.classList.contains === 'function' && root.classList.contains('hidden')) isHidden = true;
-        else if (root.style && root.style.display === 'none') isHidden = true;
-        else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
-          try {
-            if (window.getComputedStyle(root).display === 'none') isHidden = true;
-          } catch (_) {}
-        }
+      if(root){
+         if(root.hidden) isHidden = true;
+         else if(root.style && root.style.display === 'none') isHidden = true;
+         else if(root.classList && typeof root.classList.contains === 'function' && root.classList.contains('hidden')) isHidden = true;
       }
 
-      if (isHidden) {
-        root.dataset.isStale = '1';
+      if(isHidden){
+        // Mark stale and return TRUE to prevent full re-render fallback
+        if(root) root.dataset.isStale = '1';
         return true;
       }
     }
