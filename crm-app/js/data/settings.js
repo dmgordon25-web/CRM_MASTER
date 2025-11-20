@@ -793,33 +793,31 @@ function shouldValidateGeneral(partial){
   }
 
   async function handleDeleteAll(){
-    let confirmed = true;
-    if(typeof window.confirmAction === 'function'){
-      confirmed = await window.confirmAction({
-        title: 'Delete all data',
-        message: 'Delete ALL local data?',
-        confirmLabel: 'Delete',
-        cancelLabel: 'Keep data',
-        destructive: true
-      });
-    }else if(typeof window.confirm === 'function'){
-      confirmed = window.confirm('Delete ALL local data?');
-    }
-    if(!confirmed) return;
-    await clearAllStores();
-    try{ localStorage.clear(); sessionStorage.clear(); }
-    catch (_err) {}
-    if(window.toast){
-      try{ window.toast('All data deleted'); }
-      catch (_err) { console && console.info && console.info('[settings] toast skipped'); }
-    }
-    document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'settings', source:'settings:deleteAll', reason:'deleteAll' } }));
+    if(!confirm('PERMANENTLY DELETE ALL DATA? This cannot be undone.')) return;
 
-    // Force Hard Reload to clear all memory state
-    if(window.toast) window.toast('Data wiped. Reloading...');
-    setTimeout(() => {
+    const btn = document.getElementById('btn-delete-all');
+    if(btn) btn.disabled = true;
+
+    try {
+      // 1. Wipe DB
+      await clearAllStores();
+
+      // 2. Wipe Storage
+      try{ localStorage.clear(); } catch(e){}
+      try{ sessionStorage.clear(); } catch(e){}
+
+      // 3. Force Reload (The only way to clear Widget memory caches)
+      if(window.toast) window.toast('Wipe complete. Reloading...');
+
+      setTimeout(() => {
         window.location.reload();
-    }, 1000);
+      }, 500);
+
+    } catch(e) {
+      console.warn(e);
+      if(window.toast) window.toast('Wipe failed: ' + e.message);
+      if(btn) btn.disabled = false;
+    }
   }
 
   function wireDeleteAll(){

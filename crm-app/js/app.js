@@ -3096,12 +3096,17 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   (async function init(){
     await openDB();
     let partners = await dbGetAll('partners');
-    if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || lc(p.name)==='none')){
+    // Ensure "None" partner exists for orphans
+    if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
       const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
-      await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord));
+      try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
-    await ensureSeedData(partners);
+
+    // FIX: DISABLE AUTO-SEEDING
+    // This was causing "Delete All" to fail because the app would instantly re-generate data on reload.
+    // await ensureSeedData(partners);
+
     await backfillUpdatedAt();
     scheduleAppRender();
     await renderExtrasRegistry();
