@@ -1,5 +1,5 @@
+/* crm-app/js/ui/modal_singleton.js */
 const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
-const MODAL_DEBUG_PARAM = 'modaldebug';
 
 function reportModalError(err){
   if(console && typeof console.error === 'function') console.error('[MODAL_ERROR]', err);
@@ -27,7 +27,6 @@ function tagModalKey(root, key){
   if(!el) return el;
   el.setAttribute('data-modal-key', key);
   if(el.dataset) el.dataset.modalKey = key;
-  // Initialize cleanup bucket
   if(!el[CLEANUP_SYMBOL]) el[CLEANUP_SYMBOL] = new Set();
   return el;
 }
@@ -47,7 +46,7 @@ export function closeSingletonModal(target, options = {}){
 
   if(!root) return;
 
-  // 1. Run Cleanup Callbacks
+  // 1. Run Cleanup Callbacks (Prevent memory leaks/zombie listeners)
   const bucket = root[CLEANUP_SYMBOL];
   if(bucket && bucket.size){
     bucket.forEach(fn => {
@@ -56,13 +55,13 @@ export function closeSingletonModal(target, options = {}){
     bucket.clear();
   }
 
-  // 2. CRITICAL FIX: Close the <dialog> natively to release focus trap
-  if(root.tagName === 'DIALOG' && typeof root.close === 'function' && root.hasAttribute('open')){
-    try { root.close(); } catch(e) { /* ignore if already closed */ }
-    root.removeAttribute('open'); // Force attribute removal
+  // 2. CRITICAL: Close the native dialog to release the Focus Trap
+  if(root.tagName === 'DIALOG' && typeof root.close === 'function' && root.open){
+    try { root.close(); } catch(e) { /* ignore */ }
+    root.removeAttribute('open');
   }
 
-  // 3. Hide or Remove
+  // 3. Hide/Remove
   if(options.remove !== false){
     try { root.remove(); } catch(e) { if(root.parentNode) root.parentNode.removeChild(root); }
   } else {
@@ -74,11 +73,11 @@ export function closeSingletonModal(target, options = {}){
 
 function closeAllOtherModals(currentKey){
   if(typeof document === 'undefined') return;
-  const all = document.querySelectorAll('[data-modal-key], dialog[open]');
+  // Find anything that looks like a modal and kill it
+  const all = document.querySelectorAll('[data-modal-key], dialog[open], .record-modal:not(.hidden)');
   all.forEach(el => {
     const key = el.getAttribute('data-modal-key');
     if(key !== currentKey){
-      // Remove === true to kill zombies
       closeSingletonModal(el, { remove: true });
     }
   });
@@ -87,20 +86,19 @@ function closeAllOtherModals(currentKey){
 export function ensureSingletonModal(key, createFn){
   if(typeof document === 'undefined') return null;
 
-  // 1. Safety Blur to break existing focus loops
+  // 1. Safety Blur (Stops focus fighting immediately)
   if(document.activeElement && document.activeElement !== document.body){
     try { document.activeElement.blur(); } catch(e){}
   }
 
-  // 2. Close everything else
+  // 2. Force close everything else
   closeAllOtherModals(key);
 
-  // 3. Check existing
+  // 3. Resolve Element
   const selector = `[data-modal-key="${key}"]`;
   let el = document.querySelector(selector);
 
   if(!el && typeof createFn === 'function'){
-    // Create new
     const result = createFn();
     if(result instanceof Promise){
       return result.then(newNode => setupModal(newNode, key));
@@ -120,23 +118,13 @@ function setupModal(el, key){
   el.style.display = '';
   el.removeAttribute('aria-hidden');
 
-  // Native Dialog handling
+  // Native Dialog Open
   if(el.tagName === 'DIALOG' && typeof el.showModal === 'function'){
-    if(!el.hasAttribute('open')){
+    if(!el.open){
        try { el.showModal(); } catch(e) {
-         // If invalid state (already open), just ensure it's really open
          el.setAttribute('open', '');
        }
     }
   }
-
-  // Focus safety
-  requestAnimationFrame(() => {
-    try {
-      const focusTarget = el.querySelector('[autofocus]') || el;
-      focusTarget.focus();
-    } catch(e){}
-  });
-
   return el;
 }
