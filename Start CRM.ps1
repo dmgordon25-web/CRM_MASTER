@@ -55,6 +55,7 @@ try{
 }
 
 # Wait for pid file and port up to 10s
+$port = $null
 Start-Sleep -Milliseconds 600
 $deadline = (Get-Date).AddSeconds(10)
 while ((Get-Date) -lt $deadline -and -not (Test-Path -LiteralPath $pidFile)) {
