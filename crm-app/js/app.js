@@ -10,6 +10,8 @@ import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor } from './editors/contact_entry.js';
+import { closePartnerEditor } from './editors/partner_entry.js';
+import { closeActiveModal } from './ui/modal_singleton.js';
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
 import { renderDashboardView, renderContactsView, renderPipelineView, renderPartnersView } from './render.js';
@@ -413,33 +415,19 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     }
   }
 
-  function forceHidePartnerModal(){
-    if(typeof document === 'undefined') return;
-    const node = document.querySelector('#partner-modal.partner-edit-modal, [data-ui="partner-edit-modal"]');
-    if(!node) return;
-    if(node.dataset){
-      node.dataset.open = '0';
-      node.dataset.opening = '0';
-      node.dataset.partnerId = '';
-      node.dataset.sourceHint = '';
-    }
-    try { node.classList.add('hidden'); }
-    catch (_) {}
-    try { node.style.display = 'none'; }
-    catch (_) {}
-    try { node.setAttribute('aria-hidden', 'true'); }
-    catch (_) {}
-    try { node.removeAttribute('open'); }
-    catch (_) {}
-  }
+  // Ensure all modals are closed on app initialization (wrapped in DOM ready)
+  onDomReady(() => {
+    try {
+      closeActiveModal();
+    } catch (_) {}
+    try {
+      closeContactEditor('app-init');
+    } catch (_) {}
+    try {
+      closePartnerEditor('app-init');
+    } catch (_) {}
+  });
 
-  function ensurePartnerModalClosed(){
-    try { closePartnerEditModal(); }
-    catch (_) {}
-    forceHidePartnerModal();
-  }
-
-  ensurePartnerModalClosed();
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(DEFAULT_ROUTE);
   applyNotificationsNavVisibility(notificationsEnabled);
@@ -2426,6 +2414,15 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       normalized = DEFAULT_ROUTE;
     }
     const previous = activeView;
+
+    // Close any active modal before switching views to prevent modal deadlocks
+    // Only close modals if DOM is ready and we're actually changing views
+    if(previous !== normalized && typeof document !== 'undefined' && document.readyState !== 'loading'){
+      try {
+        closeActiveModal();
+      } catch (_) {}
+    }
+
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav')===normalized));
     if(settingsButton){

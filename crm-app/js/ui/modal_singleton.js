@@ -2,6 +2,9 @@ const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
 const MODAL_DEBUG_PARAM = 'modaldebug';
 const ENTITY_PARAM_HINTS = ['id', 'partnerId', 'partner', 'contactId', 'contact', 'entityId', 'recordId', 'loanId'];
 
+// Track the single active modal root across all modal types
+let currentModalRoot = null;
+
 function reportModalError(err){
   if(!err) return;
   if(console && typeof console.error === 'function'){
@@ -251,8 +254,21 @@ export function ensureSingletonModal(key, createFn){
   const debugState = prepareModalOpenDebug(initialId);
   const selector = `[data-modal-key="${key}"]`;
   const existing = document.querySelector(selector);
+
+  // If this modal already exists and is the current one, just focus and return it
   if(existing){
     const el = tagModalKey(existing, key);
+
+    // If there's a different modal open, close it first
+    if(currentModalRoot && currentModalRoot !== el){
+      try {
+        closeActiveModal();
+      } catch(err){
+        reportModalError(err);
+      }
+    }
+
+    currentModalRoot = el;
     focusModalRoot(el);
     if(debugState){
       const modalId = deriveModalId(key, el);
@@ -260,19 +276,34 @@ export function ensureSingletonModal(key, createFn){
     }
     return el;
   }
+
+  // Close any existing modal before creating a new one
+  if(currentModalRoot){
+    try {
+      closeActiveModal();
+    } catch(err){
+      reportModalError(err);
+    }
+  }
+
   const created = typeof createFn === 'function' ? createFn() : null;
   if(created instanceof Promise){
     return created.then(node => {
       const el = tagModalKey(node, key);
+      currentModalRoot = el;
       focusModalRoot(el);
       if(debugState){
         const modalId = deriveModalId(key, el);
         emitModalOpenDebug(modalId, debugState, { promise: true });
       }
       return el;
+    }).catch(err => {
+      reportModalError(err);
+      throw err;
     });
   }
   const el = tagModalKey(created, key);
+  currentModalRoot = el;
   focusModalRoot(el);
   if(debugState){
     const modalId = deriveModalId(key, el);
@@ -312,9 +343,7 @@ export function closeSingletonModal(target, options = {}){
         if(typeof fn !== 'function') return;
         try{ fn(root); }
         catch(err){
-          if(console && typeof console.error === 'function'){
-            console.error('[MODAL_CLEANUP_ERROR]', err);
-          }
+          console.error('[MODAL_CLEANUP_ERROR]', err);
         }
       });
     }finally{
@@ -345,5 +374,38 @@ export function closeSingletonModal(target, options = {}){
     root.style.display = 'none';
   }
   root[CLEANUP_SYMBOL] = new Set();
+
+  // Clear the currentModalRoot if this was the active modal
+  if(currentModalRoot === root){
+    currentModalRoot = null;
+  }
+
   emitModalCloseDebug(modalId);
+}
+
+/**
+ * Closes any currently active modal, ensuring proper cleanup.
+ * This enforces a single modal at a time across the entire app.
+ */
+export function closeActiveModal(){
+  if(!currentModalRoot) return;
+
+  try {
+    // Get the key and call closeSingletonModal which handles all cleanup
+    const key = currentModalRoot.getAttribute?.('data-modal-key') || '';
+    const rootToClose = currentModalRoot;
+
+    // Clear the reference first to prevent recursion
+    currentModalRoot = null;
+
+    if(key){
+      closeSingletonModal(key);
+    } else {
+      closeSingletonModal(rootToClose);
+    }
+  } catch(err){
+    reportModalError(err);
+    // Ensure we clear the reference even if cleanup fails
+    currentModalRoot = null;
+  }
 }
