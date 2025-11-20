@@ -35,7 +35,6 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
 
   async function handleDeleteAll(){
     if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
-
     const btn = document.getElementById('btn-delete-all');
     if(btn) btn.disabled = true;
 
@@ -48,12 +47,10 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
       try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
       localStorage.clear();
       sessionStorage.clear();
-
-      // FIX: Set flag to prevent auto-seeding on next load
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
 
       if(window.toast) window.toast('Wiped. Reloading...');
-      // FIX: FORCE HARD RELOAD
+      // FORCE HARD RELOAD to clear memory state
       setTimeout(() => window.location.reload(), 500);
 
     } catch(e) {
