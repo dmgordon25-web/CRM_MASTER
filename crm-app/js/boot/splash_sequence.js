@@ -87,8 +87,13 @@ function snapshotAnimationComplete() {
 function isAnimationDisabled() {
   if (typeof window === 'undefined') return false;
 
-  // FIX: Use the captured flag
+  // FIX: Check the globally captured flag first!
   if (SKIP_ANIMATION_FLAG) return true;
+
+  // Fallback: Check URL (in case router hasn't run yet, though unlikely)
+  if (window.location && typeof window.location.search === 'string') {
+    if (window.location.search.includes('skipBootAnimation')) return true;
+  }
 
   const mode = window.__BOOT_ANIMATION_MODE__;
   if (mode && typeof mode === 'object') {

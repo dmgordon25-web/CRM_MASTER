@@ -3121,10 +3121,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
-    // Animation Signal Backup
-    // 1. Check Global Flag (Captured in index.html)
-    const globalBypass = window.__SKIP_BOOT_ANIMATION__ === true;
-
+    // FIX: Animation Signal Backup
+    // 1. Check Global Flag (Captured in index.html/early_trap)
+    const globalBypass = typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true;
     // 2. Check URL (Fallback)
     const urlBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
 
