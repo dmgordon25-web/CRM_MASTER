@@ -3121,23 +3121,11 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
-    // FIX: Animation Signal Backup
-    // 1. Check Global Flag (Captured in index.html/early_trap)
-    const globalBypass = typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true;
-    // 2. Check URL (Fallback)
-    const urlBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
-
-    const shouldBypass = globalBypass || urlBypass;
-    const existing = window.__BOOT_ANIMATION_COMPLETE__;
-
-    // 3. Force Bypass if flagged
-    window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
-      existing || {},
-      {
-        at: (existing && existing.at) || Date.now(),
-        bypassed: shouldBypass || (existing && existing.bypassed) || false
-      }
-    );
+    // Animation Signal
+    // Ensure it exists, but trust splash_sequence if it already set it.
+    if (!window.__BOOT_ANIMATION_COMPLETE__) {
+        window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
+    }
   })();
 
   function resolveWorkbenchRenderer(){
