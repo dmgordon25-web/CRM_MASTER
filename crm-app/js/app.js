@@ -3121,18 +3121,21 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.patches !== 'number') window.__BOOT_DONE__.patches = 0;
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
-    // Animation Signal Backup
-    // We check the global flag (safe) or the URL (fallback)
-    const shouldBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true)
-       || (typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation'));
+    // FIX: Animation Signal Backup
+    // 1. Check the global flag captured by early_trap.js (Primary Source)
+    const globalBypass = typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true;
 
+    // 2. Check URL as fallback (in case router hasn't run yet)
+    const urlBypass = typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation');
+
+    const shouldBypass = globalBypass || urlBypass;
     const existing = window.__BOOT_ANIMATION_COMPLETE__;
 
+    // 3. Merge state. If ANY source says bypass, force it to true.
     window.__BOOT_ANIMATION_COMPLETE__ = Object.assign(
       existing || {},
       {
         at: (existing && existing.at) || Date.now(),
-        // Force true if our flag is set
         bypassed: shouldBypass || (existing && existing.bypassed) || false
       }
     );
