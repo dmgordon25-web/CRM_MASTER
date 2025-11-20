@@ -3122,8 +3122,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     if(typeof window.__BOOT_DONE__.safe !== 'boolean') window.__BOOT_DONE__.safe = false;
 
     // Animation Signal Backup
-    // Check global flag (safe) OR URL (fallback)
-    const rawBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true)
+    // We check the global flag (safe) or the URL (fallback)
+    const shouldBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true)
        || (typeof window !== 'undefined' && window.location.search.includes('skipBootAnimation'));
 
     const existing = window.__BOOT_ANIMATION_COMPLETE__;
@@ -3132,7 +3132,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       existing || {},
       {
         at: (existing && existing.at) || Date.now(),
-        bypassed: (existing && existing.bypassed) || rawBypass || false
+        // Force true if our flag is set
+        bypassed: shouldBypass || (existing && existing.bypassed) || false
       }
     );
   })();

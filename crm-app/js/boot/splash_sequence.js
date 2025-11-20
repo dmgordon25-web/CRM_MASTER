@@ -3,7 +3,7 @@
 const SPLASH_SELECTOR = '#diagnostics-splash';
 const BOOT_SPLASH_SELECTOR = '#boot-splash';
 
-// FIX: Use the global flag captured in index.html
+// FIX: Use the global flag captured in early_trap.js
 const SKIP_ANIMATION_FLAG = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
 
 let splashSequenceRan = false;
