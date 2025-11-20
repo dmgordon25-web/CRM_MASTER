@@ -814,15 +814,12 @@ function shouldValidateGeneral(partial){
       catch (_err) { console && console.info && console.info('[settings] toast skipped'); }
     }
     document.dispatchEvent(new CustomEvent('app:data:changed', { detail:{ scope:'settings', source:'settings:deleteAll', reason:'deleteAll' } }));
-    const micro = typeof queueMicrotask === 'function'
-      ? queueMicrotask
-      : (fn) => Promise.resolve().then(fn);
-    micro(() => {
-      if(window.renderAll){
-        try{ window.renderAll('deleteAll'); }
-        catch (err) { if(console && console.warn) console.warn('[settings] renderAll failed', err); }
-      }
-    });
+
+    // Force Hard Reload to clear all memory state
+    if(window.toast) window.toast('Data wiped. Reloading...');
+    setTimeout(() => {
+        window.location.reload();
+    }, 1000);
   }
 
   function wireDeleteAll(){
