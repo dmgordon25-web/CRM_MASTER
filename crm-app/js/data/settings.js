@@ -770,23 +770,17 @@ function shouldValidateGeneral(partial){
       try{ await window.openDB(); }
       catch (_err) {}
     }
-    if(typeof window.dbClear === 'function' && window.DB_META && Array.isArray(window.DB_META.STORES)){
-      for(const store of window.DB_META.STORES){
+    // Hardcoded list of ALL stores to ensure complete wipe
+    const ALL_STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta'];
+
+    if(typeof window.dbClear === 'function'){
+      for(const store of ALL_STORES){
         try{ await window.dbClear(store); }
         catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', store, err); }
       }
-      return;
     }
-    if(typeof window.dbClear === 'function'){
-      try{
-        await window.dbClear('contacts');
-        await window.dbClear('partners');
-        await window.dbClear('settings');
-        await window.dbClear('tasks');
-        await window.dbClear('documents');
-      }
-      catch (err) { if(console && console.warn) console.warn('[settings] dbClear failed', err); }
-    }
+    // Force seed data to re-run on next boot
+    try { await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
   }
 
   async function handleDeleteAll(){

@@ -661,7 +661,9 @@ export function normalizeContactId(input) {
     }
 
     const dlg = base;
-    dlg.__contactInvoker = invoker || dlg.__contactInvoker || null;
+    // FIX: Don't let the reset-close trigger focus restoration
+    const nextInvoker = invoker || dlg.__contactInvoker || null;
+    dlg.__contactInvoker = null;
 
     if(dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function'){
       try{ dlg.__contactScrollRestore(); }
@@ -673,6 +675,9 @@ export function normalizeContactId(input) {
       try{ dlg.close(); }
       catch (_err){}
     }
+
+    // Restore the invoker for the actual user session
+    dlg.__contactInvoker = nextInvoker;
     dlg.style.display='block';
     let opened = false;
     if(typeof dlg.showModal === 'function'){
