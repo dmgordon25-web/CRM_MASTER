@@ -1,151 +1,142 @@
-/* crm-app/js/ui/modal_singleton.js */
+const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
+const MODAL_DEBUG_PARAM = 'modaldebug';
 
-// TRACKING STATE
-let currentOpenModalId = null;
-let currentModalElement = null;
+function reportModalError(err){
+  if(console && typeof console.error === 'function') console.error('[MODAL_ERROR]', err);
+}
 
-// Symbol for storing cleanup callbacks on modal elements
-const CLEANUP_CALLBACKS_KEY = Symbol('modalCleanupCallbacks');
+function toElement(node){
+  if(!node) return null;
+  if(node.nodeType === Node.ELEMENT_NODE) return node;
+  if('host' in node && node.host instanceof HTMLElement) return node.host;
+  return null;
+}
 
-/**
- * Strictly ensures only one modal is open at a time.
- * Force-closes any existing modal before allowing a new one.
- */
-export async function ensureSingletonModal(key, createFn) {
-  // 1. Check if we are already open with this key
-  if (currentOpenModalId === key && currentModalElement && currentModalElement.isConnected) {
-    return currentModalElement; // Already open, do nothing
+function deriveModalId(key, node){
+  if(typeof key === 'string' && key) return key;
+  const el = toElement(node);
+  if(el){
+    if(el.dataset?.modalKey) return el.dataset.modalKey;
+    if(el.getAttribute('data-modal-key')) return el.getAttribute('data-modal-key');
+  }
+  return 'unknown';
+}
+
+function tagModalKey(root, key){
+  const el = toElement(root);
+  if(!el) return el;
+  el.setAttribute('data-modal-key', key);
+  if(el.dataset) el.dataset.modalKey = key;
+  // Initialize cleanup bucket
+  if(!el[CLEANUP_SYMBOL]) el[CLEANUP_SYMBOL] = new Set();
+  return el;
+}
+
+export function registerModalCleanup(root, cleanup){
+  if(!root || typeof cleanup !== 'function') return;
+  const el = toElement(root);
+  if(!el) return;
+  if(!el[CLEANUP_SYMBOL]) el[CLEANUP_SYMBOL] = new Set();
+  el[CLEANUP_SYMBOL].add(cleanup);
+}
+
+export function closeSingletonModal(target, options = {}){
+  if(typeof document === 'undefined') return;
+  const key = typeof target === 'string' ? target : null;
+  let root = key ? document.querySelector(`[data-modal-key="${key}"]`) : toElement(target);
+
+  if(!root) return;
+
+  // 1. Run Cleanup Callbacks
+  const bucket = root[CLEANUP_SYMBOL];
+  if(bucket && bucket.size){
+    bucket.forEach(fn => {
+      try{ fn(root); } catch(e){ console.warn(e); }
+    });
+    bucket.clear();
   }
 
-  // 2. Force close ANY active modal to prevent Focus Traps/Deadlocks
-  if (currentOpenModalId || currentModalElement) {
-    console.log(`[Modal] Force-closing collision: ${currentOpenModalId} -> ${key}`);
-    closeSingletonModal(currentOpenModalId, { remove: true });
+  // 2. CRITICAL FIX: Close the <dialog> natively to release focus trap
+  if(root.tagName === 'DIALOG' && typeof root.close === 'function' && root.hasAttribute('open')){
+    try { root.close(); } catch(e) { /* ignore if already closed */ }
+    root.removeAttribute('open'); // Force attribute removal
   }
 
-  // 3. Cleanup DOM just in case (Zombie Modals)
-  const zombies = document.querySelectorAll('dialog[open], .record-modal:not(.hidden)');
-  zombies.forEach(el => {
-    if (el.dataset.modalKey !== key) {
-      try { el.close(); } catch(e) {}
-      try { el.classList.add('hidden'); } catch(e) {}
-      try { el.style.display = 'none'; } catch(e) {}
+  // 3. Hide or Remove
+  if(options.remove !== false){
+    try { root.remove(); } catch(e) { if(root.parentNode) root.parentNode.removeChild(root); }
+  } else {
+    root.classList.add('hidden');
+    root.style.display = 'none';
+    root.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function closeAllOtherModals(currentKey){
+  if(typeof document === 'undefined') return;
+  const all = document.querySelectorAll('[data-modal-key], dialog[open]');
+  all.forEach(el => {
+    const key = el.getAttribute('data-modal-key');
+    if(key !== currentKey){
+      // Remove === true to kill zombies
+      closeSingletonModal(el, { remove: true });
     }
   });
+}
 
-  // 4. Create/Get the new modal
-  let el = document.querySelector(`[data-modal-key="${key}"]`);
+export function ensureSingletonModal(key, createFn){
+  if(typeof document === 'undefined') return null;
 
-  if (!el && typeof createFn === 'function') {
+  // 1. Safety Blur to break existing focus loops
+  if(document.activeElement && document.activeElement !== document.body){
+    try { document.activeElement.blur(); } catch(e){}
+  }
+
+  // 2. Close everything else
+  closeAllOtherModals(key);
+
+  // 3. Check existing
+  const selector = `[data-modal-key="${key}"]`;
+  let el = document.querySelector(selector);
+
+  if(!el && typeof createFn === 'function'){
+    // Create new
     const result = createFn();
-    el = result instanceof Promise ? await result : result;
+    if(result instanceof Promise){
+      return result.then(newNode => setupModal(newNode, key));
+    }
+    el = result;
   }
 
-  if (!el) {
-    console.error(`[Modal] Failed to create modal for key: ${key}`);
-    return null;
-  }
+  return setupModal(el, key);
+}
 
-  // 5. Set State
-  currentOpenModalId = key;
-  currentModalElement = el;
+function setupModal(el, key){
+  if(!el) return null;
+  el = tagModalKey(el, key);
 
-  // 6. Tag & Show
-  el.dataset.modalKey = key;
-  el.dataset.ui = `${key}-modal`;
+  // Ensure visible
   el.classList.remove('hidden');
   el.style.display = '';
   el.removeAttribute('aria-hidden');
 
-  if (el.tagName === 'DIALOG' && typeof el.showModal === 'function') {
-    // Avoid "InvalidStateError" if already open
-    if (!el.hasAttribute('open')) {
-      el.showModal();
+  // Native Dialog handling
+  if(el.tagName === 'DIALOG' && typeof el.showModal === 'function'){
+    if(!el.hasAttribute('open')){
+       try { el.showModal(); } catch(e) {
+         // If invalid state (already open), just ensure it's really open
+         el.setAttribute('open', '');
+       }
     }
   }
+
+  // Focus safety
+  requestAnimationFrame(() => {
+    try {
+      const focusTarget = el.querySelector('[autofocus]') || el;
+      focusTarget.focus();
+    } catch(e){}
+  });
 
   return el;
-}
-
-export function closeSingletonModal(target, options = {}) {
-  // Allow passing key string OR element
-  let el = target;
-  if (typeof target === 'string') {
-    el = document.querySelector(`[data-modal-key="${target}"]`);
-  }
-
-  // If we are closing the "Current" modal, clear state
-  if (currentModalElement === el || (target && target === currentOpenModalId)) {
-    currentOpenModalId = null;
-    currentModalElement = null;
-  }
-
-  if (!el) return;
-
-  // 1. Execute cleanup callbacks BEFORE closing (wrapped individually for safety)
-  if (el[CLEANUP_CALLBACKS_KEY] && Array.isArray(el[CLEANUP_CALLBACKS_KEY])) {
-    el[CLEANUP_CALLBACKS_KEY].forEach(fn => {
-      try {
-        fn();
-      } catch (e) {
-        try {
-          console.error('[Modal] Cleanup callback error:', e);
-        } catch (_) {}
-      }
-    });
-    // Clear the callbacks after execution
-    el[CLEANUP_CALLBACKS_KEY] = [];
-  }
-
-  // 2. Close Dialog (hardened)
-  if (el.tagName === 'DIALOG' && typeof el.close === 'function') {
-    // Explicitly close the dialog if it has the open attribute
-    if (el.hasAttribute('open')) {
-      try { el.close(); } catch(e) {
-        try {
-          console.error('[Modal] Close error:', e);
-        } catch (_) {}
-      }
-    }
-    // Always remove the open attribute to ensure clean state
-    el.removeAttribute('open');
-  }
-
-  // 3. Hide DOM (enhanced to remove any focus traps or overlay artifacts)
-  el.classList.add('hidden');
-  el.style.display = 'none';
-  el.setAttribute('aria-hidden', 'true');
-
-  // 4. Remove any focus trap by blurring if element has focus
-  try {
-    if (el.contains(document.activeElement)) {
-      document.activeElement.blur();
-    }
-  } catch (_err) {}
-
-  // 5. Optional: beforeRemove callback for additional cleanup
-  if (options.beforeRemove && typeof options.beforeRemove === 'function') {
-    try {
-      options.beforeRemove(el);
-    } catch (_err) {
-      try {
-        console.error('[Modal] beforeRemove callback error:', _err);
-      } catch (_) {}
-    }
-  }
-
-  // 6. Optional: Remove from DOM (Clean slate for next time)
-  if (options.remove === true && el.parentNode) {
-    el.parentNode.removeChild(el);
-  }
-}
-
-export function registerModalCleanup(root, fn) {
-  if (!root || typeof fn !== 'function') return;
-
-  // Store cleanup callbacks on the element
-  if (!root[CLEANUP_CALLBACKS_KEY]) {
-    root[CLEANUP_CALLBACKS_KEY] = [];
-  }
-  root[CLEANUP_CALLBACKS_KEY].push(fn);
 }
