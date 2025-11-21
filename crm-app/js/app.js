@@ -1,6 +1,6 @@
+import './boot/splash_sequence.js';
+import './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';
-import './boot/splash_sequence.js'; // <--- REQUIRED FIX
-import './state/selectionStore.js'; // <--- REQUIRED FIX
 import './dashboard/kpis.js';
 import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -3105,13 +3105,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     await openDB();
     let partners = await dbGetAll('partners');
 
-    if(!partners.find(p=> String(p.id)===NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
-      const noneRecord = { id: NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
+    if(!partners.find(p=> String(p.id)===window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase()==='none'))){
+      const noneRecord = { id: window.NONE_PARTNER_ID, name:'None', company:'', email:'', phone:'', tier:'Keep in Touch' };
       try { await dbPut('partners', Object.assign({updatedAt: Date.now()}, noneRecord)); } catch(e){}
       partners.push(noneRecord);
     }
 
-    // FIX: Smart Seeding (Seeds for CI, Respects User Delete)
+    // FIX: Smart Seeding
     const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
     if (!isSuppressed) {
        await ensureSeedData(partners);

@@ -43,14 +43,15 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
     try {
       await ensureDb();
       const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
+
       if(typeof window.dbClear === 'function'){
         for(const s of STORES) { try{ await window.dbClear(s); } catch(e){} }
       }
+
       try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
       localStorage.clear();
       sessionStorage.clear();
 
-      // FIX: Set flag to prevent auto-seeding on next load
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
 
       if(window.toast) window.toast('Wiped. Reloading...');
