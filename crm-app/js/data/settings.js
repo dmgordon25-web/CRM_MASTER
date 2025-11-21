@@ -36,28 +36,24 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
 
   async function handleDeleteAll(){
     if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
-
     const btn = document.getElementById('btn-delete-all');
     if(btn) btn.disabled = true;
 
     try {
       await ensureDb();
       const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
-
       if(typeof window.dbClear === 'function'){
         for(const s of STORES) { try{ await window.dbClear(s); } catch(e){} }
       }
-
       try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
       localStorage.clear();
       sessionStorage.clear();
-
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
-
+      
       if(window.toast) window.toast('Wiped. Reloading...');
       // FIX: FORCE HARD RELOAD
       setTimeout(() => window.location.reload(), 500);
-
+      
     } catch(e) {
       console.warn(e);
       if(window.toast) window.toast('Wipe failed: ' + e.message);
@@ -68,7 +64,7 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
   window.CRM = window.CRM || {};
   window.CRM.validateSettings = validateSettings;
   window.Settings = { get: load, save, refresh: load, deleteAll: handleDeleteAll };
-
+  
   if(typeof document !== 'undefined'){
      document.addEventListener('DOMContentLoaded', () => {
        const btn = document.getElementById('btn-delete-all');
