@@ -8,14 +8,12 @@ export function normalizeNewContactPrefill(input = {}) {
   if (input && (input instanceof Event || input.target)) return { __isNew: true };
   return { ...input, id: input.id || `tmp-${Date.now()}` };
 }
-
 export function normalizeContactId(input) {
   if (!input) return null;
   if (input instanceof Event || (typeof input === 'object' && input.type === 'click')) return null;
   if (typeof input === 'object' && input.id) return String(input.id).trim();
   return String(input).trim();
 }
-
 export function validateContact(model){ return { ok: true, errors: {} }; }
 
 function createContactForm(data, isNew) {
@@ -23,13 +21,8 @@ function createContactForm(data, isNew) {
   form.innerHTML = `
     <div class="modal-form-grid" style="padding:20px;">
       <h3>${isNew ? 'Create Contact' : 'Edit Contact'}</h3>
-      <div class="form-group">
-         <label>Name</label>
-         <input class="form-control" id="c-name" value="${escape(data.name || data.firstName || '')}">
-      </div>
-      <div class="row" style="margin-top:20px;">
-        <button class="btn brand" id="btn-save-contact">Save</button>
-      </div>
+      <div class="form-group"><label>Name</label><input class="form-control" id="c-name" value="${escape(data.name || data.firstName || '')}"></div>
+      <div class="row" style="margin-top:20px;"><button class="btn brand" id="btn-save-contact">Save</button></div>
     </div>`;
   const saveBtn = form.querySelector('#btn-save-contact');
   if(saveBtn) saveBtn.onclick = async (e) => { e.preventDefault(); toast('Saved (Demo)'); closeContactEditor(); };
@@ -44,7 +37,6 @@ window.renderContactModal = async function(contactId, options = {}){
     el.className = 'record-modal contact-edit-modal';
     el.innerHTML = '<div class="modal-content"><div class="modal-header"></div><div class="modal-body"></div></div>';
     document.body.appendChild(el);
-    // NUCLEAR FIX: NO FOCUS LOGIC. Just state cleanup.
     el.addEventListener('close', () => {
       el.removeAttribute('open');
       el.style.display = 'none';
@@ -53,17 +45,15 @@ window.renderContactModal = async function(contactId, options = {}){
     return el;
   });
   if(!dlg) return;
-  
+
   const header = dlg.querySelector('.modal-header');
   header.innerHTML = `<div style="display:flex;justify-content:flex-end;"><button class="btn-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">&times;</button></div>`;
   header.querySelector('.btn-close').onclick = (e) => { e.preventDefault(); try{dlg.close();}catch(_){} };
-  
+
   const body = dlg.querySelector('.modal-body');
   body.innerHTML = '';
   let record = {};
-  if(!isNew){
-      try { await window.openDB(); record = await window.dbGet('contacts', rawId) || {}; } catch(e){}
-  }
+  if(!isNew){ try { await window.openDB(); record = await window.dbGet('contacts', rawId) || {}; } catch(e){} }
   body.appendChild(createContactForm(record, isNew));
 
   if(!dlg.hasAttribute('open')) try{ dlg.showModal(); } catch(e){ dlg.setAttribute('open',''); }
