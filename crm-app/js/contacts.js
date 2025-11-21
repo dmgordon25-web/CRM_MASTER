@@ -53,11 +53,11 @@ window.renderContactModal = async function(contactId, options = {}){
     return el;
   });
   if(!dlg) return;
-
+  
   const header = dlg.querySelector('.modal-header');
   header.innerHTML = `<div style="display:flex;justify-content:flex-end;"><button class="btn-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">&times;</button></div>`;
   header.querySelector('.btn-close').onclick = (e) => { e.preventDefault(); try{dlg.close();}catch(_){} };
-
+  
   const body = dlg.querySelector('.modal-body');
   body.innerHTML = '';
   let record = {};
