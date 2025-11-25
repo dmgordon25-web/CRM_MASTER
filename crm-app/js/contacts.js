@@ -39,12 +39,14 @@ function createContactForm(data, isNew) {
 window.renderContactModal = async function(contactId, options = {}){
   const rawId = normalizeContactId(contactId);
   const isNew = !rawId;
+
   const dlg = await ensureSingletonModal(CONTACT_MODAL_KEY, () => {
     const el = document.createElement('dialog');
     el.className = 'record-modal contact-edit-modal';
     el.innerHTML = '<div class="modal-content"><div class="modal-header"></div><div class="modal-body"></div></div>';
     document.body.appendChild(el);
-    // NUCLEAR FIX: NO FOCUS LOGIC. Just state cleanup.
+
+    // NUCLEAR FIX: No focus logic to prevent freeze
     el.addEventListener('close', () => {
       el.removeAttribute('open');
       el.style.display = 'none';
@@ -52,12 +54,13 @@ window.renderContactModal = async function(contactId, options = {}){
     });
     return el;
   });
+
   if(!dlg) return;
-  
+
   const header = dlg.querySelector('.modal-header');
   header.innerHTML = `<div style="display:flex;justify-content:flex-end;"><button class="btn-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">&times;</button></div>`;
   header.querySelector('.btn-close').onclick = (e) => { e.preventDefault(); try{dlg.close();}catch(_){} };
-  
+
   const body = dlg.querySelector('.modal-body');
   body.innerHTML = '';
   let record = {};

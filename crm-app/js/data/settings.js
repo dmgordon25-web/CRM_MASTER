@@ -7,7 +7,6 @@ const __FALLBACK_FAVORITES__ = (() => {
 
 const __FAVORITES_API__ = (typeof window !== 'undefined' && window.__CRM_FAVORITES__) ? window.__CRM_FAVORITES__ : __FALLBACK_FAVORITES__;
 const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
-const EMAIL_FROM_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateSettings(settings){ return { ok: true, errors: [] }; }
 
@@ -42,18 +41,21 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
     try {
       await ensureDb();
       const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
+
       if(typeof window.dbClear === 'function'){
         for(const s of STORES) { try{ await window.dbClear(s); } catch(e){} }
       }
+
       try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch(e){}
       localStorage.clear();
       sessionStorage.clear();
+
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
-      
+
       if(window.toast) window.toast('Wiped. Reloading...');
-      // FIX: FORCE HARD RELOAD
+      // FORCE RELOAD
       setTimeout(() => window.location.reload(), 500);
-      
+
     } catch(e) {
       console.warn(e);
       if(window.toast) window.toast('Wipe failed: ' + e.message);
@@ -64,7 +66,7 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
   window.CRM = window.CRM || {};
   window.CRM.validateSettings = validateSettings;
   window.Settings = { get: load, save, refresh: load, deleteAll: handleDeleteAll };
-  
+
   if(typeof document !== 'undefined'){
      document.addEventListener('DOMContentLoaded', () => {
        const btn = document.getElementById('btn-delete-all');

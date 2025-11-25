@@ -249,7 +249,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       partners.push(noneRecord);
     }
 
-    // FIX: Smart Seeding (Seeds for CI, Respects User Delete)
+    // FIX: Smart Seeding
     const isSuppressed = typeof localStorage !== 'undefined' && localStorage.getItem('crm:suppress-seed') === '1';
     if (!isSuppressed) {
        await ensureSeedData(partners);
@@ -266,7 +266,7 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     window.__BOOT_DONE__.patches = 0;
     window.__BOOT_DONE__.safe = false;
 
-    // Animation Signal Backup (uses flag from index.html)
+    // Fallback Animation Signal
     if (!window.__BOOT_ANIMATION_COMPLETE__) {
         const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
         window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass || true };
