@@ -1,4 +1,14 @@
 /* Early trap: intercept fatal errors before boot, surface diagnostics, and mark boot state */
+
+// FIX: Capture Smoke Test flag immediately before Router clears the URL
+(function(){
+  try {
+    if (window.location && window.location.search && window.location.search.indexOf('skipBootAnimation') !== -1) {
+      window.__SKIP_BOOT_ANIMATION__ = true;
+    }
+  } catch (_) {}
+})();
+
 (function(){
   const global = (typeof window !== 'undefined') ? window : (typeof self !== 'undefined' ? self : null);
   if (!global) return;

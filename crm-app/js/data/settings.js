@@ -7,14 +7,17 @@ const __FALLBACK_FAVORITES__ = (() => {
 
 const __FAVORITES_API__ = (typeof window !== 'undefined' && window.__CRM_FAVORITES__) ? window.__CRM_FAVORITES__ : __FALLBACK_FAVORITES__;
 const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
+const EMAIL_FROM_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateSettings(settings){ return { ok: true, errors: [] }; }
 
 (function(){
   if(window.Settings && typeof window.Settings.get === 'function') return;
+
   const STORE = 'settings';
   const RECORD_ID = 'app:settings';
   let cache = null;
+
   async function ensureDb(){ if(typeof window.openDB === 'function') await window.openDB(); }
   async function load(){
     await ensureDb();
@@ -30,10 +33,12 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
     if(!options?.silent && window.Toast) window.Toast.show('Saved');
     return next;
   }
+
   async function handleDeleteAll(){
     if(!confirm('PERMANENTLY DELETE ALL DATA?')) return;
     const btn = document.getElementById('btn-delete-all');
     if(btn) btn.disabled = true;
+
     try {
       await ensureDb();
       const STORES = ['contacts','partners','settings','tasks','documents','deals','commissions','meta','templates','notifications','docs','closings','relationships','savedViews'];
@@ -44,17 +49,22 @@ function validateSettings(settings){ return { ok: true, errors: [] }; }
       localStorage.clear();
       sessionStorage.clear();
       try{ localStorage.setItem('crm:suppress-seed', '1'); } catch(e){}
+      
       if(window.toast) window.toast('Wiped. Reloading...');
+      // FIX: FORCE HARD RELOAD
       setTimeout(() => window.location.reload(), 500);
+      
     } catch(e) {
       console.warn(e);
       if(window.toast) window.toast('Wipe failed: ' + e.message);
       if(btn) btn.disabled = false;
     }
   }
+
   window.CRM = window.CRM || {};
   window.CRM.validateSettings = validateSettings;
   window.Settings = { get: load, save, refresh: load, deleteAll: handleDeleteAll };
+  
   if(typeof document !== 'undefined'){
      document.addEventListener('DOMContentLoaded', () => {
        const btn = document.getElementById('btn-delete-all');

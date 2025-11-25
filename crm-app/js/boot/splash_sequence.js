@@ -10,6 +10,7 @@ function hideAllSplash() {
 
   if (typeof window !== 'undefined') {
     window.__SPLASH_HIDDEN__ = true;
+    // Use global flag captured in index.html
     const skipped = window.__SKIP_BOOT_ANIMATION__ === true;
     window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: skipped || true };
   }

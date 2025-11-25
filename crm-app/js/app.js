@@ -141,6 +141,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   function refreshByScope(scope, action){
     const key = String(scope || '').toLowerCase();
     if(!key) return false;
+
+    // Map scopes to their container IDs
     const viewMap = {
       'workbench': 'view-workbench',
       'pipeline': 'view-pipeline',
