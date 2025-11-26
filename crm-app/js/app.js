@@ -1830,12 +1830,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
-  function clearAllSelectionScopes() {
-    const store = window.SelectionStore;
-    if (store) { ['contacts', 'partners', 'pipeline'].forEach(s => { try { store.clear(s) } catch (_) { } }); }
-    try { if (window.Selection?.clear) window.Selection.clear('app:reset'); } catch (_) { }
-    try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); } catch (_) { }
-  }
+
 
   function initSelectionBindings() {
     if (initSelectionBindings.__wired) return;
@@ -3100,6 +3095,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     await backfillUpdatedAt();
     scheduleAppRender();
     await renderExtrasRegistry();
+
+    // Boot Signal
+    window.__BOOT_DONE__ = { fatal: false, core: 1, patches: 0, safe: false };
+    window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
+    document.documentElement.setAttribute('data-booted', '1');
+    document.dispatchEvent(new CustomEvent('app:boot:complete'));
   })();
 
   function resolveWorkbenchRenderer() {
@@ -3124,6 +3125,33 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       console.warn('[soft] [app] ' + label + ' repaint failed', err);
     }
     return true;
+  }
+
+  async function renderCalendarView() {
+    const root = document.getElementById('view-calendar');
+    if (!root) return;
+
+    if (!root.innerHTML.trim()) {
+      try {
+        const loader = createInlineLoader();
+        root.appendChild(loader);
+      } catch (_) {
+        root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+      }
+    }
+
+    try {
+      let mod;
+      try { mod = await import('./calendar/index.js'); }
+      catch (e) { mod = await import('./calendar.js'); }
+
+      if (mod && mod.default) mod.default();
+      else if (mod && mod.renderCalendar) mod.renderCalendar();
+      else if (window.renderCalendar) window.renderCalendar();
+    } catch (e) {
+      console.warn('Calendar load failed', e);
+      root.innerHTML = '<div class="error-state">Unable to load calendar.</div>';
+    }
   }
 
   function refreshByScope(scope, action) {
