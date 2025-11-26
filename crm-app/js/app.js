@@ -1,6 +1,5 @@
 import './boot/splash_sequence.js';
 import './state/selectionStore.js';
-import './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
@@ -1831,70 +1830,45 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
-  async function renderCalendarView() {
-    const root = document.getElementById('view-calendar');
-    if (root) root.classList.remove('hidden');
-
-    if (typeof window.renderCalendar === 'function') {
-      window.renderCalendar();
-      return;
-    }
-
-    try {
-      const mod = await import('./calendar/index.js');
-      if (mod.default) mod.default();
-      else if (mod.renderCalendar) mod.renderCalendar();
-    } catch (e) {
-      console.warn('Calendar load failed', e);
-      if (root) root.textContent = 'Calendar unavailable.';
-    }
+  function clearAllSelectionScopes() {
+    const store = window.SelectionStore;
+    if (store) { ['contacts', 'partners', 'pipeline'].forEach(s => { try { store.clear(s) } catch (_) { } }); }
+    try { if (window.Selection?.clear) window.Selection.clear('app:reset'); } catch (_) { }
+    try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); } catch (_) { }
   }
 
   function initSelectionBindings() {
     if (initSelectionBindings.__wired) return;
-
-    // FIX: Retry if store not ready (Fixes "Waiting failed" error)
-    const store = window.SelectionStore;
-    if (!store) {
-      setTimeout(initSelectionBindings, 100);
-      return;
-    }
-
+    const store = getSelectionStore();
+    if (!store) return;
     initSelectionBindings.__wired = true;
-
-    // Wire up the store to the DOM
-    store.subscribe((snapshot) => {
-      if (!snapshot || !snapshot.scope) return;
-      // Update checkboxes
-      if (typeof window.syncSelectionScope === 'function') {
-        window.syncSelectionScope(snapshot.scope, { ids: snapshot.ids, count: snapshot.count });
-      }
-      // Update Action Bar visibility
-      if (typeof updateActionBarGuards === 'function') {
-        updateActionBarGuards(snapshot.count, snapshot.scope);
-      }
-    });
-
-    // Listen for checkbox clicks
-    document.addEventListener('change', (event) => {
+    store.subscribe(handleSelectionSnapshot);
+    const handleChange = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
       const role = target.dataset ? target.dataset.role : null;
-      if (role === 'select-all') return; // Handled by table helper
-      if (role === 'select') {
-        const scope = target.closest('[data-selection-scope]')?.getAttribute('data-selection-scope') || 'contacts';
-        const id = target.closest('[data-id]')?.getAttribute('data-id');
-        if (id) {
-          const next = store.get(scope);
-          if (target.checked) next.add(id);
-          else next.delete(id);
-          store.set(next, scope);
-        }
+      if (role === 'select-all') {
+        return;
       }
-    }, { capture: true });
-
-    // Initialize Action Bar state
+      if (role !== 'select') return;
+      const scope = selectionScopeFor(target);
+      const id = selectionIdFor(target);
+      if (!id) return;
+      const next = store.get(scope);
+      if (target.checked) next.add(id);
+      else next.delete(id);
+      store.set(next, scope);
+    };
+    document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
+    try {
+      document.querySelectorAll('table[data-selection-scope]').forEach((table) => {
+        wireSelectAllForTable(table);
+      });
+    } catch (_err) { }
+    if (typeof window !== 'undefined') {
+      window.syncSelectionScope = syncSelectionScope;
+    }
   }
 
   const VIEW_HASH = {
@@ -2933,20 +2907,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const importFilename = $('#import-dialog-filename');
   const importChoose = $('#import-dialog-choose');
   const importCancel = $('#import-dialog-cancel');
-  const importClose = $('#import-dialog-close');
-  const importConfirm = $('#import-dialog-import');
-  let pendingImportFile = null;
-
-  async function handleWorkspaceImport(mode) {
-    if (!pendingImportFile) throw new Error('No file selected');
-    const text = await pendingImportFile.text();
-    const payload = JSON.parse(text);
-    await dbRestoreAll(payload, mode);
-    toast(`Import complete (${mode})`);
-    scheduleAppRender();
-    if (typeof renderExtrasRegistry === 'function') await renderExtrasRegistry();
-  }
-
   function resetImportDialog() {
     pendingImportFile = null;
     if (importInput) importInput.value = '';
@@ -3128,95 +3088,18 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (_) { }
   });
 
-  // --- RESTORED: CALENDAR RENDERER ---
-  async function renderCalendarView() {
-    const root = document.getElementById('view-calendar');
-    if (root) root.classList.remove('hidden');
-    try {
-      // Robust load: try local first, then index
-      let mod;
-      try { mod = await import('./calendar/index.js'); }
-      catch (e) { mod = await import('./calendar.js'); }
-
-      if (mod && mod.default) mod.default();
-      else if (mod && mod.renderCalendar) mod.renderCalendar();
-      else if (window.renderCalendar) window.renderCalendar();
-    } catch (e) { console.warn('Calendar load failed', e); }
-  }
-
-  // --- RESTORED: NOTIFICATIONS WIRING ---
-  (function wireNotifications() {
-    if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
-
-    // Load service
-    try { import('./notifications/notifier.js'); } catch (_) { }
-
-    async function goNotifications(evt) {
-      evt && evt.preventDefault && evt.preventDefault();
-      try {
-        const mod = await import('./pages/notifications.js');
-        activate('notifications');
-        if (mod.initNotifications) mod.initNotifications();
-      } catch (e) { console.warn('Notifications load failed', e); }
-    }
-
-    document.addEventListener('click', (evt) => {
-      const a = evt.target.closest('[data-nav="notifications"]');
-      if (a) goNotifications(evt);
-    });
-  })();
-
-  // --- RESTORED: DOC CENTER WIRING ---
-  (function wireDocCenter() {
-    if (window.__DOC_CENTER_NAV__) return; window.__DOC_CENTER_NAV__ = true;
-    function maybe() {
-      const has = document.querySelector('[data-doc-center], #doc-center, #settings-docs');
-      if (has) import('./doc/doc_center_enhancer.js').catch(() => { });
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybe, { once: true });
-    else maybe();
-  })();
-
-  // (Ensure init() follows this block...)
-  // --- BOOT SEQUENCE (Replace the existing init function at the bottom) ---
   (async function init() {
     await openDB();
     let partners = await dbGetAll('partners');
-
-    // Ensure "None" partner exists
-    if (!partners.find(p => String(p.id) === window.NONE_PARTNER_ID || (p.name && p.name.toLowerCase() === 'none'))) {
-      const noneRecord = { id: window.NONE_PARTNER_ID, name: 'None', company: '', email: '', phone: '', tier: 'Keep in Touch' };
-      try { await dbPut('partners', Object.assign({ updatedAt: Date.now() }, noneRecord)); } catch (e) { }
+    if (!partners.find(p => String(p.id) === NONE_PARTNER_ID || lc(p.name) === 'none')) {
+      const noneRecord = { id: NONE_PARTNER_ID, name: 'None', company: '', email: '', phone: '', tier: 'Keep in Touch' };
+      await dbPut('partners', Object.assign({ updatedAt: Date.now() }, noneRecord));
       partners.push(noneRecord);
     }
-
-    // Smart Seed Logic
-    const isSuppressed = localStorage.getItem('crm:suppress-seed') === '1';
-    if (!isSuppressed) {
-      try { await window.ensureSeedData?.(partners); } catch (_) { }
-      // Fallback to global seeder if available
-      if (typeof window.seedTestData === 'function') {
-        const db = await openDB();
-        if ((await db.count('partners')) === 0) await window.seedTestData({ count: 50 });
-      }
-    }
-
+    await ensureSeedData(partners);
     await backfillUpdatedAt();
-    if (typeof scheduleAppRender === 'function') scheduleAppRender();
-    if (typeof renderExtrasRegistry === 'function') await renderExtrasRegistry();
-
-    // Signal Boot Done
-    window.__BOOT_DONE__ = { fatal: false, core: 1, patches: 0, safe: false };
-
-    // Force Animation Signal (Fixes CI Failure)
-    if (!window.__BOOT_ANIMATION_COMPLETE__) {
-      const globalBypass = (typeof window !== 'undefined' && window.__SKIP_BOOT_ANIMATION__ === true);
-      window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: globalBypass || true };
-    }
-
-    // Initial Navigation
-    if (!window.location.hash) activate(DEFAULT_ROUTE);
-    else activate(window.location.hash.replace(/^#\/?/, ''));
+    scheduleAppRender();
+    await renderExtrasRegistry();
   })();
 
   function resolveWorkbenchRenderer() {
@@ -3311,7 +3194,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         push('renderLedger', window.renderLedger);
         break;
       case 'calendar':
-        push('renderCalendar', renderCalendarView);
+        push('renderCalendar', window.renderCalendar);
         break;
       case 'settings':
         push('renderExtrasRegistry', renderExtrasRegistry);
