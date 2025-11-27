@@ -1,5 +1,5 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
-// import { openContactEditor as openContactEntry, openNewContactEditor } from '../editors/contact_entry.js'; // REMOVED
+
 import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js';
 import { validateTask } from '../tasks.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
@@ -612,13 +612,13 @@ export function isQuickCreateMenuOpen(source) {
 async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    // DYNAMIC IMPORT: Breaks circular dependency with contacts.js
+    // DYNAMIC IMPORT: Loads contacts.js only on demand to prevent boot-time circular dependency deadlock
     const { openContactEditor } = await import('../contacts.js');
 
+    // Logic Adaptation: openContactEditor handles both new and existing records
     if (prefill && prefill.id) {
       return openContactEditor(prefill.id, meta);
     }
-    // openContactEditor handles new records when passed an object/null
     return openContactEditor(prefill || {}, meta);
   } catch (err) {
     try {
