@@ -1,5 +1,5 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
-import { openContactEditor as openContactEntry, openNewContactEditor } from '../editors/contact_entry.js';
+// import { openContactEditor as openContactEntry, openNewContactEditor } from '../editors/contact_entry.js'; // REMOVED
 import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js';
 import { validateTask } from '../tasks.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
@@ -71,16 +71,16 @@ const TASK_VALIDATION_CONFIG = {
 const QUICK_ADD_INVALID_TOAST = 'Please fix highlighted fields';
 
 function focusElement(node) {
-  if(!node || typeof node.focus !== 'function') return;
+  if (!node || typeof node.focus !== 'function') return;
   try {
     node.focus({ preventScroll: true });
   } catch (_err) {
     try { node.focus(); }
-    catch (_focusErr) {}
+    catch (_focusErr) { }
   }
 }
 
-function readTaskModalModel(){
+function readTaskModalModel() {
   const noteInput = taskModalState.noteInput;
   const dueInput = taskModalState.dueInput;
   const entitySelect = taskModalState.entitySelect;
@@ -101,15 +101,15 @@ function readTaskModalModel(){
   };
 }
 
-function validateTaskModalModel(model){
+function validateTaskModalModel(model) {
   const base = validateTask(model);
   const errors = base && base.errors && typeof base.errors === 'object' ? { ...base.errors } : {};
   let ok = base && base.ok === false ? false : true;
-  if(!model.linkedId){
+  if (!model.linkedId) {
     errors.linked = 'required';
     ok = false;
   }
-  if(ok && Object.keys(errors).some((key) => errors[key])){
+  if (ok && Object.keys(errors).some((key) => errors[key])) {
     ok = false;
   }
   return { ok, errors };
@@ -164,7 +164,7 @@ function emitState() {
   try {
     const event = new CustomEvent('quick-create-menu:state', { detail });
     document.dispatchEvent(event);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function postLog(eventName) {
@@ -174,7 +174,7 @@ function postLog(eventName) {
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     try {
       sent = !!navigator.sendBeacon('/__log', payload) || sent;
-    } catch (_) {}
+    } catch (_) { }
   }
   if (sent) {
     return;
@@ -188,8 +188,8 @@ function postLog(eventName) {
       headers: { 'Content-Type': 'application/json' },
       body: payload,
       keepalive: true
-    }).catch(() => {});
-  } catch (_) {}
+    }).catch(() => { });
+  } catch (_) { }
 }
 
 function ensureBootBeacon() {
@@ -199,7 +199,7 @@ function ensureBootBeacon() {
   bootBeaconEmitted = true;
   try {
     console && typeof console.info === 'function' && console.info('[VIS] quick-create unified');
-  } catch (_) {}
+  } catch (_) { }
   postLog('quick-create-unified');
 }
 
@@ -317,9 +317,9 @@ function focusFirstMenuItem() {
     try {
       first.focus({ preventScroll: true });
       return;
-    } catch (_) {}
+    } catch (_) { }
     try { first.focus(); }
-    catch (_) {}
+    catch (_) { }
   }
 }
 
@@ -336,7 +336,7 @@ function handleSelection(kind) {
   incrementDebugCounter('beaconCount');
   try {
     console && typeof console.info === 'function' && console.info('[quick-create] select', { item });
-  } catch (_) {}
+  } catch (_) { }
   const opener = getOpener(item);
   callSafely(opener);
 }
@@ -430,7 +430,7 @@ function cancelRepositionFrame() {
   const win = getHostWindow();
   if (reposition.frame != null && win && typeof win.cancelAnimationFrame === 'function') {
     try { win.cancelAnimationFrame(reposition.frame); }
-    catch (_) {}
+    catch (_) { }
   }
   reposition.frame = null;
   reposition.inFlight = false;
@@ -452,12 +452,12 @@ function scheduleMenuReposition() {
   if (win && typeof win.requestAnimationFrame === 'function') {
     reposition.frame = win.requestAnimationFrame(() => {
       try { run(); }
-      catch (_) {}
+      catch (_) { }
     });
     return;
   }
   try { run(); }
-  catch (_) {}
+  catch (_) { }
 }
 
 function ensureRepositionListeners() {
@@ -539,14 +539,14 @@ export function closeQuickCreateMenu() {
       restoreFocus.focus({ preventScroll: true });
     } catch (_) {
       try { restoreFocus.focus(); }
-      catch (_) {}
+      catch (_) { }
     }
   } else if (anchor && typeof anchor.focus === 'function') {
     try {
       anchor.focus({ preventScroll: true });
     } catch (_) {
       try { anchor.focus(); }
-      catch (_) {}
+      catch (_) { }
     }
   }
   emitState();
@@ -609,19 +609,23 @@ export function isQuickCreateMenuOpen(source) {
   return state.source === source;
 }
 
-function defaultOpenContactEditor(prefill) {
+async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    if(prefill && prefill.id){
-      return openContactEntry(prefill.id, meta);
+    // DYNAMIC IMPORT: Breaks circular dependency with contacts.js
+    const { openContactEditor } = await import('../contacts.js');
+
+    if (prefill && prefill.id) {
+      return openContactEditor(prefill.id, meta);
     }
-    return openNewContactEditor(meta);
+    // openContactEditor handles new records when passed an object/null
+    return openContactEditor(prefill || {}, meta);
   } catch (err) {
     try {
       if (console && typeof console.warn === 'function') {
-        console.warn('[quick-create] contact editor open failed', err);
+        console.warn('[quick-create] contact editor load failed', err);
       }
-    } catch (_) {}
+    } catch (_) { }
     toastWarn('Contact modal unavailable');
     return null;
   }
@@ -632,7 +636,7 @@ function defaultOpenPartnerEditor() {
     return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
   } catch (err) {
     try { if (console && typeof console.warn === 'function') console.warn('[quick-create] partner editor open failed', err); }
-    catch (_) {}
+    catch (_) { }
     toastWarn('Partner modal unavailable');
     return null;
   }
@@ -703,9 +707,9 @@ function createAnchorBinding(anchor, source) {
   }
   return () => {
     try { anchor.removeEventListener('click', handleClick); }
-    catch (_) {}
+    catch (_) { }
     try { document.removeEventListener('quick-create-menu:state', handleState); }
-    catch (_) {}
+    catch (_) { }
     if (anchor.getAttribute('aria-haspopup') === 'true' && !isQuickCreateMenuOpen(normalizedSource)) {
       anchor.setAttribute('aria-expanded', 'false');
     }
@@ -745,7 +749,7 @@ function createBinding(host, options) {
       if (this.disposed) return;
       applyOpeners(this, nextOptions || options);
     },
-    unbind: () => {}
+    unbind: () => { }
   };
 
   applyOpeners(binding, options);
@@ -793,7 +797,7 @@ function createBinding(host, options) {
     binding.localBindings.forEach((unbind, anchor) => {
       if (typeof unbind === 'function') {
         try { unbind(); }
-        catch (_) {}
+        catch (_) { }
       }
       binding.localBindings.delete(anchor);
     });
@@ -812,7 +816,7 @@ function createBinding(host, options) {
 
 export function bindQuickCreateMenu(root, options = {}) {
   if (typeof document === 'undefined') {
-    return () => {};
+    return () => { };
   }
   const host = root && typeof root.querySelectorAll === 'function' ? root : document;
   const existing = host[BIND_GUARD_KEY];
@@ -845,11 +849,11 @@ function resetHeaderQuickCreateBinding() {
   headerQuickCreateState.controller = null;
   if (typeof cleanup === 'function') {
     try { cleanup(); }
-    catch (_) {}
+    catch (_) { }
   }
   if (controller && controller.signal && !controller.signal.aborted) {
     try { controller.abort(); }
-    catch (_) {}
+    catch (_) { }
   }
 }
 
@@ -864,7 +868,7 @@ export function bindHeaderQuickCreateOnce(root, bus) {
   if (headerQuickCreateState.button === button && headerQuickCreateState.bound && button.isConnected !== false) {
     if (!button.hasAttribute('data-bound')) {
       try { button.setAttribute('data-bound', '1'); }
-      catch (_) {}
+      catch (_) { }
     }
     return button;
   }
@@ -891,12 +895,12 @@ export function bindHeaderQuickCreateOnce(root, bus) {
           bus.addEventListener(eventName, closeQuickCreateMenu, signal ? { signal } : undefined);
         } catch (_) {
           try { bus.addEventListener(eventName, closeQuickCreateMenu); }
-          catch (_) {}
+          catch (_) { }
         }
         addCleanup(() => {
           if (typeof bus.removeEventListener === 'function') {
             try { bus.removeEventListener(eventName, closeQuickCreateMenu); }
-            catch (_) {}
+            catch (_) { }
           }
         });
         return;
@@ -906,25 +910,25 @@ export function bindHeaderQuickCreateOnce(root, bus) {
       };
       if (typeof bus.on === 'function') {
         try { bus.on(eventName, handler); }
-        catch (_) {}
+        catch (_) { }
         addCleanup(() => {
           if (typeof bus.off === 'function') {
             try { bus.off(eventName, handler); }
-            catch (_) {}
+            catch (_) { }
           } else if (typeof bus.removeListener === 'function') {
             try { bus.removeListener(eventName, handler); }
-            catch (_) {}
+            catch (_) { }
           }
         });
         return;
       }
       if (typeof bus.addListener === 'function') {
         try { bus.addListener(eventName, handler); }
-        catch (_) {}
+        catch (_) { }
         addCleanup(() => {
           if (typeof bus.removeListener === 'function') {
             try { bus.removeListener(eventName, handler); }
-            catch (_) {}
+            catch (_) { }
           }
         });
       }
@@ -935,7 +939,7 @@ export function bindHeaderQuickCreateOnce(root, bus) {
     while (cleanupTasks.length) {
       const task = cleanupTasks.pop();
       try { task(); }
-      catch (_) {}
+      catch (_) { }
     }
   };
 
@@ -954,14 +958,14 @@ export function bindHeaderQuickCreateOnce(root, bus) {
           headerQuickCreateState.controller = null;
         }
       }, { once: true });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   headerQuickCreateState.button = button;
   headerQuickCreateState.bound = true;
   if (typeof button.setAttribute === 'function') {
     try { button.setAttribute('data-bound', '1'); }
-    catch (_) {}
+    catch (_) { }
   }
 
   return button;
