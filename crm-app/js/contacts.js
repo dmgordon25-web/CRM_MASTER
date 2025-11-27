@@ -7,6 +7,29 @@ import { applyContactFieldVisibility, normalizeSimpleModeSettings, SIMPLE_MODE_D
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor, getContactEditorState, resetContactEditorForRouteLeave } from './editors/contact_entry.js';
 import { getTasksApi } from './app_services.js';
+import {
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  toneForStage,
+  toneForStatus,
+  toneClassName,
+  TONE_CLASSNAMES,
+  PIPELINE_MILESTONES,
+  normalizeStatusForStage,
+  allowedStatusesForStage,
+  normalizeMilestoneForStatus,
+  allowedMilestonesForStatus,
+  allowedStatusesForMilestone,
+  normalizeStatusForMilestone,
+  canonicalStatusKey,
+  milestoneIndex
+} from './pipeline/constants.js';
+import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
+import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
+import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,29 +77,7 @@ export function validateContact(model) {
 
   return { ok: Object.keys(errors).length === 0, errors };
 }
-import {
-  renderStageChip,
-  canonicalStage,
-  STAGES as CANONICAL_STAGE_META,
-  toneForStage,
-  toneForStatus,
-  toneClassName,
-  TONE_CLASSNAMES,
-  PIPELINE_MILESTONES,
-  normalizeStatusForStage,
-  allowedStatusesForStage,
-  normalizeMilestoneForStatus,
-  allowedMilestonesForStatus,
-  allowedStatusesForMilestone,
-  normalizeStatusForMilestone,
-  canonicalStatusKey,
-  milestoneIndex
-} from './pipeline/constants.js';
-import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
-import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
-import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
-import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
-import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
+
 
 export const CONTACT_MODAL_KEY = 'contact-edit';
 const CONTACT_MODAL_TEMPLATE_ID = 'contact-modal';

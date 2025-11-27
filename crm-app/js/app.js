@@ -15,7 +15,7 @@ import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor } from './editors/contact_entry.js';
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
-import { renderDashboardView, renderContactsView, renderPipelineView, renderPartnersView } from './render.js';
+
 
 // app.js
 export function goto(hash) {
@@ -3154,7 +3154,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
-  function refreshByScope(scope, action) {
+  async function refreshByScope(scope, action) {
     const key = String(scope || '').toLowerCase();
     if (!key) return false;
 
@@ -3191,31 +3191,44 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       return handled;
     };
 
+    // DYNAMIC IMPORT: Load renderers on demand to break circular dependency
+    let renderMod = null;
+    try {
+      renderMod = await import('./render.js');
+    } catch (e) {
+      console.warn('[app] Failed to load render.js', e);
+    }
+
+    // Helper to safely get renderer from module or window fallback
+    const getRenderer = (name) => {
+      return (renderMod && renderMod[name]) || window[name];
+    };
+
     switch (key) {
       case 'dashboard':
-        push('renderDashboardView', renderDashboardView);
+        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'partners':
-        push('renderPartnersView', renderPartnersView);
+        push('renderPartnersView', getRenderer('renderPartnersView'));
         break;
       case 'contacts':
       case 'longshots':
-        push('renderContactsView', renderContactsView);
-        push('renderDashboardView', renderDashboardView);
+        push('renderContactsView', getRenderer('renderContactsView'));
+        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'pipeline':
-        push('renderPipelineView', renderPipelineView);
-        push('renderDashboardView', renderDashboardView);
+        push('renderPipelineView', getRenderer('renderPipelineView'));
+        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'notifications':
         push('renderNotifications', window.renderNotifications);
         break;
       case 'tasks':
-        push('renderDashboardView', renderDashboardView);
+        push('renderDashboardView', getRenderer('renderDashboardView'));
         push('renderNotifications', window.renderNotifications);
         break;
       case 'documents':
-        push('renderDashboardView', renderDashboardView);
+        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'commissions':
         push('renderCommissions', window.renderCommissions);
