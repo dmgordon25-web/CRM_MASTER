@@ -1,20 +1,14 @@
 /**
  * contact_entry.js
- * State bridge for the Contact Editor.
- *
- * EXPORTS REQUIRED:
- * - getContactEditorState
- * - closeContactEditor
- * - resetContactEditorForRouteLeave
+ * Manages the lifecycle state of the Contact Editor modal.
  */
 
-// 1. Internal State
 let editorState = {
-  status: 'idle',
-  activeId: null
+  status: 'idle', // idle, opening, open, closing
+  activeId: null,
+  pendingPromise: null
 };
 
-// 2. Exported Functions
 export function getContactEditorState() {
   return { ...editorState };
 }
@@ -23,27 +17,23 @@ export function closeContactEditor(reason) {
   const modal = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
 
   if (modal) {
-    // DOM Cleanup
-    if (modal.hasAttribute('open')) modal.removeAttribute('open');
-    if (modal.style.display !== 'none') modal.style.display = 'none';
+    try {
+      if (modal.hasAttribute('open')) modal.removeAttribute('open');
+      if (modal.style.display !== 'none') modal.style.display = 'none';
+      if (typeof modal.close === 'function' && modal.open) modal.close();
+    } catch (e) { /* safe ignore */ }
 
-    // State Cleanup
     if (modal.dataset) {
       modal.dataset.open = '0';
       modal.dataset.opening = '0';
-      if (reason) modal.dataset.closeReason = reason;
     }
 
-    // Event Dispatch
     try {
       const event = new CustomEvent('contact:editor:closed', { detail: { reason } });
       window.dispatchEvent(event);
-    } catch (e) {
-      console.warn('[contact_entry] Event dispatch failed', e);
-    }
+    } catch (e) { console.warn('Dispatch failed', e); }
   }
 
-  // Reset Internal State
   editorState.status = 'idle';
   editorState.activeId = null;
 }
@@ -52,9 +42,9 @@ export function resetContactEditorForRouteLeave() {
   closeContactEditor('route-leave');
 }
 
-// 3. Default Export (Safety Net)
+// Default export for fallback compatibility
 export default {
-  getContactEditorState,
   closeContactEditor,
+  getContactEditorState,
   resetContactEditorForRouteLeave
 };
