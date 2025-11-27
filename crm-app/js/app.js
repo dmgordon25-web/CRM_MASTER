@@ -12,7 +12,7 @@ import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
-import { closeContactEditor } from './editors/contact_entry.js';
+
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
 
@@ -2425,10 +2425,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
-      // Close contact editor if open
-      if (typeof closeContactEditor === 'function') {
-        closeContactEditor();
-      }
+      // FIX: Use Dynamic Import to break boot-time circular dependency
+      import('./editors/contact_entry.js')
+        .then(mod => { if (mod && mod.closeContactEditor) mod.closeContactEditor('nav'); })
+        .catch(() => { });
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }

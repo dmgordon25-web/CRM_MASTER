@@ -3357,5 +3357,5 @@ if (typeof window !== 'undefined') {
   }
 }
 
-export { closeContactEditor };
+
 
