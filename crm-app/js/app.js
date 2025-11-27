@@ -12,8 +12,18 @@ import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
+// import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
+
+// --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
+const closeContactEditor = (reason) => {
+  try {
+    const m = document.querySelector('[data-ui="contact-edit-modal"]');
+    if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+  } catch (e) { /* ignore */ }
+};
+// -------------------------------------------------------------------------------
 
 
 
