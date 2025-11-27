@@ -1,285 +1,63 @@
-const debugEnabled = () => typeof window !== 'undefined' && window.__ENV__ && window.__ENV__.DEBUG === true;
+// crm-app/js/editors/contact_entry.js
 
-let modalModulePromise = null;
-const HISTORY_LIMIT = 20;
-const history = [];
+/**
+ * Contact Entry Editor - State & Lifecycle Management
+ * Handles the "bridge" between the application router and the contact editor modal.
+ */
 
-const state = {
-  status: 'idle',
-  currentId: null,
-  lastMeta: null,
-  pendingRequest: null,
-  activePromise: null,
-  modalRoot: null,
-  closeListener: null,
+let editorState = {
+  status: 'idle', // idle, opening, open, closing
+  activeId: null,
+  pendingPromise: null
 };
 
-// Inventory: entry points now routed here from dashboard, workbench, quick add, calendar,
-// partners (contact drilldowns), relationships map, partners detail, patch_2025-09-26 dashboard reports,
-// and universal quick-create menu. Previously many of these called contacts.js openContactModal directly.
-
-function logDebug(message, payload){
-  if(!debugEnabled()) return;
-  try{ console.debug('[contact-entry]', message, payload || {}); }
-  catch(_err){}
+export function getContactEditorState() {
+  return { ...editorState };
 }
 
-function pushHistory(entry){
-  if(!debugEnabled()) return;
-  history.push(Object.assign({ ts: Date.now() }, entry));
-  if(history.length > HISTORY_LIMIT){
-    history.splice(0, history.length - HISTORY_LIMIT);
-  }
-}
+/**
+ * Closes the contact editor if it is open.
+ * @param {string} reason - Optional debugging reason
+ */
+export function closeContactEditor(reason) {
+  const modal = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
 
-function buildSourceHint(meta){
-  const base = meta && typeof meta.source === 'string' && meta.source.trim()
-    ? meta.source.trim()
-    : 'contact-entry';
-  const ctx = meta && typeof meta.context === 'string' && meta.context.trim()
-    ? meta.context.trim()
-    : '';
-  return ctx ? `${base}:${ctx}` : base;
-}
+  if (modal) {
+    // 1. Clear Open Attributes
+    if (modal.hasAttribute('open')) modal.removeAttribute('open');
+    if (modal.style.display !== 'none') modal.style.display = 'none';
 
-function normalizeMeta(meta){
-  return meta && typeof meta === 'object' ? { ...meta } : {};
-}
+    // 2. Reset Dataset State
+    if (modal.dataset) {
+      modal.dataset.open = '0';
+      modal.dataset.opening = '0';
+      if (reason) modal.dataset.closeReason = reason;
+    }
 
-function loadModalModule(){
-  if(!modalModulePromise){
-    modalModulePromise = import('../modals/contact_editor_modal.js');
-  }
-  return modalModulePromise;
-}
-
-function detachCloseListener(){
-  if(state.modalRoot && state.closeListener){
-    try{ state.modalRoot.removeEventListener('close', state.closeListener); }
-    catch(_err){}
-  }
-  state.modalRoot = null;
-  state.closeListener = null;
-}
-
-function hardReset(reason, options = {}){
-  const { preserveQueue = false } = options;
-  const snapshot = { ...state };
-  pushHistory({ action: 'hard-reset', reason, snapshot });
-  detachCloseListener();
-  state.status = 'idle';
-  state.currentId = null;
-  if(!preserveQueue){
-    state.pendingRequest = null;
-    state.activePromise = null;
-  }
-  state.modalRoot = null;
-  state.closeListener = null;
-}
-
-export function getContactEditorState(){
-  return { ...state };
-}
-
-export function resetContactEditorForRouteLeave(){
-  hardReset('route-leave', { preserveQueue: false });
-}
-
-function attachCloseListener(root){
-  if(!(root instanceof HTMLElement) || !root.isConnected){
-    pushHistory({ action: 'attach-close-skipped', reason: 'invalid-root' });
-    logDebug('attachCloseListener: invalid root', { root });
-    hardReset('invalid-root');
-    return;
-  }
-  detachCloseListener();
-  const handler = () => {
-    const statusBefore = state.status;
-    state.status = 'idle';
-    state.currentId = null;
-    pushHistory({ action: 'closed', statusBefore });
-    processPendingQueue();
-  };
-  try{ root.addEventListener('close', handler); }
-  catch(_err){}
-  state.modalRoot = root;
-  state.closeListener = handler;
-}
-
-function focusModal(){
-  const root = state.modalRoot;
-  if(!root || !root.isConnected){
-    pushHistory({ action: 'focus-failed', reason: 'root-detached' });
-    logDebug('focusModal: missing root', { root });
-    return;
-  }
-  if(typeof root.querySelector !== 'function') return;
-  const focusTarget = root.querySelector('.dlg') || root;
-  if(focusTarget && typeof focusTarget.focus === 'function'){
-    try{ focusTarget.focus({ preventScroll: true }); }
-    catch(_err){
-      try{ focusTarget.focus(); }
-      catch(__err){}
+    // 3. Dispatch Event for UI Cleanup (e.g. backdrop removal)
+    try {
+      const event = new CustomEvent('contact:editor:closed', { detail: { reason } });
+      window.dispatchEvent(event);
+    } catch (e) {
+      console.warn('[contact_entry] Dispatch failed', e);
     }
   }
+
+  // 4. Reset Internal State
+  editorState.status = 'idle';
+  editorState.activeId = null;
 }
 
-function queueRequest(request){
-  if(!state.activePromise && state.status !== 'idle' && state.status !== 'open'){
-    pushHistory({ action: 'auto-hard-reset', reason: 'inconsistent-status-before-open', status: state.status });
-    logDebug('queueRequest: resetting inconsistent state before open', { status: state.status });
-    hardReset('inconsistent-before-open', { preserveQueue: false });
-  }
-  const deferred = {};
-  const promise = new Promise((resolve, reject) => {
-    deferred.resolve = resolve;
-    deferred.reject = reject;
-  });
-  state.pendingRequest = Object.assign({}, request, { deferred });
-  pushHistory({ action: 'queue', id: request && request.id ? String(request.id) : '', meta: request && request.meta, isNew: request && request.isNew });
-  if(state.activePromise){
-    logDebug('queueRequest: active promise in flight', { request });
-  }
-  if(!state.activePromise){
-    const nextPromise = processPendingQueue();
-    state.activePromise = nextPromise;
-    nextPromise.catch(() => {});
-  }
-  return promise;
+/**
+ * Resets state when navigating away (Route Lifecycle Hook)
+ */
+export function resetContactEditorForRouteLeave() {
+  closeContactEditor('route-leave');
 }
 
-async function processPendingQueue(){
-  pushHistory({ action: 'process-start', pending: !!state.pendingRequest, status: state.status });
-  logDebug('processPendingQueue:start', { pending: !!state.pendingRequest, status: state.status });
-  if(!state.pendingRequest){
-    state.activePromise = null;
-    return null;
-  }
-  const next = state.pendingRequest;
-  state.pendingRequest = null;
-  try{
-    pushHistory({ action: 'process-open', id: next && next.id ? String(next.id) : '', isNew: next && next.isNew });
-    const result = await performOpen(next.id, next.meta, next.isNew);
-    if(next.deferred && typeof next.deferred.resolve === 'function'){
-      next.deferred.resolve(result);
-    }
-    return result;
-  }catch(err){
-    if(next.deferred && typeof next.deferred.reject === 'function'){
-      next.deferred.reject(err);
-    }
-    throw err;
-  }finally{
-    pushHistory({ action: 'process-end', pending: !!state.pendingRequest });
-    logDebug('processPendingQueue:end', { pending: !!state.pendingRequest });
-    state.activePromise = null;
-    if(state.pendingRequest){
-      const nextPromise = processPendingQueue();
-      state.activePromise = nextPromise;
-      nextPromise.catch(() => {});
-    }
-  }
-}
-
-async function performOpen(targetId, meta, isNew){
-  const metaObj = normalizeMeta(meta);
-  const statusBefore = state.status;
-  pushHistory({
-    action: isNew ? 'new' : 'open',
-    id: targetId || '',
-    meta: metaObj,
-    statusBefore,
-  });
-  logDebug('start', { targetId, meta: metaObj, isNew, statusBefore });
-  state.status = 'opening';
-  state.currentId = isNew ? null : (targetId || null);
-  state.lastMeta = metaObj;
-
-  try{
-    const mod = await loadModalModule();
-    const mount = isNew ? mod.mountNewContactEditor : mod.mountContactEditor;
-    if(typeof mount !== 'function'){
-      throw new Error('contact modal unavailable');
-    }
-    const result = await mount(targetId, Object.assign({}, metaObj, { sourceHint: buildSourceHint(metaObj) }));
-    state.status = 'open';
-    attachCloseListener(result);
-    logDebug('opened', { targetId, status: state.status, rootConnected: !!(result && result.isConnected) });
-    pushHistory({ action: 'opened', id: targetId || '', statusAfter: state.status });
-    if(!isNew && state.currentId && targetId === state.currentId){
-      focusModal();
-    }
-    return result || null;
-  }catch(err){
-    pushHistory({ action: 'error', id: targetId || '', error: String(err || '') });
-    logDebug('performOpen failed', { err });
-    hardReset('open-failed', { preserveQueue: true });
-    throw err;
-  }finally{
-    if(state.status === 'opening'){
-      state.status = 'idle';
-      state.currentId = null;
-    }
-  }
-}
-
-export function closeContactEditor(reason){
-  const statusBefore = state.status;
-  if(statusBefore === 'idle') return;
-  state.status = 'closing';
-  pushHistory({ action: 'close', reason, statusBefore });
-  logDebug('closeContactEditor', { reason, statusBefore });
-  const root = state.modalRoot;
-  if(root && typeof root.close === 'function'){
-    try{ root.close(); }
-    catch(_err){}
-  }
-  detachCloseListener();
-  state.status = 'idle';
-  state.currentId = null;
-  processPendingQueue();
-}
-
-export function openContactEditor(contactId, meta = {}){
-  const targetId = contactId == null ? '' : String(contactId);
-  const statusBefore = state.status;
-  pushHistory({ action: 'invoke-open', id: targetId, meta: normalizeMeta(meta), statusBefore });
-  logDebug('openContactEditor invoked', { targetId, statusBefore, meta });
-  if(statusBefore === 'opening'){
-    if(state.currentId && targetId && state.currentId === targetId){
-      return state.activePromise || Promise.resolve(null);
-    }
-    return queueRequest({ id: targetId, meta, isNew: false });
-  }
-  if(statusBefore === 'open'){
-    if(state.currentId && targetId && state.currentId === targetId){
-      focusModal();
-      return state.activePromise || Promise.resolve(state.modalRoot);
-    }
-    return queueRequest({ id: targetId, meta, isNew: false });
-  }
-  if(statusBefore === 'closing'){
-    return queueRequest({ id: targetId, meta, isNew: false });
-  }
-  return queueRequest({ id: targetId, meta, isNew: false });
-}
-
-export function openNewContactEditor(meta = {}){
-  const statusBefore = state.status;
-  pushHistory({ action: 'invoke-open-new', statusBefore, meta: normalizeMeta(meta) });
-  logDebug('openNewContactEditor invoked', { statusBefore, meta });
-  if(statusBefore === 'opening' || statusBefore === 'open' || statusBefore === 'closing'){
-    return queueRequest({ id: '', meta, isNew: true });
-  }
-  return queueRequest({ id: '', meta, isNew: true });
-}
-
-if(typeof window !== 'undefined'){
-  window.__DBG_dumpContactEditorHistory = function(){ return Array.from(history); };
-  window.__DBG_resetContactEditor = function(reason = 'manual'){
-    hardReset(reason);
-    return { ...state };
-  };
-}
-
-export default { openContactEditor, openNewContactEditor, closeContactEditor };
+// Default export for robust import handling
+export default {
+  closeContactEditor,
+  getContactEditorState,
+  resetContactEditorForRouteLeave
+};
