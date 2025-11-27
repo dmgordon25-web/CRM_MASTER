@@ -2423,7 +2423,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
       // Lazy-load to prevent boot deadlock
-      import('./editors/contact_entry.js').then(m => m?.closeContactEditor?.('nav')).catch(() => { });
+      // Safe DOM-only close (No module dependency needed)
+      (function () {
+        const m = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
+        if (m) {
+          m.style.display = 'none';
+          if (m.hasAttribute('open')) m.removeAttribute('open');
+          if (typeof m.close === 'function' && m.open) { try { m.close() } catch (e) { } }
+        }
+      })();
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }
@@ -2655,7 +2663,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } else {
       scheduleAppRender();
     }
-    import('./editors/contact_entry.js').then(m => m?.closeContactEditor?.('ui-mode')).catch(() => { });
+    // Safe DOM-only close (No module dependency needed)
+    (function () {
+      const m = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
+      if (m) {
+        m.style.display = 'none';
+        if (m.hasAttribute('open')) m.removeAttribute('open');
+        if (typeof m.close === 'function' && m.open) { try { m.close() } catch (e) { } }
+      }
+    })();
 
     try { closePartnerEditModal(); }
     catch (_err) { }

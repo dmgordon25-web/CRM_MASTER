@@ -5,7 +5,6 @@ import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 import { applyContactFieldVisibility, normalizeSimpleModeSettings, SIMPLE_MODE_DEFAULTS } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
-import { closeContactEditor, getContactEditorState, resetContactEditorForRouteLeave } from './editors/contact_entry.js';
 import { getTasksApi } from './app_services.js';
 import {
   renderStageChip,
@@ -3359,3 +3358,29 @@ if (typeof window !== 'undefined') {
 
 
 
+// --- INLINED STATE MANAGEMENT (To fix circular dependency) ---
+const _internalEditorState = { status: 'idle', activeId: null };
+
+export function getContactEditorState() {
+  return { ..._internalEditorState };
+}
+
+export function closeContactEditor(reason) {
+  const modal = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
+  if (modal) {
+    try { if (typeof modal.close === 'function' && modal.open) modal.close(); } catch (e) { }
+    modal.style.display = 'none';
+    if (modal.hasAttribute('open')) modal.removeAttribute('open');
+    // Reset Data State
+    if (modal.dataset) { modal.dataset.open = '0'; modal.dataset.opening = '0'; }
+    // Dispatch Event
+    try { window.dispatchEvent(new CustomEvent('contact:editor:closed', { detail: { reason } })); } catch (e) { }
+  }
+  _internalEditorState.status = 'idle';
+  _internalEditorState.activeId = null;
+}
+
+export function resetContactEditorForRouteLeave() {
+  closeContactEditor('route-leave');
+}
+// -----------------------------------------------------------
