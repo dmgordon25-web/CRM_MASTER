@@ -17,6 +17,26 @@ import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
 
 
+// Lazy-load helper to prevent Circular Dependency Deadlock
+async function safeCloseContactEditor(reason) {
+  try {
+    const mod = await import('./editors/contact_entry.js');
+    if (mod && typeof mod.closeContactEditor === 'function') {
+      mod.closeContactEditor(reason);
+    }
+  } catch (err) {
+    // Emergency DOM Fallback if module fails to load
+    console.warn('[app] Lazy-load contact close failed', err);
+    const m = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
+    if (m) {
+      m.style.display = 'none';
+      if (m.hasAttribute('open')) m.removeAttribute('open');
+      if (typeof m.close === 'function' && m.open) m.close();
+    }
+  }
+}
+
+
 // app.js
 export function goto(hash) {
   if (typeof hash !== 'string' || !hash) return;
@@ -2425,18 +2445,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
-      // FIX: Use Dynamic Import to break boot-time circular dependency
-      import('./editors/contact_entry.js')
-        .then(mod => {
-          if (mod && typeof mod.closeContactEditor === 'function') {
-            mod.closeContactEditor('navigation');
-          }
-        })
-        .catch(err => {
-          // Fallback: Manual DOM close if module fails
-          const m = document.getElementById('contact-modal');
-          if (m) { m.style.display = 'none'; if (m.close) m.close(); }
-        });
+      safeCloseContactEditor('navigation');
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }

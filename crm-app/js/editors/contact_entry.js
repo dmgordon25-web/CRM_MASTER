@@ -2,7 +2,6 @@
  * contact_entry.js
  * Manages the lifecycle state of the Contact Editor modal.
  */
-
 let editorState = {
   status: 'idle', // idle, opening, open, closing
   activeId: null,
