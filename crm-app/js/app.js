@@ -2424,19 +2424,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === 'notifications' && !notificationsEnabled) {
       normalized = DEFAULT_ROUTE;
     }
-    const previous = activeView;
-
-    // TASK 1 FIX: Close any open modals before switching views to prevent freezes
-    try {
-      // Lazy-load to prevent boot deadlock
-      import('./editors/contact_entry.js')
-        .then(mod => { if (mod && mod.closeContactEditor) mod.closeContactEditor('nav'); })
-        .catch(() => { });
-    } catch (_err) {
-      try { console.warn('[app] Failed to close contact editor during navigation', _err); }
-      catch (_) { }
-    }
-
     try {
       // Close partner editor if open
       if (typeof closePartnerEditModal === 'function') {
