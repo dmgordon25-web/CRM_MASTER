@@ -12,7 +12,6 @@ import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
-
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
 
@@ -2423,15 +2422,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
       // Lazy-load to prevent boot deadlock
-      // Safe DOM-only close (No module dependency needed)
-      (function () {
-        const m = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
-        if (m) {
-          m.style.display = 'none';
-          if (m.hasAttribute('open')) m.removeAttribute('open');
-          if (typeof m.close === 'function' && m.open) { try { m.close() } catch (e) { } }
-        }
-      })();
+      // Safe DOM cleanup (Dependency Removed)
+      const _m = document.querySelector('[data-ui="contact-edit-modal"]');
+      if (_m) { _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open'); }
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }
@@ -2663,15 +2656,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } else {
       scheduleAppRender();
     }
-    // Safe DOM-only close (No module dependency needed)
-    (function () {
-      const m = document.getElementById('contact-modal') || document.querySelector('[data-ui="contact-edit-modal"]');
-      if (m) {
-        m.style.display = 'none';
-        if (m.hasAttribute('open')) m.removeAttribute('open');
-        if (typeof m.close === 'function' && m.open) { try { m.close() } catch (e) { } }
-      }
-    })();
+    // Safe DOM cleanup (Dependency Removed)
+    const _m = document.querySelector('[data-ui="contact-edit-modal"]');
+    if (_m) { _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open'); }
 
     try { closePartnerEditModal(); }
     catch (_err) { }
