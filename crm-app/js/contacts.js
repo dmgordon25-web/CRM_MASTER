@@ -3358,4 +3358,3 @@ if (typeof window !== 'undefined') {
 
 export { closeContactEditor };
 
-export { closeContactEditor };
