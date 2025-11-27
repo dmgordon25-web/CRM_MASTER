@@ -52,10 +52,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
-  const notificationsEnabled = featureFlags.notificationsMVP === true;
-
-  let labsBundlePromise = null;
-
   function loadLabsBundle() {
     if (!labsBundlePromise) {
       try { console.info('[labs] requesting bundle'); }
@@ -2424,6 +2420,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === 'notifications' && !notificationsEnabled) {
       normalized = DEFAULT_ROUTE;
     }
+    // TASK 1 FIX: Close any open modals before switching views to prevent freezes
+    try {
+      // Lazy-load to prevent boot deadlock
+      import('./editors/editor_lifecycle.js')
+        .then(mod => { if (mod && mod.closeContactEditor) mod.closeContactEditor('nav'); })
+        .catch(() => { });
+    } catch (_err) {
+      try { console.warn('[app] Failed to close contact editor during navigation', _err); }
+      catch (_) { }
+    }
+
     try {
       // Close partner editor if open
       if (typeof closePartnerEditModal === 'function') {
@@ -3420,97 +3427,85 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
     }
     if (typeof testApi.nextPaint !== 'function') {
-      testApi.nextPaint = () => new Promise(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      // Conservative: honor our standard wiring flags and inline onclick;
+      // avoid DevTools-only APIs like getEventListeners.
+      return !!(el.__wired || el.onclick || el.dataset.wired === '1');
+    }
+    function isNav(el) {
+      return el.tagName === 'A' && !!el.getAttribute('href');
+    }
+    function roleOf(el) {
+      return (el.getAttribute('data-action') || el.getAttribute('data-role') || '').trim();
+    }
+
+    const ACTION_TAGS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
+    const ACTION_ROLES = new Set([
+      'button', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option',
+      'tab', 'switch', 'checkbox', 'radio', 'combobox', 'listbox', 'link'
+    ]);
+
+    function isActionCandidate(el) {
+      if (el.hasAttribute('data-action')) return true;
+      if (!el.hasAttribute('data-role')) return false;
+      if (ACTION_TAGS.has(el.tagName)) return true;
+      const explicitRole = (el.getAttribute('role') || '').trim().toLowerCase();
+      if (explicitRole && ACTION_ROLES.has(explicitRole)) return true;
+      if (typeof el.tabIndex === 'number' && el.tabIndex >= 0) return true;
+      return false;
+    }
+
+    function sweep() {
+      const nodes = document.querySelectorAll('button[data-action],a[data-action],[data-role]');
+      nodes.forEach(el => {
+        const autoHidden = el.dataset.autoHidden === '1';
+        if (!isActionCandidate(el)) {
+          if (autoHidden) {
+            el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
+          }
+          return;
+        }
+        const role = roleOf(el);
+        if (!role) return;           // nothing to judge
+        if (isNav(el)) return;       // real links stay visible
+        if (hasHandler(el)) {
+          // If we previously auto-hid this and it became wired, unhide.
+          if (autoHidden) {
+            el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
+          }
+          return;
+        }
+        // Unwired & not a link → hide but reversible once wired later.
+        if (!el.hidden) {
+          el.hidden = true; el.setAttribute('aria-hidden', 'true'); el.dataset.autoHidden = '1';
+        }
       });
     }
-  })();
-})();
 
-// Honestify: automatically hide obviously unwired action controls, and unhide once wired
-(function () {
-  if (window.__HONESTIFY__) return; window.__HONESTIFY__ = true;
-
-  function hasHandler(el) {
-    // Conservative: honor our standard wiring flags and inline onclick;
-    // avoid DevTools-only APIs like getEventListeners.
-    return !!(el.__wired || el.onclick || el.dataset.wired === '1');
-  }
-  function isNav(el) {
-    return el.tagName === 'A' && !!el.getAttribute('href');
-  }
-  function roleOf(el) {
-    return (el.getAttribute('data-action') || el.getAttribute('data-role') || '').trim();
-  }
-
-  const ACTION_TAGS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
-  const ACTION_ROLES = new Set([
-    'button', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option',
-    'tab', 'switch', 'checkbox', 'radio', 'combobox', 'listbox', 'link'
-  ]);
-
-  function isActionCandidate(el) {
-    if (el.hasAttribute('data-action')) return true;
-    if (!el.hasAttribute('data-role')) return false;
-    if (ACTION_TAGS.has(el.tagName)) return true;
-    const explicitRole = (el.getAttribute('role') || '').trim().toLowerCase();
-    if (explicitRole && ACTION_ROLES.has(explicitRole)) return true;
-    if (typeof el.tabIndex === 'number' && el.tabIndex >= 0) return true;
-    return false;
-  }
-
-  function sweep() {
-    const nodes = document.querySelectorAll('button[data-action],a[data-action],[data-role]');
-    nodes.forEach(el => {
-      const autoHidden = el.dataset.autoHidden === '1';
-      if (!isActionCandidate(el)) {
-        if (autoHidden) {
-          el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
-        }
-        return;
-      }
-      const role = roleOf(el);
-      if (!role) return;           // nothing to judge
-      if (isNav(el)) return;       // real links stay visible
-      if (hasHandler(el)) {
-        // If we previously auto-hid this and it became wired, unhide.
-        if (autoHidden) {
-          el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
-        }
-        return;
-      }
-      // Unwired & not a link → hide but reversible once wired later.
-      if (!el.hidden) {
-        el.hidden = true; el.setAttribute('aria-hidden', 'true'); el.dataset.autoHidden = '1';
-      }
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', sweep, { once: true });
-  } else {
-    sweep();
-  }
-  if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) { }
-  }
-})();
-
-// Load SVG sanitizer (no-op if already loaded)
-try {
-  import(fromHere('./ux/svg_sanitizer.js')).catch(() => { });
-} catch (_) { }
-
-// Inject a tiny data-URL favicon to stop 404 noise without touching HTML
-(function () {
-  try {
-    if (!document.querySelector('link[rel="icon"]')) {
-      const link = document.createElement('link');
-      link.rel = 'icon';
-      link.type = 'image/svg+xml';
-      // simple neutral dot icon
-      link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
-      document.head.appendChild(link);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', sweep, { once: true });
+    } else {
+      sweep();
     }
+    if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
+      try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) { }
+    }
+  })();
+
+  // Load SVG sanitizer (no-op if already loaded)
+  try {
+    import(fromHere('./ux/svg_sanitizer.js')).catch(() => { });
   } catch (_) { }
-})();
+
+  // Inject a tiny data-URL favicon to stop 404 noise without touching HTML
+  (function () {
+    try {
+      if (!document.querySelector('link[rel="icon"]')) {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = 'image/svg+xml';
+        // simple neutral dot icon
+        link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
+        document.head.appendChild(link);
+      }
+    } catch (_) { }
+  })();
