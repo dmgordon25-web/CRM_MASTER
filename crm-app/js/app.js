@@ -2427,8 +2427,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     try {
       // FIX: Use Dynamic Import to break boot-time circular dependency
       import('./editors/contact_entry.js')
-        .then(mod => { if (mod && mod.closeContactEditor) mod.closeContactEditor('nav'); })
-        .catch(() => { });
+        .then(mod => {
+          if (mod && typeof mod.closeContactEditor === 'function') {
+            mod.closeContactEditor('navigation');
+          }
+        })
+        .catch(err => {
+          // Fallback: Manual DOM close if module fails
+          const m = document.getElementById('contact-modal');
+          if (m) { m.style.display = 'none'; if (m.close) m.close(); }
+        });
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }
