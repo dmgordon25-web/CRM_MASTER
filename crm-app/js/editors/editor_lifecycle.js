@@ -5,7 +5,7 @@
  */
 
 const editorState = {
-    status: 'idle', // idle, opening, open, closing
+    status: 'idle',
     activeId: null
 };
 
