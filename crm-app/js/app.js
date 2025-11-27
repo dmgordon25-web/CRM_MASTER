@@ -2423,9 +2423,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
       // Lazy-load to prevent boot deadlock
-      import('./editors/editor_lifecycle.js')
-        .then(mod => { if (mod && mod.closeContactEditor) mod.closeContactEditor('nav'); })
-        .catch(() => { });
+      import('./editors/contact_entry.js').then(m => m?.closeContactEditor?.('nav')).catch(() => { });
     } catch (_err) {
       try { console.warn('[app] Failed to close contact editor during navigation', _err); }
       catch (_) { }
@@ -2657,8 +2655,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } else {
       scheduleAppRender();
     }
-    try { closeContactEditor('ui-mode'); }
-    catch (_err) { }
+    import('./editors/contact_entry.js').then(m => m?.closeContactEditor?.('ui-mode')).catch(() => { });
+
     try { closePartnerEditModal(); }
     catch (_err) { }
   });

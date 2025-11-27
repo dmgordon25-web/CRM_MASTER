@@ -5,7 +5,7 @@ import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
 import { clearSelectionForSurface } from './services/selection_reset.js';
 import { applyContactFieldVisibility, normalizeSimpleModeSettings, SIMPLE_MODE_DEFAULTS } from './editors/contact_fields.js';
 import { getUiMode, onUiModeChanged } from './ui/ui_mode.js';
-import { closeContactEditor, getContactEditorState, resetContactEditorForRouteLeave } from './editors/editor_lifecycle.js';
+import { closeContactEditor, getContactEditorState, resetContactEditorForRouteLeave } from './editors/contact_entry.js';
 import { getTasksApi } from './app_services.js';
 import {
   renderStageChip,
