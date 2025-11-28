@@ -13,7 +13,7 @@ const BUTTON_PREFIX = 'header-new-';
 const ACTION_BAR_ID = 'global-new';
 const ACTION_BAR_SOURCE = 'actionbar';
 const HEADER_SOURCE = 'header';
-const HEADER_TOGGLE_SELECTOR = '#btn-header-new-disabled';
+const HEADER_TOGGLE_SELECTOR = '#quick-add-unified';
 
 const BIND_GUARD_KEY = typeof Symbol === 'function'
   ? Symbol('quick-create-menu:binding')
@@ -733,7 +733,8 @@ function applyOpeners(binding, options) {
   binding.previousOpeners = previousOwner === binding ? binding.previousOpeners : previousOpeners;
 }
 
-function createBinding(host, options) {
+export function createBinding(host, options = {}) {
+  console.log('[QC] createBinding called', host, options);
   const toggleSelector = typeof options.toggleSelector === 'string' && options.toggleSelector
     ? options.toggleSelector
     : HEADER_TOGGLE_SELECTOR;
@@ -772,6 +773,7 @@ function createBinding(host, options) {
 
   const toggles = Array.from(host.querySelectorAll(toggleSelector));
   toggles.forEach((toggle) => {
+    console.log('[QC] Registering anchor:', toggle);
     registerAnchor(toggle, HEADER_SOURCE);
   });
 

@@ -15,6 +15,7 @@ import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 // import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
+import { createBinding } from './ui/quick_create_menu.js';
 
 // --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
 const closeContactEditor = (reason) => {
@@ -481,6 +482,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   onDomReady(() => {
     console.log('[DEBUG] onDomReady executing');
     // --- RE-INSERTED LOGIC START ---
+    createBinding(document.body);
     const nav = $('#main-nav');
     if (nav) {
       console.log('[DEBUG] #main-nav found, attaching listener');
