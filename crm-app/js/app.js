@@ -2575,17 +2575,23 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   enforceDefaultRoute();
   window.addEventListener('hashchange', handleHashChange);
-  $('#main-nav').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-nav]'); if (!btn) return;
-    const navTarget = btn.getAttribute('data-nav');
-    if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-      e.preventDefault();
-      activate(DEFAULT_ROUTE);
-      return;
+
+  onDomReady(() => {
+    const nav = $('#main-nav');
+    if (nav) {
+      nav.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
+        const navTarget = btn.getAttribute('data-nav');
+        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
+          e.preventDefault();
+          activate(DEFAULT_ROUTE);
+          return;
+        }
+        if (navTarget === 'workbench') return;
+        e.preventDefault();
+        activate(navTarget);
+      });
     }
-    if (navTarget === 'workbench') return;
-    e.preventDefault();
-    activate(navTarget);
   });
 
   (function wireWorkbenchNav() {

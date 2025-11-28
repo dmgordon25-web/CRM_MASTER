@@ -1,6 +1,6 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
 
-import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js';
+// import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js'; // REMOVED to prevent circular dependency
 import { validateTask } from '../tasks.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
 
@@ -622,8 +622,10 @@ async function defaultOpenContactEditor(prefill) {
   }
 }
 
-function defaultOpenPartnerEditor() {
+async function defaultOpenPartnerEditor() {
   try {
+    // DYNAMIC IMPORT to prevent circular dependency cycles at boot
+    const { openNewPartnerEditor } = await import('../editors/partner_entry.js');
     return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
   } catch (err) {
     try { if (console && typeof console.warn === 'function') console.warn('[quick-create] partner editor open failed', err); }
