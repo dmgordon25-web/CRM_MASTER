@@ -4,7 +4,7 @@ import { onEnter, onLeave } from '../router/history.js';
 import { ensureViewGuard, getViewGuard, releaseViewGuard } from '../router/view_teardown.js';
 import { getSettingsApi } from '../app_context.js';
 
-(function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
+(function () { try { window.__WIRED_HEADER_TOOLBAR__ = true; console.info('[A_BEACON] header loaded'); } catch { } }());
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
 const BUTTON_ID = 'btn-header-new';
@@ -14,7 +14,7 @@ let headerOnlyBeaconed = false;
 const HEADER_GUARD_KEY = '__WIRED_HEADER_TOOLBAR__';
 let headerLifecycleGuard = null;
 
-function getSettingsService(){
+function getSettingsService() {
   return getSettingsApi();
 }
 
@@ -55,7 +55,7 @@ function postQuickAddLog(eventName) {
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     try {
       sent = !!navigator.sendBeacon('/__log', payload) || sent;
-    } catch (_) {}
+    } catch (_) { }
   }
   if (sent || typeof fetch !== 'function') {
     return;
@@ -66,8 +66,8 @@ function postQuickAddLog(eventName) {
       headers: { 'Content-Type': 'application/json' },
       body: payload,
       keepalive: true
-    }).catch(() => {});
-  } catch (_) {}
+    }).catch(() => { });
+  } catch (_) { }
 }
 
 function emitHeaderOnlyBeacon() {
@@ -77,7 +77,7 @@ function emitHeaderOnlyBeacon() {
   headerOnlyBeaconed = true;
   try {
     console && typeof console.info === 'function' && console.info('[VIS] quick-add: header-only');
-  } catch (_) {}
+  } catch (_) { }
   postQuickAddLog('quickadd-header-only');
 }
 
@@ -152,7 +152,7 @@ function teardownQuickCreateBinding() {
   const { unbind } = headerState;
   if (typeof unbind === 'function') {
     try { unbind(); }
-    catch (_) {}
+    catch (_) { }
   }
   headerState.unbind = null;
   headerState.boundHost = null;
@@ -175,13 +175,13 @@ function ensureHostNode() {
     toggle.type = 'button';
     toggle.className = 'btn brand';
     toggle.id = BUTTON_ID;
-    toggle.textContent = '(+ New)';
+    toggle.textContent = 'New+';
     toggle.setAttribute('aria-label', 'Create new record');
     host.appendChild(toggle);
   } else {
     const label = toggle.textContent ? toggle.textContent.trim() : '';
-    if (label !== '(+ New)') {
-      toggle.textContent = '(+ New)';
+    if (label !== 'New+') {
+      toggle.textContent = 'New+';
     }
     if (!toggle.hasAttribute('aria-label')) {
       toggle.setAttribute('aria-label', 'Create new record');
@@ -218,7 +218,7 @@ function ensureQuickCreateBinding(host) {
     try {
       const bus = typeof window !== 'undefined' ? (window.AppBus || window.__APP_BUS__ || null) : null;
       bindHeaderQuickCreateOnce(host, bus);
-    } catch (_) {}
+    } catch (_) { }
   } catch (err) {
     headerState.unbind = null;
     if (console && typeof console.warn === 'function') {
@@ -264,12 +264,12 @@ function placeHost(header, host) {
   if (!header || !host) return;
   const doc = header.ownerDocument || document;
   if (!doc) return;
-  
+
   const nav = doc.getElementById('main-nav');
   if (nav) {
     const searchContainer = nav.querySelector('#universal-search-container');
     const calendarBtn = nav.querySelector('[data-nav="calendar"]');
-    
+
     if (searchContainer && calendarBtn) {
       if (host.parentElement !== nav) {
         nav.insertBefore(host, calendarBtn);
@@ -278,7 +278,7 @@ function placeHost(header, host) {
       }
       return;
     }
-    
+
     if (searchContainer) {
       if (host.parentElement !== nav) {
         searchContainer.insertAdjacentElement('afterend', host);
@@ -288,7 +288,7 @@ function placeHost(header, host) {
       return;
     }
   }
-  
+
   const mount = pickHeaderMount(header);
   if (mount && mount !== header) {
     if (host.parentElement !== mount) {
@@ -338,7 +338,7 @@ function ensureHeaderToolbar() {
         try { headerState.host.remove(); }
         catch (_) {
           try { headerState.host.parentElement.removeChild(headerState.host); }
-          catch (__err) {}
+          catch (__err) { }
         }
       }
       headerState.host = null;
@@ -440,7 +440,7 @@ function mountHeaderToolbarLifecycle(context) {
     }
     guard.addCleanup(() => {
       try { doc.removeEventListener('DOMContentLoaded', onReady); }
-      catch (_err) {}
+      catch (_err) { }
     });
   } else {
     run();
@@ -450,7 +450,7 @@ function mountHeaderToolbarLifecycle(context) {
     const observer = headerState.observer;
     if (observer && typeof observer.disconnect === 'function') {
       try { observer.disconnect(); }
-      catch (_err) {}
+      catch (_err) { }
     }
     headerState.observer = null;
     headerState.pending = false;
@@ -499,8 +499,8 @@ HEADER_ROUTES.forEach((route) => {
   onEnter(route, mountHeaderToolbarLifecycle);
   onLeave(route, unmountHeaderToolbarLifecycle);
 });
-(function(){
-  if(typeof window === 'undefined' || typeof document === 'undefined') return;
+(function () {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   const PROFILE_KEY = 'profile:v1';
   const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
@@ -509,76 +509,76 @@ HEADER_ROUTES.forEach((route) => {
   // overflows once the data URL prefix is factored in.
   const LOCAL_STORAGE_SAFE_CHARS = 4 * 1024 * 1024;
   try {
-    if(console && typeof console.info === 'function'){
+    if (console && typeof console.info === 'function') {
       console.info('[A_BEACON] avatar: limit=6MB');
     }
-  } catch (_err) {}
+  } catch (_err) { }
   // accept="image/" sentinel retained so legacy probes find the settings upload affordance.
   const FILE_INPUT_HTML = '<input type="file" accept="image/*">';
 
-  function readProfileLocal(){
-    try{
+  function readProfileLocal() {
+    try {
       const raw = localStorage.getItem(PROFILE_KEY);
-      if(!raw) return null;
+      if (!raw) return null;
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === 'object' ? parsed : null;
-    }catch (_err){
+    } catch (_err) {
       return null;
     }
   }
 
-  function isQuotaExceededError(err){
-    if(!err) return false;
+  function isQuotaExceededError(err) {
+    if (!err) return false;
     return err.name === 'QuotaExceededError'
       || err.name === 'NS_ERROR_DOM_QUOTA_REACHED'
       || err.code === 22
       || err.code === 1014;
   }
 
-  function writeProfileLocal(profile){
-    try{
-      if(profile && typeof profile === 'object'){
+  function writeProfileLocal(profile) {
+    try {
+      if (profile && typeof profile === 'object') {
         localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-      }else{
+      } else {
         localStorage.removeItem(PROFILE_KEY);
       }
       return { ok: true, quota: false };
-    }catch (err){
+    } catch (err) {
       return { ok: false, quota: isQuotaExceededError(err), error: err };
     }
   }
 
-  function mergeProfile(patch){
+  function mergeProfile(patch) {
     const current = readProfileLocal() || {};
     const merged = Object.assign({}, current, patch || {});
     const writeResult = writeProfileLocal(merged);
-    if(writeResult.ok){
+    if (writeResult.ok) {
       const settingsApi = getSettingsService();
-      if(settingsApi && typeof settingsApi.save === 'function'){
-        try{
+      if (settingsApi && typeof settingsApi.save === 'function') {
+        try {
           const result = settingsApi.save({ loProfile: merged });
-          if(result && typeof result.then === 'function'){
-            result.catch(()=>{});
+          if (result && typeof result.then === 'function') {
+            result.catch(() => { });
           }
-        }catch (_err){}
+        } catch (_err) { }
       }
       return { profile: merged, writeError: null };
     }
     return { profile: current, writeError: writeResult };
   }
 
-  function renderHeader(profile){
+  function renderHeader(profile) {
     const chip = document.getElementById('lo-profile-chip');
-    if(!chip) return;
+    if (!chip) return;
     const nameEl = chip.querySelector('[data-role="lo-name"]');
     const contactEl = chip.querySelector('[data-role="lo-contact"]');
     const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
     const email = typeof profile?.email === 'string' ? profile.email.trim() : '';
     const phone = typeof profile?.phone === 'string' ? profile.phone.trim() : '';
     const photo = typeof profile?.photoDataUrl === 'string' ? profile.photoDataUrl : '';
-    if(nameEl){
-      if(photo){
-        if(!nameEl.__photoOriginal){
+    if (nameEl) {
+      if (photo) {
+        if (!nameEl.__photoOriginal) {
           nameEl.__photoOriginal = {
             display: nameEl.style.display || '',
             alignItems: nameEl.style.alignItems || '',
@@ -588,16 +588,16 @@ HEADER_ROUTES.forEach((route) => {
         nameEl.style.display = 'flex';
         nameEl.style.alignItems = 'center';
         nameEl.style.gap = '8px';
-      }else if(nameEl.__photoOriginal){
+      } else if (nameEl.__photoOriginal) {
         const original = nameEl.__photoOriginal;
         nameEl.style.display = original.display;
         nameEl.style.alignItems = original.alignItems;
         nameEl.style.gap = original.gap;
       }
       nameEl.textContent = name || 'Set your profile';
-      if(photo){
+      if (photo) {
         let img = nameEl.querySelector('[data-role="lo-photo"]');
-        if(!img){
+        if (!img) {
           img = document.createElement('img');
           img.dataset.role = 'lo-photo';
           img.alt = '';
@@ -605,114 +605,114 @@ HEADER_ROUTES.forEach((route) => {
           nameEl.insertBefore(img, nameEl.firstChild);
         }
         img.src = photo;
-      }else{
+      } else {
         const img = nameEl.querySelector('[data-role="lo-photo"]');
-        if(img) img.remove();
+        if (img) img.remove();
       }
     }
-    if(contactEl){
+    if (contactEl) {
       const parts = [];
-      if(email) parts.push(email);
-      if(phone) parts.push(phone);
+      if (email) parts.push(email);
+      if (phone) parts.push(phone);
       contactEl.textContent = parts.length ? parts.join(' • ') : '—';
     }
   }
 
-  function renderPhotoPreview(photo){
+  function renderPhotoPreview(photo) {
     const preview = document.getElementById('lo-photo-preview');
     const emptyState = document.getElementById('lo-photo-empty');
-    if(preview){
-      if(photo){
+    if (preview) {
+      if (photo) {
         preview.src = photo;
         preview.style.display = 'block';
-      }else{
+      } else {
         preview.removeAttribute('src');
         preview.style.display = 'none';
       }
     }
-    if(emptyState){
+    if (emptyState) {
       emptyState.style.display = photo ? 'none' : '';
     }
   }
 
-  function applyProfile(profile){
+  function applyProfile(profile) {
     renderHeader(profile || {});
     const photo = profile && typeof profile.photoDataUrl === 'string' ? profile.photoDataUrl : '';
     renderPhotoPreview(photo);
   }
 
-  function handleFileInput(input){
+  function handleFileInput(input) {
     const file = input && input.files ? input.files[0] : null;
-    if(!file){
-      if(input) input.value = '';
+    if (!file) {
+      if (input) input.value = '';
       return;
     }
-    if(file.size > PHOTO_MAX_BYTES){
-      if(window.Toast && typeof window.Toast.show === 'function'){
+    if (file.size > PHOTO_MAX_BYTES) {
+      if (window.Toast && typeof window.Toast.show === 'function') {
         window.Toast.show('Please choose an image under 6 MB.');
       }
       input.value = '';
       return;
     }
     const reader = new FileReader();
-    reader.addEventListener('load', ()=>{
+    reader.addEventListener('load', () => {
       const result = reader.result;
-      if(typeof result === 'string'){
-        if(result.length > LOCAL_STORAGE_SAFE_CHARS){
-          if(window.Toast && typeof window.Toast.show === 'function'){
+      if (typeof result === 'string') {
+        if (result.length > LOCAL_STORAGE_SAFE_CHARS) {
+          if (window.Toast && typeof window.Toast.show === 'function') {
             window.Toast.show('Image is too large to store locally. Please choose a smaller photo (about 3.5 MB or less).');
           }
           input.value = '';
           return;
         }
         const { profile, writeError } = mergeProfile({ photoDataUrl: result });
-        if(writeError && window.Toast && typeof window.Toast.show === 'function'){
-          if(writeError.quota){
+        if (writeError && window.Toast && typeof window.Toast.show === 'function') {
+          if (writeError.quota) {
             window.Toast.show('Browser storage quota exceeded. Please choose a smaller photo (about 3.5 MB or less).');
-          }else{
+          } else {
             window.Toast.show('Unable to store photo locally. Please try again.');
           }
         }
         applyProfile(profile);
-      }else if(window.Toast && typeof window.Toast.show === 'function'){
+      } else if (window.Toast && typeof window.Toast.show === 'function') {
         window.Toast.show('Unable to read image.');
       }
       input.value = '';
     });
-    reader.addEventListener('error', ()=>{
-      if(window.Toast && typeof window.Toast.show === 'function'){
+    reader.addEventListener('error', () => {
+      if (window.Toast && typeof window.Toast.show === 'function') {
         window.Toast.show('Unable to read image.');
       }
       input.value = '';
     });
-    try{
+    try {
       reader.readAsDataURL(file);
-    }catch (_err){
-      if(window.Toast && typeof window.Toast.show === 'function'){
+    } catch (_err) {
+      if (window.Toast && typeof window.Toast.show === 'function') {
         window.Toast.show('Unable to read image.');
       }
       input.value = '';
     }
   }
 
-  function handleClear(){
+  function handleClear() {
     const { profile, writeError } = mergeProfile({ photoDataUrl: '' });
-    if(writeError && window.Toast && typeof window.Toast.show === 'function'){
+    if (writeError && window.Toast && typeof window.Toast.show === 'function') {
       window.Toast.show(writeError.quota ? 'Unable to clear photo due to storage quota.' : 'Unable to clear photo.');
     }
     applyProfile(profile);
   }
 
-  function ensureControls(){
+  function ensureControls() {
     const panel = document.getElementById('lo-profile-settings');
-    if(!panel) return;
+    if (!panel) return;
     let input = document.getElementById('lo-photo');
     const label = panel.querySelector('label:last-of-type') || panel;
-    if(!input){
+    if (!input) {
       const template = document.createElement('div');
       template.innerHTML = FILE_INPUT_HTML;
       input = template.firstElementChild;
-      if(!input){
+      if (!input) {
         return;
       }
       input.id = 'lo-photo';
@@ -720,7 +720,7 @@ HEADER_ROUTES.forEach((route) => {
     }
     input.type = 'file';
     input.setAttribute('accept', 'image/*');
-    if(!input.__headerToolbar){
+    if (!input.__headerToolbar) {
       input.__headerToolbar = true;
       input.addEventListener('change', evt => {
         const target = evt && evt.target instanceof HTMLInputElement ? evt.target : input;
@@ -728,7 +728,7 @@ HEADER_ROUTES.forEach((route) => {
       });
     }
     const clearBtn = document.getElementById('btn-lo-photo-clear');
-    if(clearBtn && !clearBtn.__headerToolbar){
+    if (clearBtn && !clearBtn.__headerToolbar) {
       clearBtn.__headerToolbar = true;
       clearBtn.addEventListener('click', evt => {
         evt.preventDefault();
@@ -740,49 +740,49 @@ HEADER_ROUTES.forEach((route) => {
 
   ensureControlsRef = ensureControls;
 
-  function hydrate(){
+  function hydrate() {
     const localProfile = readProfileLocal();
-    if(localProfile){
+    if (localProfile) {
       applyProfile(localProfile);
       return;
     }
     const settingsApi = getSettingsService();
-    if(settingsApi && typeof settingsApi.get === 'function'){
+    if (settingsApi && typeof settingsApi.get === 'function') {
       Promise.resolve(settingsApi.get())
         .then(data => {
           const profile = data && typeof data.loProfile === 'object' ? data.loProfile : {};
-          if(profile && typeof profile === 'object'){
+          if (profile && typeof profile === 'object') {
             const writeResult = writeProfileLocal(profile);
-            if(!writeResult.ok && writeResult.quota && window.Toast && typeof window.Toast.show === 'function'){
+            if (!writeResult.ok && writeResult.quota && window.Toast && typeof window.Toast.show === 'function') {
               window.Toast.show('Stored profile is too large for browser storage. Please reduce the avatar size.');
             }
             applyProfile(profile);
           }
         })
-        .catch(()=>{});
+        .catch(() => { });
     }
   }
 
-  const init = ()=>{
+  const init = () => {
     ensureControls();
     hydrate();
   };
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init, { once:true });
-  }else{
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
     init();
   }
 
   window.addEventListener('storage', evt => {
-    if(evt && evt.key === PROFILE_KEY){
+    if (evt && evt.key === PROFILE_KEY) {
       hydrate();
     }
   });
 
   document.addEventListener('app:data:changed', evt => {
     const scope = evt && evt.detail && evt.detail.scope;
-    if(scope && scope !== 'settings') return;
+    if (scope && scope !== 'settings') return;
     hydrate();
   });
 })();

@@ -3123,6 +3123,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       root.innerHTML = '<div class="error-state">Unable to load calendar.</div>';
     }
   }
+  window.renderCalendar = renderCalendarView;
 
 
   async function refreshByScope(scope, action) {
