@@ -608,17 +608,17 @@ export function isQuickCreateMenuOpen(source) {
   if (!source) return true;
   return state.source === source;
 }
-
 async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    // DYNAMIC IMPORT: Loads contacts.js only on demand to prevent boot-time circular dependency deadlock
+    // FIX: Use dynamic import to break circular dependency with contacts.js
+    // This prevents boot deadlock and resolves the 404 error.
     const { openContactEditor } = await import('../contacts.js');
 
-    // Logic Adaptation: openContactEditor handles both new and existing records
     if (prefill && prefill.id) {
       return openContactEditor(prefill.id, meta);
     }
+    // openContactEditor handles new records when passed an object/null
     return openContactEditor(prefill || {}, meta);
   } catch (err) {
     try {
