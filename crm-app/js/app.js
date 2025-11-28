@@ -3178,10 +3178,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     try {
-      let mod;
-      try { mod = await import('./calendar/index.js'); }
-      catch (e) { mod = await import('./calendar.js'); }
-
+      const mod = await import('./calendar.js');
       if (mod && mod.default) mod.default();
       else if (mod && mod.renderCalendar) mod.renderCalendar();
       else if (window.renderCalendar) window.renderCalendar();
@@ -3190,6 +3187,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       root.innerHTML = '<div class="error-state">Unable to load calendar.</div>';
     }
   }
+
 
   async function refreshByScope(scope, action) {
     const key = String(scope || '').toLowerCase();

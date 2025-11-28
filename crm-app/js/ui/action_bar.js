@@ -14,9 +14,9 @@ const globalWiringState = typeof window !== 'undefined'
   ? (window.__ACTION_BAR_WIRING__ = window.__ACTION_BAR_WIRING__ || {
     windowListeners: new Map(),
     documentListeners: new Map(),
-    teardown() {}
+    teardown() { }
   })
-  : { windowListeners: new Map(), documentListeners: new Map(), teardown() {} };
+  : { windowListeners: new Map(), documentListeners: new Map(), teardown() { } };
 
 if (!('selectionOff' in globalWiringState)) globalWiringState.selectionOff = null;
 if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0;
@@ -57,12 +57,12 @@ const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
   : (fn) => {
     try {
       if (typeof Promise === 'function') {
-        Promise.resolve().then(() => fn()).catch(() => {});
+        Promise.resolve().then(() => fn()).catch(() => { });
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
     try { fn(); }
-    catch (_) {}
+    catch (_) { }
   };
 
 function ensureStyle(originId, cssText, legacyId) {
@@ -77,7 +77,7 @@ function ensureStyle(originId, cssText, legacyId) {
   if (style) {
     if (style.getAttribute && style.getAttribute('data-origin') !== originId) {
       try { style.setAttribute('data-origin', originId); }
-      catch (_) {}
+      catch (_) { }
     }
     if (typeof cssText === 'string' && style.textContent !== cssText) {
       style.textContent = cssText;
@@ -102,11 +102,11 @@ function postActionBarTelemetry(event, data) {
       const blob = new Blob([payload], { type: 'application/json' });
       navigator.sendBeacon('/__log', blob);
       return;
-    } catch (_) {}
+    } catch (_) { }
   }
   if (typeof fetch === 'function') {
     try { fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }); }
-    catch (_) {}
+    catch (_) { }
   }
 }
 
@@ -114,7 +114,7 @@ function emitActionBarFabRemoved() {
   if (actionBarFabRemovedLogged) return;
   actionBarFabRemovedLogged = true;
   try { console && typeof console.info === 'function' && console.info('[VIS] action-bar plus removed'); }
-  catch (_) {}
+  catch (_) { }
   postActionBarTelemetry('actionbar-plus-removed');
 }
 
@@ -122,7 +122,7 @@ function announceActionBarDragReady() {
   if (actionBarDragInitLogged) return;
   actionBarDragInitLogged = true;
   try { console.info('[VIS] action-bar drag ready'); }
-  catch (_) {}
+  catch (_) { }
   postActionBarTelemetry('actionbar-drag-ready');
 }
 
@@ -268,13 +268,13 @@ function clearGlobalSelection(source = 'actionbar:esc') {
       window.Selection.clear(source);
       cleared = true;
     }
-  } catch (_) {}
+  } catch (_) { }
   try {
     if (typeof window.SelectionService?.clear === 'function') {
       window.SelectionService.clear(source);
       cleared = true;
     }
-  } catch (_) {}
+  } catch (_) { }
   const store = getSelectionStore();
   if (store && typeof store.clear === 'function') {
     const scopes = inferSelectionScopes();
@@ -282,7 +282,7 @@ function clearGlobalSelection(source = 'actionbar:esc') {
       try {
         store.clear(scope);
         cleared = true;
-      } catch (_) {}
+      } catch (_) { }
     });
   }
   return cleared;
@@ -321,7 +321,7 @@ function flushPostPaintVisibilityRefresh() {
   globalWiringState.postPaintRefreshScheduled = false;
   try {
     refreshActionBarVisibility();
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function schedulePostPaintVisibilityRefresh() {
@@ -339,7 +339,7 @@ function schedulePostPaintVisibilityRefresh() {
       });
       return;
     }
-  } catch (_) {}
+  } catch (_) { }
   invoke();
 }
 
@@ -435,7 +435,7 @@ function triggerActionBarPulse(bar) {
       easing: 'ease-out',
       iterations: 1
     });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function centerActionBarForRoute(options = {}) {
@@ -471,7 +471,7 @@ function centerActionBarForRoute(options = {}) {
   }
   if (!options.silent) {
     try { console.info('[A_BEACON] actionbar:centered'); }
-    catch (_) {}
+    catch (_) { }
   }
 }
 
@@ -573,15 +573,15 @@ function handleSelectionChanged(detail) {
     : ids.length;
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
-  
+
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
     count = 0;
     try { window.Selection?.clear?.('actionbar:init'); }
-    catch (_) {}
+    catch (_) { }
     try { window.SelectionService?.clear?.('actionbar:init'); }
-    catch (_) {}
+    catch (_) { }
     try { window.SelectionStore?.clear?.('partners'); }
-    catch (_) {}
+    catch (_) { }
   }
   setSelectedCount(count);
 }
@@ -591,7 +591,7 @@ function clearSelectionSubscription() {
   globalWiringState.selectionOff = null;
   if (typeof off === 'function') {
     try { off(); }
-    catch (_) {}
+    catch (_) { }
   }
   globalWiringState.hasSelectionSnapshot = false;
   globalWiringState.lastSelection = null;
@@ -615,7 +615,7 @@ function readSelectionSnapshot(selection) {
         return { ...value, ids: value.ids.slice() };
       }
     }
-  } catch (_) {}
+  } catch (_) { }
   try {
     if (typeof selection.getSelectedIds === 'function') {
       const ids = selection.getSelectedIds();
@@ -626,7 +626,7 @@ function readSelectionSnapshot(selection) {
         return { ids: ids.slice(), type };
       }
     }
-  } catch (_) {}
+  } catch (_) { }
   return { ids: [], type: 'contacts' };
 }
 
@@ -720,7 +720,7 @@ function toOptionsKey(options) {
 }
 
 function registerListener(target, registry, type, handler, options) {
-  if (!target || typeof target.addEventListener !== 'function') return () => {};
+  if (!target || typeof target.addEventListener !== 'function') return () => { };
   const optionsKey = toOptionsKey(options);
   const existing = registry.get(type);
   if (existing && existing.handler === handler && existing.optionsKey === optionsKey) {
@@ -809,41 +809,18 @@ function syncActionBarVisibility(selCount, explicitEl) {
   const idleVisible = bar?.dataset?.idleVisible === '1';
   const hasSelections = numeric > 0;
   const shouldBeVisible = hasSelections || idleVisible;
-  
-  if (hasSelections) {
-    // When we have selections, show the full action bar (not minimized)
+
+  if (numeric > 0) {
+    bar.style.display = 'block';
     bar.setAttribute('data-visible', '1');
-    bar.dataset.idleVisible = '1';
-    // Ensure display is not none and visibility is proper
-    if (bar.style) {
-      if (bar.style.display === 'none') {
-        bar.style.display = '';
-      }
-      bar.style.opacity = '1';
-      bar.style.visibility = 'visible';
-      bar.style.pointerEvents = 'auto';
-    }
-    // CRITICAL: Remove minimized state when we have selections
     if (bar.hasAttribute('data-minimized')) {
       bar.removeAttribute('data-minimized');
     }
     bar.setAttribute('aria-expanded', 'true');
   } else {
-    // When count is 0, show the minimized pill (don't hide the bar completely)
+    bar.style.display = 'none';
     bar.removeAttribute('data-visible');
-    bar.removeAttribute('data-idle-visible');
-    // CRITICAL: Do NOT set display: none - let the minimized state show the pill
-    // The CSS handles hiding the shell and showing the pill via data-minimized="1"
-    if (bar.style) {
-      if (bar.style.display === 'none') {
-        bar.style.display = '';  // Remove display:none to allow pill to show
-      }
-      bar.style.opacity = '1';  // Keep visible for pill
-      bar.style.visibility = 'visible';  // Keep visible for pill
-      bar.style.pointerEvents = 'auto';  // Keep interactive for pill
-    }
-    // CRITICAL: Set minimized state when count is 0 to show the pill
-    bar.setAttribute('data-minimized', '1');
+    bar.removeAttribute('data-minimized');
     bar.setAttribute('aria-expanded', 'false');
   }
 }
@@ -851,7 +828,7 @@ function syncActionBarVisibility(selCount, explicitEl) {
 function _updateDataVisible(el) {
   try {
     syncActionBarVisibility(globalWiringState.selectedCount || 0, el);
-  } catch {}
+  } catch { }
 }
 
 function handleActionBarResize() {
@@ -895,7 +872,7 @@ function markActionbarHost() {
         setActionsReady(false);
         return null;
       }
-    } catch (_) {}
+    } catch (_) { }
   }
   setActionsReady(true);
   if (bar.hasAttribute('data-visible') && bar.getAttribute('data-visible') !== '1') {
@@ -955,7 +932,7 @@ function ensureHeaderQuickAddBinding() {
   } catch (err) {
     try {
       console && typeof console.warn === 'function' && console.warn('[action-bar] quick-add bind failed', err);
-    } catch (_) {}
+    } catch (_) { }
   }
 }
 
@@ -999,7 +976,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   handleRouteHashChange();
 }
 
-function injectActionBarStyle(){
+function injectActionBarStyle() {
   if (typeof document === 'undefined') return;
   if (document.getElementById('ab-inline-style')) return;
   ensureStyle('crm:action-bar', `
@@ -1058,7 +1035,7 @@ function stopActionBarDrag(reason = 'event') {
     if (state.cancelHandler) shell.removeEventListener('pointercancel', state.cancelHandler);
     if (state.pointerId != null && typeof shell.releasePointerCapture === 'function') {
       try { shell.releasePointerCapture(state.pointerId); }
-      catch (_) {}
+      catch (_) { }
     }
   }
   const wasActive = state.active === true;
@@ -1074,7 +1051,7 @@ function stopActionBarDrag(reason = 'event') {
   state.cancelHandler = null;
   if (wasActive && reason !== 'silent') {
     try { console.info('[A_BEACON] actionbar:drag-end'); }
-    catch (_) {}
+    catch (_) { }
   }
 }
 
@@ -1114,7 +1091,7 @@ function persistActionBarPosition(position) {
   if (!storage || typeof storage.setItem !== 'function') return;
   try {
     storage.setItem(ACTION_BAR_STORAGE_KEY, JSON.stringify({ left, top }));
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function applyStoredActionBarPosition(bar) {
@@ -1263,10 +1240,10 @@ function ensureActionBarDragHandles(bar) {
     handleTarget.addEventListener('pointercancel', cancelHandler);
     if (typeof handleTarget.setPointerCapture === 'function') {
       try { handleTarget.setPointerCapture(event.pointerId); }
-      catch (_) {}
+      catch (_) { }
     }
     try { console.info('[A_BEACON] actionbar:drag-start'); }
-    catch (_) {}
+    catch (_) { }
   };
   handleTarget.addEventListener('pointerdown', handlePointerDown);
   state.wired = true;
@@ -1306,7 +1283,7 @@ function ensureActionBarFabRemoved(bar) {
     const fab = wrap.querySelector('#global-new');
     if (fab) {
       try { fab.remove(); }
-      catch (_) {}
+      catch (_) { }
     }
     if (!wrap.children.length) {
       wrap.remove();
@@ -1315,7 +1292,7 @@ function ensureActionBarFabRemoved(bar) {
   const strayFab = document.getElementById('global-new');
   if (strayFab) {
     try { strayFab.remove(); }
-    catch (_) {}
+    catch (_) { }
   }
   if (!document.getElementById('global-new')) {
     emitActionBarFabRemoved();

@@ -101,6 +101,7 @@ export const CORE = [
   './qa.js',
   './bulk_log.js',
   './print.js',
+  './contacts.js',
   './app.js',
   './settings_forms.js',
   './compose.js',
