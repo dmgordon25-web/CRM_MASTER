@@ -20,8 +20,24 @@ const BIND_GUARD_KEY = typeof Symbol === 'function'
   : '__quickCreateMenuBinding__';
 
 const defaultOpeners = {
-  contact: () => openContactEditor(),
-  partner: () => openPartnerEditor(),
+  contact: async () => {
+    try {
+      const { openContactEditor } = await import('../contacts.js');
+      return openContactEditor();
+    } catch (err) {
+      console.warn('Failed to load contact editor', err);
+      toastWarn('Contact modal unavailable');
+    }
+  },
+  partner: async () => {
+    try {
+      const { openPartnerEditor } = await import('../editors/partner_entry.js');
+      return openPartnerEditor();
+    } catch (err) {
+      console.warn('Failed to load partner editor', err);
+      toastWarn('Partner modal unavailable');
+    }
+  },
   task: () => openTaskEditor()
 };
 

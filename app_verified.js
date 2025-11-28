@@ -51,7 +51,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 }
 
 (function () {
-  console.log('[DEBUG] app.js IIFE running');
   const $ = (s, r = document) => r.querySelector(s);
   const $all = (s, r = document) => Array.from(r.querySelectorAll(s));
 
@@ -2576,61 +2575,18 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   enforceDefaultRoute();
   window.addEventListener('hashchange', handleHashChange);
-
-  const initNav = () => {
-    console.log('[DEBUG] initNav running');
-    const nav = $('#main-nav');
-    if (nav) {
-      console.log('[DEBUG] #main-nav found, attaching listener');
-      nav.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
-        const navTarget = btn.getAttribute('data-nav');
-        console.log('[DEBUG] Nav Clicked:', navTarget);
-        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-          e.preventDefault();
-          activate(DEFAULT_ROUTE);
-          return;
-        }
-        if (navTarget === 'workbench') return;
-        e.preventDefault();
-        activate(navTarget);
-      });
-    } else {
-      console.error('[DEBUG] #main-nav NOT found');
+  $('#main-nav').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-nav]'); if (!btn) return;
+    const navTarget = btn.getAttribute('data-nav');
+    if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
+      e.preventDefault();
+      activate(DEFAULT_ROUTE);
+      return;
     }
-
-    // Moved from global scope to prevent race condition
-    const settingsButton = document.getElementById('btn-open-settings');
-    if (settingsButton && !settingsButton.__wired) {
-      settingsButton.__wired = true;
-      settingsButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('settings');
-      });
-    }
-
-    const titleLink = document.getElementById('app-title-link');
-    if (titleLink && !titleLink.__wired) {
-      titleLink.__wired = true;
-      titleLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('dashboard');
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        catch (_) { window.scrollTo(0, 0); }
-      });
-    }
-
-    const btnGlobalNew = document.getElementById('btn-global-new');
-    if (btnGlobalNew) {
-      // Placeholder for global new button logic if needed
-    }
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNav);
-  } else {
-    initNav();
-  }
+    if (navTarget === 'workbench') return;
+    e.preventDefault();
+    activate(navTarget);
+  });
 
   (function wireWorkbenchNav() {
     if (window.__WB_NAV__) return;
@@ -2723,7 +2679,23 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   initSelectionBindings();
 
+  if (settingsButton && !settingsButton.__wired) {
+    settingsButton.__wired = true;
+    settingsButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      activate('settings');
+    });
+  }
 
+  if (titleLink && !titleLink.__wired) {
+    titleLink.__wired = true;
+    titleLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      activate('dashboard');
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      catch (_) { window.scrollTo(0, 0); }
+    });
+  }
 
   function initSettingsNav() {
     const nav = document.getElementById('settings-nav');
@@ -3551,6 +3523,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     } catch (_) { }
   })();
-
+});
 
 
