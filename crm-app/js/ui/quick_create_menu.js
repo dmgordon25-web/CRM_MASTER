@@ -624,14 +624,12 @@ async function defaultOpenContactEditor(prefill) {
 
 async function defaultOpenPartnerEditor() {
   try {
-    // DYNAMIC IMPORT to prevent circular dependency cycles at boot
+    // Dynamic import to break circular dependency
     const { openNewPartnerEditor } = await import('../editors/partner_entry.js');
     return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
   } catch (err) {
-    try { if (console && typeof console.warn === 'function') console.warn('[quick-create] partner editor open failed', err); }
-    catch (_) { }
+    console.warn('Partner editor load failed', err);
     toastWarn('Partner modal unavailable');
-    return null;
   }
 }
 
