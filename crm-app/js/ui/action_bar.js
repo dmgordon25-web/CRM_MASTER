@@ -818,10 +818,10 @@ function syncActionBarVisibility(selCount, explicitEl) {
     }
     bar.setAttribute('aria-expanded', 'true');
   } else {
+    // Force hide when no selection
     bar.style.display = 'none';
     bar.removeAttribute('data-visible');
     bar.removeAttribute('data-minimized');
-    bar.setAttribute('aria-expanded', 'false');
   }
 }
 
