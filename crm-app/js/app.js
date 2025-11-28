@@ -51,6 +51,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 }
 
 (function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $all = (s, r = document) => Array.from(r.querySelectorAll(s));
+
   const NONE_PARTNER_ID = window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
   if (!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
