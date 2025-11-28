@@ -789,7 +789,7 @@ export function normalizeContactId(input) {
           contactRecord = null;
         }
       }
-      if (requestedId && !contactRecord) {
+      if (requestedId && !contactRecord && !String(requestedId).startsWith('tmp-')) {
         toastWarn('Contact not found');
         closeDialog();
         return null;
@@ -3365,5 +3365,47 @@ export function closeContactEditor(reason) {
   const m = document.querySelector('[data-ui="contact-edit-modal"]');
   if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
   _localEditorState.status = 'idle';
+}
+
+// --- Quick Add Support ---
+export async function createQuick(record) {
+  if (!record) throw new Error('Record required');
+  const contact = {
+    id: record.id || (typeof window.uuid === 'function' ? window.uuid() : `contact-${Date.now()}`),
+    first: record.first || '',
+    last: record.last || '',
+    email: record.email || '',
+    phone: record.phone || '',
+    notes: record.notes || '',
+    stage: record.stage || 'application',
+    status: record.status || 'inprogress',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  if (typeof window.dbPut === 'function') {
+    await window.dbPut('contacts', contact);
+  }
+
+  // Dispatch event to update UI
+  const event = new CustomEvent('app:data:changed', {
+    detail: { scope: 'contacts', action: 'create', id: contact.id }
+  });
+  document.dispatchEvent(event);
+
+  if (typeof window.dispatchAppDataChanged === 'function') {
+    window.dispatchAppDataChanged('contacts');
+  }
+
+  return contact;
+}
+
+// --- Window Export ---
+if (typeof window !== 'undefined') {
+  window.Contacts = {
+    open: openContactEditor,
+    createQuick: createQuick,
+    get: typeof window.dbGet === 'function' ? (id) => window.dbGet('contacts', id) : null
+  };
 }
 

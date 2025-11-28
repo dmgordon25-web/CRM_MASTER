@@ -587,73 +587,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       .catch(() => { });
   }
 
-  (function wireKanbanEnhancer() {
-    if (window.__KANBAN_ENH__) return; window.__KANBAN_ENH__ = true;
-    function maybeLoad() {
-      const hasBoard = document.querySelector('[data-kanban], #kanban, .kanban-board');
-      if (!hasBoard) return;
-      import(fromHere('./pipeline/kanban_dnd.js')).catch(() => { });
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', maybeLoad, { once: true });
-    } else {
-      maybeLoad();
-    }
-    if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => maybeLoad()); } catch (_) { }
-    }
-  })();
-
-  (function wireNotifications() {
-    if (window.__NOTIFY_WIRED__) return; window.__NOTIFY_WIRED__ = true;
-
-    if (!notificationsEnabled) {
-      applyNotificationsNavVisibility(false);
-      try {
-        if (typeof location !== 'undefined' && location.hash === '#notifications') {
-          goto(`#/${DEFAULT_ROUTE}`);
-        }
-      } catch (_) { }
-      return;
-    }
-
-    // Lazy-load service at boot (non-blocking)
-    try { import(fromHere('./notifications/notifier.js')); } catch (_) { }
-
-    // Simple router to notifications page
-    async function goNotifications(evt) {
-      evt && evt.preventDefault && evt.preventDefault();
-      const mod = await import(fromHere('./pages/notifications.js'));
-      try { activate('notifications'); }
-      catch (_) {
-        const view = document.getElementById('view-notifications');
-        if (view && typeof view.classList?.remove === 'function') {
-          view.classList.remove('hidden');
-        }
-      }
-      (mod.initNotifications || mod.renderNotifications || (() => { }))();
-      const targetHash = VIEW_HASH.notifications || '#notifications';
-      try {
-        history.replaceState(null, '', targetHash);
-      } catch (_) {
-        try { window.location.hash = targetHash; }
-        catch (__) { }
-      }
-    }
-
-    // Delegate clicks without touching HTML
-    document.addEventListener('click', (evt) => {
-      const a = evt.target.closest('[data-nav="notifications"], a[href="#notifications"], button[data-page="notifications"], button[data-nav="notifications"]');
-      if (a) goNotifications(evt);
-    });
-
-    // Hash route
-    if (typeof location !== 'undefined' && location.hash === '#notifications') goNotifications();
-
-    // Badge: attach to a likely nav control labeled "Notifications" if no explicit data-nav exists
-    import(fromHere('./notifications/notifier.js')).catch(() => { });
-  })();
-
   const automationScheduler = typeof queueMicrotask === 'function'
     ? queueMicrotask
     : (fn) => Promise.resolve().then(fn);
@@ -3138,6 +3071,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
     document.documentElement.setAttribute('data-booted', '1');
     document.dispatchEvent(new CustomEvent('app:boot:complete'));
+    console.log('BOOT OK');
   }
 
   function resolveWorkbenchRenderer() {
@@ -3551,6 +3485,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (_) { }
   })();
 })();
+
 
 
 

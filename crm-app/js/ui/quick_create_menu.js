@@ -13,7 +13,7 @@ const BUTTON_PREFIX = 'header-new-';
 const ACTION_BAR_ID = 'global-new';
 const ACTION_BAR_SOURCE = 'actionbar';
 const HEADER_SOURCE = 'header';
-const HEADER_TOGGLE_SELECTOR = '#btn-header-new';
+const HEADER_TOGGLE_SELECTOR = '#btn-header-new-disabled';
 
 const BIND_GUARD_KEY = typeof Symbol === 'function'
   ? Symbol('quick-create-menu:binding')

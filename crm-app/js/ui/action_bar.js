@@ -818,7 +818,7 @@ function syncActionBarVisibility(selCount, explicitEl) {
     }
     bar.setAttribute('aria-expanded', 'true');
   } else {
-    // Force hide when no selection
+    // Selection count is 0, hide the bar completely
     bar.style.display = 'none';
     bar.removeAttribute('data-visible');
     bar.removeAttribute('data-minimized');
