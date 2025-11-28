@@ -65,6 +65,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
+  const notificationsEnabled = featureFlags.notifications === true;
   function loadLabsBundle() {
     if (!labsBundlePromise) {
       try { console.info('[labs] requesting bundle'); }
@@ -478,12 +479,63 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   ensureDefaultRoute();
 
   onDomReady(() => {
+    console.log('[DEBUG] onDomReady executing');
+    // --- RE-INSERTED LOGIC START ---
+    const nav = $('#main-nav');
+    if (nav) {
+      console.log('[DEBUG] #main-nav found, attaching listener');
+      nav.addEventListener('click', (e) => {
+        console.log('[DEBUG] #main-nav click', e.target);
+        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
+        const navTarget = btn.getAttribute('data-nav');
+        console.log('[DEBUG] Nav target:', navTarget);
+        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
+          e.preventDefault(); activate(DEFAULT_ROUTE); return;
+        }
+        if (navTarget === 'workbench') return;
+        e.preventDefault(); activate(navTarget);
+      });
+    } else {
+      console.error('[DEBUG] #main-nav NOT found in onDomReady');
+    }
+
+    const settingsButton = document.getElementById('btn-open-settings');
+    if (settingsButton && !settingsButton.__wired) {
+      settingsButton.__wired = true;
+      settingsButton.addEventListener('click', (e) => {
+        e.preventDefault(); activate('settings');
+      });
+    }
+
+    const titleLink = document.getElementById('app-title-link');
+    if (titleLink && !titleLink.__wired) {
+      titleLink.__wired = true;
+      titleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('dashboard');
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (_) { window.scrollTo(0, 0); }
+      });
+    }
+    // --- RE-INSERTED LOGIC END ---
+
     ensurePartnerModalClosed();
     ensureActionBarIdleState();
     applyActionBarIdleVisibility(DEFAULT_ROUTE);
     applyNotificationsNavVisibility(notificationsEnabled);
     ensureDefaultRoute();
     bootSplash.ensure();
+
+    // Helper to clean up potential ReferenceErrors from previous patches
+    if (typeof window.closeContactEditor !== 'function') {
+      window.closeContactEditor = () => {
+        const m = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+      };
+    }
+
+    // FINAL BOOT STEP
+    init();
   });
 
   try {
@@ -2425,6 +2477,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   function activate(view) {
+    const previous = activeView;
     let normalized = normalizeView(view);
     if (!normalized) return;
     if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
@@ -2577,60 +2630,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   enforceDefaultRoute();
   window.addEventListener('hashchange', handleHashChange);
 
-  const initNav = () => {
-    console.log('[DEBUG] initNav running');
-    const nav = $('#main-nav');
-    if (nav) {
-      console.log('[DEBUG] #main-nav found, attaching listener');
-      nav.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
-        const navTarget = btn.getAttribute('data-nav');
-        console.log('[DEBUG] Nav Clicked:', navTarget);
-        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-          e.preventDefault();
-          activate(DEFAULT_ROUTE);
-          return;
-        }
-        if (navTarget === 'workbench') return;
-        e.preventDefault();
-        activate(navTarget);
-      });
-    } else {
-      console.error('[DEBUG] #main-nav NOT found');
-    }
 
-    // Moved from global scope to prevent race condition
-    const settingsButton = document.getElementById('btn-open-settings');
-    if (settingsButton && !settingsButton.__wired) {
-      settingsButton.__wired = true;
-      settingsButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('settings');
-      });
-    }
-
-    const titleLink = document.getElementById('app-title-link');
-    if (titleLink && !titleLink.__wired) {
-      titleLink.__wired = true;
-      titleLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('dashboard');
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        catch (_) { window.scrollTo(0, 0); }
-      });
-    }
-
-    const btnGlobalNew = document.getElementById('btn-global-new');
-    if (btnGlobalNew) {
-      // Placeholder for global new button logic if needed
-    }
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNav);
-  } else {
-    initNav();
-  }
 
   (function wireWorkbenchNav() {
     if (window.__WB_NAV__) return;
@@ -2941,6 +2941,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const importFilename = $('#import-dialog-filename');
   const importChoose = $('#import-dialog-choose');
   const importCancel = $('#import-dialog-cancel');
+  const importConfirm = $('#import-dialog-import');
   function resetImportDialog() {
     pendingImportFile = null;
     if (importInput) importInput.value = '';
@@ -2972,10 +2973,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     importDialog.addEventListener('close', resetImportDialog);
   }
 
-  if (importClose && !importClose.__wired) {
-    importClose.__wired = true;
-    importClose.addEventListener('click', () => importDialog?.close());
-  }
+
   if (importCancel && !importCancel.__wired) {
     importCancel.__wired = true;
     importCancel.addEventListener('click', () => importDialog?.close());
@@ -3122,7 +3120,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (_) { }
   });
 
-  (async function init() {
+  async function init() {
     await openDB();
     let partners = await dbGetAll('partners');
     if (!partners.find(p => String(p.id) === NONE_PARTNER_ID || lc(p.name) === 'none')) {
@@ -3140,7 +3138,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
     document.documentElement.setAttribute('data-booted', '1');
     document.dispatchEvent(new CustomEvent('app:boot:complete'));
-  })();
+  }
 
   function resolveWorkbenchRenderer() {
     if (typeof window.renderWorkbench === 'function') return window.renderWorkbench;
@@ -3468,10 +3466,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         document.addEventListener('app:data:changed', h, { once: true });
       });
     }
-    if (typeof testApi.nextPaint !== 'function') {
-      // Conservative: honor our standard wiring flags and inline onclick;
-      // avoid DevTools-only APIs like getEventListeners.
-      return !!(el.__wired || el.onclick || el.dataset.wired === '1');
+    if (typeof testApi.isWired !== 'function') {
+      testApi.isWired = (el) => {
+        if (!el) return false;
+        // Conservative: honor our standard wiring flags and inline onclick;
+        // avoid DevTools-only APIs like getEventListeners.
+        return !!(el.__wired || el.onclick || el.dataset.wired === '1');
+      };
     }
     function isNav(el) {
       return el.tagName === 'A' && !!el.getAttribute('href');
@@ -3509,7 +3510,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const role = roleOf(el);
         if (!role) return;           // nothing to judge
         if (isNav(el)) return;       // real links stay visible
-        if (hasHandler(el)) {
+        if (testApi.isWired(el)) {
           // If we previously auto-hid this and it became wired, unhide.
           if (autoHidden) {
             el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
@@ -3551,6 +3552,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     } catch (_) { }
   })();
+})();
 
 
 

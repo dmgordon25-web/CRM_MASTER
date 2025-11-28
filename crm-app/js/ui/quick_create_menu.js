@@ -1,6 +1,6 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
 
-// import { openPartnerEditor as openPartnerEntry, openNewPartnerEditor } from '../editors/partner_entry.js'; // REMOVED to prevent circular dependency
+
 import { validateTask } from '../tasks.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
 
