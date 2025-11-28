@@ -3520,6 +3520,3 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     } catch (_) { }
   })();
-});
-
-

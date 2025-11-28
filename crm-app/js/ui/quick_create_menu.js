@@ -608,26 +608,17 @@ export function isQuickCreateMenuOpen(source) {
   if (!source) return true;
   return state.source === source;
 }
+
 async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    // FIX: Use dynamic import to break circular dependency with contacts.js
-    // This prevents boot deadlock and resolves the 404 error.
+    // MUST BE DYNAMIC AWAIT IMPORT
     const { openContactEditor } = await import('../contacts.js');
-
-    if (prefill && prefill.id) {
-      return openContactEditor(prefill.id, meta);
-    }
-    // openContactEditor handles new records when passed an object/null
+    if (prefill && prefill.id) return openContactEditor(prefill.id, meta);
     return openContactEditor(prefill || {}, meta);
   } catch (err) {
-    try {
-      if (console && typeof console.warn === 'function') {
-        console.warn('[quick-create] contact editor load failed', err);
-      }
-    } catch (_) { }
+    console.warn('Failed to load contacts.js', err);
     toastWarn('Contact modal unavailable');
-    return null;
   }
 }
 
