@@ -1940,25 +1940,22 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     calendar: {
       id: 'view-calendar',
       ui: 'calendar-root',
-      async mount(root) {
-        const viewRoot = document.getElementById('view-calendar');
-        if (!viewRoot) return;
-        if (!viewRoot.innerHTML.trim()) viewRoot.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+      async mount() {
+        const root = document.getElementById('view-calendar');
+        if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
         try {
           const mod = await import('./calendar.js');
-          // FIX: Handle object export { init: fn } vs function export
+          // MATCH ACTUAL EXPORTS: { init: ensureCalendar }
           if (mod.default && typeof mod.default.init === 'function') {
             mod.default.init();
           } else if (typeof mod.ensureCalendar === 'function') {
             mod.ensureCalendar();
-          } else if (typeof mod.default === 'function') {
-            mod.default();
           } else {
-            throw new Error('Calendar module has no init function');
+            throw new Error('Calendar module exports mismatch');
           }
         } catch (e) {
-          console.error('Calendar load failed', e);
-          viewRoot.innerHTML = '<div class="error-state">Calendar unavailable. Check console.</div>';
+          console.error('[app] Calendar load crashed:', e);
+          if (root) root.innerHTML = '<div class="error-state">Calendar Unavailable</div>';
         }
       }
     },
@@ -2038,54 +2035,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     partners: {
       id: 'view-partners',
       ui: 'partners-table',
-      mount(root) {
-        if (!root) return;
-        // Prevent view bleed
-        // root.innerHTML = ''; // Commented out as it might clear the table structure if not carefully managed. 
-        // Instead, we rely on the render function to handle clearing if needed, or clear specific content.
-        // The user instruction said: document.getElementById('view-partners').innerHTML = '';
-        // But 'root' IS that element.
-        // However, if we clear it, we lose the table container if it's static in HTML.
-        // Let's check if the table is dynamically created or static.
-        // In index.html, view-partners likely has structure.
-        // If renderPartnersView rebuilds it, then clearing is fine.
+      async mount(root) {
+        const viewRoot = document.getElementById('view-partners');
+        if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
 
-        import('./render.js').then(mod => {
-          if (mod && typeof mod.renderPartnersView === 'function') {
-            // User directive: Clear Container: document.getElementById('view-partners').innerHTML = '';
-            root.innerHTML = '';
-            mod.renderPartnersView(root);
-          }
-        }).catch(err => console.error('Failed to load partners view', err));
-
-        /*
-        const table = root.querySelector('#tbl-partners');
-        if (!table) return;
-        if (table.getAttribute('data-mounted') === '1') return;
-        table.setAttribute('data-mounted', '1');
-        const handler = (event) => {
-          const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
-          if (!trigger || !table.contains(trigger)) return;
-          if (event.__partnerEditHandled) return;
-          if (trigger instanceof HTMLInputElement) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const row = trigger.closest('[data-id]');
-          const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
-          if (!partnerId) return;
-          event.__partnerEditHandled = true;
-          openPartnerEditModal(partnerId, {
-            trigger,
-            sourceHint: 'partners:view-table-click'
-          });
-        };
-        table.addEventListener('click', (event) => {
-          handler(event);
-          if (event && event.__partnerEditHandled && typeof event.stopImmediatePropagation === 'function') {
-            event.stopImmediatePropagation();
-          }
-        });
-        */
+        try {
+          const { renderPartners } = await import('./partners.js');
+          if (typeof renderPartners === 'function') renderPartners(viewRoot);
+        } catch (e) {
+          console.error('Partner view failed', e);
+        }
       }
     }
   };

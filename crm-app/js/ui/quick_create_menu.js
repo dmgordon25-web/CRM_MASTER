@@ -22,13 +22,9 @@ const BIND_GUARD_KEY = typeof Symbol === 'function'
 const defaultOpeners = {
   contact: async () => {
     try {
-      const mod = await import('../contacts.js');
-      if (typeof mod.openContactEditor === 'function') {
-        return mod.openContactEditor(null, { source: 'quick-create:menu' });
-      } else {
-        console.error('openContactEditor missing from contacts.js exports', Object.keys(mod));
-        toastWarn('Contact editor module invalid.');
-      }
+      // Replace the direct call with:
+      const { openContactEditor } = await import('../contacts.js');
+      return openContactEditor(null, { source: 'quick-create:menu' });
     } catch (err) {
       console.error('Failed to load contacts module:', err);
       toastWarn('Could not load contact editor.');
@@ -633,13 +629,14 @@ export function isQuickCreateMenuOpen(source) {
 async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    // MUST BE DYNAMIC AWAIT IMPORT
+    // LAZY LOAD: Prevents boot race condition
     const { openContactEditor } = await import('../contacts.js');
-    if (prefill && prefill.id) return openContactEditor(prefill.id, meta);
+    if (prefill && prefill.id) {
+      return openContactEditor(prefill.id, meta);
+    }
     return openContactEditor(prefill || {}, meta);
   } catch (err) {
-    console.warn('Failed to load contacts.js', err);
-    toastWarn('Contact modal unavailable');
+    console.warn('Contact editor load failed', err);
   }
 }
 
@@ -736,6 +733,17 @@ function applyOpeners(binding, options) {
   state.owner = binding;
   state.openers = nextOpeners;
   binding.previousOpeners = previousOwner === binding ? binding.previousOpeners : previousOpeners;
+}
+
+function resetHeaderQuickCreateBinding() {
+  if (headerQuickCreateState.cleanup) {
+    try { headerQuickCreateState.cleanup(); }
+    catch (_) { }
+    headerQuickCreateState.cleanup = null;
+  }
+  headerQuickCreateState.button = null;
+  headerQuickCreateState.bound = false;
+  headerQuickCreateState.controller = null;
 }
 
 export function createBinding(host, options = {}) {
@@ -854,14 +862,29 @@ export function createBinding(host, options = {}) {
     } catch (_) { }
   }
 
+  // Ensure button exists or is found
+  let button = host ? host.querySelector(toggleSelector) : null;
+  if (!button && typeof document !== 'undefined') {
+    button = document.querySelector(toggleSelector);
+  }
+
   headerQuickCreateState.button = button;
   headerQuickCreateState.bound = true;
-  if (typeof button.setAttribute === 'function') {
+  if (button && typeof button.setAttribute === 'function') {
     try { button.setAttribute('data-bound', '1'); }
     catch (_) { }
   }
 
-  return button;
+  return {
+    unbind: () => {
+      runCleanup();
+      resetHeaderQuickCreateBinding();
+    }
+  };
+}
+
+export function bindQuickCreateMenu(host, options) {
+  return createBinding(host, options);
 }
 
 export function bindHeaderQuickCreateOnce(root, bus) {
