@@ -1937,7 +1937,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             } else if (typeof window.renderCalendar === 'function') {
               window.renderCalendar();
             }
-          }).catch(err => console.error('Failed to load calendar view', err));
+          }).catch(err => {
+            console.error('Failed to load calendar view', err);
+            if (typeof window.renderCalendar === 'function') {
+              window.renderCalendar();
+            }
+          });
         }
       },
       longshots: {
@@ -3159,33 +3164,24 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     async function renderCalendarView() {
       const root = document.getElementById('view-calendar');
-      if (!root) return;
-
-      if (!root.innerHTML.trim()) {
-        try {
-          // specific check for createInlineLoader availability if needed, 
-          // but assuming it exists based on context or falling back to text
-          if (typeof createInlineLoader === 'function') {
-            const loader = createInlineLoader();
-            root.appendChild(loader);
-          } else {
-            root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
-          }
-        } catch (_) {
-          root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
-        }
-      }
+      if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
 
       try {
+        // Safe Dynamic Import
         const mod = await import('./calendar.js');
-        // Safety checks as requested
-        if (mod && typeof mod.renderCalendarView === 'function') mod.renderCalendarView();
-        else if (mod && typeof mod.ensureCalendar === 'function') mod.ensureCalendar();
-        else if (mod && mod.default && typeof mod.default.init === 'function') mod.default.init();
-        else if (typeof window.renderCalendar === 'function' && window.renderCalendar !== renderCalendarView) window.renderCalendar();
-      } catch (e) {
-        console.warn('Calendar load failed', e);
-        root.innerHTML = '<div class="error-state">Unable to load calendar.</div>';
+
+        // Defensive Check
+        if (mod && typeof mod.renderView === 'function') {
+          mod.renderView();
+        } else if (mod && mod.default && typeof mod.default.renderView === 'function') {
+          mod.default.renderView();
+        } else {
+          console.error("Calendar module loaded but renderView is missing", mod);
+          if (root) root.innerHTML = '<div class="error">Calendar module invalid.</div>';
+        }
+      } catch (err) {
+        console.error("Calendar Failed to Load:", err);
+        if (root) root.innerHTML = '<div class="error">Failed to load calendar.</div>';
       }
     }
     window.renderCalendar = renderCalendarView;
