@@ -6,14 +6,14 @@ import flags from '../settings/flags.js';
 // const exampleCapability = capability('Namespace.feature');
 // const exampleProbe = safe(() => exampleCapability());
 // SOFT_PREREQS['feature ready'] = exampleProbe;
-function isSafeMode(){
+function isSafeMode() {
   try {
     const url = new URL(window.location.href);
     if (url.searchParams.get('safe') === '1') return true;
-  } catch (_) {}
+  } catch (_) { }
   try {
     if (window.localStorage.getItem('SAFE') === '1') return true;
-  } catch (_) {}
+  } catch (_) { }
   return false;
 }
 
@@ -74,15 +74,15 @@ const MIGRATED_PATCH_MODULES = [
   new URL('../patch_20250926_ctc_actionbar.js', import.meta.url).href
 ];
 
-function getFeatureModules(){
+function getFeatureModules() {
   const base = CORE_FEATURE_MODULES.slice();
   return isSafeMode() ? base : base.concat(MIGRATED_PATCH_MODULES);
 }
 
 export const PHASES = {
-  get SHELL(){ return SHELL_MODULES.slice(); },
-  get SERVICES(){ return SERVICE_MODULES.slice(); },
-  get FEATURES(){ return getFeatureModules(); },
+  get SHELL() { return SHELL_MODULES.slice(); },
+  get SERVICES() { return SERVICE_MODULES.slice(); },
+  get FEATURES() { return getFeatureModules(); },
   PATCHES: []
 };
 

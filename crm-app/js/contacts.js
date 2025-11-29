@@ -3400,6 +3400,10 @@ export async function createQuick(record) {
   return contact;
 }
 
+// --- Editor Export ---
+// Duplicate openContactEditor removed
+
+
 // --- Window Export ---
 if (typeof window !== 'undefined') {
   window.Contacts = {
