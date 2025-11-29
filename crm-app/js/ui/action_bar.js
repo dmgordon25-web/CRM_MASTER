@@ -920,14 +920,15 @@ function markActionbarHost() {
   }
   ensureActionBarDragHandles(bar);
   ensureHeaderQuickAddBinding();
-  ensureClearHandler();
+  ensureHeaderQuickAddBinding();
+  ensureClearHandler(bar);
   return bar;
 }
 
-function ensureClearHandler() {
+function ensureClearHandler(bar) {
   if (typeof document === 'undefined') return;
-  const bar = markActionbarHost();
-  if (!bar) return;
+  const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
+  if (!host) return;
   const clearBtn = bar.querySelector(`[data-act="${DATA_ACTION_NAME}"]`);
   if (!clearBtn) return;
   if (clearBtn.__clearHandlerWired) return;

@@ -1,6 +1,6 @@
 console.log('[APP] Module evaluating...');
 import './boot/splash_sequence.js';
-// import './state/selectionStore.js';
+import './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
@@ -16,7 +16,7 @@ import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 // import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
-// import { createBinding } from './ui/quick_create_menu.js';
+import { createBinding } from './ui/quick_create_menu.js';
 
 // --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
 const closeContactEditor = (reason) => {

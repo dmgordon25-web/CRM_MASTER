@@ -857,3 +857,13 @@ export function createBinding(host, options = {}) {
 
   return button;
 }
+
+export function bindHeaderQuickCreateOnce(root, bus) {
+  try {
+    createBinding(root);
+    return root ? root.querySelector(HEADER_TOGGLE_SELECTOR) : null;
+  } catch (err) {
+    console.warn('[QC] bindHeaderQuickCreateOnce failed', err);
+    return null;
+  }
+}
