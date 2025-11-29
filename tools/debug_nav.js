@@ -11,10 +11,31 @@ const puppeteer = require('puppeteer');
     const page = await browser.newPage();
 
     try {
+        await page.setRequestInterception(true);
+        page.on('request', request => {
+            if (request.url().includes('app.js')) {
+                console.log(`[REQ] ${request.method()} ${request.url()}`);
+                console.log('[REQ HEADERS]', request.headers());
+            }
+            request.continue();
+        });
+
         page.on('console', msg => console.log(`[BROWSER] ${msg.type().toUpperCase()}: ${msg.text()}`));
 
         console.log('Step 1: Booting...');
         await page.goto('http://127.0.0.1:8080/crm-app/index.html', { waitUntil: 'networkidle0', timeout: 30000 });
+
+        // Debug: Try to fetch app.js manually
+        const appJsLength = await page.evaluate(async () => {
+            try {
+                const res = await fetch('./js/app.js');
+                const text = await res.text();
+                return text.length;
+            } catch (e) {
+                return e.toString();
+            }
+        });
+        console.log(`[DEBUG] Manual fetch of app.js length: ${appJsLength}`);
         await page.waitForSelector('#main-nav', { timeout: 10000 });
         console.log('PASS: Dashboard loaded');
 

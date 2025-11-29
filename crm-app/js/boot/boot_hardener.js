@@ -619,9 +619,8 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
     try {
       normalized = normalizeModuleId(spec);
       // Cache buster for dev environment
-      const url = new URL(normalized);
-      url.searchParams.set('t', Date.now());
-      const module = await import(url.href);
+      // Cache buster removed to prevent 405 errors / double loading
+      const module = await import(normalized);
       records.push({ path: normalized, original: spec, module });
     } catch (err) {
       const detail = String(err?.stack || err);

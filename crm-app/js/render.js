@@ -2288,6 +2288,7 @@ function shouldRenderScope(scopeSet, ...aliases) {
 
   async function renderPartnersView(options) {
     const root = document.getElementById('view-partners');
+    if (root) root.innerHTML = ''; // FIX: Clear previous view content (e.g. Calendar artifacts)
     if (root) {
       root.innerHTML = `
             <section class="card">

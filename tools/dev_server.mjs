@@ -666,6 +666,7 @@ const SECURITY_HEADERS = {
 };
 
 function send(res, statusCode, body, extraHeaders = {}) {
+  console.log(`[SERVER_SEND] ${statusCode} ${String(body).substring(0, 50)}`);
   const headers = {
     ...SECURITY_HEADERS,
     'Content-Type': 'text/plain; charset=utf-8',
@@ -744,6 +745,7 @@ function serveStream(req, res, filePath, stats) {
 
   try {
     const data = fs.readFileSync(filePath);
+    console.log(`[SERVER_STREAM] Serving ${filePath} (${data.length} bytes)`);
     // headers['Content-Length'] = data.length; // Removed to avoid potential mismatch
     res.writeHead(200, headers);
     if (req.method === 'HEAD') {
@@ -871,6 +873,7 @@ function shouldSpaFallback(method, normalized, hasExtension) {
 
 const server = http.createServer((req, res) => {
   const method = (req.method || 'GET').toUpperCase();
+  console.log(`[SERVER_DEBUG] ${method} ${req.url}`);
   const parsed = toPosix(req.url || '/');
   if (parsed.error === 400) {
     send(res, 400, 'Bad Request');
@@ -881,7 +884,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (parsed.normalized === LOG_ENDPOINT_PATH) {
+  if (parsed.normalized === LOG_ENDPOINT_PATH || parsed.normalized === `/crm-app${LOG_ENDPOINT_PATH}`) {
     if (method === 'POST') {
       handleLogPost(req, res);
     } else {
