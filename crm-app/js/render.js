@@ -2186,6 +2186,62 @@ function shouldRenderScope(scopeSet, ...aliases) {
               }).join('');
               renderTableBody(tblLongshots, tbLs, longshotRows);
             }
+            const tblContacts = document.getElementById('tbl-contacts');
+            if (tblContacts) {
+              const contactColumns = [
+                { id: 'name', label: 'Name' },
+                { id: 'stage', label: 'Stage' },
+                { id: 'loanType', label: 'Loan Type' },
+                { id: 'loanAmount', label: 'Amount' },
+                { id: 'email', label: 'Email' },
+                { id: 'phone', label: 'Phone' }
+              ];
+              renderContactHeader(tblContacts, contactColumns, 'contacts-all');
+              ensureFavoriteColumn(tblContacts);
+              const tbContacts = tblContacts.tBodies[0] || $('#tbl-contacts tbody');
+              if (tbContacts) {
+                const contactRows = contacts.map(c => {
+                  const contactId = String(c.id || '');
+                  const idAttr = attr(contactId);
+                  const nameAttr = attr(fullName(c).toLowerCase());
+                  const stageMeta = stageInfo(c.stage);
+                  const stageAttr = attr(stageMeta.normalizedKey);
+                  const stageCanonicalAttr = stageMeta.canonicalKey ? ` data-stage-canonical="${attr(stageMeta.canonicalKey)}"` : '';
+                  const stageClass = classToken(stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '');
+                  const stageToneKey = stageMeta.canonicalKey || stageMeta.normalizedKey || c.stage || '';
+                  const stageTone = colorForStage(stageToneKey);
+                  const rowClasses = ['status-row', 'contact-stage-row'];
+                  if (stageClass) rowClasses.push(`stage-${stageClass}`);
+                  const isFavorite = favoriteState.contacts.has(contactId);
+                  if (isFavorite) rowClasses.push('is-favorite');
+                  const rowToneAttr = stageClass ? ` data-row-tone="${attr(stageClass)}"` : '';
+                  const loanLabel = c.loanType || c.loanProgram || '';
+                  const loanAttr = attr(String(loanLabel).toLowerCase());
+                  const amountVal = Number(c.loanAmount || 0) || 0;
+                  const amountAttr = attr(amountVal);
+                  const emailAttr = attr((c.email || '').trim().toLowerCase());
+                  const phoneAttr = attr(normalizePhone(c.phone || ''));
+                  const refTokens = [];
+                  if (c.referredBy) refTokens.push(String(c.referredBy));
+                  [c.buyerPartnerId, c.listingPartnerId, c.partnerId].forEach(pid => {
+                    if (!pid && pid !== 0) return;
+                    const partner = partnerMap.get(String(pid));
+                    if (partner && partner.name) refTokens.push(partner.name);
+                    if (partner && partner.company) refTokens.push(partner.company);
+                  });
+                  const refAttr = attr(refTokens.map(val => String(val || '').toLowerCase()).filter(Boolean).join('|'));
+                  const favoriteCell = `<td class="favorite-cell">${renderFavoriteToggle('contact', contactId, isFavorite)}</td>`;
+                  const favoriteAttr = isFavorite ? ' data-favorite="1"' : '';
+                  const cells = [
+                    `<td data-column="select"><input data-ui="row-check" data-role="select" type="checkbox" data-id="${idAttr}"></td>`,
+                    favoriteCell,
+                    ...contactColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
+                  ];
+                  return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+                }).join('');
+                renderTableBody(tblContacts, tbContacts, contactRows);
+              }
+            }
           }
 
           ensureKanbanStageAttributes();

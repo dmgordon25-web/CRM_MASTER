@@ -7,11 +7,13 @@ import { attachStatusBanner } from './ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import { toastWarn, toastInfo } from './ui/toast_helpers.js';
 import { ensureSingletonModal, registerModalCleanup, closeSingletonModal } from './ui/modal_singleton.js';
-import { dbPut } from './db.js';
 import { recordTask } from './tasks/store.js';
 
 const GLOBAL = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
 const DOC = typeof document !== 'undefined' ? document : null;
+
+// Use global dbPut
+const dbPut = GLOBAL.dbPut;
 
 const MAX_VISIBLE_EVENTS_MONTH = 3;
 const DRAG_DISTANCE_THRESHOLD = 4;

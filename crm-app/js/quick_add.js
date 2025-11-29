@@ -6,7 +6,7 @@ import { openPartnerEditor } from './ui/quick_create_menu.js';
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
 
-function resolveText(key, fallback){
+function resolveText(key, fallback) {
   try {
     const value = text(key);
     return value && value !== key ? value : fallback;
@@ -15,7 +15,7 @@ function resolveText(key, fallback){
   }
 }
 
-function buildCopy(){
+function buildCopy() {
   return {
     modalTitle: resolveText('modal.add-contact.title', 'Quick Add'),
     contactTab: resolveText('general.contact', 'Contact'),
@@ -34,24 +34,24 @@ function buildCopy(){
   };
 }
 
-function closeQuickAddOverlay(node){
+function closeQuickAddOverlay(node) {
   const scope = node || (doc ? doc.querySelector('.qa-overlay') : null);
-  if(!scope) return;
+  if (!scope) return;
   const closeBtn = scope.querySelector('.qa-close');
-  if(closeBtn){
+  if (closeBtn) {
     closeBtn.click();
     return;
   }
-  if(scope.parentElement){
+  if (scope.parentElement) {
     scope.parentElement.removeChild(scope);
   }
 }
 
-function collectQuickAddContactPayload(form){
-  if(!form || typeof form.querySelector !== 'function') return null;
+function collectQuickAddContactPayload(form) {
+  if (!form || typeof form.querySelector !== 'function') return null;
   const read = (name) => {
     const input = form.querySelector(`[name="${name}"]`);
-    if(!input) return '';
+    if (!input) return '';
     const value = input.value;
     return typeof value === 'string' ? value.trim() : String(value || '').trim();
   };
@@ -71,12 +71,12 @@ function collectQuickAddContactPayload(form){
   };
 }
 
-function ensureQuickAddFullEditor(form, qa, opener, overlay){
-  if(!form || !doc || !qa || typeof opener !== 'function') return;
-  if(form.querySelector(`[data-qa="${qa}"]`)) return;
+function ensureQuickAddFullEditor(form, qa, opener, overlay) {
+  if (!form || !doc || !qa || typeof opener !== 'function') return;
+  if (form.querySelector(`[data-qa="${qa}"]`)) return;
   const saveBtn = form.querySelector('.qa-save');
   const actions = saveBtn ? saveBtn.parentElement : null;
-  if(!actions) return;
+  if (!actions) return;
   const button = doc.createElement('button');
   button.type = 'button';
   button.dataset.qa = qa;
@@ -89,8 +89,9 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
   button.style.padding = '0';
   button.style.marginRight = 'auto';
   button.addEventListener('click', async (event) => {
-    if(event && typeof event.preventDefault === 'function') event.preventDefault();
-    if(qa === 'open-full-contact-editor'){
+    console.log('[QA_DEBUG] Open full editor clicked');
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    if (qa === 'open-full-contact-editor') {
       const payload = collectQuickAddContactPayload(form) || {};
       const model = normalizeNewContactPrefill(payload);
       closeQuickAddOverlay(overlay);
@@ -102,35 +103,35 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay){
       await Promise.resolve(opener());
     } catch (err) {
       try { console && console.warn && console.warn('[quick-add] full editor open failed', err); }
-      catch (_) {}
+      catch (_) { }
     }
   });
   actions.prepend(button);
 }
 
-function ensureQuickAddFullEditors(){
-  if(!doc) return;
+function ensureQuickAddFullEditors() {
+  if (!doc) return;
   const overlay = doc.querySelector('.qa-overlay');
-  if(!overlay) return;
+  if (!overlay) return;
   const contactForm = overlay.querySelector('.qa-form-contact');
   const partnerForm = overlay.querySelector('.qa-form-partner');
   ensureQuickAddFullEditor(contactForm, 'open-full-contact-editor', openContactModal, overlay);
   ensureQuickAddFullEditor(partnerForm, 'open-full-partner-editor', openPartnerEditor, overlay);
 }
 
-function openQuickAdd(kind = 'contact'){
+function openQuickAdd(kind = 'contact') {
   const target = kind === 'partner' ? 'partner' : 'contact';
   wireQuickAddUnified({ copy: buildCopy() });
   const api = win && win.QuickAddUnified;
-  if(api && typeof api.open === 'function'){
+  if (api && typeof api.open === 'function') {
     api.open(target);
     ensureQuickAddFullEditors();
     return true;
   }
-  if(win && typeof win.requestAnimationFrame === 'function'){
+  if (win && typeof win.requestAnimationFrame === 'function') {
     win.requestAnimationFrame(() => {
       const next = win && win.QuickAddUnified;
-      if(next && typeof next.open === 'function'){
+      if (next && typeof next.open === 'function') {
         next.open(target);
         ensureQuickAddFullEditors();
       }
@@ -144,7 +145,7 @@ const quickCreateMenuOptions = {
   openPartner: () => openQuickAdd('partner')
 };
 
-export function getQuickAddMenuOptions(){
+export function getQuickAddMenuOptions() {
   return quickCreateMenuOptions;
 }
 
@@ -154,26 +155,26 @@ const headerQuickAddState = {
   logged: false
 };
 
-function resetHeaderQuickAddState(){
+function resetHeaderQuickAddState() {
   const { cleanup } = headerQuickAddState;
   if (typeof cleanup === 'function') {
     try { cleanup(); }
-    catch (_) {}
+    catch (_) { }
   }
   headerQuickAddState.cleanup = null;
   headerQuickAddState.button = null;
 }
 
-export function bindHeaderQuickAddOnce(root, bus){
+export function bindHeaderQuickAddOnce(root, bus) {
   void bus;
-  if(!doc || !win) return null;
+  if (!doc || !win) return null;
   const scope = root && typeof root.querySelector === 'function' ? root : doc;
   const trigger = scope ? scope.querySelector('[data-quick-add]') : null;
-  if(!trigger){
+  if (!trigger) {
     resetHeaderQuickAddState();
     return null;
   }
-  if(headerQuickAddState.button === trigger && headerQuickAddState.button.isConnected !== false){
+  if (headerQuickAddState.button === trigger && headerQuickAddState.button.isConnected !== false) {
     return trigger;
   }
 
@@ -183,13 +184,13 @@ export function bindHeaderQuickAddOnce(root, bus){
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
   const signal = controller ? controller.signal : null;
   const handler = (event) => {
-    if(event && typeof event.preventDefault === 'function') event.preventDefault();
-    if(event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    if (event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
     openQuickAdd('contact');
   };
 
   let usedSignal = false;
-  if(signal && typeof trigger.addEventListener === 'function'){
+  if (signal && typeof trigger.addEventListener === 'function') {
     try {
       trigger.addEventListener('click', handler, { signal });
       usedSignal = true;
@@ -198,42 +199,42 @@ export function bindHeaderQuickAddOnce(root, bus){
     }
   }
 
-  if(!usedSignal){
+  if (!usedSignal) {
     trigger.addEventListener('click', handler, false);
   }
 
   headerQuickAddState.cleanup = () => {
-    if(usedSignal){
-      if(controller && !controller.signal.aborted){
+    if (usedSignal) {
+      if (controller && !controller.signal.aborted) {
         try { controller.abort(); }
-        catch (_) {}
+        catch (_) { }
       }
     } else {
       try { trigger.removeEventListener('click', handler, false); }
-      catch (_) {}
+      catch (_) { }
     }
   };
   headerQuickAddState.button = trigger;
 
-  if(trigger && typeof trigger.setAttribute === 'function'){
+  if (trigger && typeof trigger.setAttribute === 'function') {
     trigger.setAttribute('data-bound', '1');
   }
-  if(!headerQuickAddState.logged && typeof console !== 'undefined' && typeof console.info === 'function'){
+  if (!headerQuickAddState.logged && typeof console !== 'undefined' && typeof console.info === 'function') {
     console.info('[quick-add] bound-once');
     headerQuickAddState.logged = true;
   } else {
     headerQuickAddState.logged = true;
   }
 
-  if(usedSignal && signal && typeof signal.addEventListener === 'function'){
+  if (usedSignal && signal && typeof signal.addEventListener === 'function') {
     try {
       signal.addEventListener('abort', () => {
-        if(headerQuickAddState.button === trigger){
+        if (headerQuickAddState.button === trigger) {
           headerQuickAddState.button = null;
           headerQuickAddState.cleanup = null;
         }
       }, { once: true });
-    } catch (_err) {}
+    } catch (_err) { }
   }
 
   return trigger;

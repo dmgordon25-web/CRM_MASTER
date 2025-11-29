@@ -796,7 +796,7 @@ function hasDomSelectionSnapshot() {
   return false;
 }
 
-function syncActionBarVisibility(selCount, explicitEl) {
+export function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
   const bar = explicitEl
     || document.querySelector('[data-ui="action-bar"]')

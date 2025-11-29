@@ -632,6 +632,7 @@ export function normalizeContactId(input) {
   };
 
   window.renderContactModal = async function (contactId, rawOptions) {
+    console.log('[CONTACTS_DEBUG] renderContactModal called', contactId);
     const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
     const normalizedPrefetch = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
       ? normalizeNewContactPrefill(options.prefetchedRecord)
@@ -654,6 +655,7 @@ export function normalizeContactId(input) {
         base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
         base = base instanceof Promise ? await base : base;
       }
+      console.log('[CONTACTS_DEBUG] base modal resolved', base);
       if (!base) {
         try { console && console.warn && console.warn('[contact-editor]', 'host missing'); }
         catch (_warn) { }
@@ -675,19 +677,20 @@ export function normalizeContactId(input) {
       }
       dlg.__contactScrollRestore = disableBodyScroll();
 
-      if (dlg.hasAttribute('open')) {
-        try { dlg.close(); } catch (_err) { }
-      }
+      // if (dlg.hasAttribute('open')) {
+      //   try { dlg.close(); } catch (_err) { }
+      // }
 
       // Restore invoker for the actual session
       dlg.__contactInvoker = nextInvoker;
 
       // ... continue with dlg.style.display='block' ...
       dlg.style.display = 'block';
+      console.log('[CONTACTS_DEBUG] showing modal', dlg);
       let opened = false;
       if (typeof dlg.showModal === 'function') {
         try { dlg.showModal(); opened = true; }
-        catch (_err) { }
+        catch (err) { console.log('[CONTACTS_DEBUG] showModal failed', err); }
       }
       if (!opened) {
         try { dlg.setAttribute('open', ''); }
@@ -2591,7 +2594,13 @@ export function normalizeContactId(input) {
         if (typeof window.saveForm === 'function') {
           window.saveForm(saveBtn, handleSave, { successMessage: null });
         } else {
-          saveBtn.onclick = async (e) => { e.preventDefault(); await handleSave(); };
+          saveBtn.onclick = async (e) => {
+            e.preventDefault();
+            const result = await handleSave();
+            if (result) {
+              try { closeDialog(); } catch (_) { }
+            }
+          };
         }
       }
       document.dispatchEvent(new CustomEvent('contact:modal:ready', { detail: { dialog: dlg, body } }));
@@ -2684,6 +2693,17 @@ export function ensureContactModalShell(options = {}) {
     }
   }
 
+  // DEBUG: Trace close calls
+  if (dlg && !dlg.__debugClose) {
+    dlg.__debugClose = true;
+    const originalClose = dlg.close;
+    dlg.close = function () {
+      console.log('[CONTACTS_DEBUG] dlg.close() called programmatically');
+      console.log('[CONTACTS_DEBUG] close call stack', new Error().stack);
+      return originalClose.apply(this, arguments);
+    };
+  }
+
   if (dlg && !dlg.__wired) {
     dlg.__wired = true;
     const markClosed = () => {
@@ -2705,7 +2725,14 @@ export function ensureContactModalShell(options = {}) {
       // The 'close' handler will handle state cleanup.
     });
     // FIX: Do NOT automatically restore focus on close. It causes deadlocks.
-    dlg.addEventListener('close', () => {
+    dlg.addEventListener('close', (e) => {
+      console.log('[CONTACTS_DEBUG] modal close event triggered');
+      console.log('[CONTACTS_DEBUG] close event stack', new Error().stack);
+      try {
+        const el = document.activeElement;
+        console.log('[CONTACTS_DEBUG] activeElement:', el ? el.tagName : 'null', el ? el.className : '', el ? el.id : '');
+      } catch (_) { }
+      console.log('[CONTACTS_DEBUG] event.isTrusted:', e.isTrusted);
       // Only clean up state, never touch focus
       try { dlg.removeAttribute('open'); } catch (_) { }
       try { dlg.style.display = 'none'; } catch (_) { }
@@ -2872,61 +2899,71 @@ export async function openContactModal(contactId, options) {
 }
 
 export async function openContactEditor(target, options) {
-  const opts = options && typeof options === 'object' ? { ...options } : {};
-  const allowAutoOpen = opts.allowAutoOpen !== false;
-  const trigger = opts.trigger;
-  const suppressErrorToast = opts.suppressErrorToast === true;
-  const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
+  console.log('[CONTACTS_DEBUG] openContactEditor called', target);
+  try {
+    // FIX: Ensure modal code is loaded before attempting to open
+    try { await import('./modals/contact_editor_modal.js'); } catch (e) { console.warn('Preload failed', e); }
 
-  const prefillCandidate = opts.prefill && typeof opts.prefill === 'object'
-    ? opts.prefill
-    : (target && typeof target === 'object' && !Array.isArray(target) ? target : null);
+    const opts = options && typeof options === 'object' ? { ...options } : {};
+    const allowAutoOpen = opts.allowAutoOpen !== false;
+    const trigger = opts.trigger;
+    const suppressErrorToast = opts.suppressErrorToast === true;
+    const sourceHint = typeof opts.sourceHint === 'string' ? opts.sourceHint.trim() : '';
 
-  const rawId = opts.contactId ?? (prefillCandidate ? prefillCandidate.id : (!prefillCandidate ? target : null));
-  const hasExplicitId = rawId != null && String(rawId).trim() !== '';
-  const explicitId = hasExplicitId ? normalizeContactId(rawId) : '';
-  const treatAsExisting = (prefillCandidate && prefillCandidate.__isNew === false) || (!prefillCandidate && hasExplicitId);
+    const prefillCandidate = opts.prefill && typeof opts.prefill === 'object'
+      ? opts.prefill
+      : (target && typeof target === 'object' && !Array.isArray(target) ? target : null);
 
-  closeQuickAddOverlayIfOpen();
+    const rawId = opts.contactId ?? (prefillCandidate ? prefillCandidate.id : (!prefillCandidate ? target : null));
+    const hasExplicitId = rawId != null && String(rawId).trim() !== '';
+    const explicitId = hasExplicitId ? normalizeContactId(rawId) : '';
+    const treatAsExisting = (prefillCandidate && prefillCandidate.__isNew === false) || (!prefillCandidate && hasExplicitId);
 
-  const modalOptions = {
-    allowAutoOpen,
-    trigger,
-    suppressErrorToast,
-  };
+    closeQuickAddOverlayIfOpen();
 
-  if (treatAsExisting && explicitId) {
-    modalOptions.sourceHint = sourceHint || 'contact:editor';
+    const modalOptions = {
+      allowAutoOpen,
+      trigger,
+      suppressErrorToast,
+    };
+
+    if (treatAsExisting && explicitId) {
+      modalOptions.sourceHint = sourceHint || 'contact:editor';
+      try {
+        const result = await openContactModal(explicitId, modalOptions);
+        return result || null;
+      } catch (err) {
+        if (!suppressErrorToast) {
+          try { console && console.warn && console.warn('[contact-editor:init]', err); }
+          catch (_warn) { }
+          toastWarn('Unable to open contact');
+        }
+        teardownContactModalShell();
+        return null;
+      }
+    }
+
+    const model = normalizeNewContactPrefill(prefillCandidate || {});
+    model.id = explicitId || normalizeContactId(model);
+    if (prefillCandidate && prefillCandidate.__isNew === false) model.__isNew = false;
+
+    modalOptions.sourceHint = sourceHint || 'quick-create:menu';
+    modalOptions.prefetchedRecord = model;
+    modalOptions.suppressErrorToast = true;
+
     try {
-      const result = await openContactModal(explicitId, modalOptions);
+      const result = await openContactModal(model, modalOptions);
       return result || null;
     } catch (err) {
-      if (!suppressErrorToast) {
-        try { console && console.warn && console.warn('[contact-editor:init]', err); }
-        catch (_warn) { }
-        toastWarn('Unable to open contact');
-      }
+      try { console && console.warn && console.warn('[contact-editor:init]', err); }
+      catch (_warn) { }
+      toastWarn('Couldn\u2019t open the full editor. Please try again.');
       teardownContactModalShell();
       return null;
     }
-  }
-
-  const model = normalizeNewContactPrefill(prefillCandidate || {});
-  model.id = explicitId || normalizeContactId(model);
-  if (prefillCandidate && prefillCandidate.__isNew === false) model.__isNew = false;
-
-  modalOptions.sourceHint = sourceHint || 'quick-create:menu';
-  modalOptions.prefetchedRecord = model;
-  modalOptions.suppressErrorToast = true;
-
-  try {
-    const result = await openContactModal(model, modalOptions);
-    return result || null;
-  } catch (err) {
-    try { console && console.warn && console.warn('[contact-editor:init]', err); }
-    catch (_warn) { }
-    toastWarn('Couldn\u2019t open the full editor. Please try again.');
-    teardownContactModalShell();
+  } catch (criticalErr) {
+    console.error('[CRITICAL] openContactEditor crashed', criticalErr);
+    toastWarn('Editor unavailable');
     return null;
   }
 }
