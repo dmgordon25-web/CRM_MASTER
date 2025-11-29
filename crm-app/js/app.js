@@ -1931,7 +1931,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         id: 'view-calendar',
         ui: 'calendar-root',
         mount(root) {
-          if (typeof window.renderCalendar === 'function') window.renderCalendar();
+          import('./calendar.js').then(mod => {
+            if (mod && typeof mod.renderCalendarView === 'function') {
+              mod.renderCalendarView();
+            } else if (typeof window.renderCalendar === 'function') {
+              window.renderCalendar();
+            }
+          }).catch(err => console.error('Failed to load calendar view', err));
         }
       },
       longshots: {
@@ -2012,6 +2018,25 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         ui: 'partners-table',
         mount(root) {
           if (!root) return;
+          // Prevent view bleed
+          // root.innerHTML = ''; // Commented out as it might clear the table structure if not carefully managed. 
+          // Instead, we rely on the render function to handle clearing if needed, or clear specific content.
+          // The user instruction said: document.getElementById('view-partners').innerHTML = '';
+          // But 'root' IS that element.
+          // However, if we clear it, we lose the table container if it's static in HTML.
+          // Let's check if the table is dynamically created or static.
+          // In index.html, view-partners likely has structure.
+          // If renderPartnersView rebuilds it, then clearing is fine.
+
+          import('./render.js').then(mod => {
+            if (mod && typeof mod.renderPartnersView === 'function') {
+              // User directive: Clear Container: document.getElementById('view-partners').innerHTML = '';
+              root.innerHTML = '';
+              mod.renderPartnersView(root);
+            }
+          }).catch(err => console.error('Failed to load partners view', err));
+
+          /*
           const table = root.querySelector('#tbl-partners');
           if (!table) return;
           if (table.getAttribute('data-mounted') === '1') return;
@@ -2038,6 +2063,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
               event.stopImmediatePropagation();
             }
           });
+          */
         }
       }
     };

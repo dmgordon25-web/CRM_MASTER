@@ -101,7 +101,9 @@ export const CORE = [
   './qa.js',
   './bulk_log.js',
   './print.js',
-  './contacts.js',
+  './print.js',
+  // './contacts.js', // Removed to prevent circular dependency boot hang
+  './app.js',
   './app.js',
   './settings_forms.js',
   './compose.js',
