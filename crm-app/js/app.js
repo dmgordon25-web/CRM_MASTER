@@ -3155,7 +3155,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       } catch (err) {
         console.warn('[soft] [app] ' + label + ' repaint failed', err);
       }
-      return true;
     }
 
     async function renderCalendarView() {
@@ -3164,8 +3163,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
       if (!root.innerHTML.trim()) {
         try {
-          const loader = createInlineLoader();
-          root.appendChild(loader);
+          // specific check for createInlineLoader availability if needed, 
+          // but assuming it exists based on context or falling back to text
+          if (typeof createInlineLoader === 'function') {
+            const loader = createInlineLoader();
+            root.appendChild(loader);
+          } else {
+            root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+          }
         } catch (_) {
           root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
         }
@@ -3173,9 +3178,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
       try {
         const mod = await import('./calendar.js');
-        if (mod && typeof mod.ensureCalendar === 'function') mod.ensureCalendar();
+        // Safety checks as requested
+        if (mod && typeof mod.renderCalendarView === 'function') mod.renderCalendarView();
+        else if (mod && typeof mod.ensureCalendar === 'function') mod.ensureCalendar();
         else if (mod && mod.default && typeof mod.default.init === 'function') mod.default.init();
-        else if (window.renderCalendar) window.renderCalendar();
+        else if (typeof window.renderCalendar === 'function' && window.renderCalendar !== renderCalendarView) window.renderCalendar();
       } catch (e) {
         console.warn('Calendar load failed', e);
         root.innerHTML = '<div class="error-state">Unable to load calendar.</div>';
@@ -3545,6 +3552,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       } catch (_) { }
     })();
+    // Explicitly call init to boot the app
+    init().catch(err => {
+      console.error('[FATAL] App init failed', err);
+      const splash = document.getElementById('boot-splash');
+      if (splash) {
+        splash.innerHTML = `<div class="error-state">
+          <strong>Boot Failed</strong>
+          <p>${String(err.message || err)}</p>
+        </div>`;
+      }
+    });
   })();
 
 

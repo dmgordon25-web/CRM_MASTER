@@ -2,6 +2,8 @@
 import { safe, capability } from './contracts/probe_utils.js';
 import flags from '../settings/flags.js';
 
+import { runPhase } from './phase_runner.js';
+
 // SOFT probe pattern:
 // const exampleCapability = capability('Namespace.feature');
 // const exampleProbe = safe(() => exampleCapability());
@@ -42,7 +44,8 @@ const CORE_FEATURE_MODULES = (() => {
     new URL('../calendar_actions.js', import.meta.url).href,
     new URL('../calendar.js', import.meta.url).href,
     new URL('../contacts.js', import.meta.url).href,
-    new URL('../partners.js', import.meta.url).href
+    new URL('../partners.js', import.meta.url).href,
+    new URL('../app.js', import.meta.url).href
   ];
   if (notificationsEnabled) {
     modules.push(new URL('../notifications.js', import.meta.url).href);
@@ -85,6 +88,33 @@ export const PHASES = {
   get FEATURES() { return getFeatureModules(); },
   PATCHES: []
 };
+
+export async function boot() {
+  try {
+    console.log('[BOOT] Starting phases...');
+    console.log('[BOOT] Running SHELL...');
+    await runPhase('SHELL', PHASES.SHELL);
+    console.log('[BOOT] SHELL complete.');
+    console.log('[BOOT] Running SERVICES...');
+    await runPhase('SERVICES', PHASES.SERVICES);
+    console.log('[BOOT] SERVICES complete.');
+    console.log('[BOOT] Running FEATURES...');
+    await runPhase('FEATURES', PHASES.FEATURES);
+    console.log('[BOOT] FEATURES complete.');
+    console.log('[BOOT] Phases complete.');
+  } catch (err) {
+    console.error('[BOOT] Phase execution failed', err, err.stack);
+    // Try to show error on splash if possible
+    const splash = document.getElementById('boot-splash');
+    if (splash) {
+      splash.innerHTML = `<div class="error-state">
+        <strong>Boot Failed</strong>
+        <p>${String(err.message || err)}</p>
+        <pre>${String(err.stack || '')}</pre>
+      </div>`;
+    }
+  }
+}
 
 const toastCandidates = [capability('Toast.show'), capability('toast')];
 const confirmCandidates = [capability('Confirm.show'), capability('confirmAction'), capability('showConfirm')];
