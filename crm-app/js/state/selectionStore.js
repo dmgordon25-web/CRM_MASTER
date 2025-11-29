@@ -96,7 +96,7 @@ export const SelectionStore = {
     notify(key);
   },
   subscribe(fn) {
-    if (typeof fn !== 'function') return () => {};
+    if (typeof fn !== 'function') return () => { };
     SUBSCRIBERS.add(fn);
     return () => {
       SUBSCRIBERS.delete(fn);
@@ -109,3 +109,6 @@ if (typeof window !== 'undefined') {
     window.SelectionStore = SelectionStore;
   }
 }
+
+
+export function getSelectionStore() { return SelectionStore; }
