@@ -1915,1658 +1915,1657 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     HASH_TO_VIEW.set('#longshots', 'longshots');
     HASH_TO_VIEW.set('#/long-shots', 'longshots');
     HASH_TO_VIEW.set('#long-shots', 'longshots');
-  });
 
-  const VIEW_LIFECYCLE = {
-    dashboard: {
-      id: 'view-dashboard',
-      ui: 'dashboard-root',
-      mount(root) {
-        initDashboard({ root }).catch(err => {
-          if (console && typeof console.error === 'function') {
-            console.error('[DASHBOARD_INIT_ERROR]', err);
-          }
-        });
-      }
-    },
-    calendar: {
-      id: 'view-calendar',
-      ui: 'calendar-root',
-      async mount(root) {
-        try {
-          const mod = await import('./calendar.js');
-          if (mod && typeof mod.renderCalendarView === 'function') {
-            mod.renderCalendarView();
-          } else if (typeof window.renderCalendar === 'function') {
-            window.renderCalendar();
-          }
-        } catch (err) {
-          console.error('Failed to load calendar view', err);
-          if (typeof window.renderCalendar === 'function') {
-            window.renderCalendar();
+    const VIEW_LIFECYCLE = {
+      dashboard: {
+        id: 'view-dashboard',
+        ui: 'dashboard-root',
+        mount(root) {
+          initDashboard({ root }).catch(err => {
+            if (console && typeof console.error === 'function') {
+              console.error('[DASHBOARD_INIT_ERROR]', err);
+            }
+          });
+        }
+      },
+      calendar: {
+        id: 'view-calendar',
+        ui: 'calendar-root',
+        async mount(root) {
+          try {
+            const mod = await import('./calendar.js');
+            if (mod && typeof mod.renderCalendarView === 'function') {
+              mod.renderCalendarView();
+            } else if (typeof window.renderCalendar === 'function') {
+              window.renderCalendar();
+            }
+          } catch (err) {
+            console.error('Failed to load calendar view', err);
+            if (typeof window.renderCalendar === 'function') {
+              window.renderCalendar();
+            }
           }
         }
-      }
-    },
-    longshots: {
-      id: 'view-longshots',
-      ui: 'longshots-root',
-      mount(root) {
-        if (!root || root.__longshotsSimplified) return;
-        root.__longshotsSimplified = true;
+      },
+      longshots: {
+        id: 'view-longshots',
+        ui: 'longshots-root',
+        mount(root) {
+          if (!root || root.__longshotsSimplified) return;
+          root.__longshotsSimplified = true;
 
-        const removeNode = (node) => {
-          if (!node) return;
-          if (typeof node.remove === 'function') {
-            node.remove();
-            return;
-          }
-          if (node.parentNode) {
-            node.parentNode.removeChild(node);
-          }
-        };
+          const removeNode = (node) => {
+            if (!node) return;
+            if (typeof node.remove === 'function') {
+              node.remove();
+              return;
+            }
+            if (node.parentNode) {
+              node.parentNode.removeChild(node);
+            }
+          };
 
-        const removeSelector = (selector, scope) => {
-          const host = scope || root;
-          const node = host ? host.querySelector(selector) : null;
-          if (node) removeNode(node);
-        };
+          const removeSelector = (selector, scope) => {
+            const host = scope || root;
+            const node = host ? host.querySelector(selector) : null;
+            if (node) removeNode(node);
+          };
 
-        const card = root.querySelector('.card') || root;
-        const queryShell = card.querySelector('.query-shell[data-query-scope="longshots"]');
-        removeNode(queryShell);
+          const card = root.querySelector('.card') || root;
+          const queryShell = card.querySelector('.query-shell[data-query-scope="longshots"]');
+          removeNode(queryShell);
 
-        const saveRow = card.querySelector('.row.query-save-row');
-        removeNode(saveRow);
+          const saveRow = card.querySelector('.row.query-save-row');
+          removeNode(saveRow);
 
-        ['#btn-filters-longshots', '#btn-saveview-longshots', '#btn-delview-longshots', '#views-longshots']
-          .forEach((selector) => removeSelector(selector, card));
+          ['#btn-filters-longshots', '#btn-saveview-longshots', '#btn-delview-longshots', '#views-longshots']
+            .forEach((selector) => removeSelector(selector, card));
 
-        const simpleSearch = card.querySelector('input[data-table-search="#tbl-longshots"]');
-        if (simpleSearch) {
-          try { applyTableSearch(simpleSearch); }
-          catch (_err) { }
-        }
-
-        if (!window.__LONGSHOTS_SIMPLIFIED_BEACONED__) {
-          window.__LONGSHOTS_SIMPLIFIED_BEACONED__ = true;
-          try { console.info('[VIS] long-shots simplified'); }
-          catch (_err) { }
-          const payload = JSON.stringify({ event: 'longshots-simplified' });
-          let sent = false;
-          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-            try { sent = navigator.sendBeacon('/__log', payload) || sent; }
+          const simpleSearch = card.querySelector('input[data-table-search="#tbl-longshots"]');
+          if (simpleSearch) {
+            try { applyTableSearch(simpleSearch); }
             catch (_err) { }
           }
-          if (!sent && typeof fetch === 'function') {
+
+          if (!window.__LONGSHOTS_SIMPLIFIED_BEACONED__) {
+            window.__LONGSHOTS_SIMPLIFIED_BEACONED__ = true;
+            try { console.info('[VIS] long-shots simplified'); }
+            catch (_err) { }
+            const payload = JSON.stringify({ event: 'longshots-simplified' });
+            let sent = false;
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { sent = navigator.sendBeacon('/__log', payload) || sent; }
+              catch (_err) { }
+            }
+            if (!sent && typeof fetch === 'function') {
+              try {
+                fetch('/__log', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: payload,
+                  keepalive: true
+                }).catch(() => { });
+              } catch (_err) { }
+            }
+          }
+        }
+      },
+      labs: {
+        id: 'view-labs',
+        ui: 'labs-root',
+        mount(root) {
+          if (!root) return;
+          if (root.dataset && root.dataset.labsReady === '1') return;
+          bootLabs(root);
+        }
+      },
+      pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
+      partners: {
+        id: 'view-partners',
+        ui: 'partners-table',
+        mount(root) {
+          if (!root) return;
+          // Prevent view bleed
+          // root.innerHTML = ''; // Commented out as it might clear the table structure if not carefully managed. 
+          // Instead, we rely on the render function to handle clearing if needed, or clear specific content.
+          // The user instruction said: document.getElementById('view-partners').innerHTML = '';
+          // But 'root' IS that element.
+          // However, if we clear it, we lose the table container if it's static in HTML.
+          // Let's check if the table is dynamically created or static.
+          // In index.html, view-partners likely has structure.
+          // If renderPartnersView rebuilds it, then clearing is fine.
+
+          import('./render.js').then(mod => {
+            if (mod && typeof mod.renderPartnersView === 'function') {
+              // User directive: Clear Container: document.getElementById('view-partners').innerHTML = '';
+              root.innerHTML = '';
+              mod.renderPartnersView(root);
+            }
+          }).catch(err => console.error('Failed to load partners view', err));
+
+          /*
+          const table = root.querySelector('#tbl-partners');
+          if (!table) return;
+          if (table.getAttribute('data-mounted') === '1') return;
+          table.setAttribute('data-mounted', '1');
+          const handler = (event) => {
+            const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
+            if (!trigger || !table.contains(trigger)) return;
+            if (event.__partnerEditHandled) return;
+            if (trigger instanceof HTMLInputElement) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const row = trigger.closest('[data-id]');
+            const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
+            if (!partnerId) return;
+            event.__partnerEditHandled = true;
+            openPartnerEditModal(partnerId, {
+              trigger,
+              sourceHint: 'partners:view-table-click'
+            });
+          };
+          table.addEventListener('click', (event) => {
+            handler(event);
+            if (event && event.__partnerEditHandled && typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          });
+          */
+        }
+      }
+    };
+
+    let activeView = null;
+    const renderedRoutes = new Set();
+    let suppressHashUpdate = false;
+
+    const PIPELINE_FILTER_VALUES = new Set(['new', 'qualified', 'won', 'lost']);
+    const PIPELINE_FILTER_LABELS = {
+      new: 'New',
+      qualified: 'Qualified',
+      won: 'Won',
+      lost: 'Lost'
+    };
+    const PIPELINE_STAGE_LOOKUP = new Map();
+
+    function pipelineToken(value) {
+      const normalized = normalizeStatus(value);
+      const source = normalized || (value == null ? '' : value);
+      return String(source ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    function registerPipelineAliases(group, aliases) {
+      aliases.forEach(alias => {
+        const normalized = pipelineToken(alias);
+        if (!normalized) return;
+        PIPELINE_STAGE_LOOKUP.set(normalized, group);
+        const compact = normalized.replace(/-/g, '');
+        if (compact) PIPELINE_STAGE_LOOKUP.set(compact, group);
+      });
+    }
+
+    registerPipelineAliases('new', ['new', 'lead', 'leads', 'long-shot', 'longshot', 'prospect', 'application', 'app']);
+    registerPipelineAliases('qualified', ['qualified', 'preapproved', 'pre-approved', 'preapp', 'processing', 'underwriting', 'approved', 'nurture', 'active', 'pipeline', 'in-process']);
+    registerPipelineAliases('won', ['won', 'ctc', 'clear-to-close', 'cleared-to-close', 'funded', 'post-close', 'postclose', 'client', 'clients']);
+    registerPipelineAliases('lost', ['lost', 'denied', 'declined', 'dead', 'fallout', 'withdrawn', 'withdrew']);
+
+    let currentPipelineStageFilter = null;
+
+    const PIPELINE_FILTER_STYLE_ID = 'pipeline-filter-style';
+    const PIPELINE_FILTER_STYLE_ORIGIN = 'crm:pipeline:filter';
+
+    function ensurePipelineFilterStyleNode() {
+      if (typeof document === 'undefined') return null;
+      const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      if (!head || typeof head.appendChild !== 'function') return null;
+      const selector = `style[data-origin="${PIPELINE_FILTER_STYLE_ORIGIN}"]`;
+      let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
+      if (!style && typeof document.getElementById === 'function') {
+        style = document.getElementById(PIPELINE_FILTER_STYLE_ID);
+      }
+      if (style) {
+        if (style.getAttribute && style.getAttribute('data-origin') !== PIPELINE_FILTER_STYLE_ORIGIN) {
+          try { style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN); }
+          catch (_err) { }
+        }
+        return style;
+      }
+      style = document.createElement('style');
+      style.id = PIPELINE_FILTER_STYLE_ID;
+      style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN);
+      head.appendChild(style);
+      return style;
+    }
+
+    function ensurePipelineFilterStyle() {
+      const style = ensurePipelineFilterStyleNode();
+      if (!style) return;
+      const cssText = '.pipeline-filter-hide{display:none !important;}';
+      if (style.textContent !== cssText) {
+        style.textContent = cssText;
+      }
+    }
+
+    function groupForStageValue(value) {
+      const token = pipelineToken(value);
+      if (!token) return null;
+      return PIPELINE_STAGE_LOOKUP.get(token) || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, '')) || null;
+    }
+
+    function normalizePipelineStage(stage) {
+      if (stage == null) return null;
+      const token = pipelineToken(stage);
+      if (!token) return null;
+      if (PIPELINE_FILTER_VALUES.has(token)) return token;
+      const alias = PIPELINE_STAGE_LOOKUP.get(token)
+        || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, ''))
+        || null;
+      if (alias && PIPELINE_FILTER_VALUES.has(alias)) return alias;
+      return null;
+    }
+
+    function pipelineHashForStage(stage) {
+      const normalized = normalizePipelineStage(stage);
+      if (!normalized) return '#/pipeline';
+      try {
+        return `#/pipeline?stage=${encodeURIComponent(normalized)}`;
+      } catch (_err) {
+        return '#/pipeline';
+      }
+    }
+
+    function prunePipelineSelection() {
+      if (typeof document === 'undefined') return;
+      const store = getSelectionStore();
+      if (!store) return;
+      const selected = store.get('pipeline');
+      if (!selected || selected.size === 0) return;
+      const root = document.getElementById('view-pipeline');
+      if (!root) return;
+      const visible = new Set();
+      root.querySelectorAll('[data-selection-scope="pipeline"] tbody tr[data-id]').forEach(row => {
+        if (!isSelectableRowVisible(row)) return;
+        const id = row.getAttribute('data-id');
+        if (id) visible.add(String(id));
+      });
+      const next = new Set();
+      selected.forEach(id => {
+        if (visible.has(id)) next.add(id);
+      });
+      if (next.size !== selected.size) {
+        store.set(next, 'pipeline');
+        return;
+      }
+      syncSelectionScope('pipeline', { ids: selected, root });
+    }
+
+    function renderPipelineFilterTag(stage) {
+      const view = document.getElementById('view-pipeline');
+      if (!view) return;
+      let bar = view.querySelector('[data-role="pipeline-filter-bar"]');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.dataset.role = 'pipeline-filter-bar';
+        bar.className = 'row';
+        bar.style.alignItems = 'center';
+        bar.style.gap = '8px';
+        bar.style.marginBottom = '12px';
+        const firstSection = view.querySelector('section.card');
+        if (firstSection) {
+          view.insertBefore(bar, firstSection);
+        } else {
+          view.appendChild(bar);
+        }
+      }
+      bar.innerHTML = '';
+      if (!stage) {
+        bar.hidden = true;
+        bar.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      bar.hidden = false;
+      bar.removeAttribute('aria-hidden');
+      const label = document.createElement('span');
+      label.className = 'muted';
+      label.textContent = 'Stage filter';
+      const chip = document.createElement('span');
+      chip.className = 'badge-pill';
+      chip.dataset.qa = `filter-stage-${stage}`;
+      chip.textContent = PIPELINE_FILTER_LABELS[stage] || stage;
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'btn';
+      clearBtn.textContent = 'Clear';
+      clearBtn.addEventListener('click', evt => {
+        evt.preventDefault();
+        clearPipelineStageFilter();
+      });
+      bar.append(label, chip, clearBtn);
+    }
+
+    function applyPipelineStageFilterToDom(stage) {
+      ensurePipelineFilterStyle();
+      if (typeof document === 'undefined') return;
+      const hideClass = 'pipeline-filter-hide';
+      const targets = ['#tbl-pipeline tbody tr', '#tbl-clients tbody tr'];
+      targets.forEach(selector => {
+        document.querySelectorAll(selector).forEach(row => {
+          const stageValue = row.dataset?.stage || '';
+          const group = groupForStageValue(stageValue);
+          const shouldShow = !stage || group === stage;
+          row.classList.toggle(hideClass, !shouldShow);
+        });
+      });
+      renderPipelineFilterTag(stage);
+      prunePipelineSelection();
+    }
+
+    function setPipelineStageFilter(stage, options = {}) {
+      const normalized = normalizePipelineStage(stage);
+      const force = options && options.force === true;
+      const skipHashSync = options && options.skipHashSync === true;
+      if (!force && normalized === currentPipelineStageFilter) {
+        return currentPipelineStageFilter;
+      }
+      currentPipelineStageFilter = normalized;
+      const shouldSyncHash = !skipHashSync && activeView === 'pipeline';
+      if (shouldSyncHash) {
+        const targetHash = pipelineHashForStage(normalized);
+        if (typeof window !== 'undefined' && window.location) {
+          const currentHash = typeof window.location.hash === 'string'
+            ? window.location.hash
+            : '';
+          if (currentHash !== targetHash) {
             try {
-              fetch('/__log', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: payload,
-                keepalive: true
-              }).catch(() => { });
+              if (options && options.replace === true && window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState(null, '', targetHash);
+              } else {
+                goto(targetHash);
+              }
             } catch (_err) { }
           }
         }
       }
-    },
-    labs: {
-      id: 'view-labs',
-      ui: 'labs-root',
-      mount(root) {
-        if (!root) return;
-        if (root.dataset && root.dataset.labsReady === '1') return;
-        bootLabs(root);
+      if (activeView === 'pipeline') {
+        applyPipelineStageFilterToDom(normalized);
       }
-    },
-    pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
-    partners: {
-      id: 'view-partners',
-      ui: 'partners-table',
-      mount(root) {
-        if (!root) return;
-        // Prevent view bleed
-        // root.innerHTML = ''; // Commented out as it might clear the table structure if not carefully managed. 
-        // Instead, we rely on the render function to handle clearing if needed, or clear specific content.
-        // The user instruction said: document.getElementById('view-partners').innerHTML = '';
-        // But 'root' IS that element.
-        // However, if we clear it, we lose the table container if it's static in HTML.
-        // Let's check if the table is dynamically created or static.
-        // In index.html, view-partners likely has structure.
-        // If renderPartnersView rebuilds it, then clearing is fine.
-
-        import('./render.js').then(mod => {
-          if (mod && typeof mod.renderPartnersView === 'function') {
-            // User directive: Clear Container: document.getElementById('view-partners').innerHTML = '';
-            root.innerHTML = '';
-            mod.renderPartnersView(root);
-          }
-        }).catch(err => console.error('Failed to load partners view', err));
-
-        /*
-        const table = root.querySelector('#tbl-partners');
-        if (!table) return;
-        if (table.getAttribute('data-mounted') === '1') return;
-        table.setAttribute('data-mounted', '1');
-        const handler = (event) => {
-          const trigger = event.target?.closest('a[data-ui="partner-name"], [data-partner-id]');
-          if (!trigger || !table.contains(trigger)) return;
-          if (event.__partnerEditHandled) return;
-          if (trigger instanceof HTMLInputElement) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const row = trigger.closest('[data-id]');
-          const partnerId = row?.getAttribute('data-id') || trigger.getAttribute('data-partner-id');
-          if (!partnerId) return;
-          event.__partnerEditHandled = true;
-          openPartnerEditModal(partnerId, {
-            trigger,
-            sourceHint: 'partners:view-table-click'
-          });
-        };
-        table.addEventListener('click', (event) => {
-          handler(event);
-          if (event && event.__partnerEditHandled && typeof event.stopImmediatePropagation === 'function') {
-            event.stopImmediatePropagation();
-          }
-        });
-        */
-      }
-    }
-  };
-
-  let activeView = null;
-  const renderedRoutes = new Set();
-  let suppressHashUpdate = false;
-
-  const PIPELINE_FILTER_VALUES = new Set(['new', 'qualified', 'won', 'lost']);
-  const PIPELINE_FILTER_LABELS = {
-    new: 'New',
-    qualified: 'Qualified',
-    won: 'Won',
-    lost: 'Lost'
-  };
-  const PIPELINE_STAGE_LOOKUP = new Map();
-
-  function pipelineToken(value) {
-    const normalized = normalizeStatus(value);
-    const source = normalized || (value == null ? '' : value);
-    return String(source ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-
-  function registerPipelineAliases(group, aliases) {
-    aliases.forEach(alias => {
-      const normalized = pipelineToken(alias);
-      if (!normalized) return;
-      PIPELINE_STAGE_LOOKUP.set(normalized, group);
-      const compact = normalized.replace(/-/g, '');
-      if (compact) PIPELINE_STAGE_LOOKUP.set(compact, group);
-    });
-  }
-
-  registerPipelineAliases('new', ['new', 'lead', 'leads', 'long-shot', 'longshot', 'prospect', 'application', 'app']);
-  registerPipelineAliases('qualified', ['qualified', 'preapproved', 'pre-approved', 'preapp', 'processing', 'underwriting', 'approved', 'nurture', 'active', 'pipeline', 'in-process']);
-  registerPipelineAliases('won', ['won', 'ctc', 'clear-to-close', 'cleared-to-close', 'funded', 'post-close', 'postclose', 'client', 'clients']);
-  registerPipelineAliases('lost', ['lost', 'denied', 'declined', 'dead', 'fallout', 'withdrawn', 'withdrew']);
-
-  let currentPipelineStageFilter = null;
-
-  const PIPELINE_FILTER_STYLE_ID = 'pipeline-filter-style';
-  const PIPELINE_FILTER_STYLE_ORIGIN = 'crm:pipeline:filter';
-
-  function ensurePipelineFilterStyleNode() {
-    if (typeof document === 'undefined') return null;
-    const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
-    if (!head || typeof head.appendChild !== 'function') return null;
-    const selector = `style[data-origin="${PIPELINE_FILTER_STYLE_ORIGIN}"]`;
-    let style = typeof document.querySelector === 'function' ? document.querySelector(selector) : null;
-    if (!style && typeof document.getElementById === 'function') {
-      style = document.getElementById(PIPELINE_FILTER_STYLE_ID);
-    }
-    if (style) {
-      if (style.getAttribute && style.getAttribute('data-origin') !== PIPELINE_FILTER_STYLE_ORIGIN) {
-        try { style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN); }
-        catch (_err) { }
-      }
-      return style;
-    }
-    style = document.createElement('style');
-    style.id = PIPELINE_FILTER_STYLE_ID;
-    style.setAttribute('data-origin', PIPELINE_FILTER_STYLE_ORIGIN);
-    head.appendChild(style);
-    return style;
-  }
-
-  function ensurePipelineFilterStyle() {
-    const style = ensurePipelineFilterStyleNode();
-    if (!style) return;
-    const cssText = '.pipeline-filter-hide{display:none !important;}';
-    if (style.textContent !== cssText) {
-      style.textContent = cssText;
-    }
-  }
-
-  function groupForStageValue(value) {
-    const token = pipelineToken(value);
-    if (!token) return null;
-    return PIPELINE_STAGE_LOOKUP.get(token) || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, '')) || null;
-  }
-
-  function normalizePipelineStage(stage) {
-    if (stage == null) return null;
-    const token = pipelineToken(stage);
-    if (!token) return null;
-    if (PIPELINE_FILTER_VALUES.has(token)) return token;
-    const alias = PIPELINE_STAGE_LOOKUP.get(token)
-      || PIPELINE_STAGE_LOOKUP.get(token.replace(/-/g, ''))
-      || null;
-    if (alias && PIPELINE_FILTER_VALUES.has(alias)) return alias;
-    return null;
-  }
-
-  function pipelineHashForStage(stage) {
-    const normalized = normalizePipelineStage(stage);
-    if (!normalized) return '#/pipeline';
-    try {
-      return `#/pipeline?stage=${encodeURIComponent(normalized)}`;
-    } catch (_err) {
-      return '#/pipeline';
-    }
-  }
-
-  function prunePipelineSelection() {
-    if (typeof document === 'undefined') return;
-    const store = getSelectionStore();
-    if (!store) return;
-    const selected = store.get('pipeline');
-    if (!selected || selected.size === 0) return;
-    const root = document.getElementById('view-pipeline');
-    if (!root) return;
-    const visible = new Set();
-    root.querySelectorAll('[data-selection-scope="pipeline"] tbody tr[data-id]').forEach(row => {
-      if (!isSelectableRowVisible(row)) return;
-      const id = row.getAttribute('data-id');
-      if (id) visible.add(String(id));
-    });
-    const next = new Set();
-    selected.forEach(id => {
-      if (visible.has(id)) next.add(id);
-    });
-    if (next.size !== selected.size) {
-      store.set(next, 'pipeline');
-      return;
-    }
-    syncSelectionScope('pipeline', { ids: selected, root });
-  }
-
-  function renderPipelineFilterTag(stage) {
-    const view = document.getElementById('view-pipeline');
-    if (!view) return;
-    let bar = view.querySelector('[data-role="pipeline-filter-bar"]');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.dataset.role = 'pipeline-filter-bar';
-      bar.className = 'row';
-      bar.style.alignItems = 'center';
-      bar.style.gap = '8px';
-      bar.style.marginBottom = '12px';
-      const firstSection = view.querySelector('section.card');
-      if (firstSection) {
-        view.insertBefore(bar, firstSection);
-      } else {
-        view.appendChild(bar);
-      }
-    }
-    bar.innerHTML = '';
-    if (!stage) {
-      bar.hidden = true;
-      bar.setAttribute('aria-hidden', 'true');
-      return;
-    }
-    bar.hidden = false;
-    bar.removeAttribute('aria-hidden');
-    const label = document.createElement('span');
-    label.className = 'muted';
-    label.textContent = 'Stage filter';
-    const chip = document.createElement('span');
-    chip.className = 'badge-pill';
-    chip.dataset.qa = `filter-stage-${stage}`;
-    chip.textContent = PIPELINE_FILTER_LABELS[stage] || stage;
-    const clearBtn = document.createElement('button');
-    clearBtn.type = 'button';
-    clearBtn.className = 'btn';
-    clearBtn.textContent = 'Clear';
-    clearBtn.addEventListener('click', evt => {
-      evt.preventDefault();
-      clearPipelineStageFilter();
-    });
-    bar.append(label, chip, clearBtn);
-  }
-
-  function applyPipelineStageFilterToDom(stage) {
-    ensurePipelineFilterStyle();
-    if (typeof document === 'undefined') return;
-    const hideClass = 'pipeline-filter-hide';
-    const targets = ['#tbl-pipeline tbody tr', '#tbl-clients tbody tr'];
-    targets.forEach(selector => {
-      document.querySelectorAll(selector).forEach(row => {
-        const stageValue = row.dataset?.stage || '';
-        const group = groupForStageValue(stageValue);
-        const shouldShow = !stage || group === stage;
-        row.classList.toggle(hideClass, !shouldShow);
-      });
-    });
-    renderPipelineFilterTag(stage);
-    prunePipelineSelection();
-  }
-
-  function setPipelineStageFilter(stage, options = {}) {
-    const normalized = normalizePipelineStage(stage);
-    const force = options && options.force === true;
-    const skipHashSync = options && options.skipHashSync === true;
-    if (!force && normalized === currentPipelineStageFilter) {
       return currentPipelineStageFilter;
     }
-    currentPipelineStageFilter = normalized;
-    const shouldSyncHash = !skipHashSync && activeView === 'pipeline';
-    if (shouldSyncHash) {
-      const targetHash = pipelineHashForStage(normalized);
-      if (typeof window !== 'undefined' && window.location) {
-        const currentHash = typeof window.location.hash === 'string'
-          ? window.location.hash
-          : '';
-        if (currentHash !== targetHash) {
-          try {
-            if (options && options.replace === true && window.history && typeof window.history.replaceState === 'function') {
-              window.history.replaceState(null, '', targetHash);
-            } else {
-              goto(targetHash);
-            }
-          } catch (_err) { }
-        }
+
+    function clearPipelineStageFilter() {
+      setPipelineStageFilter(null, { force: true });
+      try {
+        const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: null, skipHashSync: true } });
+        window.dispatchEvent(evt);
+      } catch (_err) { }
+    }
+
+    function parsePipelineStageFromHash() {
+      if (typeof window === 'undefined' || !window.location) return null;
+      const raw = String(window.location.hash || '');
+      const lowered = raw.toLowerCase();
+      if (!lowered.startsWith('#/pipeline')) return null;
+      const idx = raw.indexOf('?');
+      if (idx === -1) return null;
+      const query = raw.slice(idx + 1);
+      try {
+        const params = new URLSearchParams(query);
+        const value = params.get('stage') || params.get('pipeline');
+        return normalizePipelineStage(value);
+      } catch (_err) {
+        return null;
       }
     }
-    if (activeView === 'pipeline') {
-      applyPipelineStageFilterToDom(normalized);
-    }
-    return currentPipelineStageFilter;
-  }
 
-  function clearPipelineStageFilter() {
-    setPipelineStageFilter(null, { force: true });
-    try {
-      const evt = new CustomEvent('pipeline:applyFilter', { detail: { stage: null, skipHashSync: true } });
-      window.dispatchEvent(evt);
-    } catch (_err) { }
-  }
-
-  function parsePipelineStageFromHash() {
-    if (typeof window === 'undefined' || !window.location) return null;
-    const raw = String(window.location.hash || '');
-    const lowered = raw.toLowerCase();
-    if (!lowered.startsWith('#/pipeline')) return null;
-    const idx = raw.indexOf('?');
-    if (idx === -1) return null;
-    const query = raw.slice(idx + 1);
-    try {
-      const params = new URLSearchParams(query);
-      const value = params.get('stage') || params.get('pipeline');
-      return normalizePipelineStage(value);
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function applyPipelineStageFilterFromHash(options) {
-    const stage = parsePipelineStageFromHash();
-    const skipHashOption = options && Object.prototype.hasOwnProperty.call(options, 'skipHashSync')
-      ? options.skipHashSync === true
-      : true;
-    const useFallback = options && options.useFallback === true;
-    if (stage == null && useFallback && currentPipelineStageFilter) {
-      setPipelineStageFilter(currentPipelineStageFilter, { force: options && options.force === true, skipHashSync: true });
-      return;
-    }
-    setPipelineStageFilter(stage, { force: options && options.force === true, skipHashSync: skipHashOption });
-  }
-
-  function handlePipelineFilterEvent(evt) {
-    const detail = evt && evt.detail ? evt.detail : {};
-    if (Object.prototype.hasOwnProperty.call(detail, 'stage')) {
-      const force = detail && detail.force === true;
-      const skipHashSync = detail && detail.skipHashSync === true;
-      setPipelineStageFilter(detail.stage, { force, skipHashSync });
-    } else if (activeView === 'pipeline') {
-      applyPipelineStageFilterToDom(currentPipelineStageFilter);
-    }
-  }
-
-  function handlePipelineHashChange() {
-    if (activeView !== 'pipeline') return;
-    applyPipelineStageFilterFromHash({ force: true });
-  }
-
-  function reapplyPipelineFilterIfActive() {
-    if (activeView !== 'pipeline') return;
-    applyPipelineStageFilterFromHash({ force: true });
-  }
-
-  window.addEventListener('pipeline:applyFilter', handlePipelineFilterEvent);
-  window.addEventListener('hashchange', handlePipelineHashChange);
-  if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-    try { window.RenderGuard.registerHook(reapplyPipelineFilterIfActive); }
-    catch (_err) { }
-  }
-  if (typeof document !== 'undefined') {
-    document.addEventListener('app:data:changed', () => {
-      if (activeView === 'pipeline') applyPipelineStageFilterFromHash({ force: true });
-    });
-  }
-
-  currentPipelineStageFilter = parsePipelineStageFromHash();
-
-  function normalizeView(value) {
-    return String(value || '').trim().toLowerCase();
-  }
-
-  function isAdvancedOnlyView(view) {
-    const normalized = normalizeView(view);
-    return ADVANCED_VIEWS.has(normalized);
-  }
-
-  function normalizedHash() {
-    try {
-      if (typeof window !== 'undefined' && window.location) {
-        return String(window.location.hash || '').trim().toLowerCase();
-      }
-    } catch (_) { }
-    return '';
-  }
-
-  function viewFromHash(hash) {
-    const normalized = String(hash || '').trim().toLowerCase();
-    if (!normalized) return null;
-    if (normalized === '#workbench' || normalized === '#/workbench') return 'workbench';
-    const base = normalized.includes('?') ? normalized.split('?')[0] : normalized;
-    if (HASH_TO_VIEW.has(base)) return HASH_TO_VIEW.get(base);
-    return HASH_TO_VIEW.get(normalized) || null;
-  }
-
-  function syncHashForView(view) {
-    if (suppressHashUpdate) return;
-    const targetHash = view === 'pipeline'
-      ? pipelineHashForStage(currentPipelineStageFilter)
-      : VIEW_HASH[view];
-    if (!targetHash) return;
-    const normalizedTarget = String(targetHash).trim().toLowerCase();
-    const current = normalizedHash();
-    if (current === normalizedTarget) return;
-    try {
-      if (typeof globalThis.history === 'object'
-        && globalThis.history
-        && typeof globalThis.history.replaceState === 'function') {
-        globalThis.history.replaceState(null, '', targetHash);
+    function applyPipelineStageFilterFromHash(options) {
+      const stage = parsePipelineStageFromHash();
+      const skipHashOption = options && Object.prototype.hasOwnProperty.call(options, 'skipHashSync')
+        ? options.skipHashSync === true
+        : true;
+      const useFallback = options && options.useFallback === true;
+      if (stage == null && useFallback && currentPipelineStageFilter) {
+        setPipelineStageFilter(currentPipelineStageFilter, { force: options && options.force === true, skipHashSync: true });
         return;
       }
-    } catch (_) { }
-    goto(targetHash);
-  }
-
-  function ensureViewMounted(view) {
-    const entry = VIEW_LIFECYCLE[view];
-    if (!entry) return;
-    const root = document.getElementById(entry.id);
-    if (!root) return;
-    if (root.getAttribute('data-mounted') === '1') return;
-    root.setAttribute('data-mounted', '1');
-    if (entry.ui && !root.getAttribute('data-ui')) {
-      root.setAttribute('data-ui', entry.ui);
+      setPipelineStageFilter(stage, { force: options && options.force === true, skipHashSync: skipHashOption });
     }
-    if (typeof entry.mount === 'function') {
-      try { entry.mount(root); }
-      catch (err) {
-        if (isDebug && console && typeof console.warn === 'function') {
-          console.warn(`[view:${view}] mount failed`, err);
-        }
+
+    function handlePipelineFilterEvent(evt) {
+      const detail = evt && evt.detail ? evt.detail : {};
+      if (Object.prototype.hasOwnProperty.call(detail, 'stage')) {
+        const force = detail && detail.force === true;
+        const skipHashSync = detail && detail.skipHashSync === true;
+        setPipelineStageFilter(detail.stage, { force, skipHashSync });
+      } else if (activeView === 'pipeline') {
+        applyPipelineStageFilterToDom(currentPipelineStageFilter);
       }
     }
-  }
 
-  function handleHashChange() {
-    const currentView = viewFromHash(normalizedHash());
-    if (!currentView || currentView === 'workbench') return;
-    if (currentView === activeView) return;
-    suppressHashUpdate = true;
-    try { activate(currentView); }
-    finally { suppressHashUpdate = false; }
-  }
-
-  const settingsButton = document.getElementById('btn-open-settings');
-  const titleLink = document.getElementById('app-title-link');
-
-  function dispatchAppEvent(type, detail) {
-    const payload = detail ? { detail } : undefined;
-    try {
-      if (typeof document !== 'undefined' && document?.dispatchEvent) {
-        document.dispatchEvent(new CustomEvent(type, payload));
-      }
-    } catch (_) { }
-    try {
-      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-        window.dispatchEvent(new CustomEvent(type, payload));
-      }
-    } catch (_) { }
-  }
-
-  function requestRenderForNavigation(route) {
-    const normalized = typeof route === 'string' ? route : '';
-    if (!normalized) return;
-    if (renderedRoutes.has(normalized)) return;
-    renderedRoutes.add(normalized);
-    scheduleAppRender();
-  }
-
-  function activate(view) {
-    console.log('[APP_DEBUG] activate called for view:', view);
-    console.trace('[APP_DEBUG] activate stack');
-    const previous = activeView;
-    let normalized = normalizeView(view);
-    if (!normalized) return;
-    if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
-      normalized = DEFAULT_ROUTE;
-    }
-    if (normalized === 'notifications' && !notificationsEnabled) {
-      normalized = DEFAULT_ROUTE;
-    }
-    // TASK 1 FIX: Close any open modals before switching views to prevent freezes
-    try {
-      // Lazy-load to prevent boot deadlock
-      // Safe DOM cleanup (Dependency Removed)
-      const _m = document.querySelector('[data-ui="contact-edit-modal"]');
-      if (_m) {
-        console.log('[APP_DEBUG] activate closing contact modal');
-        _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open');
-      }
-    } catch (_err) {
-      try { console.warn('[app] Failed to close contact editor during navigation', _err); }
-      catch (_) { }
+    function handlePipelineHashChange() {
+      if (activeView !== 'pipeline') return;
+      applyPipelineStageFilterFromHash({ force: true });
     }
 
-    try {
-      // Close partner editor if open
-      if (typeof closePartnerEditModal === 'function') {
-        closePartnerEditModal();
-      }
-    } catch (_err) {
-      try { console.warn('[app] Failed to close partner editor during navigation', _err); }
-      catch (_) { }
+    function reapplyPipelineFilterIfActive() {
+      if (activeView !== 'pipeline') return;
+      applyPipelineStageFilterFromHash({ force: true });
     }
 
-    try {
-      // Close any other singleton modals by selector
-      const openModals = document.querySelectorAll('[data-modal-key]');
-      openModals.forEach(modal => {
-        const key = modal.dataset.modalKey;
-        if (key) {
-          closeSingletonModal(key, { remove: false });
-        }
+    window.addEventListener('pipeline:applyFilter', handlePipelineFilterEvent);
+    window.addEventListener('hashchange', handlePipelineHashChange);
+    if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
+      try { window.RenderGuard.registerHook(reapplyPipelineFilterIfActive); }
+      catch (_err) { }
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('app:data:changed', () => {
+        if (activeView === 'pipeline') applyPipelineStageFilterFromHash({ force: true });
       });
-    } catch (_err) {
-      try { console.warn('[app] Failed to close singleton modals during navigation', _err); }
-      catch (_) { }
     }
 
-    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
-    $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
-    if (settingsButton) {
-      settingsButton.classList.toggle('active', normalized === 'settings');
-    }
-    activeView = normalized;
+    currentPipelineStageFilter = parsePipelineStageFromHash();
 
-    // INSERT: Restore Stale View
-    const currentRoot = document.getElementById('view-' + normalized);
-    if (currentRoot && currentRoot.dataset.isStale === '1') {
-      delete currentRoot.dataset.isStale;
-      if (isDebug) console.log(`[app] Restoring stale view: ${normalized}`);
-      refreshByScope(normalized);
-    }
-    // END INSERT
-
-    clearAllSelectionScopes();
-    ensureViewMounted(normalized);
-    if (normalized === 'notifications') {
-      updateActionBarGuards(0, 'notifications');
-    }
-    applyActionBarIdleVisibility(normalized);
-    if (normalized === 'partners' || normalized === 'contacts') {
-      ensureActionBarPostPaintRefresh();
-    }
-    const lifecycle = VIEW_LIFECYCLE[normalized];
-    let root = null;
-    if (lifecycle && lifecycle.id) {
-      root = document.getElementById(lifecycle.id);
-      if (root && lifecycle.ui && !root.getAttribute('data-ui')) {
-        root.setAttribute('data-ui', lifecycle.ui);
-      }
-    } else {
-      root = document.getElementById('view-' + normalized) || null;
+    function normalizeView(value) {
+      return String(value || '').trim().toLowerCase();
     }
 
-    // STALE-WHILE-HIDDEN: Check if view was marked stale while hidden and refresh if needed
-    if (root && root.dataset.isStale === '1') {
-      delete root.dataset.isStale;
+    function isAdvancedOnlyView(view) {
+      const normalized = normalizeView(view);
+      return ADVANCED_VIEWS.has(normalized);
+    }
+
+    function normalizedHash() {
       try {
-        console.log('[app] Restoring stale view: ' + normalized);
-        // Trigger immediate refresh for this view
-        refreshByScope(normalized);
-      } catch (_err) {
-        try { console.warn('[app] Failed to refresh stale view: ' + normalized, _err); }
-        catch (_) { }
-      }
+        if (typeof window !== 'undefined' && window.location) {
+          return String(window.location.hash || '').trim().toLowerCase();
+        }
+      } catch (_) { }
+      return '';
     }
 
-    if (normalized === 'pipeline') {
-      applyPipelineStageFilterFromHash({ force: true, useFallback: true });
+    function viewFromHash(hash) {
+      const normalized = String(hash || '').trim().toLowerCase();
+      if (!normalized) return null;
+      if (normalized === '#workbench' || normalized === '#/workbench') return 'workbench';
+      const base = normalized.includes('?') ? normalized.split('?')[0] : normalized;
+      if (HASH_TO_VIEW.has(base)) return HASH_TO_VIEW.get(base);
+      return HASH_TO_VIEW.get(normalized) || null;
     }
-    if (normalized !== 'workbench') { syncHashForView(normalized); }
-    requestRenderForNavigation(normalized);
-    if (normalized === 'settings') renderExtrasRegistry();
-    if (previous !== normalized || root) {
-      const detail = {
-        view: normalized,
-        previous: previous || null,
-        element: root
-      };
-      dispatchAppEvent('app:navigate', detail);
-      dispatchAppEvent('app:view:changed', detail);
-    }
-  }
 
-  function enforceDefaultRoute() {
-    const canonicalHash = VIEW_HASH[DEFAULT_ROUTE] || `#/${DEFAULT_ROUTE}`;
-    let bypass = false;
-    try {
-      if (window.location) {
-        const currentHash = typeof window.location.hash === 'string'
-          ? window.location.hash
-          : '';
-        const mappedView = viewFromHash(currentHash);
-        if (mappedView && isSimpleMode() && isAdvancedOnlyView(mappedView)) {
-          suppressHashUpdate = true;
-          try { activate(DEFAULT_ROUTE); }
-          finally { suppressHashUpdate = false; }
+    function syncHashForView(view) {
+      if (suppressHashUpdate) return;
+      const targetHash = view === 'pipeline'
+        ? pipelineHashForStage(currentPipelineStageFilter)
+        : VIEW_HASH[view];
+      if (!targetHash) return;
+      const normalizedTarget = String(targetHash).trim().toLowerCase();
+      const current = normalizedHash();
+      if (current === normalizedTarget) return;
+      try {
+        if (typeof globalThis.history === 'object'
+          && globalThis.history
+          && typeof globalThis.history.replaceState === 'function') {
+          globalThis.history.replaceState(null, '', targetHash);
           return;
         }
-        if (mappedView === 'workbench') {
-          bypass = true;
-        } else if (mappedView) {
-          suppressHashUpdate = true;
-          try { activate(mappedView); }
-          finally { suppressHashUpdate = false; }
-          return;
-        } else if (currentHash && currentHash !== canonicalHash) {
-          if (window.history && typeof window.history.replaceState === 'function') {
-            window.history.replaceState(null, document.title, canonicalHash);
-          } else {
-            window.location.hash = canonicalHash;
+      } catch (_) { }
+      goto(targetHash);
+    }
+
+    function ensureViewMounted(view) {
+      const entry = VIEW_LIFECYCLE[view];
+      if (!entry) return;
+      const root = document.getElementById(entry.id);
+      if (!root) return;
+      if (root.getAttribute('data-mounted') === '1') return;
+      root.setAttribute('data-mounted', '1');
+      if (entry.ui && !root.getAttribute('data-ui')) {
+        root.setAttribute('data-ui', entry.ui);
+      }
+      if (typeof entry.mount === 'function') {
+        try { entry.mount(root); }
+        catch (err) {
+          if (isDebug && console && typeof console.warn === 'function') {
+            console.warn(`[view:${view}] mount failed`, err);
           }
         }
       }
-    } catch (_) {
-      if (!bypass) {
-        try { window.location.hash = canonicalHash; }
-        catch (__) { /* noop */ }
-      }
     }
-    if (bypass) return;
-    activate(DEFAULT_ROUTE);
-  }
 
-  enforceDefaultRoute();
-  window.addEventListener('hashchange', handleHashChange);
+    function handleHashChange() {
+      const currentView = viewFromHash(normalizedHash());
+      if (!currentView || currentView === 'workbench') return;
+      if (currentView === activeView) return;
+      suppressHashUpdate = true;
+      try { activate(currentView); }
+      finally { suppressHashUpdate = false; }
+    }
 
+    const settingsButton = document.getElementById('btn-open-settings');
+    const titleLink = document.getElementById('app-title-link');
 
-
-  (function wireWorkbenchNav() {
-    if (window.__WB_NAV__) return;
-    window.__WB_NAV__ = true;
-
-    const ensureWorkbenchMount = () => {
-      let mount = document.getElementById('view-workbench');
-      if (!mount) {
-        mount = document.createElement('main');
-        mount.id = 'view-workbench';
-        mount.classList.add('hidden');
-        mount.setAttribute('data-view', 'workbench');
-        const container = document.querySelector('.container');
-        if (container) {
-          container.appendChild(mount);
-        } else {
-          document.body.appendChild(mount);
-        }
-      }
-      return mount;
-    };
-
-    const updateHash = () => {
+    function dispatchAppEvent(type, detail) {
+      const payload = detail ? { detail } : undefined;
       try {
-        if (history && typeof history.replaceState === 'function') {
-          history.replaceState(null, '', '#/workbench');
-        } else if (window.location) {
-          window.location.hash = '#/workbench';
+        if (typeof document !== 'undefined' && document?.dispatchEvent) {
+          document.dispatchEvent(new CustomEvent(type, payload));
         }
       } catch (_) { }
-    };
-
-    async function goWB(evt) {
-      if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
-      if (isSimpleMode()) {
-        activate(DEFAULT_ROUTE);
-        return;
-      }
-      const mount = ensureWorkbenchMount();
-      activate('workbench');
       try {
-        const [mod, selftest] = await Promise.all([
-          import(fromHere('./pages/workbench.js')),
-          import(fromHere('./selftest.js')).catch(() => ({}))
-        ]);
-        const renderFn = mod.initWorkbench || mod.renderWorkbench || (() => { });
-        const options = {};
-        if (selftest && typeof selftest.runSelfTest === 'function') {
-          options.onRunSelfTest = selftest.runSelfTest;
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent(type, payload));
         }
-        const outcome = renderFn(mount, options);
-        if (outcome && typeof outcome.then === 'function') {
-          await outcome;
-        }
-      } catch (err) {
-        console.warn('[soft] [workbench] render failed', err);
-      }
-      updateHash();
+      } catch (_) { }
     }
 
-    document.addEventListener('click', (evt) => {
-      const target = evt.target && evt.target.closest('[data-nav="workbench"], a[href="#workbench"], a[href="#/workbench"], button[data-page="workbench"], button[data-nav="workbench"]');
-      if (!target) return;
-      goWB(evt);
-    });
-
-    const initialHash = window.location && typeof window.location.hash === 'string'
-      ? window.location.hash
-      : '';
-    if (initialHash === '#workbench' || initialHash === '#/workbench') {
-      goWB();
-    }
-  })();
-
-  onUiModeChanged((mode) => {
-    renderedRoutes.clear();
-    applyUiModeNavigation(mode);
-    if (mode === 'simple' && isAdvancedOnlyView(activeView)) {
-      activate(DEFAULT_ROUTE);
-    } else {
+    function requestRenderForNavigation(route) {
+      const normalized = typeof route === 'string' ? route : '';
+      if (!normalized) return;
+      if (renderedRoutes.has(normalized)) return;
+      renderedRoutes.add(normalized);
       scheduleAppRender();
     }
-    // Safe DOM cleanup (Dependency Removed)
-    const _m = document.querySelector('[data-ui="contact-edit-modal"]');
-    if (_m) { _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open'); }
 
-    try { closePartnerEditModal(); }
-    catch (_err) { }
-  });
-
-  initSelectionBindings();
-
-
-
-  function initSettingsNav() {
-    const nav = document.getElementById('settings-nav');
-    if (!nav || nav.__wired) return;
-    nav.__wired = true;
-    nav.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-panel]');
-      if (!btn) return;
-      e.preventDefault();
-      const target = btn.getAttribute('data-panel');
-      nav.querySelectorAll('button[data-panel]').forEach(b => {
-        b.classList.toggle('active', b === btn);
-      });
-      document.querySelectorAll('#view-settings .settings-panel').forEach(section => {
-        section.classList.toggle('active', section.getAttribute('data-panel') === target);
-      });
-    });
-  }
-  initSettingsNav();
-  document.addEventListener('DOMContentLoaded', initSettingsNav);
-  initColumnsSettingsPanel();
-
-  function clearRowHighlights(row) {
-    if (!row) return;
-    row.querySelectorAll('mark[data-search-highlight="1"]').forEach(mark => {
-      const parent = mark.parentNode;
-      if (!parent) return;
-      while (mark.firstChild) {
-        parent.insertBefore(mark.firstChild, mark);
+    function activate(view) {
+      console.log('[APP_DEBUG] activate called for view:', view);
+      console.trace('[APP_DEBUG] activate stack');
+      const previous = activeView;
+      let normalized = normalizeView(view);
+      if (!normalized) return;
+      if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
+        normalized = DEFAULT_ROUTE;
       }
-      parent.removeChild(mark);
-      if (typeof parent.normalize === 'function') {
-        parent.normalize();
+      if (normalized === 'notifications' && !notificationsEnabled) {
+        normalized = DEFAULT_ROUTE;
       }
-    });
-  }
-
-  function highlightRowMatches(row, queryLower, queryLength) {
-    if (!row || !queryLower || !queryLower.trim()) return;
-    if (!queryLength) return;
-    const filter = {
-      acceptNode(node) {
-        if (!node || !node.nodeValue) return NodeFilter.FILTER_REJECT;
-        const value = node.nodeValue;
-        if (!value.trim()) return NodeFilter.FILTER_REJECT;
-        const lower = value.toLowerCase();
-        if (!lower.includes(queryLower)) return NodeFilter.FILTER_REJECT;
-        const parent = node.parentNode;
-        if (!parent) return NodeFilter.FILTER_REJECT;
-        const tag = parent.nodeName;
-        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
-        if (parent.closest && parent.closest('mark[data-search-highlight="1"]')) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    };
-    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, filter);
-    const nodes = [];
-    let current = walker.nextNode();
-    while (current) {
-      nodes.push(current);
-      current = walker.nextNode();
-    }
-    nodes.forEach(node => {
-      const originalText = node.nodeValue;
-      const lowerText = originalText.toLowerCase();
-      let searchIndex = 0;
-      let matchIndex = lowerText.indexOf(queryLower, searchIndex);
-      if (matchIndex === -1) return;
-      const fragment = document.createDocumentFragment();
-      let lastIndex = 0;
-      while (matchIndex !== -1) {
-        if (matchIndex > lastIndex) {
-          fragment.appendChild(document.createTextNode(originalText.slice(lastIndex, matchIndex)));
-        }
-        const mark = document.createElement('mark');
-        mark.dataset.searchHighlight = '1';
-        mark.textContent = originalText.slice(matchIndex, matchIndex + queryLength);
-        fragment.appendChild(mark);
-        lastIndex = matchIndex + queryLength;
-        matchIndex = lowerText.indexOf(queryLower, lastIndex);
-      }
-      if (lastIndex < originalText.length) {
-        fragment.appendChild(document.createTextNode(originalText.slice(lastIndex)));
-      }
-      const parent = node.parentNode;
-      if (parent) {
-        parent.replaceChild(fragment, node);
-      }
-    });
-  }
-
-  function applyTableSearch(input) {
-    const selector = input.dataset.tableSearch;
-    const table = selector ? document.querySelector(selector) : input.closest('table');
-    if (!table) return;
-    const body = table.tBodies ? table.tBodies[0] : null;
-    if (!body) return;
-    const rawValue = input.value || '';
-    const queryLower = rawValue.toLowerCase();
-    const queryLength = rawValue.length;
-    Array.from(body.rows).forEach(row => {
-      clearRowHighlights(row);
-      const txt = (row.textContent || '').toLowerCase();
-      const match = !queryLower ? true : txt.includes(queryLower);
-      row.style.display = match ? '' : 'none';
-      if (match && queryLength) {
-        highlightRowMatches(row, queryLower, queryLength);
-      }
-    });
-  }
-  document.addEventListener('input', evt => {
-    const target = evt.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (!target.matches('[data-table-search]')) return;
-    applyTableSearch(target);
-  });
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-table-search]').forEach(input => applyTableSearch(input));
-  });
-
-  if (typeof window !== 'undefined') {
-    window.ensureRowCheckHeaders = ensureRowCheckHeaders;
-  }
-  if (typeof document !== 'undefined') {
-    const runEnsureRowCheckHeaders = () => ensureRowCheckHeaders(document);
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', runEnsureRowCheckHeaders, { once: true });
-    } else {
-      runEnsureRowCheckHeaders();
-    }
-  }
-
-  const SORT_STATE = {};
-  function compareValues(a, b, type) {
-    if (type === 'number') {
-      const av = Number(a || 0);
-      const bv = Number(b || 0);
-      return av - bv;
-    }
-    const av = String(a || '');
-    const bv = String(b || '');
-    return av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
-  }
-  function applySort(table, key, type, dir) {
-    const body = table.tBodies[0]; if (!body) return;
-    const rows = Array.from(body.rows);
-    rows.sort((a, b) => {
-      const result = compareValues(a.dataset[key], b.dataset[key], type);
-      return dir === 'desc' ? -result : result;
-    });
-    rows.forEach(row => body.appendChild(row));
-  }
-  function updateSortIcons(tableId) {
-    const table = document.getElementById(tableId); if (!table) return;
-    const state = SORT_STATE[tableId] || {};
-    table.querySelectorAll('th .sort-btn .sort-icon').forEach(icon => {
-      const btn = icon.closest('.sort-btn');
-      if (!btn) return;
-      if (state.key === btn.dataset.key) {
-        icon.textContent = state.dir === 'desc' ? '▼' : '▲';
-      } else {
-        icon.textContent = '↕';
-      }
-    });
-  }
-  function ensureSortable(tableId) {
-    const table = document.getElementById(tableId); if (!table) return;
-    const headers = table.querySelectorAll('th .sort-btn');
-    headers.forEach(btn => {
-      if (btn.__wired) return;
-      btn.__wired = true;
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.key; if (!key) return;
-        const type = btn.dataset.type || 'string';
-        const current = SORT_STATE[tableId] || {};
-        const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
-        SORT_STATE[tableId] = { key, type, dir };
-        applySort(table, key, type, dir);
-        updateSortIcons(tableId);
-      });
-    });
-    const state = SORT_STATE[tableId];
-    if (state && state.key) {
-      applySort(table, state.key, state.type || 'string', state.dir || 'asc');
-    }
-    updateSortIcons(tableId);
-  }
-  window.ensureSortable = ensureSortable;
-  window.addEventListener('status-table-updated', (e) => {
-    const id = e.detail?.id; if (id) ensureSortable(id);
-  });
-
-  const exportBtn = $('#btn-export-json');
-  if (exportBtn && !exportBtn.__wired) {
-    exportBtn.__wired = true;
-    exportBtn.addEventListener('click', async () => {
+      // TASK 1 FIX: Close any open modals before switching views to prevent freezes
       try {
-        const snapshot = await dbExportAll();
-        const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'crm_workspace_' + new Date().toISOString().slice(0, 10) + '.json';
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        toast('Export failed');
-        debugWarn('export', err);
+        // Lazy-load to prevent boot deadlock
+        // Safe DOM cleanup (Dependency Removed)
+        const _m = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (_m) {
+          console.log('[APP_DEBUG] activate closing contact modal');
+          _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open');
+        }
+      } catch (_err) {
+        try { console.warn('[app] Failed to close contact editor during navigation', _err); }
+        catch (_) { }
       }
-    });
-  }
-  const importBtn = $('#btn-import-json');
-  const importDialog = $('#import-workspace-dialog');
-  const importInput = $('#import-json-input');
-  const importFilename = $('#import-dialog-filename');
-  const importChoose = $('#import-dialog-choose');
-  const importCancel = $('#import-dialog-cancel');
-  const importConfirm = $('#import-dialog-import');
-  function resetImportDialog() {
-    pendingImportFile = null;
-    if (importInput) importInput.value = '';
-    if (importFilename) importFilename.textContent = 'No file selected.';
-    if (importDialog) {
-      const radios = importDialog.querySelectorAll('input[name="import-mode"]');
-      let hasChecked = false;
-      radios.forEach(radio => {
-        if (radio.value === 'merge') { radio.checked = true; hasChecked = true; }
-      });
-      if (!hasChecked && radios[0]) radios[0].checked = true;
-    }
-  }
 
-  if (importBtn && !importBtn.__wired) {
-    importBtn.__wired = true;
-    importBtn.addEventListener('click', () => {
-      if (importDialog) {
-        resetImportDialog();
-        importDialog.showModal();
-      } else if (importInput) {
-        importInput.click();
+      try {
+        // Close partner editor if open
+        if (typeof closePartnerEditModal === 'function') {
+          closePartnerEditModal();
+        }
+      } catch (_err) {
+        try { console.warn('[app] Failed to close partner editor during navigation', _err); }
+        catch (_) { }
       }
-    });
-  }
 
-  if (importDialog && !importDialog.__wired) {
-    importDialog.__wired = true;
-    importDialog.addEventListener('close', resetImportDialog);
-  }
-
-
-  if (importCancel && !importCancel.__wired) {
-    importCancel.__wired = true;
-    importCancel.addEventListener('click', () => importDialog?.close());
-  }
-  if (importChoose && !importChoose.__wired) {
-    importChoose.__wired = true;
-    importChoose.addEventListener('click', () => importInput?.click());
-  }
-
-  if (importInput && !importInput.__wired) {
-    importInput.__wired = true;
-    importInput.addEventListener('change', async (e) => {
-      pendingImportFile = e.target.files?.[0] || null;
-      if (importFilename) {
-        importFilename.textContent = pendingImportFile ? pendingImportFile.name : 'No file selected.';
+      try {
+        // Close any other singleton modals by selector
+        const openModals = document.querySelectorAll('[data-modal-key]');
+        openModals.forEach(modal => {
+          const key = modal.dataset.modalKey;
+          if (key) {
+            closeSingletonModal(key, { remove: false });
+          }
+        });
+      } catch (_err) {
+        try { console.warn('[app] Failed to close singleton modals during navigation', _err); }
+        catch (_) { }
       }
-      if (!importDialog && pendingImportFile) {
+
+      $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
+      $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
+      if (settingsButton) {
+        settingsButton.classList.toggle('active', normalized === 'settings');
+      }
+      activeView = normalized;
+
+      // INSERT: Restore Stale View
+      const currentRoot = document.getElementById('view-' + normalized);
+      if (currentRoot && currentRoot.dataset.isStale === '1') {
+        delete currentRoot.dataset.isStale;
+        if (isDebug) console.log(`[app] Restoring stale view: ${normalized}`);
+        refreshByScope(normalized);
+      }
+      // END INSERT
+
+      clearAllSelectionScopes();
+      ensureViewMounted(normalized);
+      if (normalized === 'notifications') {
+        updateActionBarGuards(0, 'notifications');
+      }
+      applyActionBarIdleVisibility(normalized);
+      if (normalized === 'partners' || normalized === 'contacts') {
+        ensureActionBarPostPaintRefresh();
+      }
+      const lifecycle = VIEW_LIFECYCLE[normalized];
+      let root = null;
+      if (lifecycle && lifecycle.id) {
+        root = document.getElementById(lifecycle.id);
+        if (root && lifecycle.ui && !root.getAttribute('data-ui')) {
+          root.setAttribute('data-ui', lifecycle.ui);
+        }
+      } else {
+        root = document.getElementById('view-' + normalized) || null;
+      }
+
+      // STALE-WHILE-HIDDEN: Check if view was marked stale while hidden and refresh if needed
+      if (root && root.dataset.isStale === '1') {
+        delete root.dataset.isStale;
         try {
-          await handleWorkspaceImport('merge');
+          console.log('[app] Restoring stale view: ' + normalized);
+          // Trigger immediate refresh for this view
+          refreshByScope(normalized);
+        } catch (_err) {
+          try { console.warn('[app] Failed to refresh stale view: ' + normalized, _err); }
+          catch (_) { }
+        }
+      }
+
+      if (normalized === 'pipeline') {
+        applyPipelineStageFilterFromHash({ force: true, useFallback: true });
+      }
+      if (normalized !== 'workbench') { syncHashForView(normalized); }
+      requestRenderForNavigation(normalized);
+      if (normalized === 'settings') renderExtrasRegistry();
+      if (previous !== normalized || root) {
+        const detail = {
+          view: normalized,
+          previous: previous || null,
+          element: root
+        };
+        dispatchAppEvent('app:navigate', detail);
+        dispatchAppEvent('app:view:changed', detail);
+      }
+    }
+
+    function enforceDefaultRoute() {
+      const canonicalHash = VIEW_HASH[DEFAULT_ROUTE] || `#/${DEFAULT_ROUTE}`;
+      let bypass = false;
+      try {
+        if (window.location) {
+          const currentHash = typeof window.location.hash === 'string'
+            ? window.location.hash
+            : '';
+          const mappedView = viewFromHash(currentHash);
+          if (mappedView && isSimpleMode() && isAdvancedOnlyView(mappedView)) {
+            suppressHashUpdate = true;
+            try { activate(DEFAULT_ROUTE); }
+            finally { suppressHashUpdate = false; }
+            return;
+          }
+          if (mappedView === 'workbench') {
+            bypass = true;
+          } else if (mappedView) {
+            suppressHashUpdate = true;
+            try { activate(mappedView); }
+            finally { suppressHashUpdate = false; }
+            return;
+          } else if (currentHash && currentHash !== canonicalHash) {
+            if (window.history && typeof window.history.replaceState === 'function') {
+              window.history.replaceState(null, document.title, canonicalHash);
+            } else {
+              window.location.hash = canonicalHash;
+            }
+          }
+        }
+      } catch (_) {
+        if (!bypass) {
+          try { window.location.hash = canonicalHash; }
+          catch (__) { /* noop */ }
+        }
+      }
+      if (bypass) return;
+      activate(DEFAULT_ROUTE);
+    }
+
+    enforceDefaultRoute();
+    window.addEventListener('hashchange', handleHashChange);
+
+
+
+    (function wireWorkbenchNav() {
+      if (window.__WB_NAV__) return;
+      window.__WB_NAV__ = true;
+
+      const ensureWorkbenchMount = () => {
+        let mount = document.getElementById('view-workbench');
+        if (!mount) {
+          mount = document.createElement('main');
+          mount.id = 'view-workbench';
+          mount.classList.add('hidden');
+          mount.setAttribute('data-view', 'workbench');
+          const container = document.querySelector('.container');
+          if (container) {
+            container.appendChild(mount);
+          } else {
+            document.body.appendChild(mount);
+          }
+        }
+        return mount;
+      };
+
+      const updateHash = () => {
+        try {
+          if (history && typeof history.replaceState === 'function') {
+            history.replaceState(null, '', '#/workbench');
+          } else if (window.location) {
+            window.location.hash = '#/workbench';
+          }
+        } catch (_) { }
+      };
+
+      async function goWB(evt) {
+        if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (isSimpleMode()) {
+          activate(DEFAULT_ROUTE);
+          return;
+        }
+        const mount = ensureWorkbenchMount();
+        activate('workbench');
+        try {
+          const [mod, selftest] = await Promise.all([
+            import(fromHere('./pages/workbench.js')),
+            import(fromHere('./selftest.js')).catch(() => ({}))
+          ]);
+          const renderFn = mod.initWorkbench || mod.renderWorkbench || (() => { });
+          const options = {};
+          if (selftest && typeof selftest.runSelfTest === 'function') {
+            options.onRunSelfTest = selftest.runSelfTest;
+          }
+          const outcome = renderFn(mount, options);
+          if (outcome && typeof outcome.then === 'function') {
+            await outcome;
+          }
+        } catch (err) {
+          console.warn('[soft] [workbench] render failed', err);
+        }
+        updateHash();
+      }
+
+      document.addEventListener('click', (evt) => {
+        const target = evt.target && evt.target.closest('[data-nav="workbench"], a[href="#workbench"], a[href="#/workbench"], button[data-page="workbench"], button[data-nav="workbench"]');
+        if (!target) return;
+        goWB(evt);
+      });
+
+      const initialHash = window.location && typeof window.location.hash === 'string'
+        ? window.location.hash
+        : '';
+      if (initialHash === '#workbench' || initialHash === '#/workbench') {
+        goWB();
+      }
+    })();
+
+    onUiModeChanged((mode) => {
+      renderedRoutes.clear();
+      applyUiModeNavigation(mode);
+      if (mode === 'simple' && isAdvancedOnlyView(activeView)) {
+        activate(DEFAULT_ROUTE);
+      } else {
+        scheduleAppRender();
+      }
+      // Safe DOM cleanup (Dependency Removed)
+      const _m = document.querySelector('[data-ui="contact-edit-modal"]');
+      if (_m) { _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open'); }
+
+      try { closePartnerEditModal(); }
+      catch (_err) { }
+    });
+
+    initSelectionBindings();
+
+
+
+    function initSettingsNav() {
+      const nav = document.getElementById('settings-nav');
+      if (!nav || nav.__wired) return;
+      nav.__wired = true;
+      nav.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-panel]');
+        if (!btn) return;
+        e.preventDefault();
+        const target = btn.getAttribute('data-panel');
+        nav.querySelectorAll('button[data-panel]').forEach(b => {
+          b.classList.toggle('active', b === btn);
+        });
+        document.querySelectorAll('#view-settings .settings-panel').forEach(section => {
+          section.classList.toggle('active', section.getAttribute('data-panel') === target);
+        });
+      });
+    }
+    initSettingsNav();
+    document.addEventListener('DOMContentLoaded', initSettingsNav);
+    initColumnsSettingsPanel();
+
+    function clearRowHighlights(row) {
+      if (!row) return;
+      row.querySelectorAll('mark[data-search-highlight="1"]').forEach(mark => {
+        const parent = mark.parentNode;
+        if (!parent) return;
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark);
+        }
+        parent.removeChild(mark);
+        if (typeof parent.normalize === 'function') {
+          parent.normalize();
+        }
+      });
+    }
+
+    function highlightRowMatches(row, queryLower, queryLength) {
+      if (!row || !queryLower || !queryLower.trim()) return;
+      if (!queryLength) return;
+      const filter = {
+        acceptNode(node) {
+          if (!node || !node.nodeValue) return NodeFilter.FILTER_REJECT;
+          const value = node.nodeValue;
+          if (!value.trim()) return NodeFilter.FILTER_REJECT;
+          const lower = value.toLowerCase();
+          if (!lower.includes(queryLower)) return NodeFilter.FILTER_REJECT;
+          const parent = node.parentNode;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          const tag = parent.nodeName;
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+          if (parent.closest && parent.closest('mark[data-search-highlight="1"]')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      };
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, filter);
+      const nodes = [];
+      let current = walker.nextNode();
+      while (current) {
+        nodes.push(current);
+        current = walker.nextNode();
+      }
+      nodes.forEach(node => {
+        const originalText = node.nodeValue;
+        const lowerText = originalText.toLowerCase();
+        let searchIndex = 0;
+        let matchIndex = lowerText.indexOf(queryLower, searchIndex);
+        if (matchIndex === -1) return;
+        const fragment = document.createDocumentFragment();
+        let lastIndex = 0;
+        while (matchIndex !== -1) {
+          if (matchIndex > lastIndex) {
+            fragment.appendChild(document.createTextNode(originalText.slice(lastIndex, matchIndex)));
+          }
+          const mark = document.createElement('mark');
+          mark.dataset.searchHighlight = '1';
+          mark.textContent = originalText.slice(matchIndex, matchIndex + queryLength);
+          fragment.appendChild(mark);
+          lastIndex = matchIndex + queryLength;
+          matchIndex = lowerText.indexOf(queryLower, lastIndex);
+        }
+        if (lastIndex < originalText.length) {
+          fragment.appendChild(document.createTextNode(originalText.slice(lastIndex)));
+        }
+        const parent = node.parentNode;
+        if (parent) {
+          parent.replaceChild(fragment, node);
+        }
+      });
+    }
+
+    function applyTableSearch(input) {
+      const selector = input.dataset.tableSearch;
+      const table = selector ? document.querySelector(selector) : input.closest('table');
+      if (!table) return;
+      const body = table.tBodies ? table.tBodies[0] : null;
+      if (!body) return;
+      const rawValue = input.value || '';
+      const queryLower = rawValue.toLowerCase();
+      const queryLength = rawValue.length;
+      Array.from(body.rows).forEach(row => {
+        clearRowHighlights(row);
+        const txt = (row.textContent || '').toLowerCase();
+        const match = !queryLower ? true : txt.includes(queryLower);
+        row.style.display = match ? '' : 'none';
+        if (match && queryLength) {
+          highlightRowMatches(row, queryLower, queryLength);
+        }
+      });
+    }
+    document.addEventListener('input', evt => {
+      const target = evt.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.matches('[data-table-search]')) return;
+      applyTableSearch(target);
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-table-search]').forEach(input => applyTableSearch(input));
+    });
+
+    if (typeof window !== 'undefined') {
+      window.ensureRowCheckHeaders = ensureRowCheckHeaders;
+    }
+    if (typeof document !== 'undefined') {
+      const runEnsureRowCheckHeaders = () => ensureRowCheckHeaders(document);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runEnsureRowCheckHeaders, { once: true });
+      } else {
+        runEnsureRowCheckHeaders();
+      }
+    }
+
+    const SORT_STATE = {};
+    function compareValues(a, b, type) {
+      if (type === 'number') {
+        const av = Number(a || 0);
+        const bv = Number(b || 0);
+        return av - bv;
+      }
+      const av = String(a || '');
+      const bv = String(b || '');
+      return av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+    }
+    function applySort(table, key, type, dir) {
+      const body = table.tBodies[0]; if (!body) return;
+      const rows = Array.from(body.rows);
+      rows.sort((a, b) => {
+        const result = compareValues(a.dataset[key], b.dataset[key], type);
+        return dir === 'desc' ? -result : result;
+      });
+      rows.forEach(row => body.appendChild(row));
+    }
+    function updateSortIcons(tableId) {
+      const table = document.getElementById(tableId); if (!table) return;
+      const state = SORT_STATE[tableId] || {};
+      table.querySelectorAll('th .sort-btn .sort-icon').forEach(icon => {
+        const btn = icon.closest('.sort-btn');
+        if (!btn) return;
+        if (state.key === btn.dataset.key) {
+          icon.textContent = state.dir === 'desc' ? '▼' : '▲';
+        } else {
+          icon.textContent = '↕';
+        }
+      });
+    }
+    function ensureSortable(tableId) {
+      const table = document.getElementById(tableId); if (!table) return;
+      const headers = table.querySelectorAll('th .sort-btn');
+      headers.forEach(btn => {
+        if (btn.__wired) return;
+        btn.__wired = true;
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.key; if (!key) return;
+          const type = btn.dataset.type || 'string';
+          const current = SORT_STATE[tableId] || {};
+          const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
+          SORT_STATE[tableId] = { key, type, dir };
+          applySort(table, key, type, dir);
+          updateSortIcons(tableId);
+        });
+      });
+      const state = SORT_STATE[tableId];
+      if (state && state.key) {
+        applySort(table, state.key, state.type || 'string', state.dir || 'asc');
+      }
+      updateSortIcons(tableId);
+    }
+    window.ensureSortable = ensureSortable;
+    window.addEventListener('status-table-updated', (e) => {
+      const id = e.detail?.id; if (id) ensureSortable(id);
+    });
+
+    const exportBtn = $('#btn-export-json');
+    if (exportBtn && !exportBtn.__wired) {
+      exportBtn.__wired = true;
+      exportBtn.addEventListener('click', async () => {
+        try {
+          const snapshot = await dbExportAll();
+          const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'crm_workspace_' + new Date().toISOString().slice(0, 10) + '.json';
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          toast('Export failed');
+          debugWarn('export', err);
+        }
+      });
+    }
+    const importBtn = $('#btn-import-json');
+    const importDialog = $('#import-workspace-dialog');
+    const importInput = $('#import-json-input');
+    const importFilename = $('#import-dialog-filename');
+    const importChoose = $('#import-dialog-choose');
+    const importCancel = $('#import-dialog-cancel');
+    const importConfirm = $('#import-dialog-import');
+    function resetImportDialog() {
+      pendingImportFile = null;
+      if (importInput) importInput.value = '';
+      if (importFilename) importFilename.textContent = 'No file selected.';
+      if (importDialog) {
+        const radios = importDialog.querySelectorAll('input[name="import-mode"]');
+        let hasChecked = false;
+        radios.forEach(radio => {
+          if (radio.value === 'merge') { radio.checked = true; hasChecked = true; }
+        });
+        if (!hasChecked && radios[0]) radios[0].checked = true;
+      }
+    }
+
+    if (importBtn && !importBtn.__wired) {
+      importBtn.__wired = true;
+      importBtn.addEventListener('click', () => {
+        if (importDialog) {
+          resetImportDialog();
+          importDialog.showModal();
+        } else if (importInput) {
+          importInput.click();
+        }
+      });
+    }
+
+    if (importDialog && !importDialog.__wired) {
+      importDialog.__wired = true;
+      importDialog.addEventListener('close', resetImportDialog);
+    }
+
+
+    if (importCancel && !importCancel.__wired) {
+      importCancel.__wired = true;
+      importCancel.addEventListener('click', () => importDialog?.close());
+    }
+    if (importChoose && !importChoose.__wired) {
+      importChoose.__wired = true;
+      importChoose.addEventListener('click', () => importInput?.click());
+    }
+
+    if (importInput && !importInput.__wired) {
+      importInput.__wired = true;
+      importInput.addEventListener('change', async (e) => {
+        pendingImportFile = e.target.files?.[0] || null;
+        if (importFilename) {
+          importFilename.textContent = pendingImportFile ? pendingImportFile.name : 'No file selected.';
+        }
+        if (!importDialog && pendingImportFile) {
+          try {
+            await handleWorkspaceImport('merge');
+          } catch (err) {
+            debugWarn('import error', err);
+            alert('Import failed: ' + (err && err.message ? err.message : err));
+          } finally {
+            pendingImportFile = null;
+            e.target.value = '';
+          }
+        }
+      });
+    }
+
+    if (importConfirm && !importConfirm.__wired) {
+      importConfirm.__wired = true;
+      importConfirm.addEventListener('click', async () => {
+        if (!pendingImportFile) {
+          if (importFilename) importFilename.textContent = 'Please choose a JSON snapshot.';
+          importInput?.click();
+          return;
+        }
+        const mode = importDialog?.querySelector('input[name="import-mode"]:checked')?.value || 'merge';
+        importConfirm.disabled = true;
+        try {
+          await handleWorkspaceImport(mode);
+          importDialog?.close();
         } catch (err) {
           debugWarn('import error', err);
           alert('Import failed: ' + (err && err.message ? err.message : err));
         } finally {
-          pendingImportFile = null;
-          e.target.value = '';
+          importConfirm.disabled = false;
         }
-      }
-    });
-  }
-
-  if (importConfirm && !importConfirm.__wired) {
-    importConfirm.__wired = true;
-    importConfirm.addEventListener('click', async () => {
-      if (!pendingImportFile) {
-        if (importFilename) importFilename.textContent = 'Please choose a JSON snapshot.';
-        importInput?.click();
-        return;
-      }
-      const mode = importDialog?.querySelector('input[name="import-mode"]:checked')?.value || 'merge';
-      importConfirm.disabled = true;
-      try {
-        await handleWorkspaceImport(mode);
-        importDialog?.close();
-      } catch (err) {
-        debugWarn('import error', err);
-        alert('Import failed: ' + (err && err.message ? err.message : err));
-      } finally {
-        importConfirm.disabled = false;
-      }
-    });
-  }
-  const dashIcsBtn = $('#btn-export-ics-dashboard');
-  if (dashIcsBtn && !dashIcsBtn.__wired) {
-    dashIcsBtn.__wired = true;
-    dashIcsBtn.addEventListener('click', async () => {
-      if (typeof window.exportToIcalFile === 'function') {
-        try { await window.exportToIcalFile(); }
-        catch (err) { toast('ICS export failed'); debugWarn('ics export', err); }
-      } else {
-        toast('ICS export unavailable');
-      }
-    });
-  }
-
-  const seedForm = $('#seed-demo-form');
-  const seedRunBtn = $('#btn-seed-data');
-  if (seedForm && !seedForm.__wired) {
-    seedForm.__wired = true;
-    const notify = (message) => {
-      if (typeof window.toast === 'function') { window.toast(message); }
-      else if (typeof alert === 'function') { alert(message); }
-    };
-    seedForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (typeof window.seedTestData !== 'function') {
-        notify('Seeding utility unavailable');
-        return;
-      }
-
-      const countInput = seedForm.querySelector('#seed-count');
-      const includeCelebrations = !!seedForm.querySelector('#seed-include-celebrations')?.checked;
-      const includeTasks = !!seedForm.querySelector('#seed-include-tasks')?.checked;
-      const includeMeetings = !!seedForm.querySelector('#seed-include-meetings')?.checked;
-      const stageValues = Array.from(seedForm.querySelectorAll('input[name="seed-stage"]:checked')).map(el => el.value);
-      const loanValues = Array.from(seedForm.querySelectorAll('input[name="seed-loan"]:checked')).map(el => el.value);
-      const includeBuyer = seedForm.querySelector('#seed-partner-buyer')?.checked !== false;
-      const includeListing = seedForm.querySelector('#seed-partner-listing')?.checked !== false;
-
-      if (!stageValues.length) {
-        notify('Select at least one stage.');
-        return;
-      }
-      if (!loanValues.length) {
-        notify('Select at least one loan type.');
-        return;
-      }
-
-      const countValue = countInput ? Number(countInput.value) : NaN;
-      const options = {
-        count: countValue,
-        includeCelebrations,
-        includeTasks,
-        includeMeetings,
-        stages: stageValues,
-        loanTypes: loanValues,
-        partners: {
-          buyer: includeBuyer,
-          listing: includeListing
+      });
+    }
+    const dashIcsBtn = $('#btn-export-ics-dashboard');
+    if (dashIcsBtn && !dashIcsBtn.__wired) {
+      dashIcsBtn.__wired = true;
+      dashIcsBtn.addEventListener('click', async () => {
+        if (typeof window.exportToIcalFile === 'function') {
+          try { await window.exportToIcalFile(); }
+          catch (err) { toast('ICS export failed'); debugWarn('ics export', err); }
+        } else {
+          toast('ICS export unavailable');
         }
+      });
+    }
+
+    const seedForm = $('#seed-demo-form');
+    const seedRunBtn = $('#btn-seed-data');
+    if (seedForm && !seedForm.__wired) {
+      seedForm.__wired = true;
+      const notify = (message) => {
+        if (typeof window.toast === 'function') { window.toast(message); }
+        else if (typeof alert === 'function') { alert(message); }
       };
-
-      if (seedRunBtn) seedRunBtn.disabled = true;
-      seedForm.classList.add('is-seeding');
-      try {
-        await window.seedTestData(options);
-      } catch (error) {
-        debugWarn('seed run failed', error);
-      } finally {
-        seedForm.classList.remove('is-seeding');
-        if (seedRunBtn) seedRunBtn.disabled = false;
-      }
-    });
-  }
-  $('#toggle-dark').addEventListener('change', (e) => {
-    document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
-  });
-
-  window.addEventListener('beforeunload', async (event) => {
-    const enabled = $('#toggle-autobackup')?.checked;
-    if (enabled) {
-      try {
-        const snapshot = await dbExportAll();
-        const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
-        await dbPut('meta', rec);
-      } catch (_) { }
-    }
-
-    // Signal server when window closes (note: session beacon patch also handles this)
-    try {
-      const sid = window.__SID || sessionStorage.getItem('crm-session-id');
-      if (sid) {
-        navigator.sendBeacon(`/__bye?sid=${encodeURIComponent(sid)}`);
-      }
-    } catch (_) { }
-  });
-
-  async function init() {
-    await openDB();
-    let partners = await dbGetAll('partners');
-    if (!partners.find(p => String(p.id) === NONE_PARTNER_ID || lc(p.name) === 'none')) {
-      const noneRecord = { id: NONE_PARTNER_ID, name: 'None', company: '', email: '', phone: '', tier: 'Keep in Touch' };
-      await dbPut('partners', Object.assign({ updatedAt: Date.now() }, noneRecord));
-      partners.push(noneRecord);
-    }
-    await ensureSeedData(partners);
-    await backfillUpdatedAt();
-    scheduleAppRender();
-    await renderExtrasRegistry();
-
-    // Boot Signal
-    window.__BOOT_DONE__ = { fatal: false, core: 1, patches: 0, safe: false };
-    window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
-    document.documentElement.setAttribute('data-booted', '1');
-    document.dispatchEvent(new CustomEvent('app:boot:complete'));
-    console.log('BOOT OK');
-  }
-
-  function resolveWorkbenchRenderer() {
-    if (typeof window.renderWorkbench === 'function') return window.renderWorkbench;
-    if (window.workbench && typeof window.workbench.render === 'function') {
-      return window.workbench.render.bind(window.workbench);
-    }
-    if (window.Workbench && typeof window.Workbench.render === 'function') {
-      return window.Workbench.render.bind(window.Workbench);
-    }
-    return null;
-  }
-
-  function invokeRenderer(label, fn) {
-    if (typeof fn !== 'function') return false;
-    try {
-      const result = fn();
-      if (result && typeof result.then === 'function') {
-        result.catch(err => console.warn('[soft] [app] ' + label + ' repaint failed', err));
-      }
-    } catch (err) {
-      console.warn('[soft] [app] ' + label + ' repaint failed', err);
-    }
-  }
-
-  async function renderCalendarView() {
-    const root = document.getElementById('view-calendar');
-    if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
-
-    try {
-      // Safe Dynamic Import
-      const mod = await import('./calendar.js');
-
-      // Defensive Check
-      if (mod && typeof mod.renderView === 'function') {
-        mod.renderView();
-      } else if (mod && mod.default && typeof mod.default.renderView === 'function') {
-        mod.default.renderView();
-      } else {
-        console.error("Calendar module loaded but renderView is missing", mod);
-        if (root) root.innerHTML = '<div class="error">Calendar module invalid.</div>';
-      }
-    } catch (err) {
-      console.error("Calendar Failed to Load:", err);
-      if (root) root.innerHTML = '<div class="error">Failed to load calendar.</div>';
-    }
-  }
-  window.renderCalendar = renderCalendarView;
-
-
-  async function refreshByScope(scope, action) {
-    const key = String(scope || '').toLowerCase();
-    if (!key) return false;
-
-    // Map scopes to their container IDs
-    const viewMap = {
-      'workbench': 'view-workbench',
-      'pipeline': 'view-pipeline',
-      'dashboard': 'view-dashboard',
-      'partners': 'view-partners',
-      'contacts': 'view-contacts'
-    };
-
-    // FIX: Check visibility defensively (works in browsers AND test stubs)
-    if (viewMap[key]) {
-      const root = document.getElementById(viewMap[key]);
-      let isHidden = false;
-      if (root) {
-        if (root.hidden) isHidden = true;
-        else if (root.style && root.style.display === 'none') isHidden = true;
-        else if (root.classList && typeof root.classList.contains === 'function' && root.classList.contains('hidden')) isHidden = true;
-      }
-
-      if (isHidden) {
-        // Mark stale and return TRUE to prevent full re-render fallback
-        if (root) root.dataset.isStale = '1';
-        return true;
-      }
-    }
-
-    const hits = [];
-    const push = (label, fn) => {
-      const handled = invokeRenderer(label, fn);
-      hits.push(handled);
-      return handled;
-    };
-
-    // DYNAMIC IMPORT: Load renderers on demand to break circular dependency
-    let renderMod = null;
-    try {
-      renderMod = await import('./render.js');
-    } catch (e) {
-      console.warn('[app] Failed to load render.js', e);
-    }
-
-    // Helper to safely get renderer from module or window fallback
-    const getRenderer = (name) => {
-      return (renderMod && renderMod[name]) || window[name];
-    };
-
-    switch (key) {
-      case 'dashboard':
-        push('renderDashboardView', getRenderer('renderDashboardView'));
-        break;
-      case 'partners':
-        push('renderPartnersView', getRenderer('renderPartnersView'));
-        break;
-      case 'contacts':
-      case 'longshots':
-        push('renderContactsView', getRenderer('renderContactsView'));
-        push('renderDashboardView', getRenderer('renderDashboardView'));
-        break;
-      case 'pipeline':
-        push('renderPipelineView', getRenderer('renderPipelineView'));
-        push('renderDashboardView', getRenderer('renderDashboardView'));
-        break;
-      case 'notifications':
-        push('renderNotifications', window.renderNotifications);
-        break;
-      case 'tasks':
-        push('renderDashboardView', getRenderer('renderDashboardView'));
-        push('renderNotifications', window.renderNotifications);
-        break;
-      case 'documents':
-        push('renderDashboardView', getRenderer('renderDashboardView'));
-        break;
-      case 'commissions':
-        push('renderCommissions', window.renderCommissions);
-        push('renderLedger', window.renderLedger);
-        break;
-      case 'calendar':
-        push('renderCalendar', window.renderCalendar);
-        break;
-      case 'settings':
-        push('renderExtrasRegistry', renderExtrasRegistry);
-        break;
-      case 'workbench':
-        push('renderWorkbench', resolveWorkbenchRenderer());
-        break;
-      default:
-        break;
-    }
-    return hits.some(Boolean);
-  }
-
-  (function installAppDataChangedHandler() {
-    if (window.__APP_DATA_REFRESH_WIRED__ || listenerRegistry.appDataChanged) {
-      window.__APP_DATA_REFRESH_WIRED__ = true;
-      if (isDebug && listenerRegistry.appDataChanged && console && typeof console.info === 'function') {
-        console.info('[DEBUG] app:data:changed listener already registered');
-      }
-      return;
-    }
-    window.__APP_DATA_REFRESH_WIRED__ = true;
-    let burstCount = 0;
-    let burstStart = 0;
-    let burstWarned = false;
-    const BURST_WINDOW = 600;
-    const KNOWN_SCOPES = new Set([
-      'dashboard', 'partners', 'contacts', 'notifications', 'tasks', 'pipeline', 'longshots', 'commissions', 'calendar', 'settings', 'workbench', 'documents'
-    ]);
-    const DASHBOARD_DATA_SCOPES = new Set(['contacts', 'partners', 'pipeline', 'tasks', 'documents']);
-    const notifyDashboardInvalidation = (scopes) => {
-      const list = Array.isArray(scopes) ? scopes : [scopes];
-      const dataApi = typeof window.invalidateDashboardData === 'function' ? window.invalidateDashboardData : null;
-      const settingsApi = typeof window.invalidateDashboardSettings === 'function' ? window.invalidateDashboardSettings : null;
-      if (dataApi) {
-        try { dataApi(list); }
-        catch (_err) { }
-      }
-      if (settingsApi && list.some(scope => String(scope || '').toLowerCase() === 'settings')) {
-        try { settingsApi(list); }
-        catch (_err) { }
-      }
-    };
-    const APP_DATA_RENDER_DEBOUNCE_MS = 75;
-    let pendingAppRenderScope = '';
-    let appDataRenderTimer = null;
-    const queueAppDataRender = (scopeLabel = 'full') => {
-      const normalizedLabel = scopeLabel || 'full';
-      if (normalizedLabel === 'full' || !pendingAppRenderScope) {
-        pendingAppRenderScope = normalizedLabel;
-      } else if (pendingAppRenderScope !== 'full' && !pendingAppRenderScope.includes(normalizedLabel)) {
-        pendingAppRenderScope = `${pendingAppRenderScope},${normalizedLabel}`;
-      }
-      if (appDataRenderTimer) return;
-      appDataRenderTimer = setTimeout(() => {
-        const label = pendingAppRenderScope || 'full';
-        pendingAppRenderScope = '';
-        appDataRenderTimer = null;
-        try {
-          if (console && typeof console.log === 'function') {
-            console.log('[APP_RENDER]', label, Date.now());
-          }
-        } catch (_) { }
-        if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function') {
-          try { window.RenderGuard.requestRender(); }
-          catch (err) { if (isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
-        }
-        scheduleAppRender();
-      }, APP_DATA_RENDER_DEBOUNCE_MS);
-    };
-    const handler = function (evt) {
-      const detail = evt && evt.detail ? evt.detail : {};
-
-      // Force reload on Delete All
-      if (detail.reason === 'deleteAll') {
-        window.location.reload();
-        return;
-      }
-
-      const now = Date.now();
-      if (!burstStart || (now - burstStart) > BURST_WINDOW) {
-        burstStart = now;
-        burstCount = 1;
-        burstWarned = false;
-      } else {
-        burstCount += 1;
-        if (!burstWarned && burstCount > 1 && console && typeof console.warn === 'function') {
-          burstWarned = true;
-          console.warn('[WARN] Multiple app:data:changed events detected', {
-            count: burstCount,
-            windowMs: now - burstStart,
-            detail
-          });
-        }
-      }
-      if (isDebug) sampleMemoryTrend();
-      const partial = detail ? detail.partial : null;
-      const detailScope = typeof detail.scope === 'string' ? detail.scope : null;
-      const partialScope = partial && typeof partial === 'object' && typeof partial.scope === 'string' ? partial.scope : null;
-      const normalizedDetailScope = detailScope ? detailScope.toLowerCase() : null;
-      const normalizedPartialScope = partialScope ? partialScope.toLowerCase() : null;
-      const selectionOnly = normalizedDetailScope === 'selection' || normalizedPartialScope === 'selection';
-      if (!selectionOnly) {
-        clearAllSelectionScopes();
-      }
-      if (partial) {
-        const lanes = [];
-        if (typeof partial === 'string') { lanes.push(partial); }
-        else if (Array.isArray(partial)) { partial.forEach(value => { if (typeof value === 'string') lanes.push(value); }); }
-        else if (typeof partial === 'object') {
-          if (typeof partial.lane === 'string') lanes.push(partial.lane);
-          if (Array.isArray(partial.lanes)) partial.lanes.forEach(value => { if (typeof value === 'string') lanes.push(value); });
-        }
-        if (lanes.some(token => typeof token === 'string' && token.startsWith('pipeline:'))) {
+      seedForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (typeof window.seedTestData !== 'function') {
+          notify('Seeding utility unavailable');
           return;
         }
-        const scopeSource = detailScope || partialScope;
-        if (scopeSource) {
-          const scopeKey = String(scopeSource || '').toLowerCase();
-          if (DASHBOARD_DATA_SCOPES.has(scopeKey) || scopeKey === 'settings') {
-            notifyDashboardInvalidation(scopeKey);
-          }
-          if (scopeKey === 'selection') return;
-          if (scopeKey === 'pipeline' && lanes.some(token => typeof token === 'string' && token.startsWith('pipeline:'))) {
-            return;
-          }
-          if (KNOWN_SCOPES.has(scopeKey)) {
-            const handled = refreshByScope(scopeKey, detail.action);
-            if (handled) return;
-          }
+
+        const countInput = seedForm.querySelector('#seed-count');
+        const includeCelebrations = !!seedForm.querySelector('#seed-include-celebrations')?.checked;
+        const includeTasks = !!seedForm.querySelector('#seed-include-tasks')?.checked;
+        const includeMeetings = !!seedForm.querySelector('#seed-include-meetings')?.checked;
+        const stageValues = Array.from(seedForm.querySelectorAll('input[name="seed-stage"]:checked')).map(el => el.value);
+        const loanValues = Array.from(seedForm.querySelectorAll('input[name="seed-loan"]:checked')).map(el => el.value);
+        const includeBuyer = seedForm.querySelector('#seed-partner-buyer')?.checked !== false;
+        const includeListing = seedForm.querySelector('#seed-partner-listing')?.checked !== false;
+
+        if (!stageValues.length) {
+          notify('Select at least one stage.');
+          return;
         }
-      }
-      if (selectionOnly) {
-        return;
-      }
-      const scopeCandidates = [];
-      if (detailScope) scopeCandidates.push(detailScope);
-      if (partialScope && partialScope !== detailScope) scopeCandidates.push(partialScope);
-      scopeCandidates.forEach(scope => {
-        const key = String(scope || '').toLowerCase();
-        if (DASHBOARD_DATA_SCOPES.has(key) || key === 'settings') notifyDashboardInvalidation(key);
-      });
-      const hasScope = scopeCandidates.length > 0;
-      const unknownScope = scopeCandidates.some(scope => !KNOWN_SCOPES.has(String(scope || '').toLowerCase()));
-      if (!hasScope) {
-        try { console && console.warn && console.warn('[app] app:data:changed missing scope', detail); }
-        catch (_warn) { }
-      } else if (unknownScope) {
-        try { console && console.warn && console.warn('[app] app:data:changed unknown scope', scopeCandidates, detail); }
-        catch (_warn) { }
-      }
-      const forceFull = detail && detail.mode === 'full-repaint';
-      const shouldFullRender = forceFull || !hasScope || unknownScope;
-      if (!shouldFullRender) {
-        let scopedHandled = false;
-        scopeCandidates.forEach(scope => {
-          const key = String(scope || '').toLowerCase();
-          if (key === 'selection') return;
-          scopedHandled = refreshByScope(key, detail.action) || scopedHandled;
-        });
-        if (scopedHandled) return;
-      }
-      const renderScopeLabel = shouldFullRender
-        ? 'full'
-        : (scopeCandidates
-          .map(scope => String(scope || '').toLowerCase())
-          .filter(label => label && label !== 'selection')
-          .join(',') || 'full');
-      queueAppDataRender(renderScopeLabel);
-    };
-    if (document && typeof document.addEventListener === 'function') {
-      document.addEventListener('app:data:changed', handler, { passive: true });
-      listenerRegistry.appDataChanged = { handler, target: document };
-      listenerRegistry.__count = (listenerRegistry.__count || 0) + 1;
-    }
-  })();
+        if (!loanValues.length) {
+          notify('Select at least one loan type.');
+          return;
+        }
 
-  window.__refreshByScope__ = refreshByScope;
-
-  (function registerTestHooks() {
-    const testApi = window.__test = window.__test || {};
-    if (typeof testApi.waitForSettingsChange !== 'function') {
-      testApi.waitForSettingsChange = () => new Promise(res => {
-        const h = (evt) => {
-          const scope = evt && evt.detail ? evt.detail.scope : undefined;
-          if (scope === 'settings') {
-            document.removeEventListener('app:data:changed', h);
-            requestAnimationFrame(() => requestAnimationFrame(res));
+        const countValue = countInput ? Number(countInput.value) : NaN;
+        const options = {
+          count: countValue,
+          includeCelebrations,
+          includeTasks,
+          includeMeetings,
+          stages: stageValues,
+          loanTypes: loanValues,
+          partners: {
+            buyer: includeBuyer,
+            listing: includeListing
           }
         };
-        document.addEventListener('app:data:changed', h, { once: true });
-      });
-    }
-    if (typeof testApi.isWired !== 'function') {
-      testApi.isWired = (el) => {
-        if (!el) return false;
-        // Conservative: honor our standard wiring flags and inline onclick;
-        // avoid DevTools-only APIs like getEventListeners.
-        return !!(el.__wired || el.onclick || el.dataset.wired === '1');
-      };
-    }
-    function isNav(el) {
-      return el.tagName === 'A' && !!el.getAttribute('href');
-    }
-    function roleOf(el) {
-      return (el.getAttribute('data-action') || el.getAttribute('data-role') || '').trim();
-    }
 
-    const ACTION_TAGS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
-    const ACTION_ROLES = new Set([
-      'button', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option',
-      'tab', 'switch', 'checkbox', 'radio', 'combobox', 'listbox', 'link'
-    ]);
-
-    function isActionCandidate(el) {
-      if (el.hasAttribute('data-action')) return true;
-      if (!el.hasAttribute('data-role')) return false;
-      if (ACTION_TAGS.has(el.tagName)) return true;
-      const explicitRole = (el.getAttribute('role') || '').trim().toLowerCase();
-      if (explicitRole && ACTION_ROLES.has(explicitRole)) return true;
-      if (typeof el.tabIndex === 'number' && el.tabIndex >= 0) return true;
-      return false;
-    }
-
-    function sweep() {
-      const nodes = document.querySelectorAll('button[data-action],a[data-action],[data-role]');
-      nodes.forEach(el => {
-        const autoHidden = el.dataset.autoHidden === '1';
-        if (!isActionCandidate(el)) {
-          if (autoHidden) {
-            el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
-          }
-          return;
-        }
-        const role = roleOf(el);
-        if (!role) return;           // nothing to judge
-        if (isNav(el)) return;       // real links stay visible
-        if (testApi.isWired(el)) {
-          // If we previously auto-hid this and it became wired, unhide.
-          if (autoHidden) {
-            el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
-          }
-          return;
-        }
-        // Unwired & not a link → hide but reversible once wired later.
-        if (!el.hidden) {
-          el.hidden = true; el.setAttribute('aria-hidden', 'true'); el.dataset.autoHidden = '1';
+        if (seedRunBtn) seedRunBtn.disabled = true;
+        seedForm.classList.add('is-seeding');
+        try {
+          await window.seedTestData(options);
+        } catch (error) {
+          debugWarn('seed run failed', error);
+        } finally {
+          seedForm.classList.remove('is-seeding');
+          if (seedRunBtn) seedRunBtn.disabled = false;
         }
       });
     }
+    $('#toggle-dark').addEventListener('change', (e) => {
+      document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
+    });
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', sweep, { once: true });
-    } else {
-      sweep();
-    }
-    if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) { }
-    }
-  })();
-
-  // Load SVG sanitizer (no-op if already loaded)
-  try {
-    import(fromHere('./ux/svg_sanitizer.js')).catch(() => { });
-  } catch (_) { }
-
-  // Inject a tiny data-URL favicon to stop 404 noise without touching HTML
-  (function () {
-    try {
-      if (!document.querySelector('link[rel="icon"]')) {
-        const link = document.createElement('link');
-        link.rel = 'icon';
-        link.type = 'image/svg+xml';
-        // simple neutral dot icon
-        link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
-        document.head.appendChild(link);
+    window.addEventListener('beforeunload', async (event) => {
+      const enabled = $('#toggle-autobackup')?.checked;
+      if (enabled) {
+        try {
+          const snapshot = await dbExportAll();
+          const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
+          await dbPut('meta', rec);
+        } catch (_) { }
       }
+
+      // Signal server when window closes (note: session beacon patch also handles this)
+      try {
+        const sid = window.__SID || sessionStorage.getItem('crm-session-id');
+        if (sid) {
+          navigator.sendBeacon(`/__bye?sid=${encodeURIComponent(sid)}`);
+        }
+      } catch (_) { }
+    });
+
+    async function init() {
+      await openDB();
+      let partners = await dbGetAll('partners');
+      if (!partners.find(p => String(p.id) === NONE_PARTNER_ID || lc(p.name) === 'none')) {
+        const noneRecord = { id: NONE_PARTNER_ID, name: 'None', company: '', email: '', phone: '', tier: 'Keep in Touch' };
+        await dbPut('partners', Object.assign({ updatedAt: Date.now() }, noneRecord));
+        partners.push(noneRecord);
+      }
+      await ensureSeedData(partners);
+      await backfillUpdatedAt();
+      scheduleAppRender();
+      await renderExtrasRegistry();
+
+      // Boot Signal
+      window.__BOOT_DONE__ = { fatal: false, core: 1, patches: 0, safe: false };
+      window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
+      document.documentElement.setAttribute('data-booted', '1');
+      document.dispatchEvent(new CustomEvent('app:boot:complete'));
+      console.log('BOOT OK');
+    }
+
+    function resolveWorkbenchRenderer() {
+      if (typeof window.renderWorkbench === 'function') return window.renderWorkbench;
+      if (window.workbench && typeof window.workbench.render === 'function') {
+        return window.workbench.render.bind(window.workbench);
+      }
+      if (window.Workbench && typeof window.Workbench.render === 'function') {
+        return window.Workbench.render.bind(window.Workbench);
+      }
+      return null;
+    }
+
+    function invokeRenderer(label, fn) {
+      if (typeof fn !== 'function') return false;
+      try {
+        const result = fn();
+        if (result && typeof result.then === 'function') {
+          result.catch(err => console.warn('[soft] [app] ' + label + ' repaint failed', err));
+        }
+      } catch (err) {
+        console.warn('[soft] [app] ' + label + ' repaint failed', err);
+      }
+    }
+
+    async function renderCalendarView() {
+      const root = document.getElementById('view-calendar');
+      if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+
+      try {
+        // Safe Dynamic Import
+        const mod = await import('./calendar.js');
+
+        // Defensive Check
+        if (mod && typeof mod.renderView === 'function') {
+          mod.renderView();
+        } else if (mod && mod.default && typeof mod.default.renderView === 'function') {
+          mod.default.renderView();
+        } else {
+          console.error("Calendar module loaded but renderView is missing", mod);
+          if (root) root.innerHTML = '<div class="error">Calendar module invalid.</div>';
+        }
+      } catch (err) {
+        console.error("Calendar Failed to Load:", err);
+        if (root) root.innerHTML = '<div class="error">Failed to load calendar.</div>';
+      }
+    }
+    window.renderCalendar = renderCalendarView;
+
+
+    async function refreshByScope(scope, action) {
+      const key = String(scope || '').toLowerCase();
+      if (!key) return false;
+
+      // Map scopes to their container IDs
+      const viewMap = {
+        'workbench': 'view-workbench',
+        'pipeline': 'view-pipeline',
+        'dashboard': 'view-dashboard',
+        'partners': 'view-partners',
+        'contacts': 'view-contacts'
+      };
+
+      // FIX: Check visibility defensively (works in browsers AND test stubs)
+      if (viewMap[key]) {
+        const root = document.getElementById(viewMap[key]);
+        let isHidden = false;
+        if (root) {
+          if (root.hidden) isHidden = true;
+          else if (root.style && root.style.display === 'none') isHidden = true;
+          else if (root.classList && typeof root.classList.contains === 'function' && root.classList.contains('hidden')) isHidden = true;
+        }
+
+        if (isHidden) {
+          // Mark stale and return TRUE to prevent full re-render fallback
+          if (root) root.dataset.isStale = '1';
+          return true;
+        }
+      }
+
+      const hits = [];
+      const push = (label, fn) => {
+        const handled = invokeRenderer(label, fn);
+        hits.push(handled);
+        return handled;
+      };
+
+      // DYNAMIC IMPORT: Load renderers on demand to break circular dependency
+      let renderMod = null;
+      try {
+        renderMod = await import('./render.js');
+      } catch (e) {
+        console.warn('[app] Failed to load render.js', e);
+      }
+
+      // Helper to safely get renderer from module or window fallback
+      const getRenderer = (name) => {
+        return (renderMod && renderMod[name]) || window[name];
+      };
+
+      switch (key) {
+        case 'dashboard':
+          push('renderDashboardView', getRenderer('renderDashboardView'));
+          break;
+        case 'partners':
+          push('renderPartnersView', getRenderer('renderPartnersView'));
+          break;
+        case 'contacts':
+        case 'longshots':
+          push('renderContactsView', getRenderer('renderContactsView'));
+          push('renderDashboardView', getRenderer('renderDashboardView'));
+          break;
+        case 'pipeline':
+          push('renderPipelineView', getRenderer('renderPipelineView'));
+          push('renderDashboardView', getRenderer('renderDashboardView'));
+          break;
+        case 'notifications':
+          push('renderNotifications', window.renderNotifications);
+          break;
+        case 'tasks':
+          push('renderDashboardView', getRenderer('renderDashboardView'));
+          push('renderNotifications', window.renderNotifications);
+          break;
+        case 'documents':
+          push('renderDashboardView', getRenderer('renderDashboardView'));
+          break;
+        case 'commissions':
+          push('renderCommissions', window.renderCommissions);
+          push('renderLedger', window.renderLedger);
+          break;
+        case 'calendar':
+          push('renderCalendar', window.renderCalendar);
+          break;
+        case 'settings':
+          push('renderExtrasRegistry', renderExtrasRegistry);
+          break;
+        case 'workbench':
+          push('renderWorkbench', resolveWorkbenchRenderer());
+          break;
+        default:
+          break;
+      }
+      return hits.some(Boolean);
+    }
+
+    (function installAppDataChangedHandler() {
+      if (window.__APP_DATA_REFRESH_WIRED__ || listenerRegistry.appDataChanged) {
+        window.__APP_DATA_REFRESH_WIRED__ = true;
+        if (isDebug && listenerRegistry.appDataChanged && console && typeof console.info === 'function') {
+          console.info('[DEBUG] app:data:changed listener already registered');
+        }
+        return;
+      }
+      window.__APP_DATA_REFRESH_WIRED__ = true;
+      let burstCount = 0;
+      let burstStart = 0;
+      let burstWarned = false;
+      const BURST_WINDOW = 600;
+      const KNOWN_SCOPES = new Set([
+        'dashboard', 'partners', 'contacts', 'notifications', 'tasks', 'pipeline', 'longshots', 'commissions', 'calendar', 'settings', 'workbench', 'documents'
+      ]);
+      const DASHBOARD_DATA_SCOPES = new Set(['contacts', 'partners', 'pipeline', 'tasks', 'documents']);
+      const notifyDashboardInvalidation = (scopes) => {
+        const list = Array.isArray(scopes) ? scopes : [scopes];
+        const dataApi = typeof window.invalidateDashboardData === 'function' ? window.invalidateDashboardData : null;
+        const settingsApi = typeof window.invalidateDashboardSettings === 'function' ? window.invalidateDashboardSettings : null;
+        if (dataApi) {
+          try { dataApi(list); }
+          catch (_err) { }
+        }
+        if (settingsApi && list.some(scope => String(scope || '').toLowerCase() === 'settings')) {
+          try { settingsApi(list); }
+          catch (_err) { }
+        }
+      };
+      const APP_DATA_RENDER_DEBOUNCE_MS = 75;
+      let pendingAppRenderScope = '';
+      let appDataRenderTimer = null;
+      const queueAppDataRender = (scopeLabel = 'full') => {
+        const normalizedLabel = scopeLabel || 'full';
+        if (normalizedLabel === 'full' || !pendingAppRenderScope) {
+          pendingAppRenderScope = normalizedLabel;
+        } else if (pendingAppRenderScope !== 'full' && !pendingAppRenderScope.includes(normalizedLabel)) {
+          pendingAppRenderScope = `${pendingAppRenderScope},${normalizedLabel}`;
+        }
+        if (appDataRenderTimer) return;
+        appDataRenderTimer = setTimeout(() => {
+          const label = pendingAppRenderScope || 'full';
+          pendingAppRenderScope = '';
+          appDataRenderTimer = null;
+          try {
+            if (console && typeof console.log === 'function') {
+              console.log('[APP_RENDER]', label, Date.now());
+            }
+          } catch (_) { }
+          if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function') {
+            try { window.RenderGuard.requestRender(); }
+            catch (err) { if (isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
+          }
+          scheduleAppRender();
+        }, APP_DATA_RENDER_DEBOUNCE_MS);
+      };
+      const handler = function (evt) {
+        const detail = evt && evt.detail ? evt.detail : {};
+
+        // Force reload on Delete All
+        if (detail.reason === 'deleteAll') {
+          window.location.reload();
+          return;
+        }
+
+        const now = Date.now();
+        if (!burstStart || (now - burstStart) > BURST_WINDOW) {
+          burstStart = now;
+          burstCount = 1;
+          burstWarned = false;
+        } else {
+          burstCount += 1;
+          if (!burstWarned && burstCount > 1 && console && typeof console.warn === 'function') {
+            burstWarned = true;
+            console.warn('[WARN] Multiple app:data:changed events detected', {
+              count: burstCount,
+              windowMs: now - burstStart,
+              detail
+            });
+          }
+        }
+        if (isDebug) sampleMemoryTrend();
+        const partial = detail ? detail.partial : null;
+        const detailScope = typeof detail.scope === 'string' ? detail.scope : null;
+        const partialScope = partial && typeof partial === 'object' && typeof partial.scope === 'string' ? partial.scope : null;
+        const normalizedDetailScope = detailScope ? detailScope.toLowerCase() : null;
+        const normalizedPartialScope = partialScope ? partialScope.toLowerCase() : null;
+        const selectionOnly = normalizedDetailScope === 'selection' || normalizedPartialScope === 'selection';
+        if (!selectionOnly) {
+          clearAllSelectionScopes();
+        }
+        if (partial) {
+          const lanes = [];
+          if (typeof partial === 'string') { lanes.push(partial); }
+          else if (Array.isArray(partial)) { partial.forEach(value => { if (typeof value === 'string') lanes.push(value); }); }
+          else if (typeof partial === 'object') {
+            if (typeof partial.lane === 'string') lanes.push(partial.lane);
+            if (Array.isArray(partial.lanes)) partial.lanes.forEach(value => { if (typeof value === 'string') lanes.push(value); });
+          }
+          if (lanes.some(token => typeof token === 'string' && token.startsWith('pipeline:'))) {
+            return;
+          }
+          const scopeSource = detailScope || partialScope;
+          if (scopeSource) {
+            const scopeKey = String(scopeSource || '').toLowerCase();
+            if (DASHBOARD_DATA_SCOPES.has(scopeKey) || scopeKey === 'settings') {
+              notifyDashboardInvalidation(scopeKey);
+            }
+            if (scopeKey === 'selection') return;
+            if (scopeKey === 'pipeline' && lanes.some(token => typeof token === 'string' && token.startsWith('pipeline:'))) {
+              return;
+            }
+            if (KNOWN_SCOPES.has(scopeKey)) {
+              const handled = refreshByScope(scopeKey, detail.action);
+              if (handled) return;
+            }
+          }
+        }
+        if (selectionOnly) {
+          return;
+        }
+        const scopeCandidates = [];
+        if (detailScope) scopeCandidates.push(detailScope);
+        if (partialScope && partialScope !== detailScope) scopeCandidates.push(partialScope);
+        scopeCandidates.forEach(scope => {
+          const key = String(scope || '').toLowerCase();
+          if (DASHBOARD_DATA_SCOPES.has(key) || key === 'settings') notifyDashboardInvalidation(key);
+        });
+        const hasScope = scopeCandidates.length > 0;
+        const unknownScope = scopeCandidates.some(scope => !KNOWN_SCOPES.has(String(scope || '').toLowerCase()));
+        if (!hasScope) {
+          try { console && console.warn && console.warn('[app] app:data:changed missing scope', detail); }
+          catch (_warn) { }
+        } else if (unknownScope) {
+          try { console && console.warn && console.warn('[app] app:data:changed unknown scope', scopeCandidates, detail); }
+          catch (_warn) { }
+        }
+        const forceFull = detail && detail.mode === 'full-repaint';
+        const shouldFullRender = forceFull || !hasScope || unknownScope;
+        if (!shouldFullRender) {
+          let scopedHandled = false;
+          scopeCandidates.forEach(scope => {
+            const key = String(scope || '').toLowerCase();
+            if (key === 'selection') return;
+            scopedHandled = refreshByScope(key, detail.action) || scopedHandled;
+          });
+          if (scopedHandled) return;
+        }
+        const renderScopeLabel = shouldFullRender
+          ? 'full'
+          : (scopeCandidates
+            .map(scope => String(scope || '').toLowerCase())
+            .filter(label => label && label !== 'selection')
+            .join(',') || 'full');
+        queueAppDataRender(renderScopeLabel);
+      };
+      if (document && typeof document.addEventListener === 'function') {
+        document.addEventListener('app:data:changed', handler, { passive: true });
+        listenerRegistry.appDataChanged = { handler, target: document };
+        listenerRegistry.__count = (listenerRegistry.__count || 0) + 1;
+      }
+    })();
+
+    window.__refreshByScope__ = refreshByScope;
+
+    (function registerTestHooks() {
+      const testApi = window.__test = window.__test || {};
+      if (typeof testApi.waitForSettingsChange !== 'function') {
+        testApi.waitForSettingsChange = () => new Promise(res => {
+          const h = (evt) => {
+            const scope = evt && evt.detail ? evt.detail.scope : undefined;
+            if (scope === 'settings') {
+              document.removeEventListener('app:data:changed', h);
+              requestAnimationFrame(() => requestAnimationFrame(res));
+            }
+          };
+          document.addEventListener('app:data:changed', h, { once: true });
+        });
+      }
+      if (typeof testApi.isWired !== 'function') {
+        testApi.isWired = (el) => {
+          if (!el) return false;
+          // Conservative: honor our standard wiring flags and inline onclick;
+          // avoid DevTools-only APIs like getEventListeners.
+          return !!(el.__wired || el.onclick || el.dataset.wired === '1');
+        };
+      }
+      function isNav(el) {
+        return el.tagName === 'A' && !!el.getAttribute('href');
+      }
+      function roleOf(el) {
+        return (el.getAttribute('data-action') || el.getAttribute('data-role') || '').trim();
+      }
+
+      const ACTION_TAGS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
+      const ACTION_ROLES = new Set([
+        'button', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option',
+        'tab', 'switch', 'checkbox', 'radio', 'combobox', 'listbox', 'link'
+      ]);
+
+      function isActionCandidate(el) {
+        if (el.hasAttribute('data-action')) return true;
+        if (!el.hasAttribute('data-role')) return false;
+        if (ACTION_TAGS.has(el.tagName)) return true;
+        const explicitRole = (el.getAttribute('role') || '').trim().toLowerCase();
+        if (explicitRole && ACTION_ROLES.has(explicitRole)) return true;
+        if (typeof el.tabIndex === 'number' && el.tabIndex >= 0) return true;
+        return false;
+      }
+
+      function sweep() {
+        const nodes = document.querySelectorAll('button[data-action],a[data-action],[data-role]');
+        nodes.forEach(el => {
+          const autoHidden = el.dataset.autoHidden === '1';
+          if (!isActionCandidate(el)) {
+            if (autoHidden) {
+              el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
+            }
+            return;
+          }
+          const role = roleOf(el);
+          if (!role) return;           // nothing to judge
+          if (isNav(el)) return;       // real links stay visible
+          if (testApi.isWired(el)) {
+            // If we previously auto-hid this and it became wired, unhide.
+            if (autoHidden) {
+              el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;
+            }
+            return;
+          }
+          // Unwired & not a link → hide but reversible once wired later.
+          if (!el.hidden) {
+            el.hidden = true; el.setAttribute('aria-hidden', 'true'); el.dataset.autoHidden = '1';
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', sweep, { once: true });
+      } else {
+        sweep();
+      }
+      if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
+        try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) { }
+      }
+    })();
+
+    // Load SVG sanitizer (no-op if already loaded)
+    try {
+      import(fromHere('./ux/svg_sanitizer.js')).catch(() => { });
     } catch (_) { }
-  })();
-  // Explicitly call init to boot the app
-  init().catch(err => {
-    console.error('[FATAL] App init failed', err);
-    const splash = document.getElementById('boot-splash');
-    if (splash) {
-      splash.innerHTML = `<div class="error-state">
+
+    // Inject a tiny data-URL favicon to stop 404 noise without touching HTML
+    (function () {
+      try {
+        if (!document.querySelector('link[rel="icon"]')) {
+          const link = document.createElement('link');
+          link.rel = 'icon';
+          link.type = 'image/svg+xml';
+          // simple neutral dot icon
+          link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
+          document.head.appendChild(link);
+        }
+      } catch (_) { }
+    })();
+    // Explicitly call init to boot the app
+    init().catch(err => {
+      console.error('[FATAL] App init failed', err);
+      const splash = document.getElementById('boot-splash');
+      if (splash) {
+        splash.innerHTML = `<div class="error-state">
           <strong>Boot Failed</strong>
           <p>${String(err.message || err)}</p>
         </div>`;
-    }
-  });
-})();
+      }
+    });
+  })();
 
 
 
 
 
 // Force cache update
-
+}

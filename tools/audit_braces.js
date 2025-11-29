@@ -59,14 +59,15 @@ for (let i = 0; i < lines.length; i++) {
 
         if (['{', '(', '['].includes(char)) {
             stack.push({ char, line: i + 1, col: j + 1 });
-            // console.log(`Push ${char} at ${i+1}:${j+1}. Stack size: ${stack.length}`);
         } else if (['}', ')', ']'].includes(char)) {
             if (stack.length === 0) {
                 console.log(`Extra closing delimiter '${char}' at line ${i + 1}, col ${j + 1}`);
             } else {
                 const last = stack.pop();
-                // console.log(`Pop ${last.char} with ${char} at ${i+1}:${j+1}. Stack size: ${stack.length}`);
-                if (i === 3563) console.log(`Line 3564 Pop: ${last.char} with ${char}. Stack size: ${stack.length}`);
+
+                if (i === 3563) {
+                    console.log(`Line 3564 Pop: ${last.char} (from Line ${last.line}) with ${char}. Stack size: ${stack.length}`);
+                }
 
                 const expected = last.char === '{' ? '}' : last.char === '(' ? ')' : ']';
                 if (char !== expected) {
@@ -77,9 +78,13 @@ for (let i = 0; i < lines.length; i++) {
     }
 }
 
+console.log(`Final Stack Length: ${stack.length}`);
 if (stack.length > 0) {
-    console.log(`Unclosed delimiters found (${stack.length}):`);
-    stack.forEach(item => console.log(`- '${item.char}' at Line ${item.line}, Col ${item.col}`));
+    console.log(`Unclosed delimiters found:`);
+    for (let k = 0; k < stack.length; k++) {
+        const item = stack[k];
+        console.log(`[${k}] '${item.char}' at Line ${item.line}, Col ${item.col}`);
+    }
 } else {
     console.log('All delimiters balanced.');
 }
