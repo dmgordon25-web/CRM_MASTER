@@ -18,9 +18,7 @@ function safeWindow() {
   return typeof window !== 'undefined' ? window : undefined;
 }
 
-import { syncActionBarVisibility } from '../ui/action_bar.js';
-
-export function clearSelectionForSurface(scope, options = {}) {
+export async function clearSelectionForSurface(scope, options = {}) {
   const normalizedScope = normalizeScope(scope);
   const win = safeWindow();
   const reason = resolveReason(normalizedScope, options.reason);
@@ -45,6 +43,9 @@ export function clearSelectionForSurface(scope, options = {}) {
 
   // FIX: Force Action Bar sync
   try {
+    const { syncActionBarVisibility } = await import('../ui/action_bar.js');
     syncActionBarVisibility(0);
-  } catch (_) { }
+  } catch (e) {
+    console.warn('Could not sync action bar', e);
+  }
 }

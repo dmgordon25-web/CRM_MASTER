@@ -1,5 +1,6 @@
+console.log('[APP] Module evaluating...');
 import './boot/splash_sequence.js';
-import './state/selectionStore.js';
+// import './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';
 import './dashboard/kpis.js';
 import './relationships/index.js';
@@ -15,7 +16,7 @@ import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 // import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
-import { createBinding } from './ui/quick_create_menu.js';
+// import { createBinding } from './ui/quick_create_menu.js';
 
 // --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
 const closeContactEditor = (reason) => {
@@ -1930,19 +1931,20 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       calendar: {
         id: 'view-calendar',
         ui: 'calendar-root',
-        mount(root) {
-          import('./calendar.js').then(mod => {
+        async mount(root) {
+          try {
+            const mod = await import('./calendar.js');
             if (mod && typeof mod.renderCalendarView === 'function') {
               mod.renderCalendarView();
             } else if (typeof window.renderCalendar === 'function') {
               window.renderCalendar();
             }
-          }).catch(err => {
+          } catch (err) {
             console.error('Failed to load calendar view', err);
             if (typeof window.renderCalendar === 'function') {
               window.renderCalendar();
             }
-          });
+          }
         }
       },
       longshots: {
@@ -3564,3 +3566,5 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 
 
+
+// Force cache update

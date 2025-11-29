@@ -920,7 +920,29 @@ function markActionbarHost() {
   }
   ensureActionBarDragHandles(bar);
   ensureHeaderQuickAddBinding();
+  ensureClearHandler();
   return bar;
+}
+
+function ensureClearHandler() {
+  if (typeof document === 'undefined') return;
+  const bar = markActionbarHost();
+  if (!bar) return;
+  const clearBtn = bar.querySelector(`[data-act="${DATA_ACTION_NAME}"]`);
+  if (!clearBtn) return;
+  if (clearBtn.__clearHandlerWired) return;
+
+  const handler = (event) => {
+    event.preventDefault();
+    const store = getSelectionStore();
+    if (store && typeof store.clear === 'function') {
+      try { store.clear(); } catch (e) { console.warn('[action-bar] clear failed', e); }
+    } else if (window.Selection && typeof window.Selection.clear === 'function') {
+      try { window.Selection.clear(); } catch (e) { console.warn('[action-bar] clear failed', e); }
+    }
+  };
+  clearBtn.addEventListener('click', handler);
+  clearBtn.__clearHandlerWired = true;
 }
 
 function ensureHeaderQuickAddBinding() {

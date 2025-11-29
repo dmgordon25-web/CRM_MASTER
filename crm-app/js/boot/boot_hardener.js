@@ -613,6 +613,7 @@ async function evaluatePrereqs(records, kind) {
 
 async function loadModules(paths, { fatalOnFailure = true } = {}) {
   const records = [];
+  console.log('[BOOT] loadModules called with:', paths);
   for (const spec of paths || []) {
     let normalized = null;
     try {

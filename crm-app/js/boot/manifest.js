@@ -6,6 +6,7 @@ const isNodeRuntime = typeof process !== 'undefined'
   && process?.release?.name === 'node';
 
 async function loadPatchManifest() {
+  console.log('[MANIFEST] Loading patch manifest...');
   if (isNodeRuntime) {
     const [fs, url, path] = await Promise.all([
       import('node:fs'),
@@ -101,10 +102,9 @@ export const CORE = [
   './qa.js',
   './bulk_log.js',
   './print.js',
-  './print.js',
 
   './app.js',
-  './app.js',
+
   './settings_forms.js',
   './compose.js',
   './services/pipelineStages.js',
