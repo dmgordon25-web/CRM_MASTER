@@ -423,6 +423,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     };
   }
 
+  function init() {
+    console.log('[APP] Boot complete');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:ready'));
+    }
+    bootSplash.hide();
+  }
+
   function onDomReady(fn) {
     if (typeof document === 'undefined' || typeof fn !== 'function') return;
     if (document.readyState === 'loading') {
@@ -484,7 +492,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   onDomReady(() => {
     console.log('[DEBUG] onDomReady executing');
     // --- RE-INSERTED LOGIC START ---
-    createBinding(document.body);
+    try {
+      createBinding(document.body);
+    } catch (err) {
+      console.error('[APP] createBinding failed', err);
+    }
     const nav = $('#main-nav');
     if (nav) {
       console.log('[DEBUG] #main-nav found, attaching listener');
@@ -1913,6 +1925,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
               console.error('[DASHBOARD_INIT_ERROR]', err);
             }
           });
+        }
+      },
+      calendar: {
+        id: 'view-calendar',
+        ui: 'calendar-root',
+        mount(root) {
+          if (typeof window.renderCalendar === 'function') window.renderCalendar();
         }
       },
       longshots: {

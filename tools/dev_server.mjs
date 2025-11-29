@@ -39,7 +39,7 @@ let idleTimer = null;
 const trackedTimeouts = [];
 const registeredProcessListeners = [];
 
-const noop = () => {};
+const noop = () => { };
 let requestShutdown = noop;
 let cleanupLogged = false;
 
@@ -58,7 +58,7 @@ function untrackTimeoutHandle(handle, { cancel = true } = {}) {
     trackedTimeouts.splice(index, 1);
   }
   if (cancel) {
-    try { clearTimeout(handle); } catch {}
+    try { clearTimeout(handle); } catch { }
   }
 }
 
@@ -66,7 +66,7 @@ function clearTrackedTimeoutHandles() {
   if (trackedTimeouts.length === 0) return;
   while (trackedTimeouts.length > 0) {
     const handle = trackedTimeouts.pop();
-    try { clearTimeout(handle); } catch {}
+    try { clearTimeout(handle); } catch { }
   }
 }
 
@@ -75,7 +75,7 @@ function registerProcessListener(event, listener, { keepDuringCleanup = false } 
   try {
     process.on(event, listener);
     registeredProcessListeners.push([event, listener, keepDuringCleanup]);
-  } catch {}
+  } catch { }
   return listener;
 }
 
@@ -93,7 +93,7 @@ function removeRegisteredProcessListeners() {
       } else {
         process.removeListener(event, listener);
       }
-    } catch {}
+    } catch { }
   }
 }
 
@@ -167,13 +167,13 @@ async function requestExistingDevServerShutdown(port, key) {
         path: `/__shutdown?key=${encodeURIComponent(key)}`
       }, (res) => {
         try { res.resume(); }
-        catch {}
+        catch { }
         finish(res.statusCode >= 200 && res.statusCode < 300);
       });
       req.on('error', () => finish(false));
       req.setTimeout(1500, () => {
         try { req.destroy(); }
-        catch {}
+        catch { }
         finish(false);
       });
     } catch {
@@ -210,9 +210,9 @@ class ShutdownManager {
       const remove = () => {
         this.sockets.delete(socket);
       };
-      try { socket.on('close', remove); } catch {}
-      try { socket.on('end', remove); } catch {}
-      try { socket.on('error', remove); } catch {}
+      try { socket.on('close', remove); } catch { }
+      try { socket.on('end', remove); } catch { }
+      try { socket.on('error', remove); } catch { }
     });
   }
 
@@ -228,11 +228,11 @@ class ShutdownManager {
       }
     };
     if (typeof watcher.once === 'function') {
-      try { watcher.once('close', remove); } catch {}
-      try { watcher.once('error', remove); } catch {}
+      try { watcher.once('close', remove); } catch { }
+      try { watcher.once('error', remove); } catch { }
     } else if (typeof watcher.on === 'function') {
-      try { watcher.on('close', remove); } catch {}
-      try { watcher.on('error', remove); } catch {}
+      try { watcher.on('close', remove); } catch { }
+      try { watcher.on('error', remove); } catch { }
     }
     return watcher;
   }
@@ -253,7 +253,7 @@ class ShutdownManager {
         interval.once('close', clear);
         interval.once('error', clear);
       }
-    } catch {}
+    } catch { }
     return interval;
   }
 
@@ -263,8 +263,8 @@ class ShutdownManager {
     const cleanup = () => {
       this.childPidMeta.delete(child.pid);
     };
-    try { child.once('exit', cleanup); } catch {}
-    try { child.once('close', cleanup); } catch {}
+    try { child.once('exit', cleanup); } catch { }
+    try { child.once('close', cleanup); } catch { }
     return child;
   }
 
@@ -281,7 +281,7 @@ class ShutdownManager {
     const sockets = Array.from(this.sockets);
     this.sockets.clear();
     for (const socket of sockets) {
-      try { socket.destroy(); } catch {}
+      try { socket.destroy(); } catch { }
     }
   }
 
@@ -289,7 +289,7 @@ class ShutdownManager {
     if (this.intervals.length === 0) return;
     const intervals = this.intervals.splice(0, this.intervals.length);
     for (const interval of intervals) {
-      try { clearInterval(interval); } catch {}
+      try { clearInterval(interval); } catch { }
     }
   }
 
@@ -308,10 +308,10 @@ class ShutdownManager {
           return;
         }
         if (typeof watcher.stop === 'function') {
-          Promise.resolve(watcher.stop()).catch(() => {}).finally(resolve);
+          Promise.resolve(watcher.stop()).catch(() => { }).finally(resolve);
           return;
         }
-      } catch {}
+      } catch { }
       resolve();
     })));
   }
@@ -343,9 +343,9 @@ class ShutdownManager {
             windowsHide: true
           });
           const done = () => resolve();
-          try { killer.once('exit', done); } catch {}
-          try { killer.once('close', done); } catch {}
-          try { killer.once('error', done); } catch {}
+          try { killer.once('exit', done); } catch { }
+          try { killer.once('close', done); } catch { }
+          try { killer.once('error', done); } catch { }
         } catch {
           resolve();
         }
@@ -360,7 +360,7 @@ class ShutdownManager {
       }
     } catch (error) {
       if (!error || (error.code !== 'ESRCH' && error.code !== 'EINVAL')) {
-        try { process.kill(pid, 'SIGTERM'); } catch {}
+        try { process.kill(pid, 'SIGTERM'); } catch { }
       }
     }
   }
@@ -425,10 +425,10 @@ class ShutdownManager {
         return;
       }
       if (error && error.code === 'EPERM') {
-        try { process.kill(pid, 'SIGTERM'); } catch {}
+        try { process.kill(pid, 'SIGTERM'); } catch { }
         return;
       }
-      try { process.kill(pid, 'SIGTERM'); } catch {}
+      try { process.kill(pid, 'SIGTERM'); } catch { }
     }
   }
 
@@ -481,14 +481,14 @@ class ShutdownManager {
           graceful = true;
           await this.waitForPidDeath(existingPid, 4000);
         }
-      } catch {}
+      } catch { }
     }
     stillAlive = this.isPidAlive(existingPid);
     if (stillAlive) {
       try {
         await this.killPidTree(existingPid);
         await this.waitForPidDeath(existingPid, 4000);
-      } catch {}
+      } catch { }
       stillAlive = this.isPidAlive(existingPid);
     }
     if (!stillAlive) {
@@ -524,19 +524,19 @@ class ShutdownManager {
     this.shutdownPromise = (async () => {
       try {
         if (typeof this.beforeShutdown === 'function') {
-          try { await this.beforeShutdown(); } catch {}
+          try { await this.beforeShutdown(); } catch { }
         }
-        try { this.stopIntervals(); } catch {}
-        try { await this.stopWatchers(); } catch {}
-        try { clearTrackedTimeoutHandles(); } catch {}
-        try { await this.closeServer(); } catch {}
+        try { this.stopIntervals(); } catch { }
+        try { await this.stopWatchers(); } catch { }
+        try { clearTrackedTimeoutHandles(); } catch { }
+        try { await this.closeServer(); } catch { }
         this.destroySockets();
-        try { await this.stopChildren(); } catch {}
+        try { await this.stopChildren(); } catch { }
       } finally {
-        try { removeRegisteredProcessListeners(); } catch {}
-        try { this.removePidFile(); } catch {}
+        try { removeRegisteredProcessListeners(); } catch { }
+        try { this.removePidFile(); } catch { }
         if (typeof this.afterShutdown === 'function') {
-          try { this.afterShutdown(); } catch {}
+          try { this.afterShutdown(); } catch { }
         }
         const fuse = setTimeout(() => process.exit(0), 1500);
         if (typeof fuse.unref === 'function') fuse.unref();
@@ -590,7 +590,7 @@ try {
   globalThis.__CRM_DEV_SERVER__.trackInterval = trackInterval;
   globalThis.__CRM_DEV_SERVER__.trackChild = trackChild;
   globalThis.__CRM_DEV_SERVER__.trackChildPid = trackChildPid;
-} catch {}
+} catch { }
 
 function drainRequest(req) {
   if (!req || typeof req.resume !== 'function') return;
@@ -741,23 +741,23 @@ function serveStream(req, res, filePath, stats) {
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
     [SERVER_HEADER_NAME]: SERVER_HEADER_VALUE
   };
-  if (stats && stats.isFile()) {
-    headers['Content-Length'] = stats.size;
-  }
-  res.writeHead(200, headers);
-  if (req.method === 'HEAD') {
-    res.end();
-    return;
-  }
-  const stream = fs.createReadStream(filePath);
-  stream.on('error', () => {
+
+  try {
+    const data = fs.readFileSync(filePath);
+    // headers['Content-Length'] = data.length; // Removed to avoid potential mismatch
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(data);
+  } catch (err) {
     if (!res.headersSent) {
       send(res, 500, 'Internal Server Error');
     } else {
       res.destroy();
     }
-  });
-  stream.pipe(res);
+  }
 }
 
 function getRootIndexPath() {
@@ -917,7 +917,7 @@ const server = http.createServer((req, res) => {
     }
     const sid = getSearchParam(req.url, 'sid');
     markSessionClosed(sid);
-    
+
     // If this is the last session closing, initiate shutdown after a short delay
     if (activeSessions.size === 0) {
       console.info('[SERVER] Last session closed, scheduling shutdown...');
@@ -927,7 +927,7 @@ const server = http.createServer((req, res) => {
         }
       }, 2000);
     }
-    
+
     send(res, 204, '');
     return;
   }
@@ -1043,7 +1043,7 @@ const server = http.createServer((req, res) => {
           stats = fallbackStats;
           normalized = fallbackNormalized;
         }
-      } catch {}
+      } catch { }
     }
   }
 
@@ -1070,12 +1070,12 @@ console.info('[VIS] shutdown endpoints ready');
 
 ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'].forEach((sig) => {
   registerProcessListener(sig, () => {
-    shutdownManager.shutdown(0).catch(() => {});
+    shutdownManager.shutdown(0).catch(() => { });
   });
 });
 
 registerProcessListener('beforeExit', () => {
-  shutdownManager.shutdown(0, { skipExit: true }).catch(() => {});
+  shutdownManager.shutdown(0, { skipExit: true }).catch(() => { });
 });
 
 registerProcessListener('exit', () => {
@@ -1086,14 +1086,14 @@ registerProcessListener('uncaughtException', (error) => {
   if (error) {
     console.error('[DEV SERVER] uncaughtException', error);
   }
-  shutdownManager.shutdown(1).catch(() => {});
+  shutdownManager.shutdown(1).catch(() => { });
 });
 
 registerProcessListener('unhandledRejection', (reason) => {
   if (reason) {
     console.error('[DEV SERVER] unhandledRejection', reason);
   }
-  shutdownManager.shutdown(1).catch(() => {});
+  shutdownManager.shutdown(1).catch(() => { });
 });
 
 function listenOnPort(port) {
@@ -1181,31 +1181,31 @@ function openBrowser(url) {
       });
       trackChild(child, { detached: true });
       if (typeof child.unref === 'function') child.unref();
-    } catch {}
+    } catch { }
   }
 }
 
 async function killOrphanedNodeProcesses() {
   if (process.platform !== 'win32') return;
-  
+
   console.info('[CLEANUP] Checking for orphaned Node.js processes...');
-  
+
   try {
     // Find all node processes running dev_server.mjs
     const findProc = spawn('tasklist', ['/FI', 'IMAGENAME eq node.exe', '/FO', 'CSV', '/NH'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true
     });
-    
+
     const output = findProc.stdout ? findProc.stdout.toString() : '';
     const lines = output.split('\n').filter(line => line.includes('node.exe'));
-    
+
     for (const line of lines) {
       const match = line.match(/"(\d+)"/);
       if (match && match[1]) {
         const pid = parseInt(match[1], 10);
         if (pid === process.pid) continue; // Don't kill ourselves
-        
+
         // Try to kill orphaned node processes
         try {
           const killProc = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
@@ -1215,7 +1215,7 @@ async function killOrphanedNodeProcesses() {
           if (killProc.status === 0) {
             console.info(`[CLEANUP] Killed orphaned node process (PID ${pid})`);
           }
-        } catch {}
+        } catch { }
       }
     }
   } catch (err) {
@@ -1225,10 +1225,10 @@ async function killOrphanedNodeProcesses() {
 
 async function start() {
   const cli = parseCliArgs(process.argv);
-  
+
   // Kill any orphaned processes from previous runs before starting
   await killOrphanedNodeProcesses();
-  
+
   await shutdownManager.ensureSingleInstance();
   const preflight = readIndexInfo();
   if (preflight && preflight.error) {

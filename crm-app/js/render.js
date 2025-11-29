@@ -2287,6 +2287,44 @@ function shouldRenderScope(scopeSet, ...aliases) {
   window.renderKanban = window.renderPipelineView;
 
   async function renderPartnersView(options) {
+    const root = document.getElementById('view-partners');
+    if (root) {
+      root.innerHTML = `
+            <section class="card">
+                <div class="row" style="align-items:center;gap:12px;margin-bottom:8px">
+                    <strong>Partners</strong>
+                    <span class="help-hint"
+                        data-hint="Tag partners on contacts to track referral performance and conversion rates. Partner relationships drive your pipeline.">?</span>
+                    <span class="grow">
+                    </span>
+                    <button class="btn" data-export-table="partners" aria-label="Export to CSV"
+                        title="Export to CSV">Export
+                        CSV</button>
+                    <button class="btn" id="btn-filters-partners">
+                        Filters
+                    </button>
+                </div>
+                <div class="row query-save-row">
+                    <select id="views-partners">
+                    </select>
+                    <button class="btn" id="btn-saveview-partners">
+                        Save Query
+                    </button>
+                    <button class="btn danger" id="btn-delview-partners">
+                        Delete
+                    </button>
+                </div>
+                <div class="query-shell" data-query-scope="partners"></div>
+                <div class="table-search">
+                    <input aria-label="Search partners" data-table-search="#tbl-partners" placeholder="Search Partners"
+                        type="search" />
+                </div>
+                <table class="table list-table" data-selection-scope="partners" id="tbl-partners">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </section>`;
+    }
     const table = typeof document !== 'undefined' ? document.getElementById('tbl-partners') : null;
     const host = table ? findListLoadingHost(table) : null;
     const releaseLoading = acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS));

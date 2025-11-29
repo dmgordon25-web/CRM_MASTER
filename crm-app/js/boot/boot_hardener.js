@@ -8,7 +8,7 @@ const BASE_URL = (() => {
     try {
       return new URL(BOOT_BASE_HINT);
     } catch (_) {
-      try { return new URL(BOOT_BASE_HINT, import.meta.url); } catch (__) {}
+      try { return new URL(BOOT_BASE_HINT, import.meta.url); } catch (__) { }
     }
   }
   return new URL('../', import.meta.url);
@@ -54,7 +54,10 @@ export function normalizeModuleId(spec) {
 
 async function dynImport(spec) {
   const normalized = normalizeModuleId(spec);
-  return import(normalized);
+  // Cache buster for dev environment to fix "Unexpected end of input" on reload
+  const url = new URL(normalized);
+  url.searchParams.set('t', Date.now());
+  return import(url.href);
 }
 
 const globalScope = (typeof window !== 'undefined')
@@ -83,10 +86,10 @@ function showOverlayPayload(payload) {
       globalScope.showDiagnosticsOverlay(payload);
       return;
     }
-  } catch (_) {}
+  } catch (_) { }
   const diagnosticsHost = documentRef && documentRef.getElementById('diagnostics');
   if (diagnosticsHost) {
-    try { diagnosticsHost.hidden = false; } catch (_) {}
+    try { diagnosticsHost.hidden = false; } catch (_) { }
   }
 }
 
@@ -99,7 +102,7 @@ function finalizeOnce(state, payload) {
       try {
         earlyTrap.markFatal(payload || {});
         return;
-      } catch (_) {}
+      } catch (_) { }
     }
     ensureBodyBootAttr('fatal');
     showOverlayPayload(payload);
@@ -112,7 +115,7 @@ function finalizeOnce(state, payload) {
     try {
       earlyTrap.markReady();
       return;
-    } catch (_) {}
+    } catch (_) { }
   }
   ensureBodyBootAttr('ready');
 }
@@ -132,7 +135,7 @@ function scheduleReadyFinalization() {
   if (readyFinalizationPromise) return readyFinalizationPromise;
   readyFinalizationPromise = afterFirstPaint()
     .then(() => finalizeOnce('ready'))
-    .catch(() => {});
+    .catch(() => { });
   return readyFinalizationPromise;
 }
 
@@ -172,7 +175,7 @@ const bootCompletionSignal = (() => {
       payload = nextPayload;
       resolved = true;
       try { window.__BOOT_DONE__ = payload; }
-      catch (_) {}
+      catch (_) { }
       dispatchBootEvent('boot:done', payload);
       return payload;
     },
@@ -201,7 +204,7 @@ const animationCompletionSignal = (() => {
       }
       const payload = { at, bypassed };
       try { window.__BOOT_ANIMATION_COMPLETE__ = payload; }
-      catch (_) {}
+      catch (_) { }
       dispatchBootEvent('boot:animation-complete', { ...payload, reason });
       return payload;
     },
@@ -226,16 +229,16 @@ const hideSplashOnce = (() => {
 function finalizeSplashAndHeader() {
   if (headerImportScheduled) return;
   headerImportScheduled = true;
-  (function(){ try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch {} }());
+  (function () { try { window.__SPLASH_SEEN__ = !!document.getElementById('boot-splash'); } catch { } }());
   hideSplashOnce();
   // One-time helper + end-of-boot dynamic import with multiple fallback paths
   if (typeof window.__DYN_LOADER__ === 'undefined') {
     window.__DYN_LOADER__ = 1;
-    async function __dynImport(paths){ for(const p of paths){ try{ const m=await import(p); console.info('[A_BEACON] imported',p); return m;}catch(e){ console.info('[A_BEACON] import failed',p); } } }
-    requestAnimationFrame(()=>requestAnimationFrame(async()=>{
+    async function __dynImport(paths) { for (const p of paths) { try { const m = await import(p); console.info('[A_BEACON] imported', p); return m; } catch (e) { console.info('[A_BEACON] import failed', p); } } }
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
       const base = import.meta.url;
-      const HEAD = ['crm/ui/header_toolbar.js','/js/ui/header_toolbar.js','./ui/header_toolbar.js', new URL('../ui/header_toolbar.js', base).href];
-      await __dynImport(HEAD).catch(()=>{});
+      const HEAD = ['crm/ui/header_toolbar.js', '/js/ui/header_toolbar.js', './ui/header_toolbar.js', new URL('../ui/header_toolbar.js', base).href];
+      await __dynImport(HEAD).catch(() => { });
       console.info('[A_BEACON] attempted header import');
     }));
   }
@@ -260,7 +263,7 @@ function dispatchBootEvent(type, detail) {
     try {
       const fallback = new Event(type);
       documentRef.dispatchEvent(fallback);
-    } catch (_) {}
+    } catch (_) { }
   }
 }
 
@@ -270,7 +273,7 @@ function logFallback(detail) {
   const suffix = detail ? ` (${detail})` : '';
   try {
     console.info(`[BOOT] log fallback active${suffix}`);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function applyLogFallback(promise) {
@@ -281,7 +284,7 @@ function applyLogFallback(promise) {
         const status = typeof response.status === 'number' ? `status ${response.status}` : '';
         logFallback(status);
       }
-    } catch (_) {}
+    } catch (_) { }
     return response;
   }, (err) => {
     const detail = err && (err.message || err.name)
@@ -314,7 +317,7 @@ function shouldWatchLogEndpoint(resource) {
     if (resource && typeof resource.url === 'string') {
       return matchesLogEndpoint(resource.url);
     }
-  } catch (_) {}
+  } catch (_) { }
   return false;
 }
 
@@ -333,7 +336,7 @@ if (typeof window !== 'undefined' && nativeFetch && !window.__LOG_FETCH_PATCHED_
   try {
     window.fetch = patchedFetch;
     window.__LOG_FETCH_PATCHED__ = true;
-  } catch (_) {}
+  } catch (_) { }
 }
 
 const splash = (() => {
@@ -352,7 +355,7 @@ const splash = (() => {
   function restore(elRef) {
     if (!elRef || originalMarkup == null || !showingMessage) return;
     try { elRef.innerHTML = originalMarkup; }
-    catch (_) {}
+    catch (_) { }
     showingMessage = false;
     lastMessage = null;
   }
@@ -390,14 +393,14 @@ const splash = (() => {
       if (!element) return;
       applyMessage(element, message);
       try { element.style.display = 'block'; }
-      catch (_) {}
+      catch (_) { }
     },
     hide() {
       const element = el();
       if (!element) return;
       restore(element);
       try { element.style.display = 'none'; }
-      catch (_) {}
+      catch (_) { }
       noteOverlayHidden();
     }
   };
@@ -418,7 +421,7 @@ const postLog = (kind, payload) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind, ts: Date.now(), ...payload })
     });
-    applyLogFallback(promise).catch(() => {});
+    applyLogFallback(promise).catch(() => { });
   } catch (err) {
     const detail = err && (err.message || err.name)
       ? `${err.message || err.name}`
@@ -455,10 +458,10 @@ export function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
     if (truthyFlag(q.get('safe'))) return true;
-  } catch (_) {}
+  } catch (_) { }
   try {
     if (truthyFlag(localStorage.getItem('SAFE'))) return true;
-  } catch (_) {}
+  } catch (_) { }
   return false;
 }
 
@@ -495,7 +498,7 @@ function getBootAnimationDecision({ safeOverride } = {}) {
         resolved = { enabled: !skip, instant: false };
         source = 'legacy';
       }
-    } catch (_) {}
+    } catch (_) { }
 
     if (!resolved) {
       try {
@@ -509,7 +512,7 @@ function getBootAnimationDecision({ safeOverride } = {}) {
         if (stored != null) {
           source = 'storage';
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     if (!resolved) {
@@ -545,7 +548,7 @@ function getBootAnimationDecision({ safeOverride } = {}) {
   const logDetail = decision.reason || (decision.safe ? 'safe mode' : 'default');
   try {
     console.info(`[BOOT] animation: ${decision.enabled ? 'enabled' : 'disabled'} (${logDetail})`);
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     if (typeof window !== 'undefined') {
@@ -557,7 +560,7 @@ function getBootAnimationDecision({ safeOverride } = {}) {
         instant: decision.instant ? 1 : 0
       };
     }
-  } catch (_) {}
+  } catch (_) { }
 
   return decision;
 }
@@ -614,7 +617,10 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
     let normalized = null;
     try {
       normalized = normalizeModuleId(spec);
-      const module = await import(normalized);
+      // Cache buster for dev environment
+      const url = new URL(normalized);
+      url.searchParams.set('t', Date.now());
+      const module = await import(url.href);
       records.push({ path: normalized, original: spec, module });
     } catch (err) {
       const detail = String(err?.stack || err);
@@ -671,13 +677,13 @@ function recordFatal(reason, detail, err) {
 function recordSuccess(meta) {
   bootCompletionSignal.resolve({ fatal: false, at: Date.now(), ...meta });
   overlay.hide();
-  try { globalScope?.requestAnimationFrame?.(() => { try { globalScope.overlay && typeof overlay.hide === 'function' && overlay.hide(); } catch (_) {} }); } catch (_) {}
+  try { globalScope?.requestAnimationFrame?.(() => { try { globalScope.overlay && typeof overlay.hide === 'function' && overlay.hide(); } catch (_) { } }); } catch (_) { }
   if (!perfPingNoted) {
     const stop = overlayHiddenAt == null ? timeSource() : overlayHiddenAt;
     const elapsed = Math.max(0, Math.round(stop - bootStart));
     try {
       console.info(`[PERF] overlay hidden in ${elapsed}ms`);
-    } catch (_) {}
+    } catch (_) { }
     perfPingNoted = true;
   }
   scheduleReadyFinalization();
@@ -689,7 +695,7 @@ function gatherServiceWaiters(records) {
   for (const { module } of records) {
     const fn = module?.__WHEN_SERVICES_READY;
     if (typeof fn === 'function') {
-      waiters.push(() => asPromise(fn()).catch(() => {}));
+      waiters.push(() => asPromise(fn()).catch(() => { }));
     }
   }
   return waiters;
@@ -706,181 +712,181 @@ function maybeRenderAll() {
   }
 }
 
-  async function animateTabCycle({ instant = false, decision: explicitDecision } = {}) {
-    const decision = explicitDecision || getBootAnimationDecision({});
-    const shouldAnimate = !!decision.enabled;
-    const useInstant = shouldAnimate ? !!(decision.instant ?? instant) : true;
+async function animateTabCycle({ instant = false, decision: explicitDecision } = {}) {
+  const decision = explicitDecision || getBootAnimationDecision({});
+  const shouldAnimate = !!decision.enabled;
+  const useInstant = shouldAnimate ? !!(decision.instant ?? instant) : true;
 
-    const markAnimationComplete = ({ bypass = false, reason } = {}) => {
-      animationCompletionSignal.resolve({ bypass, reason });
-    };
+  const markAnimationComplete = ({ bypass = false, reason } = {}) => {
+    animationCompletionSignal.resolve({ bypass, reason });
+  };
 
-    // Boot animation with two modes:
-    // - Normal mode: Fast but visible initialization sequence (2-3 seconds total)
-    // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
-    const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
-    const TAB_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for tab to activate
-    const TAB_POST_DELAY = useInstant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
-    const TAB_RETURN_POST_DELAY = useInstant ? 30 : 100;
-    const EXTRA_FINAL_DELAY = useInstant ? 100 : 200; // Final settling delay
+  // Boot animation with two modes:
+  // - Normal mode: Fast but visible initialization sequence (2-3 seconds total)
+  // - Instant mode (CI): Minimal delays just enough for lifecycle cleanup
+  const TAB_SEQUENCE = ['dashboard', 'longshots', 'pipeline', 'partners', 'contacts', 'calendar', 'reports', 'workbench'];
+  const TAB_WAIT_TIMEOUT = useInstant ? 100 : 200; // Allow time for tab to activate
+  const TAB_POST_DELAY = useInstant ? 30 : 100; // Normal: 100ms quick, CI: 30ms minimal (8×100ms = 800ms)
+  const TAB_RETURN_POST_DELAY = useInstant ? 30 : 100;
+  const EXTRA_FINAL_DELAY = useInstant ? 100 : 200; // Final settling delay
 
-    function wait(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
-    async function waitFor(predicate, { timeout = 1600, interval = 70 } = {}) {
-      const start = Date.now();
-      while ((Date.now() - start) < timeout) {
-        try {
-          if (predicate()) return true;
-        } catch (_) {}
-        await wait(interval);
-      }
+  async function waitFor(predicate, { timeout = 1600, interval = 70 } = {}) {
+    const start = Date.now();
+    while ((Date.now() - start) < timeout) {
       try {
-        return !!predicate();
-      } catch (_) {
-        return false;
-      }
+        if (predicate()) return true;
+      } catch (_) { }
+      await wait(interval);
     }
-
-    function dispatchSyntheticClick(node, label) {
-      if (!node) return;
-      const opts = { bubbles: true, cancelable: true, view: typeof window !== 'undefined' ? window : undefined };
-      const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
-      for (const type of events) {
-        try {
-          const Ctor = type.startsWith('pointer') && typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
-          node.dispatchEvent(new Ctor(type, opts));
-        } catch (err) {
-          try {
-            if (documentRef && typeof documentRef.createEvent === 'function') {
-              const evt = documentRef.createEvent('MouseEvents');
-              evt.initEvent(type === 'click' ? 'click' : 'mousedown', true, true);
-              node.dispatchEvent(evt);
-            }
-          } catch (_) {}
-        }
-      }
-      try { node.focus?.(); }
-      catch (_) {}
-      try { node.click?.(); }
-      catch (err) {
-        if (label && console && console.warn) {
-          console.warn(`[BOOT_ANIMATION] fallback click failed for ${label}`, err);
-        }
-      }
-    }
-
-    function getActiveTabName() {
-      try {
-        const activeButton = documentRef?.querySelector('#main-nav button[data-nav].active');
-        if (activeButton) {
-          const nav = activeButton.getAttribute('data-nav');
-          if (nav) return nav.toLowerCase();
-        }
-      } catch (_) {}
-      try {
-        const activeMain = documentRef?.querySelector('main[id^="view-"]:not(.hidden)');
-        if (activeMain && typeof activeMain.id === 'string') {
-          return activeMain.id.replace(/^view-/, '').toLowerCase();
-        }
-      } catch (_) {}
-      return '';
-    }
-
-    async function ensureTabActive(tabName, { postDelay = TAB_POST_DELAY } = {}) {
-      const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
-      if (!target) return false;
-      const button = documentRef?.querySelector(`#main-nav button[data-nav="${target}"]`);
-      if (!button) {
-        console.warn(`[BOOT_ANIMATION] nav button missing for ${target}`);
-        return false;
-      }
-      if (getActiveTabName() === target) {
-        await wait(useInstant ? postDelay : Math.max(140, postDelay));
-        return true;
-      }
-      dispatchSyntheticClick(button, `tab:${target}`);
-      const success = await waitFor(() => getActiveTabName() === target, {
-        timeout: TAB_WAIT_TIMEOUT,
-        interval: 50
-      });
-      if (!success) {
-        console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
-        return false;
-      }
-      await wait(useInstant ? postDelay : Math.max(140, postDelay));
-      console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
-      return true;
-    }
-
-    function waitForDashboardReady() {
-      return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
-          resolve();
-        }, useInstant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
-
-        const handler = () => {
-          clearTimeout(timeout);
-          console.info('[BOOT_ANIMATION] Dashboard widgets ready event received');
-          resolve();
-        };
-
-        if (documentRef) {
-          documentRef.addEventListener('dashboard:widgets:ready', handler, { once: true });
-        } else {
-          clearTimeout(timeout);
-          resolve();
-        }
-      });
-    }
-
-    if (!shouldAnimate) {
-      // Skip-mode must still signal completion immediately so smoke tests and
-      // splash logic can proceed without waiting for any optional activation
-      // helpers to finish.
-      markAnimationComplete({ bypass: true, reason: 'disabled' });
-      try {
-        console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
-      } catch (_) {}
-      try {
-        await ensureTabActive('dashboard', { postDelay: 0 });
-        await waitForDashboardReady();
-      } catch (err) {
-        console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
-      }
-      // markAnimationComplete is intentionally idempotent; signaling early
-      // keeps __BOOT_ANIMATION_COMPLETE__ available even if the minimal
-      // helpers take longer than expected.
-      return;
-    }
-
     try {
-      console.info('[BOOT_ANIMATION] Starting OPTIMIZED boot animation sequence');
-
-      // PHASE 1: Cycle through ALL tabs once with ultra-minimal spacing (30ms)
-      console.info('[BOOT_ANIMATION] Cycling through all tabs (once each, 30ms intervals)');
-      for (const tab of TAB_SEQUENCE) {
-        await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
-      }
-
-      // PHASE 2: Return to dashboard
-      console.info('[BOOT_ANIMATION] Returning to dashboard');
-      await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
-
-      // PHASE 3: Final verification and completion without dashboard mode thrash
-      console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
-      await waitForDashboardReady();
-
-      await wait(EXTRA_FINAL_DELAY);
-      console.info('[BOOT_ANIMATION] OPTIMIZED boot animation sequence complete');
-    } catch (err) {
-      console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
-    } finally {
-      markAnimationComplete({ bypass: false, reason: 'complete' });
+      return !!predicate();
+    } catch (_) {
+      return false;
     }
   }
+
+  function dispatchSyntheticClick(node, label) {
+    if (!node) return;
+    const opts = { bubbles: true, cancelable: true, view: typeof window !== 'undefined' ? window : undefined };
+    const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+    for (const type of events) {
+      try {
+        const Ctor = type.startsWith('pointer') && typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+        node.dispatchEvent(new Ctor(type, opts));
+      } catch (err) {
+        try {
+          if (documentRef && typeof documentRef.createEvent === 'function') {
+            const evt = documentRef.createEvent('MouseEvents');
+            evt.initEvent(type === 'click' ? 'click' : 'mousedown', true, true);
+            node.dispatchEvent(evt);
+          }
+        } catch (_) { }
+      }
+    }
+    try { node.focus?.(); }
+    catch (_) { }
+    try { node.click?.(); }
+    catch (err) {
+      if (label && console && console.warn) {
+        console.warn(`[BOOT_ANIMATION] fallback click failed for ${label}`, err);
+      }
+    }
+  }
+
+  function getActiveTabName() {
+    try {
+      const activeButton = documentRef?.querySelector('#main-nav button[data-nav].active');
+      if (activeButton) {
+        const nav = activeButton.getAttribute('data-nav');
+        if (nav) return nav.toLowerCase();
+      }
+    } catch (_) { }
+    try {
+      const activeMain = documentRef?.querySelector('main[id^="view-"]:not(.hidden)');
+      if (activeMain && typeof activeMain.id === 'string') {
+        return activeMain.id.replace(/^view-/, '').toLowerCase();
+      }
+    } catch (_) { }
+    return '';
+  }
+
+  async function ensureTabActive(tabName, { postDelay = TAB_POST_DELAY } = {}) {
+    const target = typeof tabName === 'string' ? tabName.toLowerCase() : '';
+    if (!target) return false;
+    const button = documentRef?.querySelector(`#main-nav button[data-nav="${target}"]`);
+    if (!button) {
+      console.warn(`[BOOT_ANIMATION] nav button missing for ${target}`);
+      return false;
+    }
+    if (getActiveTabName() === target) {
+      await wait(useInstant ? postDelay : Math.max(140, postDelay));
+      return true;
+    }
+    dispatchSyntheticClick(button, `tab:${target}`);
+    const success = await waitFor(() => getActiveTabName() === target, {
+      timeout: TAB_WAIT_TIMEOUT,
+      interval: 50
+    });
+    if (!success) {
+      console.warn(`[BOOT_ANIMATION] Tab activation timed out for ${target}`);
+      return false;
+    }
+    await wait(useInstant ? postDelay : Math.max(140, postDelay));
+    console.info(`[BOOT_ANIMATION] Cycled to ${target}`);
+    return true;
+  }
+
+  function waitForDashboardReady() {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[BOOT_ANIMATION] Dashboard ready timeout - proceeding anyway');
+        resolve();
+      }, useInstant ? 200 : 500); // Instant mode: 200ms, normal: 500ms
+
+      const handler = () => {
+        clearTimeout(timeout);
+        console.info('[BOOT_ANIMATION] Dashboard widgets ready event received');
+        resolve();
+      };
+
+      if (documentRef) {
+        documentRef.addEventListener('dashboard:widgets:ready', handler, { once: true });
+      } else {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  }
+
+  if (!shouldAnimate) {
+    // Skip-mode must still signal completion immediately so smoke tests and
+    // splash logic can proceed without waiting for any optional activation
+    // helpers to finish.
+    markAnimationComplete({ bypass: true, reason: 'disabled' });
+    try {
+      console.info('[BOOT_ANIMATION] Minimal activation (no tab cycling)');
+    } catch (_) { }
+    try {
+      await ensureTabActive('dashboard', { postDelay: 0 });
+      await waitForDashboardReady();
+    } catch (err) {
+      console.warn('[BOOT_ANIMATION] Minimal boot activation failed:', err);
+    }
+    // markAnimationComplete is intentionally idempotent; signaling early
+    // keeps __BOOT_ANIMATION_COMPLETE__ available even if the minimal
+    // helpers take longer than expected.
+    return;
+  }
+
+  try {
+    console.info('[BOOT_ANIMATION] Starting OPTIMIZED boot animation sequence');
+
+    // PHASE 1: Cycle through ALL tabs once with ultra-minimal spacing (30ms)
+    console.info('[BOOT_ANIMATION] Cycling through all tabs (once each, 30ms intervals)');
+    for (const tab of TAB_SEQUENCE) {
+      await ensureTabActive(tab, { postDelay: TAB_POST_DELAY });
+    }
+
+    // PHASE 2: Return to dashboard
+    console.info('[BOOT_ANIMATION] Returning to dashboard');
+    await ensureTabActive('dashboard', { postDelay: TAB_RETURN_POST_DELAY });
+
+    // PHASE 3: Final verification and completion without dashboard mode thrash
+    console.info('[BOOT_ANIMATION] Waiting for dashboard to be fully loaded...');
+    await waitForDashboardReady();
+
+    await wait(EXTRA_FINAL_DELAY);
+    console.info('[BOOT_ANIMATION] OPTIMIZED boot animation sequence complete');
+  } catch (err) {
+    console.warn('[BOOT_ANIMATION] Animation sequence failed:', err);
+  } finally {
+    markAnimationComplete({ bypass: false, reason: 'complete' });
+  }
+}
 
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
   const state = { core: [], patches: [], safe: false };
@@ -893,7 +899,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
   }));
   try {
     overlay && overlay.show && overlay.show('Loading…');
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
@@ -916,7 +922,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
           });
         window.__EXPECTED_PATCHES__ = expected;
         window.__SAFE_MODE__ = safe ? 1 : 0;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const patchRecords = safe
