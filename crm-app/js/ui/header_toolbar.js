@@ -1,5 +1,5 @@
 import { bindQuickCreateMenu, bindHeaderQuickCreateOnce, closeQuickCreateMenu } from './quick_create_menu.js';
-import { getQuickAddMenuOptions } from '../quick_add.js';
+// import { getQuickAddMenuOptions } from '../quick_add.js';
 import { onEnter, onLeave } from '../router/history.js';
 import { ensureViewGuard, getViewGuard, releaseViewGuard } from '../router/view_teardown.js';
 import { getSettingsApi } from '../app_context.js';
@@ -202,16 +202,10 @@ function ensureQuickCreateBinding(host) {
   }
   teardownQuickCreateBinding();
   try {
-    const quickAddOptions = getQuickAddMenuOptions();
+    // const quickAddOptions = getQuickAddMenuOptions();
     const unbind = bindQuickCreateMenu(host, {
       toggleSelector: `#${BUTTON_ID}`,
-      enableActionBar: true,
-      openContact: quickAddOptions && typeof quickAddOptions.openContact === 'function'
-        ? quickAddOptions.openContact
-        : undefined,
-      openPartner: quickAddOptions && typeof quickAddOptions.openPartner === 'function'
-        ? quickAddOptions.openPartner
-        : undefined
+      enableActionBar: true
     });
     headerState.unbind = typeof unbind === 'function' ? unbind : null;
     headerState.boundHost = host;

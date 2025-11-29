@@ -8,6 +8,7 @@ import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner
 import { closeSingletonModal } from './ui/modal_singleton.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
 import { normalizeStatus } from './pipeline/constants.js';
+import './ui/header_toolbar.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
@@ -430,6 +431,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       window.dispatchEvent(new CustomEvent('app:ready'));
     }
     bootSplash.hide();
+    // CLEANUP: Force unlock scrolling after boot
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+      document.body.classList.remove('modal-open', 'is-loading', 'no-scroll');
+      if (document.documentElement) document.documentElement.style.overflow = '';
+    }
   }
 
   function onDomReady(fn) {
@@ -1933,18 +1941,24 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       id: 'view-calendar',
       ui: 'calendar-root',
       async mount(root) {
+        const viewRoot = document.getElementById('view-calendar');
+        if (!viewRoot) return;
+        if (!viewRoot.innerHTML.trim()) viewRoot.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
         try {
           const mod = await import('./calendar.js');
-          if (mod && typeof mod.renderCalendarView === 'function') {
-            mod.renderCalendarView();
-          } else if (typeof window.renderCalendar === 'function') {
-            window.renderCalendar();
+          // FIX: Handle object export { init: fn } vs function export
+          if (mod.default && typeof mod.default.init === 'function') {
+            mod.default.init();
+          } else if (typeof mod.ensureCalendar === 'function') {
+            mod.ensureCalendar();
+          } else if (typeof mod.default === 'function') {
+            mod.default();
+          } else {
+            throw new Error('Calendar module has no init function');
           }
-        } catch (err) {
-          console.error('Failed to load calendar view', err);
-          if (typeof window.renderCalendar === 'function') {
-            window.renderCalendar();
-          }
+        } catch (e) {
+          console.error('Calendar load failed', e);
+          viewRoot.innerHTML = '<div class="error-state">Calendar unavailable. Check console.</div>';
         }
       }
     },

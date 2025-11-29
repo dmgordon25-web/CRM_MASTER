@@ -22,11 +22,16 @@ const BIND_GUARD_KEY = typeof Symbol === 'function'
 const defaultOpeners = {
   contact: async () => {
     try {
-      const { openContactEditor } = await import('../contacts.js');
-      return openContactEditor();
+      const mod = await import('../contacts.js');
+      if (typeof mod.openContactEditor === 'function') {
+        return mod.openContactEditor(null, { source: 'quick-create:menu' });
+      } else {
+        console.error('openContactEditor missing from contacts.js exports', Object.keys(mod));
+        toastWarn('Contact editor module invalid.');
+      }
     } catch (err) {
-      console.warn('Failed to load contact editor', err);
-      toastWarn('Contact modal unavailable');
+      console.error('Failed to load contacts module:', err);
+      toastWarn('Could not load contact editor.');
     }
   },
   partner: async () => {
@@ -773,6 +778,7 @@ export function createBinding(host, options = {}) {
     }
   };
 
+  const bus = options.bus;
   if (bus && typeof bus === 'object') {
     const eventNames = ['app:navigate', 'app:view:changed', 'route:changed', 'shell:navigate'];
     eventNames.forEach((eventName) => {
@@ -860,7 +866,7 @@ export function createBinding(host, options = {}) {
 
 export function bindHeaderQuickCreateOnce(root, bus) {
   try {
-    createBinding(root);
+    createBinding(root, { bus });
     return root ? root.querySelector(HEADER_TOGGLE_SELECTOR) : null;
   } catch (err) {
     console.warn('[QC] bindHeaderQuickCreateOnce failed', err);
