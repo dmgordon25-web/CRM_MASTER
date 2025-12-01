@@ -13,6 +13,8 @@ function resolveReason(scope, reason) {
     return `${scope}:clear`;
 }
 
+
+
 export async function clearSelectionForSurface(scope, options = {}) {
     const normalizedScope = normalizeScope(scope);
     const reason = resolveReason(normalizedScope, options.reason);
@@ -26,11 +28,13 @@ export async function clearSelectionForSurface(scope, options = {}) {
     } catch (_) { }
 
     // 2. BREAK DEADLOCK: Dynamic Import for UI
+    // Load Action Bar only when needed to prevent circular dependency boot hang
+    import('../ui/action_bar.js')
+        .then(m => { if (m.syncActionBarVisibility) m.syncActionBarVisibility(0); })
+        .catch(err => console.warn('[SelectionReset] failed to sync action bar', err));
+
+    // Fallback: Dispatch event for decoupled listeners
     try {
-        // Load Action Bar only when needed to prevent circular dependency boot hang
-        const { syncActionBarVisibility } = await import('../ui/action_bar.js');
-        if (typeof syncActionBarVisibility === 'function') syncActionBarVisibility(0);
-    } catch (e) {
-        console.warn('Action Bar sync failed', e);
-    }
+        window.dispatchEvent(new CustomEvent('selection:clear', { detail: { source: 'reset' } }));
+    } catch (_) { }
 }
