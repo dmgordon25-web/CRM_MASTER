@@ -6,8 +6,8 @@ const BOOT_SPLASH_SELECTOR = '#boot-splash';
 function setBootFlags() {
   if (typeof window === 'undefined') return;
   window.__SPLASH_HIDDEN__ = true;
-  const skipped = window.__SKIP_BOOT_ANIMATION__ === true;
-  window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: skipped || true };
+  // Always set bypassed: true since we're hiding splash immediately in refactored code
+  window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
 }
 
 // This function manipulates DOM - must be deferred
