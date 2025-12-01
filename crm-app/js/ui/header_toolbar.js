@@ -256,32 +256,9 @@ function pickHeaderMount(header) {
 
 function placeHost(header, host) {
   if (!header || !host) return;
-  const doc = header.ownerDocument || document;
-  if (!doc) return;
 
-  /* const nav = doc.getElementById('main-nav');
-  if (nav) {
-    const searchContainer = nav.querySelector('#universal-search-container');
-    const calendarBtn = nav.querySelector('[data-nav="calendar"]');
-
-    if (searchContainer && calendarBtn) {
-      if (host.parentElement !== nav) {
-        nav.insertBefore(host, calendarBtn);
-      } else if (host.nextElementSibling !== calendarBtn) {
-        nav.insertBefore(host, calendarBtn);
-      }
-      return;
-    }
-
-    if (searchContainer) {
-      if (host.parentElement !== nav) {
-        searchContainer.insertAdjacentElement('afterend', host);
-      } else if (host.previousElementSibling !== searchContainer) {
-        searchContainer.insertAdjacentElement('afterend', host);
-      }
-      return;
-    }
-  } */
+  // [FIX] HARDCODED: ONLY place in header, NEVER in sidebar (#main-nav)
+  // This prevents the New+ button from hijacking the sidebar layout
 
   const mount = pickHeaderMount(header);
   if (mount && mount !== header) {

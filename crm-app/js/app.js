@@ -2448,15 +2448,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     console.log('[APP_DEBUG] activate called for view:', view);
     console.trace('[APP_DEBUG] activate stack');
     const previous = activeView;
-    // [PATCH] Aggressively clean up previous view to prevent calendar/partner bleed
-    if (previous && previous !== normalized) {
-      const prevRoot = document.getElementById('view-' + previous);
-      // Force wipe Calendar or Partners when leaving them
-      if (prevRoot && (previous === 'calendar' || previous === 'partners')) {
-        prevRoot.innerHTML = '';
-        prevRoot.removeAttribute('data-mounted');
-      }
-    }
     let normalized = normalizeView(view);
     if (!normalized) return;
     if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
@@ -2464,6 +2455,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
     if (normalized === 'notifications' && !notificationsEnabled) {
       normalized = DEFAULT_ROUTE;
+    }
+    // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners/etc)
+    if (previous && previous !== normalized) {
+      const prevRoot = document.getElementById('view-' + previous);
+      if (prevRoot) {
+        // FORCE DESTROY: Wipe innerHTML and clear mounted flag to kill ghost elements
+        prevRoot.innerHTML = '';
+        prevRoot.removeAttribute('data-mounted');
+      }
     }
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
@@ -2711,13 +2711,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 
 
+  // [FIX] Use EVENT DELEGATION so Settings tabs work even after DOM wipe/reload
   function initSettingsNav() {
-    const nav = document.getElementById('settings-nav');
-    if (!nav || nav.__wired) return;
-    nav.__wired = true;
-    nav.addEventListener('click', (e) => {
+    if (document.body.__settingsNavWired) return;
+    document.body.__settingsNavWired = true;
+    document.body.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-panel]');
       if (!btn) return;
+      const nav = document.getElementById('settings-nav');
+      if (!nav || !nav.contains(btn)) return;
       e.preventDefault();
       const target = btn.getAttribute('data-panel');
       nav.querySelectorAll('button[data-panel]').forEach(b => {
@@ -2729,7 +2731,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     });
   }
   initSettingsNav();
-  document.addEventListener('DOMContentLoaded', initSettingsNav);
   initColumnsSettingsPanel();
 
   function clearRowHighlights(row) {
