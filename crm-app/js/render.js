@@ -1318,6 +1318,17 @@ export async function renderAll(request) {
   const wantsContactTables = shouldRenderScope(scopeSet, 'contacts', 'longshots');
   const wantsPipelineTable = shouldRenderScope(scopeSet, 'pipeline');
   const wantsPartners = shouldRenderScope(scopeSet, 'partners');
+  const wantsCalendar = shouldRenderScope(scopeSet, 'calendar');
+
+  if (wantsCalendar && typeof window.renderCalendar === 'function') {
+    try {
+      // Calendar is self-contained and handles its own async loading
+      window.renderCalendar();
+    } catch (err) {
+      console.warn('[render] Calendar render failed', err);
+    }
+  }
+
   return withLayoutGuard('render.js', async () => {
     const totalMark = perfMark('renderAll');
     let dashboardMark = null;

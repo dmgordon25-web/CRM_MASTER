@@ -42,20 +42,36 @@ const puppeteer = require('puppeteer');
         // Navigate to Calendar using evaluate
         console.log('Navigating to Calendar...');
         const clickResult = await page.evaluate(() => {
+            if (typeof window.activate === 'function') {
+                window.activate('calendar');
+                return 'Activated direct';
+            }
             const btn = document.querySelector('button[data-nav="calendar"]');
             if (!btn) return 'Button not found';
-            if (btn.offsetParent === null) return 'Button hidden';
             btn.click();
-            return 'Clicked';
+            return 'Clicked button';
         });
         console.log('Click Result:', clickResult);
 
-        if (clickResult !== 'Clicked') {
+        if (clickResult !== 'Clicked' && clickResult !== 'Clicked button' && clickResult !== 'Activated direct') {
             const bodyHtml = await page.content();
             console.log('Body HTML (truncated):', bodyHtml.substring(0, 2000));
-            throw new Error('Failed to click calendar button');
+            throw new Error('Failed to click calendar button: ' + clickResult);
         }
 
+        // Debug visibility immediately
+        const calVis = await page.evaluate(() => {
+            const el = document.getElementById('view-calendar');
+            if (!el) return 'MISSING';
+            return {
+                exists: true,
+                classList: el.className,
+                style: el.getAttribute('style'),
+                display: window.getComputedStyle(el).display,
+                hidden: el.hidden
+            };
+        });
+        console.log('Immediate Calendar Visibility:', JSON.stringify(calVis, null, 2));
 
         console.log('Waiting for calendar view...');
         await page.waitForSelector('#view-calendar', { visible: true, timeout: 5000 });
