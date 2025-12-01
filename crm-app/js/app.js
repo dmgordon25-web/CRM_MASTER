@@ -2457,16 +2457,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       normalized = DEFAULT_ROUTE;
     }
     // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners ONLY)
-    if (previous && previous !== normalized) {
+    if (previous && previous !== normalized && (previous === 'calendar' || previous === 'partners')) {
       const prevRoot = document.getElementById('view-' + previous);
-      // ONLY clear innerHTML for calendar/partners to prevent their complex DOM from bleeding
-      if (prevRoot && (previous === 'calendar' || previous === 'partners')) {
+      if (prevRoot) {
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
+        // Unlock body scroll when leaving calendar/partners (they may have modals)
+        document.body.style.overflow = '';
+        document.body.classList.remove('modal-open', 'no-scroll');
       }
-      // Always unlock body scroll when switching views (in case modal was open)
-      document.body.style.overflow = '';
-      document.body.classList.remove('modal-open', 'no-scroll');
     }
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
