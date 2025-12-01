@@ -2039,8 +2039,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
 
         try {
-          const { renderPartners } = await import('./partners.js');
-          if (typeof renderPartners === 'function') renderPartners(viewRoot);
+          const { renderPartnersView } = await import('./render.js');
+          if (typeof renderPartnersView === 'function') await renderPartnersView();
         } catch (e) {
           console.error('Partner view failed', e);
         }
@@ -2447,6 +2447,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function activate(view) {
     console.log('[APP_DEBUG] activate called for view:', view);
     console.trace('[APP_DEBUG] activate stack');
+    let normalized = normalizeView(view);
     const previous = activeView;
     // [PATCH] Aggressively clean up previous view to prevent calendar/partner bleed
     if (previous && previous !== normalized) {
@@ -2457,7 +2458,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         prevRoot.removeAttribute('data-mounted');
       }
     }
-    let normalized = normalizeView(view);
     if (!normalized) return;
     if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
       normalized = DEFAULT_ROUTE;
@@ -2503,7 +2503,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       catch (_) { }
     }
 
-    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
+    try {
+      console.log('[APP_DEBUG] Toggling views for:', normalized);
+      $all('main[id^="view-"]').forEach(m => {
+        const isTarget = m.id === 'view-' + normalized;
+        m.classList.toggle('hidden', !isTarget);
+        if (isTarget) console.log('[APP_DEBUG] Showing:', m.id);
+      });
+    } catch (e) {
+      console.error('[APP_DEBUG] Toggle failed', e);
+    }
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
     if (settingsButton) {
       settingsButton.classList.toggle('active', normalized === 'settings');
@@ -2559,8 +2568,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     requestRenderForNavigation(normalized);
     if (normalized === 'settings') {
       renderExtrasRegistry();
-      // [PATCH] Ensure tabs are wired when entering settings
-      if (typeof initSettingsNav === 'function') initSettingsNav();
+
     }
     if (previous !== normalized || root) {
       const detail = {
@@ -2711,25 +2719,30 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 
 
-  function initSettingsNav() {
-    const nav = document.getElementById('settings-nav');
-    if (!nav || nav.__wired) return;
-    nav.__wired = true;
-    nav.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-panel]');
+  // [PATCH] Global event delegation for settings tabs
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest ? e.target.closest('button[data-panel]') : null;
       if (!btn) return;
-      e.preventDefault();
-      const target = btn.getAttribute('data-panel');
-      nav.querySelectorAll('button[data-panel]').forEach(b => {
-        b.classList.toggle('active', b === btn);
-      });
-      document.querySelectorAll('#view-settings .settings-panel').forEach(section => {
-        section.classList.toggle('active', section.getAttribute('data-panel') === target);
-      });
+
+      // Verify this is a settings tab button (usually inside #settings-nav)
+      const nav = document.getElementById('settings-nav');
+      if (nav && nav.contains(btn)) {
+        e.preventDefault();
+        const target = btn.getAttribute('data-panel');
+
+        // Update buttons
+        nav.querySelectorAll('button[data-panel]').forEach(b => {
+          b.classList.toggle('active', b === btn);
+        });
+
+        // Update panels
+        document.querySelectorAll('#view-settings .settings-panel').forEach(section => {
+          section.classList.toggle('active', section.getAttribute('data-panel') === target);
+        });
+      }
     });
   }
-  initSettingsNav();
-  document.addEventListener('DOMContentLoaded', initSettingsNav);
   initColumnsSettingsPanel();
 
   function clearRowHighlights(row) {
