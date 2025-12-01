@@ -2445,12 +2445,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   function activate(view) {
-    console.log('[APP_DEBUG] activate called for view:', view);
-    console.trace('[APP_DEBUG] activate stack');
     let normalized = normalizeView(view);
-    const previous = activeView;
 
     if (!normalized) return;
+    const previous = activeView;
     if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
       normalized = DEFAULT_ROUTE;
     }
@@ -2474,7 +2472,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       // Safe DOM cleanup (Dependency Removed)
       const _m = document.querySelector('[data-ui="contact-edit-modal"]');
       if (_m) {
-        console.log('[APP_DEBUG] activate closing contact modal');
         _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open');
       }
     } catch (_err) {
@@ -2507,14 +2504,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     try {
-      console.log('[APP_DEBUG] Toggling views for:', normalized);
       $all('main[id^="view-"]').forEach(m => {
         const isTarget = m.id === 'view-' + normalized;
         m.classList.toggle('hidden', !isTarget);
-        if (isTarget) console.log('[APP_DEBUG] Showing:', m.id);
       });
     } catch (e) {
-      console.error('[APP_DEBUG] Toggle failed', e);
+      console.error('[app] View toggle failed', e);
     }
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
     if (settingsButton) {
