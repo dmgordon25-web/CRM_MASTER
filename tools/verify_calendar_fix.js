@@ -63,12 +63,18 @@ const puppeteer = require('puppeteer');
         const calVis = await page.evaluate(() => {
             const el = document.getElementById('view-calendar');
             if (!el) return 'MISSING';
+            const rect = el.getBoundingClientRect();
             return {
                 exists: true,
                 classList: el.className,
                 style: el.getAttribute('style'),
                 display: window.getComputedStyle(el).display,
-                hidden: el.hidden
+                hidden: el.hidden,
+                width: rect.width,
+                height: rect.height,
+                top: rect.top,
+                left: rect.left,
+                innerHTML: el.innerHTML.substring(0, 100)
             };
         });
         console.log('Immediate Calendar Visibility:', JSON.stringify(calVis, null, 2));
