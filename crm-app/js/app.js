@@ -2443,77 +2443,38 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     renderedRoutes.add(normalized);
     scheduleAppRender();
   }
-  async function activate(view) {
-    console.log(`[ACTIVATE] Request to activate view: ${view}`);
-    if (view === activeView) return;
-
+  function activate(view) {
+    let normalized = normalizeView(view);
+    if (!normalized) return;
+    if (normalized === 'notifications' && !notificationsEnabled) {
+      normalized = DEFAULT_ROUTE;
+    }
     const previous = activeView;
+    if (normalized === previous) return;
 
-    // Normalize view name
-    let normalized = view;
-    if (view === 'dashboard' || view === '') normalized = 'dashboard';
-
-    console.log(`[ACTIVATE] Normalized view: ${normalized}`);
-
-    // 1. Hide current view
-    if (activeView) {
-      const currentEl = document.getElementById(`view-${activeView}`);
-      if (currentEl) {
-        console.log(`[ACTIVATE] Hiding current view: view-${activeView}`);
-        currentEl.classList.add('hidden');
-      } else {
-        console.warn(`[ACTIVATE] Current view element not found: view-${activeView}`);
-      }
-    }
-
-    // 2. Show new view
-    const nextEl = document.getElementById(`view-${normalized}`);
-    if (nextEl) {
-      console.log(`[ACTIVATE] Showing new view: view-${normalized}`);
-      nextEl.classList.remove('hidden');
-      activeView = normalized;
-    } else {
-      console.error(`[ACTIVATE] Target view element not found: view-${normalized}`);
-      // Fallback to dashboard if not found
-      if (normalized !== 'dashboard') {
-        console.log('[ACTIVATE] Fallback to dashboard');
-        activate('dashboard');
-        return;
-      }
-    }
-
-    // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners ONLY)
     if (previous && previous !== normalized && (previous === 'calendar' || previous === 'partners')) {
       const prevRoot = document.getElementById('view-' + previous);
       if (prevRoot) {
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
-        // Unlock body scroll when leaving calendar/partners (they may have modals)
         document.body.style.overflow = '';
         document.body.classList.remove('modal-open', 'no-scroll');
       }
     }
 
-    // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
-      const _m = document.querySelector('[data-ui="contact-edit-modal"]');
-      if (_m) {
-        console.log('[APP_DEBUG] activate closing contact modal');
-        _m.style.display = 'none'; if (_m.hasAttribute('open')) _m.removeAttribute('open');
+      const contactModal = document.querySelector('[data-ui="contact-edit-modal"]');
+      if (contactModal) {
+        contactModal.style.display = 'none';
+        if (contactModal.hasAttribute('open')) contactModal.removeAttribute('open');
       }
-    } catch (_err) {
-      try { console.warn('[app] Failed to close contact editor during navigation', _err); }
-      catch (_) { }
-    }
+    } catch (_) { }
 
     try {
       if (typeof closePartnerEditModal === 'function') {
         closePartnerEditModal();
       }
-    } catch (_err) {
-      try { console.warn('[app] Failed to close partner editor during navigation', _err); }
-      catch (_) { }
-    }
+    } catch (_) { }
 
     try {
       const openModals = document.querySelectorAll('[data-modal-key]');
@@ -2523,19 +2484,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           closeSingletonModal(key, { remove: false });
         }
       });
-    } catch (_err) {
-      try { console.warn('[app] Failed to close singleton modals during navigation', _err); }
-      catch (_) { }
-    }
+    } catch (_) { }
 
-    // Update Nav State
+    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
-    const settingsButton = document.getElementById('btn-open-settings');
     if (settingsButton) {
       settingsButton.classList.toggle('active', normalized === 'settings');
     }
 
-    // Restore Stale View
+    activeView = normalized;
+
     const currentRoot = document.getElementById('view-' + normalized);
     if (currentRoot && currentRoot.dataset.isStale === '1') {
       delete currentRoot.dataset.isStale;
@@ -2553,7 +2511,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ensureActionBarPostPaintRefresh();
     }
 
-    // Ensure data-ui attribute
     const lifecycle = VIEW_LIFECYCLE[normalized];
     let root = null;
     if (lifecycle && lifecycle.id) {
@@ -2563,17 +2520,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     } else {
       root = document.getElementById('view-' + normalized) || null;
-    }
-
-    // STALE-WHILE-HIDDEN check
-    if (root && root.dataset.isStale === '1') {
-      delete root.dataset.isStale;
-      try {
-        console.log('[app] Restoring stale view: ' + normalized);
-        refreshByScope(normalized);
-      } catch (_err) {
-        // ignore
-      }
     }
 
     if (normalized === 'pipeline') {
