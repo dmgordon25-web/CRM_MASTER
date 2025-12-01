@@ -6,8 +6,18 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 0
 fi
 
-apt-get update
-apt-get install -y \
+SUDO=""
+if command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo "
+fi
+
+if [ -z "${SUDO}" ] && [ "$(id -u)" -ne 0 ]; then
+  echo "apt-get available but requires elevated privileges; skipping chromium dependency installation"
+  exit 0
+fi
+
+${SUDO}apt-get update
+${SUDO}apt-get install -y \
   libnss3 \
   libatk1.0-0 \
   libatk-bridge2.0-0 \
@@ -27,5 +37,5 @@ apt-get install -y \
   libx11-6 \
   ca-certificates
 
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+${SUDO}apt-get clean
+${SUDO}rm -rf /var/lib/apt/lists/*
