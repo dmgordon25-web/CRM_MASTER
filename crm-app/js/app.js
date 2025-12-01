@@ -2456,17 +2456,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === 'notifications' && !notificationsEnabled) {
       normalized = DEFAULT_ROUTE;
     }
-    // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners/etc)
+    // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners ONLY)
     if (previous && previous !== normalized) {
       const prevRoot = document.getElementById('view-' + previous);
-      if (prevRoot) {
-        // FORCE DESTROY: Wipe innerHTML and clear mounted flag to kill ghost elements
+      // ONLY clear innerHTML for calendar/partners to prevent their complex DOM from bleeding
+      if (prevRoot && (previous === 'calendar' || previous === 'partners')) {
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
-        // Unlock body scroll in case modal was open
-        document.body.style.overflow = '';
-        document.body.classList.remove('modal-open', 'no-scroll');
       }
+      // Always unlock body scroll when switching views (in case modal was open)
+      document.body.style.overflow = '';
+      document.body.classList.remove('modal-open', 'no-scroll');
     }
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
