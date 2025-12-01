@@ -524,15 +524,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       console.error('[DEBUG] #main-nav NOT found in onDomReady');
     }
 
-    [document.getElementById('btn-open-settings'), document.getElementById('btn-global-settings')]
-      .filter(Boolean)
-      .forEach((button) => {
-        if (button.__wired) return;
-        button.__wired = true;
-        button.addEventListener('click', (e) => {
-          e.preventDefault(); activate('settings');
-        });
+    const headerSettingsButton = document.getElementById('btn-open-settings');
+    if (headerSettingsButton && !headerSettingsButton.__wired) {
+      headerSettingsButton.__wired = true;
+      headerSettingsButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('settings');
       });
+    }
 
     const titleLink = document.getElementById('app-title-link');
     if (titleLink && !titleLink.__wired) {
@@ -690,7 +689,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const alreadyActive = settingsMain && !settingsMain.classList.contains('hidden');
       if (alreadyActive) return;
       const button = document.getElementById('btn-open-settings')
-        || document.getElementById('btn-global-settings')
         || document.querySelector('#main-nav button[data-nav="settings"]');
       if (button && typeof button.click === 'function') {
         button.click();
@@ -2453,8 +2451,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   const settingsButtons = [
-    document.getElementById('btn-open-settings'),
-    document.getElementById('btn-global-settings')
+    document.getElementById('btn-open-settings')
   ].filter(Boolean);
   const titleLink = document.getElementById('app-title-link');
 
