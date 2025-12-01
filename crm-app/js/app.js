@@ -2443,20 +2443,45 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     renderedRoutes.add(normalized);
     scheduleAppRender();
   }
+  async function activate(view) {
+    console.log(`[ACTIVATE] Request to activate view: ${view}`);
+    if (view === activeView) return;
 
-  function activate(view) {
-    console.log('[APP_DEBUG] activate called for view:', view);
-    console.trace('[APP_DEBUG] activate stack');
-    let normalized = normalizeView(view);
     const previous = activeView;
 
-    if (!normalized) return;
-    if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
-      normalized = DEFAULT_ROUTE;
+    // Normalize view name
+    let normalized = view;
+    if (view === 'dashboard' || view === '') normalized = 'dashboard';
+
+    console.log(`[ACTIVATE] Normalized view: ${normalized}`);
+
+    // 1. Hide current view
+    if (activeView) {
+      const currentEl = document.getElementById(`view-${activeView}`);
+      if (currentEl) {
+        console.log(`[ACTIVATE] Hiding current view: view-${activeView}`);
+        currentEl.classList.add('hidden');
+      } else {
+        console.warn(`[ACTIVATE] Current view element not found: view-${activeView}`);
+      }
     }
-    if (normalized === 'notifications' && !notificationsEnabled) {
-      normalized = DEFAULT_ROUTE;
+
+    // 2. Show new view
+    const nextEl = document.getElementById(`view-${normalized}`);
+    if (nextEl) {
+      console.log(`[ACTIVATE] Showing new view: view-${normalized}`);
+      nextEl.classList.remove('hidden');
+      activeView = normalized;
+    } else {
+      console.error(`[ACTIVATE] Target view element not found: view-${normalized}`);
+      // Fallback to dashboard if not found
+      if (normalized !== 'dashboard') {
+        console.log('[ACTIVATE] Fallback to dashboard');
+        activate('dashboard');
+        return;
+      }
     }
+
     // [FIX] Aggressively clean up previous view to prevent DOM bleed (Calendar/Partners ONLY)
     if (previous && previous !== normalized && (previous === 'calendar' || previous === 'partners')) {
       const prevRoot = document.getElementById('view-' + previous);
@@ -2468,10 +2493,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         document.body.classList.remove('modal-open', 'no-scroll');
       }
     }
+
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
     try {
-      // Lazy-load to prevent boot deadlock
-      // Safe DOM cleanup (Dependency Removed)
       const _m = document.querySelector('[data-ui="contact-edit-modal"]');
       if (_m) {
         console.log('[APP_DEBUG] activate closing contact modal');
@@ -2483,7 +2507,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     try {
-      // Close partner editor if open
       if (typeof closePartnerEditModal === 'function') {
         closePartnerEditModal();
       }
@@ -2493,7 +2516,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     try {
-      // Close any other singleton modals by selector
       const openModals = document.querySelectorAll('[data-modal-key]');
       openModals.forEach(modal => {
         const key = modal.dataset.modalKey;
@@ -2506,30 +2528,20 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       catch (_) { }
     }
 
-    try {
-      console.log('[APP_DEBUG] Toggling views for:', normalized);
-      $all('main[id^="view-"]').forEach(m => {
-        const isTarget = m.id === 'view-' + normalized;
-        m.classList.toggle('hidden', !isTarget);
-        if (isTarget) console.log('[APP_DEBUG] Showing:', m.id);
-      });
-    } catch (e) {
-      console.error('[APP_DEBUG] Toggle failed', e);
-    }
+    // Update Nav State
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
+    const settingsButton = document.getElementById('btn-open-settings');
     if (settingsButton) {
       settingsButton.classList.toggle('active', normalized === 'settings');
     }
-    activeView = normalized;
 
-    // INSERT: Restore Stale View
+    // Restore Stale View
     const currentRoot = document.getElementById('view-' + normalized);
     if (currentRoot && currentRoot.dataset.isStale === '1') {
       delete currentRoot.dataset.isStale;
       if (isDebug) console.log(`[app] Restoring stale view: ${normalized}`);
       refreshByScope(normalized);
     }
-    // END INSERT
 
     clearAllSelectionScopes();
     ensureViewMounted(normalized);
@@ -2540,6 +2552,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === 'partners' || normalized === 'contacts') {
       ensureActionBarPostPaintRefresh();
     }
+
+    // Ensure data-ui attribute
     const lifecycle = VIEW_LIFECYCLE[normalized];
     let root = null;
     if (lifecycle && lifecycle.id) {
@@ -2551,16 +2565,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       root = document.getElementById('view-' + normalized) || null;
     }
 
-    // STALE-WHILE-HIDDEN: Check if view was marked stale while hidden and refresh if needed
+    // STALE-WHILE-HIDDEN check
     if (root && root.dataset.isStale === '1') {
       delete root.dataset.isStale;
       try {
         console.log('[app] Restoring stale view: ' + normalized);
-        // Trigger immediate refresh for this view
         refreshByScope(normalized);
       } catch (_err) {
-        try { console.warn('[app] Failed to refresh stale view: ' + normalized, _err); }
-        catch (_) { }
+        // ignore
       }
     }
 
@@ -2571,8 +2583,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     requestRenderForNavigation(normalized);
     if (normalized === 'settings') {
       renderExtrasRegistry();
-
     }
+
     if (previous !== normalized || root) {
       const detail = {
         view: normalized,
@@ -2722,7 +2734,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 
 
-<<<<<<< HEAD
   // [PATCH] Global event delegation for settings tabs
   if (typeof document !== 'undefined' && document.body) {
     document.body.addEventListener('click', (e) => {
@@ -2747,28 +2758,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     });
   }
-=======
-  // [FIX] Use EVENT DELEGATION so Settings tabs work even after DOM wipe/reload
-  function initSettingsNav() {
-    if (document.body.__settingsNavWired) return;
-    document.body.__settingsNavWired = true;
-    document.body.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-panel]');
-      if (!btn) return;
-      const nav = document.getElementById('settings-nav');
-      if (!nav || !nav.contains(btn)) return;
-      e.preventDefault();
-      const target = btn.getAttribute('data-panel');
-      nav.querySelectorAll('button[data-panel]').forEach(b => {
-        b.classList.toggle('active', b === btn);
-      });
-      document.querySelectorAll('#view-settings .settings-panel').forEach(section => {
-        section.classList.toggle('active', section.getAttribute('data-panel') === target);
-      });
-    });
-  }
-  initSettingsNav();
->>>>>>> bb6b3f6e04c646a733bcab0b64aec130737978be
   initColumnsSettingsPanel();
 
   function clearRowHighlights(row) {
