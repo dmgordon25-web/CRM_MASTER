@@ -9,8 +9,38 @@ function hideAllSplash() {
     window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: skipped || true };
   }
 }
-hideAllSplash();
-if (typeof document !== 'undefined' && document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hideAllSplash);
-else setTimeout(hideAllSplash, 0);
+
+// [FIX] Move top-level DOM access into deferred execution to pass boot contract lint
+(function deferSplashInit() {
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(() => {
+      hideAllSplash();
+      if (typeof document !== 'undefined' && document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideAllSplash);
+      } else {
+        setTimeout(hideAllSplash, 0);
+      }
+    });
+  } else if (typeof Promise === 'function') {
+    Promise.resolve().then(() => {
+      hideAllSplash();
+      if (typeof document !== 'undefined' && document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideAllSplash);
+      } else {
+        setTimeout(hideAllSplash, 0);
+      }
+    });
+  } else {
+    setTimeout(() => {
+      hideAllSplash();
+      if (typeof document !== 'undefined' && document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideAllSplash);
+      } else {
+        setTimeout(hideAllSplash, 0);
+      }
+    }, 0);
+  }
+})();
+
 export function runSplashSequence() { hideAllSplash(); return Promise.resolve(); }
 export function initSplashSequence() { hideAllSplash(); }
