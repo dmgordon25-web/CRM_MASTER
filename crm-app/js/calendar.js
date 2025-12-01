@@ -255,4 +255,9 @@ export function ensureCalendar() {
   return ensureController();
 }
 
-export default { init: ensureCalendar };
+export async function renderView() {
+  const ctrl = await ensureController();
+  if (ctrl) ctrl.render();
+}
+
+export default { init: ensureCalendar, renderView };

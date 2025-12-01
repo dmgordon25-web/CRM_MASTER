@@ -7,7 +7,7 @@ import { getSettingsApi } from '../app_context.js';
 (function () { try { window.__WIRED_HEADER_TOOLBAR__ = true; console.info('[A_BEACON] header loaded'); } catch { } }());
 
 const STATE_KEY = '__WIRED_GLOBAL_NEW_BUTTON__';
-const BUTTON_ID = 'btn-header-new';
+const BUTTON_ID = 'quick-add-unified';
 const UNIFIED_NEW_DEFAULT = true;
 let ensureControlsRef = null;
 let headerOnlyBeaconed = false;

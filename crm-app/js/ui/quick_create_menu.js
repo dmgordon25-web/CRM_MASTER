@@ -629,14 +629,10 @@ export function isQuickCreateMenuOpen(source) {
 async function defaultOpenContactEditor(prefill) {
   const meta = { source: 'quick-create:menu', context: 'open', prefill };
   try {
-    // LAZY LOAD: Prevents boot race condition
     const { openContactEditor } = await import('../contacts.js');
-    if (prefill && prefill.id) {
-      return openContactEditor(prefill.id, meta);
-    }
     return openContactEditor(prefill || {}, meta);
-  } catch (err) {
-    console.warn('Contact editor load failed', err);
+  } catch (e) {
+    console.warn('Contact editor missing', e);
   }
 }
 

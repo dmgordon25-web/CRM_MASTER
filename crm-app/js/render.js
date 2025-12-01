@@ -1,19 +1,19 @@
 // render.js — clean
 import { STR, text as translate } from './ui/strings.js';
 import {
-    PIPELINE_STAGES,
-    PIPELINE_STAGE_KEYS,
-    NORMALIZE_STAGE,
-    stageKeyFromLabel,
-    stageLabelFromKey,
+  PIPELINE_STAGES,
+  PIPELINE_STAGE_KEYS,
+  NORMALIZE_STAGE,
+  stageKeyFromLabel,
+  stageLabelFromKey,
 } from './pipeline/stages.js';
 import {
-    renderStageChip,
-    canonicalStage,
-    STAGES as CANONICAL_STAGE_META,
-    normalizeStatus,
-    toneForStage,
-    toneClassName
+  renderStageChip,
+  canonicalStage,
+  STAGES as CANONICAL_STAGE_META,
+  normalizeStatus,
+  toneForStage,
+  toneClassName
 } from './pipeline/constants.js';
 // import { openContactEditor } from './contacts.js'; // REMOVED to fix circular dependency/syntax error
 import { openPartnerEditor } from './editors/partner_entry.js';
@@ -34,79 +34,79 @@ const perfReady = perf && typeof perf.now === 'function';
 const perfEnabled = () => Boolean(perfReady && typeof window !== 'undefined' && window.__CRM_DEBUG_PERF);
 const perfMark = (label) => ({ label, start: perfEnabled() ? perf.now() : 0 });
 const perfLog = (mark) => {
-    if (!mark || !mark.label || !perfEnabled() || !mark.start) return;
-    try {
-        const duration = perf.now() - mark.start;
-        console.log(`[PERF] ${mark.label} ${duration.toFixed(1)} ms`);
-    } catch (_) { }
+  if (!mark || !mark.label || !perfEnabled() || !mark.start) return;
+  try {
+    const duration = perf.now() - mark.start;
+    console.log(`[PERF] ${mark.label} ${duration.toFixed(1)} ms`);
+  } catch (_) { }
 };
 
 const RENDER_SCOPE_TOKENS = new Set(['dashboard', 'contacts', 'pipeline', 'partners', 'tasks', 'longshots', 'documents']);
 
 function normalizeScopeInput(value, into) {
-    const target = into || [];
-    if (value == null) return target;
-    if (Array.isArray(value)) {
-        value.forEach((entry) => normalizeScopeInput(entry, target));
-        return target;
-    }
-    if (typeof value === 'string') {
-        const trimmed = value.trim().toLowerCase();
-        if (trimmed) target.push(trimmed);
-        return target;
-    }
-    if (typeof value === 'object') {
-        if (Array.isArray(value.scopes)) normalizeScopeInput(value.scopes, target);
-        else if (typeof value.scope === 'string') normalizeScopeInput(value.scope, target);
-        return target;
-    }
+  const target = into || [];
+  if (value == null) return target;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => normalizeScopeInput(entry, target));
     return target;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed) target.push(trimmed);
+    return target;
+  }
+  if (typeof value === 'object') {
+    if (Array.isArray(value.scopes)) normalizeScopeInput(value.scopes, target);
+    else if (typeof value.scope === 'string') normalizeScopeInput(value.scope, target);
+    return target;
+  }
+  return target;
 }
 
 function parseRenderScopes(request) {
-    const scopes = normalizeScopeInput(request, []);
-    const valid = scopes.filter(token => RENDER_SCOPE_TOKENS.has(token));
-    return valid.length ? new Set(valid) : null;
+  const scopes = normalizeScopeInput(request, []);
+  const valid = scopes.filter(token => RENDER_SCOPE_TOKENS.has(token));
+  return valid.length ? new Set(valid) : null;
 }
 
 function shouldRenderScope(scopeSet, ...aliases) {
-    if (!scopeSet || scopeSet.size === 0) return true;
-    return aliases.some(alias => scopeSet.has(alias));
+  if (!scopeSet || scopeSet.size === 0) return true;
+  return aliases.some(alias => scopeSet.has(alias));
 }
 
 // IIFE Removed
 const STAGES_PIPE = ['application', 'processing', 'underwriting'];
 const STAGES_CLIENT = ['approved', 'cleared-to-close', 'funded', 'post-close'];
 const TABLE_IDS = [
-    'tbl-inprog',
-    'tbl-status-active',
-    'tbl-status-clients',
-    'tbl-status-longshots',
-    'tbl-partners',
-    'tbl-pipeline',
-    'tbl-clients',
-    'tbl-longshots',
-    'tbl-funded',
-    'tbl-ledger-received',
-    'tbl-ledger-projected',
-    'tbl-doc-templates',
-    'tbl-msg-templates'
+  'tbl-inprog',
+  'tbl-status-active',
+  'tbl-status-clients',
+  'tbl-status-longshots',
+  'tbl-partners',
+  'tbl-pipeline',
+  'tbl-clients',
+  'tbl-longshots',
+  'tbl-funded',
+  'tbl-ledger-received',
+  'tbl-ledger-projected',
+  'tbl-doc-templates',
+  'tbl-msg-templates'
 ];
 const DASHBOARD_BLOCKS = [
-    '#dashboard-focus',
-    '#dashboard-filters',
-    '#dashboard-kpis',
-    '#dashboard-pipeline-overview',
-    '#dashboard-today',
-    '#dashboard-todo',
-    '#referral-leaderboard',
-    '#dashboard-stale',
-    '#dashboard-insights',
-    '#goal-progress-card',
-    '#numbers-portfolio-card',
-    '#numbers-referrals-card',
-    '#numbers-momentum-card',
-    '#pipeline-calendar-card'
+  '#dashboard-focus',
+  '#dashboard-filters',
+  '#dashboard-kpis',
+  '#dashboard-pipeline-overview',
+  '#dashboard-today',
+  '#dashboard-todo',
+  '#referral-leaderboard',
+  '#dashboard-stale',
+  '#dashboard-insights',
+  '#goal-progress-card',
+  '#numbers-portfolio-card',
+  '#numbers-referrals-card',
+  '#numbers-momentum-card',
+  '#pipeline-calendar-card'
 ];
 const CALENDAR_CARD_SELECTOR = '#view-calendar .calendar-card';
 const TABLE_LOADING_OPTIONS = Object.freeze({ lines: 6, reserve: 'table', minHeight: 280 });
@@ -117,331 +117,331 @@ const hostLoadingCounts = new WeakMap();
 const pendingLoadingReleases = [];
 
 function acquireLoadingForHost(host, options = {}) {
-    if (!host || typeof host !== 'object') return () => { };
-    const previous = hostLoadingCounts.get(host) || 0;
-    if (previous === 0) {
-        try { attachLoadingBlock(host, options); }
-        catch (_err) { }
+  if (!host || typeof host !== 'object') return () => { };
+  const previous = hostLoadingCounts.get(host) || 0;
+  if (previous === 0) {
+    try { attachLoadingBlock(host, options); }
+    catch (_err) { }
+  }
+  hostLoadingCounts.set(host, previous + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const current = hostLoadingCounts.get(host) || 0;
+    const next = Math.max(0, current - 1);
+    if (next === 0) {
+      hostLoadingCounts.delete(host);
+      try { detachLoadingBlock(host); }
+      catch (_err) { }
+    } else {
+      hostLoadingCounts.set(host, next);
     }
-    hostLoadingCounts.set(host, previous + 1);
-    let released = false;
-    return () => {
-        if (released) return;
-        released = true;
-        const current = hostLoadingCounts.get(host) || 0;
-        const next = Math.max(0, current - 1);
-        if (next === 0) {
-            hostLoadingCounts.delete(host);
-            try { detachLoadingBlock(host); }
-            catch (_err) { }
-        } else {
-            hostLoadingCounts.set(host, next);
-        }
-    };
+  };
 }
 
 function rememberLoadingRelease(release) {
-    if (typeof release === 'function') pendingLoadingReleases.push(release);
+  if (typeof release === 'function') pendingLoadingReleases.push(release);
 }
 
 function releasePendingLoading() {
-    while (pendingLoadingReleases.length) {
-        const release = pendingLoadingReleases.pop();
-        try { release(); }
-        catch (_err) { }
-    }
+  while (pendingLoadingReleases.length) {
+    const release = pendingLoadingReleases.pop();
+    try { release(); }
+    catch (_err) { }
+  }
 }
 
 function findListLoadingHost(table) {
-    if (!table || typeof table !== 'object') return null;
-    let host = null;
-    if (typeof table.closest === 'function') {
-        const selectors = ['[data-loading-host]', '.card', '.table-card', '.status-table-wrap'];
-        for (const selector of selectors) {
-            const candidate = table.closest(selector);
-            if (candidate && candidate !== table) {
-                host = candidate;
-                break;
-            }
-        }
+  if (!table || typeof table !== 'object') return null;
+  let host = null;
+  if (typeof table.closest === 'function') {
+    const selectors = ['[data-loading-host]', '.card', '.table-card', '.status-table-wrap'];
+    for (const selector of selectors) {
+      const candidate = table.closest(selector);
+      if (candidate && candidate !== table) {
+        host = candidate;
+        break;
+      }
     }
-    if (!host) {
-        const parent = table.parentElement;
-        if (parent && parent !== table && parent !== document.body && parent !== document.documentElement) {
-            host = parent;
-        }
+  }
+  if (!host) {
+    const parent = table.parentElement;
+    if (parent && parent !== table && parent !== document.body && parent !== document.documentElement) {
+      host = parent;
     }
-    return host || null;
+  }
+  return host || null;
 }
 
 function asEl(ref) {
-    if (!ref) return null;
-    if (typeof ref === 'string') return document.getElementById(ref) || null;
-    return (ref instanceof Element) ? ref : null;
+  if (!ref) return null;
+  if (typeof ref === 'string') return document.getElementById(ref) || null;
+  return (ref instanceof Element) ? ref : null;
 }
 
 function setText(target, value) {
-    const el = asEl(target);
-    if (!el) {
-        if (target) console.warn('render: missing node for', target);
-        return;
-    }
-    el.textContent = value ?? '';
+  const el = asEl(target);
+  if (!el) {
+    if (target) console.warn('render: missing node for', target);
+    return;
+  }
+  el.textContent = value ?? '';
 }
 function renderTableBody(table, body, html) {
-    if (!body) return;
-    body.innerHTML = html;
-    const host = table || (body.closest ? body.closest('table') : null);
-    if (host) {
-        markTableHasData(host);
-        syncTableLayout(host);
-        if (typeof window !== 'undefined') {
-            try {
-                // Ensure select-all checkbox is wired up for all tables
-                if (typeof window.ensureRowCheckHeaders === 'function') {
-                    window.ensureRowCheckHeaders(host);
-                    // Also ensure all tables in the document are wired
-                    requestAnimationFrame(() => {
-                        if (typeof window.ensureRowCheckHeaders === 'function') {
-                            window.ensureRowCheckHeaders(document);
-                        }
-                    });
-                }
-                const scope = host.getAttribute ? host.getAttribute('data-selection-scope') : null;
-                if (scope && typeof window.syncSelectionScope === 'function') {
-                    window.syncSelectionScope(scope, { root: host });
-                }
-            } catch (_err) { }
+  if (!body) return;
+  body.innerHTML = html;
+  const host = table || (body.closest ? body.closest('table') : null);
+  if (host) {
+    markTableHasData(host);
+    syncTableLayout(host);
+    if (typeof window !== 'undefined') {
+      try {
+        // Ensure select-all checkbox is wired up for all tables
+        if (typeof window.ensureRowCheckHeaders === 'function') {
+          window.ensureRowCheckHeaders(host);
+          // Also ensure all tables in the document are wired
+          requestAnimationFrame(() => {
+            if (typeof window.ensureRowCheckHeaders === 'function') {
+              window.ensureRowCheckHeaders(document);
+            }
+          });
         }
+        const scope = host.getAttribute ? host.getAttribute('data-selection-scope') : null;
+        if (scope && typeof window.syncSelectionScope === 'function') {
+          window.syncSelectionScope(scope, { root: host });
+        }
+      } catch (_err) { }
     }
+  }
 }
 function primeLoadingPlaceholders() {
-    if (loadingPrimed || typeof document === 'undefined') return;
-    loadingPrimed = true;
-    TABLE_IDS.forEach(id => {
-        const table = applyTableSkeleton(id);
-        if (!table) return;
-        const host = findListLoadingHost(table);
-        if (!host) return;
-        rememberLoadingRelease(acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS)));
-    });
-    DASHBOARD_BLOCKS.forEach(sel => {
-        const node = document.querySelector(sel);
-        if (!node) return;
-        rememberLoadingRelease(acquireLoadingForHost(node, Object.assign({}, DASHBOARD_LOADING_OPTIONS)));
-    });
-    const calendarCard = document.querySelector(CALENDAR_CARD_SELECTOR);
-    if (calendarCard) rememberLoadingRelease(acquireLoadingForHost(calendarCard, Object.assign({}, CALENDAR_LOADING_OPTIONS)));
+  if (loadingPrimed || typeof document === 'undefined') return;
+  loadingPrimed = true;
+  TABLE_IDS.forEach(id => {
+    const table = applyTableSkeleton(id);
+    if (!table) return;
+    const host = findListLoadingHost(table);
+    if (!host) return;
+    rememberLoadingRelease(acquireLoadingForHost(host, Object.assign({}, TABLE_LOADING_OPTIONS)));
+  });
+  DASHBOARD_BLOCKS.forEach(sel => {
+    const node = document.querySelector(sel);
+    if (!node) return;
+    rememberLoadingRelease(acquireLoadingForHost(node, Object.assign({}, DASHBOARD_LOADING_OPTIONS)));
+  });
+  const calendarCard = document.querySelector(CALENDAR_CARD_SELECTOR);
+  if (calendarCard) rememberLoadingRelease(acquireLoadingForHost(calendarCard, Object.assign({}, CALENDAR_LOADING_OPTIONS)));
 }
 function releaseLoadingPlaceholders() {
-    if (typeof document === 'undefined') return;
-    releasePendingLoading();
+  if (typeof document === 'undefined') return;
+  releasePendingLoading();
 }
 function html(el, v) { if (el) el.innerHTML = v; }
 function money(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n || 0)); } catch (_) { return '$' + (Number(n || 0).toFixed(0)); } }
 function percentValue(n) {
-    try {
-        return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 0 }).format(Number(n || 0));
-    } catch (_) {
-        const numeric = Number(n || 0);
-        if (!Number.isFinite(numeric)) return '0%';
-        return `${Math.round(numeric * 100)}%`;
-    }
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 0 }).format(Number(n || 0));
+  } catch (_) {
+    const numeric = Number(n || 0);
+    if (!Number.isFinite(numeric)) return '0%';
+    return `${Math.round(numeric * 100)}%`;
+  }
 }
 function integer(n) {
-    const numeric = Number(n || 0);
-    if (!Number.isFinite(numeric)) return '0';
-    try { return numeric.toLocaleString(); }
-    catch (_) { return String(Math.round(numeric)); }
+  const numeric = Number(n || 0);
+  if (!Number.isFinite(numeric)) return '0';
+  try { return numeric.toLocaleString(); }
+  catch (_) { return String(Math.round(numeric)); }
 }
 function fullName(c) { return [c.first, c.last].filter(Boolean).join(' ') || c.name || '—'; }
 function safe(v) { return String(v == null ? '' : v).replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch])); }
 function attr(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch])); }
 function resolveColumnMode() {
-    try { return getUiMode(); }
-    catch (_err) { return 'advanced'; }
+  try { return getUiMode(); }
+  catch (_err) { return 'advanced'; }
 }
 function avatarCharToken(ch) {
-    if (!ch) return '';
-    const upper = ch.toLocaleUpperCase();
-    const lower = ch.toLocaleLowerCase();
-    if (upper !== lower) return upper;
-    return /[0-9]/.test(ch) ? ch : '';
+  if (!ch) return '';
+  const upper = ch.toLocaleUpperCase();
+  const lower = ch.toLocaleLowerCase();
+  if (upper !== lower) return upper;
+  return /[0-9]/.test(ch) ? ch : '';
 }
 function computeInitialsToken(name) {
-    const parts = Array.from(String(name || '').trim().split(/\s+/).filter(Boolean));
-    if (!parts.length) return '';
-    const tokens = parts.map(part => {
-        const chars = Array.from(part);
-        for (const ch of chars) {
-            const token = avatarCharToken(ch);
-            if (token) return token;
-        }
-        return '';
-    }).filter(Boolean);
-    if (!tokens.length) return '';
-    let first = tokens[0] || '';
-    let second = '';
-    if (tokens.length > 1) {
-        second = tokens[tokens.length - 1] || '';
-    } else {
-        const chars = Array.from(parts[0]).slice(1);
-        for (const ch of chars) {
-            const token = avatarCharToken(ch);
-            if (token) {
-                second = token;
-                break;
-            }
-        }
+  const parts = Array.from(String(name || '').trim().split(/\s+/).filter(Boolean));
+  if (!parts.length) return '';
+  const tokens = parts.map(part => {
+    const chars = Array.from(part);
+    for (const ch of chars) {
+      const token = avatarCharToken(ch);
+      if (token) return token;
     }
-    const combined = (first + second).slice(0, 2);
-    return combined || first || '';
+    return '';
+  }).filter(Boolean);
+  if (!tokens.length) return '';
+  let first = tokens[0] || '';
+  let second = '';
+  if (tokens.length > 1) {
+    second = tokens[tokens.length - 1] || '';
+  } else {
+    const chars = Array.from(parts[0]).slice(1);
+    for (const ch of chars) {
+      const token = avatarCharToken(ch);
+      if (token) {
+        second = token;
+        break;
+      }
+    }
+  }
+  const combined = (first + second).slice(0, 2);
+  return combined || first || '';
 }
 function initials(name) {
-    return computeInitialsToken(name) || '—';
+  return computeInitialsToken(name) || '—';
 }
 function renderAvatar(name) {
-    const tokens = computeInitialsToken(name);
-    const classes = ['initials-avatar'];
-    let value = tokens;
-    if (!tokens) {
-        classes.push('is-empty');
-        value = '?';
-    }
-    return `<span class="${classes.join(' ')}" aria-hidden="true" data-initials="${attr(value)}"></span>`;
+  const tokens = computeInitialsToken(name);
+  const classes = ['initials-avatar'];
+  let value = tokens;
+  if (!tokens) {
+    classes.push('is-empty');
+    value = '?';
+  }
+  return `<span class="${classes.join(' ')}" aria-hidden="true" data-initials="${attr(value)}"></span>`;
 }
 function toDate(value) {
-    if (!value) return null;
-    const d = new Date(value);
-    if (!Number.isNaN(d.getTime())) return d;
-    if (typeof value === 'string' && value.length === 10) {
-        const alt = new Date(value + 'T00:00:00');
-        if (!Number.isNaN(alt.getTime())) return alt;
-    }
-    return null;
+  if (!value) return null;
+  const d = new Date(value);
+  if (!Number.isNaN(d.getTime())) return d;
+  if (typeof value === 'string' && value.length === 10) {
+    const alt = new Date(value + 'T00:00:00');
+    if (!Number.isNaN(alt.getTime())) return alt;
+  }
+  return null;
 }
 const displayDate = (value) => { const d = toDate(value); return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString() : '—'; };
 function daysAgo(date, ref) { if (!date) return null; const diff = Math.floor((ref.getTime() - date.getTime()) / 86400000); return diff; }
 const stageLabels = {
-    'long shot': translate('stage.long-shot'),
-    application: translate('stage.application'),
-    processing: translate('stage.processing'),
-    underwriting: translate('stage.underwriting'),
-    approved: translate('stage.approved'),
-    'cleared-to-close': translate('stage.cleared-to-close'),
-    funded: translate('stage.funded'),
-    'post-close': translate('stage.post-close'),
-    nurture: translate('stage.nurture'),
-    lost: translate('stage.lost'),
-    denied: translate('stage.denied')
+  'long shot': translate('stage.long-shot'),
+  application: translate('stage.application'),
+  processing: translate('stage.processing'),
+  underwriting: translate('stage.underwriting'),
+  approved: translate('stage.approved'),
+  'cleared-to-close': translate('stage.cleared-to-close'),
+  funded: translate('stage.funded'),
+  'post-close': translate('stage.post-close'),
+  nurture: translate('stage.nurture'),
+  lost: translate('stage.lost'),
+  denied: translate('stage.denied')
 };
 const stageColors = {
-    application: '#6366f1',
-    processing: '#f97316',
-    underwriting: '#f59e0b',
-    approved: '#10b981',
-    'cleared-to-close': '#0ea5e9',
-    funded: '#0f172a',
-    'post-close': '#0284c7',
-    nurture: '#0ea5e9',
-    lost: '#ef4444',
-    denied: '#ef4444',
-    'long shot': '#94a3b8'
+  application: '#6366f1',
+  processing: '#f97316',
+  underwriting: '#f59e0b',
+  approved: '#10b981',
+  'cleared-to-close': '#0ea5e9',
+  funded: '#0f172a',
+  'post-close': '#0284c7',
+  nurture: '#0ea5e9',
+  lost: '#ef4444',
+  denied: '#ef4444',
+  'long shot': '#94a3b8'
 };
 const tierColors = {
-    core: '#0f766e',
-    preferred: '#047857',
-    strategic: '#5b21b6',
-    developing: '#92400e',
-    partner: '#4f46e5'
+  core: '#0f766e',
+  preferred: '#047857',
+  strategic: '#5b21b6',
+  developing: '#92400e',
+  partner: '#4f46e5'
 };
 function parseHexColor(value) {
-    if (!value) return null;
-    const hex = String(value).trim();
-    const match = /^#?([a-f0-9]{6})$/i.exec(hex);
-    if (!match) return null;
-    const raw = match[1];
-    return {
-        r: parseInt(raw.slice(0, 2), 16),
-        g: parseInt(raw.slice(2, 4), 16),
-        b: parseInt(raw.slice(4, 6), 16)
-    };
+  if (!value) return null;
+  const hex = String(value).trim();
+  const match = /^#?([a-f0-9]{6})$/i.exec(hex);
+  if (!match) return null;
+  const raw = match[1];
+  return {
+    r: parseInt(raw.slice(0, 2), 16),
+    g: parseInt(raw.slice(2, 4), 16),
+    b: parseInt(raw.slice(4, 6), 16)
+  };
 }
 function tintedColor(color, alpha) {
-    const rgb = parseHexColor(color);
-    if (!rgb) return null;
-    const a = typeof alpha === 'number' ? Math.max(0, Math.min(1, alpha)) : 0;
-    return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+  const rgb = parseHexColor(color);
+  if (!rgb) return null;
+  const a = typeof alpha === 'number' ? Math.max(0, Math.min(1, alpha)) : 0;
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
 }
 function rowToneStyle(color) {
-    if (!color || !parseHexColor(color)) return '';
-    const pieces = [`--row-accent:${color}`];
-    const tint = tintedColor(color, 0.08);
-    const hover = tintedColor(color, 0.16);
-    if (tint) pieces.push(`--row-tint:${tint}`);
-    if (hover) pieces.push(`--row-hover:${hover}`);
-    return pieces.length ? ` style="${attr(pieces.join(';'))}"` : '';
+  if (!color || !parseHexColor(color)) return '';
+  const pieces = [`--row-accent:${color}`];
+  const tint = tintedColor(color, 0.08);
+  const hover = tintedColor(color, 0.16);
+  if (tint) pieces.push(`--row-tint:${tint}`);
+  if (hover) pieces.push(`--row-hover:${hover}`);
+  return pieces.length ? ` style="${attr(pieces.join(';'))}"` : '';
 }
 
 function ensurePipelineLegend() {
-    if (typeof document === 'undefined') return;
-    const card = document.getElementById('kanban-card');
-    if (!card) return;
-    const header = card.querySelector('.row');
-    if (!header || header.__legendAttached) return;
-    if (typeof header.appendChild !== 'function') {
-        header.__legendAttached = true;
-        return;
-    }
-    const legend = createLegendPopover({
-        id: 'pipeline-stage-legend',
-        summaryLabel: 'Legend',
-        summaryAriaLabel: 'Pipeline color legend',
-        title: 'Stage colors',
-        entries: STAGE_LEGEND_ENTRIES,
-        note: 'Row highlights and Kanban chips share these pipeline colors.'
-    });
-    if (!legend) return;
-    const canInsertBefore = typeof header.insertBefore === 'function';
-    const controls = typeof header.querySelector === 'function' ? header.querySelector('.kanban-controls') : null;
-    if (controls && canInsertBefore) {
-        header.insertBefore(legend, controls);
-    } else {
-        const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
-        if (grow && grow.parentElement === header && canInsertBefore) {
-            header.insertBefore(legend, grow.nextSibling);
-        } else {
-            header.appendChild(legend);
-        }
-    }
+  if (typeof document === 'undefined') return;
+  const card = document.getElementById('kanban-card');
+  if (!card) return;
+  const header = card.querySelector('.row');
+  if (!header || header.__legendAttached) return;
+  if (typeof header.appendChild !== 'function') {
     header.__legendAttached = true;
+    return;
+  }
+  const legend = createLegendPopover({
+    id: 'pipeline-stage-legend',
+    summaryLabel: 'Legend',
+    summaryAriaLabel: 'Pipeline color legend',
+    title: 'Stage colors',
+    entries: STAGE_LEGEND_ENTRIES,
+    note: 'Row highlights and Kanban chips share these pipeline colors.'
+  });
+  if (!legend) return;
+  const canInsertBefore = typeof header.insertBefore === 'function';
+  const controls = typeof header.querySelector === 'function' ? header.querySelector('.kanban-controls') : null;
+  if (controls && canInsertBefore) {
+    header.insertBefore(legend, controls);
+  } else {
+    const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
+    if (grow && grow.parentElement === header && canInsertBefore) {
+      header.insertBefore(legend, grow.nextSibling);
+    } else {
+      header.appendChild(legend);
+    }
+  }
+  header.__legendAttached = true;
 }
 
 function ensureStatusStackLegend() {
-    if (typeof document === 'undefined') return;
-    const stack = document.getElementById('dashboard-status-stack');
-    if (!stack) return;
-    // Check if legend already exists
-    if (stack.__legendAttached || stack.querySelector('[data-legend="status-stack"]')) return;
-    const legend = createLegendPopover({
-        id: 'status-stack-stage-legend',
-        summaryLabel: 'Legend',
-        summaryAriaLabel: 'Status table color legend',
-        title: 'Stage colors',
-        entries: STAGE_LEGEND_ENTRIES,
-        note: 'All status tables use these colors for stage identification.'
-    });
-    if (!legend) return;
-    legend.setAttribute('data-legend', 'status-stack');
-    legend.style.marginBottom = '12px';
-    // Insert at the beginning of the status stack
-    const firstPanel = stack.querySelector('.status-panel');
-    if (firstPanel && typeof stack.insertBefore === 'function') {
-        stack.insertBefore(legend, firstPanel);
-    } else {
-        stack.insertBefore(legend, stack.firstChild);
-    }
-    stack.__legendAttached = true;
+  if (typeof document === 'undefined') return;
+  const stack = document.getElementById('dashboard-status-stack');
+  if (!stack) return;
+  // Check if legend already exists
+  if (stack.__legendAttached || stack.querySelector('[data-legend="status-stack"]')) return;
+  const legend = createLegendPopover({
+    id: 'status-stack-stage-legend',
+    summaryLabel: 'Legend',
+    summaryAriaLabel: 'Status table color legend',
+    title: 'Stage colors',
+    entries: STAGE_LEGEND_ENTRIES,
+    note: 'All status tables use these colors for stage identification.'
+  });
+  if (!legend) return;
+  legend.setAttribute('data-legend', 'status-stack');
+  legend.style.marginBottom = '12px';
+  // Insert at the beginning of the status stack
+  const firstPanel = stack.querySelector('.status-panel');
+  if (firstPanel && typeof stack.insertBefore === 'function') {
+    stack.insertBefore(legend, firstPanel);
+  } else {
+    stack.insertBefore(legend, stack.firstChild);
+  }
+  stack.__legendAttached = true;
 }
 function classToken(value) {
   if (!value) return '';
@@ -2012,26 +2012,8 @@ export async function renderAll(request) {
         renderFavoritesWidget();
         ensureWidgetClickHandlers();
 
-        const tablesHost = document.querySelector('.status-stack');
-        if (tablesHost) {
-          if (typeof console !== 'undefined' && typeof console.info === 'function') {
-            try { console.info('[VIS] workbench dashboard card removed'); } catch (_err) { }
-          }
-          let posted = false;
-          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && typeof Blob !== 'undefined') {
-            try {
-              const payload = JSON.stringify({ event: 'workbench-card-removed' });
-              const blob = new Blob([payload], { type: 'application/json' });
-              posted = navigator.sendBeacon('/__log', blob) || false;
-            } catch (_err) { }
-          }
-          if (!posted && typeof fetch === 'function') {
-            try { fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'workbench-card-removed' }) }); } catch (_err) { }
-          }
-          tablesHost.remove();
-        }
-
-        ensurePipelineLegend();
+        // Workbench restoration: Removed explicit deletion of .status-stack
+        // ensurePipelineLegend();
         ensureStatusStackLegend();
 
         if (wantsPipelineTable) {

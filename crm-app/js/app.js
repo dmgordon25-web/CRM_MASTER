@@ -1942,20 +1942,19 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ui: 'calendar-root',
       async mount() {
         const root = document.getElementById('view-calendar');
-        if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+        if (root) root.innerHTML = '<div class="loading-block">Loading...</div>';
         try {
           const mod = await import('./calendar.js');
-          // MATCH ACTUAL EXPORTS: { init: ensureCalendar }
+          // Handle "export default { init }"
           if (mod.default && typeof mod.default.init === 'function') {
             mod.default.init();
           } else if (typeof mod.ensureCalendar === 'function') {
             mod.ensureCalendar();
           } else {
-            throw new Error('Calendar module exports mismatch');
+            console.warn('Calendar export not found', mod);
           }
         } catch (e) {
-          console.error('[app] Calendar load crashed:', e);
-          if (root) root.innerHTML = '<div class="error-state">Calendar Unavailable</div>';
+          console.error('Calendar load failed', e);
         }
       }
     },

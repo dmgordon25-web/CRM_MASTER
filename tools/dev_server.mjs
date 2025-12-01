@@ -646,7 +646,7 @@ function toPosix(urlPath = '/') {
     };
   }
   const relativePath = normalized.slice(1);
-  const candidate = path.join(REPO_ROOT, relativePath);
+  const candidate = path.join(APP_ROOT, relativePath);
   const relative = path.relative(REPO_ROOT, candidate);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     return { error: 403 };
