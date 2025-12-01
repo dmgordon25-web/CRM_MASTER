@@ -40,7 +40,8 @@
     if (logged) {
       return true;
     }
-    const headerBtn = document.getElementById('btn-header-new');
+    const headerBtn = document.getElementById('quick-add-unified')
+      || document.getElementById('btn-header-new');
     const actionBtn = document.getElementById('global-new');
     if (!headerBtn || !actionBtn) {
       return false;

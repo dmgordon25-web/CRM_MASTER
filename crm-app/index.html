@@ -45,18 +45,32 @@
        <span class="title-main">THE CRM Tool</span>
        <span class="title-sub">Modular v1</span>
        <span class="title-sub accent">Powered by DGO</span>
-      </a>
-     </h1>
-     <div class="grow">
+     </a>
+    </h1>
+     <div class="grow"></div>
+     <div id="global-search-root" style="flex:1;max-width:420px;min-width:260px;margin-right:12px">
+      <div id="universal-search-container" style="position:relative;">
+       <input type="search" id="universal-search" placeholder="Search contacts or partners..." style="width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" aria-label="Universal search" data-hint="Quickly find any contact or partner by name, email, or phone. Press ESC to close.">
+       <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:16px;">🔍</span>
+       <div id="universal-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-height:400px;overflow-y:auto;z-index:1000;"></div>
+      </div>
      </div>
+     <div class="dropdown header-new-wrap" data-role="header-new-host" style="position:relative;margin-right:8px">
+      <button class="btn brand" id="quick-add-unified" type="button" aria-label="Create new record">
+       (+ New)
+      </button>
+     </div>
+     <button class="btn" id="btn-open-settings" type="button" aria-label="Open settings">
+      Settings
+     </button>
      <div id="lo-profile-chip" style="text-align:right;margin-right:12px;min-width:180px">
       <div class="fine-print muted">Loan Officer</div>
       <div data-role="lo-name">Set your profile</div>
       <div class="fine-print muted" data-role="lo-contact">—</div>
      </div>
-     <button class="btn" id="btn-open-settings" type="button">
-      Settings
-     </button>
+    <button class="btn" id="btn-global-settings" type="button" aria-label="Open settings (legacy)" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;padding:0;border:0;clip:rect(0 0 0 0);">
+     Settings
+    </button>
      <div class="dropdown" id="notif-wrap" style="position:relative">
       <button aria-label="Notifications" class="btn" id="notif-bell" title="Notifications">
        🔔
@@ -78,38 +92,31 @@
        <ul class="muted" id="notif-bell-list" style="padding-left:18px">
        </ul>
       </div>
-     </div>
-    </header>
-    <nav class="row" id="main-nav" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap">
-     <button class="btn active" data-nav="dashboard">
-      Dashboard
-     </button>
-     <button class="btn" data-nav="longshots">
-      Leads
-     </button>
+    </div>
+   </header>
+   <nav class="row" id="main-nav" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn active" data-nav="dashboard">
+     Dashboard
+    </button>
      <button class="btn" data-nav="pipeline">
       Pipeline
      </button>
+     <button class="btn" data-nav="contacts">
+      Contacts
+     </button>
      <button class="btn" data-nav="partners">
       Partners
+     </button>
+     <button class="btn" data-nav="calendar">
+      Calendar
+     </button>
+     <button class="btn" data-nav="longshots">
+      Leads
      </button>
      <button class="btn" data-nav="notifications">
       Notifications
      </button>
      <span class="grow"></span>
-     <div id="universal-search-container" style="position:relative;min-width:280px;max-width:400px;margin-right:8px">
-      <input type="search" id="universal-search" placeholder="Search contacts or partners..." style="width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" aria-label="Universal search" data-hint="Quickly find any contact or partner by name, email, or phone. Press ESC to close.">
-      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:16px;">🔍</span>
-      <div id="universal-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-height:400px;overflow-y:auto;z-index:1000;"></div>
-     </div>
-     <div class="dropdown header-new-wrap" data-role="header-new-host" style="position:relative;margin-right:8px">
-      <button class="btn brand" id="btn-header-new" type="button" aria-label="Create new record">
-       (+ New)
-      </button>
-     </div>
-     <button class="btn" data-nav="calendar">
-      Calendar
-     </button>
      <button class="btn" data-nav="reports">
       Client Portfolio
      </button>

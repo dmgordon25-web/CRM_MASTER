@@ -524,13 +524,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       console.error('[DEBUG] #main-nav NOT found in onDomReady');
     }
 
-    const settingsButton = document.getElementById('btn-open-settings');
-    if (settingsButton && !settingsButton.__wired) {
-      settingsButton.__wired = true;
-      settingsButton.addEventListener('click', (e) => {
-        e.preventDefault(); activate('settings');
+    [document.getElementById('btn-open-settings'), document.getElementById('btn-global-settings')]
+      .filter(Boolean)
+      .forEach((button) => {
+        if (button.__wired) return;
+        button.__wired = true;
+        button.addEventListener('click', (e) => {
+          e.preventDefault(); activate('settings');
+        });
       });
-    }
 
     const titleLink = document.getElementById('app-title-link');
     if (titleLink && !titleLink.__wired) {
@@ -688,6 +690,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const alreadyActive = settingsMain && !settingsMain.classList.contains('hidden');
       if (alreadyActive) return;
       const button = document.getElementById('btn-open-settings')
+        || document.getElementById('btn-global-settings')
         || document.querySelector('#main-nav button[data-nav="settings"]');
       if (button && typeof button.click === 'function') {
         button.click();
@@ -1899,6 +1902,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     dashboard: '#/dashboard',
     longshots: '#/long-shots',
     pipeline: '#/pipeline',
+    contacts: '#/contacts',
     partners: '#/partners',
     calendar: '#/calendar',
     reports: '#/reports',
@@ -2030,7 +2034,34 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         bootLabs(root);
       }
     },
-    pipeline: { id: 'view-pipeline', ui: 'kanban-root' },
+    pipeline: {
+      id: 'view-pipeline',
+      ui: 'kanban-root',
+      async mount() {
+        try {
+          const mod = await import('./render.js');
+          if (typeof mod.renderPipelineView === 'function') {
+            await mod.renderPipelineView();
+          }
+        } catch (err) {
+          console.error('Pipeline view failed', err);
+        }
+      }
+    },
+    contacts: {
+      id: 'view-contacts',
+      ui: 'contacts-root',
+      async mount() {
+        try {
+          const mod = await import('./render.js');
+          if (typeof mod.renderContactsView === 'function') {
+            await mod.renderContactsView();
+          }
+        } catch (err) {
+          console.error('Contact view failed', err);
+        }
+      }
+    },
     partners: {
       id: 'view-partners',
       ui: 'partners-table',
@@ -2419,7 +2450,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     finally { suppressHashUpdate = false; }
   }
 
-  const settingsButton = document.getElementById('btn-open-settings');
+  const settingsButtons = [
+    document.getElementById('btn-open-settings'),
+    document.getElementById('btn-global-settings')
+  ].filter(Boolean);
   const titleLink = document.getElementById('app-title-link');
 
   function dispatchAppEvent(type, detail) {
@@ -2488,9 +2522,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
-    if (settingsButton) {
-      settingsButton.classList.toggle('active', normalized === 'settings');
-    }
+    settingsButtons.forEach((btn) => {
+      btn.classList.toggle('active', normalized === 'settings');
+    });
 
     activeView = normalized;
 
