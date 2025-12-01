@@ -11,7 +11,7 @@
     "test:unit": "vitest run --config vitest.config.mjs",
     "test:e2e": "playwright test",
     "sweep": "node scripts/sweep.mjs",
-    "e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --project=chromium --workers=1 --timeout=20000 --reporter=line",
+    "e2e:smoke": "playwright test tests/e2e/smoke.spec.js --project=chromium --workers=1 --timeout=20000 --reporter=line",
     "precommit": "node tools/precommit_check.js && npm run sweep -- --strict",
     "audit:watch": "node --watch devtools/audit.mjs",
     "audit:manifest": "node tools/manifest_audit.js",
