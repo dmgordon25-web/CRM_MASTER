@@ -742,6 +742,56 @@
      </div>
     </section>
 </main>
+   <!-- CONTACTS -->
+   <main class="hidden" id="view-contacts">
+    <section class="card">
+     <div class="row" style="align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+      <strong>
+       Contacts
+      </strong>
+      <span class="help-hint" data-hint="All contacts across your book of business. Filter, search, and act on any record from one view.">?</span>
+      <span class="grow">
+      </span>
+      <button class="btn" data-export-table="contacts" aria-label="Export to CSV" title="Export to CSV">
+       Export CSV
+      </button>
+     </div>
+     <div class="table-search">
+      <input aria-label="Search contacts" data-table-search="#tbl-contacts" placeholder="Search Contacts" type="search"/>
+     </div>
+     <div class="table-wrap">
+      <table class="table list-table" data-selection-scope="contacts" id="tbl-contacts">
+       <thead>
+        <tr>
+         <th data-role="select" data-column="select" style="width:44px;text-align:center;">
+          <input aria-label="Select all" data-ui="row-check-all" data-role="select-all" id="contacts-all" type="checkbox"/>
+         </th>
+         <th>
+          Name
+         </th>
+         <th>
+          Stage
+         </th>
+         <th>
+          Loan Type
+         </th>
+         <th>
+          Amount
+         </th>
+         <th>
+          Email
+         </th>
+         <th>
+          Phone
+         </th>
+        </tr>
+       </thead>
+       <tbody>
+       </tbody>
+      </table>
+     </div>
+    </section>
+   </main>
    <!-- TEMPLATES / COMMS (Phase 5) -->
    <main class="hidden" id="view-templates">
     <section class="card">
