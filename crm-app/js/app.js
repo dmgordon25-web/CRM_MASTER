@@ -1941,12 +1941,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         });
       }
     },
-    calendar: {
-      id: 'view-calendar',
-      ui: 'calendar-root',
-      async mount() {
-        const root = document.getElementById('view-calendar');
-        if (root) root.innerHTML = '<div class="loading-block">Loading...</div>';
+      calendar: {
+        id: 'view-calendar',
+        ui: 'calendar-root',
+        resetOnDeactivate: true,
+        async mount() {
+          const root = document.getElementById('view-calendar');
+          if (root) root.innerHTML = '<div class="loading-block">Loading...</div>';
         try {
           const mod = await import('./calendar.js');
           // Handle "export default { init }"
@@ -2062,12 +2063,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       }
     },
-    partners: {
-      id: 'view-partners',
-      ui: 'partners-table',
-      async mount(root) {
-        const viewRoot = document.getElementById('view-partners');
-        if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
+      partners: {
+        id: 'view-partners',
+        ui: 'partners-table',
+        resetOnDeactivate: true,
+        async mount(root) {
+          const viewRoot = document.getElementById('view-partners');
+          if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
 
         try {
           const { renderPartnersView } = await import('./render.js');
@@ -2486,8 +2488,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const previous = activeView;
     if (normalized === previous) return;
 
-    if (previous && previous !== normalized && (previous === 'calendar' || previous === 'partners')) {
-      const prevRoot = document.getElementById('view-' + previous);
+    const previousLifecycle = previous ? VIEW_LIFECYCLE[previous] : null;
+    if (previousLifecycle?.resetOnDeactivate && previous !== normalized) {
+      const previousId = previousLifecycle.id || ('view-' + previous);
+      const prevRoot = previousId ? document.getElementById(previousId) : null;
       if (prevRoot) {
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
