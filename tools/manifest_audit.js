@@ -14,6 +14,14 @@ function readJSON(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function assertFileExists(filePath, label) {
+  if (fs.existsSync(filePath)) return;
+  const descriptor = label || path.basename(filePath);
+  console.error(`[AUDIT] Missing ${descriptor} at ${filePath}`);
+  writeManifestReport('FAIL (missing manifest source)');
+  process.exit(2);
+}
+
 function normalizeSpec(spec) {
   const value = String(spec).trim();
   if (!value) return value;
@@ -118,6 +126,9 @@ function fileExists(spec) {
 }
 
 (async function main(){
+  assertFileExists(bootManifestPath, 'boot manifest (crm-app/js/boot/manifest.js)');
+  assertFileExists(patchesManifestPath, 'patch manifest (crm-app/patches/manifest.json)');
+
   const { core: CORE, patches: PATCHES, patchesRaw } = await loadManifestExports();
 
   let patchManifestRaw;

@@ -11,6 +11,8 @@ import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor } from './editors/contact_entry.js';
 import { getRenderer } from './app_services.js';
+import { initAppContext, getSettingsApi } from './app_context.js';
+import { renderDashboardView, renderContactsView, renderPipelineView, renderPartnersView } from './render.js';
 
 // app.js
 export function goto(hash){
@@ -40,6 +42,8 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
+  initAppContext({ settings: typeof window !== 'undefined' ? window.Settings : null });
+  window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
   const notificationsEnabled = featureFlags.notificationsMVP === true;
@@ -3086,20 +3090,27 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     };
     switch(key){
       case 'dashboard':
-        push('renderDashboard', window.renderDashboard);
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'partners':
-        push('renderPartners', window.renderPartners);
+        push('renderPartnersView', renderPartnersView);
         break;
       case 'contacts':
-        push('renderDashboard', window.renderDashboard);
+      case 'longshots':
+        push('renderContactsView', renderContactsView);
+        break;
+      case 'pipeline':
+        push('renderPipelineView', renderPipelineView);
         break;
       case 'notifications':
         push('renderNotifications', window.renderNotifications);
         break;
       case 'tasks':
-        push('renderDashboard', window.renderDashboard);
+        push('renderDashboardView', renderDashboardView);
         push('renderNotifications', window.renderNotifications);
+        break;
+      case 'documents':
+        push('renderDashboardView', renderDashboardView);
         break;
       case 'commissions':
         push('renderCommissions', window.renderCommissions);
@@ -3134,9 +3145,9 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
     let burstWarned = false;
     const BURST_WINDOW = 600;
     const KNOWN_SCOPES = new Set([
-      'dashboard','partners','contacts','notifications','tasks','pipeline','longshots','commissions','calendar','settings','workbench'
+      'dashboard','partners','contacts','notifications','tasks','pipeline','longshots','commissions','calendar','settings','workbench','documents'
     ]);
-    const DASHBOARD_DATA_SCOPES = new Set(['contacts','partners','pipeline','tasks']);
+    const DASHBOARD_DATA_SCOPES = new Set(['contacts','partners','pipeline','tasks','documents']);
     const notifyDashboardInvalidation = (scopes) => {
       const list = Array.isArray(scopes) ? scopes : [scopes];
       const dataApi = typeof window.invalidateDashboardData === 'function' ? window.invalidateDashboardData : null;
@@ -3244,6 +3255,13 @@ if(typeof globalThis.Router !== 'object' || !globalThis.Router){
       });
       const hasScope = scopeCandidates.length > 0;
       const unknownScope = scopeCandidates.some(scope => !KNOWN_SCOPES.has(String(scope||'').toLowerCase()));
+      if(!hasScope){
+        try{ console && console.warn && console.warn('[app] app:data:changed missing scope', detail); }
+        catch (_warn){}
+      }else if(unknownScope){
+        try{ console && console.warn && console.warn('[app] app:data:changed unknown scope', scopeCandidates, detail); }
+        catch (_warn){}
+      }
       const forceFull = detail && detail.mode === 'full-repaint';
       const shouldFullRender = forceFull || !hasScope || unknownScope;
       if(!shouldFullRender){

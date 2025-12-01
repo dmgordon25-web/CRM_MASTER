@@ -2,6 +2,7 @@ import { bindQuickCreateMenu, bindHeaderQuickCreateOnce, closeQuickCreateMenu } 
 import { getQuickAddMenuOptions } from '../quick_add.js';
 import { onEnter, onLeave } from '../router/history.js';
 import { ensureViewGuard, getViewGuard, releaseViewGuard } from '../router/view_teardown.js';
+import { getSettingsApi } from '../app_context.js';
 
 (function(){try{window.__WIRED_HEADER_TOOLBAR__=true;console.info('[A_BEACON] header loaded');}catch{}}());
 
@@ -12,6 +13,10 @@ let ensureControlsRef = null;
 let headerOnlyBeaconed = false;
 const HEADER_GUARD_KEY = '__WIRED_HEADER_TOOLBAR__';
 let headerLifecycleGuard = null;
+
+function getSettingsService(){
+  return getSettingsApi();
+}
 
 const headerState = (() => {
   if (typeof window === 'undefined') {
@@ -548,9 +553,10 @@ HEADER_ROUTES.forEach((route) => {
     const merged = Object.assign({}, current, patch || {});
     const writeResult = writeProfileLocal(merged);
     if(writeResult.ok){
-      if(window.Settings && typeof window.Settings.save === 'function'){
+      const settingsApi = getSettingsService();
+      if(settingsApi && typeof settingsApi.save === 'function'){
         try{
-          const result = window.Settings.save({ loProfile: merged });
+          const result = settingsApi.save({ loProfile: merged });
           if(result && typeof result.then === 'function'){
             result.catch(()=>{});
           }
@@ -740,8 +746,9 @@ HEADER_ROUTES.forEach((route) => {
       applyProfile(localProfile);
       return;
     }
-    if(window.Settings && typeof window.Settings.get === 'function'){
-      Promise.resolve(window.Settings.get())
+    const settingsApi = getSettingsService();
+    if(settingsApi && typeof settingsApi.get === 'function'){
+      Promise.resolve(settingsApi.get())
         .then(data => {
           const profile = data && typeof data.loProfile === 'object' ? data.loProfile : {};
           if(profile && typeof profile === 'object'){

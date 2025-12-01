@@ -203,7 +203,16 @@ export async function openContactsMergeByIds(idA, idB) {
             window.dispatchEvent(evt);
           } catch (_) {}
           try {
-            const detail = { source: "contacts:merge", winnerId, loserId, rewired };
+            const detail = {
+              scope: 'contacts',
+              action: 'merge',
+              reason: 'contacts:merge',
+              source: 'contacts:merge',
+              winnerId: String(winnerId ?? ''),
+              loserId: String(loserId ?? ''),
+              ids: [String(winnerId ?? ''), String(loserId ?? '')],
+              rewired
+            };
             window.dispatchAppDataChanged?.(detail);
           } catch (_) {}
 

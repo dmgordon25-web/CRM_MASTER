@@ -221,10 +221,12 @@ function scheduleFlush(){
     if(pending.size === 0) return;
     // Emit exactly one change for the batch
     try{
+      const ids = [...pending].map(id => String(id));
+      const detail = { scope:'pipeline', ids, reason:'kanban-move', action:'update' };
       if (typeof window.dispatchAppDataChanged === 'function'){
-        window.dispatchAppDataChanged({ scope:'pipeline', ids:[...pending] });
+        window.dispatchAppDataChanged(detail);
       } else {
-        document.dispatchEvent(new CustomEvent('app:data:changed',{ detail:{ scope:'pipeline', ids:[...pending] }}));
+        document.dispatchEvent(new CustomEvent('app:data:changed',{ detail }));
       }
     } finally {
       pending.clear();

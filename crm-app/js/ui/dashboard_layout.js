@@ -1,4 +1,5 @@
 import { makeDraggableGrid, applyOrder as applyGridOrder, attachOnce, listenerCount as dragListenerCount } from './drag_core.js';
+import { getSettingsApi } from '../app_context.js';
 
 const ORDER_STORAGE_KEY = 'dash:layout:order:v1';
 const HIDDEN_STORAGE_KEY = 'dash:layout:hidden:v1';
@@ -177,6 +178,10 @@ const state = {
   suppressOrderPersist: false,
   settingsListenerWired: false
 };
+
+function getSettingsService(){
+  return getSettingsApi();
+}
 
 function postLog(event, data){
   const payload = JSON.stringify(Object.assign({ event }, data || {}));
@@ -373,7 +378,8 @@ function buildCanonicalWidgetPrefs(){
 }
 
 function persistHiddenToSettings(hiddenSet){
-  if(!window || !window.Settings || typeof window.Settings.save !== 'function') return;
+  const settingsApi = getSettingsService();
+  if(!settingsApi || typeof settingsApi.save !== 'function') return;
   const signature = computeHiddenSignature(hiddenSet);
   if(signature === state.hiddenSignature) return;
   const widgets = {};
@@ -384,7 +390,7 @@ function persistHiddenToSettings(hiddenSet){
     widgets[widget.key] = !hiddenSet.has(id);
   });
   const payload = { dashboard: { widgets } };
-  Promise.resolve(window.Settings.save(payload))
+  Promise.resolve(settingsApi.save(payload))
     .then(result => {
       if(result === false) return;
       state.hiddenSignature = signature;
@@ -395,12 +401,13 @@ function persistHiddenToSettings(hiddenSet){
 }
 
 function persistOrderToSettings(orderIds){
-  if(!window || !window.Settings || typeof window.Settings.save !== 'function') return;
+  const settingsApi = getSettingsService();
+  if(!settingsApi || typeof settingsApi.save !== 'function') return;
   const signature = computeOrderSignature(orderIds);
   if(signature === state.orderSignature) return;
   const keys = convertIdsToKeys(orderIds);
   const payload = { dashboardOrder: keys };
-  Promise.resolve(window.Settings.save(payload))
+  Promise.resolve(settingsApi.save(payload))
     .then(result => {
       if(result === false) return;
       state.orderSignature = signature;
@@ -958,7 +965,8 @@ export async function resetLayout(options = {}){
   try{ postLog('dash-layout-reset', { reason }); }
   catch (_err){}
   let settingsResult = null;
-  if(window && window.Settings && typeof window.Settings.save === 'function'){
+  const settingsApi = getSettingsService();
+  if(settingsApi && typeof settingsApi.save === 'function'){
     const widgetPrefs = buildCanonicalWidgetPrefs();
     const payload = {
       dashboard: {
@@ -969,7 +977,7 @@ export async function resetLayout(options = {}){
       dashboardOrder: convertIdsToKeys(CANONICAL_WIDGET_IDS)
     };
     try{
-      settingsResult = await window.Settings.save(payload, { silent: true });
+      settingsResult = await settingsApi.save(payload, { silent: true });
     }catch (err){
       if(console && console.warn) console.warn('[dashboard-layout] settings reset failed', err);
     }
@@ -983,9 +991,10 @@ export async function resetLayout(options = {}){
 }
 
 async function syncDashboardPrefsFromSettings(reason){
-  if(!window || !window.Settings || typeof window.Settings.get !== 'function') return;
+  const settingsApi = getSettingsService();
+  if(!settingsApi || typeof settingsApi.get !== 'function') return;
   try{
-    const settings = await window.Settings.get();
+    const settings = await settingsApi.get();
     if(!settings) return;
     const dash = settings.dashboard && typeof settings.dashboard === 'object' ? settings.dashboard : {};
     const widgetsConfig = dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : {};
