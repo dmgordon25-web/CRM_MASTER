@@ -1,6 +1,7 @@
 param(
   [switch]$Visible,
-  [switch]$Diagnose
+  [switch]$Diagnose,
+  [int]$Port
 )
 
 Set-StrictMode -Version Latest
@@ -13,10 +14,42 @@ function Log($msg){
   try{ Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format s), $msg) -Encoding UTF8 }catch{}
 }
 
-# Kill any existing node.exe processes to prevent zombie instances
-Log "Killing any existing node.exe processes..."
-Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 1
+if(-not $Port){
+  if([string]::IsNullOrWhiteSpace($env:CRM_PORT)){
+    $Port = 8080
+  } else {
+    $Port = [int]$env:CRM_PORT
+  }
+}
+
+function Get-ListeningProcessId([int]$port){
+  try {
+    $conn = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop | Select-Object -First 1
+    if($conn){ return $conn.OwningProcess }
+  } catch {
+    $null = $_
+  }
+
+  $netstat = netstat -ano | Select-String ":$port" | Where-Object { $_ -match 'LISTENING' } | Select-Object -First 1
+  if($netstat){
+    $parts = $netstat.ToString().Split() | Where-Object { $_ }
+    if($parts.Length -ge 5){ return [int]$parts[-1] }
+  }
+  return $null
+}
+
+function Open-Browser([int]$port){
+  Start-Process "http://127.0.0.1:$port/"
+}
+
+function Describe-Process([int]$pid){
+  try {
+    $proc = Get-Process -Id $pid -ErrorAction Stop
+    return $proc.ProcessName
+  } catch {
+    return 'unknown'
+  }
+}
 
 # Resolve node.exe robustly
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
@@ -37,15 +70,30 @@ if (-not $node) {
 
 $nodeVersion = try { & $node -v } catch { 'unknown' }
 $serverArgs = @('tools/node_static_server.js','crm-app')
+if($Port){ $serverArgs += $Port }
 $commandLine = "$node $($serverArgs -join ' ')"
 $workingDir = $PSScriptRoot
-$port = 8080
 
 if($Visible -or $Diagnose){
   Write-Host "[CRM] Working directory: $workingDir"
   Write-Host "[CRM] Node executable: $node"
   Write-Host "[CRM] Node version: $nodeVersion"
-  Write-Host "[CRM] Launching: $commandLine" -ForegroundColor Cyan
+  Write-Host "[CRM] Launch command: $commandLine" -ForegroundColor Cyan
+}
+
+Write-Host "[CRM] Checking port $Port availability..."
+$listenerPid = Get-ListeningProcessId -port $Port
+if($listenerPid){
+  $processName = Describe-Process -pid $listenerPid
+  if($processName -ieq 'node'){
+    Write-Host "[CRM] Node is already listening on port $Port (PID $listenerPid). Opening browser..." -ForegroundColor Green
+    Log "Existing node on port $Port (PID $listenerPid); launching browser only."
+    Open-Browser -port $Port
+    exit 0
+  }
+  Write-Host "[CRM] Port $Port is already in use by PID $listenerPid ($processName)." -ForegroundColor Red
+  Log "Port $Port busy by PID $listenerPid ($processName)."
+  exit 1
 }
 
 try{
@@ -58,7 +106,7 @@ try{
       -PassThru
     Write-Host "[CRM] Server PID: $($child.Id)" -ForegroundColor Green
     Start-Sleep -Seconds 1
-    Start-Process "http://127.0.0.1:$port/"
+    Open-Browser -port $Port
     Wait-Process $child.Id
     exit $LASTEXITCODE
   }
@@ -77,7 +125,6 @@ try{
   exit 3
 }
 
-# Give the server a moment to bind before opening the browser
 Start-Sleep -Seconds 1
-Start-Process "http://127.0.0.1:$port/"
+Open-Browser -port $Port
 exit 0
