@@ -672,7 +672,7 @@ async function runAllTests() {
 
     results.total++;
     await runTest('T5.2: Verify settings button is present and clickable', async () => {
-      const settingsButton = await page.$('#btn-global-settings');
+      const settingsButton = await page.$('#btn-open-settings');
       if (!settingsButton) {
         const screenshot = await saveScreenshot(page, 'T5.2-no-settings-button');
         const error = new Error('Settings button not found');
@@ -680,7 +680,7 @@ async function runAllTests() {
         throw error;
       }
 
-      const isClickable = await page.$eval('#btn-global-settings',
+      const isClickable = await page.$eval('#btn-open-settings',
         el => !el.disabled && window.getComputedStyle(el).pointerEvents !== 'none'
       );
 
