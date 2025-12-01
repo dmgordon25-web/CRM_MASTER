@@ -2506,22 +2506,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       catch (_) { }
     }
 
-    // AGGRESSIVE CLEANUP: Clear ALL view containers except the active one
-    $all('main[id^="view-"]').forEach(m => {
-      const isActive = m.id === 'view-' + normalized;
-      m.classList.toggle('hidden', !isActive);
-      if (!isActive && (m.id === 'view-calendar' || m.id === 'view-partners')) {
-        m.innerHTML = '';
-        m.removeAttribute('data-mounted');
-      }
-    });
+    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
     if (settingsButton) {
       settingsButton.classList.toggle('active', normalized === 'settings');
     }
-    // Ensure body scroll is unlocked
-    document.body.style.overflow = '';
-    document.body.classList.remove('modal-open', 'no-scroll');
     activeView = normalized;
 
     // INSERT: Restore Stale View
