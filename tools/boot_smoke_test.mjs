@@ -33,7 +33,7 @@ async function run() {
   });
 
   await page.goto(baseUrl);
-  await page.waitForSelector('#boot-splash', { hidden: true, timeout: 15000 });
+  await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
 
   const navTargets = ['dashboard', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
