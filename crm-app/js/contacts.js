@@ -31,6 +31,12 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 
+// [PATCH] Fix ReferenceError causing crash on view transition
+const closeContactEntry = () => {
+  const m = document.querySelector('[data-ui="contact-edit-modal"]');
+  if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+};
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function createTaskViaService(payload) {

@@ -2448,6 +2448,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     console.log('[APP_DEBUG] activate called for view:', view);
     console.trace('[APP_DEBUG] activate stack');
     const previous = activeView;
+    // [PATCH] Aggressively clean up previous view to prevent calendar bleed
+    if (previous && previous !== view) {
+      const prevRoot = document.getElementById('view-' + previous);
+      if (prevRoot && previous === 'calendar') {
+        prevRoot.innerHTML = ''; // Force wipe calendar
+        prevRoot.removeAttribute('data-mounted'); // Force re-mount next time
+      }
+    }
     let normalized = normalizeView(view);
     if (!normalized) return;
     if (isSimpleMode() && isAdvancedOnlyView(normalized)) {
@@ -3132,14 +3140,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (result && typeof result.then === 'function') {
         result.catch(err => console.warn('[soft] [app] ' + label + ' repaint failed', err));
       }
+      return true;
     } catch (err) {
       console.warn('[soft] [app] ' + label + ' repaint failed', err);
+      return false;
     }
   }
 
   async function renderCalendarView() {
     const root = document.getElementById('view-calendar');
-    if (root) root.innerHTML = '<div class="loading-block">Loading Calendar...</div>';
+    // Do not wipe root, as it contains #calendar-root which is required by calendar.js
 
     try {
       // Safe Dynamic Import

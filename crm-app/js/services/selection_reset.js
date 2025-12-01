@@ -2,9 +2,11 @@ import { getSelectionStore } from '../state/selectionStore.js';
 
 function normalizeScope(scope) {
     const raw = typeof scope === 'string' ? scope.trim().toLowerCase() : '';
-    if (raw === 'partner' || raw === 'partners') return 'partners';
-    if (raw === 'contact' || raw === 'contacts') return 'contacts';
-    return 'default';
+    // [PATCH] Handle plural/singular and pipeline scope
+    if (raw.includes('partner')) return 'partners';
+    if (raw.includes('contact')) return 'contacts';
+    if (raw.includes('pipeline')) return 'pipeline';
+    return 'contacts'; // Default to contacts to be safe
 }
 
 function resolveReason(scope, reason) {

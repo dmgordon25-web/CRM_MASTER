@@ -1,4 +1,3 @@
-
 const puppeteer = require('puppeteer');
 
 (async () => {
@@ -9,7 +8,6 @@ const puppeteer = require('puppeteer');
     const page = await browser.newPage();
 
     try {
-
         page.on('console', msg => console.log('BROWSER CONSOLE:', msg.text()));
 
         console.log('Navigating to CRM...');
@@ -42,18 +40,22 @@ const puppeteer = require('puppeteer');
         // Navigate to Calendar using evaluate
         console.log('Navigating to Calendar...');
         const clickResult = await page.evaluate(() => {
-            if (typeof window.activate === 'function') {
+            console.log('Attempting to navigate to calendar...');
+            const btn = document.querySelector('button[data-nav="calendar"]');
+            if (btn) {
+                console.log('Found calendar button, clicking...');
+                btn.click();
+                return 'Clicked button';
+            } else if (typeof window.activate === 'function') {
+                console.log('Button not found, calling activate directly...');
                 window.activate('calendar');
                 return 'Activated direct';
             }
-            const btn = document.querySelector('button[data-nav="calendar"]');
-            if (!btn) return 'Button not found';
-            btn.click();
-            return 'Clicked button';
+            return 'Failed';
         });
-        console.log('Click Result:', clickResult);
+        console.log('Navigation Result:', clickResult);
 
-        if (clickResult !== 'Clicked' && clickResult !== 'Clicked button' && clickResult !== 'Activated direct') {
+        if (clickResult !== 'Clicked button' && clickResult !== 'Activated direct') {
             const bodyHtml = await page.content();
             console.log('Body HTML (truncated):', bodyHtml.substring(0, 2000));
             throw new Error('Failed to click calendar button: ' + clickResult);

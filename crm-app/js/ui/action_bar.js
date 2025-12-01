@@ -935,6 +935,8 @@ function ensureClearHandler(bar) {
 
   const handler = (event) => {
     event.preventDefault();
+    // [PATCH] Force immediate UI hide to prevent ghost state
+    syncActionBarVisibility(0);
     const store = getSelectionStore();
     if (store && typeof store.clear === 'function') {
       try { store.clear(); } catch (e) { console.warn('[action-bar] clear failed', e); }
