@@ -51,9 +51,52 @@
             <button class="btn brand" id="quick-add-unified">
                 New+
             </button>
-            title="Restore default dashboard layout">
-            <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
-            <span>Reset layout</span>
+            <button class="btn icon-only" id="btn-global-settings" title="Settings">
+                ⚙️
+            </button>
+            <div id="user-profile-root"></div>
+        </div>
+    </header>
+    <nav id="main-nav">
+        <div id="app-title-link" class="app-title">
+            <span class="logo-icon">C</span>
+            <strong>CRM</strong>
+        </div>
+        <button class="btn active" data-nav="dashboard">
+            Dashboard
+        </button>
+        <button class="btn" data-nav="pipeline">
+            Pipeline
+        </button>
+        <button class="btn" data-nav="partners">
+            Partners
+        </button>
+        <button class="btn" data-nav="contacts">
+            Contacts
+        </button>
+        <button class="btn" data-nav="calendar">
+            Calendar
+        </button>
+        <button class="btn" data-nav="settings">
+            Settings
+        </button>
+        <button class="btn" data-nav="notifications">
+            Notifications
+        </button>
+        <button class="btn" data-nav="labs"
+            style="background: linear-gradient(135deg, #06b6d4, #8b5cf6); color: white; font-weight: 600; border: none;">
+            🚀 Labs
+        </button>
+    </nav>
+    <!-- DASHBOARD -->
+    <main data-ui="dashboard-root" id="view-dashboard">
+        <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+            <h2 style="margin:0;font-size:18px">Dashboard</h2>
+            <span class="muted" id="dashboard-mode-caption">Focus on today&#39;s priorities.</span>
+            <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
+                title="Restore default dashboard layout">
+                <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
+                <span>Reset layout</span>
             </button>
             <span class="grow"></span>
             <div class="row" role="group" aria-label="Dashboard scope">
@@ -401,7 +444,7 @@
                 </div>
             </details>
         </section>
-        </main>
+    </main>
         <!-- PARTNERS -->
         <main class="hidden" data-ui="partners-table" id="view-partners">
             <section class="card">
