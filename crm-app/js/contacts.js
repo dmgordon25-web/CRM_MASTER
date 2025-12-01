@@ -132,6 +132,9 @@ export function normalizeContactId(input) {
   return id || `tmp-${now}`;
 }
 
+// Keep Quick Add entry points intact after recent refactors
+export { validateContact, normalizeNewContactPrefill };
+
 // contacts.js — modal guards + renderer (2025-09-17)
 (function () {
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
