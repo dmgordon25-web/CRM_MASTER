@@ -6,7 +6,7 @@ const isNodeRuntime = typeof process !== 'undefined'
   && process?.release?.name === 'node';
 
 async function loadPatchManifest() {
-  console.log('[MANIFEST] Loading patch manifest...');
+  // [FIX] Removed console.log to prevent JSON corruption during manifest audit subprocess
   if (isNodeRuntime) {
     const [fs, url, path] = await Promise.all([
       import('node:fs'),

@@ -1,4 +1,11 @@
-import { ensurePartnersMergeButton, setPartnersMergeState, onPartnersMerge } from './ui/action_bar.js';
+// [FIX] LAZY LOAD to prevent boot deadlock
+let _actionBarModule = null;
+async function getActionBar() {
+  if (!_actionBarModule) {
+    _actionBarModule = await import('./ui/action_bar.js');
+  }
+  return _actionBarModule;
+}
 
 const SCORE_FIELDS = [
   'name','company','email','phone','tier','partnerType','focus','priority','preferredContact','cadence','address','city','state','zip','referralVolume','lastTouch','nextTouch','relationshipOwner','collaborationFocus','notes'
@@ -221,7 +228,8 @@ async function performMerge(ids) {
   return result;
 }
 
-function initActionBarBridge() {
+async function initActionBarBridge() {
+  const { ensurePartnersMergeButton, onPartnersMerge } = await getActionBar();
   ensurePartnersMergeButton();
   onPartnersMerge(() => {
     const ids = currentPartnerSelection();
@@ -229,9 +237,10 @@ function initActionBarBridge() {
   });
 }
 
-function updateButton() {
+async function updateButton() {
   const ids = currentPartnerSelection();
   const count = ids.length;
+  const { setPartnersMergeState } = await getActionBar();
   setPartnersMergeState({ visible: count > 0, enabled: count === 2 });
 }
 
