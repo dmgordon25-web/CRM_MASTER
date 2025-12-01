@@ -259,7 +259,7 @@ function placeHost(header, host) {
   const doc = header.ownerDocument || document;
   if (!doc) return;
 
-  const nav = doc.getElementById('main-nav');
+  /* const nav = doc.getElementById('main-nav');
   if (nav) {
     const searchContainer = nav.querySelector('#universal-search-container');
     const calendarBtn = nav.querySelector('[data-nav="calendar"]');
@@ -281,7 +281,7 @@ function placeHost(header, host) {
       }
       return;
     }
-  }
+  } */
 
   const mount = pickHeaderMount(header);
   if (mount && mount !== header) {

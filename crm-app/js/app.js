@@ -2448,12 +2448,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     console.log('[APP_DEBUG] activate called for view:', view);
     console.trace('[APP_DEBUG] activate stack');
     const previous = activeView;
-    // [PATCH] Aggressively clean up previous view to prevent calendar bleed
-    if (previous && previous !== view) {
+    // [PATCH] Aggressively clean up previous view to prevent calendar/partner bleed
+    if (previous && previous !== normalized) {
       const prevRoot = document.getElementById('view-' + previous);
-      if (prevRoot && previous === 'calendar') {
-        prevRoot.innerHTML = ''; // Force wipe calendar
-        prevRoot.removeAttribute('data-mounted'); // Force re-mount next time
+      // Force wipe Calendar or Partners when leaving them
+      if (prevRoot && (previous === 'calendar' || previous === 'partners')) {
+        prevRoot.innerHTML = '';
+        prevRoot.removeAttribute('data-mounted');
       }
     }
     let normalized = normalizeView(view);
@@ -2556,7 +2557,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
     if (normalized !== 'workbench') { syncHashForView(normalized); }
     requestRenderForNavigation(normalized);
-    if (normalized === 'settings') renderExtrasRegistry();
+    if (normalized === 'settings') {
+      renderExtrasRegistry();
+      // [PATCH] Ensure tabs are wired when entering settings
+      if (typeof initSettingsNav === 'function') initSettingsNav();
+    }
     if (previous !== normalized || root) {
       const detail = {
         view: normalized,
@@ -3149,7 +3154,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   async function renderCalendarView() {
     const root = document.getElementById('view-calendar');
-    // Do not wipe root, as it contains #calendar-root which is required by calendar.js
+    // Ensure #calendar-root exists (it might have been wiped)
+    if (root && !root.querySelector('#calendar-root')) {
+      const mount = document.createElement('div');
+      mount.id = 'calendar-root';
+      mount.className = 'calendar-root';
+      root.appendChild(mount);
+    }
 
     try {
       // Safe Dynamic Import
@@ -3232,21 +3243,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       case 'contacts':
       case 'longshots':
         push('renderContactsView', getRenderer('renderContactsView'));
-        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'pipeline':
         push('renderPipelineView', getRenderer('renderPipelineView'));
-        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'notifications':
         push('renderNotifications', window.renderNotifications);
         break;
       case 'tasks':
-        push('renderDashboardView', getRenderer('renderDashboardView'));
         push('renderNotifications', window.renderNotifications);
         break;
       case 'documents':
-        push('renderDashboardView', getRenderer('renderDashboardView'));
         break;
       case 'commissions':
         push('renderCommissions', window.renderCommissions);
