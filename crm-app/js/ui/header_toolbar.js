@@ -256,10 +256,9 @@ function pickHeaderMount(header) {
 
 function placeHost(header, host) {
   if (!header || !host) return;
-  const doc = header.ownerDocument || document;
-  if (!doc) return;
 
-
+  // [FIX] HARDCODED: ONLY place in header, NEVER in sidebar (#main-nav)
+  // This prevents the New+ button from hijacking the sidebar layout
 
   const mount = pickHeaderMount(header);
   if (mount && mount !== header) {

@@ -3405,9 +3405,18 @@ const _localEditorState = { status: 'idle', activeId: null };
 export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
-  const m = document.querySelector('[data-ui="contact-edit-modal"]');
-  if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+  try {
+    const m = document.querySelector('[data-ui="contact-edit-modal"]');
+    if (m) {
+      m.style.display = 'none';
+      m.removeAttribute('open');
+      if (m.tagName === 'DIALOG' && m.open) {
+        try { m.close(); } catch (_) {}
+      }
+    }
+  } catch (_) {}
   _localEditorState.status = 'idle';
+  _localEditorState.activeId = null;
 }
 
 // --- Quick Add Support ---
