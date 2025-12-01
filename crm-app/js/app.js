@@ -2463,6 +2463,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         // FORCE DESTROY: Wipe innerHTML and clear mounted flag to kill ghost elements
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
+        // Unlock body scroll in case modal was open
+        document.body.style.overflow = '';
+        document.body.classList.remove('modal-open', 'no-scroll');
       }
     }
     // TASK 1 FIX: Close any open modals before switching views to prevent freezes
@@ -2503,11 +2506,22 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       catch (_) { }
     }
 
-    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
+    // AGGRESSIVE CLEANUP: Clear ALL view containers except the active one
+    $all('main[id^="view-"]').forEach(m => {
+      const isActive = m.id === 'view-' + normalized;
+      m.classList.toggle('hidden', !isActive);
+      if (!isActive && (m.id === 'view-calendar' || m.id === 'view-partners')) {
+        m.innerHTML = '';
+        m.removeAttribute('data-mounted');
+      }
+    });
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
     if (settingsButton) {
       settingsButton.classList.toggle('active', normalized === 'settings');
     }
+    // Ensure body scroll is unlocked
+    document.body.style.overflow = '';
+    document.body.classList.remove('modal-open', 'no-scroll');
     activeView = normalized;
 
     // INSERT: Restore Stale View
