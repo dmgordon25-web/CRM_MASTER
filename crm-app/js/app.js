@@ -3136,7 +3136,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // Boot Signal
     window.__BOOT_DONE__ = { fatal: false, core: 1, patches: 0, safe: false };
-    window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: false };
+    // [FIX] Set bypassed: true to match splash_sequence.js (we always bypass animation now)
+    window.__BOOT_ANIMATION_COMPLETE__ = { at: Date.now(), bypassed: true };
     document.documentElement.setAttribute('data-booted', '1');
     document.dispatchEvent(new CustomEvent('app:boot:complete'));
     console.log('BOOT OK');
