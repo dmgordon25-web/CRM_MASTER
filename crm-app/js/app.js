@@ -564,6 +564,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // FINAL BOOT STEP
     initSelectionBindings();
+    initRowOpeners();
     init();
     dedupeHeaderSettings();
   });
@@ -1924,10 +1925,41 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const scope = selectionScopeFor(target);
       const id = selectionIdFor(target);
       if (!id) return;
+      const type = scope === 'partners' ? 'partners' : 'contacts';
       const next = store.get(scope);
       if (target.checked) next.add(id);
       else next.delete(id);
       store.set(next, scope);
+
+      // Keep Selection APIs in sync with the store so the action bar reacts immediately
+      const normalizedIds = Array.from(next).map(String);
+      try {
+        const selection = window.Selection;
+        if (selection && typeof selection.set === 'function') {
+          selection.set(normalizedIds, type, 'row-check');
+        } else if (selection && typeof selection.toggle === 'function') {
+          // Fall back to toggle-based update without double flipping the target row
+          const current = selection.getSelectedIds ? new Set(selection.getSelectedIds()) : new Set();
+          const shouldHave = target.checked;
+          if (shouldHave !== current.has(id)) selection.toggle(id, type);
+        }
+      } catch (err) {
+        try { console && console.warn && console.warn('[selection] sync failed', err); }
+        catch (_) { }
+      }
+
+      try {
+        const compat = window.SelectionService;
+        if (compat && typeof compat.set === 'function') {
+          compat.set(normalizedIds, type, 'row-check');
+        }
+      } catch (_) { }
+
+      // Notify listeners that depend on the selection event bus (e.g., action bar)
+      try {
+        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope, source: 'row-check' };
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
+      } catch (_) { }
     };
     document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
@@ -1939,6 +1971,56 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (typeof window !== 'undefined') {
       window.syncSelectionScope = syncSelectionScope;
     }
+  }
+
+  function initRowOpeners() {
+    if (initRowOpeners.__wired) return;
+    initRowOpeners.__wired = true;
+
+    const handler = async (event) => {
+      const target = event.target;
+      if (!target) return;
+      const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
+      if (!anchor) return;
+      if (anchor.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"]')) return;
+
+      const contactRow = anchor.closest?.('tr[data-contact-id]');
+      if (contactRow) {
+        const id = contactRow.getAttribute('data-contact-id') || anchor.getAttribute('data-id');
+        if (!id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          const mod = await import('./contacts.js');
+          if (mod && typeof mod.openContactEditor === 'function') {
+            mod.openContactEditor(id, { sourceHint: 'contacts:row-click', trigger: contactRow });
+          }
+        } catch (err) {
+          try { console && console.warn && console.warn('contact row open failed', err); }
+          catch (_) { }
+        }
+        return;
+      }
+
+      const partnerRow = anchor.closest?.('tr[data-partner-id]');
+      if (partnerRow) {
+        const id = partnerRow.getAttribute('data-partner-id') || anchor.getAttribute('data-partner-id');
+        if (!id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          const mod = await import('./partners.js');
+          if (mod && typeof mod.openPartnerEditModal === 'function') {
+            mod.openPartnerEditModal(id, { sourceHint: 'partners:row-click', trigger: partnerRow });
+          }
+        } catch (err) {
+          try { console && console.warn && console.warn('partner row open failed', err); }
+          catch (_) { }
+        }
+      }
+    };
+
+    document.addEventListener('click', handler);
   }
 
   const VIEW_HASH = {
