@@ -505,76 +505,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   ensureDefaultRoute();
 
-    onDomReady(() => {
-    console.log('[DEBUG] onDomReady executing');
-    // --- RE-INSERTED LOGIC START ---
-    try {
-      createBinding(document.body);
-    } catch (err) {
-      console.error('[APP] createBinding failed', err);
-    }
-    const nav = $('#main-nav');
-    if (nav) {
-      console.log('[DEBUG] #main-nav found, attaching listener');
-      nav.addEventListener('click', (e) => {
-        console.log('[DEBUG] #main-nav click', e.target);
-        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
-        const navTarget = btn.getAttribute('data-nav');
-        console.log('[DEBUG] Nav target:', navTarget);
-        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-          e.preventDefault(); activate(DEFAULT_ROUTE); return;
-        }
-        if (navTarget === 'workbench') return;
-        e.preventDefault(); activate(navTarget);
-      });
-    } else {
-      console.error('[DEBUG] #main-nav NOT found in onDomReady');
-    }
-
-    const headerSettingsButton = document.getElementById('btn-open-settings');
-    if (headerSettingsButton && !headerSettingsButton.__wired) {
-      headerSettingsButton.__wired = true;
-      headerSettingsButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('settings');
-      });
-    }
-
-    wireUnifiedNew();
-
-    const titleLink = document.getElementById('app-title-link');
-    if (titleLink && !titleLink.__wired) {
-      titleLink.__wired = true;
-      titleLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('dashboard');
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        catch (_) { window.scrollTo(0, 0); }
-      });
-    }
-    // --- RE-INSERTED LOGIC END ---
-
-    ensurePartnerModalClosed();
-    ensureActionBarIdleState();
-    applyActionBarIdleVisibility(DEFAULT_ROUTE);
-    applyNotificationsNavVisibility(notificationsEnabled);
-    ensureDefaultRoute();
-    bootSplash.ensure();
-
-    // Helper to clean up potential ReferenceErrors from previous patches
-    if (typeof window.closeContactEditor !== 'function') {
-      window.closeContactEditor = () => {
-        const m = document.querySelector('[data-ui="contact-edit-modal"]');
-        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
-      };
-    }
-
-    // FINAL BOOT STEP
-    initSelectionBindings();
-    initRowOpeners();
-    init();
-    dedupeHeaderSettings();
-  });
 
   try {
     window.Selection?.clear?.('app:boot');
@@ -1988,6 +1918,77 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     document.addEventListener('click', handler);
   }
+
+  onDomReady(() => {
+    console.log('[DEBUG] onDomReady executing');
+    // --- RE-INSERTED LOGIC START ---
+    try {
+      createBinding(document.body);
+    } catch (err) {
+      console.error('[APP] createBinding failed', err);
+    }
+    const nav = $('#main-nav');
+    if (nav) {
+      console.log('[DEBUG] #main-nav found, attaching listener');
+      nav.addEventListener('click', (e) => {
+        console.log('[DEBUG] #main-nav click', e.target);
+        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
+        const navTarget = btn.getAttribute('data-nav');
+        console.log('[DEBUG] Nav target:', navTarget);
+        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
+          e.preventDefault(); activate(DEFAULT_ROUTE); return;
+        }
+        if (navTarget === 'workbench') return;
+        e.preventDefault(); activate(navTarget);
+      });
+    } else {
+      console.error('[DEBUG] #main-nav NOT found in onDomReady');
+    }
+
+    const headerSettingsButton = document.getElementById('btn-open-settings');
+    if (headerSettingsButton && !headerSettingsButton.__wired) {
+      headerSettingsButton.__wired = true;
+      headerSettingsButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('settings');
+      });
+    }
+
+    wireUnifiedNew();
+
+    const titleLink = document.getElementById('app-title-link');
+    if (titleLink && !titleLink.__wired) {
+      titleLink.__wired = true;
+      titleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('dashboard');
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (_) { window.scrollTo(0, 0); }
+      });
+    }
+    // --- RE-INSERTED LOGIC END ---
+
+    ensurePartnerModalClosed();
+    ensureActionBarIdleState();
+    applyActionBarIdleVisibility(DEFAULT_ROUTE);
+    applyNotificationsNavVisibility(notificationsEnabled);
+    ensureDefaultRoute();
+    bootSplash.ensure();
+
+    // Helper to clean up potential ReferenceErrors from previous patches
+    if (typeof window.closeContactEditor !== 'function') {
+      window.closeContactEditor = () => {
+        const m = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+      };
+    }
+
+    // FINAL BOOT STEP
+    initSelectionBindings();
+    initRowOpeners();
+    init();
+    dedupeHeaderSettings();
+  });
 
   const VIEW_HASH = {
     dashboard: '#/dashboard',
