@@ -3042,7 +3042,7 @@ export async function openCalendarEntityEditor(eventLike, options) {
 }
 
 const CONTACT_ROW_TARGETS = [
-  { key: 'contacts:list', tableId: 'tbl-longshots', surface: 'contacts', sourceHint: 'contacts:list-row', selectionReason: 'contacts:row-open' },
+  { key: 'contacts:list', tableId: 'tbl-longshots', surface: 'pipeline', sourceHint: 'longshots:list-row', selectionReason: 'pipeline:row-open' },
   { key: 'pipeline:table', tableId: 'tbl-pipeline', surface: 'pipeline', sourceHint: 'pipeline:list-row', selectionReason: 'pipeline:row-open' },
   { key: 'pipeline:clients', tableId: 'tbl-clients', surface: 'pipeline', sourceHint: 'pipeline:clients-row', selectionReason: 'pipeline:row-open' }
 ];
@@ -3287,6 +3287,10 @@ if (typeof window !== 'undefined' || typeof document !== 'undefined') {
     unmount: () => unmountContactRowGateway('contacts')
   });
   state.pipelineRouteToken = acquireRouteLifecycleToken('pipeline', {
+    mount: () => mountContactRowGateway('pipeline'),
+    unmount: () => unmountContactRowGateway('pipeline')
+  });
+  state.longshotRouteToken = acquireRouteLifecycleToken('longshots', {
     mount: () => mountContactRowGateway('pipeline'),
     unmount: () => unmountContactRowGateway('pipeline')
   });
