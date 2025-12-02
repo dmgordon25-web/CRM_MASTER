@@ -524,15 +524,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       console.error('[DEBUG] #main-nav NOT found in onDomReady');
     }
 
-    [document.getElementById('btn-open-settings'), document.getElementById('btn-global-settings')]
-      .filter(Boolean)
-      .forEach((button) => {
-        if (button.__wired) return;
-        button.__wired = true;
-        button.addEventListener('click', (e) => {
-          e.preventDefault(); activate('settings');
-        });
+    const headerSettingsButton = document.getElementById('btn-open-settings');
+    if (headerSettingsButton && !headerSettingsButton.__wired) {
+      headerSettingsButton.__wired = true;
+      headerSettingsButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('settings');
       });
+    }
 
     const titleLink = document.getElementById('app-title-link');
     if (titleLink && !titleLink.__wired) {
@@ -690,7 +689,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const alreadyActive = settingsMain && !settingsMain.classList.contains('hidden');
       if (alreadyActive) return;
       const button = document.getElementById('btn-open-settings')
-        || document.getElementById('btn-global-settings')
         || document.querySelector('#main-nav button[data-nav="settings"]');
       if (button && typeof button.click === 'function') {
         button.click();
@@ -2453,8 +2451,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   const settingsButtons = [
-    document.getElementById('btn-open-settings'),
-    document.getElementById('btn-global-settings')
+    document.getElementById('btn-open-settings')
   ].filter(Boolean);
   const titleLink = document.getElementById('app-title-link');
 
@@ -2524,7 +2521,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
     } catch (_) { }
 
-    $all('main[id^="view-"]').forEach(m => m.classList.toggle('hidden', m.id !== 'view-' + normalized));
+    $all('main[id^="view-"]').forEach((m) => {
+      const isActive = m.id === 'view-' + normalized;
+      m.classList.toggle('hidden', !isActive);
+      if (isActive) {
+        m.removeAttribute('hidden');
+        m.setAttribute('aria-hidden', 'false');
+      } else {
+        m.setAttribute('hidden', '');
+        m.setAttribute('aria-hidden', 'true');
+      }
+    });
     $all('#main-nav button[data-nav]').forEach(b => b.classList.toggle('active', b.getAttribute('data-nav') === normalized));
     settingsButtons.forEach((btn) => {
       btn.classList.toggle('active', normalized === 'settings');
@@ -3206,7 +3213,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       'pipeline': 'view-pipeline',
       'dashboard': 'view-dashboard',
       'partners': 'view-partners',
-      'contacts': 'view-contacts'
+      'contacts': 'view-contacts',
+      'calendar': 'view-calendar',
+      'settings': 'view-settings',
+      'reports': 'view-reports',
+      'notifications': 'view-notifications',
+      'templates': 'view-templates',
+      'longshots': 'view-longshots',
+      'labs': 'view-labs'
     };
 
     // FIX: Check visibility defensively (works in browsers AND test stubs)
