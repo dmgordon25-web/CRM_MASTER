@@ -1979,6 +1979,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const handler = async (event) => {
       const target = event.target;
+      if (event && event.__crmRowEditorHandled) return;
       if (!target) return;
       const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
       if (!anchor) return;
