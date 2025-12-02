@@ -1178,6 +1178,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     box.innerHTML = `<div><strong>Contacts:</strong><ul>${list(rec.contacts || {})}</ul></div><div style="margin-top:8px"><strong>Partners:</strong><ul>${list(rec.partners || {})}</ul></div>`;
   }
 
+  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
+  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
+  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
+  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
+
   const SELECTION_SCOPES = ['contacts', 'partners', 'pipeline', 'notifications'];
 
   function getSelectionStore() {
@@ -1239,11 +1244,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
     return true;
   }
-
-  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
-  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
-  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
-  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
 
   function normalizeIdSet(ids, scope, store) {
     if (ids instanceof Set) return ids;
