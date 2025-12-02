@@ -1,8 +1,8 @@
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { renderRelationshipMap } from './map.js';
+import { NONE_PARTNER_ID } from '../constants/ids.js';
 
-const NONE_PARTNER = '00000000-0000-none-partner-000000000000';
 const soon = typeof queueMicrotask === 'function' ? queueMicrotask : (fn) => Promise.resolve().then(fn);
 const norm = (id) => String(id ?? '').trim();
 const ready = () => {
@@ -83,7 +83,7 @@ const render = async () => {
   try {
     const { contacts, partners } = await loadRecords();
     if (requestId !== token) return;
-    const noneId = typeof window !== 'undefined' && window.NONE_PARTNER_ID ? window.NONE_PARTNER_ID : NONE_PARTNER;
+    const noneId = typeof window !== 'undefined' && window.NONE_PARTNER_ID ? window.NONE_PARTNER_ID : NONE_PARTNER_ID;
     renderRelationshipMap({
       root: hostNode,
       contacts,

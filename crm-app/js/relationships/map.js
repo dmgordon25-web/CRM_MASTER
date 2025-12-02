@@ -1,5 +1,6 @@
+import { NONE_PARTNER_ID } from '../constants/ids.js';
+
 const MAX_NODES = 200;
-const NONE_PARTNER = '00000000-0000-none-partner-000000000000';
 const EDGE_BUNDLE_SPREAD = 28;
 const EDGE_BASE_OPACITY = 0.28;
 const EDGE_HIGHLIGHT_OPACITY = 0.9;
@@ -52,7 +53,7 @@ const syncDiagnostics = () => {
   catch (_err) {}
 };
 
-const buildDataset = ({ contacts = [], partners = [], noneId = NONE_PARTNER }) => {
+const buildDataset = ({ contacts = [], partners = [], noneId = NONE_PARTNER_ID }) => {
   const skip = norm(noneId);
   const partnerById = new Map();
   for (const partner of partners) {
@@ -472,7 +473,7 @@ const renderMap = (root, dataset, handlers) => {
 export const renderRelationshipMap = (options = {}) => {
   const { root, contacts, partners, nonePartnerId, openContact, openPartner } = options;
   if (!root) return;
-  const dataset = buildDataset({ contacts, partners, noneId: nonePartnerId || NONE_PARTNER });
+  const dataset = buildDataset({ contacts, partners, noneId: nonePartnerId || NONE_PARTNER_ID });
   const handlers = {
     openContact: typeof openContact === 'function' ? openContact : () => {},
     openPartner: typeof openPartner === 'function' ? openPartner : () => {}

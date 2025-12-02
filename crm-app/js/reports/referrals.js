@@ -1,6 +1,5 @@
 import { canonicalStage } from '../pipeline/constants.js';
-
-const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
+import { NONE_PARTNER_ID } from '../constants/ids.js';
 
 export const REFERRAL_ROLLUP_RANGES = Object.freeze([
   { key: '30d', label: 'Last 30 Days', days: 30 },

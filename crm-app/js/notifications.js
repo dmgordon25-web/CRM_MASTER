@@ -15,6 +15,15 @@
   };
   const UPCOMING_WINDOW_DAYS = 30;
 
+  const resolveNotifier = () => {
+    const ctx = typeof window !== 'undefined' ? (window.AppContext || window.__APP_CONTEXT__) : null;
+    if (ctx && typeof ctx.getNotifier === 'function') {
+      const svc = ctx.getNotifier();
+      if (svc) return svc;
+    }
+    return typeof window !== 'undefined' ? window.Notifier : null;
+  };
+
   const logNotifError = (context, err) => {
     try { console.error(`[notifications] ${context}`, err); }
     catch (logErr) {
@@ -58,7 +67,7 @@
   function updateNotifier(queue){
     const notifierItems = toNotifierItems(queue);
     try{
-      const notifier = window.Notifier;
+      const notifier = resolveNotifier();
       if(notifier && typeof notifier.replace === 'function'){
         notifier.replace(notifierItems);
         return;

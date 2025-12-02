@@ -1,4 +1,5 @@
 import { normalizeStatus } from './pipeline/constants.js';
+import { NONE_PARTNER_ID } from './constants/ids.js';
 import dashboardState from './state/dashboard_state.js';
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
@@ -77,7 +78,6 @@ import dashboardState from './state/dashboard_state.js';
     developing:'#92400e',
     partner:'#4f46e5'
   };
-  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
   function colorForStage(key){
     const norm = String(key||'').toLowerCase();
     return stageColors[norm] || '#6366f1';

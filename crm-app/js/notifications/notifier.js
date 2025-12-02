@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+import { setNotifier } from '../app_context.js';
 // Simple, durable notifier with stable queue shape + change events.
 const EVT = "notifications:changed";
 const KEY = "notifications:queue";
@@ -209,6 +210,8 @@ const Notifier = (function() {
 
 // Expose a stable global and named exports
 window.Notifier = window.Notifier || Notifier;
+try { setNotifier(Notifier); }
+catch (_) { /* non-fatal bridge error */ }
 export const getNotificationsCount = (...args) => Notifier.getCount(...args);
 export const listNotifications       = (...args) => Notifier.list(...args);
 export const pushNotification        = (item) => Notifier.push(item);

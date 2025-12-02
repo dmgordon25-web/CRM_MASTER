@@ -15,6 +15,7 @@ import {
   toneForStage,
   toneClassName
 } from './pipeline/constants.js';
+import { NONE_PARTNER_ID } from './constants/ids.js';
 // import { openContactEditor } from './contacts.js'; // REMOVED to fix circular dependency/syntax error
 import { openPartnerEditor } from './editors/partner_entry.js';
 import { registerRenderer } from './app_services.js';
@@ -473,7 +474,6 @@ function colorForTier(value) {
 }
 const $ = (sel, root = document) => root.querySelector(sel);
 const $all = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
 
 function ensureFavoriteColumn(table) {
   if (!table || !table.tHead || !table.tHead.rows || !table.tHead.rows[0]) return;
