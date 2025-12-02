@@ -297,6 +297,7 @@ export function normalizeContactId(input) {
       referralPartnerId: '',
       referralPartnerName: '',
       lastContact: '',
+      lastTouch: '',
       referredBy: '',
       notes: '',
       contactType: 'Borrower',
@@ -317,7 +318,8 @@ export function normalizeContactId(input) {
       nextFollowUp: '',
       secondaryEmail: '',
       secondaryPhone: '',
-      missingDocs: ''
+      missingDocs: '',
+      extras: {}
     };
   }
   function safeTrim(value) {
@@ -1037,7 +1039,7 @@ export function normalizeContactId(input) {
               <label class="section-subhead" style="margin-top:14px">Conversation Notes</label>
               <textarea id="c-notes">${escape(c.notes || '')}</textarea>
             </section>
-                <section class="modal-section modal-panel" data-panel="docs">
+                <section class="modal-section modal-panel" data-panel="docs" data-simple-advanced-only="docs">
                   <h4>Document Checklist</h4>
                   <div class="doc-automation-grid">
                     <div class="doc-automation-summary">
@@ -1100,7 +1102,18 @@ export function normalizeContactId(input) {
           </aside>
         </div>
       </div>`;
-      const applyFieldVisibility = (mode) => applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
+      const toggleAdvancedSections = (mode) => {
+        const simple = mode === 'simple';
+        Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
+          if (!node) return;
+          node.hidden = simple;
+          node.classList.toggle('is-hidden-simple', simple);
+        });
+      };
+      const applyFieldVisibility = (mode) => {
+        applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
+        toggleAdvancedSections(mode);
+      };
       applyFieldVisibility(getUiMode());
       if (dlg) {
         if (dlg.__uiModeUnsub) {
@@ -1842,6 +1855,44 @@ export function normalizeContactId(input) {
           }
         }
       };
+      const normalizeTouchDate = (value, fallbackDate = new Date()) => {
+        if (value instanceof Date) {
+          return formatTouchDate(value);
+        }
+        if (typeof value === 'string' && value.trim()) {
+          const parsed = new Date(value);
+          if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
+            return formatTouchDate(parsed);
+          }
+        }
+        if (fallbackDate instanceof Date && !Number.isNaN(fallbackDate.getTime())) {
+          return formatTouchDate(fallbackDate);
+        }
+        return '';
+      };
+      const appendTouchTimeline = (record, meta = {}, fallbackDate) => {
+        if (!record || typeof record !== 'object') return;
+        const extras = record.extras && typeof record.extras === 'object' ? record.extras : {};
+        const timeline = Array.isArray(extras.timeline) ? extras.timeline.slice() : [];
+        const dateOnly = normalizeTouchDate(meta.date || record.lastContact || fallbackDate);
+        const whenDate = dateOnly ? new Date(dateOnly) : new Date();
+        const whenIso = (whenDate instanceof Date && !Number.isNaN(whenDate.getTime()))
+          ? whenDate.toISOString()
+          : new Date().toISOString();
+        const entry = {
+          when: whenIso,
+          text: String(meta.text || meta.entry || meta.note || '').trim(),
+          tag: String(meta.key || meta.tag || 'touch'),
+          by: meta.by || 'contact-editor'
+        };
+        timeline.push(entry);
+        extras.timeline = timeline;
+        record.extras = extras;
+        if (dateOnly) {
+          record.lastContact = dateOnly;
+          record.lastTouch = dateOnly;
+        }
+      };
       const handleSave = async (options) => {
         const opts = options && typeof options === 'object' ? options : {};
         const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
@@ -1880,6 +1931,9 @@ export function normalizeContactId(input) {
               || (referralPartnerOption && referralPartnerOption.textContent ? referralPartnerOption.textContent.trim() : '')
               || (cleanReferralPartnerId === referralPartnerId ? referralPartnerName : ''))
             : '';
+          const baseExtras = (c.extras && typeof c.extras === 'object') ? { ...c.extras } : {};
+          if (Array.isArray(baseExtras.timeline)) { baseExtras.timeline = baseExtras.timeline.slice(); }
+          const lastContactValue = $('#c-lastcontact', body).value || '';
           const u = Object.assign({}, c, {
             first: firstNameValue,
             last: lastNameValue,
@@ -1890,7 +1944,7 @@ export function normalizeContactId(input) {
             stage: $('#c-stage', body).value, status: $('#c-status', body).value,
             loanAmount: Number($('#c-amount', body).value || 0), rate: Number($('#c-rate', body).value || 0),
             fundedDate: $('#c-funded', body).value || '', buyerPartnerId: $('#c-buyer', body).value || null,
-            listingPartnerId: $('#c-listing', body).value || null, lastContact: $('#c-lastcontact', body).value || '',
+            listingPartnerId: $('#c-listing', body).value || null, lastContact: lastContactValue,
             referralPartnerId: cleanReferralPartnerId || null,
             referralPartnerName: cleanReferralPartnerId ? computedReferralPartnerName : '',
             referredBy: $('#c-ref', body).value || '', notes: $('#c-notes', body).value || '', updatedAt: Date.now(),
@@ -1911,10 +1965,17 @@ export function normalizeContactId(input) {
             preApprovalExpires: $('#c-preexp', body).value || '',
             nextFollowUp: $('#c-nexttouch', body).value || '',
             secondaryEmail: $('#c-email2', body).value.trim(),
-            secondaryPhone: $('#c-phone2', body).value.trim()
+            secondaryPhone: $('#c-phone2', body).value.trim(),
+            extras: baseExtras
           });
           u.status = normalizeStatusForStage(u.stage, u.status);
           u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
+          if (opts.touchLog) {
+            appendTouchTimeline(u, opts.touchLog, lastContactValue || new Date());
+          }
+          if (u.lastContact && !u.lastTouch) {
+            u.lastTouch = u.lastContact;
+          }
           const nextStatusKey = canonicalStatusKey(u.status || '');
           const statusChanged = prevStatusKey !== nextStatusKey;
           const milestoneChanged = prevMilestoneNormalized !== u.pipelineMilestone;
@@ -2491,7 +2552,11 @@ export function normalizeContactId(input) {
               lastInput.dispatchEvent(new Event('input', { bubbles: true }));
               lastInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
-            const result = await handleSave({ keepOpen: true, successMessage: touchSuccessMessage(key) });
+            const result = await handleSave({
+              keepOpen: true,
+              successMessage: touchSuccessMessage(key),
+              touchLog: { key, date: today, entry, by: 'contact-editor:touch-menu' }
+            });
             return result;
           } catch (err) {
             try { console && console.warn && console.warn('[contacts] touch log failed', err); }
