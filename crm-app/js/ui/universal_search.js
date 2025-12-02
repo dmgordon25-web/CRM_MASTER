@@ -7,28 +7,39 @@
   let searchInput = null;
   let resultsContainer = null;
   let currentResults = [];
+  let documentClickBound = false;
 
   function init() {
-    searchInput = document.getElementById('universal-search');
-    resultsContainer = document.getElementById('universal-search-results');
-    
-    if (!searchInput || !resultsContainer) return;
+    const root = document.getElementById('global-search-root');
+    if (!root) return;
+
+    const { input, results } = ensureStructure(root);
+    if (!input || !results) return;
+
+    // Avoid rebinding listeners when render hooks fire repeatedly
+    if (input.dataset.bound === '1') {
+      searchInput = input;
+      resultsContainer = results;
+      return;
+    }
+
+    searchInput = input;
+    resultsContainer = results;
+    input.dataset.bound = '1';
 
     searchInput.addEventListener('input', handleSearchInput);
     searchInput.addEventListener('focus', handleSearchFocus);
     searchInput.addEventListener('keydown', handleKeydown);
-    
-    // Close results when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
-        hideResults();
-      }
-    });
+
+    if (!documentClickBound) {
+      document.addEventListener('click', handleDocumentClick, true);
+      documentClickBound = true;
+    }
   }
 
   function handleSearchInput(e) {
     const query = e.target.value.trim();
-    
+
     clearTimeout(debounceTimer);
     
     if (!query || query.length < 2) {
@@ -42,10 +53,122 @@
   }
 
   function handleSearchFocus() {
+    if (!searchInput) return;
     const query = searchInput.value.trim();
     if (query.length >= 2) {
       performSearch(query);
     }
+  }
+
+  function handleDocumentClick(e) {
+    if (!searchInput || !resultsContainer) return;
+    if (searchInput.contains(e.target) || resultsContainer.contains(e.target)) return;
+    hideResults();
+  }
+
+  function ensureStructure(root) {
+    const container = root.querySelector('#universal-search-container');
+    const input = root.querySelector('#universal-search');
+    const results = root.querySelector('#universal-search-results');
+
+    if (root.dataset.rendered === '1' && (!container || !input || !results)) {
+      root.dataset.rendered = '';
+      return ensureStructure(root);
+    }
+
+    if (root.dataset.rendered !== '1') {
+      root.innerHTML = '';
+      const container = document.createElement('div');
+      container.id = 'universal-search-container';
+      container.style.position = 'relative';
+
+      const input = document.createElement('input');
+      input.type = 'search';
+      input.id = 'universal-search';
+      input.placeholder = 'Search contacts and partners…';
+      input.setAttribute('aria-label', 'Universal search');
+      input.setAttribute('data-hint', 'Quickly find any contact or partner by name, email, or phone. Press ESC to close.');
+      input.style.width = '100%';
+      input.style.padding = '8px 12px 8px 36px';
+      input.style.border = '1px solid #e2e8f0';
+      input.style.borderRadius = '8px';
+      input.style.fontSize = '14px';
+
+      const icon = document.createElement('span');
+      icon.textContent = '🔍';
+      icon.dataset.searchIcon = 'true';
+      icon.style.position = 'absolute';
+      icon.style.left = '12px';
+      icon.style.top = '50%';
+      icon.style.transform = 'translateY(-50%)';
+      icon.style.color = '#94a3b8';
+      icon.style.fontSize = '16px';
+
+      const results = document.createElement('div');
+      results.id = 'universal-search-results';
+      results.style.display = 'none';
+      results.style.position = 'absolute';
+      results.style.top = 'calc(100% + 4px)';
+      results.style.left = '0';
+      results.style.right = '0';
+      results.style.background = 'white';
+      results.style.border = '1px solid #e2e8f0';
+      results.style.borderRadius = '8px';
+      results.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+      results.style.maxHeight = '400px';
+      results.style.overflowY = 'auto';
+      results.style.zIndex = '1000';
+
+      container.appendChild(input);
+      container.appendChild(icon);
+      container.appendChild(results);
+      root.appendChild(container);
+      root.dataset.rendered = '1';
+
+      return { input, results };
+    }
+
+    if (container) {
+      container.style.position = 'relative';
+    }
+    if (input) {
+      input.placeholder = 'Search contacts and partners…';
+      input.setAttribute('aria-label', 'Universal search');
+      input.style.padding = input.style.padding || '8px 12px 8px 36px';
+      input.style.border = input.style.border || '1px solid #e2e8f0';
+      input.style.borderRadius = input.style.borderRadius || '8px';
+      input.style.fontSize = input.style.fontSize || '14px';
+      if (!input.getAttribute('data-hint')) {
+        input.setAttribute('data-hint', 'Quickly find any contact or partner by name, email, or phone. Press ESC to close.');
+      }
+    }
+    if (container && !container.querySelector('[data-search-icon]')) {
+      const icon = document.createElement('span');
+      icon.textContent = '🔍';
+      icon.dataset.searchIcon = 'true';
+      icon.style.position = 'absolute';
+      icon.style.left = '12px';
+      icon.style.top = '50%';
+      icon.style.transform = 'translateY(-50%)';
+      icon.style.color = '#94a3b8';
+      icon.style.fontSize = '16px';
+      container.appendChild(icon);
+    }
+    if (results) {
+      results.style.display = results.style.display || 'none';
+      results.style.position = results.style.position || 'absolute';
+      results.style.top = results.style.top || 'calc(100% + 4px)';
+      results.style.left = results.style.left || '0';
+      results.style.right = results.style.right || '0';
+      results.style.background = results.style.background || 'white';
+      results.style.border = results.style.border || '1px solid #e2e8f0';
+      results.style.borderRadius = results.style.borderRadius || '8px';
+      results.style.boxShadow = results.style.boxShadow || '0 4px 12px rgba(0, 0, 0, 0.1)';
+      results.style.maxHeight = results.style.maxHeight || '400px';
+      results.style.overflowY = results.style.overflowY || 'auto';
+    }
+
+    return { input, results };
   }
 
   function handleKeydown(e) {
@@ -59,6 +182,7 @@
   }
 
   async function performSearch(query) {
+    if (!searchInput || !resultsContainer) return;
     try {
       // Get data from IndexedDB
       await openDB();
@@ -200,7 +324,9 @@
 
   function openRecord(id, type) {
     hideResults();
-    searchInput.value = '';
+    if (searchInput) {
+      searchInput.value = '';
+    }
 
     if (type === 'contact') {
       if (window.renderContactModal && typeof window.renderContactModal === 'function') {
@@ -215,6 +341,7 @@
 
   function hideResults() {
     if (resultsContainer) {
+      resultsContainer.innerHTML = '';
       resultsContainer.style.display = 'none';
     }
   }
