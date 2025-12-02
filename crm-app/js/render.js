@@ -29,6 +29,7 @@ import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHa
 import { syncTableLayout } from './ui/table_layout.js';
 import { getColumnsForView } from './tables/column_config.js';
 import { getUiMode } from './ui/ui_mode.js';
+import { logError } from './util/errors.js';
 
 const perf = typeof performance !== 'undefined' ? performance : null;
 const perfReady = perf && typeof perf.now === 'function';
@@ -39,7 +40,7 @@ const perfLog = (mark) => {
   try {
     const duration = perf.now() - mark.start;
     console.log(`[PERF] ${mark.label} ${duration.toFixed(1)} ms`);
-  } catch (_) { }
+  } catch (err) { logError('render:perf-log', err); }
 };
 
 const RENDER_SCOPE_TOKENS = new Set(['dashboard', 'contacts', 'pipeline', 'partners', 'tasks', 'longshots', 'documents']);
@@ -2316,7 +2317,7 @@ function ensureContactRowOpener(table) {
       }
     } catch (err) {
       try { console && console.warn && console.warn('contact row open failed', err); }
-      catch (_) { }
+      catch (warnErr) { logError('render:contacts-row-open-warn', warnErr); }
     }
   };
   table.addEventListener('click', handler);
@@ -2346,7 +2347,7 @@ function ensurePartnerRowOpener(table) {
       }
     } catch (err) {
       try { console && console.warn && console.warn('partner row open failed', err); }
-      catch (_) { }
+      catch (warnErr) { logError('render:partners-row-open-warn', warnErr); }
     }
   };
   table.addEventListener('click', handler);

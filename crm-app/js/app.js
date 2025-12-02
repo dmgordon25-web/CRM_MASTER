@@ -13,6 +13,7 @@ import './ui/header_toolbar.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
 import { attachLoadingBlock, detachLoadingBlock } from './ui/loading_block.js';
 import flags from './settings/flags.js';
+import { logError, notifyError } from './util/errors.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 // import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
@@ -47,7 +48,9 @@ export function goto(hash) {
       if (current === target) return;
       globalThis.location.hash = target;
     }
-  } catch (_) { }
+  } catch (err) {
+    logError('app:navigate', err);
+  }
 }
 
 if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
@@ -71,15 +74,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
-  const notificationsEnabled = featureFlags.notifications === true;
+  const notificationsEnabled = featureFlags.notificationsMVP === true;
+  const logAppError = (context, err) => logError(`app:${context}`, err);
   function loadLabsBundle() {
     if (!labsBundlePromise) {
       try { console.info('[labs] requesting bundle'); }
-      catch (_) { }
+      catch (err) { logAppError('labs:request', err); }
       labsBundlePromise = import(fromHere('./labs/entry.js'))
         .then((mod) => {
           try { console.info('[labs] bundle ready'); }
-          catch (_) { }
+          catch (err) { logAppError('labs:ready-log', err); }
           return mod;
         })
         .catch((error) => {
@@ -141,9 +145,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         errorCard.appendChild(retryRow);
         root.appendChild(errorCard);
         try { console.warn('[labs] bootstrap failed', error); }
-        catch (_) { }
+        catch (err) { logAppError('labs:bootstrap-warn', err); }
         try { root.removeAttribute('data-mounted'); }
-        catch (_) { }
+        catch (err) { logAppError('labs:cleanup', err); }
       })
       .finally(() => {
         root.removeAttribute('aria-busy');
@@ -160,14 +164,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const bar = getActionBarNode();
     if (!bar) return;
     try { bar.classList.remove('has-selection'); }
-    catch (_) { }
+    catch (err) { logAppError('actionbar:idle-class', err); }
     if (bar.dataset) {
       if (!bar.dataset.count) bar.dataset.count = '0';
       bar.dataset.idleVisible = '1';
       bar.dataset.visible = '1';
     }
     try { bar.setAttribute('data-visible', '1'); }
-    catch (_) { }
+    catch (err) { logAppError('actionbar:set-visible', err); }
     if (bar.style && bar.style.display === 'none') {
       bar.style.display = '';
     }
@@ -192,7 +196,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         bar.dataset.visible = '1';
       }
       try { bar.setAttribute('data-visible', '1'); }
-      catch (_) { }
+      catch (err) { logAppError('actionbar:set-visible', err); }
       if (bar.style && bar.style.display === 'none') {
         bar.style.display = '';
       }
@@ -203,11 +207,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
       if (!bar.classList.contains('has-selection')) {
         try { bar.removeAttribute('data-visible'); }
-        catch (_) { }
+        catch (err) { logAppError('actionbar:remove-visible', err); }
       }
     }
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
-    catch (_) { }
+    catch (err) { logAppError('actionbar:notify-visible', err); }
   }
 
   function applyNotificationsNavVisibility(enabled) {
@@ -464,7 +468,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           if (node.tagName === 'DIALOG' && node.open) node.close();
         }
       }
-    } catch (_) { }
+    } catch (err) {
+      logAppError('partner-modal:close', err);
+    }
   }
 
   ensurePartnerModalClosed();
@@ -480,7 +486,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const targetHash = `#/${DEFAULT_ROUTE}`;
       try {
         window.location.hash = targetHash;
-      } catch (_) { }
+      } catch (err) { logAppError('route:reset-notifications-hash', err); }
       return;
     }
     if (hash && hash !== '#') return;
@@ -488,94 +494,24 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     try {
       window.location.hash = targetHash;
       return;
-    } catch (_err) { }
+    } catch (err) { logAppError('route:set-default', err); }
     try {
       const { pathname = '', search = '' } = window.location;
       if (window.history && typeof window.history.replaceState === 'function') {
         window.history.replaceState(null, '', `${pathname}${search}${targetHash}`);
       }
-    } catch (__err) { }
+    } catch (err) { logAppError('route:replace-default', err); }
   }
 
   ensureDefaultRoute();
 
-    onDomReady(() => {
-    console.log('[DEBUG] onDomReady executing');
-    // --- RE-INSERTED LOGIC START ---
-    try {
-      createBinding(document.body);
-    } catch (err) {
-      console.error('[APP] createBinding failed', err);
-    }
-    const nav = $('#main-nav');
-    if (nav) {
-      console.log('[DEBUG] #main-nav found, attaching listener');
-      nav.addEventListener('click', (e) => {
-        console.log('[DEBUG] #main-nav click', e.target);
-        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
-        const navTarget = btn.getAttribute('data-nav');
-        console.log('[DEBUG] Nav target:', navTarget);
-        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-          e.preventDefault(); activate(DEFAULT_ROUTE); return;
-        }
-        if (navTarget === 'workbench') return;
-        e.preventDefault(); activate(navTarget);
-      });
-    } else {
-      console.error('[DEBUG] #main-nav NOT found in onDomReady');
-    }
-
-    const headerSettingsButton = document.getElementById('btn-open-settings');
-    if (headerSettingsButton && !headerSettingsButton.__wired) {
-      headerSettingsButton.__wired = true;
-      headerSettingsButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('settings');
-      });
-    }
-
-    wireUnifiedNew();
-
-    const titleLink = document.getElementById('app-title-link');
-    if (titleLink && !titleLink.__wired) {
-      titleLink.__wired = true;
-      titleLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        activate('dashboard');
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        catch (_) { window.scrollTo(0, 0); }
-      });
-    }
-    // --- RE-INSERTED LOGIC END ---
-
-    ensurePartnerModalClosed();
-    ensureActionBarIdleState();
-    applyActionBarIdleVisibility(DEFAULT_ROUTE);
-    applyNotificationsNavVisibility(notificationsEnabled);
-    ensureDefaultRoute();
-    bootSplash.ensure();
-
-    // Helper to clean up potential ReferenceErrors from previous patches
-    if (typeof window.closeContactEditor !== 'function') {
-      window.closeContactEditor = () => {
-        const m = document.querySelector('[data-ui="contact-edit-modal"]');
-        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
-      };
-    }
-
-    // FINAL BOOT STEP
-    initSelectionBindings();
-    initRowOpeners();
-    init();
-    dedupeHeaderSettings();
-  });
 
   try {
     window.Selection?.clear?.('app:boot');
-  } catch (_) { }
+  } catch (err) { logAppError('selection:clear-boot', err); }
   try {
     window.SelectionService?.clear?.('app:boot');
-  } catch (_) { }
+  } catch (err) { logAppError('selectionService:clear-boot', err); }
 
   function dedupeHeaderSettings() {
     try {
@@ -589,7 +525,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           btn.parentElement.removeChild(btn);
         }
       });
-    } catch (_) { }
+    } catch (err) { logAppError('dedupe-header:run', err); }
   }
 
   function wireUnifiedNew() {
@@ -607,32 +543,32 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           }
         } catch (err) {
           try { console && console.warn && console.warn('[quick-add] menu unavailable', err); }
-          catch (_) { }
+          catch (warnErr) { logAppError('quick-add:warn', warnErr); }
         }
         try {
           const mod = await import('./contacts.js');
           if (mod && typeof mod.openContactEditor === 'function') {
             mod.openContactEditor({}, { sourceHint: 'header:new' });
           }
-        } catch (_err) { }
+        } catch (err) { logAppError('quick-add:fallback-contact', err); }
       });
-    } catch (_) { }
+    } catch (err) { logAppError('quick-add:wire', err); }
   }
   try {
     window.SelectionStore?.clear?.('partners');
-  } catch (_) { }
+  } catch (err) { logAppError('selectionStore:clear-partners', err); }
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(DEFAULT_ROUTE);
   applyNotificationsNavVisibility(notificationsEnabled);
   try {
     window.Selection?.clear?.('app:boot');
-  } catch (_) { }
+  } catch (err) { logAppError('selection:clear-boot', err); }
   try {
     window.SelectionService?.clear?.('app:boot');
-  } catch (_) { }
+  } catch (err) { logAppError('selectionService:clear-boot', err); }
   try {
     window.SelectionStore?.clear?.('partners');
-  } catch (_) { }
+  } catch (err) { logAppError('selectionStore:clear-partners', err); }
   window.CRM.openPipelineWithFilter = function (stage) {
     try {
       const raw = stage == null ? '' : String(stage).trim();
@@ -923,12 +859,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     let releaseListLoading = null;
     if (listLoadingController && typeof listLoadingController.begin === 'function') {
       try { releaseListLoading = listLoadingController.begin(); }
-      catch (_err) { releaseListLoading = null; }
+      catch (err) { releaseListLoading = null; logAppError('render:list-loading-begin', err); }
     }
     const release = () => {
       if (!releaseListLoading) return;
       try { releaseListLoading(); }
-      catch (_err) { }
+      catch (err) { logAppError('render:list-loading-release', err); }
       releaseListLoading = null;
     };
     try {
@@ -940,7 +876,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             release();
             if (perfEnabled) {
               try { console.log('[PERF] renderAll', (performance.now() - perfStart).toFixed(1), 'ms'); }
-              catch (_) { }
+              catch (err) { logAppError('render:perf-log', err); }
             }
           });
         return;
@@ -949,7 +885,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       release();
       if (perfEnabled) {
         try { console.log('[PERF] renderAll', (performance.now() - perfStart).toFixed(1), 'ms'); }
-        catch (_) { }
+        catch (err) { logAppError('render:perf-log', err); }
       }
     } catch (err) {
       console.warn('[soft] [app] renderAll failed', err);
@@ -1242,6 +1178,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     box.innerHTML = `<div><strong>Contacts:</strong><ul>${list(rec.contacts || {})}</ul></div><div style="margin-top:8px"><strong>Partners:</strong><ul>${list(rec.partners || {})}</ul></div>`;
   }
 
+  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
+  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
+  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
+  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
+
   const SELECTION_SCOPES = ['contacts', 'partners', 'pipeline', 'notifications'];
 
   function getSelectionStore() {
@@ -1303,11 +1244,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
     return true;
   }
-
-  const SELECT_ALL_INPUT_SELECTOR = 'input[data-ui="row-check-all"]';
-  const ROW_CHECK_SELECTOR = '[data-ui="row-check"]';
-  const SELECTABLE_SCOPES = new Set(['contacts', 'partners', 'pipeline']);
-  const TABLE_SELECT_ALL_BINDINGS = new WeakMap();
 
   function normalizeIdSet(ids, scope, store) {
     if (ids instanceof Set) return ids;
@@ -1820,7 +1756,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
       queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-        catch (_) { }
+        catch (err) { logAppError('actionbar:update-visible', err); }
       });
     }
   }
@@ -1860,10 +1796,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           selectionCleared = true;
         }
       }
-    } catch (_) { }
+    } catch (err) { logAppError('selection:clear-scopes', err); }
     if (storeCleared || selectionCleared) {
       try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
-      catch (_) { }
+      catch (err) { logAppError('selection:update-actionbar', err); }
     }
   }
 
@@ -1904,7 +1840,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       } catch (err) {
         try { console && console.warn && console.warn('[selection] sync failed', err); }
-        catch (_) { }
+        catch (warnErr) { logAppError('selection:warn', warnErr); }
       }
 
       try {
@@ -1912,13 +1848,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         if (compat && typeof compat.set === 'function') {
           compat.set(normalizedIds, type, 'row-check');
         }
-      } catch (_) { }
+      } catch (err) { logAppError('selectionService:set', err); }
 
       // Notify listeners that depend on the selection event bus (e.g., action bar)
       try {
         const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope, source: 'row-check' };
         document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
-      } catch (_) { }
+      } catch (err) { logAppError('selection:dispatch-change', err); }
     };
     document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
@@ -1926,7 +1862,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       document.querySelectorAll('table[data-selection-scope]').forEach((table) => {
         wireSelectAllForTable(table);
       });
-    } catch (_err) { }
+    } catch (err) { logAppError('selection:wire-select-all', err); }
     if (typeof window !== 'undefined') {
       window.syncSelectionScope = syncSelectionScope;
     }
@@ -1957,7 +1893,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           }
         } catch (err) {
           try { console && console.warn && console.warn('contact row open failed', err); }
-          catch (_) { }
+          catch (warnErr) { logAppError('contacts:row-open-warn', warnErr); }
         }
         return;
       }
@@ -1975,13 +1911,84 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           }
         } catch (err) {
           try { console && console.warn && console.warn('partner row open failed', err); }
-          catch (_) { }
+          catch (warnErr) { logAppError('partners:row-open-warn', warnErr); }
         }
       }
     };
 
     document.addEventListener('click', handler);
   }
+
+  onDomReady(() => {
+    console.log('[DEBUG] onDomReady executing');
+    // --- RE-INSERTED LOGIC START ---
+    try {
+      createBinding(document.body);
+    } catch (err) {
+      console.error('[APP] createBinding failed', err);
+    }
+    const nav = $('#main-nav');
+    if (nav) {
+      console.log('[DEBUG] #main-nav found, attaching listener');
+      nav.addEventListener('click', (e) => {
+        console.log('[DEBUG] #main-nav click', e.target);
+        const btn = e.target.closest('button[data-nav]'); if (!btn) return;
+        const navTarget = btn.getAttribute('data-nav');
+        console.log('[DEBUG] Nav target:', navTarget);
+        if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
+          e.preventDefault(); activate(DEFAULT_ROUTE); return;
+        }
+        if (navTarget === 'workbench') return;
+        e.preventDefault(); activate(navTarget);
+      });
+    } else {
+      console.error('[DEBUG] #main-nav NOT found in onDomReady');
+    }
+
+    const headerSettingsButton = document.getElementById('btn-open-settings');
+    if (headerSettingsButton && !headerSettingsButton.__wired) {
+      headerSettingsButton.__wired = true;
+      headerSettingsButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('settings');
+      });
+    }
+
+    wireUnifiedNew();
+
+    const titleLink = document.getElementById('app-title-link');
+    if (titleLink && !titleLink.__wired) {
+      titleLink.__wired = true;
+      titleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate('dashboard');
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (_) { window.scrollTo(0, 0); }
+      });
+    }
+    // --- RE-INSERTED LOGIC END ---
+
+    ensurePartnerModalClosed();
+    ensureActionBarIdleState();
+    applyActionBarIdleVisibility(DEFAULT_ROUTE);
+    applyNotificationsNavVisibility(notificationsEnabled);
+    ensureDefaultRoute();
+    bootSplash.ensure();
+
+    // Helper to clean up potential ReferenceErrors from previous patches
+    if (typeof window.closeContactEditor !== 'function') {
+      window.closeContactEditor = () => {
+        const m = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+      };
+    }
+
+    // FINAL BOOT STEP
+    initSelectionBindings();
+    initRowOpeners();
+    init();
+    dedupeHeaderSettings();
+  });
 
   const VIEW_HASH = {
     dashboard: '#/dashboard',
@@ -2470,7 +2477,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (typeof window !== 'undefined' && window.location) {
         return String(window.location.hash || '').trim().toLowerCase();
       }
-    } catch (_) { }
+    } catch (err) { logAppError('route:normalized-hash', err); }
     return '';
   }
 
@@ -2499,7 +2506,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         globalThis.history.replaceState(null, '', targetHash);
         return;
       }
-    } catch (_) { }
+    } catch (err) { logAppError('route:replace-state', err); }
     goto(targetHash);
   }
 
@@ -2543,12 +2550,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (typeof document !== 'undefined' && document?.dispatchEvent) {
         document.dispatchEvent(new CustomEvent(type, payload));
       }
-    } catch (_) { }
+    } catch (err) { logAppError('events:document-dispatch', err); }
     try {
       if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
         window.dispatchEvent(new CustomEvent(type, payload));
       }
-    } catch (_) { }
+    } catch (err) { logAppError('events:window-dispatch', err); }
   }
 
   function requestRenderForNavigation(route) {
@@ -2585,13 +2592,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         contactModal.style.display = 'none';
         if (contactModal.hasAttribute('open')) contactModal.removeAttribute('open');
       }
-    } catch (_) { }
+    } catch (err) { logAppError('view:close-contact-modal', err); }
 
     try {
       if (typeof closePartnerEditModal === 'function') {
         closePartnerEditModal();
       }
-    } catch (_) { }
+    } catch (err) { logAppError('view:close-partner-modal', err); }
 
     try {
       const openModals = document.querySelectorAll('[data-modal-key]');
@@ -2601,7 +2608,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           closeSingletonModal(key, { remove: false });
         }
       });
-    } catch (_) { }
+    } catch (err) { logAppError('view:close-singleton-modals', err); }
 
     $all('main[id^="view-"]').forEach((m) => {
       const isActive = m.id === 'view-' + normalized;
@@ -2745,7 +2752,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         } else if (window.location) {
           window.location.hash = '#/workbench';
         }
-      } catch (_) { }
+      } catch (err) { logAppError('workbench:update-hash', err); }
     };
 
     async function goWB(evt) {
@@ -3198,7 +3205,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const snapshot = await dbExportAll();
         const rec = { id: 'lastBackup', at: new Date().toISOString(), snapshot };
         await dbPut('meta', rec);
-      } catch (_) { }
+      } catch (err) { logAppError('backup:auto', err); }
     }
 
     // Signal server when window closes (note: session beacon patch also handles this)
@@ -3207,7 +3214,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (sid) {
         navigator.sendBeacon(`/__bye?sid=${encodeURIComponent(sid)}`);
       }
-    } catch (_) { }
+    } catch (err) { logAppError('bye:beacon', err); }
   });
 
   async function init() {
@@ -3436,7 +3443,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           if (console && typeof console.log === 'function') {
             console.log('[APP_RENDER]', label, Date.now());
           }
-        } catch (_) { }
+        } catch (err) { logAppError('render:app-render-log', err); }
         if (window.RenderGuard && typeof window.RenderGuard.requestRender === 'function') {
           try { window.RenderGuard.requestRender(); }
           catch (err) { if (isDebug && console && typeof console.warn === 'function') console.warn('[app] requestRender preflight failed', err); }
@@ -3631,14 +3638,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       sweep();
     }
     if (window.RenderGuard && typeof window.RenderGuard.registerHook === 'function') {
-      try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); } catch (_) { }
+      try { window.RenderGuard.registerHook(() => { setTimeout(sweep, 0); }); }
+      catch (err) { logAppError('render-guard:register-sweep', err); }
     }
   })();
 
   // Load SVG sanitizer (no-op if already loaded)
   try {
     import(fromHere('./ux/svg_sanitizer.js')).catch(() => { });
-  } catch (_) { }
+  } catch (err) { logAppError('ux:svg-sanitizer', err); }
 
   // Inject a tiny data-URL favicon to stop 404 noise without touching HTML
   (function () {
@@ -3651,7 +3659,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         link.href = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23555"/></svg>';
         document.head.appendChild(link);
       }
-    } catch (_) { }
+    } catch (err) { logAppError('favicon:inject', err); }
   })();
   // Explicitly call init to boot the app
   init().catch(err => {
