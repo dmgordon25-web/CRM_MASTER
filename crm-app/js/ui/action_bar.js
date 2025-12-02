@@ -1,6 +1,7 @@
 import { openMergeModal } from './merge_modal.js';
 import { bindHeaderQuickAddOnce } from '../quick_add.js';
 import { bindHeaderQuickCreateOnce } from './quick_create_menu.js';
+import { applyActionBarState, computeActionBarGuards } from '../state/actionBarGuards.js';
 
 const BUTTON_ID = 'actionbar-merge-partners';
 const DATA_ACTION_NAME = 'clear';
@@ -543,6 +544,7 @@ function setSelectedCount(count) {
   }
   applyMergeReadyFlag(next);
   updateActionBarMinimizedState(next);
+  applyActionBarState(getActionBarRoot(), next, computeActionBarGuards(next));
   if (previous === next) return;
   handleSelectionTransition(previous, next);
   requestVisibilityRefresh();
@@ -776,6 +778,18 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
+function getVisibleSelectionScopes() {
+  if (typeof document === 'undefined') return [];
+  const scopes = new Set();
+  document.querySelectorAll('[data-selection-scope]').forEach((node) => {
+    const scope = node.getAttribute('data-selection-scope');
+    if (!scope || !scope.trim()) return;
+    if (!_isActuallyVisible(node)) return;
+    scopes.add(scope.trim());
+  });
+  return Array.from(scopes);
+}
+
 function hasDomSelectionSnapshot() {
   if (typeof document === 'undefined') return false;
   const selectors = [
@@ -806,23 +820,7 @@ export function syncActionBarVisibility(selCount, explicitEl) {
   const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
     ? Math.max(0, Math.floor(selCount))
     : 0;
-  const idleVisible = bar?.dataset?.idleVisible === '1';
-  const hasSelections = numeric > 0;
-  const shouldBeVisible = hasSelections || idleVisible;
-
-  if (numeric > 0) {
-    bar.style.display = 'block';
-    bar.setAttribute('data-visible', '1');
-    if (bar.hasAttribute('data-minimized')) {
-      bar.removeAttribute('data-minimized');
-    }
-    bar.setAttribute('aria-expanded', 'true');
-  } else {
-    // Enforcement: Hide completely.
-    bar.style.display = 'none';
-    bar.removeAttribute('data-visible');
-    bar.removeAttribute('data-minimized');
-  }
+  applyActionBarState(bar, numeric, computeActionBarGuards(numeric));
 }
 
 function _updateDataVisible(el) {
@@ -935,34 +933,46 @@ function ensureClearHandler(bar) {
 
   const handler = (event) => {
     event.preventDefault();
-    // [PATCH] Force immediate UI hide to prevent ghost state
-    const host = bar || document.getElementById('actionbar');
-    syncActionBarVisibility(0, host);
+    const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
+    const scopes = getVisibleSelectionScopes();
     const store = getSelectionStore();
-    const scopes = ['contacts', 'partners', 'pipeline', 'notifications', 'longshots', 'default'];
-    if (store && typeof store.clear === 'function') {
-      scopes.forEach(scope => {
+    const targetScopes = scopes.length ? scopes : ['contacts'];
+
+    targetScopes.forEach((scope) => {
+      if (store && typeof store.clear === 'function') {
         try { store.clear(scope); }
         catch (e) { console.warn('[action-bar] clear failed', e); }
-      });
-    } else if (window.Selection && typeof window.Selection.clear === 'function') {
-      try { window.Selection.clear(); }
-      catch (e) { console.warn('[action-bar] clear failed', e); }
-    }
-
-    try {
-      document.querySelectorAll('[data-ui="row-check"], input[data-role="select-all"]').forEach((node) => {
-        if (node instanceof HTMLInputElement) {
+      }
+      try { window.Selection?.clear?.(`actionbar:clear:${scope}`); }
+      catch (_) { }
+      try { window.SelectionService?.clear?.(`actionbar:clear:${scope}`); }
+      catch (_) { }
+      try {
+        document.querySelectorAll(`[data-selection-scope="${scope}"] input[data-role="select-all"]`).forEach((node) => {
           node.indeterminate = false;
           node.checked = false;
           node.setAttribute('aria-checked', 'false');
-        }
-      });
-      document.querySelectorAll('[data-selected]').forEach((row) => {
-        row.removeAttribute('data-selected');
-      });
-    } catch (_) { }
+        });
+        document.querySelectorAll(`[data-selection-scope="${scope}"] [data-ui="row-check"], [data-selection-scope="${scope}"] [data-role="select"]`).forEach((node) => {
+          if (node instanceof HTMLInputElement) {
+            node.indeterminate = false;
+            node.checked = false;
+            node.setAttribute('aria-checked', 'false');
+          }
+        });
+        document.querySelectorAll(`[data-selection-scope="${scope}"] [data-selected]`).forEach((row) => {
+          row.removeAttribute('data-selected');
+        });
+      } catch (_) { }
 
+      try {
+        const detail = { ids: [], count: 0, scope, type: scope, source: 'clear' };
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
+      } catch (_) { }
+    });
+
+    applyActionBarState(host, 0, computeActionBarGuards(0));
+    setSelectedCount(0);
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
     catch (_) { }
   };
