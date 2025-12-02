@@ -737,7 +737,7 @@ dialog::backdrop{ background:rgba(0,0,0,.35); }
 /* ===== FINAL: normal tables (aligned, responsive, no stretch) ===== */
 
 /* Containers never force horizontal scroll by themselves */
-.list-wrap, .page-wrap, .content-wrap { max-width: 100%; overflow: hidden; }
+.list-wrap, .page-wrap, .content-wrap { max-width: 100%; overflow: visible; }
 .table-wrap { max-width: 100%; overflow-x: auto; }
 
 /* Table behaves like a normal data table */
