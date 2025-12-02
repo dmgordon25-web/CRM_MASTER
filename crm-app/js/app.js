@@ -16,21 +16,10 @@ import flags from './settings/flags.js';
 import { logError, notifyError } from './util/errors.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
-// import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
+import { closeContactEditor } from './ui/contact_editor_api.js';
 import { getRenderer } from './app_services.js';
 import { initAppContext, getSettingsApi } from './app_context.js';
 import { createBinding } from './ui/quick_create_menu.js';
-
-// --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
-const closeContactEditor = (reason) => {
-  console.log('[APP_DEBUG] closeContactEditor shim called', reason);
-  console.trace('[APP_DEBUG] closeContactEditor shim stack');
-  try {
-    const m = document.querySelector('[data-ui="contact-edit-modal"]');
-    if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
-  } catch (e) { /* ignore */ }
-};
-// -------------------------------------------------------------------------------
 
 
 
@@ -1977,9 +1966,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // Helper to clean up potential ReferenceErrors from previous patches
     if (typeof window.closeContactEditor !== 'function') {
-      window.closeContactEditor = () => {
-        const m = document.querySelector('[data-ui="contact-edit-modal"]');
-        if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+      window.closeContactEditor = (reason) => {
+        try { closeContactEditor(reason); }
+        catch (_err) { }
       };
     }
 
