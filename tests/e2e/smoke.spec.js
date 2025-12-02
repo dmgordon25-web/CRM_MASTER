@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-const navTargets = ['dashboard', 'pipeline', 'partners', 'contacts', 'calendar', 'settings', 'workbench'];
+const navTargets = ['dashboard', 'pipeline', 'partners', 'contacts', 'calendar', 'longshots', 'settings', 'workbench'];
 
 async function ensureNavVisible(page, target) {
   const button = page.locator(`#main-nav button[data-nav="${target}"]`).first();
