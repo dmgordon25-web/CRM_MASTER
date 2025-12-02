@@ -83,7 +83,7 @@ export function computeActionBarGuards(selectedCount){
   const n = Number(selectedCount || 0);
   return {
     edit: n === 1,
-    merge: n === 2,  // FIXED: Merge only available for exactly 2 selections, not 3+
+    merge: n === 2,  // Merge only available for exactly 2 selections
     emailTogether: n >= 1,
     emailMass: n >= 1,
     addTask: n >= 1,
@@ -126,9 +126,45 @@ export function applyActionBarGuards(target, guardsLike) {
   return guards;
 }
 
+export function applyActionBarState(target, countLike, guardsLike) {
+  const bar = target || (typeof document !== 'undefined' ? document.getElementById('actionbar') : null);
+  if (!bar) return null;
+
+  const count = Number.isFinite(countLike) ? Math.max(0, Math.floor(countLike)) : 0;
+  const guards = guardsLike || computeActionBarGuards(count);
+  applyActionBarGuards(bar, guards);
+
+  try {
+    bar.dataset.count = String(count);
+  } catch (_err) { }
+
+  const hasSelection = count > 0;
+  if (hasSelection) {
+    bar.classList.add('has-selection');
+    bar.removeAttribute('data-minimized');
+    bar.setAttribute('data-visible', '1');
+    if (bar.style) {
+      bar.style.display = '';
+      bar.style.visibility = '';
+    }
+  } else {
+    bar.classList.remove('has-selection');
+    bar.removeAttribute('data-visible');
+    bar.removeAttribute('data-minimized');
+    if (bar.style) {
+      bar.style.display = 'none';
+    }
+  }
+
+  return guards;
+}
+
 if (typeof window !== 'undefined') {
   window.computeActionBarGuards = computeActionBarGuards;
   window.applyActionBarGuards = function applyActionBarGuardsGlobal(target, guardsLike) {
     return applyActionBarGuards(target, guardsLike);
+  };
+  window.applyActionBarState = function applyActionBarStateGlobal(target, countLike, guardsLike) {
+    return applyActionBarState(target, countLike, guardsLike);
   };
 }

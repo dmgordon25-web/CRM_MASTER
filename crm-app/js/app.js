@@ -7,6 +7,7 @@ import './relationships/index.js';
 import { openPartnerEditModal, closePartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { closeSingletonModal } from './ui/modal_singleton.js';
 import { ensureActionBarPostPaintRefresh } from './ui/action_bar.js';
+import { applyActionBarGuards, applyActionBarState, computeActionBarGuards } from './state/actionBarGuards.js';
 import { normalizeStatus } from './pipeline/constants.js';
 import './ui/header_toolbar.js';
 import { createInlineLoader } from '../components/Loaders/InlineLoader.js';
@@ -1786,78 +1787,36 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const bar = document.getElementById('actionbar');
     if (!bar) return;
     const totalRaw = Number(count);
-    const total = Number.isFinite(totalRaw) ? totalRaw : 0;
+    const total = Number.isFinite(totalRaw) ? Math.max(0, Math.floor(totalRaw)) : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
     } else {
       bar.removeAttribute('data-selection-type');
     }
-    const mergeReadyAttr = total >= 2 ? '1' : '0';
-    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
-      bar.setAttribute('data-merge-ready', mergeReadyAttr);
-    }
-    const apply = typeof window.applyActionBarGuards === 'function'
-      ? window.applyActionBarGuards
-      : null;
-    let guards = null;
-    if (scopeKey === 'notifications') {
-      guards = {
+
+    const guards = scopeKey === 'notifications'
+      ? {
         edit: false,
         merge: false,
         emailTogether: false,
         emailMass: false,
         addTask: false,
         bulkLog: false,
+        convertToPipeline: false,
         delete: false,
-        clear: true
-      };
-    } else if (apply) {
-      guards = apply(bar, total);
-    } else {
-      const compute = typeof window.computeActionBarGuards === 'function'
-        ? window.computeActionBarGuards
-        : (() => ({}));
-      guards = compute(total);
-      const fallbackActs = {
-        edit: 'edit',
-        merge: 'merge',
-        emailTogether: 'emailTogether',
-        emailMass: 'emailMass',
-        addTask: 'task',
-        bulkLog: 'bulkLog',
-        delete: 'delete',
-        clear: 'clear'
-      };
-      Object.entries(fallbackActs).forEach(([key, act]) => {
-        const btn = bar.querySelector(`[data-act="${act}"]`);
-        if (!btn) return;
-        const enabled = !!guards[key];
-        btn.disabled = !enabled;
-        btn.classList?.toggle('disabled', !enabled);
-        const isPrimary = act === 'edit' || act === 'merge';
-        btn.classList?.toggle('active', isPrimary && enabled);
-      });
+        clear: total > 0
+      }
+      : computeActionBarGuards(total);
+
+    const mergeReadyAttr = total >= 2 ? '1' : '0';
+    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
+      bar.setAttribute('data-merge-ready', mergeReadyAttr);
     }
 
-    if (total > 0) {
-      bar.classList.add('has-selection');
-      bar.setAttribute('data-visible', '1');
-      if (bar.style && bar.style.display === 'none') {
-        bar.style.display = '';
-      }
-    } else {
-      bar.classList.remove('has-selection');
-      if (!bar.dataset || bar.dataset.idleVisible !== '1') {
-        bar.removeAttribute('data-visible');
-      }
-    }
-    if (bar.dataset && bar.dataset.idleVisible === '1') {
-      bar.setAttribute('data-visible', '1');
-      if (bar.style && bar.style.display === 'none') {
-        bar.style.display = '';
-      }
-    }
+    applyActionBarGuards(bar, guards);
+    applyActionBarState(bar, total, guards);
+
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
       queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
