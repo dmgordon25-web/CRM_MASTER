@@ -1,7 +1,7 @@
 import { text } from './ui/strings.js';
 import { wireQuickAddUnified } from './ui/quick_add_unified.js';
 import { normalizeNewContactPrefill, openContactModal } from './contacts.js';
-import { openPartnerEditor } from './ui/quick_create_menu.js';
+import { openNewPartnerEditor } from './editors/partner_entry.js';
 
 const win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
 const doc = typeof document !== 'undefined' ? document : null;
@@ -71,6 +71,24 @@ function collectQuickAddContactPayload(form) {
   };
 }
 
+function collectQuickAddPartnerPayload(form) {
+  if (!form || typeof form.querySelector !== 'function') return null;
+  const read = (name) => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if (!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value.trim() : String(value || '').trim();
+  };
+  return {
+    __isNew: true,
+    company: read('company'),
+    name: read('name'),
+    email: read('email'),
+    phone: read('phone'),
+    meta: {}
+  };
+}
+
 function ensureQuickAddFullEditor(form, qa, opener, overlay) {
   if (!form || !doc || !qa || typeof opener !== 'function') return;
   if (form.querySelector(`[data-qa="${qa}"]`)) return;
@@ -98,6 +116,12 @@ function ensureQuickAddFullEditor(form, qa, opener, overlay) {
       await opener(model);
       return;
     }
+    if (qa === 'open-full-partner-editor') {
+      const payload = collectQuickAddPartnerPayload(form) || {};
+      closeQuickAddOverlay(overlay);
+      await opener({ prefill: payload, source: 'quick-add:partner' });
+      return;
+    }
     closeQuickAddOverlay(overlay);
     try {
       await Promise.resolve(opener());
@@ -116,10 +140,10 @@ function ensureQuickAddFullEditors() {
   const contactForm = overlay.querySelector('.qa-form-contact');
   const partnerForm = overlay.querySelector('.qa-form-partner');
   ensureQuickAddFullEditor(contactForm, 'open-full-contact-editor', openContactModal, overlay);
-  ensureQuickAddFullEditor(partnerForm, 'open-full-partner-editor', openPartnerEditor, overlay);
+  ensureQuickAddFullEditor(partnerForm, 'open-full-partner-editor', openNewPartnerEditor, overlay);
 }
 
-function openQuickAdd(kind = 'contact') {
+export function openQuickAdd(kind = 'contact') {
   const target = kind === 'partner' ? 'partner' : 'contact';
   wireQuickAddUnified({ copy: buildCopy() });
   const api = win && win.QuickAddUnified;

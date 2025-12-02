@@ -1,4 +1,5 @@
 import { toastInfo, toastWarn } from './toast_helpers.js';
+import { openQuickAdd } from '../quick_add.js';
 
 
 import { validateTask } from '../tasks.js';
@@ -19,26 +20,52 @@ const BIND_GUARD_KEY = typeof Symbol === 'function'
   ? Symbol('quick-create-menu:binding')
   : '__quickCreateMenuBinding__';
 
+async function defaultOpenContactEditor(prefill) {
+  try {
+    const { openContactEditor } = await import('../contacts.js');
+    const meta = { source: 'quick-create:menu', context: 'open', prefill };
+    return openContactEditor(prefill || {}, meta);
+  } catch (err) {
+    console.error('Failed to load contacts module:', err);
+    toastWarn('Could not load contact editor.');
+  }
+  return null;
+}
+
+async function defaultOpenPartnerEditor() {
+  try {
+    const { openNewPartnerEditor } = await import('../editors/partner_entry.js');
+    return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
+  } catch (err) {
+    console.warn('Failed to load partner editor', err);
+    toastWarn('Partner modal unavailable');
+  }
+  return null;
+}
+
+async function openContactQuickAdd(prefill) {
+  try {
+    const opened = openQuickAdd('contact');
+    if (opened) return opened;
+  } catch (err) {
+    console.warn('[quick-create] contact quick-add failed, falling back', err);
+  }
+  return defaultOpenContactEditor(prefill);
+}
+
+async function openPartnerQuickAdd() {
+  try {
+    const opened = openQuickAdd('partner');
+    if (opened) return opened;
+  } catch (err) {
+    console.warn('[quick-create] partner quick-add failed, falling back', err);
+  }
+  return defaultOpenPartnerEditor();
+}
+
 const defaultOpeners = {
-  contact: async () => {
-    try {
-      // Replace the direct call with:
-      const { openContactEditor } = await import('../contacts.js');
-      return openContactEditor(null, { source: 'quick-create:menu' });
-    } catch (err) {
-      console.error('Failed to load contacts module:', err);
-      toastWarn('Could not load contact editor.');
-    }
-  },
-  partner: async () => {
-    try {
-      const { openPartnerEditor } = await import('../editors/partner_entry.js');
-      return openPartnerEditor();
-    } catch (err) {
-      console.warn('Failed to load partner editor', err);
-      toastWarn('Partner modal unavailable');
-    }
-  },
+  contact: (prefill) => openContactQuickAdd(prefill),
+  partner: () => openPartnerQuickAdd(),
   task: () => openTaskEditor()
 };
 
@@ -304,9 +331,9 @@ function ensureMenuElements() {
   state.wrapper = wrapper;
   state.menu = menu;
 
-  const contactBtn = ensureButton('Contact', 'contact');
-  const partnerBtn = ensureButton('Partner', 'partner');
-  const taskBtn = ensureButton('Task', 'task');
+  const contactBtn = ensureButton('Add Contact', 'contact');
+  const partnerBtn = ensureButton('Add Partner', 'partner');
+  const taskBtn = ensureButton('Add Task', 'task');
   const ordered = [contactBtn, partnerBtn, taskBtn];
   ordered.forEach((btn) => {
     if (btn && btn.parentElement === menu) {
@@ -626,27 +653,6 @@ export function isQuickCreateMenuOpen(source) {
   return state.source === source;
 }
 
-async function defaultOpenContactEditor(prefill) {
-  const meta = { source: 'quick-create:menu', context: 'open', prefill };
-  try {
-    const { openContactEditor } = await import('../contacts.js');
-    return openContactEditor(prefill || {}, meta);
-  } catch (e) {
-    console.warn('Contact editor missing', e);
-  }
-}
-
-async function defaultOpenPartnerEditor() {
-  try {
-    // Dynamic import to break circular dependency
-    const { openNewPartnerEditor } = await import('../editors/partner_entry.js');
-    return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
-  } catch (err) {
-    console.warn('Partner editor load failed', err);
-    toastWarn('Partner modal unavailable');
-  }
-}
-
 function defaultOpenTaskEditor() {
   const modal = openTaskQuickCreateModal();
   if (modal) return modal;
@@ -679,8 +685,8 @@ export function openTaskEditor() {
 
 function buildOpeners(options = {}) {
   const openers = {
-    contact: typeof options.openContact === 'function' ? options.openContact : defaultOpenContactEditor,
-    partner: typeof options.openPartner === 'function' ? options.openPartner : defaultOpenPartnerEditor,
+    contact: typeof options.openContact === 'function' ? options.openContact : openContactQuickAdd,
+    partner: typeof options.openPartner === 'function' ? options.openPartner : openPartnerQuickAdd,
     task: typeof options.openTask === 'function' ? options.openTask : defaultOpenTaskEditor
   };
   return openers;
