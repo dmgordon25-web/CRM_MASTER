@@ -85,6 +85,9 @@ h4{margin:0;font-size:var(--font-size-sm);line-height:var(--line-height-snug);le
 nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
 #universal-search-container{order:1}
 .header-new-wrap{order:2}
+.header-new-wrap #quick-add-unified{transition:background-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.header-new-wrap:hover #quick-add-unified,.header-new-wrap:focus-within #quick-add-unified,#quick-add-unified:focus-visible{box-shadow:var(--btn-shadow-hover);background:color-mix(in srgb,var(--button-primary-bg) 92%,#ffffff 8%);border-color:color-mix(in srgb,var(--button-primary-border) 70%,#ffffff 30%);transform:translateY(-1px)}
+.header-new-wrap #quick-add-unified[aria-expanded="true"]{box-shadow:var(--btn-shadow-hover);outline:2px solid var(--ring);outline-offset:2px}
 .nav-split{margin-left:auto;order:10}
 .pill{padding:6px var(--space-3);border-radius:999px;background:color-mix(in srgb,var(--brand) 12%,#eef2ff);border:1px solid color-mix(in srgb,var(--brand) 35%,transparent);color:var(--ink);font-size:var(--font-size-sm);font-weight:600;letter-spacing:var(--letter-spacing-tight);}
 .row{display:flex;gap:var(--space-3)}
@@ -340,9 +343,11 @@ th,td{text-align:left;padding:10px;border-bottom:1px solid #e5e7eb}
 .table-managed th,.table-managed td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle;min-width:0;white-space:nowrap}
 .table-managed td>*{min-width:0;max-width:100%}
 .table-managed td>a{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.table-managed td .contact-name,.table-managed td .partner-name{display:inline-flex;align-items:center;gap:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .table-managed th[data-wrap="1"],.table-managed td[data-wrap="1"]{white-space:normal}
 .table-managed th[data-compact="1"],.table-managed td[data-compact="1"]{white-space:nowrap}
 .table-managed th[data-role="select"],.table-managed td[data-role="select"]{width:44px;text-align:center}
+.table-managed th[data-role="select"]{padding-left:8px;padding-right:8px}
 .table-managed td[data-role="select"]{padding-left:8px;padding-right:8px}
 .table-managed th[data-role="gutter"],.table-managed td[data-role="gutter"]{padding:0;border-bottom:none;pointer-events:none;width:var(--table-scrollbar-width,0px);min-width:0}
 .table-managed td[data-role="gutter"]::after{content:"";display:block;width:var(--table-scrollbar-width,0px)}

@@ -69,7 +69,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
-  const notificationsEnabled = featureFlags.notifications === true;
+  const notificationsEnabled = featureFlags.notificationsMVP === true;
   function loadLabsBundle() {
     if (!labsBundlePromise) {
       try { console.info('[labs] requesting bundle'); }
