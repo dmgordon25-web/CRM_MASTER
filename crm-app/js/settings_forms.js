@@ -7,6 +7,7 @@ import {
   writeDashboardConfig,
   isTodayWidget
 } from './dashboard/config.js';
+import { getUiMode, onUiModeChanged, setUiMode } from './ui/ui_mode.js';
 import { getRenderer } from './app_services.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
 function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
@@ -445,6 +446,32 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     renderProfileBadge();
   }
 
+  function getUiModeToggle(){
+    const el = document.getElementById('toggle-advanced-mode');
+    return el instanceof HTMLInputElement ? el : null;
+  }
+
+  function syncUiModeToggle(mode){
+    const toggle = getUiModeToggle();
+    if(!toggle) return;
+    const current = mode || getUiMode();
+    const isAdvanced = current !== 'simple';
+    toggle.checked = isAdvanced;
+    toggle.setAttribute('aria-pressed', isAdvanced ? 'true' : 'false');
+  }
+
+  function wireUiModeToggle(){
+    const toggle = getUiModeToggle();
+    if(!toggle || toggle.__wiredUiMode) return;
+    toggle.__wiredUiMode = true;
+    toggle.addEventListener('change', () => {
+      const nextMode = toggle.checked ? 'advanced' : 'simple';
+      setUiMode(nextMode);
+    });
+    onUiModeChanged(syncUiModeToggle);
+    syncUiModeToggle();
+  }
+
   function getSimpleModeToggleElements(){
     const map = {};
     Object.entries(SIMPLE_MODE_TOGGLES).forEach(([key, id]) => {
@@ -770,6 +797,8 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       hydrateGoals(data.goals || {});
       hydrateProfile(data.loProfile || {});
       syncSignatureState(data.signature || {});
+      wireUiModeToggle();
+      syncUiModeToggle(data.uiMode || getUiMode());
       wireSimpleModeControls();
       syncSimpleModeControls(data.simpleMode || simpleModeState);
       await hydrateSignatures(data);

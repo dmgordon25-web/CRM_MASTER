@@ -5,6 +5,7 @@ import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
 import { validatePartner } from '../partners.js';
 import { applyPartnerFieldVisibility } from '../editors/partner_fields.js';
 import { getUiMode, onUiModeChanged } from './ui_mode.js';
+import { linkStrayReferralsForPartner } from '../referrals/linker.js';
 
 const MODAL_KEY = 'partner-edit';
 const MODAL_SELECTOR = '[data-ui="partner-edit-modal"], #partner-modal';
@@ -631,6 +632,7 @@ async function renderPartnerEditor(root, partnerId){
           updatedAt: Date.now()
         });
         await dbPut('partners', rec);
+        await linkStrayReferralsForPartner(rec, { source: 'partner:modal' });
         const wasSaved = !!root.__partnerWasSaved;
         root.__currentPartnerBase = Object.assign({}, rec);
         root.dataset.partnerId = String(rec.id || '');

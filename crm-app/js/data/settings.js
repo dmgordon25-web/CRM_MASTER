@@ -795,27 +795,26 @@ function shouldValidateGeneral(partial) {
   async function handleDeleteAll() {
     if (!confirm('PERMANENTLY DELETE ALL DATA?')) return;
 
-    // 1. Wipe DB
-    if (typeof window.openDB === 'function') await window.openDB();
-    const STORES = ['contacts', 'partners', 'settings', 'tasks', 'documents', 'deals', 'commissions', 'meta', 'templates', 'notifications', 'docs', 'closings', 'relationships', 'savedViews'];
+    await clearAllStores();
+    cache = null;
+    inflight = null;
 
-    if (typeof window.dbClear === 'function') {
-      for (const s of STORES) { try { await window.dbClear(s); } catch (e) { } }
-    }
+    try { localStorage.clear(); }
+    catch (_err) { }
+    try { sessionStorage.clear(); }
+    catch (_err2) { }
 
-    // 2. Clear Flags
-    try { if (window.dbDelete) await window.dbDelete('meta', 'seed:inline:bootstrap'); } catch (e) { }
+    try {
+      const detail = { scope: 'settings', action: 'delete-all', source: 'settings:danger-zone' };
+      if (typeof window.dispatchAppDataChanged === 'function') {
+        window.dispatchAppDataChanged(detail);
+      } else if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+      }
+    } catch (_err3) { }
 
-    // 3. Wipe Storage
-    localStorage.clear();
-    sessionStorage.clear();
-
-    // FIX: Suppress seed on next load
-    localStorage.setItem('crm:suppress-seed', '1');
-
-    // 4. HARD RELOAD
     if (window.toast) window.toast('Wiped. Reloading...');
-    setTimeout(() => window.location.reload(), 500);
+    window.location.reload();
   }
 
   function wireDeleteAll() {
