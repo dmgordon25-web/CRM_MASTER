@@ -1931,8 +1931,8 @@ function runPatch(){
         }
         return;
       }
-      const scope = detail.scope;
-      if(scope && scope !== 'settings') return;
+      const scope = typeof detail.scope === 'string' ? detail.scope.toLowerCase() : '';
+      if(scope === 'settings') return;
       state.dashboardLoaded = false;
       dashboardState.refresh({
         sections:['filters','kpis','pipeline','today','leaderboard','stale','focus'],
