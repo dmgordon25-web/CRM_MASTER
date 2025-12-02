@@ -23,6 +23,7 @@ import { renderReferralLeadersWidget } from './dashboard/widgets/referral_leader
 import { renderPipelineMomentumWidget } from './dashboard/widgets/pipeline_momentum.js';
 import { renderTodoWidget } from './dashboard/widgets/todo_widget.js';
 import { ensureFavoriteState, normalizeFavoriteSnapshot, applyFavoriteSnapshot, renderFavoriteToggle, toggleFavorite } from './util/favorites.js';
+import { clearSelectionForSurface } from './services/selection_reset.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from './ui/legend_popover.js';
 import { attachLoadingBlock, detachLoadingBlock, applyTableSkeleton, markTableHasData } from './ui/loading_block.js';
 import { syncTableLayout } from './ui/table_layout.js';
@@ -495,7 +496,15 @@ function renderContactHeader(table, columns, selectId) {
   const head = table.tHead || table.createTHead();
   const row = head.rows[0] || head.insertRow();
   const selectCell = `<th data-role="select" data-column="select" style="width:44px;text-align:center;"><input aria-label="Select all" data-ui="row-check-all" data-role="select-all"${selectId ? ` id="${attr(selectId)}"` : ''} type="checkbox"></th>`;
-  const headerCells = columns.map((col) => `<th data-column="${attr(col.id)}">${safe(col.label || col.id)}</th>`);
+  const numberColumns = new Set(['loanAmount', 'referrals', 'funded', 'active', 'volume', 'conversion']);
+  const headerCells = columns.map((col) => {
+    const sortKey = col.sortKey || col.id;
+    if (sortKey) {
+      const typeAttr = numberColumns.has(sortKey) ? ' data-type="number"' : '';
+      return `<th data-column="${attr(col.id)}"><button class="sort-btn" data-key="${attr(sortKey)}"${typeAttr} type="button">${safe(col.label || col.id)} <span aria-hidden="true" class="sort-icon">↕</span></button></th>`;
+    }
+    return `<th data-column="${attr(col.id)}">${safe(col.label || col.id)}</th>`;
+  });
   row.innerHTML = [selectCell, ...headerCells].join('');
 }
 
@@ -2055,6 +2064,14 @@ export async function renderAll(request) {
               const amountAttr = attr(amountVal);
               const emailAttr = attr((c.email || '').trim().toLowerCase());
               const phoneAttr = attr(normalizePhone(c.phone || ''));
+              const statusAttr = attr(String(c.status || '').toLowerCase());
+              const cityAttr = attr(String(c.city || c.location || '').toLowerCase());
+              const ownerAttr = attr(String(c.owner || c.relationshipOwner || c.loanOfficer || '').toLowerCase());
+              const milestoneAttr = attr(String(c.pipelineMilestone || c.milestone || '').toLowerCase());
+              const lastAttr = attr(isoDate(c.lastContact || c.lastTouch) || '');
+              const nextAttr = attr(isoDate(c.nextFollowUp || c.nextTouch) || '');
+              const createdAttr = attr(isoDate(c.createdAt) || '');
+              const updatedAttr = attr(isoDate(c.updatedAt) || '');
               const refTokens = [];
               if (c.referredBy) refTokens.push(String(c.referredBy));
               [c.buyerPartnerId, c.listingPartnerId, c.partnerId].forEach(pid => {
@@ -2071,7 +2088,7 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...pipelineColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblPipeline, tbPipe, pipelineRows);
           }
@@ -2103,6 +2120,14 @@ export async function renderAll(request) {
               const amountAttr = attr(amountVal);
               const emailAttr = attr((c.email || '').trim().toLowerCase());
               const phoneAttr = attr(normalizePhone(c.phone || ''));
+              const statusAttr = attr(String(c.status || '').toLowerCase());
+              const cityAttr = attr(String(c.city || c.location || '').toLowerCase());
+              const ownerAttr = attr(String(c.owner || c.relationshipOwner || c.loanOfficer || '').toLowerCase());
+              const milestoneAttr = attr(String(c.pipelineMilestone || c.milestone || '').toLowerCase());
+              const lastAttr = attr(isoDate(c.lastContact || c.lastTouch) || '');
+              const nextAttr = attr(isoDate(c.nextFollowUp || c.nextTouch) || '');
+              const createdAttr = attr(isoDate(c.createdAt) || '');
+              const updatedAttr = attr(isoDate(c.updatedAt) || '');
               const fundedIso = attr(isoDate(c.fundedDate) || '');
               const refTokens = [];
               if (c.referredBy) refTokens.push(String(c.referredBy));
@@ -2120,7 +2145,7 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...clientColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblClients, tbClients, clientRows);
           }
@@ -2139,6 +2164,10 @@ export async function renderAll(request) {
               const amountAttr = attr(amountVal);
               const emailAttr = attr((c.email || '').trim().toLowerCase());
               const phoneAttr = attr(normalizePhone(c.phone || ''));
+              const statusAttr = attr(String(c.status || '').toLowerCase());
+              const cityAttr = attr(String(c.city || c.location || '').toLowerCase());
+              const ownerAttr = attr(String(c.owner || c.relationshipOwner || c.loanOfficer || '').toLowerCase());
+              const milestoneAttr = attr(String(c.pipelineMilestone || c.milestone || '').toLowerCase());
               const longshotStageKey = normalizeStatus(c.stage) || normalizeStatus(c.status) || 'long shot';
               const stageMeta = stageInfo(c.stage || c.status || longshotStageKey);
               const longshotClass = classToken(longshotStageKey);
@@ -2148,7 +2177,10 @@ export async function renderAll(request) {
               const isFavorite = favoriteState.contacts.has(contactId);
               if (isFavorite) rowClasses.push('is-favorite');
               const rowToneAttr = longshotClass ? ` data-row-tone="${attr(longshotClass)}"` : '';
-              const lastIso = attr(isoDate(c.lastContact || c.nextFollowUp) || '');
+              const lastIso = attr(isoDate(c.lastContact || c.nextFollowUp || c.lastTouch) || '');
+              const nextIso = attr(isoDate(c.nextFollowUp || c.nextTouch) || '');
+              const createdAttr = attr(isoDate(c.createdAt) || '');
+              const updatedAttr = attr(isoDate(c.updatedAt) || '');
               const refTokens = [];
               if (c.referredBy) refTokens.push(String(c.referredBy));
               [c.buyerPartnerId, c.listingPartnerId, c.partnerId].forEach(pid => {
@@ -2165,20 +2197,13 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...longshotColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}" data-next-action="${nextIso}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblLongshots, tbLs, longshotRows);
           }
           const tblContacts = document.getElementById('tbl-contacts');
           if (tblContacts) {
-            const contactColumns = [
-              { id: 'name', label: 'Name' },
-              { id: 'stage', label: 'Stage' },
-              { id: 'loanType', label: 'Loan Type' },
-              { id: 'loanAmount', label: 'Amount' },
-              { id: 'email', label: 'Email' },
-              { id: 'phone', label: 'Phone' }
-            ];
+            const contactColumns = getColumnsForView('contacts', columnMode).visibleColumns;
             renderContactHeader(tblContacts, contactColumns, 'contacts-all');
             ensureFavoriteColumn(tblContacts);
             const tbContacts = tblContacts.tBodies[0] || $('#tbl-contacts tbody');
@@ -2204,6 +2229,14 @@ export async function renderAll(request) {
                 const amountAttr = attr(amountVal);
                 const emailAttr = attr((c.email || '').trim().toLowerCase());
                 const phoneAttr = attr(normalizePhone(c.phone || ''));
+                const statusAttr = attr(String(c.status || '').toLowerCase());
+                const cityAttr = attr(String(c.city || c.location || '').toLowerCase());
+                const ownerAttr = attr(String(c.owner || c.relationshipOwner || c.loanOfficer || '').toLowerCase());
+                const milestoneAttr = attr(String(c.pipelineMilestone || c.milestone || '').toLowerCase());
+                const lastAttr = attr(isoDate(c.lastContact || c.lastTouch) || '');
+                const nextAttr = attr(isoDate(c.nextFollowUp || c.nextTouch) || '');
+                const createdAttr = attr(isoDate(c.createdAt) || '');
+                const updatedAttr = attr(isoDate(c.updatedAt) || '');
                 const refTokens = [];
                 if (c.referredBy) refTokens.push(String(c.referredBy));
                 [c.buyerPartnerId, c.listingPartnerId, c.partnerId].forEach(pid => {
@@ -2220,11 +2253,17 @@ export async function renderAll(request) {
                   favoriteCell,
                   ...contactColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
                 ];
-                return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+                return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
               }).join('');
               renderTableBody(tblContacts, tbContacts, contactRows);
               ensureContactRowOpener(tblContacts);
             }
+          }
+          if (typeof window.ensureSortable === 'function') {
+            ['tbl-pipeline', 'tbl-clients', 'tbl-longshots', 'tbl-contacts'].forEach((id) => {
+              try { window.ensureSortable(id); }
+              catch (_err) { }
+            });
           }
         }
 
@@ -2259,6 +2298,7 @@ function renderScopedView(scopes, options) {
 function ensureContactRowOpener(table) {
   if (!table || table.__rowOpenWired) return;
   const handler = async (event) => {
+    if (event && event.__crmRowEditorHandled) return;
     const skip = event.target?.closest?.('input,button,select,textarea,label,[data-role="favorite-toggle"]');
     if (skip) return;
     const row = event.target?.closest?.('tr[data-contact-id]');
@@ -2266,6 +2306,9 @@ function ensureContactRowOpener(table) {
     const id = row.getAttribute('data-contact-id');
     if (!id) return;
     event.preventDefault();
+    event.stopPropagation();
+    event.__crmRowEditorHandled = true;
+    clearSelectionForSurface('contacts', { reason: 'contacts:row-open' });
     try {
       const mod = await import('./contacts.js');
       if (mod && typeof mod.openContactEditor === 'function') {
@@ -2283,6 +2326,7 @@ function ensureContactRowOpener(table) {
 function ensurePartnerRowOpener(table) {
   if (!table || table.__rowOpenWired) return;
   const handler = async (event) => {
+    if (event && event.__crmRowEditorHandled) return;
     const favorite = event.target?.closest?.('[data-role="favorite-toggle"]');
     if (favorite) return;
     const skip = event.target?.closest?.('input,button,select,textarea,label');
@@ -2292,6 +2336,9 @@ function ensurePartnerRowOpener(table) {
     const id = row.getAttribute('data-partner-id');
     if (!id) return;
     event.preventDefault();
+    event.stopPropagation();
+    event.__crmRowEditorHandled = true;
+    clearSelectionForSurface('partners', { reason: 'partners:row-open' });
     try {
       const mod = await import('./partners.js');
       if (mod && typeof mod.openPartnerEditModal === 'function') {

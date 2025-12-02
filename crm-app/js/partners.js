@@ -1,6 +1,7 @@
 // partners.js — partner modal wiring & selection helpers
 import { debounce } from './patch_2025-10-02_baseline_ux_cleanup.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
+export { openPartnerEditModal };
 import { ensureSingletonModal } from './ui/modal_singleton.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { getTasksApi } from './app_services.js';
