@@ -1308,6 +1308,7 @@ function renderPartnersTable(partners, contacts) {
     try { window.ensureSortable('tbl-partners'); }
     catch (_err) { }
   }
+  ensurePartnerRowOpener(table);
 }
 
 export async function renderAll(request) {
@@ -2222,6 +2223,7 @@ export async function renderAll(request) {
                 return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
               }).join('');
               renderTableBody(tblContacts, tbContacts, contactRows);
+              ensureContactRowOpener(tblContacts);
             }
           }
         }
@@ -2252,6 +2254,56 @@ registerRenderer(renderAll);
 function renderScopedView(scopes, options) {
   const payload = Object.assign({}, options || {}, { scopes });
   return renderAll(payload);
+}
+
+function ensureContactRowOpener(table) {
+  if (!table || table.__rowOpenWired) return;
+  const handler = async (event) => {
+    const skip = event.target?.closest?.('input,button,select,textarea,label,[data-role="favorite-toggle"]');
+    if (skip) return;
+    const row = event.target?.closest?.('tr[data-contact-id]');
+    if (!row || !table.contains(row)) return;
+    const id = row.getAttribute('data-contact-id');
+    if (!id) return;
+    event.preventDefault();
+    try {
+      const mod = await import('./contacts.js');
+      if (mod && typeof mod.openContactEditor === 'function') {
+        mod.openContactEditor(id, { sourceHint: 'contacts:list-row', trigger: row });
+      }
+    } catch (err) {
+      try { console && console.warn && console.warn('contact row open failed', err); }
+      catch (_) { }
+    }
+  };
+  table.addEventListener('click', handler);
+  table.__rowOpenWired = true;
+}
+
+function ensurePartnerRowOpener(table) {
+  if (!table || table.__rowOpenWired) return;
+  const handler = async (event) => {
+    const favorite = event.target?.closest?.('[data-role="favorite-toggle"]');
+    if (favorite) return;
+    const skip = event.target?.closest?.('input,button,select,textarea,label');
+    if (skip) return;
+    const row = event.target?.closest?.('tr[data-partner-id]');
+    if (!row || !table.contains(row)) return;
+    const id = row.getAttribute('data-partner-id');
+    if (!id) return;
+    event.preventDefault();
+    try {
+      const mod = await import('./partners.js');
+      if (mod && typeof mod.openPartnerEditModal === 'function') {
+        mod.openPartnerEditModal(id, { sourceHint: 'partners:list-row', trigger: row });
+      }
+    } catch (err) {
+      try { console && console.warn && console.warn('partner row open failed', err); }
+      catch (_) { }
+    }
+  };
+  table.addEventListener('click', handler);
+  table.__rowOpenWired = true;
 }
 
 window.renderDashboardView = function (options) {

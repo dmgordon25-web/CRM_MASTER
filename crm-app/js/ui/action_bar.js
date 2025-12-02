@@ -936,13 +936,35 @@ function ensureClearHandler(bar) {
   const handler = (event) => {
     event.preventDefault();
     // [PATCH] Force immediate UI hide to prevent ghost state
-    syncActionBarVisibility(0);
+    const host = bar || document.getElementById('actionbar');
+    syncActionBarVisibility(0, host);
     const store = getSelectionStore();
+    const scopes = ['contacts', 'partners', 'pipeline', 'notifications', 'longshots', 'default'];
     if (store && typeof store.clear === 'function') {
-      try { store.clear(); } catch (e) { console.warn('[action-bar] clear failed', e); }
+      scopes.forEach(scope => {
+        try { store.clear(scope); }
+        catch (e) { console.warn('[action-bar] clear failed', e); }
+      });
     } else if (window.Selection && typeof window.Selection.clear === 'function') {
-      try { window.Selection.clear(); } catch (e) { console.warn('[action-bar] clear failed', e); }
+      try { window.Selection.clear(); }
+      catch (e) { console.warn('[action-bar] clear failed', e); }
     }
+
+    try {
+      document.querySelectorAll('[data-ui="row-check"], input[data-role="select-all"]').forEach((node) => {
+        if (node instanceof HTMLInputElement) {
+          node.indeterminate = false;
+          node.checked = false;
+          node.setAttribute('aria-checked', 'false');
+        }
+      });
+      document.querySelectorAll('[data-selected]').forEach((row) => {
+        row.removeAttribute('data-selected');
+      });
+    } catch (_) { }
+
+    try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
+    catch (_) { }
   };
   clearBtn.addEventListener('click', handler);
   clearBtn.__clearHandlerWired = true;
