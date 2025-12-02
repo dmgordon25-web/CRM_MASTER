@@ -1145,6 +1145,86 @@ function syncSelectionApis(ids, scope, source){
   return list;
 }
 
+function dispatchSelectionChange(scope, ids, source){
+  const normalizedIds = normalizeSelectionIds(ids);
+  const selectionCount = normalizedIds.length;
+
+  try {
+    const eventDetail = {
+      type: scope === 'partners' ? 'partners' : 'contacts',
+      ids: normalizedIds,
+      count: selectionCount,
+      source: source || 'workbench:selection',
+      scope
+    };
+    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
+      document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+    }
+  } catch(err){
+    try{ console && console.warn && console.warn('[workbench] Failed to dispatch selection:changed', err); }
+    catch (_err){}
+  }
+
+  const updateActionBar = () => {
+    if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
+      try { window.updateActionbar(); }
+      catch(_err){}
+    }
+    const bar = typeof document !== 'undefined'
+      ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+      : null;
+    if(bar){
+      if(selectionCount > 0){
+        if(bar.hasAttribute('data-minimized')){
+          bar.removeAttribute('data-minimized');
+        }
+        bar.setAttribute('data-visible', '1');
+        if(bar.dataset) bar.dataset.idleVisible = '1';
+        if(bar.style) {
+          bar.style.display = '';
+          bar.style.opacity = '1';
+          bar.style.visibility = 'visible';
+          bar.style.pointerEvents = 'auto';
+        }
+        bar.dataset.count = String(selectionCount);
+        bar.setAttribute('aria-expanded', 'true');
+      }else{
+        bar.removeAttribute('data-visible');
+        bar.removeAttribute('data-idle-visible');
+        bar.setAttribute('data-minimized', '1');
+        if(bar.style) {
+          bar.style.display = '';
+          bar.style.opacity = '1';
+          bar.style.visibility = 'visible';
+          bar.style.pointerEvents = 'auto';
+        }
+        bar.dataset.count = '0';
+        bar.setAttribute('aria-expanded', 'false');
+      }
+    }
+    if(typeof ensureActionBarPostPaintRefresh === 'function'){
+      try { ensureActionBarPostPaintRefresh(); }
+      catch(_err){}
+    }
+    if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
+      try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+      catch(_err){}
+    }
+  };
+
+  updateActionBar();
+  if(typeof queueMicrotask === 'function'){
+    queueMicrotask(updateActionBar);
+  }else if(typeof Promise !== 'undefined'){
+    Promise.resolve().then(updateActionBar).catch(() => {});
+  }
+  if(typeof requestAnimationFrame === 'function'){
+    requestAnimationFrame(updateActionBar);
+  }
+
+  return normalizedIds;
+}
+
 function subscribeSelection(){
   if(state.selectionUnsubscribe) return;
   const store = getSelectionStore();
@@ -2755,90 +2835,7 @@ function handleSelectAllChange(event, lensState){
   const normalizedIds = syncSelectionApis(next, scope, checkbox.checked ? 'workbench:select-all:on' : 'workbench:select-all:off');
   store.set(next, scope);
   syncSelectionForLens(lensState);
-  // Force immediate and comprehensive action bar update
-  const selectionCount = normalizedIds.length;
-
-  // Dispatch selection:changed event to notify action bar
-  try {
-    const eventDetail = {
-      type: scope === 'partners' ? 'partners' : 'contacts',
-      ids: normalizedIds,
-      count: selectionCount,
-      source: checkbox.checked ? 'workbench:select-all:on' : 'workbench:select-all:off',
-      scope: scope
-    };
-    if(typeof document !== 'undefined' && typeof document.dispatchEvent === 'function'){
-      document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
-    }
-  } catch(_err){
-    console.warn('[workbench] Failed to dispatch selection:changed', _err);
-  }
-  
-  const updateActionBar = () => {
-    // Call updateActionbar if available to trigger full update
-    if(typeof window !== 'undefined' && typeof window.updateActionbar === 'function'){
-      try { window.updateActionbar(); }
-      catch(_err){}
-    }
-    // Directly manipulate action bar visibility
-    const bar = typeof document !== 'undefined' 
-      ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
-      : null;
-    if(bar){
-      if(selectionCount > 0){
-        // CRITICAL: Remove minimized state when we have selections
-        if(bar.hasAttribute('data-minimized')){
-          bar.removeAttribute('data-minimized');
-        }
-        bar.setAttribute('data-visible', '1');
-        if(bar.dataset) bar.dataset.idleVisible = '1';
-        if(bar.style) {
-          bar.style.display = '';
-          bar.style.opacity = '1';
-          bar.style.visibility = 'visible';
-          bar.style.pointerEvents = 'auto';
-        }
-        bar.dataset.count = String(selectionCount);
-        // Update aria-expanded to indicate the bar is now expanded
-        bar.setAttribute('aria-expanded', 'true');
-      }else{
-        bar.removeAttribute('data-visible');
-        bar.removeAttribute('data-idle-visible');
-        // Restore minimized state when count is 0
-        bar.setAttribute('data-minimized', '1');
-        if(bar.style) {
-          bar.style.display = '';  // Don't set to 'none' - let CSS handle visibility via data-minimized
-          bar.style.opacity = '1';
-          bar.style.visibility = 'visible';
-          bar.style.pointerEvents = 'auto';
-        }
-        bar.dataset.count = '0';
-        // Update aria-expanded to indicate the bar is now minimized
-        bar.setAttribute('aria-expanded', 'false');
-      }
-    }
-    // Trigger all update mechanisms
-    if(typeof ensureActionBarPostPaintRefresh === 'function'){
-      try { ensureActionBarPostPaintRefresh(); }
-      catch(_err){}
-    }
-    if(typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function'){
-      try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-      catch(_err){}
-    }
-  };
-  // Immediate update
-  updateActionBar();
-  // Update after microtask
-  if(typeof queueMicrotask === 'function'){
-    queueMicrotask(updateActionBar);
-  }else if(typeof Promise !== 'undefined'){
-    Promise.resolve().then(updateActionBar).catch(() => {});
-  }
-  // Update after RAF for final sync
-  if(typeof requestAnimationFrame === 'function'){
-    requestAnimationFrame(updateActionBar);
-  }
+  dispatchSelectionChange(scope, normalizedIds, checkbox.checked ? 'workbench:select-all:on' : 'workbench:select-all:off');
 }
 
 function handleRowCheckboxChange(event, lensState){
@@ -2858,8 +2855,10 @@ function handleRowCheckboxChange(event, lensState){
   }else{
     next.delete(id);
   }
+  const normalizedIds = syncSelectionApis(next, scope, input.checked ? 'workbench:row:on' : 'workbench:row:off');
   store.set(next, scope);
   syncSelectionForLens(lensState);
+  dispatchSelectionChange(scope, normalizedIds, input.checked ? 'workbench:row:on' : 'workbench:row:off');
 }
 
 function buildWindow(lensState){
