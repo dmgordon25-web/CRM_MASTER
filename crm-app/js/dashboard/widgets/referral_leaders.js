@@ -1,3 +1,5 @@
+import { NONE_PARTNER_ID } from '../../constants/ids.js';
+
 const FALLBACK_SAFE = (value) => String(value == null ? '' : value).replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] || ch));
 const FALLBACK_ATTR = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
 const FALLBACK_MONEY = (value) => {
@@ -45,7 +47,6 @@ export function renderReferralLeadersWidget(options = {}){
     partnerMap.set(id, partner);
   });
 
-  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
   const referralStats = new Map();
   contacts.forEach(contact => {
     if(!contact) return;

@@ -30,6 +30,7 @@ import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessag
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
+import { NONE_PARTNER_ID } from './constants/ids.js';
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
@@ -159,7 +160,6 @@ export function normalizeContactId(input) {
     }
   };
 
-  const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
   const CONTACT_INVALID_TOAST = 'Please fix highlighted fields';
 
   function focusContactField(field) {

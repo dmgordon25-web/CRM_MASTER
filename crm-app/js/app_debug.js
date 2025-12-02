@@ -15,7 +15,14 @@ import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 // import { closeContactEditor } from './editors/contact_entry.js'; // DELETED to fix boot loop
 import { getRenderer } from './app_services.js';
-import { initAppContext, getSettingsApi } from './app_context.js';
+import { SelectionStore } from './state/selectionStore.js';
+import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
+import {
+  initAppContext,
+  getSettingsApi,
+  getSelectionStore as getContextSelectionStore,
+  setSelectionStore as setContextSelectionStore
+} from './app_context.js';
 import { createBinding } from './ui/quick_create_menu.js';
 
 // --- SHIM: Local fallback to prevent ReferenceError without importing the file ---
@@ -59,13 +66,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const $ = (s, r = document) => r.querySelector(s);
   const $all = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-  const NONE_PARTNER_ID = window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
+  const NONE_PARTNER_ID = window.NONE_PARTNER_ID || NONE_PARTNER_ID_CONST;
   if (!window.NONE_PARTNER_ID) window.NONE_PARTNER_ID = NONE_PARTNER_ID;
 
   const fromHere = (p) => new URL(p, import.meta.url).href;
 
   window.CRM = window.CRM || {};
-  initAppContext({ settings: typeof window !== 'undefined' ? window.Settings : null });
+  initAppContext({
+    settings: typeof window !== 'undefined' ? window.Settings : null,
+    services: { selectionStore: SelectionStore }
+  });
+  setContextSelectionStore(SelectionStore);
   window.CRM.getSettings = getSettingsApi;
 
   const featureFlags = flags || {};
@@ -1189,7 +1200,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const SELECTION_SCOPES = ['contacts', 'partners', 'pipeline', 'notifications'];
 
   function getSelectionStore() {
-    return window.SelectionStore || null;
+    return getContextSelectionStore() || window.SelectionStore || null;
   }
 
   function selectionScopeFor(node) {
@@ -1266,25 +1277,39 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (!isTableElement(table)) return;
     const store = getSelectionStore();
     if (!store) return;
-    const header = typeof table.querySelector === 'function'
-      ? table.querySelector(SELECT_ALL_INPUT_SELECTOR)
-      : null;
-    if (!header) return;
     const scopeRaw = selectionScopeFor(table);
     const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
     const existing = TABLE_SELECT_ALL_BINDINGS.get(table);
-    if (existing && existing.header === header) return;
-    if (existing && typeof existing.cleanup === 'function') {
-      existing.cleanup();
+    if (existing && typeof existing.refresh === 'function') {
+      existing.refresh();
+      return;
     }
     let cleaned = false;
     let unsubscribe = null;
     let removalObserver = null;
+    let refreshing = false;
+    const ensureHeader = () => {
+      const header = typeof table.querySelector === 'function'
+        ? table.querySelector(SELECT_ALL_INPUT_SELECTOR)
+        : null;
+      if (!header) return null;
+      try {
+        if (header.getAttribute('role') !== 'checkbox') {
+          header.setAttribute('role', 'checkbox');
+        }
+        const state = header.indeterminate ? 'mixed' : (header.checked ? 'true' : 'false');
+        header.setAttribute('aria-checked', state);
+      } catch (_err) { }
+      return header;
+    };
+
+    const header = ensureHeader();
+    if (!header) return;
 
     const cleanup = () => {
       if (cleaned) return;
       cleaned = true;
-      try { header.removeEventListener('change', handleChange); }
+      try { table.removeEventListener('change', handleTableChange); }
       catch (_err) { }
       if (unsubscribe) {
         try { unsubscribe(); }
@@ -1313,27 +1338,22 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       syncSelectionScope(scope, payload);
     };
 
-    const handleChange = (event) => {
-      if (event && event.target !== header) return;
+    const handleTableChange = (event) => {
+      const target = event && event.target;
       if (cleaned) return;
+      const nextHeader = ensureHeader();
+      if (!nextHeader) return;
+      if (target !== nextHeader) return;
       if (!table.isConnected) {
         cleanup();
         return;
       }
-      header.indeterminate = false;
-      applySelectAllToStore(header, store);
+      nextHeader.indeterminate = false;
+      applySelectAllToStore(nextHeader, store);
     };
 
     try {
-      if (header.getAttribute('role') !== 'checkbox') {
-        header.setAttribute('role', 'checkbox');
-      }
-      const state = header.indeterminate ? 'mixed' : (header.checked ? 'true' : 'false');
-      header.setAttribute('aria-checked', state);
-    } catch (_err) { }
-
-    try {
-      header.addEventListener('change', handleChange);
+      table.addEventListener('change', handleTableChange, true);
     } catch (_err) { }
 
     if (typeof MutationObserver === 'function') {
@@ -1359,9 +1379,26 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       sync(snapshot.ids, snapshot.count);
     });
 
-    TABLE_SELECT_ALL_BINDINGS.set(table, { header, cleanup, scope });
+    const refresh = () => {
+      if (cleaned || refreshing) return;
+      refreshing = true;
+      try {
+        ensureHeader();
+        sync(store.get(scope), store.count(scope));
+      } finally {
+        refreshing = false;
+      }
+    };
 
-    sync(store.get(scope), store.count(scope));
+    const binding = {
+      cleanup,
+      scope,
+      refresh
+    };
+
+    TABLE_SELECT_ALL_BINDINGS.set(table, binding);
+
+    refresh();
   }
 
   function isTableElement(node) {

@@ -24,6 +24,10 @@ export function initAppContext(initial = {}){
   return context;
 }
 
+export function getAppContext(){
+  return context;
+}
+
 function exposeShim(){
   if(typeof window === 'undefined') return;
   const shim = window.__APP_CONTEXT__ = window.__APP_CONTEXT__ || {};
@@ -35,6 +39,13 @@ function exposeShim(){
   shim.setWorkflowModel = setWorkflowModel;
   shim.getService = getService;
   shim.registerService = registerService;
+  shim.getSelectionStore = getSelectionStore;
+  shim.setSelectionStore = setSelectionStore;
+  shim.getNotifier = getNotifier;
+  shim.setNotifier = setNotifier;
+  if(!window.AppContext){
+    window.AppContext = shim;
+  }
 }
 
 export function getSettingsApi(){
@@ -77,6 +88,7 @@ export function registerService(name, service){
   if(!key) return;
   context.services[key] = service || null;
   exposeShim();
+  return context.services[key];
 }
 
 export function getService(name){
@@ -86,6 +98,22 @@ export function getService(name){
     return context.services[key];
   }
   return null;
+}
+
+export function setSelectionStore(store){
+  return registerService('selectionStore', store || null);
+}
+
+export function getSelectionStore(){
+  return getService('selectionStore');
+}
+
+export function setNotifier(service){
+  return registerService('notifier', service || null);
+}
+
+export function getNotifier(){
+  return getService('notifier');
 }
 
 export function setContactsApi(api){

@@ -2,6 +2,7 @@ import { STR, text } from './ui/strings.js';
 import { safeMax, normalizePhone, normalizeEmail } from './util/strings.js';
 import { stageKeyFromLabel } from './pipeline/stages.js';
 import { normalizeStatus } from './pipeline/constants.js';
+import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
 import {
   buildContactDedupeKeys,
   buildPartnerDedupeKeys,
@@ -345,7 +346,7 @@ export const IMPORTER_INTERNALS = {
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 (function(){
-  const NONE_PARTNER_ID = (window.IMPORT_HELPERS && window.IMPORT_HELPERS.NONE_PARTNER_ID) || window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
+  const NONE_PARTNER_ID = (window.IMPORT_HELPERS && window.IMPORT_HELPERS.NONE_PARTNER_ID) || window.NONE_PARTNER_ID || NONE_PARTNER_ID_CONST;
 
   async function loadDefaultMapping(kind){
     const settings = await dbGetAll('settings');

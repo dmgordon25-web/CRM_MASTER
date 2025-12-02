@@ -1,8 +1,8 @@
 import { stageLabelFromKey, stageKeyFromLabel } from './pipeline/stages.js';
 import { canonicalStage } from './pipeline/constants.js';
 import { openContactModal } from './contacts.js';
+import { NONE_PARTNER_ID } from './constants/ids.js';
 
-const NONE_PARTNER_ID = '00000000-0000-none-partner-000000000000';
 const STAGE_ORDER = Object.freeze({ lost: -1, denied: -1, 'long-shot': 0, longshot: 0, application: 1, preapproved: 2, 'pre-approved': 2, processing: 3, underwriting: 4, approved: 5, 'cleared-to-close': 6, 'clear-to-close': 6, ctc: 6, funded: 7, won: 7 });
 const fmt = {
   text: (value) => String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
