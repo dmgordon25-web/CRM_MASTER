@@ -34,7 +34,12 @@ function renderCard(container, { title, body, badge } = {}) {
 // KPI tiles
 // =======================
 export function renderKPIsWidget(container, model) {
-  const kpis = calculateKPIsFromSnapshot(model.snapshot) || {};
+  const snapshotKPIs = calculateKPIsFromSnapshot(model.snapshot);
+  if (!snapshotKPIs) {
+    renderCard(container, { title: '📊 Pipeline KPIs', body: '<p class="empty-state">No metrics yet. Add contacts and tasks to generate KPIs.</p>' });
+    return;
+  }
+  const kpis = snapshotKPIs || {};
   const tiles = [
     { label: 'New Leads (7d)', value: kpis.kpiNewLeads7d || 0, tone: 'info' },
     { label: 'Active Pipeline', value: kpis.kpiActivePipeline || 0, tone: 'primary' },
@@ -64,7 +69,11 @@ export function renderKPIsWidget(container, model) {
 // =======================
 export function renderPipelineMomentumWidget(container, model) {
   const groups = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
-  const total = model.contacts.length || 1;
+  const total = model.contacts.length;
+  if (!total) {
+    renderCard(container, { title: '🌊 Pipeline Momentum', body: '<p class="empty-state">No pipeline data yet</p>' });
+    return;
+  }
   const stages = Object.keys(STAGE_CONFIG);
 
   const barsHTML = stages.map((stage, idx) => {
@@ -101,6 +110,10 @@ export function renderPipelineMomentumWidget(container, model) {
 // =======================
 export function renderPartnerPortfolioWidget(container, model) {
   const partners = model.partners || [];
+  if (!partners.length) {
+    renderCard(container, { title: '🎯 Partner Portfolio', body: '<p class="empty-state">No partners tracked yet</p>' });
+    return;
+  }
   const tierGroups = groupPartnersByTier(partners);
   const total = partners.length || 1;
   const tiers = Object.keys(tierGroups).sort();
@@ -225,6 +238,12 @@ export function renderTodayWidget(container, model) {
   const celebrations = getUpcomingCelebrations(model.contacts, 7).slice(0, 4);
   const appointments = model.snapshot?.focus?.nextAppointments || [];
 
+  const hasItems = todayTasks.length || celebrations.length || appointments.length;
+  if (!hasItems) {
+    renderCard(container, { title: "📅 Today's Work", body: '<p class="empty-state">No tasks or events scheduled</p>' });
+    return;
+  }
+
   const tasksHTML = todayTasks.map((task, idx) => `
     <div class="today-item task-item" style="animation-delay:${idx * 0.05}s">
       <div class="today-icon">✓</div>
@@ -270,6 +289,12 @@ export function renderTodayWidget(container, model) {
 export function renderPipelineOverviewWidget(container, model) {
   const groups = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
   const funnelStages = model.laneOrder || Object.keys(STAGE_CONFIG);
+
+  const total = model.contacts.length;
+  if (!total) {
+    renderCard(container, { title: '🎯 Pipeline Overview', body: '<p class="empty-state">No contacts in pipeline</p>' });
+    return;
+  }
 
   const funnelHTML = funnelStages.map((stage, idx) => {
     const count = groups?.[stage] || 0;
@@ -429,6 +454,11 @@ export function renderTodoWidget(container, model) {
   const dueGroups = model.snapshot?.dueGroups || {};
   const today = dueGroups.today || [];
   const overdue = dueGroups.overdue || [];
+
+  if (!today.length && !overdue.length) {
+    renderCard(container, { title: '✅ To-Do', body: '<p class="empty-state">Nothing due right now</p>' });
+    return;
+  }
 
   const renderTasks = (items) => items.map((item) => `<li><strong>${item.title || 'Task'}</strong> · ${formatDate(item.due || item.dueTs)}</li>`).join('')
     || '<li class="muted">Nothing queued</li>';

@@ -11,58 +11,27 @@ const SECTIONS = [
   {
     id: 'overview',
     label: 'Overview',
-    description: 'KPI snapshot, focus, and celebrations',
+    description: 'Pipeline health, work queue, and quick wins',
     widgets: [
       { id: 'kpis', size: 'large' },
-      { id: 'statusStack', size: 'large' },
-      { id: 'focus', size: 'medium' },
-      { id: 'today', size: 'medium' },
-      { id: 'filters', size: 'medium' },
-      { id: 'goalProgress', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' },
-      { id: 'favorites', size: 'medium' }
-    ]
-  },
-  {
-    id: 'pipeline',
-    label: 'Pipeline',
-    description: 'Momentum, funnel, and closing watchlist',
-    widgets: [
       { id: 'pipelineMomentum', size: 'large' },
-      { id: 'pipeline', size: 'large' },
-      { id: 'activePipeline', size: 'medium' },
-      { id: 'closingWatch', size: 'medium' },
-      { id: 'stale', size: 'medium' },
-      { id: 'pipelineCalendar', size: 'medium' },
-      { id: 'docPulse', size: 'medium' }
-    ]
-  },
-  {
-    id: 'partners',
-    label: 'Partners',
-    description: 'Referral performance and portfolio mix',
-    widgets: [
-      { id: 'partnerPortfolio', size: 'medium' },
-      { id: 'referralLeaderboard', size: 'medium' },
-      { id: 'numbersMomentum', size: 'large' },
-      { id: 'numbersPortfolio', size: 'medium' },
-      { id: 'numbersReferrals', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      { id: 'clientCareRadar', size: 'medium' }
-    ]
-  },
-  {
-    id: 'activities',
-    label: 'Activities',
-    description: 'Tasks, to-do, milestones, and docs',
-    widgets: [
+      { id: 'activePipeline', size: 'large' },
       { id: 'todo', size: 'medium' },
-      { id: 'priorityActions', size: 'medium' },
-      { id: 'milestones', size: 'medium' },
       { id: 'today', size: 'medium' },
-      { id: 'docCenter', size: 'medium' },
-      { id: 'favorites', size: 'medium' },
-      { id: 'goalProgress', size: 'medium' }
+      { id: 'stale', size: 'medium' },
+      { id: 'upcomingCelebrations', size: 'medium' },
+      { id: 'referralLeaderboard', size: 'medium' }
+    ]
+  },
+  {
+    id: 'work',
+    label: 'Workload',
+    description: 'Follow-ups and relationship health',
+    widgets: [
+      { id: 'priorityActions', size: 'medium' },
+      { id: 'closingWatch', size: 'medium' },
+      { id: 'relationshipOpportunities', size: 'medium' },
+      { id: 'partnerPortfolio', size: 'medium' }
     ]
   }
 ];
