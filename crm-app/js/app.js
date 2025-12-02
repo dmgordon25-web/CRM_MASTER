@@ -498,7 +498,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   ensureDefaultRoute();
 
-  onDomReady(() => {
+    onDomReady(() => {
     console.log('[DEBUG] onDomReady executing');
     // --- RE-INSERTED LOGIC START ---
     try {
@@ -533,6 +533,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
     }
 
+    wireUnifiedNew();
+
     const titleLink = document.getElementById('app-title-link');
     if (titleLink && !titleLink.__wired) {
       titleLink.__wired = true;
@@ -563,6 +565,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     // FINAL BOOT STEP
     initSelectionBindings();
     init();
+    dedupeHeaderSettings();
   });
 
   try {
@@ -571,6 +574,48 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   try {
     window.SelectionService?.clear?.('app:boot');
   } catch (_) { }
+
+  function dedupeHeaderSettings() {
+    try {
+      const header = document.querySelector('.header-bar');
+      if (!header) return;
+      const primary = header.querySelector('#btn-open-settings');
+      const duplicates = Array.from(header.querySelectorAll('button'))
+        .filter(btn => btn !== primary && /settings/i.test(btn.textContent || ''));
+      duplicates.forEach(btn => {
+        if (btn && btn.parentElement) {
+          btn.parentElement.removeChild(btn);
+        }
+      });
+    } catch (_) { }
+  }
+
+  function wireUnifiedNew() {
+    try {
+      const btn = document.getElementById('quick-add-unified');
+      if (!btn || btn.__quickAddWired) return;
+      btn.__quickAddWired = true;
+      btn.addEventListener('click', async (event) => {
+        if (event) event.preventDefault();
+        try {
+          const mod = await import('./ui/quick_create_menu.js');
+          if (mod && typeof mod.openQuickCreateMenu === 'function') {
+            mod.openQuickCreateMenu({ anchor: btn, source: 'header', origin: 'header' });
+            return;
+          }
+        } catch (err) {
+          try { console && console.warn && console.warn('[quick-add] menu unavailable', err); }
+          catch (_) { }
+        }
+        try {
+          const mod = await import('./contacts.js');
+          if (mod && typeof mod.openContactEditor === 'function') {
+            mod.openContactEditor({}, { sourceHint: 'header:new' });
+          }
+        } catch (_err) { }
+      });
+    } catch (_) { }
+  }
   try {
     window.SelectionStore?.clear?.('partners');
   } catch (_) { }
@@ -1939,22 +1984,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         });
       }
     },
-      calendar: {
-        id: 'view-calendar',
-        ui: 'calendar-root',
-        resetOnDeactivate: true,
-        async mount() {
-          const root = document.getElementById('view-calendar');
-          if (root) root.innerHTML = '<div class="loading-block">Loading...</div>';
+    calendar: {
+      id: 'view-calendar',
+      ui: 'calendar-root',
+      resetOnDeactivate: false,
+      async mount() {
         try {
           const mod = await import('./calendar.js');
-          // Handle "export default { init }"
-          if (mod.default && typeof mod.default.init === 'function') {
-            mod.default.init();
-          } else if (typeof mod.ensureCalendar === 'function') {
+          if (mod && typeof mod.ensureCalendar === 'function') {
             mod.ensureCalendar();
-          } else {
-            console.warn('Calendar export not found', mod);
+          } else if (mod.default && typeof mod.default.init === 'function') {
+            mod.default.init();
           }
         } catch (e) {
           console.error('Calendar load failed', e);
@@ -2572,6 +2612,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
     if (normalized !== 'workbench') { syncHashForView(normalized); }
     requestRenderForNavigation(normalized);
+    if (normalized === 'calendar') {
+      renderCalendarView();
+    }
     if (normalized === 'settings') {
       renderExtrasRegistry();
     }
@@ -3174,6 +3217,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   async function renderCalendarView() {
     const root = document.getElementById('view-calendar');
+    if (!root || root.classList.contains('hidden') || root.hidden) return;
     // Ensure #calendar-root exists (it might have been wiped)
     if (root && !root.querySelector('#calendar-root')) {
       const mount = document.createElement('div');

@@ -1,14 +1,17 @@
-name: ci-smoke
+name: ci-full
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ "**" ]
-  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
 
 jobs:
-  smoke:
+  full:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,7 +25,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -34,5 +37,8 @@ jobs:
       - name: test:unit
         run: npm run test:unit
 
-      - name: e2e:smoke
-        run: npm run e2e:smoke
+      - name: e2e (full suite)
+        run: npm run test:e2e
+
+      - name: Feature checks
+        run: npm run check:features

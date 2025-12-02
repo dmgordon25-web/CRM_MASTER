@@ -35,7 +35,7 @@
   --tone-danger-text:#b91c1c;
 }
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-family-sans);font-size:var(--body-font-size);line-height:var(--line-height-base);letter-spacing:var(--letter-spacing-normal);}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-family-sans);font-size:var(--body-font-size);line-height:var(--line-height-base);letter-spacing:var(--letter-spacing-normal);min-height:100vh;overflow-y:auto;}
 .container{max-width:1360px;margin:0 auto;padding:0 var(--space-5) var(--space-5);}
 .top-shell{position:sticky;top:0;z-index:120;background:var(--bg);padding:var(--space-5) 0 var(--space-4);margin-bottom:var(--space-5);border-bottom:1px solid rgba(148,163,184,.28);box-shadow:0 18px 36px rgba(15,23,42,.08);}
 .help-hint{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:rgba(148,163,184,0.18);color:var(--muted);font-size:12px;line-height:1;font-weight:600;cursor:help;transition:background .2s ease,color .2s ease;user-select:none;}
