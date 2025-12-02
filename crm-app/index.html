@@ -86,6 +86,9 @@
     </div>
    </header>
    <nav class="row" id="main-nav" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn" data-nav="labs">
+     Labs
+    </button>
     <button class="btn active" data-nav="dashboard">
      Dashboard
     </button>
@@ -114,10 +117,10 @@
      <button class="btn" data-nav="workbench">
       Workbench
      </button>
-    </nav>
-   </div>
-   <!-- DASHBOARD -->
-  <main data-ui="dashboard-root" id="view-dashboard">
+   </nav>
+  </div>
+  <!-- DASHBOARD -->
+ <main data-ui="dashboard-root" id="view-dashboard">
    <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <h2 style="margin:0;font-size:18px">Dashboard</h2>
     <span class="muted" id="dashboard-mode-caption">Focus on today&#39;s priorities.</span>
@@ -143,7 +146,7 @@
    <section class="card" id="dashboard-today" data-widget-id="today"></section>
    <section class="card" id="referral-leaderboard" data-widget-id="leaderboard"></section>
    <section class="card" id="dashboard-stale" data-widget-id="stale"></section>
-   <section class="grid insights-grid" id="dashboard-insights">
+  <section class="grid insights-grid" id="dashboard-insights">
     <div class="card insight-card span-2" id="goal-progress-card" data-widget-id="goalProgress">
       <div class="insight-head">
        <div class="insight-icon goals">🎯</div>
@@ -564,6 +567,16 @@
      </details>
     </section>
 </main>
+  <!-- LABS -->
+  <main class="hidden" data-ui="labs-root" id="view-labs">
+   <section class="card" data-qa="labs-shell-placeholder">
+    <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+     <h3 style="margin:0">Labs Dashboard</h3>
+     <span class="muted">Experimental dashboard powered by your live data.</span>
+    </div>
+    <p class="muted">Loading Labs dashboard…</p>
+   </section>
+  </main>
    <!-- PARTNERS -->
    <main class="hidden" data-ui="partners-table" id="view-partners">
     <section class="card">

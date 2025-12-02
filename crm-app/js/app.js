@@ -182,7 +182,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   const DEFAULT_ROUTE = 'dashboard';
-  const ADVANCED_VIEWS = new Set(['reports', 'workbench', 'labs']);
+  const SIMPLE_DEFAULT_ROUTE = 'labs';
+  const ADVANCED_VIEWS = new Set(['reports', 'workbench']);
+
+  function preferredDefaultRoute() {
+    return isSimpleMode() ? SIMPLE_DEFAULT_ROUTE : DEFAULT_ROUTE;
+  }
 
   function applyActionBarIdleVisibility(route) {
     const bar = getActionBarNode();
@@ -233,7 +238,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   function applyUiModeNavigation(mode) {
     const simple = mode === 'simple';
-    const navKeys = ['reports', 'workbench', 'labs'];
+    const navKeys = ['reports', 'workbench'];
     navKeys.forEach((key) => {
       const btn = document.querySelector(`#main-nav button[data-nav="${key}"]`);
       if (!btn) return;
@@ -265,13 +270,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     }
     const labsView = document.getElementById('view-labs');
-    if (labsView) {
-      labsView.classList.toggle('hidden', simple);
-      if (simple) {
-        labsView.setAttribute('aria-hidden', 'true');
-      } else {
-        labsView.removeAttribute('aria-hidden');
-      }
+    if (labsView && labsView.hasAttribute('aria-hidden')) {
+      labsView.removeAttribute('aria-hidden');
     }
   }
 
@@ -474,22 +474,23 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   ensurePartnerModalClosed();
   ensureActionBarIdleState();
-  applyActionBarIdleVisibility(DEFAULT_ROUTE);
+  applyActionBarIdleVisibility(preferredDefaultRoute());
   applyNotificationsNavVisibility(notificationsEnabled);
   applyUiModeNavigation(getUiMode());
 
   function ensureDefaultRoute() {
     if (typeof window === 'undefined' || !window?.location) return;
     const hash = typeof window.location.hash === 'string' ? window.location.hash.trim() : '';
+    const defaultRoute = preferredDefaultRoute();
     if (!notificationsEnabled && hash === '#notifications') {
-      const targetHash = `#/${DEFAULT_ROUTE}`;
+      const targetHash = `#/${defaultRoute}`;
       try {
         window.location.hash = targetHash;
       } catch (err) { logAppError('route:reset-notifications-hash', err); }
       return;
     }
     if (hash && hash !== '#') return;
-    const targetHash = `#/${DEFAULT_ROUTE}`;
+    const targetHash = `#/${defaultRoute}`;
     try {
       window.location.hash = targetHash;
       return;
@@ -557,7 +558,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
   ensureActionBarIdleState();
-  applyActionBarIdleVisibility(DEFAULT_ROUTE);
+  applyActionBarIdleVisibility(preferredDefaultRoute());
   applyNotificationsNavVisibility(notificationsEnabled);
   try {
     window.Selection?.clear?.('app:boot');
@@ -1961,7 +1962,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const navTarget = btn.getAttribute('data-nav');
         console.log('[DEBUG] Nav target:', navTarget);
         if (isSimpleMode() && isAdvancedOnlyView(navTarget)) {
-          e.preventDefault(); activate(DEFAULT_ROUTE); return;
+          e.preventDefault(); activate(preferredDefaultRoute()); return;
         }
         if (navTarget === 'workbench') return;
         e.preventDefault(); activate(navTarget);
@@ -1995,7 +1996,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     ensurePartnerModalClosed();
     ensureActionBarIdleState();
-    applyActionBarIdleVisibility(DEFAULT_ROUTE);
+    applyActionBarIdleVisibility(preferredDefaultRoute());
     applyNotificationsNavVisibility(notificationsEnabled);
     ensureDefaultRoute();
     bootSplash.ensure();
@@ -2594,7 +2595,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     let normalized = normalizeView(view);
     if (!normalized) return;
     if (normalized === 'notifications' && !notificationsEnabled) {
-      normalized = DEFAULT_ROUTE;
+      normalized = preferredDefaultRoute();
     }
     const previous = activeView;
     if (normalized === previous) return;
@@ -2705,7 +2706,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   function enforceDefaultRoute() {
-    const canonicalHash = VIEW_HASH[DEFAULT_ROUTE] || `#/${DEFAULT_ROUTE}`;
+    const defaultRoute = preferredDefaultRoute();
+    const canonicalHash = VIEW_HASH[defaultRoute] || `#/${defaultRoute}`;
     let bypass = false;
     try {
       if (window.location) {
@@ -2715,7 +2717,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const mappedView = viewFromHash(currentHash);
         if (mappedView && isSimpleMode() && isAdvancedOnlyView(mappedView)) {
           suppressHashUpdate = true;
-          try { activate(DEFAULT_ROUTE); }
+          try { activate(defaultRoute); }
           finally { suppressHashUpdate = false; }
           return;
         }
@@ -2741,7 +2743,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     }
     if (bypass) return;
-    activate(DEFAULT_ROUTE);
+    activate(defaultRoute);
   }
 
   enforceDefaultRoute();
@@ -2783,7 +2785,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     async function goWB(evt) {
       if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
       if (isSimpleMode()) {
-        activate(DEFAULT_ROUTE);
+        activate(preferredDefaultRoute());
         return;
       }
       const mount = ensureWorkbenchMount();
@@ -2826,7 +2828,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     renderedRoutes.clear();
     applyUiModeNavigation(mode);
     if (mode === 'simple' && isAdvancedOnlyView(activeView)) {
-      activate(DEFAULT_ROUTE);
+      activate(preferredDefaultRoute());
     } else {
       scheduleAppRender();
     }
