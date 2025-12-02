@@ -8,6 +8,7 @@ import {
   validateContact,
   validatePartner
 } from './validation/schema.js';
+import { linkStrayReferrals } from './referrals/linker.js';
 import { toastError, toastSuccess, toastWarn } from './ui/toast_helpers.js';
 import './importer_helpers.js';
 import './importer_partners.js';
@@ -271,6 +272,12 @@ function mergeContactRecord(existing, incoming) {
   result.listingPartnerId = hasNonEmpty(payload.listingPartnerId) ? payload.listingPartnerId : result.listingPartnerId;
   if (payload.extras || base.extras) {
     result.extras = Object.assign({}, base.extras || {}, payload.extras || {});
+  }
+  if (hasNonEmpty(payload.referralPartnerId)) {
+    result.referralPartnerId = payload.referralPartnerId;
+  }
+  if (hasNonEmpty(payload.referralPartnerName)) {
+    result.referralPartnerName = payload.referralPartnerName;
   }
   result.updatedAt = Date.now();
   if (!result.id && payload.id) result.id = payload.id;
@@ -554,6 +561,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     if(upserts.length) await dbBulkPut('partners', upserts);
     if(upserts.length) emitImportChanged('partners');
+    if (upserts.length) {
+      try { await linkStrayReferrals({ partners: partners.concat(upserts), source: 'import:partners' }); }
+      catch (err) { if (console && console.warn) console.warn('[importer] referral relink failed', err); }
+    }
     return { partners: upserts.length, clamped: clampStats.count };
   }
 
@@ -570,11 +581,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     const partners = await dbGetAll('partners');
     const pmap = new Map(partners.map(p=>[p.id, p]));
+    const referralIndex = new Map();
+    partners.forEach((partner) => {
+      const key = lc(partner && (partner.name || partner.company));
+      if (key) referralIndex.set(key, partner.id);
+    });
 
     const existing = (mode==='replace' && !isDryRun) ? [] : await dbGetAll('contacts');
     const index = createIndex(existing, buildContactKeys);
     const upserts = [];
     const toCreatePartners = [];
+    const referralLookup = (value) => {
+      const key = lc(value || '');
+      if (!key) return '';
+      return referralIndex.get(key) || '';
+    };
 
     for(const r of rows){
       const id = canon(r[col('contactId')]||'');
@@ -598,8 +619,20 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         preApprovalExpires: canon(r[col('preApprovalExpires')]||''),
         birthday: canon(r[col('birthday')]||''),
         anniversary: canon(r[col('anniversary')]||''),
+        referralPartnerId: '',
+        referralPartnerName: '',
         extras: {}
       };
+
+      const referralSource = base.referredBy;
+      const referralPartnerId = referralLookup(referralSource);
+      if (referralPartnerId) {
+        base.referralPartnerId = referralPartnerId;
+        const partnerRec = pmap.get(referralPartnerId);
+        base.referralPartnerName = partnerRec?.name || partnerRec?.company || referralSource;
+      } else if (referralSource) {
+        base.referralPartnerName = referralSource;
+      }
 
       function resolve(idKey, nameKey, compKey, emailKey, phoneKey){
         const pid = canon(r[col(idKey)]||'');
@@ -612,6 +645,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if(!pmap.has(gen)){
           const rec = { id: gen, name:nm, company:co, email, phone, tier:'Developing' };
           pmap.set(gen, rec); toCreatePartners.push(rec);
+          const token = lc(nm || co);
+          if (token) referralIndex.set(token, gen);
           if(dryRun){
             dryRun.partnerCreates += 1;
             dryRun.groups.push({
@@ -708,6 +743,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     if(toCreatePartners.length) await dbBulkPut('partners', toCreatePartners);
     if(upserts.length) await dbBulkPut('contacts', upserts);
     if(upserts.length || toCreatePartners.length) emitImportChanged('contacts');
+    if (upserts.length || toCreatePartners.length) {
+      try { await linkStrayReferrals({ partners: Array.from(pmap.values()), source: 'import:contacts' }); }
+      catch (err) { if (console && console.warn) console.warn('[importer] referral link failed', err); }
+    }
     return { contacts: upserts.length, partnersAutocreated: toCreatePartners.length, clamped: clampStats.count };
   }
 

@@ -103,6 +103,22 @@ function onUiModeChanged(handler){
   return () => subscribers.delete(handler);
 }
 
+function setUiMode(mode, options){
+  const opts = options && typeof options === 'object' ? options : {};
+  ensureInitialized();
+  const normalized = normalizeMode(mode);
+  if(normalized === currentMode && opts.force !== true){
+    return currentMode;
+  }
+  applyMode(normalized);
+  if(opts.persist === false){
+    writeLocalFallback(normalized);
+  }else{
+    saveModePreference(normalized);
+  }
+  return currentMode;
+}
+
 function handleControlChange(event){
   const target = event?.target;
   if(!target || !target.value) return;
@@ -139,5 +155,5 @@ function wireUiModeControl(){
 
 ensureInitialized();
 
-export { getUiMode, isSimpleMode, onUiModeChanged };
-export default { getUiMode, isSimpleMode, onUiModeChanged };
+export { getUiMode, isSimpleMode, onUiModeChanged, setUiMode };
+export default { getUiMode, isSimpleMode, onUiModeChanged, setUiMode };
