@@ -35,7 +35,11 @@ async function defaultOpenContactEditor(prefill) {
 async function defaultOpenPartnerEditor() {
   try {
     const { openNewPartnerEditor } = await import('../editors/partner_entry.js');
-    return openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
+    const node = await openNewPartnerEditor({ source: 'quick-create:menu', context: 'open' });
+    if (!node) {
+      toastWarn('Partner editor unavailable. Please try again.');
+    }
+    return node;
   } catch (err) {
     console.warn('Failed to load partner editor', err);
     toastWarn('Partner modal unavailable');
@@ -56,7 +60,12 @@ async function openContactQuickAdd(prefill) {
 async function openPartnerQuickAdd() {
   try {
     const opened = openQuickAdd('partner');
-    if (opened) return opened;
+    if (opened) {
+      const overlay = typeof document !== 'undefined' ? document.querySelector('.qa-overlay') : null;
+      const partnerForm = overlay && overlay.querySelector('.qa-form-partner');
+      if (partnerForm) return opened;
+      console.warn('[quick-create] partner quick-add missing form, falling back');
+    }
   } catch (err) {
     console.warn('[quick-create] partner quick-add failed, falling back', err);
   }

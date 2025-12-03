@@ -7,7 +7,7 @@ const root = (globalObject && typeof globalObject.__APP_FLAGS__ === 'object' && 
   : {};
 
 if (!Object.prototype.hasOwnProperty.call(root, 'notificationsMVP')) {
-  root.notificationsMVP = false;
+  root.notificationsMVP = true;
 }
 
 if (globalObject && typeof globalObject === 'object') {
