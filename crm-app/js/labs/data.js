@@ -1,13 +1,24 @@
 // Labs CRM Data Helper
 // Connects to actual CRM database and provides data for Labs dashboard
 
-import { openDB, dbGetAll } from '../db.js';
 import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
 import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
 import { stageLabelFromKey } from '../pipeline/stages.js';
 
+function getDbApi(method) {
+  const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+  if (scope && typeof scope[method] === 'function') return scope[method];
+  if (scope && scope.db && typeof scope.db[method] === 'function') return scope.db[method].bind(scope.db);
+  return null;
+}
+
 // Ensure database is open
 export async function ensureDatabase() {
+  const openDB = getDbApi('openDB');
+  if (typeof openDB !== 'function') {
+    console.error('[labs] Database API unavailable');
+    return false;
+  }
   try {
     await openDB();
     return true;
@@ -19,6 +30,11 @@ export async function ensureDatabase() {
 
 // Get all contacts from CRM database
 export async function getAllContacts() {
+  const dbGetAll = getDbApi('dbGetAll');
+  if (typeof dbGetAll !== 'function') {
+    console.error('[labs] dbGetAll is not available');
+    return [];
+  }
   try {
     const contacts = await dbGetAll('contacts');
     return Array.isArray(contacts) ? contacts.filter((c) => !c.isDeleted) : [];
@@ -30,6 +46,11 @@ export async function getAllContacts() {
 
 // Get all partners from CRM database
 export async function getAllPartners() {
+  const dbGetAll = getDbApi('dbGetAll');
+  if (typeof dbGetAll !== 'function') {
+    console.error('[labs] dbGetAll is not available');
+    return [];
+  }
   try {
     const partners = await dbGetAll('partners');
     return Array.isArray(partners) ? partners : [];
@@ -41,6 +62,11 @@ export async function getAllPartners() {
 
 // Get all tasks from CRM database
 export async function getAllTasks() {
+  const dbGetAll = getDbApi('dbGetAll');
+  if (typeof dbGetAll !== 'function') {
+    console.error('[labs] dbGetAll is not available');
+    return [];
+  }
   try {
     const tasks = await dbGetAll('tasks');
     return Array.isArray(tasks) ? tasks : [];
@@ -240,6 +266,12 @@ export async function buildLabsModel() {
   });
 
   const celebrations = getUpcomingCelebrations(contacts, 30);
+
+  console.debug('[LABS] model loaded', {
+    contactCount: contacts.length,
+    partnerCount: partners.length,
+    taskCount: tasks.length
+  });
 
   return {
     contacts,
