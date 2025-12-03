@@ -2,35 +2,13 @@
 
 import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
-import '../vendor/gridstack-all.js';
 
 let dashboardRoot = null;
 let labsModel = null;
 let activeSection = 'overview';
 let navClickHandler = null;
 let dataChangedHandler = null;
-let gridInstance = null;
-let layoutEditMode = false;
 
-const getGridStack = () => (typeof window !== 'undefined' ? window.GridStack : undefined);
-
-const DEFAULT_LAYOUTS = {
-  overview: [
-    { id: 'labsKpiSummary', x: 0, y: 0, w: 12, h: 2 },
-    { id: 'labsPipelineSnapshot', x: 0, y: 2, w: 7, h: 4 },
-    { id: 'labsTasks', x: 7, y: 2, w: 5, h: 4 }
-  ]
-};
-
-const layoutState = cloneLayouts(DEFAULT_LAYOUTS);
-
-function cloneLayouts(layouts) {
-  return JSON.parse(JSON.stringify(layouts || {}));
-}
-
-function cloneLayout(layout = []) {
-  return JSON.parse(JSON.stringify(layout || []));
-}
 
 const SECTIONS = [
   {
@@ -128,8 +106,7 @@ function createHeader() {
       <div class="labs-header-actions">
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-        <button class="labs-btn-ghost" data-action="toggle-layout" data-layout="${layoutEditMode ? 'on' : 'off'}">${layoutEditMode ? 'Done' : 'Customize Layout'}</button>
-        <button class="labs-btn-ghost labs-layout-reset" data-action="reset-layout">Reset Layout</button>
+        <button class="labs-btn-ghost" data-action="layout-disabled" aria-disabled="true">Layout customization unavailable</button>
       </div>
     </div>
   `;
@@ -161,14 +138,13 @@ function renderSection(sectionId) {
   gridShell.className = 'labs-grid-shell';
 
   const grid = document.createElement('div');
-  grid.className = 'labs-crm-grid grid-stack';
+  grid.className = 'labs-crm-grid labs-static-grid';
   grid.dataset.qa = `labs-grid-${section.id}`;
   gridShell.appendChild(grid);
   host.appendChild(gridShell);
 
   renderWidgets(grid, section.widgets);
   updateNavState();
-  setLayoutMode();
 }
 
 function updateNavState() {
@@ -178,29 +154,6 @@ function updateNavState() {
     const section = tab.dataset.section;
     tab.classList.toggle('active', section === activeSection);
   });
-}
-
-function updateLayoutControls() {
-  const toggleButton = dashboardRoot?.querySelector('[data-action="toggle-layout"]');
-  const resetButton = dashboardRoot?.querySelector('[data-action="reset-layout"]');
-  if (toggleButton) {
-    toggleButton.dataset.layout = layoutEditMode ? 'on' : 'off';
-    toggleButton.textContent = layoutEditMode ? 'Done' : 'Customize Layout';
-  }
-  if (resetButton) {
-    resetButton.style.display = layoutEditMode ? 'inline-flex' : 'none';
-    resetButton.disabled = !layoutEditMode;
-  }
-  if (dashboardRoot) {
-    dashboardRoot.dataset.layoutMode = layoutEditMode ? 'edit' : 'view';
-  }
-}
-
-function setLayoutMode() {
-  if (gridInstance) {
-    gridInstance.setStatic(!layoutEditMode);
-  }
-  updateLayoutControls();
 }
 
 function renderWidgets(grid, widgetList = []) {
@@ -213,56 +166,16 @@ function renderWidgets(grid, widgetList = []) {
     laneOrder: [],
     activeLanes: []
   };
-  if (gridInstance) {
-    gridInstance.destroy(false);
-    gridInstance = null;
-  }
-
-  const layout = layoutState[activeSection] || widgetList.map((widget, idx) => ({
-    id: widget.id,
-    x: 0,
-    y: idx * 2,
-    w: 12,
-    h: 2
-  }));
-
-  if (!layoutState[activeSection]) {
-    layoutState[activeSection] = cloneLayout(layout);
-  }
-
-  const GridStack = getGridStack();
-
-  if (!GridStack) {
-    console.debug('[LABS] GridStack not available, skipping drag/drop');
-    gridInstance = null;
-  } else {
-    gridInstance = GridStack.init({
-      float: true,
-      cellHeight: 140,
-      column: 12,
-      margin: 10,
-      staticGrid: !layoutEditMode,
-      disableOneColumnMode: true,
-      resizable: false
-    }, grid);
-  }
-
-  layout.forEach((layoutItem, index) => {
-    const widget = widgetList.find((w) => w.id === layoutItem.id) || widgetList[index];
-    if (!widget) return;
+  widgetList.forEach((widget, index) => {
     const renderer = CRM_WIDGET_RENDERERS[widget.id];
     if (!renderer) return;
 
     const item = document.createElement('div');
-    item.className = 'grid-stack-item';
-    item.dataset.gsX = layoutItem.x;
-    item.dataset.gsY = layoutItem.y;
-    item.dataset.gsW = layoutItem.w;
-    item.dataset.gsH = layoutItem.h;
+    item.className = `labs-grid-item size-${widget.size || 'medium'}`;
     item.dataset.widgetId = widget.id;
 
     const content = document.createElement('div');
-    content.className = `grid-stack-item-content labs-widget-container size-${widget.size || 'medium'}`;
+    content.className = `labs-widget-container size-${widget.size || 'medium'}`;
     content.role = 'presentation';
     content.dataset.widgetId = widget.id;
     content.dataset.qa = `labs-widget-${widget.id}`;
@@ -276,29 +189,12 @@ function renderWidgets(grid, widgetList = []) {
         content.appendChild(rendered);
       }
       item.appendChild(content);
-      if (gridInstance) {
-        gridInstance.addWidget(item);
-      } else {
-        grid.appendChild(item);
-      }
+      grid.appendChild(item);
       console.debug(`[LABS] rendered widget ${widget.id}`);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
     }
   });
-
-  if (gridInstance) {
-    gridInstance.on('change', () => {
-      const saved = gridInstance.save(true) || [];
-      layoutState[activeSection] = saved.map((node) => ({
-        id: node.el?.dataset.widgetId || node.id,
-        x: node.x,
-        y: node.y,
-        w: node.w,
-        h: node.h
-      }));
-    });
-  }
 }
 
 async function refreshDashboard() {
@@ -340,13 +236,8 @@ function attachEventListeners() {
     if (action === 'settings') {
       showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
     }
-    if (action === 'toggle-layout') {
-      layoutEditMode = !layoutEditMode;
-      setLayoutMode();
-    }
-    if (action === 'reset-layout') {
-      layoutState[activeSection] = cloneLayout(DEFAULT_LAYOUTS[activeSection] || []);
-      renderSection(activeSection);
+    if (action === 'layout-disabled') {
+      showNotification('Layout customization is not available in this build.', 'info');
     }
   };
   dashboardRoot.addEventListener('click', navClickHandler);
