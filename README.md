@@ -1,51 +1,37 @@
 # CRM Master
 
-[![CI](https://img.shields.io/badge/CI-verify--build-blue.svg)](#continuous-integration)
+CRM Master is a single-user mortgage CRM demo that runs entirely in the browser with an offline-first data model (IndexedDB). A lightweight Node/PowerShell launcher serves the static bundle locally for Windows users while preserving the same code paths used in development.
 
-## Development
+## Current feature set
+- **Contacts, Partners, Pipeline, and Tasks** with the existing editors, tables, and CSV export tools.
+- **Labs dashboard** as the Simple-mode landing view with KPI cards and widgets wired to the same data set.
+- **Notifications (MVP)** plus **Safe Mode** to boot only core modules when isolating regressions (`?safe=1`).
+- **Offline/local data** backed by IndexedDB; refreshes preserve state unless storage is cleared.
 
-### Quickstart
+## Run the app (dev/demo)
+1. Install dependencies: `npm ci`
+2. Start the local static server: `node tools/node_static_server.js crm-app` (default: http://127.0.0.1:8080/)
+3. Open the app in your browser. For Windows users, the `Start CRM*.bat` and `Start CRM*.ps1` launchers point to the same static server for a click-to-run demo.
+4. Optional validation: `npm run test:boot` to exercise the deterministic boot path used in CI.
 
-1. `npm ci`
-2. `npm run verify:build`
-3. `node tools/node_static_server.js crm-app` (then browse to `http://127.0.0.1:8080/`)
-
-Additional guardrails:
-
-- **SAFE mode** – append `?safe=1` (or set `window.__SAFE_MODE__ = true` before boot) to load only CORE modules and HARD probes. Use this when isolating loader regressions; patches and experimental panels stay dormant.
-- **Patches stay pure** – PATCH modules must ship with **no** top-level side-effects. Keep DOM reads, timers, and storage access inside readiness hooks so Safe Mode and the boot contracts stay deterministic and warn-cap compliant.
-
-## Boot discipline
-
-- Boot contracts follow the HARD → SOFT sequence defined in `crm-app/js/boot/boot_hardener.js`. HARD prerequisites must succeed before the diagnostics overlay hides; SOFT probes run afterwards without throwing or logging errors.
-- The loader prints a single `[PERF] overlay hidden in <ms>` info line once boot completes. The boot smoke test asserts its presence along with zero console errors.
-- Run `npm run verify:build` (manifest audit → contract linter → boot smoke with feature canaries) before shipping changes that touch boot, manifests, or diagnostics.
+## Safe Mode and troubleshooting
+- Append `?safe=1` (or set `window.__SAFE_MODE__ = true` before boot) to skip experimental patches and load only the hardened baseline.
+- If local data looks stale or corrupted, clear the site’s IndexedDB storage and reload; no remote services are involved.
+- Ensure Playwright browsers are installed before running boot checks: `npx playwright install-deps chromium && npx playwright install chromium`.
 
 ## Documentation
+- See `docs/README.md` for the doc index and historical references.
+- Boot expectations and loader ordering remain defined by `crm-app/js/boot/boot_hardener.js` and the supporting specs in `docs/`.
 
-- [Boot contracts](docs/CONTRACTS.md)
-- [Testing & verification](docs/TESTING.md)
-- [Changelog policy](docs/CHANGELOG_POLICY.md)
-- [PR artifacts & diff references](docs/PR_ARTIFACTS.md)
-- Archived references live in [`docs/archive/`](docs/archive) with deprecation banners for historical context.
+## Packaging helpers (optional)
+Sample PowerShell scripts in `tools/` build or restore the Windows launcher (`Start CRM.exe_`). Copy the `.sample` files to local paths before running them:
 
-## Continuous integration
-
-- GitHub Actions runs `npm run verify:build` on every pull request and blocks merges on console errors, manifest drift, or canary regressions.
-- See [Testing & verification](docs/TESTING.md) for interpreting failures and extending the suite.
-
-## Packaging
-
-Build the single-file launcher and emit a `Start CRM.exe_` artifact (note the trailing underscore) to avoid browser and antivirus blocks. First copy the sample script so it can run locally without being tracked in git:
-
-```
+```powershell
 copy tools\build-server.ps1.sample tools\build-server.ps1
 powershell -ExecutionPolicy Bypass -File tools/build-server.ps1
 ```
 
-After downloading a release, restore the launcher locally before running it (copy the sample first, if needed):
-
-```
+```powershell
 copy tools\restore_exe.ps1.sample tools\restore_exe.ps1
 powershell -ExecutionPolicy Bypass -File tools/restore_exe.ps1
 ```
