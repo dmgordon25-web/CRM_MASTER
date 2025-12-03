@@ -43,6 +43,7 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   kpis: 'dashboard-kpis',
   pipeline: 'dashboard-pipeline-overview',
   today: 'dashboard-today',
+  todo: 'dashboard-todo',
   leaderboard: 'referral-leaderboard',
   stale: 'dashboard-stale',
   favorites: 'favorites-card',
@@ -58,8 +59,7 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   clientCareRadar: 'nurture-card',
   closingWatch: 'closing-watch-card',
   upcomingCelebrations: 'dashboard-celebrations',
-  docCenter: 'doc-center-card',
-  statusStack: 'dashboard-status-stack'
+  docCenter: 'doc-center-card'
 };
 
 const DASHBOARD_WIDGET_ORDER = Object.keys(DASHBOARD_WIDGET_DOM_IDS);

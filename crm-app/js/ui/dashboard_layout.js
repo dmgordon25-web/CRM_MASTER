@@ -97,6 +97,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'dashboard-kpis', key: 'kpis', label: 'KPIs' },
   { id: 'dashboard-pipeline-overview', key: 'pipeline', label: 'Pipeline Overview', defaultEnabled: false },
   { id: 'dashboard-today', key: 'today', label: "Today's Work" },
+  { id: 'dashboard-todo', key: 'todo', label: 'To-Do' },
   { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard', defaultEnabled: false },
   { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals', defaultEnabled: false },
   { id: 'favorites-card', key: 'favorites', label: 'Favorites' },
@@ -112,8 +113,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar' },
   { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist' },
   { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)' },
-  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' },
-  { id: 'dashboard-status-stack', key: 'statusStack', label: 'Status Panels' }
+  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' }
 ];
 
 const LEGACY_WIDGET_REDIRECT = (() => {

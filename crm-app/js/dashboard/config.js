@@ -22,7 +22,6 @@ export const DASHBOARD_WIDGETS = [
   { id: 'closingWatch', label: 'Closing Watchlist', size: 'medium' },
   { id: 'upcomingCelebrations', label: 'Upcoming Celebrations', size: 'medium', today: true },
   { id: 'docCenter', label: 'Document Center', size: 'large' },
-  { id: 'statusStack', label: 'Status Panels', size: 'large' },
   { id: 'favorites', label: 'Favorites', size: 'medium' }
 ];
 
