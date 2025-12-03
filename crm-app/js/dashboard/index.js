@@ -70,7 +70,6 @@ const DASHBOARD_WIDTH_SET = new Set(DASHBOARD_WIDTH_SEQUENCE);
 const DASHBOARD_DEFAULT_WIDTH = 'third';
 const DASHBOARD_DEFAULT_WIDTHS = {
   today: 'full',
-  statusStack: 'full',
   pipeline: 'twoThird',
   goalProgress: 'twoThird',
   numbersMomentum: 'twoThird',
@@ -163,8 +162,7 @@ const WIDGET_RESOLVERS = {
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
   upcomingCelebrations: resolveCelebrationsWidget,
-  docCenter: () => doc ? doc.getElementById('doc-center-card') : null,
-  statusStack: () => doc ? doc.getElementById('dashboard-status-stack') : null
+  docCenter: () => doc ? doc.getElementById('doc-center-card') : null
 };
 
 const WIDGET_CARD_RESOLVERS = {
@@ -210,8 +208,7 @@ const WIDGET_DOM_ID_MAP = {
   clientCareRadar: 'nurture-card',
   closingWatch: 'closing-watch-card',
   upcomingCelebrations: CELEBRATIONS_WIDGET_ID,
-  docCenter: 'doc-center-card',
-  statusStack: 'dashboard-status-stack'
+  docCenter: 'doc-center-card'
 };
 
 function logDashboardWidgetError(widgetKey, error) {
@@ -2639,9 +2636,6 @@ function ensureDashboardWidgets(container) {
         node.classList.remove('dash-full-width');
       }
       if (node.classList.contains('grid') || node.classList.contains('status-stack')) {
-        node.classList.add('span-full');
-      }
-      if (!node.classList.contains('span-full') && node.dataset && node.dataset.dashWidget === 'statusStack') {
         node.classList.add('span-full');
       }
     }
