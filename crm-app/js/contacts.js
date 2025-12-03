@@ -31,6 +31,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
+import { acquireScrollLock, releaseScrollLock } from './ui/scroll_lock.js';
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
@@ -244,31 +245,25 @@ export function normalizeContactId(input) {
     return { firstInvalid };
   }
 
-  function disableBodyScroll() {
-    if (typeof document === 'undefined') return () => { };
-    const body = document.body;
-    if (!body) return () => { };
-    const previousOverflow = body.style.overflow;
-    const previousPadding = body.style.paddingRight;
-    let appliedPadding = false;
-    try {
-      const scrollBarGap = window.innerWidth - document.documentElement.clientWidth;
-      if (scrollBarGap > 0) {
-        body.style.paddingRight = `${scrollBarGap}px`;
-        appliedPadding = true;
-      }
-    } catch (_err) { }
-    body.style.overflow = 'hidden';
-    body.dataset.contactModalScroll = '1';
-    return () => {
-      if (!body.dataset || body.dataset.contactModalScroll !== '1') return;
-      delete body.dataset.contactModalScroll;
-      body.style.overflow = previousOverflow;
-      if (appliedPadding) {
-        body.style.paddingRight = previousPadding;
-      }
-    };
+function acquireContactScrollLock() {
+  try {
+    return acquireScrollLock('contact-modal');
+  } catch (_err) {
+    return () => releaseScrollLock('contact-modal');
   }
+}
+
+function releaseContactScrollLock(handle) {
+  const release = typeof handle === 'function' ? handle : null;
+  if (release) {
+    try { release(); }
+    catch (_err) { }
+    return true;
+  }
+  try { releaseScrollLock('contact-modal'); }
+  catch (_err) { }
+  return false;
+}
 
   function generateContactId(seed) {
     return normalizeContactId(seed);
@@ -685,7 +680,18 @@ export function normalizeContactId(input) {
       if (dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function') {
         try { dlg.__contactScrollRestore(); } catch (_err) { }
       }
-      dlg.__contactScrollRestore = disableBodyScroll();
+      dlg.__contactScrollRestore = acquireContactScrollLock();
+      if (!dlg.__contactScrollCleanupBound) {
+        dlg.addEventListener('close', () => {
+          if (dlg.__contactScrollRestore) {
+            releaseContactScrollLock(dlg.__contactScrollRestore);
+            dlg.__contactScrollRestore = null;
+          } else {
+            releaseContactScrollLock();
+          }
+        });
+        dlg.__contactScrollCleanupBound = true;
+      }
 
       // if (dlg.hasAttribute('open')) {
       //   try { dlg.close(); } catch (_err) { }
@@ -2879,11 +2885,7 @@ function closeQuickAddOverlayIfOpen() {
   if (body && body.style) {
     try { body.style.pointerEvents = ''; }
     catch (_err) { }
-    const preserveScrollLock = body.dataset && body.dataset.contactModalScroll === '1';
-    if (!preserveScrollLock) {
-      try { body.style.overflow = ''; }
-      catch (_err) { }
-    }
+    releaseContactScrollLock();
   }
   const host = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`) || document.getElementById('contact-modal');
   if (host) {
@@ -3483,6 +3485,12 @@ export function closeContactEditor(reason) {
       m.removeAttribute('open');
       if (m.tagName === 'DIALOG' && m.open) {
         try { m.close(); } catch (_) {}
+      }
+      if (m.__contactScrollRestore) {
+        releaseContactScrollLock(m.__contactScrollRestore);
+        m.__contactScrollRestore = null;
+      } else {
+        releaseContactScrollLock();
       }
     }
   } catch (_) {}

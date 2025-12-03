@@ -19,6 +19,7 @@ import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
 import { closeContactEditor } from './ui/contact_editor_api.js';
 import { getRenderer } from './app_services.js';
 import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
+import { resetScrollLock } from './ui/scroll_lock.js';
 import {
   initAppContext,
   getSettingsApi,
@@ -437,7 +438,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     bootSplash.hide();
     // CLEANUP: Force unlock scrolling after boot
     if (typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = '';
+      resetScrollLock('boot');
       document.body.style.height = '';
       document.body.classList.remove('modal-open', 'is-loading', 'no-scroll');
       if (document.documentElement) document.documentElement.style.overflow = '';
@@ -2607,7 +2608,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (prevRoot) {
         prevRoot.innerHTML = '';
         prevRoot.removeAttribute('data-mounted');
-        document.body.style.overflow = '';
+        resetScrollLock('view-reset');
         document.body.classList.remove('modal-open', 'no-scroll');
       }
     }
