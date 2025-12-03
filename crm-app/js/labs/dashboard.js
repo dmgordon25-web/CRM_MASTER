@@ -6,6 +6,8 @@ import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 let dashboardRoot = null;
 let labsModel = null;
 let activeSection = 'overview';
+let navClickHandler = null;
+let dataChangedHandler = null;
 
 const SECTIONS = [
   {
@@ -202,7 +204,11 @@ async function refreshDashboard() {
 
 function attachEventListeners() {
   if (!dashboardRoot) return;
-  dashboardRoot.addEventListener('click', async (event) => {
+
+  if (navClickHandler) {
+    dashboardRoot.removeEventListener('click', navClickHandler);
+  }
+  navClickHandler = async (event) => {
     const navButton = event.target.closest('.labs-nav-tab');
     if (navButton && navButton.dataset.section) {
       renderSection(navButton.dataset.section);
@@ -217,13 +223,18 @@ function attachEventListeners() {
     if (action === 'settings') {
       showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
     }
-  });
+  };
+  dashboardRoot.addEventListener('click', navClickHandler);
 
   if (typeof document !== 'undefined') {
-    document.addEventListener('app:data:changed', async (evt) => {
+    if (dataChangedHandler) {
+      document.removeEventListener('app:data:changed', dataChangedHandler);
+    }
+    dataChangedHandler = async (evt) => {
       console.info('[labs] CRM data changed, refreshing...', evt.detail);
       await refreshDashboard();
-    });
+    };
+    document.addEventListener('app:data:changed', dataChangedHandler);
   }
 }
 
@@ -245,6 +256,11 @@ async function mountLabsDashboard(root) {
     return;
   }
   console.debug('[LABS] mountLabsDashboard called');
+  if (dashboardRoot && dashboardRoot !== root) {
+    if (navClickHandler) {
+      dashboardRoot.removeEventListener('click', navClickHandler);
+    }
+  }
   dashboardRoot = root;
   showLoading();
 
