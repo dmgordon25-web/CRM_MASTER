@@ -132,10 +132,14 @@ function renderSection(sectionId) {
   activeSection = section.id;
 
   host.innerHTML = '';
+  const gridShell = document.createElement('div');
+  gridShell.className = 'labs-grid-shell';
+
   const grid = document.createElement('div');
   grid.className = 'labs-crm-grid';
   grid.dataset.qa = `labs-grid-${section.id}`;
-  host.appendChild(grid);
+  gridShell.appendChild(grid);
+  host.appendChild(gridShell);
 
   renderWidgets(grid, section.widgets);
   updateNavState();
@@ -165,6 +169,7 @@ function renderWidgets(grid, widgetList = []) {
     if (!renderer) return;
     const container = document.createElement('div');
     container.className = `labs-widget-container size-${widget.size || 'medium'}`;
+    container.role = 'presentation';
     container.dataset.widgetId = widget.id;
     container.dataset.qa = `labs-widget-${widget.id}`;
     container.style.animationDelay = `${index * 0.04}s`;
