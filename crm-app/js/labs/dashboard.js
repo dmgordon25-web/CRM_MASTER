@@ -2,7 +2,7 @@
 
 import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
-import { GridStack } from '../vendor/gridstack-all.js';
+import '../vendor/gridstack-all.js';
 
 let dashboardRoot = null;
 let labsModel = null;
@@ -11,6 +11,8 @@ let navClickHandler = null;
 let dataChangedHandler = null;
 let gridInstance = null;
 let layoutEditMode = false;
+
+const getGridStack = () => (typeof window !== 'undefined' ? window.GridStack : undefined);
 
 const DEFAULT_LAYOUTS = {
   overview: [
@@ -228,15 +230,22 @@ function renderWidgets(grid, widgetList = []) {
     layoutState[activeSection] = cloneLayout(layout);
   }
 
-  gridInstance = GridStack.init({
-    float: true,
-    cellHeight: 140,
-    column: 12,
-    margin: 10,
-    staticGrid: !layoutEditMode,
-    disableOneColumnMode: true,
-    resizable: false
-  }, grid);
+  const GridStack = getGridStack();
+
+  if (!GridStack) {
+    console.debug('[LABS] GridStack not available, skipping drag/drop');
+    gridInstance = null;
+  } else {
+    gridInstance = GridStack.init({
+      float: true,
+      cellHeight: 140,
+      column: 12,
+      margin: 10,
+      staticGrid: !layoutEditMode,
+      disableOneColumnMode: true,
+      resizable: false
+    }, grid);
+  }
 
   layout.forEach((layoutItem, index) => {
     const widget = widgetList.find((w) => w.id === layoutItem.id) || widgetList[index];
@@ -267,23 +276,29 @@ function renderWidgets(grid, widgetList = []) {
         content.appendChild(rendered);
       }
       item.appendChild(content);
-      gridInstance.addWidget(item);
+      if (gridInstance) {
+        gridInstance.addWidget(item);
+      } else {
+        grid.appendChild(item);
+      }
       console.debug(`[LABS] rendered widget ${widget.id}`);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
     }
   });
 
-  gridInstance.on('change', () => {
-    const saved = gridInstance.save(true) || [];
-    layoutState[activeSection] = saved.map((node) => ({
-      id: node.el?.dataset.widgetId || node.id,
-      x: node.x,
-      y: node.y,
-      w: node.w,
-      h: node.h
-    }));
-  });
+  if (gridInstance) {
+    gridInstance.on('change', () => {
+      const saved = gridInstance.save(true) || [];
+      layoutState[activeSection] = saved.map((node) => ({
+        id: node.el?.dataset.widgetId || node.id,
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h
+      }));
+    });
+  }
 }
 
 async function refreshDashboard() {
