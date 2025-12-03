@@ -200,26 +200,34 @@
 
 .labs-crm-grid {
   width: 100%;
+}
+
+.labs-static-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
   position: relative;
   z-index: 1;
   min-height: 320px;
 }
 
-.labs-widget-container {
-  animation: fadeInUp 0.5s ease-out backwards;
+.labs-grid-item {
+  width: 100%;
 }
 
-.grid-stack-item-content {
+.labs-grid-item.size-large {
+  grid-column: 1 / -1;
+}
+
+.labs-widget-container {
+  animation: fadeInUp 0.5s ease-out backwards;
   height: 100%;
 }
 
-.labs-crm-dashboard[data-layout-mode='edit'] .grid-stack-item-content {
-  border: 1px dashed var(--labs-border);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.08);
-}
-
-.labs-layout-reset {
-  display: none;
+@media (min-width: 960px) {
+  .labs-static-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
