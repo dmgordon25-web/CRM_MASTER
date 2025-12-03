@@ -11,27 +11,11 @@ const SECTIONS = [
   {
     id: 'overview',
     label: 'Overview',
-    description: 'Pipeline health, work queue, and quick wins',
+    description: 'Pipeline health and today\'s work',
     widgets: [
-      { id: 'kpis', size: 'large' },
-      { id: 'pipelineMomentum', size: 'large' },
-      { id: 'activePipeline', size: 'large' },
-      { id: 'todo', size: 'medium' },
-      { id: 'today', size: 'medium' },
-      { id: 'stale', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' },
-      { id: 'referralLeaderboard', size: 'medium' }
-    ]
-  },
-  {
-    id: 'work',
-    label: 'Workload',
-    description: 'Follow-ups and relationship health',
-    widgets: [
-      { id: 'priorityActions', size: 'medium' },
-      { id: 'closingWatch', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      { id: 'partnerPortfolio', size: 'medium' }
+      { id: 'labsKpiSummary', size: 'large' },
+      { id: 'labsPipelineSnapshot', size: 'large' },
+      { id: 'labsTasks', size: 'medium' }
     ]
   }
 ];
