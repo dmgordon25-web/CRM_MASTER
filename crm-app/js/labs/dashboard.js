@@ -42,10 +42,12 @@ function showError(message) {
 }
 
 async function hydrateModel() {
-  labsModel = await buildLabsModel();
-  if (!labsModel) {
+  const model = await buildLabsModel();
+  if (!model) {
     throw new Error('Labs data unavailable');
   }
+  labsModel = model;
+  return labsModel;
 }
 
 function renderShell() {
@@ -167,7 +169,12 @@ function renderWidgets(grid, widgetList = []) {
     container.style.animationDelay = `${index * 0.04}s`;
 
     try {
-      renderer(container, model);
+      const rendered = renderer(container, model);
+      if (typeof rendered === 'string') {
+        container.innerHTML = rendered;
+      } else if (rendered instanceof HTMLElement) {
+        container.appendChild(rendered);
+      }
       grid.appendChild(container);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
