@@ -121,38 +121,35 @@ export function renderLabsTasksWidget(container, model) {
   startOfToday.setHours(0, 0, 0, 0);
   const overdueTasks = (model.tasks || []).filter((task) => !task.completed && task.dueTs && task.dueTs < startOfToday.getTime());
 
-  const rows = [];
+  const allTasks = [
+    ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
+    ...overdueTasks.map((task) => ({ task, status: 'Overdue', icon: '⚠️' }))
+  ];
 
-  todayTasks.forEach((task, idx) => {
-    const contact = contactMap.get(task.contactId);
-    rows.push(`
-      <div class="today-item task-item" style="animation-delay:${idx * 0.04}s">
-        <div class="today-icon">✓</div>
-        <div class="today-content">
-          <div class="today-title">${task.title || 'Task'}</div>
-          <div class="today-meta">${contact?.displayName || contact?.name || task.contactName || 'No contact'}</div>
+  const VISIBLE_LIMIT = 8;
+  const visibleTasks = allTasks.slice(0, VISIBLE_LIMIT);
+  const hiddenCount = Math.max(allTasks.length - visibleTasks.length, 0);
+
+  const rows = visibleTasks.map((entry, idx) => {
+    const contact = contactMap.get(entry.task.contactId);
+    const contactName = contact?.displayName || contact?.name || entry.task.contactName || 'No contact';
+    const overdue = entry.status === 'Overdue';
+    return `
+      <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
+        <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
+        <div class="labs-task-main">
+          <div class="labs-task-title">${entry.task.title || 'Task'}</div>
+          <div class="labs-task-meta">${contactName}</div>
         </div>
-        <div class="today-time">Today</div>
+        <div class="labs-task-status ${overdue ? 'overdue' : ''}">${entry.status}</div>
       </div>
-    `);
+    `;
   });
 
-  overdueTasks.forEach((task, idx) => {
-    const contact = contactMap.get(task.contactId);
-    rows.push(`
-      <div class="today-item task-item" style="animation-delay:${(todayTasks.length + idx) * 0.04}s">
-        <div class="today-icon">⚠️</div>
-        <div class="today-content">
-          <div class="today-title">${task.title || 'Task'}</div>
-          <div class="today-meta">${contact?.displayName || contact?.name || task.contactName || 'No contact'}</div>
-        </div>
-        <div class="today-time">Overdue</div>
-      </div>
-    `);
-  });
+  const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more</div>` : '';
 
   const body = rows.length
-    ? `<div class="today-list">${rows.join('')}</div>`
+    ? `<div class="labs-tasks-list">${rows.join('')}</div>${footer}`
     : '<p class="empty-state">No tasks due or overdue</p>';
 
   renderCard(container, {
