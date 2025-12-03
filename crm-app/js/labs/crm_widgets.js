@@ -31,6 +31,137 @@ function renderCard(container, { title, body, badge } = {}) {
 }
 
 // =======================
+// Labs v1.5 baseline widgets
+// =======================
+export function renderLabsKpiSummaryWidget(container, model) {
+  const snapshotKPIs = calculateKPIsFromSnapshot(model.snapshot) || {};
+  const activeContacts = model.contacts.filter((contact) => {
+    const stage = normalizeStagesForDisplay(contact.stage);
+    return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
+  });
+
+  const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
+  const tasksToday = getTodayTasks(model.tasks || []);
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const overdueTasks = (model.tasks || []).filter((task) => !task.completed && task.dueTs && task.dueTs < startOfToday.getTime());
+
+  const leadsWithoutFollowUp = activeContacts.filter((contact) => {
+    const hasTask = (model.tasks || []).some((task) => task.contactId === contact.id && !task.completed);
+    return !hasTask;
+  });
+
+  const tiles = [
+    { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
+    { label: 'Active Volume', value: formatCurrency(activeVolume) },
+    { label: 'Tasks Today', value: formatNumber(tasksToday.length) },
+    { label: 'Overdue Tasks', value: formatNumber(overdueTasks.length) },
+    { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
+    { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
+  ];
+
+  const tilesHtml = tiles.map((tile, idx) => `
+    <div class="kpi-card tone-primary" style="animation-delay:${idx * 0.05}s">
+      <div class="kpi-value">${tile.value}</div>
+      <div class="kpi-label">${tile.label}</div>
+    </div>
+  `).join('');
+
+  renderCard(container, {
+    title: '📊 CRM Snapshot',
+    body: `<div class="kpis-grid">${tilesHtml}</div>`
+  });
+}
+
+export function renderLabsPipelineSnapshotWidget(container, model) {
+  const stageCounts = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
+  const stages = Object.keys(STAGE_CONFIG);
+  const total = model.contacts.length;
+
+  if (!total) {
+    renderCard(container, { title: '🧭 Pipeline Snapshot', body: '<p class="empty-state">No pipeline data yet</p>' });
+    return;
+  }
+
+  const rowsHtml = stages.map((stage, idx) => {
+    const count = stageCounts?.[stage] || 0;
+    const percent = total ? Math.round((count / total) * 100) : 0;
+    const config = STAGE_CONFIG[stage] || {};
+    return `
+      <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
+        <div class="momentum-label">
+          <span class="stage-icon">${config.icon || '●'}</span>
+          <span class="stage-name">${config.label || stage}</span>
+        </div>
+        <div class="momentum-bar-container">
+          <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
+            <div class="momentum-glow"></div>
+          </div>
+        </div>
+        <div class="momentum-stats">
+          <span class="stat-count">${count}</span>
+          <span class="stat-percent">${percent}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  renderCard(container, {
+    title: '🧭 Pipeline Snapshot',
+    body: `<div class="momentum-bars">${rowsHtml}</div>`
+  });
+}
+
+export function renderLabsTasksWidget(container, model) {
+  const contactMap = new Map(model.contacts.map((c) => [c.id, c]));
+  const todayTasks = getTodayTasks(model.tasks || []);
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const overdueTasks = (model.tasks || []).filter((task) => !task.completed && task.dueTs && task.dueTs < startOfToday.getTime());
+
+  const rows = [];
+
+  todayTasks.forEach((task, idx) => {
+    const contact = contactMap.get(task.contactId);
+    rows.push(`
+      <div class="today-item task-item" style="animation-delay:${idx * 0.04}s">
+        <div class="today-icon">✓</div>
+        <div class="today-content">
+          <div class="today-title">${task.title || 'Task'}</div>
+          <div class="today-meta">${contact?.displayName || contact?.name || task.contactName || 'No contact'}</div>
+        </div>
+        <div class="today-time">Today</div>
+      </div>
+    `);
+  });
+
+  overdueTasks.forEach((task, idx) => {
+    const contact = contactMap.get(task.contactId);
+    rows.push(`
+      <div class="today-item task-item" style="animation-delay:${(todayTasks.length + idx) * 0.04}s">
+        <div class="today-icon">⚠️</div>
+        <div class="today-content">
+          <div class="today-title">${task.title || 'Task'}</div>
+          <div class="today-meta">${contact?.displayName || contact?.name || task.contactName || 'No contact'}</div>
+        </div>
+        <div class="today-time">Overdue</div>
+      </div>
+    `);
+  });
+
+  const body = rows.length
+    ? `<div class="today-list">${rows.join('')}</div>`
+    : '<p class="empty-state">No tasks due or overdue</p>';
+
+  renderCard(container, {
+    title: '✅ Tasks Due',
+    body
+  });
+}
+
+// =======================
 // KPI tiles
 // =======================
 export function renderKPIsWidget(container, model) {
@@ -656,6 +787,9 @@ export function renderFavoritesWidget(container, model) {
 
 // Map of widget renderers aligned to dashboard catalog
 export const CRM_WIDGET_RENDERERS = {
+  labsKpiSummary: renderLabsKpiSummaryWidget,
+  labsPipelineSnapshot: renderLabsPipelineSnapshotWidget,
+  labsTasks: renderLabsTasksWidget,
   kpis: renderKPIsWidget,
   pipelineMomentum: renderPipelineMomentumWidget,
   pipeline: renderPipelineOverviewWidget,
