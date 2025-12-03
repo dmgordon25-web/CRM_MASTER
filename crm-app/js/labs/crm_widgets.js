@@ -41,7 +41,7 @@ export function renderLabsKpiSummaryWidget(container, model) {
   });
 
   const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
-  const tasksToday = getTodayTasks(model.tasks || []);
+  const todayTasks = getTodayTasks(model.tasks || []);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -55,7 +55,7 @@ export function renderLabsKpiSummaryWidget(container, model) {
   const tiles = [
     { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
     { label: 'Active Volume', value: formatCurrency(activeVolume) },
-    { label: 'Tasks Today', value: formatNumber(tasksToday.length) },
+    { label: 'Tasks Today', value: formatNumber(todayTasks.length) },
     { label: 'Overdue Tasks', value: formatNumber(overdueTasks.length) },
     { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
     { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
