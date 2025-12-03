@@ -76,6 +76,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const featureFlags = flags || {};
   const notificationsEnabled = featureFlags.notificationsMVP === true;
   const logAppError = (context, err) => logError(`app:${context}`, err);
+  let labsBundlePromise = null;
   function loadLabsBundle() {
     if (!labsBundlePromise) {
       try { console.info('[labs] requesting bundle'); }

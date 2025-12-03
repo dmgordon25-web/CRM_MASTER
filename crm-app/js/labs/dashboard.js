@@ -22,23 +22,25 @@ const SECTIONS = [
 
 function showLoading() {
   if (!dashboardRoot) return;
-  dashboardRoot.innerHTML = `
-    <div class="labs-loading">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Loading CRM Data...</div>
-    </div>
+  const loading = document.createElement('div');
+  loading.className = 'labs-loading';
+  loading.innerHTML = `
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading CRM Data...</div>
   `;
+  dashboardRoot.replaceChildren(loading);
 }
 
 function showError(message) {
   if (!dashboardRoot) return;
-  dashboardRoot.innerHTML = `
-    <div class="labs-error">
-      <h2>⚠️ Error</h2>
-      <p>${message}</p>
-      <button class="labs-btn-primary" onclick="location.reload()">Reload</button>
-    </div>
+  const error = document.createElement('div');
+  error.className = 'labs-error';
+  error.innerHTML = `
+    <h2>⚠️ Error</h2>
+    <p>${message}</p>
+    <button class="labs-btn-primary" onclick="location.reload()">Reload</button>
   `;
+  dashboardRoot.replaceChildren(error);
 }
 
 async function hydrateModel() {
@@ -52,7 +54,6 @@ async function hydrateModel() {
 
 function renderShell() {
   if (!dashboardRoot) return;
-  dashboardRoot.innerHTML = '';
   dashboardRoot.className = 'labs-crm-dashboard';
   dashboardRoot.dataset.qa = 'labs-crm-dashboard';
 
@@ -62,9 +63,7 @@ function renderShell() {
   sectionHost.className = 'labs-section-host';
   sectionHost.dataset.qa = 'labs-section-host';
 
-  dashboardRoot.appendChild(header);
-  dashboardRoot.appendChild(nav);
-  dashboardRoot.appendChild(sectionHost);
+  dashboardRoot.replaceChildren(header, nav, sectionHost);
 
   renderSection(activeSection);
 }
@@ -176,6 +175,7 @@ function renderWidgets(grid, widgetList = []) {
         container.appendChild(rendered);
       }
       grid.appendChild(container);
+      console.debug(`[LABS] rendered widget ${widget.id}`);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
     }
@@ -239,11 +239,12 @@ function showNotification(message, type = 'info') {
   }, 2600);
 }
 
-export async function initLabsCRMDashboard(root) {
+async function mountLabsDashboard(root) {
   if (!root) {
     console.error('[labs] No root element provided');
     return;
   }
+  console.debug('[LABS] mountLabsDashboard called');
   dashboardRoot = root;
   showLoading();
 
@@ -264,4 +265,5 @@ export async function initLabsCRMDashboard(root) {
   }
 }
 
-export default initLabsCRMDashboard;
+export { mountLabsDashboard as initLabsCRMDashboard };
+export default mountLabsDashboard;
