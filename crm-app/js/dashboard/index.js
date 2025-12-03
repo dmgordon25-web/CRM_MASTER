@@ -7,6 +7,7 @@ import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.
 import { attachStatusBanner } from '../ui/status_banners.js';
 import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
 import dashboardState from '../state/dashboard_state.js';
+import { isSimpleMode, onUiModeChanged } from '../ui/ui_mode.js';
 import {
   DASHBOARD_WIDGETS,
   buildDefaultConfig,
@@ -39,6 +40,7 @@ const DASHBOARD_INIT_ERROR_ROLE = 'dashboard-init-error';
 let dashboardInitPromise = null;
 let dashboardInitialized = false;
 let dashboardEventsBound = false;
+let dashboardUiModeUnsub = null;
 
 const DASHBOARD_CONTAINER_SELECTOR = 'main[data-ui="dashboard-root"]';
 const DASHBOARD_ITEM_SELECTOR = ':scope > [data-dash-widget]';
@@ -87,6 +89,10 @@ const todayHighlightState = {
   hostObserver: null,
   host: null
 };
+
+function isSimpleDashboardMode() {
+  return typeof isSimpleMode === 'function' ? isSimpleMode() : false;
+}
 
 const KPI_KEYS = [
   'kpiNewLeads7d',
@@ -2291,6 +2297,41 @@ function persistDashboardLayoutColumns(columns, options = {}) {
   persistDashboardLayoutState(columns, options);
 }
 
+function resetWidgetInlineWidths(container) {
+  const host = container || dashDnDState.container || getDashboardContainerNode();
+  if (!host) return;
+  const nodes = collectWidgetNodes(host);
+  nodes.forEach(node => {
+    if (!node) return;
+    if (node.style) {
+      node.style.gridColumn = '';
+    }
+    if (node.dataset && node.dataset.dashWidth) {
+      delete node.dataset.dashWidth;
+    }
+  });
+}
+
+function applySimpleDashboardLayout(container) {
+  const host = container || dashDnDState.container || getDashboardContainerNode();
+  if (!host) return;
+  resetWidgetInlineWidths(host);
+  if (host.dataset) {
+    host.dataset.dashMode = 'simple';
+  }
+  if (host.style) {
+    host.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+  }
+}
+
+function clearSimpleDashboardLayout(container) {
+  const host = container || dashDnDState.container || getDashboardContainerNode();
+  if (!host) return;
+  if (host.dataset && host.dataset.dashMode === 'simple') {
+    delete host.dataset.dashMode;
+  }
+}
+
 function applyLayoutColumns(columns) {
   const normalized = normalizeColumnCount(columns);
   const value = normalized.value;
@@ -2889,15 +2930,33 @@ function ensureWidgetDnD() {
   dashDnDState.container = container;
   dashDnDState.lastTeardownReason = '';
   const editing = isDashboardEditingEnabled();
-  applyRootEditingState(container, editing);
+  const simpleMode = isSimpleDashboardMode();
+  applyRootEditingState(container, simpleMode ? false : editing);
   const columns = getPreferredLayoutColumns();
   dashDnDState.columns = columns;
-  applyLayoutColumns(columns);
+  if (simpleMode) {
+    applySimpleDashboardLayout(container);
+  } else {
+    clearSimpleDashboardLayout(container);
+    applyLayoutColumns(columns);
+  }
   const nodes = ensureDashboardWidgets(container);
-  applyWidgetEditingMarkers(container, editing);
+  applyWidgetEditingMarkers(container, simpleMode ? false : editing);
   const hasNodes = Array.isArray(nodes) && nodes.length > 0;
   celebrationsState.dndReady = hasNodes;
   observeDashboardHost(container);
+  if (simpleMode) {
+    cleanupPointerHandlersFor(container);
+    dashDnDState.active = false;
+    exposeDashboardDnDHandlers();
+    if (celebrationsState.shouldRender) {
+      if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
+        celebrationsState.pendingHydration = false;
+        scheduleCelebrationsHydration();
+      }
+    }
+    return;
+  }
   if (!hasNodes) {
     if (dashDnDState.controller) {
       if (typeof dashDnDState.controller.setEditMode === 'function') {
@@ -3713,6 +3772,15 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 }
 
+function ensureDashboardUiModeListener() {
+  if (dashboardUiModeUnsub || typeof onUiModeChanged !== 'function') return;
+  dashboardUiModeUnsub = onUiModeChanged(() => {
+    teardownWidgetDnD('ui-mode-change');
+    scheduleApply();
+    ensureWidgetDnD();
+  });
+}
+
 export function initDashboard(options = {}) {
   if (!doc) return Promise.resolve(false);
   if (dashboardInitialized) return Promise.resolve(true);
@@ -3730,6 +3798,7 @@ export function initDashboard(options = {}) {
     }
     ensureDashboardRouteLifecycle();
     bindDashboardEventListeners();
+    ensureDashboardUiModeListener();
     if (typeof ensureLayoutToggle === 'function') {
       ensureLayoutToggle();
     }

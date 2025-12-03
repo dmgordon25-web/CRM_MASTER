@@ -1324,3 +1324,32 @@ main:not(#view-calendar) .calendar-grid{display:none!important}
     flex: 0 0 auto;
   }
 }
+
+.form-validation-summary {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--error-border, #ef4444);
+  background: var(--error-soft, #fef2f2);
+  color: var(--error-text, #991b1b);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.touch-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.touch-summary .touch-last {
+  font-weight: 700;
+}
+
+.touch-summary .touch-recent {
+  margin: 0;
+  padding-inline-start: 16px;
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
