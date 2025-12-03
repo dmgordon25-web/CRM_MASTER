@@ -162,6 +162,7 @@ export function normalizeContactId(input) {
   };
 
   const CONTACT_INVALID_TOAST = 'Please fix highlighted fields';
+  const TOUCH_LABEL_MAP = new Map(TOUCH_OPTIONS.map(option => [option.key, option.label || option.prefix || option.key]));
 
   function focusContactField(field) {
     if (!field || typeof field.focus !== 'function') return;
@@ -188,6 +189,38 @@ export function normalizeContactId(input) {
     }
   };
 
+  function ensureContactValidationSummary(container) {
+    if (!container) return null;
+    let summary = container.querySelector('[data-contact-validation-summary]');
+    if (!summary) {
+      summary = document.createElement('div');
+      summary.className = 'form-validation-summary';
+      summary.dataset.contactValidationSummary = '1';
+      summary.setAttribute('role', 'alert');
+      summary.hidden = true;
+      const main = container.querySelector('.modal-main') || container.firstElementChild;
+      if (main && main.parentNode) {
+        main.parentNode.insertBefore(summary, main);
+      } else {
+        container.insertBefore(summary, container.firstChild);
+      }
+    }
+    return summary;
+  }
+
+  function renderContactValidationSummary(container, message) {
+    const summary = ensureContactValidationSummary(container);
+    if (!summary) return;
+    const text = String(message || '').trim();
+    if (!text) {
+      summary.hidden = true;
+      summary.textContent = '';
+      return;
+    }
+    summary.textContent = text;
+    summary.hidden = false;
+  }
+
   function clearContactValidation(container) {
     if (!container) return;
     container.querySelectorAll('[data-contact-error]').forEach(node => node.remove());
@@ -196,6 +229,19 @@ export function normalizeContactId(input) {
       field.removeAttribute('aria-invalid');
       delete field.dataset.contactInvalid;
     });
+    renderContactValidationSummary(container, '');
+  }
+
+  function findValidationKeyForField(container, field) {
+    if (!container || !field) return null;
+    const entries = Object.entries(CONTACT_VALIDATION_CONFIG || {});
+    for (const [key, config] of entries) {
+      const selectors = Array.isArray(config?.selectors) ? config.selectors : [];
+      if (selectors.some(sel => field.matches(sel))) {
+        return key;
+      }
+    }
+    return null;
   }
 
   function applyContactValidation(container, errors) {
@@ -203,6 +249,8 @@ export function normalizeContactId(input) {
     if (!container) return { firstInvalid: null };
     let firstInvalid = null;
     const keys = Object.keys(CONTACT_VALIDATION_CONFIG);
+    const hasErrors = errors && Object.keys(errors).length > 0;
+    renderContactValidationSummary(container, hasErrors ? CONTACT_INVALID_TOAST : '');
     keys.forEach(key => {
       const config = CONTACT_VALIDATION_CONFIG[key] || {};
       const selectors = Array.isArray(config.selectors) ? config.selectors : [];
@@ -243,6 +291,27 @@ export function normalizeContactId(input) {
       }
     });
     return { firstInvalid };
+  }
+
+  function wireContactValidationListeners(container) {
+    if (!container || container.__contactValidationWired) return;
+    container.__contactValidationWired = true;
+    const handleInput = (event) => {
+      const target = event?.target;
+      if (!target || !container.contains(target)) return;
+      const key = findValidationKeyForField(container, target);
+      if (!key) return;
+      const errorEl = container.querySelector(`[data-contact-error="${key}"]`);
+      if (errorEl) errorEl.remove();
+      target.classList.remove('field-error');
+      target.removeAttribute('aria-invalid');
+      delete target.dataset.contactInvalid;
+      if (!container.querySelector('[data-contact-invalid]')) {
+        renderContactValidationSummary(container, '');
+      }
+    };
+    container.addEventListener('input', handleInput);
+    container.addEventListener('change', handleInput);
   }
 
   function generateContactId(seed) {
@@ -1822,6 +1891,8 @@ export function normalizeContactId(input) {
       }
 
       const saveBtn = dlg.querySelector('#btn-save-contact');
+      clearContactValidation(body);
+      wireContactValidationListeners(body);
       const setBusy = (active) => {
         if (active) {
           try { dlg.setAttribute('data-loading', '1'); }
@@ -1879,6 +1950,63 @@ export function normalizeContactId(input) {
           record.lastTouch = dateOnly;
         }
       };
+      const recentTouchEntries = (record) => {
+        if (!record || typeof record !== 'object') return [];
+        const timeline = Array.isArray(record.extras?.timeline) ? record.extras.timeline.slice() : [];
+        const entries = timeline.map(entry => {
+          const whenSource = entry?.when || entry?.date || entry?.at || '';
+          const when = whenSource ? new Date(whenSource) : null;
+          const iso = when && !Number.isNaN(when.getTime()) ? formatTouchDate(when) : (record.lastTouch || record.lastContact || '');
+          const whenLabel = iso ? formatDetailDate(String(iso).slice(0, 10), 'Not logged') : 'Not logged';
+          const tag = String(entry?.tag || entry?.key || '').trim();
+          const tagLabel = TOUCH_LABEL_MAP.get(tag) || tag || '';
+          const note = String(entry?.text || entry?.entry || entry?.note || '').trim();
+          const whenMs = when && !Number.isNaN(when.getTime()) ? when.getTime() : (iso ? new Date(iso).getTime() || 0 : 0);
+          return { whenMs, whenIso: iso, whenLabel, tag, tagLabel, note };
+        }).filter(item => item.whenLabel || item.note || item.tagLabel);
+        if (!entries.length && (record.lastTouch || record.lastContact)) {
+          const iso = String(record.lastTouch || record.lastContact);
+          entries.push({
+            whenMs: new Date(iso).getTime() || 0,
+            whenIso: iso,
+            whenLabel: formatDetailDate(String(iso).slice(0, 10), 'Not logged'),
+            tag: '',
+            tagLabel: '',
+            note: ''
+          });
+        }
+        entries.sort((a, b) => (b.whenMs || 0) - (a.whenMs || 0));
+        return entries.slice(0, 3);
+      };
+      const renderTouchSummary = (host, record) => {
+        if (!host) return;
+        const entries = recentTouchEntries(record);
+        const last = entries[0] || null;
+        const container = host;
+        container.innerHTML = '';
+        container.classList.add('touch-summary');
+
+        const lastLabel = last ? (last.whenLabel || 'Not logged') : 'Not logged';
+        const lastType = last && last.tagLabel ? ` – ${last.tagLabel}` : '';
+        const lastLine = document.createElement('div');
+        lastLine.className = 'touch-last';
+        lastLine.textContent = `Last touch: ${lastLabel}${lastType}`;
+        container.appendChild(lastLine);
+
+        if (entries.length > 1) {
+          const list = document.createElement('ul');
+          list.className = 'touch-recent';
+          entries.slice(0, 3).forEach((entry, idx) => {
+            if (idx === 0) return;
+            const row = document.createElement('li');
+            const tagPart = entry.tagLabel ? ` – ${entry.tagLabel}` : '';
+            const notePart = entry.note ? ` — ${entry.note}` : '';
+            row.textContent = `${entry.whenLabel}${tagPart}${notePart}`;
+            list.appendChild(row);
+          });
+          container.appendChild(list);
+        }
+      };
       const handleSave = async (options) => {
         const opts = options && typeof options === 'object' ? options : {};
         const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
@@ -1904,6 +2032,7 @@ export function normalizeContactId(input) {
           toastWarn(CONTACT_INVALID_TOAST);
           return null;
         }
+        renderContactValidationSummary(body, '');
         setBusy(true);
         try {
           const referralPartnerSelectSave = $('#c-referral-partner', body);
@@ -2430,7 +2559,7 @@ export function normalizeContactId(input) {
         refreshSuggestion();
       };
 
-      const installTouchLogging = () => {
+      const installTouchLogging = (onTouchSaved) => {
         if (typeof createTouchLogEntry !== 'function' || typeof touchSuccessMessage !== 'function') {
           toastWarn('Touch logging unavailable');
           return null;
@@ -2543,6 +2672,9 @@ export function normalizeContactId(input) {
               successMessage: touchSuccessMessage(key),
               touchLog: { key, date: today, entry, by: 'contact-editor:touch-menu' }
             });
+            if (result && typeof onTouchSaved === 'function') {
+              onTouchSaved(result);
+            }
             return result;
           } catch (err) {
             try { console && console.warn && console.warn('[contacts] touch log failed', err); }
@@ -2617,37 +2749,14 @@ export function normalizeContactId(input) {
       };
 
       installFollowUpScheduler();
-      const logTouchHandler = installTouchLogging();
-      const installHeaderLogButtons = (handler) => {
+      const touchSummaryUpdater = (() => {
         const host = dlg.querySelector('[data-role="contact-header-actions"]');
-        if (!host) return;
-        host.__logHandler = handler;
-        if (host.__wired) return;
-        host.__wired = true;
-        const buttons = [
-          { key: 'call', label: 'Log a Call', ui: 'log-call' },
-          { key: 'text', label: 'Log a Text', ui: 'log-text' },
-          { key: 'email', label: 'Log an Email', ui: 'log-email' }
-        ];
-        buttons.forEach((meta) => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'btn ghost';
-          btn.textContent = meta.label;
-          btn.dataset.ui = meta.ui;
-          btn.addEventListener('click', (event) => {
-            event.preventDefault();
-            const handlerFn = host.__logHandler;
-            if (typeof handlerFn === 'function') {
-              handlerFn(meta.key);
-            } else {
-              toastWarn('Touch logging unavailable');
-            }
-          });
-          host.appendChild(btn);
-        });
-      };
-      installHeaderLogButtons(logTouchHandler);
+        if (!host) return null;
+        const update = (record) => renderTouchSummary(host, record || c);
+        update(c);
+        return update;
+      })();
+      const logTouchHandler = installTouchLogging(touchSummaryUpdater);
 
       if (saveBtn) {
         if (typeof window.saveForm === 'function') {

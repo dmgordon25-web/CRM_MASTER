@@ -97,3 +97,15 @@ main[data-ui="dashboard-root"] .insight-card {
   display: grid;
   gap: 8px;
 }
+
+.ui-simple-mode main[data-ui="dashboard-root"] {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.ui-simple-mode main[data-ui="dashboard-root"] [data-dash-widget] {
+  grid-column: auto !important;
+}
+
+.ui-simple-mode main[data-ui="dashboard-root"] .dash-resize-handle {
+  display: none;
+}
