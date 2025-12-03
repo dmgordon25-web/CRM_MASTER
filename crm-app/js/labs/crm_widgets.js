@@ -62,22 +62,37 @@ export function renderLabsKpiSummaryWidget(container, model) {
   ];
 
   const tilesHtml = tiles.map((tile, idx) => `
-    <div class="kpi-card tone-primary" style="animation-delay:${idx * 0.05}s">
-      <div class="kpi-value">${tile.value}</div>
-      <div class="kpi-label">${tile.label}</div>
+    <div class="labs-kpi-tile" style="animation-delay:${idx * 0.05}s">
+      <div class="labs-kpi-label">${tile.label}</div>
+      <div class="labs-kpi-value">${tile.value}</div>
     </div>
   `).join('');
 
   renderCard(container, {
     title: '📊 CRM Snapshot',
-    body: `<div class="kpis-grid">${tilesHtml}</div>`
+    body: `<div class="labs-kpi-grid">${tilesHtml}</div>`
   });
 }
 
 export function renderLabsPipelineSnapshotWidget(container, model) {
-  const stageCounts = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
   const stages = Object.keys(STAGE_CONFIG);
-  const total = model.contacts.length;
+  const normalizedCounts = stages.reduce((acc, stage) => {
+    acc[stage] = 0;
+    return acc;
+  }, {});
+
+  const contactCounts = groupByStage(model.contacts || []);
+  const snapshotCounts = model.snapshot?.pipelineCounts || {};
+  const sourceCounts = Object.keys(snapshotCounts).length ? snapshotCounts : contactCounts;
+
+  Object.entries(sourceCounts).forEach(([stage, count]) => {
+    const normalized = normalizeStagesForDisplay(stage);
+    if (normalized && normalizedCounts.hasOwnProperty(normalized)) {
+      normalizedCounts[normalized] += count;
+    }
+  });
+
+  const total = Object.values(normalizedCounts).reduce((sum, value) => sum + value, 0);
 
   if (!total) {
     renderCard(container, { title: '🧭 Pipeline Snapshot', body: '<p class="empty-state">No pipeline data yet</p>' });
@@ -85,7 +100,7 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
   }
 
   const rowsHtml = stages.map((stage, idx) => {
-    const count = stageCounts?.[stage] || 0;
+    const count = normalizedCounts?.[stage] || 0;
     const percent = total ? Math.round((count / total) * 100) : 0;
     const config = STAGE_CONFIG[stage] || {};
     return `
@@ -132,21 +147,22 @@ export function renderLabsTasksWidget(container, model) {
 
   const rows = visibleTasks.map((entry, idx) => {
     const contact = contactMap.get(entry.task.contactId);
-    const contactName = contact?.displayName || contact?.name || entry.task.contactName || 'No contact';
+    const contactName = contact?.displayName || contact?.name || entry.task.contactName;
+    const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
     const overdue = entry.status === 'Overdue';
     return `
       <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
         <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
         <div class="labs-task-main">
           <div class="labs-task-title">${entry.task.title || 'Task'}</div>
-          <div class="labs-task-meta">${contactName}</div>
+          <div class="labs-task-meta">${contactLabel}</div>
         </div>
         <div class="labs-task-status ${overdue ? 'overdue' : ''}">${entry.status}</div>
       </div>
     `;
   });
 
-  const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more</div>` : '';
+  const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more tasks</div>` : '';
 
   const body = rows.length
     ? `<div class="labs-tasks-list">${rows.join('')}</div>${footer}`

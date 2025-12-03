@@ -1,27 +1,29 @@
+@import url('./vendor/gridstack.min.css');
+
 /* ========================================
-   LABS CRM DASHBOARD - Stunning Visual Redesign
-   Real CRM data with beautiful modern UI
+   LABS CRM DASHBOARD - Light Visual Refresh
+   Real CRM data with modern UI
    ======================================== */
 
 /* ========================================
    BASE VARIABLES
    ======================================== */
 
-:root {
-  --labs-bg-primary: #0a0e1a;
-  --labs-bg-secondary: #111827;
-  --labs-bg-card: #1e293b;
-  --labs-text-primary: #f8fafc;
-  --labs-text-secondary: #94a3b8;
-  --labs-text-muted: #64748b;
-  --labs-accent-1: #06b6d4;
-  --labs-accent-2: #8b5cf6;
+.labs-crm-dashboard {
+  --labs-bg-primary: #f8fafc;
+  --labs-bg-secondary: #ffffff;
+  --labs-bg-card: #ffffff;
+  --labs-text-primary: #0f172a;
+  --labs-text-secondary: #475569;
+  --labs-text-muted: #94a3b8;
+  --labs-accent-1: #0ea5e9;
+  --labs-accent-2: #6366f1;
   --labs-accent-3: #10b981;
   --labs-accent-4: #f59e0b;
   --labs-accent-5: #ec4899;
-  --labs-border: #334155;
-  --labs-shadow: rgba(6, 182, 212, 0.2);
-  --labs-glow: rgba(6, 182, 212, 0.4);
+  --labs-border: #e2e8f0;
+  --labs-shadow: rgba(99, 102, 241, 0.18);
+  --labs-glow: rgba(14, 165, 233, 0.25);
 }
 
 /* ========================================
@@ -37,30 +39,18 @@
   position: relative;
 }
 
-.labs-crm-dashboard::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* ========================================
    HEADER
    ======================================== */
 
 .labs-crm-header {
   background: var(--labs-bg-secondary);
-  border-bottom: 2px solid var(--labs-accent-1);
-  box-shadow: 0 4px 20px var(--labs-shadow);
+  border-bottom: 1px solid var(--labs-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(6px);
 }
 
 .labs-header-content {
@@ -124,15 +114,15 @@
 }
 
 .header-stat .stat-value {
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   font-weight: 800;
-  color: var(--labs-accent-1);
-  line-height: 1;
+  color: var(--labs-text-primary);
+  line-height: 1.1;
 }
 
 .header-stat .stat-label {
   font-size: 0.75rem;
-  color: var(--labs-text-secondary);
+  color: var(--labs-text-muted);
   margin-top: 0.25rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -165,6 +155,30 @@
   box-shadow: 0 4px 12px var(--labs-shadow);
 }
 
+.labs-btn-pill,
+.labs-btn-ghost {
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  border: 1px solid var(--labs-border);
+  background: #ffffff;
+  color: var(--labs-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.labs-btn-pill {
+  background: linear-gradient(135deg, var(--labs-accent-1), var(--labs-accent-2));
+  color: #ffffff;
+  border: none;
+}
+
+.labs-btn-ghost:hover,
+.labs-btn-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
 .icon-refresh {
   display: inline-block;
   transition: transform 0.3s;
@@ -186,36 +200,29 @@
 
 .labs-crm-grid {
   width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 1.5rem;
   position: relative;
   z-index: 1;
+  min-height: 320px;
 }
 
 .labs-widget-container {
   animation: fadeInUp 0.5s ease-out backwards;
 }
 
-.labs-widget-container.size-large {
-  grid-column: span 2;
+.grid-stack-item-content {
+  height: 100%;
 }
 
-.labs-widget-container.size-medium {
-  grid-column: span 1;
+.labs-crm-dashboard[data-layout-mode='edit'] .grid-stack-item-content {
+  border: 1px dashed var(--labs-border);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
-@media (max-width: 1200px) {
-  .labs-widget-container.size-large {
-    grid-column: span 1;
-  }
+.labs-layout-reset {
+  display: none;
 }
 
 @media (max-width: 768px) {
-  .labs-crm-grid {
-    grid-template-columns: 1fr;
-  }
-
   .labs-header-content {
     flex-direction: column;
     align-items: stretch;
@@ -233,9 +240,9 @@
 .labs-crm-widget {
   background: var(--labs-bg-card);
   border: 1px solid var(--labs-border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
@@ -249,18 +256,14 @@
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, var(--labs-accent-1), var(--labs-accent-2));
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.3s;
 }
 
 .labs-crm-widget:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px var(--labs-shadow);
-  border-color: var(--labs-accent-1);
-}
-
-.labs-crm-widget:hover::before {
-  opacity: 1;
+  transform: translateY(-2px);
+  box-shadow: 0 20px 38px rgba(15, 23, 42, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .labs-widget-header {
@@ -333,6 +336,36 @@
   margin-bottom: 1.5rem;
 }
 
+.labs-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem;
+}
+
+.labs-kpi-tile {
+  background: #ffffff;
+  border: 1px solid var(--labs-border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.labs-kpi-label {
+  font-size: 0.9rem;
+  color: var(--labs-text-secondary);
+  font-weight: 600;
+}
+
+.labs-kpi-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--labs-text-primary);
+  line-height: 1.2;
+}
+
 .kpi-card {
   text-align: center;
   padding: 1.5rem;
@@ -393,14 +426,21 @@
   stroke: #ef4444;
 }
 
+
 .kpi-value {
+  position: static;
+  transform: none;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--labs-text-primary);
+  line-height: 1.2;
+}
+
+.kpi-radial .kpi-value {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--labs-text-primary);
 }
 
 .kpi-label {
@@ -461,6 +501,7 @@
   align-items: center;
   gap: 1rem;
   animation: slideIn 0.5s ease-out backwards;
+  padding: 0.35rem 0;
 }
 
 .momentum-label {
@@ -481,9 +522,9 @@
 
 .momentum-bar-container {
   position: relative;
-  height: 32px;
-  background: rgba(30, 41, 59, 0.5);
-  border-radius: 16px;
+  height: 24px;
+  background: #e2e8f0;
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -494,9 +535,9 @@
   bottom: 0;
   width: var(--bar-width);
   background: var(--bar-color);
-  border-radius: 16px;
+  border-radius: 12px;
   transition: width 0.8s ease-out;
-  box-shadow: 0 0 20px var(--bar-color);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.18);
 }
 
 .momentum-glow {
@@ -819,18 +860,18 @@
   grid-template-columns: 42px 1fr auto;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 0.75rem;
-  background: rgba(6, 182, 212, 0.05);
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 0.75rem 0.9rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid var(--labs-border);
   transition: all 0.2s ease;
   animation: slideIn 0.45s ease-out backwards;
 }
 
 .labs-task-row:hover {
-  background: rgba(6, 182, 212, 0.1);
-  border-color: var(--labs-accent-1);
-  transform: translateY(-2px);
+  background: #ffffff;
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
 }
 
 .labs-task-icon {
@@ -872,10 +913,10 @@
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--labs-accent-3);
-  padding: 0.35rem 0.65rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .labs-task-status.overdue {
