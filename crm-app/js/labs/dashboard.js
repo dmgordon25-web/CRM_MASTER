@@ -43,6 +43,9 @@ function showError(message) {
 
 async function hydrateModel() {
   labsModel = await buildLabsModel();
+  if (!labsModel) {
+    throw new Error('Labs data unavailable');
+  }
 }
 
 function renderShell() {
@@ -145,7 +148,15 @@ function updateNavState() {
 }
 
 function renderWidgets(grid, widgetList = []) {
-  if (!labsModel) return;
+  const model = labsModel || {
+    contacts: [],
+    partners: [],
+    tasks: [],
+    snapshot: { pipelineCounts: {} },
+    celebrations: [],
+    laneOrder: [],
+    activeLanes: []
+  };
   widgetList.forEach((widget, index) => {
     const renderer = CRM_WIDGET_RENDERERS[widget.id];
     if (!renderer) return;
@@ -156,7 +167,7 @@ function renderWidgets(grid, widgetList = []) {
     container.style.animationDelay = `${index * 0.04}s`;
 
     try {
-      renderer(container, labsModel);
+      renderer(container, model);
       grid.appendChild(container);
     } catch (err) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
