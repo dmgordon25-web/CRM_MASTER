@@ -31,7 +31,7 @@ import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
-import { acquireScrollLock, releaseScrollLock } from './ui/scroll_lock.js';
+import { acquireContactScrollLock, releaseContactScrollLock } from './ui/scroll_lock.js';
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
@@ -244,26 +244,6 @@ export function normalizeContactId(input) {
     });
     return { firstInvalid };
   }
-
-function acquireContactScrollLock() {
-  try {
-    return acquireScrollLock('contact-modal');
-  } catch (_err) {
-    return () => releaseScrollLock('contact-modal');
-  }
-}
-
-function releaseContactScrollLock(handle) {
-  const release = typeof handle === 'function' ? handle : null;
-  if (release) {
-    try { release(); }
-    catch (_err) { }
-    return true;
-  }
-  try { releaseScrollLock('contact-modal'); }
-  catch (_err) { }
-  return false;
-}
 
   function generateContactId(seed) {
     return normalizeContactId(seed);

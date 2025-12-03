@@ -106,4 +106,25 @@ function reset(owner = 'force-reset') {
 }
 
 export { acquire as acquireScrollLock, release as releaseScrollLock, reset as resetScrollLock };
-export default { acquireScrollLock: acquire, releaseScrollLock: release, resetScrollLock: reset };
+function acquireContactScrollLock() {
+  return acquire('contact-modal');
+}
+
+function releaseContactScrollLock(handle) {
+  if (typeof handle === 'function') {
+    try { handle(); }
+    catch (_) { }
+    return true;
+  }
+  release('contact-modal');
+  return false;
+}
+
+export { acquireContactScrollLock, releaseContactScrollLock };
+export default {
+  acquireScrollLock: acquire,
+  releaseScrollLock: release,
+  resetScrollLock: reset,
+  acquireContactScrollLock,
+  releaseContactScrollLock
+};
