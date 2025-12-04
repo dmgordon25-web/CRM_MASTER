@@ -3,7 +3,14 @@
 import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 import { makeDraggableGrid } from '../ui/drag_core.js';
-import { loadSectionLayoutState, saveSectionLayoutState } from './layout_state.js';
+import {
+  clearSectionLayoutState,
+  layoutStorageKey,
+  loadSectionLayoutState,
+  loadSectionPreset,
+  saveSectionLayoutState,
+  saveSectionPreset
+} from './layout_state.js';
 
 let dashboardRoot = null;
 let labsModel = null;
@@ -11,11 +18,12 @@ let activeSection = 'overview';
 let navClickHandler = null;
 let dataChangedHandler = null;
 let customizeChangeHandler = null;
+let presetChangeHandler = null;
 let labsLayoutEditMode = false;
 const labsDragControllers = new Map();
 const labsResizeControllers = new Map();
-const labsWidthState = new Map();
 const openCustomizerSections = new Set();
+const sectionLayoutCache = new Map();
 
 const WIDTH_TOKENS = ['w1', 'w2', 'w3'];
 const SIZE_TO_WIDTH = {
@@ -39,6 +47,116 @@ const WIDGET_LABELS = {
   pipelineMomentum: 'Pipeline Momentum',
   relationshipOpportunities: 'Relationship Opportunities',
   closingWatch: 'Closing Watch'
+};
+
+const LABS_PRESETS = {
+  overview: {
+    default: { label: 'Default layout' },
+    kpiFocused: {
+      label: 'KPI focus',
+      order: ['labsKpiSummary', 'labsPipelineSnapshot', 'today', 'todo', 'favorites', 'labsTasks'],
+      visibility: {
+        labsKpiSummary: true,
+        labsPipelineSnapshot: true,
+        labsTasks: true,
+        today: true,
+        todo: true,
+        favorites: true
+      },
+      widths: {
+        labsKpiSummary: 'w3',
+        labsPipelineSnapshot: 'w3',
+        favorites: 'w1'
+      }
+    },
+    tasksFocused: {
+      label: 'Tasks focus',
+      order: ['labsTasks', 'today', 'todo', 'favorites', 'labsPipelineSnapshot', 'labsKpiSummary'],
+      visibility: {
+        labsTasks: true,
+        today: true,
+        todo: true,
+        favorites: true,
+        labsPipelineSnapshot: true,
+        labsKpiSummary: true
+      },
+      widths: {
+        labsTasks: 'w3',
+        today: 'w2',
+        todo: 'w2'
+      }
+    }
+  },
+  tasks: {
+    default: { label: 'Default layout' },
+    execution: {
+      label: 'Execution focus',
+      order: ['labsTasks', 'priorityActions', 'today', 'todo', 'milestones', 'upcomingCelebrations'],
+      visibility: {
+        labsTasks: true,
+        priorityActions: true,
+        today: true,
+        todo: true,
+        milestones: true
+      },
+      widths: {
+        labsTasks: 'w3',
+        priorityActions: 'w2',
+        today: 'w2'
+      }
+    },
+    planning: {
+      label: 'Planning focus',
+      order: ['priorityActions', 'today', 'labsTasks', 'todo', 'milestones', 'upcomingCelebrations'],
+      visibility: {
+        priorityActions: true,
+        today: true,
+        labsTasks: true,
+        todo: true,
+        milestones: true,
+        upcomingCelebrations: true
+      },
+      widths: {
+        priorityActions: 'w2',
+        today: 'w2',
+        labsTasks: 'w3'
+      }
+    }
+  },
+  portfolio: {
+    default: { label: 'Default layout' },
+    partners: {
+      label: 'Partner focus',
+      order: ['partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities', 'pipelineMomentum', 'closingWatch'],
+      visibility: {
+        partnerPortfolio: true,
+        referralLeaderboard: true,
+        relationshipOpportunities: true,
+        pipelineMomentum: true,
+        closingWatch: true
+      },
+      widths: {
+        partnerPortfolio: 'w3',
+        referralLeaderboard: 'w2'
+      }
+    },
+    pipeline: {
+      label: 'Pipeline focus',
+      order: ['pipelineMomentum', 'closingWatch', 'partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities'],
+      visibility: {
+        pipelineMomentum: true,
+        closingWatch: true,
+        partnerPortfolio: true,
+        referralLeaderboard: true,
+        relationshipOpportunities: true
+      },
+      widths: {
+        pipelineMomentum: 'w2',
+        closingWatch: 'w2',
+        partnerPortfolio: 'w3'
+      }
+    }
+  }
 };
 
 
@@ -84,34 +202,11 @@ const SECTIONS = [
   }
 ];
 
-const LABS_LAYOUT_PREFIX = 'labs:layout:';
-const LABS_WIDTH_PREFIX = 'labs:widths:';
-
-function layoutStorageKey(sectionId) {
-  const safeId = sectionId ? String(sectionId).trim() : '';
-  return `${LABS_LAYOUT_PREFIX}${safeId || 'default'}`;
-}
-
-function readStoredLayout(sectionId) {
-  if (typeof localStorage === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(layoutStorageKey(sectionId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
-  } catch (_err) {
-    return [];
-  }
-}
-
-function widthStorageKey(sectionId) {
-  const safeId = sectionId ? String(sectionId).trim() : '';
-  return `${LABS_WIDTH_PREFIX}${safeId || 'default'}`;
-}
-
 function normalizeWidthToken(token) {
-  const value = typeof token === 'string' ? token.trim() : '';
-  if (WIDTH_TOKENS.includes(value)) return value;
+  const raw = typeof token === 'string' ? token.trim() : '';
+  if (WIDTH_TOKENS.includes(raw)) return raw;
+  const lower = raw.toLowerCase();
+  if (SIZE_TO_WIDTH[lower]) return SIZE_TO_WIDTH[lower];
   return '';
 }
 
@@ -120,64 +215,109 @@ function defaultWidthToken(size) {
   return SIZE_TO_WIDTH[key] || 'w2';
 }
 
-function readStoredWidths(sectionId) {
-  const cacheKey = sectionId || 'default';
-  if (labsWidthState.has(cacheKey)) return labsWidthState.get(cacheKey);
-  const map = new Map();
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(widthStorageKey(sectionId));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          Object.entries(parsed).forEach(([widgetId, token]) => {
-            const normalized = normalizeWidthToken(token);
-            if (widgetId && normalized) {
-              map.set(String(widgetId), normalized);
-            }
-          });
-        }
-      }
-    } catch (_err) {}
-  }
-  labsWidthState.set(cacheKey, map);
-  return map;
+function getSection(sectionId) {
+  return SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
 }
 
-function persistWidths(sectionId, widthMap) {
-  if (typeof localStorage === 'undefined') return;
-  const payload = {};
-  if (widthMap && widthMap.forEach) {
-    widthMap.forEach((token, widgetId) => {
-      const normalized = normalizeWidthToken(token);
-      if (widgetId && normalized) {
-        payload[widgetId] = normalized;
-      }
-    });
-  }
-  try {
-    if (Object.keys(payload).length) {
-      localStorage.setItem(widthStorageKey(sectionId), JSON.stringify(payload));
-    } else {
-      localStorage.removeItem(widthStorageKey(sectionId));
+function applyOrder(defaultOrder, storedOrder = []) {
+  const normalizedDefault = Array.isArray(defaultOrder) ? defaultOrder : [];
+  if (!normalizedDefault.length) return [];
+  const normalizedStored = Array.isArray(storedOrder) ? storedOrder.map(String) : [];
+  const seen = new Set();
+  const ordered = [];
+
+  normalizedStored.forEach((id) => {
+    if (!id || seen.has(id)) return;
+    if (normalizedDefault.includes(id)) {
+      ordered.push(id);
+      seen.add(id);
     }
-  } catch (_err) {}
+  });
+
+  normalizedDefault.forEach((id) => {
+    if (!id || seen.has(id)) return;
+    ordered.push(id);
+    seen.add(id);
+  });
+
+  return ordered;
 }
 
-function getWidgetWidthToken(sectionId, widget) {
-  const widgetId = widget && widget.id ? String(widget.id) : '';
-  if (!widgetId) return 'w2';
-  const stored = readStoredWidths(sectionId).get(widgetId);
-  if (stored) return stored;
-  return defaultWidthToken(widget?.size);
+function buildDefaultLayout(section) {
+  const widgets = section?.widgets || [];
+  const order = widgets.map((widget) => widget?.id).filter(Boolean);
+  const widths = {};
+  const visibility = {};
+  widgets.forEach((widget) => {
+    if (!widget?.id) return;
+    widths[widget.id] = defaultWidthToken(widget.size);
+    visibility[widget.id] = true;
+  });
+  return { order, widths, visibility };
 }
 
-function setWidgetWidthToken(sectionId, widgetId, token) {
-  const normalized = normalizeWidthToken(token);
-  if (!normalized) return;
-  const map = readStoredWidths(sectionId);
-  map.set(widgetId, normalized);
-  persistWidths(sectionId, map);
+function normalizeLayoutState(section, rawState) {
+  const defaults = buildDefaultLayout(section);
+  const order = applyOrder(defaults.order, rawState?.order);
+
+  const widths = {};
+  order.forEach((id) => {
+    const override = rawState?.widths?.[id];
+    const normalized = normalizeWidthToken(override);
+    widths[id] = normalized || defaults.widths[id] || 'w2';
+  });
+
+  const visibility = {};
+  order.forEach((id) => {
+    const stored = rawState?.visibility?.[id];
+    visibility[id] = stored === false ? false : true;
+  });
+
+  return { order, widths, visibility };
+}
+
+function cacheSectionLayout(sectionId, layout) {
+  sectionLayoutCache.set(sectionId, layout);
+}
+
+function getCachedLayout(sectionId) {
+  return sectionLayoutCache.get(sectionId) || null;
+}
+
+function getWidgetLabel(widgetId) {
+  if (!widgetId) return '';
+  return WIDGET_LABELS[widgetId] || widgetId;
+}
+
+function buildSectionRenderData(section) {
+  const rawState = loadSectionLayoutState(section.id);
+  const layoutState = normalizeLayoutState(section, rawState);
+  cacheSectionLayout(section.id, layoutState);
+  const widgetsInOrder = layoutState.order
+    .map((id) => (section.widgets || []).find((widget) => widget?.id === id))
+    .filter((widget) => widget && layoutState.visibility[widget.id] !== false);
+  return { layoutState, widgetsInOrder };
+}
+
+function mutateLayoutState(sectionId, mutator) {
+  const section = getSection(sectionId);
+  if (!section || typeof mutator !== 'function') return null;
+  const current = loadSectionLayoutState(sectionId) || {};
+  const next = mutator({ ...current }) || current;
+  saveSectionLayoutState(sectionId, next);
+  const normalized = normalizeLayoutState(section, next);
+  cacheSectionLayout(sectionId, normalized);
+  return normalized;
+}
+
+function updateVisibility(sectionId, widgetId, isVisible) {
+  if (!sectionId || !widgetId) return;
+  mutateLayoutState(sectionId, (state) => {
+    const next = state || {};
+    next.visibility = next.visibility && typeof next.visibility === 'object' ? { ...next.visibility } : {};
+    next.visibility[widgetId] = !!isVisible;
+    return next;
+  });
 }
 
 function applyWidthClass(element, token) {
@@ -186,74 +326,88 @@ function applyWidthClass(element, token) {
   element.classList.add(`labs-${token}`);
 }
 
+function getWidgetWidthToken(sectionId, widget) {
+  const widgetId = typeof widget === 'string' ? widget : widget?.id;
+  if (!widgetId) return 'w2';
+  const cached = getCachedLayout(sectionId);
+  if (cached?.widths?.[widgetId]) return cached.widths[widgetId];
+  const section = getSection(sectionId);
+  const widgetDef = (section.widgets || []).find((entry) => entry?.id === widgetId);
+  return defaultWidthToken(widgetDef?.size);
+}
+
+function setWidgetWidthToken(sectionId, widgetId, token) {
+  const normalized = normalizeWidthToken(token);
+  if (!sectionId || !widgetId || !normalized) return;
+  mutateLayoutState(sectionId, (state) => {
+    const next = state || {};
+    next.widths = next.widths && typeof next.widths === 'object' ? { ...next.widths } : {};
+    next.widths[widgetId] = normalized;
+    return next;
+  });
+}
+
 function persistLayout(sectionId, order) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    if (Array.isArray(order) && order.length) {
-      localStorage.setItem(layoutStorageKey(sectionId), JSON.stringify(order));
-    } else {
-      localStorage.removeItem(layoutStorageKey(sectionId));
-    }
-  } catch (_err) {}
+  if (!sectionId) return;
+  const normalized = Array.isArray(order) ? order.map(String) : [];
+  mutateLayoutState(sectionId, (state) => ({ ...state, order: normalized }));
 }
 
-function sortWidgetsForSection(section) {
-  if (!section || !Array.isArray(section.widgets)) return [];
-  const stored = readStoredLayout(section.id);
-  if (!stored.length) return section.widgets.slice();
-  const widgetMap = new Map();
-  section.widgets.forEach((widget) => {
-    if (widget && widget.id) {
-      widgetMap.set(String(widget.id), widget);
-    }
+function resetSectionLayout(sectionId) {
+  if (!sectionId) return null;
+  clearSectionLayoutState(sectionId);
+  const section = getSection(sectionId);
+  const defaults = buildDefaultLayout(section);
+  cacheSectionLayout(sectionId, defaults);
+  return defaults;
+}
+
+function getPresetOptions(sectionId) {
+  const presets = LABS_PRESETS[sectionId];
+  if (!presets) return [];
+  return Object.entries(presets).map(([key, config]) => ({
+    key,
+    label: config?.label || key
+  }));
+}
+
+function getPresetSelection(sectionId) {
+  const stored = loadSectionPreset(sectionId);
+  const presets = LABS_PRESETS[sectionId];
+  if (stored && presets && presets[stored]) return stored;
+  if (presets?.default) return 'default';
+  return '';
+}
+
+function applyPreset(sectionId, presetKey) {
+  const section = getSection(sectionId);
+  if (!sectionId || !presetKey || !section) return;
+  const presets = LABS_PRESETS[section.id] || {};
+  const preset = presets[presetKey];
+  if (!preset || presetKey === 'default') {
+    resetSectionLayout(sectionId);
+    saveSectionPreset(sectionId, '');
+    return;
+  }
+
+  const defaults = buildDefaultLayout(section);
+  const order = applyOrder(defaults.order, preset.order);
+  const widths = {};
+  const visibility = {};
+
+  order.forEach((id) => {
+    const override = preset.widths?.[id];
+    const normalized = normalizeWidthToken(override);
+    widths[id] = normalized || defaults.widths[id] || 'w2';
+
+    const presetVisible = preset.visibility?.[id];
+    visibility[id] = presetVisible === false ? false : true;
   });
-  const ordered = [];
-  stored.forEach((id) => {
-    const widget = widgetMap.get(id);
-    if (widget) {
-      ordered.push(widget);
-      widgetMap.delete(id);
-    }
-  });
-  section.widgets.forEach((widget) => {
-    if (widget && widget.id && widgetMap.has(widget.id)) {
-      ordered.push(widget);
-      widgetMap.delete(widget.id);
-    }
-  });
-  return ordered;
-}
 
-function getWidgetLabel(widgetId) {
-  if (!widgetId) return '';
-  return WIDGET_LABELS[widgetId] || widgetId;
-}
-
-function normalizeVisibilityState(section, state) {
-  const normalized = { visible: {} };
-  const visible = state?.visible || {};
-  (section?.widgets || []).forEach((widget) => {
-    if (!widget?.id) return;
-    const stored = visible[widget.id];
-    normalized.visible[widget.id] = stored === false ? false : true;
-  });
-  return normalized;
-}
-
-function buildSectionRenderData(section) {
-  const visibilityState = normalizeVisibilityState(section, loadSectionLayoutState(section.id));
-  const widgetsInOrder = sortWidgetsForSection(section).filter(
-    (widget) => visibilityState.visible[widget.id] !== false
-  );
-  return { visibilityState, widgetsInOrder };
-}
-
-function updateVisibility(sectionId, widgetId, isVisible) {
-  const section = SECTIONS.find((s) => s.id === sectionId);
-  if (!section || !widgetId) return;
-  const state = normalizeVisibilityState(section, loadSectionLayoutState(sectionId));
-  state.visible[widgetId] = !!isVisible;
-  saveSectionLayoutState(sectionId, state);
+  const nextState = { order, widths, visibility };
+  saveSectionLayoutState(section.id, nextState);
+  cacheSectionLayout(section.id, normalizeLayoutState(section, nextState));
+  saveSectionPreset(section.id, presetKey);
 }
 
 function showLoading() {
@@ -369,7 +523,7 @@ function createNavigation() {
   return nav;
 }
 
-function createSectionControls(section, visibilityState, isCustomizerOpen) {
+function createSectionControls(section, layoutState, selectedPreset, isCustomizerOpen) {
   const wrapper = document.createElement('div');
   wrapper.className = 'labs-section-controls';
   wrapper.dataset.sectionId = section.id;
@@ -385,6 +539,37 @@ function createSectionControls(section, visibilityState, isCustomizerOpen) {
   const actions = document.createElement('div');
   actions.className = 'labs-section-actions';
 
+  const presetOptions = getPresetOptions(section.id);
+  if (presetOptions.length) {
+    const presetLabel = document.createElement('label');
+    presetLabel.className = 'labs-preset-label';
+    presetLabel.textContent = 'Preset:';
+
+    const presetSelect = document.createElement('select');
+    presetSelect.className = 'labs-select labs-preset-select';
+    presetSelect.dataset.action = 'change-preset';
+    presetSelect.dataset.sectionId = section.id;
+
+    presetOptions.forEach((preset) => {
+      const option = document.createElement('option');
+      option.value = preset.key;
+      option.textContent = preset.label;
+      presetSelect.appendChild(option);
+    });
+
+    presetSelect.value = selectedPreset || 'default';
+    presetLabel.appendChild(presetSelect);
+    actions.appendChild(presetLabel);
+  }
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'labs-btn-ghost labs-reset-layout';
+  resetBtn.dataset.action = 'reset-layout';
+  resetBtn.dataset.sectionId = section.id;
+  resetBtn.textContent = 'Reset layout';
+  actions.appendChild(resetBtn);
+
   const customizeBtn = document.createElement('button');
   customizeBtn.type = 'button';
   customizeBtn.className = 'labs-btn-ghost labs-customize-trigger';
@@ -396,13 +581,13 @@ function createSectionControls(section, visibilityState, isCustomizerOpen) {
   actions.appendChild(customizeBtn);
   wrapper.appendChild(actions);
 
-  const panel = createCustomizePanel(section, visibilityState, isCustomizerOpen);
+  const panel = createCustomizePanel(section, layoutState, isCustomizerOpen);
   if (panel) wrapper.appendChild(panel);
 
   return wrapper;
 }
 
-function createCustomizePanel(section, visibilityState, isOpen) {
+function createCustomizePanel(section, layoutState, isOpen) {
   const panel = document.createElement('div');
   panel.className = 'labs-customize-panel';
   panel.dataset.sectionId = section.id;
@@ -425,7 +610,7 @@ function createCustomizePanel(section, visibilityState, isOpen) {
     checkbox.type = 'checkbox';
     checkbox.dataset.widgetId = widget.id;
     checkbox.dataset.sectionId = section.id;
-    checkbox.checked = visibilityState.visible[widget.id] !== false;
+    checkbox.checked = layoutState.visibility[widget.id] !== false;
 
     const label = document.createElement('span');
     label.className = 'labs-customize-label';
@@ -451,13 +636,20 @@ function renderSection(sectionId, options = {}) {
 
   host.innerHTML = '';
 
-  const { visibilityState, widgetsInOrder } = buildSectionRenderData(section);
+  const { layoutState, widgetsInOrder } = buildSectionRenderData(section);
   const isCustomizerOpen = options.forceCustomizerOpen || openCustomizerSections.has(section.id);
   if (isCustomizerOpen) {
     openCustomizerSections.add(section.id);
   }
 
-  const controls = createSectionControls(section, visibilityState, openCustomizerSections.has(section.id));
+  const selectedPreset = getPresetSelection(section.id);
+
+  const controls = createSectionControls(
+    section,
+    layoutState,
+    selectedPreset,
+    openCustomizerSections.has(section.id)
+  );
   host.appendChild(controls);
 
   const gridShell = document.createElement('div');
@@ -569,7 +761,7 @@ function registerGridDrag(section, grid) {
       container: grid,
       itemSel: '.labs-grid-item',
       handleSel: '.labs-widget-drag-handle',
-      storageKey: layoutStorageKey(section.id),
+      storageKey: layoutStorageKey(section.id, 'order'),
       idGetter: (el) => (el?.dataset?.widgetId ? String(el.dataset.widgetId).trim() : ''),
       onOrderChange: (order) => persistLayout(section.id, order),
       enabled: labsLayoutEditMode
@@ -713,6 +905,15 @@ function attachEventListeners() {
       renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
       return;
     }
+    if (action === 'reset-layout') {
+      const sectionId = event.target.closest('[data-section-id]')?.dataset.sectionId || activeSection;
+      if (!sectionId) return;
+      resetSectionLayout(sectionId);
+      saveSectionPreset(sectionId, '');
+      renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
+      showNotification('Layout reset to default', 'info');
+      return;
+    }
     if (action === 'layout-toggle') {
       setLayoutMode(!labsLayoutEditMode);
     }
@@ -731,6 +932,20 @@ function attachEventListeners() {
     renderSection(sectionId, { forceCustomizerOpen: true });
   };
   dashboardRoot.addEventListener('change', customizeChangeHandler);
+
+  if (presetChangeHandler) {
+    dashboardRoot.removeEventListener('change', presetChangeHandler);
+  }
+  presetChangeHandler = (event) => {
+    const select = event.target.closest('select[data-action="change-preset"][data-section-id]');
+    if (!select) return;
+    const sectionId = select.dataset.sectionId;
+    const presetKey = select.value;
+    applyPreset(sectionId, presetKey);
+    saveSectionPreset(sectionId, presetKey === 'default' ? '' : presetKey);
+    renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
+  };
+  dashboardRoot.addEventListener('change', presetChangeHandler);
 
   if (typeof document !== 'undefined') {
     if (dataChangedHandler) {
