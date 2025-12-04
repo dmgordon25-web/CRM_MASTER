@@ -26,13 +26,31 @@ import {
 function renderCard(container, { title, body, badge } = {}) {
   const card = document.createElement('div');
   card.className = 'labs-crm-widget';
-  card.innerHTML = `
-    <div class="labs-widget-header">
-      <h3 class="labs-widget-title">${title || ''}</h3>
-      ${badge ? `<span class="labs-widget-badge">${badge}</span>` : ''}
-    </div>
-    <div class="labs-widget-body">${body || ''}</div>
-  `;
+  const header = document.createElement('div');
+  header.className = 'labs-widget-header';
+
+  const heading = document.createElement('h3');
+  heading.className = 'labs-widget-title';
+  heading.textContent = title || '';
+  header.appendChild(heading);
+
+  if (badge) {
+    const badgeEl = document.createElement('span');
+    badgeEl.className = 'labs-widget-badge';
+    badgeEl.textContent = badge;
+    header.appendChild(badgeEl);
+  }
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'labs-widget-body';
+  if (body instanceof HTMLElement) {
+    bodyEl.appendChild(body);
+  } else if (typeof body === 'string') {
+    bodyEl.innerHTML = body;
+  }
+
+  card.appendChild(header);
+  card.appendChild(bodyEl);
   container.appendChild(card);
   return card;
 }
@@ -255,7 +273,8 @@ export function renderPipelineMomentumWidget(container, model) {
 // =======================
 // Pipeline analytics (funnel, velocity, risk)
 // =======================
-export function renderPipelineFunnelWidget(container, model) {
+export function renderPipelineFunnelWidget(container, model, options = {}) {
+  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
   const funnel = model.analytics?.funnel || computeStageFunnel(model.contacts || []);
   const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
   if (!totalCount) {
@@ -264,34 +283,63 @@ export function renderPipelineFunnelWidget(container, model) {
   }
 
   const maxCount = Math.max(...funnel.map((stage) => stage.count));
-  const rowsHtml = funnel.map((stage, idx) => {
+  const body = document.createElement('div');
+  body.className = 'analytics-bars';
+
+  funnel.forEach((stage, idx) => {
     const config = STAGE_CONFIG[stage.stageId] || {};
     const percent = maxCount ? Math.round((stage.count / maxCount) * 100) : 0;
-    const amount = stage.totalAmount ? `<span class="analytics-amount">${formatCurrency(stage.totalAmount)}</span>` : '';
-    return `
-      <div class="analytics-bar-row" style="animation-delay:${idx * 0.05}s">
-        <div class="analytics-label">
-          <span class="stage-icon">${config.icon || '●'}</span>
-          <span class="stage-name">${stage.label}</span>
-        </div>
-        <div class="analytics-bar-container">
-          <div class="analytics-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#4f46e5'}"></div>
-        </div>
-        <div class="analytics-stats">
-          <span class="stat-count">${stage.count}</span>
-          ${amount}
-        </div>
-      </div>
-    `;
-  }).join('');
+    const row = document.createElement('div');
+    row.className = 'analytics-bar-row';
+    row.style.animationDelay = `${idx * 0.05}s`;
+    if (onSegmentClick) {
+      row.classList.add('segment-clickable');
+      row.addEventListener('click', () => onSegmentClick({
+        type: 'stage',
+        key: stage.stageId,
+        label: stage.label
+      }));
+    }
+
+    const label = document.createElement('div');
+    label.className = 'analytics-label';
+    label.innerHTML = `<span class="stage-icon">${config.icon || '●'}</span><span class="stage-name">${stage.label}</span>`;
+
+    const barContainer = document.createElement('div');
+    barContainer.className = 'analytics-bar-container';
+    const bar = document.createElement('div');
+    bar.className = 'analytics-bar';
+    bar.style.setProperty('--bar-width', `${percent}%`);
+    bar.style.setProperty('--bar-color', config.color || '#4f46e5');
+    barContainer.appendChild(bar);
+
+    const stats = document.createElement('div');
+    stats.className = 'analytics-stats';
+    const count = document.createElement('span');
+    count.className = 'stat-count';
+    count.textContent = stage.count;
+    stats.appendChild(count);
+    if (stage.totalAmount) {
+      const amount = document.createElement('span');
+      amount.className = 'analytics-amount';
+      amount.textContent = formatCurrency(stage.totalAmount);
+      stats.appendChild(amount);
+    }
+
+    row.appendChild(label);
+    row.appendChild(barContainer);
+    row.appendChild(stats);
+    body.appendChild(row);
+  });
 
   renderCard(container, {
     title: '📈 Pipeline Funnel',
-    body: `<div class="analytics-bars">${rowsHtml}</div>`
+    body
   });
 }
 
-export function renderPipelineVelocityWidget(container, model) {
+export function renderPipelineVelocityWidget(container, model, options = {}) {
+  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
   const buckets = model.analytics?.velocityBuckets || computeStageAgeBuckets(model.contacts || []);
   const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
   if (!total) {
@@ -300,47 +348,113 @@ export function renderPipelineVelocityWidget(container, model) {
   }
 
   const maxCount = Math.max(...buckets.map((bucket) => bucket.count));
-  const rowsHtml = buckets.map((bucket, idx) => {
+  const body = document.createElement('div');
+  body.className = 'analytics-bars';
+
+  buckets.forEach((bucket, idx) => {
     const percent = maxCount ? Math.round((bucket.count / maxCount) * 100) : 0;
-    return `
-      <div class="analytics-bar-row compact" style="animation-delay:${idx * 0.05}s">
-        <div class="analytics-label">${bucket.label}</div>
-        <div class="analytics-bar-container">
-          <div class="analytics-bar" style="--bar-width:${percent}%; --bar-color:var(--labs-accent-2)"></div>
-        </div>
-        <div class="analytics-stats">
-          <span class="stat-count">${bucket.count}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
+    const row = document.createElement('div');
+    row.className = 'analytics-bar-row compact';
+    row.style.animationDelay = `${idx * 0.05}s`;
+    if (onSegmentClick) {
+      row.classList.add('segment-clickable');
+      row.addEventListener('click', () => onSegmentClick({
+        type: 'velocity',
+        key: bucket.id,
+        label: bucket.label
+      }));
+    }
+
+    const label = document.createElement('div');
+    label.className = 'analytics-label';
+    label.textContent = bucket.label;
+
+    const barContainer = document.createElement('div');
+    barContainer.className = 'analytics-bar-container';
+    const bar = document.createElement('div');
+    bar.className = 'analytics-bar';
+    bar.style.setProperty('--bar-width', `${percent}%`);
+    bar.style.setProperty('--bar-color', 'var(--labs-accent-2)');
+    barContainer.appendChild(bar);
+
+    const stats = document.createElement('div');
+    stats.className = 'analytics-stats';
+    const count = document.createElement('span');
+    count.className = 'stat-count';
+    count.textContent = bucket.count;
+    stats.appendChild(count);
+
+    row.appendChild(label);
+    row.appendChild(barContainer);
+    row.appendChild(stats);
+    body.appendChild(row);
+  });
 
   renderCard(container, {
     title: '⏱ Velocity',
-    body: `<div class="analytics-bars">${rowsHtml}</div>`
+    body
   });
 }
 
-export function renderPipelineRiskWidget(container, model) {
+export function renderPipelineRiskWidget(container, model, options = {}) {
+  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
   const summary = model.analytics?.staleSummary || computeStaleSummary(model.contacts || []);
   const total = summary?.total || 0;
   const byStage = summary?.byStage || {};
-  const stageRows = Object.entries(byStage)
+  const stageEntries = Object.entries(byStage)
     .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([stage, count], idx) => {
-      const config = STAGE_CONFIG[stage] || {};
-      const label = config.label || stage || 'Unknown';
-      return `
-        <div class="risk-row" style="animation-delay:${idx * 0.05}s">
-          <div class="risk-label">${config.icon || '⚠️'} ${label}</div>
-          <div class="risk-count">${count}</div>
-        </div>
-      `;
-    }).join('');
+    .sort((a, b) => b[1] - a[1]);
 
-  const header = `<div class="risk-summary"><div class="risk-total">${total}</div><div class="risk-text">Stale deals (14d+)</div></div>`;
-  const body = total ? `${header}<div class="risk-rows">${stageRows}</div>` : '<p class="empty-state">No stale deals 🎉</p>';
+  const header = document.createElement('div');
+  header.className = 'risk-summary';
+  const totalEl = document.createElement('div');
+  totalEl.className = 'risk-total';
+  totalEl.textContent = total;
+  const text = document.createElement('div');
+  text.className = 'risk-text';
+  text.textContent = 'Stale deals (14d+)';
+  header.appendChild(totalEl);
+  header.appendChild(text);
+
+  const rowsWrapper = document.createElement('div');
+  rowsWrapper.className = 'risk-rows';
+
+  stageEntries.forEach(([stage, count], idx) => {
+    const config = STAGE_CONFIG[stage] || {};
+    const label = config.label || stage || 'Unknown';
+    const row = document.createElement('div');
+    row.className = 'risk-row';
+    row.style.animationDelay = `${idx * 0.05}s`;
+    if (onSegmentClick) {
+      row.classList.add('segment-clickable');
+      row.addEventListener('click', () => onSegmentClick({
+        type: 'risk',
+        key: stage,
+        label
+      }));
+    }
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'risk-label';
+    labelEl.textContent = `${config.icon || '⚠️'} ${label}`;
+    const countEl = document.createElement('div');
+    countEl.className = 'risk-count';
+    countEl.textContent = count;
+    row.appendChild(labelEl);
+    row.appendChild(countEl);
+    rowsWrapper.appendChild(row);
+  });
+
+  const body = document.createElement('div');
+  if (total) {
+    body.appendChild(header);
+    body.appendChild(rowsWrapper);
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = 'No stale deals 🎉';
+    body.appendChild(empty);
+  }
 
   renderCard(container, {
     title: '🛑 Pipeline Risk',

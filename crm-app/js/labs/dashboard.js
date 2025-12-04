@@ -11,6 +11,7 @@ import {
   saveSectionLayoutState,
   saveSectionPreset
 } from './layout_state.js';
+import openAnalyticsDrilldown from './analytics_drilldown.js';
 
 let dashboardRoot = null;
 let labsModel = null;
@@ -705,6 +706,10 @@ function renderWidgets(grid, widgetList = []) {
     laneOrder: [],
     activeLanes: []
   };
+  const onAnalyticsSegment = (segment) => {
+    if (!segment) return;
+    openAnalyticsDrilldown(model, segment);
+  };
   widgetList.forEach((widget, index) => {
     const renderer = CRM_WIDGET_RENDERERS[widget.id];
     if (!renderer) return;
@@ -731,7 +736,7 @@ function renderWidgets(grid, widgetList = []) {
     resizeHandle.setAttribute('aria-label', 'Resize widget');
 
     try {
-      const rendered = renderer(content, model);
+      const rendered = renderer(content, model, { onAnalyticsSegment });
       if (typeof rendered === 'string') {
         content.innerHTML = rendered;
       } else if (rendered instanceof HTMLElement) {
