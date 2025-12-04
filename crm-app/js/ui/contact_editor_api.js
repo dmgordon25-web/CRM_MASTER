@@ -1,3 +1,8 @@
+// Transitional shim that bridges router calls to the real contacts module.
+// Guarantees Promise-based APIs and never throws synchronously so routing/boot stay stable.
+// Real contact editor behaviour lives in the contacts module referenced below.
+import { logError } from '../util/errors.js';
+
 const CONTACTS_MODULE_PATH = '../contacts.js';
 let editorModule = null;
 let editorModulePromise = null;
@@ -11,11 +16,15 @@ function loadEditorModule() {
         return editorModule;
       })
       .catch((err) => {
+        logError('contact_editor_api:import', err);
         editorModulePromise = null;
-        throw err;
+        return null;
       });
   }
-  return editorModulePromise;
+  return editorModulePromise.then((mod) => mod).catch((err) => {
+    logError('contact_editor_api:import', err);
+    return null;
+  });
 }
 
 function resolveApi(mod) {
@@ -27,63 +36,46 @@ function resolveApi(mod) {
   };
 }
 
-export async function getContactEditorApi() {
-  const mod = editorModule || await loadEditorModule().catch(() => null);
-  return resolveApi(mod);
+function logShimError(context, err) {
+  logError(`contact_editor_api:${context}`, err);
+}
+
+function invokeEditorMethod(methodName, ...args) {
+  return loadEditorModule()
+    .then((mod) => {
+      const api = resolveApi(mod);
+      const method = api[methodName];
+      if (typeof method === 'function') {
+        try {
+          return method(...args);
+        } catch (err) {
+          logShimError(methodName, err);
+          return null;
+        }
+      }
+      logShimError(methodName, 'method unavailable');
+      return null;
+    })
+    .catch((err) => {
+      logShimError(methodName, err);
+      return null;
+    });
+}
+
+export function getContactEditorApi() {
+  return loadEditorModule()
+    .then((mod) => resolveApi(mod))
+    .catch(() => ({}));
 }
 
 export function openContactEditor(target, options) {
-  if (editorModule && typeof editorModule.openContactEditor === 'function') {
-    return editorModule.openContactEditor(target, options);
-  }
-  return loadEditorModule()
-    .then((mod) => {
-      const api = resolveApi(mod);
-      if (typeof api.open === 'function') {
-        return api.open(target, options);
-      }
-      console.warn?.('[contact-editor-api] openContactEditor unavailable');
-      return null;
-    })
-    .catch((err) => {
-      console.warn?.('[contact-editor-api] openContactEditor failed to load', err);
-      return null;
-    });
+  return invokeEditorMethod('open', target, options);
 }
 
 export function closeContactEditor(reason) {
-  if (editorModule && typeof editorModule.closeContactEditor === 'function') {
-    return editorModule.closeContactEditor(reason);
-  }
-  return loadEditorModule()
-    .then((mod) => {
-      const api = resolveApi(mod);
-      if (typeof api.close === 'function') {
-        return api.close(reason);
-      }
-      console.warn?.('[contact-editor-api] closeContactEditor unavailable');
-      return null;
-    })
-    .catch((err) => {
-      console.warn?.('[contact-editor-api] closeContactEditor failed to load', err);
-      return null;
-    });
+  return invokeEditorMethod('close', reason);
 }
 
 export function resetContactEditorForRouteLeave() {
-  if (editorModule && typeof editorModule.resetContactEditorForRouteLeave === 'function') {
-    return editorModule.resetContactEditorForRouteLeave();
-  }
-  return loadEditorModule()
-    .then((mod) => {
-      const api = resolveApi(mod);
-      if (typeof api.reset === 'function') {
-        return api.reset();
-      }
-      return null;
-    })
-    .catch((err) => {
-      console.warn?.('[contact-editor-api] resetContactEditorForRouteLeave failed to load', err);
-      return null;
-    });
+  return invokeEditorMethod('reset');
 }
