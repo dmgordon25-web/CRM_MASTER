@@ -1,5 +1,6 @@
 import { stageKeyFromLabel } from '../pipeline/stages.js';
 import { getTodayTasks, getOverdueTasks } from '../tasks/task_scopes.js';
+import { getOpenTasks, countTodayTasks, countOverdueTasks } from '../tasks/task_counts.js';
 
 const GROUP_DEFS = [
   { key: 'new', label: 'New', stageKeys: ['new', 'long-shot', 'longshot', 'lead', 'leads', 'prospect', 'application', 'app'] },
@@ -75,13 +76,14 @@ function readPipelineGroupCounts(){
 }
 
 export function computeTaskKpis(tasks, todayDate){
-  const todayTasks = getTodayTasks(tasks, todayDate);
-  const overdueTasks = getOverdueTasks(tasks, todayDate);
+  const openTasks = getOpenTasks(tasks || []);
+  const todayTasks = getTodayTasks(openTasks, todayDate);
+  const overdueTasks = getOverdueTasks(openTasks, todayDate);
   return {
     todayTasks,
     overdueTasks,
-    kpiTasksToday: todayTasks.length,
-    kpiTasksOverdue: overdueTasks.length
+    kpiTasksToday: countTodayTasks(tasks, todayDate),
+    kpiTasksOverdue: countOverdueTasks(tasks, todayDate)
   };
 }
 
