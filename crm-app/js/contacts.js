@@ -32,6 +32,7 @@ import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
 import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_utils.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import { acquireContactScrollLock, releaseContactScrollLock } from './ui/scroll_lock.js';
+import { logError, notifyError } from './util/errors.js';
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
@@ -2184,10 +2185,8 @@ export function normalizeContactId(input) {
           }
           return u;
         } catch (err) {
-          if (console && typeof console.warn === 'function') {
-            console.warn('[contacts] save failed', err);
-          }
-          toastError('Contact save failed');
+          logError('contacts:save', err);
+          notifyError('Contact save failed', err);
           return null;
         } finally {
           setBusy(false);
