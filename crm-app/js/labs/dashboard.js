@@ -2,12 +2,15 @@
 
 import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
+import { makeDraggableGrid } from '../ui/drag_core.js';
 
 let dashboardRoot = null;
 let labsModel = null;
 let activeSection = 'overview';
 let navClickHandler = null;
 let dataChangedHandler = null;
+let labsLayoutEditMode = false;
+const labsDragControllers = new Map();
 
 
 const SECTIONS = [
@@ -52,6 +55,63 @@ const SECTIONS = [
   }
 ];
 
+const LABS_LAYOUT_PREFIX = 'labs:layout:';
+
+function layoutStorageKey(sectionId) {
+  const safeId = sectionId ? String(sectionId).trim() : '';
+  return `${LABS_LAYOUT_PREFIX}${safeId || 'default'}`;
+}
+
+function readStoredLayout(sectionId) {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(layoutStorageKey(sectionId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch (_err) {
+    return [];
+  }
+}
+
+function persistLayout(sectionId, order) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (Array.isArray(order) && order.length) {
+      localStorage.setItem(layoutStorageKey(sectionId), JSON.stringify(order));
+    } else {
+      localStorage.removeItem(layoutStorageKey(sectionId));
+    }
+  } catch (_err) {}
+}
+
+function sortWidgetsForSection(section) {
+  if (!section || !Array.isArray(section.widgets)) return [];
+  const stored = readStoredLayout(section.id);
+  if (!stored.length) return section.widgets.slice();
+  const widgetMap = new Map();
+  section.widgets.forEach((widget) => {
+    if (widget && widget.id) {
+      widgetMap.set(String(widget.id), widget);
+    }
+  });
+  const ordered = [];
+  stored.forEach((id) => {
+    const widget = widgetMap.get(id);
+    if (widget) {
+      ordered.push(widget);
+      widgetMap.delete(id);
+    }
+  });
+  section.widgets.forEach((widget) => {
+    if (widget && widget.id && widgetMap.has(widget.id)) {
+      ordered.push(widget);
+      widgetMap.delete(widget.id);
+    }
+  });
+  return ordered;
+}
+
 function showLoading() {
   if (!dashboardRoot) return;
   const loading = document.createElement('div');
@@ -88,6 +148,7 @@ function renderShell() {
   if (!dashboardRoot) return;
   dashboardRoot.className = 'labs-crm-dashboard';
   dashboardRoot.dataset.qa = 'labs-crm-dashboard';
+  dashboardRoot.classList.toggle('labs-layout-edit-mode', labsLayoutEditMode);
 
   const header = createHeader();
   const nav = createNavigation();
@@ -135,11 +196,18 @@ function createHeader() {
       <div class="labs-header-actions">
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-        <button class="labs-btn-ghost" data-action="layout-disabled" aria-disabled="true">Layout customization unavailable</button>
+        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">${labsLayoutEditMode ? 'Done editing' : 'Edit layout'}</button>
       </div>
     </div>
   `;
   return header;
+}
+
+function updateLayoutToggleUi() {
+  const toggle = dashboardRoot?.querySelector('[data-action="layout-toggle"]');
+  if (!toggle) return;
+  toggle.textContent = labsLayoutEditMode ? 'Done editing' : 'Edit layout';
+  toggle.setAttribute('aria-pressed', labsLayoutEditMode ? 'true' : 'false');
 }
 
 function createNavigation() {
@@ -163,6 +231,8 @@ function renderSection(sectionId) {
   const section = SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
   activeSection = section.id;
 
+  destroySectionController(section.id);
+
   host.innerHTML = '';
   const gridShell = document.createElement('div');
   gridShell.className = 'labs-grid-shell';
@@ -170,11 +240,15 @@ function renderSection(sectionId) {
   const grid = document.createElement('div');
   grid.className = 'labs-crm-grid labs-static-grid';
   grid.dataset.qa = `labs-grid-${section.id}`;
+  grid.dataset.sectionId = section.id;
   gridShell.appendChild(grid);
   host.appendChild(gridShell);
 
-  renderWidgets(grid, section.widgets);
+  const widgetsInOrder = sortWidgetsForSection(section);
+  renderWidgets(grid, widgetsInOrder);
+  registerGridDrag(section, grid);
   updateNavState();
+  updateLayoutToggleUi();
 }
 
 function updateNavState() {
@@ -206,6 +280,10 @@ function renderWidgets(grid, widgetList = []) {
     item.className = `labs-grid-item size-${widget.size || 'medium'}`;
     item.dataset.widgetId = widget.id;
 
+    const handle = document.createElement('div');
+    handle.className = 'labs-widget-drag-handle';
+    handle.innerHTML = '<span class="handle-icon">↕</span><span class="handle-label">Drag</span>';
+
     const content = document.createElement('div');
     content.className = `labs-widget-container size-${widget.size || 'medium'}`;
     content.role = 'presentation';
@@ -220,6 +298,7 @@ function renderWidgets(grid, widgetList = []) {
       } else if (rendered instanceof HTMLElement) {
         content.appendChild(rendered);
       }
+      item.appendChild(handle);
       item.appendChild(content);
       grid.appendChild(item);
       console.debug(`[LABS] rendered widget ${widget.id}`);
@@ -227,6 +306,50 @@ function renderWidgets(grid, widgetList = []) {
       console.error(`[labs] Error rendering widget ${widget.id}:`, err);
     }
   });
+}
+
+function destroySectionController(sectionId) {
+  if (!sectionId) return;
+  const existing = labsDragControllers.get(sectionId);
+  if (existing && typeof existing.destroy === 'function') {
+    try {
+      existing.destroy();
+    } catch (_err) {}
+  }
+  labsDragControllers.delete(sectionId);
+}
+
+function registerGridDrag(section, grid) {
+  if (!section || !grid) return;
+  try {
+    const controller = makeDraggableGrid({
+      container: grid,
+      itemSel: '.labs-grid-item',
+      handleSel: '.labs-widget-drag-handle',
+      storageKey: layoutStorageKey(section.id),
+      idGetter: (el) => (el?.dataset?.widgetId ? String(el.dataset.widgetId).trim() : ''),
+      onOrderChange: (order) => persistLayout(section.id, order),
+      enabled: labsLayoutEditMode
+    });
+    if (controller) {
+      if (typeof controller.setEditMode === 'function') {
+        controller.setEditMode(labsLayoutEditMode);
+      }
+      if (labsLayoutEditMode && typeof controller.enable === 'function') {
+        controller.enable();
+      } else if (!labsLayoutEditMode && typeof controller.disable === 'function') {
+        controller.disable();
+      }
+      if (typeof controller.refresh === 'function') {
+        controller.refresh();
+      }
+      labsDragControllers.set(section.id, controller);
+    }
+  } catch (err) {
+    try {
+      if (console && console.warn) console.warn('[labs] drag init failed', err);
+    } catch (_warnErr) {}
+  }
 }
 
 async function refreshDashboard() {
@@ -268,8 +391,8 @@ function attachEventListeners() {
     if (action === 'settings') {
       showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
     }
-    if (action === 'layout-disabled') {
-      showNotification('Layout customization is not available in this build.', 'info');
+    if (action === 'layout-toggle') {
+      setLayoutMode(!labsLayoutEditMode);
     }
   };
   dashboardRoot.addEventListener('click', navClickHandler);
@@ -296,6 +419,31 @@ function showNotification(message, type = 'info') {
     notification.classList.remove('show');
     setTimeout(() => notification.remove(), 250);
   }, 2600);
+}
+
+function setLayoutMode(enabled) {
+  labsLayoutEditMode = !!enabled;
+  dashboardRoot?.classList.toggle('labs-layout-edit-mode', labsLayoutEditMode);
+  const grid = dashboardRoot?.querySelector('.labs-crm-grid');
+  if (grid) {
+    grid.classList.toggle('labs-grid-editable', labsLayoutEditMode);
+  }
+  const controller = labsDragControllers.get(activeSection);
+  if (controller) {
+    if (typeof controller.setEditMode === 'function') {
+      controller.setEditMode(labsLayoutEditMode);
+    }
+    if (labsLayoutEditMode && typeof controller.enable === 'function') {
+      controller.enable();
+    } else if (!labsLayoutEditMode && typeof controller.disable === 'function') {
+      controller.disable();
+    }
+    if (typeof controller.refresh === 'function') {
+      controller.refresh();
+    }
+  }
+  updateLayoutToggleUi();
+  showNotification(labsLayoutEditMode ? 'Layout editing enabled' : 'Layout saved', 'info');
 }
 
 async function mountLabsDashboard(root) {
