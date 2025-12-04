@@ -23,6 +23,32 @@ const SECTIONS = [
       { id: 'favorites', size: 'small' },
       { id: 'labsTasks', size: 'medium' }
     ]
+  },
+  {
+    id: 'tasks',
+    label: 'Tasks',
+    description: 'Today\'s work and follow-ups',
+    widgets: [
+      { id: 'labsTasks', size: 'large' },
+      { id: 'priorityActions', size: 'medium' },
+      { id: 'today', size: 'medium' },
+      { id: 'todo', size: 'medium' },
+      { id: 'milestones', size: 'medium' },
+      { id: 'upcomingCelebrations', size: 'medium' }
+    ]
+  },
+  {
+    id: 'portfolio',
+    label: 'Portfolio',
+    description: 'Clients, partners, and referrals',
+    widgets: [
+      { id: 'partnerPortfolio', size: 'large' },
+      { id: 'referralLeaderboard', size: 'medium' },
+      { id: 'pipelineMomentum', size: 'medium' },
+      { id: 'relationshipOpportunities', size: 'medium' },
+      { id: 'closingWatch', size: 'medium' },
+      { id: 'upcomingCelebrations', size: 'medium' }
+    ]
   }
 ];
 
@@ -120,8 +146,9 @@ function createNavigation() {
   const nav = document.createElement('div');
   nav.className = 'labs-nav';
   nav.dataset.qa = 'labs-nav';
+  nav.setAttribute('role', 'tablist');
   const tabs = SECTIONS.map((section) => `
-    <button class="labs-nav-tab ${section.id === activeSection ? 'active' : ''}" data-section="${section.id}">
+    <button class="labs-nav-tab ${section.id === activeSection ? 'active' : ''}" data-section="${section.id}" role="tab" aria-selected="${section.id === activeSection}" tabindex="${section.id === activeSection ? '0' : '-1'}">
       <span class="labs-nav-label">${section.label}</span>
       <span class="labs-nav-sub">${section.description}</span>
     </button>
@@ -156,6 +183,8 @@ function updateNavState() {
   tabs.forEach((tab) => {
     const section = tab.dataset.section;
     tab.classList.toggle('active', section === activeSection);
+    tab.setAttribute('aria-selected', section === activeSection ? 'true' : 'false');
+    tab.tabIndex = section === activeSection ? 0 : -1;
   });
 }
 
