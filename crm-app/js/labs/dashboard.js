@@ -18,6 +18,9 @@ const SECTIONS = [
     widgets: [
       { id: 'labsKpiSummary', size: 'large' },
       { id: 'labsPipelineSnapshot', size: 'large' },
+      { id: 'today', size: 'medium' },
+      { id: 'todo', size: 'medium' },
+      { id: 'favorites', size: 'small' },
       { id: 'labsTasks', size: 'medium' }
     ]
   }
