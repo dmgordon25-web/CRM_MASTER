@@ -3,22 +3,42 @@
 import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 import { makeDraggableGrid } from '../ui/drag_core.js';
+import { loadSectionLayoutState, saveSectionLayoutState } from './layout_state.js';
 
 let dashboardRoot = null;
 let labsModel = null;
 let activeSection = 'overview';
 let navClickHandler = null;
 let dataChangedHandler = null;
+let customizeChangeHandler = null;
 let labsLayoutEditMode = false;
 const labsDragControllers = new Map();
 const labsResizeControllers = new Map();
 const labsWidthState = new Map();
+const openCustomizerSections = new Set();
 
 const WIDTH_TOKENS = ['w1', 'w2', 'w3'];
 const SIZE_TO_WIDTH = {
   small: 'w1',
   medium: 'w2',
   large: 'w3'
+};
+
+const WIDGET_LABELS = {
+  labsKpiSummary: 'Snapshot KPIs',
+  labsPipelineSnapshot: 'Pipeline Snapshot',
+  labsTasks: 'Tasks Due',
+  today: 'Today\'s Work',
+  todo: 'To-do List',
+  favorites: 'Favorites',
+  priorityActions: 'Priority Actions',
+  milestones: 'Milestones',
+  upcomingCelebrations: 'Upcoming Celebrations',
+  partnerPortfolio: 'Partner Portfolio',
+  referralLeaderboard: 'Referral Leaderboard',
+  pipelineMomentum: 'Pipeline Momentum',
+  relationshipOpportunities: 'Relationship Opportunities',
+  closingWatch: 'Closing Watch'
 };
 
 
@@ -204,6 +224,38 @@ function sortWidgetsForSection(section) {
   return ordered;
 }
 
+function getWidgetLabel(widgetId) {
+  if (!widgetId) return '';
+  return WIDGET_LABELS[widgetId] || widgetId;
+}
+
+function normalizeVisibilityState(section, state) {
+  const normalized = { visible: {} };
+  const visible = state?.visible || {};
+  (section?.widgets || []).forEach((widget) => {
+    if (!widget?.id) return;
+    const stored = visible[widget.id];
+    normalized.visible[widget.id] = stored === false ? false : true;
+  });
+  return normalized;
+}
+
+function buildSectionRenderData(section) {
+  const visibilityState = normalizeVisibilityState(section, loadSectionLayoutState(section.id));
+  const widgetsInOrder = sortWidgetsForSection(section).filter(
+    (widget) => visibilityState.visible[widget.id] !== false
+  );
+  return { visibilityState, widgetsInOrder };
+}
+
+function updateVisibility(sectionId, widgetId, isVisible) {
+  const section = SECTIONS.find((s) => s.id === sectionId);
+  if (!section || !widgetId) return;
+  const state = normalizeVisibilityState(section, loadSectionLayoutState(sectionId));
+  state.visible[widgetId] = !!isVisible;
+  saveSectionLayoutState(sectionId, state);
+}
+
 function showLoading() {
   if (!dashboardRoot) return;
   const loading = document.createElement('div');
@@ -317,7 +369,78 @@ function createNavigation() {
   return nav;
 }
 
-function renderSection(sectionId) {
+function createSectionControls(section, visibilityState, isCustomizerOpen) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'labs-section-controls';
+  wrapper.dataset.sectionId = section.id;
+
+  const meta = document.createElement('div');
+  meta.className = 'labs-section-meta';
+  meta.innerHTML = `
+    <div class="labs-section-title">${section.label}</div>
+    <div class="labs-section-desc">${section.description}</div>
+  `;
+  wrapper.appendChild(meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'labs-section-actions';
+
+  const customizeBtn = document.createElement('button');
+  customizeBtn.type = 'button';
+  customizeBtn.className = 'labs-btn-ghost labs-customize-trigger';
+  customizeBtn.dataset.action = 'toggle-customize';
+  customizeBtn.dataset.sectionId = section.id;
+  customizeBtn.setAttribute('aria-expanded', isCustomizerOpen ? 'true' : 'false');
+  customizeBtn.textContent = 'Customize widgets';
+
+  actions.appendChild(customizeBtn);
+  wrapper.appendChild(actions);
+
+  const panel = createCustomizePanel(section, visibilityState, isCustomizerOpen);
+  if (panel) wrapper.appendChild(panel);
+
+  return wrapper;
+}
+
+function createCustomizePanel(section, visibilityState, isOpen) {
+  const panel = document.createElement('div');
+  panel.className = 'labs-customize-panel';
+  panel.dataset.sectionId = section.id;
+  panel.hidden = !isOpen;
+
+  const header = document.createElement('div');
+  header.className = 'labs-customize-header';
+  header.textContent = 'Show or hide widgets in this section';
+  panel.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'labs-customize-list';
+
+  (section.widgets || []).forEach((widget) => {
+    if (!widget?.id) return;
+    const row = document.createElement('label');
+    row.className = 'labs-customize-row';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.dataset.widgetId = widget.id;
+    checkbox.dataset.sectionId = section.id;
+    checkbox.checked = visibilityState.visible[widget.id] !== false;
+
+    const label = document.createElement('span');
+    label.className = 'labs-customize-label';
+    label.textContent = getWidgetLabel(widget.id);
+
+    row.appendChild(checkbox);
+    row.appendChild(label);
+    list.appendChild(row);
+  });
+
+  panel.appendChild(list);
+  return panel;
+}
+
+function renderSection(sectionId, options = {}) {
   const host = dashboardRoot?.querySelector('.labs-section-host');
   if (!host) return;
   const section = SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
@@ -327,6 +450,16 @@ function renderSection(sectionId) {
   destroyResizeController(section.id);
 
   host.innerHTML = '';
+
+  const { visibilityState, widgetsInOrder } = buildSectionRenderData(section);
+  const isCustomizerOpen = options.forceCustomizerOpen || openCustomizerSections.has(section.id);
+  if (isCustomizerOpen) {
+    openCustomizerSections.add(section.id);
+  }
+
+  const controls = createSectionControls(section, visibilityState, openCustomizerSections.has(section.id));
+  host.appendChild(controls);
+
   const gridShell = document.createElement('div');
   gridShell.className = 'labs-grid-shell';
 
@@ -338,7 +471,6 @@ function renderSection(sectionId) {
   gridShell.appendChild(grid);
   host.appendChild(gridShell);
 
-  const widgetsInOrder = sortWidgetsForSection(section);
   renderWidgets(grid, widgetsInOrder);
   registerGridDrag(section, grid);
   registerResizeHandles(section, grid);
@@ -570,11 +702,35 @@ function attachEventListeners() {
     if (action === 'settings') {
       showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
     }
+    if (action === 'toggle-customize') {
+      const sectionId = event.target.closest('[data-section-id]')?.dataset.sectionId || activeSection;
+      if (!sectionId) return;
+      if (openCustomizerSections.has(sectionId)) {
+        openCustomizerSections.delete(sectionId);
+      } else {
+        openCustomizerSections.add(sectionId);
+      }
+      renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
+      return;
+    }
     if (action === 'layout-toggle') {
       setLayoutMode(!labsLayoutEditMode);
     }
   };
   dashboardRoot.addEventListener('click', navClickHandler);
+
+  if (customizeChangeHandler) {
+    dashboardRoot.removeEventListener('change', customizeChangeHandler);
+  }
+  customizeChangeHandler = (event) => {
+    const checkbox = event.target.closest('input[type="checkbox"][data-widget-id][data-section-id]');
+    if (!checkbox) return;
+    const sectionId = checkbox.dataset.sectionId;
+    const widgetId = checkbox.dataset.widgetId;
+    updateVisibility(sectionId, widgetId, checkbox.checked);
+    renderSection(sectionId, { forceCustomizerOpen: true });
+  };
+  dashboardRoot.addEventListener('change', customizeChangeHandler);
 
   if (typeof document !== 'undefined') {
     if (dataChangedHandler) {
