@@ -21,6 +21,7 @@ import { closeContactEditor } from './ui/contact_editor_api.js';
 import { getRenderer } from './app_services.js';
 import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
 import { resetScrollLock } from './ui/scroll_lock.js';
+import { openHelpModal } from './ui/help_modal.js';
 import {
   initAppContext,
   getSettingsApi,
@@ -1982,6 +1983,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       headerSettingsButton.addEventListener('click', (e) => {
         e.preventDefault();
         activate('settings');
+      });
+    }
+
+    const headerHelpButton = document.getElementById('btn-open-help');
+    if (headerHelpButton && !headerHelpButton.__wired) {
+      headerHelpButton.__wired = true;
+      headerHelpButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        openHelpModal(headerHelpButton);
       });
     }
 
