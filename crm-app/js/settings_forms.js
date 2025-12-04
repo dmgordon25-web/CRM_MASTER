@@ -8,6 +8,7 @@ import {
   isTodayWidget
 } from './dashboard/config.js';
 import { getUiMode, onUiModeChanged, setUiMode } from './ui/ui_mode.js';
+import { getHomeViewPreference, normalizeHomeView, setHomeViewPreference } from './ui/home_view.js';
 import { getRenderer } from './app_services.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
 function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
@@ -472,6 +473,43 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
     syncUiModeToggle();
   }
 
+  function getHomeViewInputs(){
+    return Array.from(document.querySelectorAll('input[name="home-view"]'))
+      .filter(el => el instanceof HTMLInputElement);
+  }
+
+  function syncHomeViewControls(preference){
+    const normalized = normalizeHomeView(preference);
+    const currentMode = getUiMode();
+    const inputs = getHomeViewInputs();
+    inputs.forEach((input) => {
+      input.checked = input.value === normalized;
+      input.disabled = currentMode === 'simple';
+    });
+    const note = document.getElementById('home-view-note');
+    if(note){
+      note.style.opacity = currentMode === 'simple' ? '1' : '';
+    }
+  }
+
+  function wireHomeViewControls(initialPreference){
+    const inputs = getHomeViewInputs();
+    if(!inputs.length) return;
+    inputs.forEach((input) => {
+      if(input.__wiredHomeView) return;
+      input.__wiredHomeView = true;
+      input.addEventListener('change', () => {
+        if(!input.checked) return;
+        const preference = normalizeHomeView(input.value);
+        setHomeViewPreference(preference);
+        syncHomeViewControls(preference);
+      });
+    });
+    onUiModeChanged(() => syncHomeViewControls(getHomeViewPreference()));
+    const preference = typeof initialPreference === 'string' ? initialPreference : getHomeViewPreference();
+    syncHomeViewControls(preference);
+  }
+
   function getSimpleModeToggleElements(){
     const map = {};
     Object.entries(SIMPLE_MODE_TOGGLES).forEach(([key, id]) => {
@@ -799,6 +837,8 @@ function __textFallback__(k){ try { return (STR && STR[k]) || (__STR_FALLBACK__[
       syncSignatureState(data.signature || {});
       wireUiModeToggle();
       syncUiModeToggle(data.uiMode || getUiMode());
+      const homeView = setHomeViewPreference(normalizeHomeView(data.ui && data.ui.homeView), { persist: false });
+      wireHomeViewControls(homeView);
       wireSimpleModeControls();
       syncSimpleModeControls(data.simpleMode || simpleModeState);
       await hydrateSignatures(data);
