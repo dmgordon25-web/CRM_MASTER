@@ -45,6 +45,9 @@ const WIDGET_LABELS = {
   partnerPortfolio: 'Partner Portfolio',
   referralLeaderboard: 'Referral Leaderboard',
   pipelineMomentum: 'Pipeline Momentum',
+  pipelineFunnel: 'Pipeline Funnel',
+  pipelineVelocity: 'Pipeline Velocity',
+  pipelineRisk: 'Pipeline Risk',
   relationshipOpportunities: 'Relationship Opportunities',
   closingWatch: 'Closing Watch'
 };
@@ -198,6 +201,17 @@ const SECTIONS = [
       { id: 'relationshipOpportunities', size: 'medium' },
       { id: 'closingWatch', size: 'medium' },
       { id: 'upcomingCelebrations', size: 'medium' }
+    ]
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    description: 'Funnels, velocity, and pipeline risk',
+    widgets: [
+      { id: 'pipelineFunnel', size: 'medium' },
+      { id: 'pipelineVelocity', size: 'medium' },
+      { id: 'pipelineRisk', size: 'medium' },
+      { id: 'staleDeals', size: 'medium' }
     ]
   }
 ];

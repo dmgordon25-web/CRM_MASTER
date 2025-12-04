@@ -139,6 +139,79 @@ export function groupByStage(contacts = []) {
   return groups;
 }
 
+function getStageEntryTimestamp(stageEntry = {}) {
+  return normalizeTimestamp(stageEntry.enteredAt || stageEntry.entered || stageEntry.ts || stageEntry.timestamp);
+}
+
+function getStageAge(contact, now) {
+  const stageKey = canonicalStageKey(contact.stage || contact.lane);
+  const stageEntry = contact.stageMap?.[stageKey];
+  const stageTs = getStageEntryTimestamp(stageEntry);
+  const fallbackTs = contact.updatedTs || contact.updatedAt || contact.createdTs;
+  const ts = stageTs || fallbackTs;
+  if (!ts) return null;
+  const diffMs = now - ts;
+  return diffMs < 0 ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+const VELOCITY_BUCKETS = [
+  { id: 'lt3', label: '< 3d', maxDays: 2 },
+  { id: 'd3to7', label: '3-7d', minDays: 3, maxDays: 7 },
+  { id: 'gt7', label: '> 7d', minDays: 8 }
+];
+
+export function computeStageFunnel(contacts = []) {
+  const funnel = [];
+  const groups = groupByStage(contacts);
+
+  CANONICAL_STAGE_ORDER.forEach((stage) => {
+    const stageContacts = groups[stage] || [];
+    const count = stageContacts.length;
+    const totalAmount = stageContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
+    funnel.push({
+      stageId: stage,
+      label: STAGE_CONFIG[stage]?.label || stageLabelFromKey(stage),
+      count,
+      totalAmount
+    });
+  });
+
+  return funnel;
+}
+
+export function computeStageAgeBuckets(contacts = [], now = Date.now()) {
+  const buckets = VELOCITY_BUCKETS.map((bucket) => ({ ...bucket, count: 0 }));
+  contacts.forEach((contact) => {
+    const stage = canonicalStageKey(contact.stage || contact.lane);
+    if (!stage || ['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage)) return;
+    const age = getStageAge(contact, now);
+    if (age === null) return;
+    const bucket = buckets.find((b) => {
+      const minOk = typeof b.minDays === 'number' ? age >= b.minDays : true;
+      const maxOk = typeof b.maxDays === 'number' ? age <= b.maxDays : true;
+      return minOk && maxOk;
+    });
+    if (bucket) {
+      bucket.count += 1;
+    }
+  });
+  return buckets;
+}
+
+export function computeStaleSummary(contacts = [], days = 14) {
+  const staleDeals = getStaleDeals(contacts, days);
+  const byStage = {};
+  staleDeals.forEach((deal) => {
+    const stage = canonicalStageKey(deal.stage || deal.lane);
+    const key = stage || 'unknown';
+    byStage[key] = (byStage[key] || 0) + 1;
+  });
+  return {
+    total: staleDeals.length,
+    byStage
+  };
+}
+
 // Calculate partner tier distribution
 export function groupPartnersByTier(partners) {
   const tiers = {};
@@ -237,7 +310,10 @@ export {
   countTodayTasks,
   countOverdueTasks,
   countOpenTasks,
-  getOpenTasks
+  getOpenTasks,
+  computeStageFunnel,
+  computeStageAgeBuckets,
+  computeStaleSummary
 };
 
 export async function buildLabsModel() {
@@ -266,6 +342,11 @@ export async function buildLabsModel() {
   });
 
   const celebrations = getUpcomingCelebrations(contacts, 30);
+  const analytics = {
+    funnel: computeStageFunnel(contacts),
+    velocityBuckets: computeStageAgeBuckets(contacts),
+    staleSummary: computeStaleSummary(contacts)
+  };
 
   console.debug('[LABS] model loaded', {
     contactCount: contacts.length,
@@ -280,7 +361,8 @@ export async function buildLabsModel() {
     snapshot,
     celebrations,
     laneOrder,
-    activeLanes
+    activeLanes,
+    analytics
   };
 }
 

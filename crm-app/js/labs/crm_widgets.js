@@ -12,6 +12,9 @@ import {
   getTodayTasks,
   getOverdueTasks,
   getOpenTasks,
+  computeStageFunnel,
+  computeStageAgeBuckets,
+  computeStaleSummary,
   STAGE_CONFIG,
   formatCurrency,
   formatNumber,
@@ -246,6 +249,102 @@ export function renderPipelineMomentumWidget(container, model) {
   renderCard(container, {
     title: '🌊 Pipeline Momentum',
     body: `<div class="momentum-bars">${barsHTML}</div>`
+  });
+}
+
+// =======================
+// Pipeline analytics (funnel, velocity, risk)
+// =======================
+export function renderPipelineFunnelWidget(container, model) {
+  const funnel = model.analytics?.funnel || computeStageFunnel(model.contacts || []);
+  const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
+  if (!totalCount) {
+    renderCard(container, { title: '📈 Pipeline Funnel', body: '<p class="empty-state">No pipeline data yet</p>' });
+    return;
+  }
+
+  const maxCount = Math.max(...funnel.map((stage) => stage.count));
+  const rowsHtml = funnel.map((stage, idx) => {
+    const config = STAGE_CONFIG[stage.stageId] || {};
+    const percent = maxCount ? Math.round((stage.count / maxCount) * 100) : 0;
+    const amount = stage.totalAmount ? `<span class="analytics-amount">${formatCurrency(stage.totalAmount)}</span>` : '';
+    return `
+      <div class="analytics-bar-row" style="animation-delay:${idx * 0.05}s">
+        <div class="analytics-label">
+          <span class="stage-icon">${config.icon || '●'}</span>
+          <span class="stage-name">${stage.label}</span>
+        </div>
+        <div class="analytics-bar-container">
+          <div class="analytics-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#4f46e5'}"></div>
+        </div>
+        <div class="analytics-stats">
+          <span class="stat-count">${stage.count}</span>
+          ${amount}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  renderCard(container, {
+    title: '📈 Pipeline Funnel',
+    body: `<div class="analytics-bars">${rowsHtml}</div>`
+  });
+}
+
+export function renderPipelineVelocityWidget(container, model) {
+  const buckets = model.analytics?.velocityBuckets || computeStageAgeBuckets(model.contacts || []);
+  const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+  if (!total) {
+    renderCard(container, { title: '⏱ Velocity', body: '<p class="empty-state">No active deals to measure</p>' });
+    return;
+  }
+
+  const maxCount = Math.max(...buckets.map((bucket) => bucket.count));
+  const rowsHtml = buckets.map((bucket, idx) => {
+    const percent = maxCount ? Math.round((bucket.count / maxCount) * 100) : 0;
+    return `
+      <div class="analytics-bar-row compact" style="animation-delay:${idx * 0.05}s">
+        <div class="analytics-label">${bucket.label}</div>
+        <div class="analytics-bar-container">
+          <div class="analytics-bar" style="--bar-width:${percent}%; --bar-color:var(--labs-accent-2)"></div>
+        </div>
+        <div class="analytics-stats">
+          <span class="stat-count">${bucket.count}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  renderCard(container, {
+    title: '⏱ Velocity',
+    body: `<div class="analytics-bars">${rowsHtml}</div>`
+  });
+}
+
+export function renderPipelineRiskWidget(container, model) {
+  const summary = model.analytics?.staleSummary || computeStaleSummary(model.contacts || []);
+  const total = summary?.total || 0;
+  const byStage = summary?.byStage || {};
+  const stageRows = Object.entries(byStage)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([stage, count], idx) => {
+      const config = STAGE_CONFIG[stage] || {};
+      const label = config.label || stage || 'Unknown';
+      return `
+        <div class="risk-row" style="animation-delay:${idx * 0.05}s">
+          <div class="risk-label">${config.icon || '⚠️'} ${label}</div>
+          <div class="risk-count">${count}</div>
+        </div>
+      `;
+    }).join('');
+
+  const header = `<div class="risk-summary"><div class="risk-total">${total}</div><div class="risk-text">Stale deals (14d+)</div></div>`;
+  const body = total ? `${header}<div class="risk-rows">${stageRows}</div>` : '<p class="empty-state">No stale deals 🎉</p>';
+
+  renderCard(container, {
+    title: '🛑 Pipeline Risk',
+    body
   });
 }
 
@@ -812,6 +911,9 @@ export const CRM_WIDGET_RENDERERS = {
   leaderboard: renderReferralLeaderboardWidget,
   staleDeals: renderStaleDealsWidget,
   stale: renderStaleDealsWidget,
+  pipelineFunnel: renderPipelineFunnelWidget,
+  pipelineVelocity: renderPipelineVelocityWidget,
+  pipelineRisk: renderPipelineRiskWidget,
   today: renderTodayWidget,
   pipelineOverview: renderPipelineOverviewWidget,
   activePipeline: renderActivePipelineWidget,
