@@ -468,6 +468,13 @@ dialog{border:none;border-radius:16px;box-shadow:0 12px 40px #0002;padding:0}
 dialog .dlg{padding:18px;min-width:620px;background:#fff;border-radius:16px;display:flex;flex-direction:column;max-height:88vh;box-sizing:border-box}
 dialog[open]{pointer-events:auto}
 dialog[open] .dlg{outline:none}
+.help-modal{min-width:min(760px,96vw);max-width:min(960px,98vw)}
+.help-body{display:flex;flex-direction:column;gap:14px}
+.help-section{border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
+.help-section h4{margin:0;font-size:15px;letter-spacing:.01em;color:#0f172a}
+.help-section .muted{margin:6px 0 0}
+.help-list{margin:10px 0 0;padding-left:18px;line-height:1.55;color:var(--muted);font-size:13px}
+.help-list li{margin-bottom:6px}
 dialog::backdrop{background:#0004}
 .switch{display:flex;align-items:center;gap:8px}
 .badge-pill{display:inline-block;border-radius:999px;padding:3px 8px;background:#f1f5f9;border:1px solid #e5e7eb}
