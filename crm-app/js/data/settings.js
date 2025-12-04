@@ -124,6 +124,17 @@ function cloneSimpleModeDefaults() {
   };
 }
 
+function normalizeHomeView(value) {
+  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return text === 'labs' ? 'labs' : 'dashboard';
+}
+
+function writeHomeViewFallback(value) {
+  try {
+    localStorage.setItem('crm:homeView', normalizeHomeView(value));
+  } catch (_err) { /* noop */ }
+}
+
 function coerceHourValue(value) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.trunc(value);
@@ -274,6 +285,11 @@ export function validateSettings(settings) {
   }
   if (typeof simpleMode.showEngagement !== 'boolean') {
     errors.push({ path: 'simpleMode.showEngagement', reason: 'Value must be true or false' });
+  }
+
+  const uiHomeView = normalizeHomeView(settings && settings.ui && settings.ui.homeView);
+  if (uiHomeView !== 'dashboard' && uiHomeView !== 'labs') {
+    errors.push({ path: 'ui.homeView', reason: 'Home view must be dashboard or labs' });
   }
 
   return { ok: errors.length === 0, errors };
@@ -539,7 +555,8 @@ function shouldValidateGeneral(partial) {
       favorites: normalizeFavoriteSnapshot(base.favorites),
       dashboardOrder: normalizeDashboardOrder(base.dashboardOrder),
       updatedAt: base.updatedAt || null,
-      uiMode: normalizeUiMode(base.uiMode)
+      uiMode: normalizeUiMode(base.uiMode),
+      ui: { homeView: normalizeHomeView(base?.ui?.homeView) }
     };
     const general = extractGeneralSettings(base);
     normalized.timezone = general.timezone;
@@ -547,6 +564,7 @@ function shouldValidateGeneral(partial) {
     normalized.email = general.email;
     normalized.notifications = general.notifications;
     normalized.simpleMode = extractSimpleModeSettings(base);
+    normalized.ui = normalized.ui || { homeView: normalizeHomeView() };
     return normalized;
   }
 
@@ -637,6 +655,7 @@ function shouldValidateGeneral(partial) {
       updateSignatureCache(normalized.signature);
       updateProfileCache(normalized.loProfile);
       applyFavoriteSnapshot(normalized.favorites);
+      writeHomeViewFallback(normalized.ui && normalized.ui.homeView);
       inflight = null;
       return normalized;
     })();
@@ -686,6 +705,11 @@ function shouldValidateGeneral(partial) {
     if (Object.prototype.hasOwnProperty.call(source, 'uiMode')) {
       next.uiMode = normalizeUiMode(source.uiMode);
     }
+    if (source.ui) {
+      const currentUi = current && typeof current.ui === 'object' ? current.ui : {};
+      const mergedUi = Object.assign({}, currentUi, source.ui);
+      next.ui = { homeView: normalizeHomeView(mergedUi.homeView) };
+    }
     for (const key of Object.keys(source)) {
       if (key === 'goals' || key === 'signature' || key === 'loProfile') continue;
       if (key === 'dashboard') continue;
@@ -729,6 +753,7 @@ function shouldValidateGeneral(partial) {
       const text = normalizedSignature.text || '';
       writeSignatureLocal(text);
     }
+    writeHomeViewFallback(next.ui && next.ui.homeView);
     await writeRecord(next);
     updateSignatureCache(next.signature);
     updateProfileCache(next.loProfile);

@@ -16,6 +16,7 @@ import flags from './settings/flags.js';
 import { logError, notifyError } from './util/errors.js';
 import { initColumnsSettingsPanel } from './settings/columns_tab.js';
 import { getUiMode, isSimpleMode, onUiModeChanged } from './ui/ui_mode.js';
+import { getHomeViewPreference } from './ui/home_view.js';
 import { closeContactEditor } from './ui/contact_editor_api.js';
 import { getRenderer } from './app_services.js';
 import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
@@ -188,7 +189,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   const ADVANCED_VIEWS = new Set(['reports', 'workbench']);
 
   function preferredDefaultRoute() {
-    return isSimpleMode() ? SIMPLE_DEFAULT_ROUTE : DEFAULT_ROUTE;
+    if (isSimpleMode()) return SIMPLE_DEFAULT_ROUTE;
+    const homeView = getHomeViewPreference();
+    return homeView === 'labs' ? 'labs' : DEFAULT_ROUTE;
   }
 
   function applyActionBarIdleVisibility(route) {

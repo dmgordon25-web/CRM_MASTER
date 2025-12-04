@@ -1345,6 +1345,20 @@
          <input checked="" id="toggle-advanced-mode" type="checkbox"/>
          <span>Advanced Mode</span>
         </label>
+        <div class="field-group" id="home-view-preference">
+         <label>Home view (Advanced mode)</label>
+         <div class="row" style="gap:12px;align-items:center;" data-home-view-options>
+          <label>
+           <input checked="" id="home-view-dashboard" name="home-view" type="radio" value="dashboard"/>
+           Dashboard
+          </label>
+          <label>
+           <input id="home-view-labs" name="home-view" type="radio" value="labs"/>
+           Labs
+          </label>
+         </div>
+         <p class="muted fine-print" id="home-view-note" style="margin-top:6px;">Applies only to Advanced mode. Simple mode always opens Labs.</p>
+        </div>
         <p class="muted fine-print" style="margin-top:8px;">
          Simple mode hides rarely-used fields and advanced features for a cleaner interface.
         </p>
