@@ -7,7 +7,11 @@ import {
   getTopReferralPartners,
   getStaleDeals,
   getUpcomingCelebrations,
+  countTodayTasks,
+  countOverdueTasks,
   getTodayTasks,
+  getOverdueTasks,
+  getOpenTasks,
   STAGE_CONFIG,
   formatCurrency,
   formatNumber,
@@ -41,22 +45,20 @@ export function renderLabsKpiSummaryWidget(container, model) {
   });
 
   const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
-  const todayTasks = getTodayTasks(model.tasks || []);
-
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const overdueTasks = (model.tasks || []).filter((task) => !task.completed && task.dueTs && task.dueTs < startOfToday.getTime());
+  const openTasks = getOpenTasks(model.tasks || []);
+  const todayTasks = getTodayTasks(openTasks);
+  const overdueTasks = getOverdueTasks(openTasks);
 
   const leadsWithoutFollowUp = activeContacts.filter((contact) => {
-    const hasTask = (model.tasks || []).some((task) => task.contactId === contact.id && !task.completed);
+    const hasTask = openTasks.some((task) => task.contactId === contact.id);
     return !hasTask;
   });
 
   const tiles = [
     { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
     { label: 'Active Volume', value: formatCurrency(activeVolume) },
-    { label: 'Tasks Today', value: formatNumber(todayTasks.length) },
-    { label: 'Overdue Tasks', value: formatNumber(overdueTasks.length) },
+    { label: 'Tasks Today', value: formatNumber(countTodayTasks(model.tasks || [])) },
+    { label: 'Overdue Tasks', value: formatNumber(countOverdueTasks(model.tasks || [])) },
     { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
     { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
   ];
@@ -130,11 +132,9 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
 
 export function renderLabsTasksWidget(container, model) {
   const contactMap = new Map(model.contacts.map((c) => [c.id, c]));
-  const todayTasks = getTodayTasks(model.tasks || []);
-
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const overdueTasks = (model.tasks || []).filter((task) => !task.completed && task.dueTs && task.dueTs < startOfToday.getTime());
+  const openTasks = getOpenTasks(model.tasks || []);
+  const todayTasks = getTodayTasks(openTasks);
+  const overdueTasks = getOverdueTasks(openTasks);
 
   const allTasks = [
     ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
@@ -378,7 +378,8 @@ export function renderStaleDealsWidget(container, model) {
 // Today's work & celebrations
 // =======================
 export function renderTodayWidget(container, model) {
-  const todayTasks = model.snapshot?.focus?.tasksToday || getTodayTasks(model.tasks).slice(0, 5);
+  const openTasks = getOpenTasks(model.tasks || []);
+  const todayTasks = model.snapshot?.focus?.tasksToday || getTodayTasks(openTasks).slice(0, 5);
   const celebrations = getUpcomingCelebrations(model.contacts, 7).slice(0, 4);
   const appointments = model.snapshot?.focus?.nextAppointments || [];
 

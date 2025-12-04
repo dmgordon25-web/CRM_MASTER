@@ -5,6 +5,7 @@ import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
 import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
 import { stageLabelFromKey } from '../pipeline/stages.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
+import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
 function getDbApi(method) {
   const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
@@ -229,7 +230,15 @@ export function normalizeStagesForDisplay(stageKey) {
   return canonicalStageKey(stageKey);
 }
 
-export { getTodayTasks, getOverdueTasks, getDueTaskGroups };
+export {
+  getTodayTasks,
+  getOverdueTasks,
+  getDueTaskGroups,
+  countTodayTasks,
+  countOverdueTasks,
+  countOpenTasks,
+  getOpenTasks
+};
 
 export async function buildLabsModel() {
   const [contactsRaw, partners, tasksRaw] = await Promise.all([
