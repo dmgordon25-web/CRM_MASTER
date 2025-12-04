@@ -154,11 +154,17 @@ function getStageAge(contact, now) {
   return diffMs < 0 ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
-const VELOCITY_BUCKETS = [
+export const VELOCITY_BUCKETS = [
   { id: 'lt3', label: '< 3d', maxDays: 2 },
   { id: 'd3to7', label: '3-7d', minDays: 3, maxDays: 7 },
   { id: 'gt7', label: '> 7d', minDays: 8 }
 ];
+
+export const ANALYTICS_SEGMENT_TYPES = {
+  STAGE: 'stage',
+  VELOCITY: 'velocity',
+  RISK: 'risk'
+};
 
 export function computeStageFunnel(contacts = []) {
   const funnel = [];
@@ -198,6 +204,10 @@ export function computeStageAgeBuckets(contacts = [], now = Date.now()) {
   return buckets;
 }
 
+export function getStageAgeInDays(contact, now = Date.now()) {
+  return getStageAge(contact, now);
+}
+
 export function computeStaleSummary(contacts = [], days = 14) {
   const staleDeals = getStaleDeals(contacts, days);
   const byStage = {};
@@ -210,6 +220,39 @@ export function computeStaleSummary(contacts = [], days = 14) {
     total: staleDeals.length,
     byStage
   };
+}
+
+export function getLoansForAnalyticsSegment(model = {}, segment = {}, now = Date.now()) {
+  const contacts = Array.isArray(model.contacts) ? model.contacts : [];
+  if (!segment || !segment.type) return [];
+
+  switch (segment.type) {
+    case ANALYTICS_SEGMENT_TYPES.STAGE: {
+      const key = canonicalStageKey(segment.key);
+      return contacts.filter((contact) => canonicalStageKey(contact.stage || contact.lane) === key);
+    }
+    case ANALYTICS_SEGMENT_TYPES.VELOCITY: {
+      const bucket = VELOCITY_BUCKETS.find((b) => b.id === segment.key);
+      if (!bucket) return [];
+      return contacts.filter((contact) => {
+        const stage = canonicalStageKey(contact.stage || contact.lane);
+        if (!stage || ['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage)) return false;
+        const age = getStageAge(contact, now);
+        if (age === null) return false;
+        const minOk = typeof bucket.minDays === 'number' ? age >= bucket.minDays : true;
+        const maxOk = typeof bucket.maxDays === 'number' ? age <= bucket.maxDays : true;
+        return minOk && maxOk;
+      });
+    }
+    case ANALYTICS_SEGMENT_TYPES.RISK: {
+      const staleDeals = getStaleDeals(contacts, segment.days || 14);
+      if (!segment.key || segment.key === 'all') return staleDeals;
+      const key = canonicalStageKey(segment.key);
+      return staleDeals.filter((deal) => canonicalStageKey(deal.stage || deal.lane) === key);
+    }
+    default:
+      return [];
+  }
 }
 
 // Calculate partner tier distribution
@@ -313,7 +356,11 @@ export {
   getOpenTasks,
   computeStageFunnel,
   computeStageAgeBuckets,
-  computeStaleSummary
+  computeStaleSummary,
+  getLoansForAnalyticsSegment,
+  getStageAgeInDays,
+  VELOCITY_BUCKETS,
+  ANALYTICS_SEGMENT_TYPES
 };
 
 export async function buildLabsModel() {
