@@ -1,4 +1,5 @@
 import { stageKeyFromLabel } from '../pipeline/stages.js';
+import { getTodayTasks, getOverdueTasks } from '../tasks/task_scopes.js';
 
 const GROUP_DEFS = [
   { key: 'new', label: 'New', stageKeys: ['new', 'long-shot', 'longshot', 'lead', 'leads', 'prospect', 'application', 'app'] },
@@ -71,6 +72,17 @@ function readPipelineGroupCounts(){
     totals.set(group, (totals.get(group) || 0) + count);
   });
   return totals;
+}
+
+export function computeTaskKpis(tasks, todayDate){
+  const todayTasks = getTodayTasks(tasks, todayDate);
+  const overdueTasks = getOverdueTasks(tasks, todayDate);
+  return {
+    todayTasks,
+    overdueTasks,
+    kpiTasksToday: todayTasks.length,
+    kpiTasksOverdue: overdueTasks.length
+  };
 }
 
 function ensureTileContainer(host){

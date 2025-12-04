@@ -4,6 +4,7 @@
 import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
 import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
 import { stageLabelFromKey } from '../pipeline/stages.js';
+import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 
 function getDbApi(method) {
   const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
@@ -211,18 +212,6 @@ export function getUpcomingCelebrations(contacts, days = 7) {
   return celebrations.sort((a, b) => a.date - b.date);
 }
 
-// Get today's tasks
-export function getTodayTasks(tasks) {
-  const today = new Date().toISOString().split('T')[0];
-
-  return tasks.filter((task) => {
-    if (task.completed) return false;
-    const dueString = task.due || task.dueDate;
-    if (!dueString) return false;
-    return String(dueString).startsWith(today);
-  });
-}
-
 // Stage display configuration derived from canonical workflow
 const STAGE_PALETTE = ['#94a3b8', '#06b6d4', '#8b5cf6', '#3b82f6', '#6366f1', '#10b981', '#059669', '#22c55e', '#84cc16', '#0ea5e9'];
 const STAGE_ICONS = ['👋', '📝', '✅', '⚙️', '🔍', '👍', '🎯', '💰', '🎉', '🔁'];
@@ -239,6 +228,8 @@ export const STAGE_CONFIG = CANONICAL_STAGE_ORDER.reduce((acc, stage, index) => 
 export function normalizeStagesForDisplay(stageKey) {
   return canonicalStageKey(stageKey);
 }
+
+export { getTodayTasks, getOverdueTasks, getDueTaskGroups };
 
 export async function buildLabsModel() {
   const [contactsRaw, partners, tasksRaw] = await Promise.all([
