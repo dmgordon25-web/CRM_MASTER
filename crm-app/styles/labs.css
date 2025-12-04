@@ -242,6 +242,81 @@
   font-size: 0.9rem;
 }
 
+.labs-section-controls {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 1rem 2rem 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.labs-section-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.labs-section-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--labs-text-primary);
+}
+
+.labs-section-desc {
+  color: var(--labs-text-secondary);
+  font-size: 0.95rem;
+}
+
+.labs-section-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.labs-customize-panel {
+  width: 100%;
+  border: 1px solid var(--labs-border);
+  background: var(--labs-bg-secondary);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.labs-customize-header {
+  font-weight: 700;
+  color: var(--labs-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.labs-customize-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.labs-customize-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--labs-border);
+  border-radius: 10px;
+  background: var(--labs-bg-card);
+}
+
+.labs-customize-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--labs-accent-2);
+}
+
+.labs-customize-label {
+  font-weight: 600;
+  color: var(--labs-text-primary);
+}
+
 .labs-crm-grid {
   width: 100%;
 }
