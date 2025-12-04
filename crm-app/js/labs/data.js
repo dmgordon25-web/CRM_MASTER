@@ -353,14 +353,7 @@ export {
   countTodayTasks,
   countOverdueTasks,
   countOpenTasks,
-  getOpenTasks,
-  computeStageFunnel,
-  computeStageAgeBuckets,
-  computeStaleSummary,
-  getLoansForAnalyticsSegment,
-  getStageAgeInDays,
-  VELOCITY_BUCKETS,
-  ANALYTICS_SEGMENT_TYPES
+  getOpenTasks
 };
 
 export async function buildLabsModel() {
