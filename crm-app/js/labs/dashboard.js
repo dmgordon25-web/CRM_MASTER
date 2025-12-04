@@ -11,6 +11,15 @@ let navClickHandler = null;
 let dataChangedHandler = null;
 let labsLayoutEditMode = false;
 const labsDragControllers = new Map();
+const labsResizeControllers = new Map();
+const labsWidthState = new Map();
+
+const WIDTH_TOKENS = ['w1', 'w2', 'w3'];
+const SIZE_TO_WIDTH = {
+  small: 'w1',
+  medium: 'w2',
+  large: 'w3'
+};
 
 
 const SECTIONS = [
@@ -56,6 +65,7 @@ const SECTIONS = [
 ];
 
 const LABS_LAYOUT_PREFIX = 'labs:layout:';
+const LABS_WIDTH_PREFIX = 'labs:widths:';
 
 function layoutStorageKey(sectionId) {
   const safeId = sectionId ? String(sectionId).trim() : '';
@@ -72,6 +82,88 @@ function readStoredLayout(sectionId) {
   } catch (_err) {
     return [];
   }
+}
+
+function widthStorageKey(sectionId) {
+  const safeId = sectionId ? String(sectionId).trim() : '';
+  return `${LABS_WIDTH_PREFIX}${safeId || 'default'}`;
+}
+
+function normalizeWidthToken(token) {
+  const value = typeof token === 'string' ? token.trim() : '';
+  if (WIDTH_TOKENS.includes(value)) return value;
+  return '';
+}
+
+function defaultWidthToken(size) {
+  const key = typeof size === 'string' ? size.toLowerCase() : '';
+  return SIZE_TO_WIDTH[key] || 'w2';
+}
+
+function readStoredWidths(sectionId) {
+  const cacheKey = sectionId || 'default';
+  if (labsWidthState.has(cacheKey)) return labsWidthState.get(cacheKey);
+  const map = new Map();
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(widthStorageKey(sectionId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          Object.entries(parsed).forEach(([widgetId, token]) => {
+            const normalized = normalizeWidthToken(token);
+            if (widgetId && normalized) {
+              map.set(String(widgetId), normalized);
+            }
+          });
+        }
+      }
+    } catch (_err) {}
+  }
+  labsWidthState.set(cacheKey, map);
+  return map;
+}
+
+function persistWidths(sectionId, widthMap) {
+  if (typeof localStorage === 'undefined') return;
+  const payload = {};
+  if (widthMap && widthMap.forEach) {
+    widthMap.forEach((token, widgetId) => {
+      const normalized = normalizeWidthToken(token);
+      if (widgetId && normalized) {
+        payload[widgetId] = normalized;
+      }
+    });
+  }
+  try {
+    if (Object.keys(payload).length) {
+      localStorage.setItem(widthStorageKey(sectionId), JSON.stringify(payload));
+    } else {
+      localStorage.removeItem(widthStorageKey(sectionId));
+    }
+  } catch (_err) {}
+}
+
+function getWidgetWidthToken(sectionId, widget) {
+  const widgetId = widget && widget.id ? String(widget.id) : '';
+  if (!widgetId) return 'w2';
+  const stored = readStoredWidths(sectionId).get(widgetId);
+  if (stored) return stored;
+  return defaultWidthToken(widget?.size);
+}
+
+function setWidgetWidthToken(sectionId, widgetId, token) {
+  const normalized = normalizeWidthToken(token);
+  if (!normalized) return;
+  const map = readStoredWidths(sectionId);
+  map.set(widgetId, normalized);
+  persistWidths(sectionId, map);
+}
+
+function applyWidthClass(element, token) {
+  if (!element) return;
+  WIDTH_TOKENS.forEach((t) => element.classList.remove(`labs-${t}`));
+  element.classList.add(`labs-${token}`);
 }
 
 function persistLayout(sectionId, order) {
@@ -232,6 +324,7 @@ function renderSection(sectionId) {
   activeSection = section.id;
 
   destroySectionController(section.id);
+  destroyResizeController(section.id);
 
   host.innerHTML = '';
   const gridShell = document.createElement('div');
@@ -241,12 +334,14 @@ function renderSection(sectionId) {
   grid.className = 'labs-crm-grid labs-static-grid';
   grid.dataset.qa = `labs-grid-${section.id}`;
   grid.dataset.sectionId = section.id;
+  grid.classList.toggle('labs-grid-editable', labsLayoutEditMode);
   gridShell.appendChild(grid);
   host.appendChild(gridShell);
 
   const widgetsInOrder = sortWidgetsForSection(section);
   renderWidgets(grid, widgetsInOrder);
   registerGridDrag(section, grid);
+  registerResizeHandles(section, grid);
   updateNavState();
   updateLayoutToggleUi();
 }
@@ -275,9 +370,10 @@ function renderWidgets(grid, widgetList = []) {
   widgetList.forEach((widget, index) => {
     const renderer = CRM_WIDGET_RENDERERS[widget.id];
     if (!renderer) return;
+    const widthToken = getWidgetWidthToken(grid.dataset.sectionId, widget);
 
     const item = document.createElement('div');
-    item.className = `labs-grid-item size-${widget.size || 'medium'}`;
+    item.className = `labs-grid-item size-${widget.size || 'medium'} labs-${widthToken}`;
     item.dataset.widgetId = widget.id;
 
     const handle = document.createElement('div');
@@ -285,11 +381,16 @@ function renderWidgets(grid, widgetList = []) {
     handle.innerHTML = '<span class="handle-icon">↕</span><span class="handle-label">Drag</span>';
 
     const content = document.createElement('div');
-    content.className = `labs-widget-container size-${widget.size || 'medium'}`;
+    content.className = `labs-widget-container size-${widget.size || 'medium'} labs-${widthToken}`;
     content.role = 'presentation';
     content.dataset.widgetId = widget.id;
     content.dataset.qa = `labs-widget-${widget.id}`;
     content.style.animationDelay = `${index * 0.04}s`;
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'labs-widget-resize-handle';
+    resizeHandle.dataset.labsResizeHandle = 'true';
+    resizeHandle.setAttribute('aria-label', 'Resize widget');
 
     try {
       const rendered = renderer(content, model);
@@ -300,6 +401,7 @@ function renderWidgets(grid, widgetList = []) {
       }
       item.appendChild(handle);
       item.appendChild(content);
+      item.appendChild(resizeHandle);
       grid.appendChild(item);
       console.debug(`[LABS] rendered widget ${widget.id}`);
     } catch (err) {
@@ -317,6 +419,15 @@ function destroySectionController(sectionId) {
     } catch (_err) {}
   }
   labsDragControllers.delete(sectionId);
+}
+
+function destroyResizeController(sectionId) {
+  if (!sectionId) return;
+  const teardown = labsResizeControllers.get(sectionId);
+  if (typeof teardown === 'function') {
+    try { teardown(); } catch (_err) {}
+  }
+  labsResizeControllers.delete(sectionId);
 }
 
 function registerGridDrag(section, grid) {
@@ -350,6 +461,74 @@ function registerGridDrag(section, grid) {
       if (console && console.warn) console.warn('[labs] drag init failed', err);
     } catch (_warnErr) {}
   }
+}
+
+function registerResizeHandles(section, grid) {
+  if (!section || !grid) return;
+  destroyResizeController(section.id);
+
+  let active = null;
+
+  const onMouseMove = (evt) => {
+    if (!active) return;
+    const dx = evt.clientX - active.startX;
+    const threshold = 50;
+    let delta = 0;
+    if (dx > threshold) delta = 1;
+    if (dx < -threshold) delta = -1;
+    if (!delta) return;
+    const currentIndex = WIDTH_TOKENS.indexOf(active.token);
+    const nextIndex = Math.min(WIDTH_TOKENS.length - 1, Math.max(0, currentIndex + delta));
+    if (nextIndex === currentIndex) return;
+    const nextToken = WIDTH_TOKENS[nextIndex];
+    active.token = nextToken;
+    applyWidthClass(active.item, nextToken);
+    if (active.content) applyWidthClass(active.content, nextToken);
+    setWidgetWidthToken(active.sectionId, active.widgetId, nextToken);
+  };
+
+  const stop = () => {
+    if (active) {
+      active = null;
+    }
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', stop);
+  };
+
+  const onMouseDown = (evt) => {
+    if (!labsLayoutEditMode) return;
+    const handle = evt.target.closest('[data-labs-resize-handle]');
+    if (!handle) return;
+    const item = handle.closest('.labs-grid-item');
+    if (!item) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const widgetId = item.dataset.widgetId || '';
+    if (!widgetId) return;
+    const content = item.querySelector('.labs-widget-container');
+    const initialToken = WIDTH_TOKENS.find((token) => item.classList.contains(`labs-${token}`))
+      || getWidgetWidthToken(section.id, { id: widgetId });
+    active = {
+      widgetId,
+      sectionId: section.id,
+      item,
+      content,
+      startX: evt.clientX,
+      token: initialToken
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', stop);
+  };
+
+  grid.addEventListener('mousedown', onMouseDown);
+
+  const teardown = () => {
+    grid.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', stop);
+  };
+
+  labsResizeControllers.set(section.id, teardown);
 }
 
 async function refreshDashboard() {
