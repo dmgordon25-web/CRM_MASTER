@@ -29,6 +29,7 @@ import {
   renderLoanRow,
   renderPartnerRow
 } from './row_renderers.js';
+import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 
 const WIDGET_META = {
@@ -486,6 +487,14 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
           stats.appendChild(amount);
         }
 
+        const microBar = createInlineBar({
+          value: stage.count,
+          max: maxCount || stage.count || 1,
+          ariaLabel: `${stage.label} count ${stage.count} of ${maxCount || stage.count || 1}`
+        });
+        microBar.classList.add('labs-microbar--muted');
+        stats.appendChild(microBar);
+
         row.appendChild(label);
         row.appendChild(barContainer);
         row.appendChild(stats);
@@ -564,6 +573,14 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
         count.className = 'stat-count';
         count.textContent = bucket.count;
         stats.appendChild(count);
+
+        const microBar = createInlineBar({
+          value: bucket.count,
+          max: maxCount || bucket.count || 1,
+          ariaLabel: `${bucket.label} ${bucket.count} of ${maxCount || bucket.count || 1}`
+        });
+        microBar.classList.add('labs-microbar--muted');
+        stats.appendChild(microBar);
 
         row.appendChild(label);
         row.appendChild(barContainer);
@@ -711,19 +728,9 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
       cumulativePercent += percent;
       return { tier, count, percent, offset, color: colors[idx % colors.length] };
     });
+    const maxTierCount = segments.reduce((max, seg) => (seg.count > max ? seg.count : max), 0);
 
     renderWidgetBody(shell, (body) => {
-      const legendHTML = segments.map((seg, idx) => `
-        <div class="portfolio-segment" style="animation-delay:${idx * 0.1}s">
-          <div class="segment-indicator" style="background:${seg.color}"></div>
-          <div class="segment-info">
-            <div class="segment-tier">${seg.tier}</div>
-            <div class="segment-count">${seg.count} partners</div>
-          </div>
-          <div class="segment-percent">${seg.percent.toFixed(1)}%</div>
-        </div>
-      `).join('');
-
       const donutSegments = segments.map((seg) => {
         const circumference = 2 * Math.PI * 40;
         const strokeDash = (seg.percent / 100) * circumference;
@@ -742,22 +749,59 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
             <div class="donut-label">Partners</div>
           </div>
         </div>
-        <div class="portfolio-legend">${legendHTML}</div>
+        <div class="portfolio-legend"></div>
       `;
 
-      const legendItems = body.querySelectorAll('.portfolio-segment');
-      legendItems.forEach((node, idx) => {
-        const seg = segments[idx];
-        if (!seg || !onPortfolioSegment) return;
-        node.style.cursor = 'pointer';
-        node.addEventListener('click', () => {
-          onPortfolioSegment({
-            domain: 'partners',
-            type: 'tier',
-            key: seg.tier,
-            label: `${seg.tier} partners`
-          });
+      const legend = body.querySelector('.portfolio-legend');
+      segments.forEach((seg, idx) => {
+        const row = document.createElement('div');
+        row.className = 'portfolio-segment';
+        row.style.animationDelay = `${idx * 0.1}s`;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'segment-indicator';
+        indicator.style.background = seg.color;
+
+        const info = document.createElement('div');
+        info.className = 'segment-info';
+        const tier = document.createElement('div');
+        tier.className = 'segment-tier';
+        tier.textContent = seg.tier;
+        const count = document.createElement('div');
+        count.className = 'segment-count';
+        count.textContent = `${seg.count} partners`;
+        info.appendChild(tier);
+        info.appendChild(count);
+
+        const percent = document.createElement('div');
+        percent.className = 'segment-percent';
+        percent.textContent = `${seg.percent.toFixed(1)}%`;
+
+        const bar = createInlineBar({
+          value: seg.count,
+          max: maxTierCount || seg.count || 1,
+          ariaLabel: `${seg.tier} share: ${seg.count} of ${maxTierCount || seg.count || 1}`
         });
+        bar.classList.add('labs-microbar--muted');
+
+        row.appendChild(indicator);
+        row.appendChild(info);
+        row.appendChild(percent);
+        row.appendChild(bar);
+
+        if (onPortfolioSegment) {
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', () => {
+            onPortfolioSegment({
+              domain: 'partners',
+              type: 'tier',
+              key: seg.tier,
+              label: `${seg.tier} partners`
+            });
+          });
+        }
+
+        legend.appendChild(row);
       });
     });
   } catch (err) {
@@ -779,6 +823,10 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
   try {
     const onPortfolioSegment = opts?.onPortfolioSegment;
     const topPartners = model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5);
+    const maxVolume = topPartners.reduce((max, partner) => {
+      const volume = Number(partner.referralVolume || partner.volume || 0);
+      return volume > max ? volume : max;
+    }, 0);
     const status = topPartners.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('referralLeaderboard', {
@@ -786,7 +834,7 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
       emptyMessage: 'No referral data yet.'
     }));
 
-  if (status !== 'ok') {
+    if (status !== 'ok') {
       return shell;
     }
 
@@ -801,12 +849,16 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
           tier: partner.tier,
           volume: partner.volume ? formatCurrency(partner.volume) : (partner.referralVolume || 0)
         };
+        const numericVolume = Number(partner.referralVolume || partner.volume || 0);
         const row = createRowContainer('partner');
         renderPartnerRow(row, partnerDisplay, {
           badgeText: ['🥇', '🥈', '🥉'][idx] || '🏅',
           secondaryText: partnerDisplay.tier || 'Referral partner',
           metaText: partnerDisplay.volume,
-          metaClass: idx === 0 ? 'is-positive' : undefined
+          metaClass: idx === 0 ? 'is-positive' : undefined,
+          currentCount: numericVolume,
+          maxCount: maxVolume || numericVolume || 1,
+          barAriaLabel: `Referral volume ${numericVolume || 0} of ${maxVolume || numericVolume || 1}`
         });
 
         if (onPortfolioSegment && partnerDisplay.id) {
@@ -867,6 +919,9 @@ export function renderReferralTrendsWidget(container, model) {
         const direction = entry.direction === 'up' ? '▲' : (entry.direction === 'down' ? '▼' : '–');
         const deltaValue = Number(entry.delta || 0);
         const deltaText = `${deltaValue > 0 ? '+' : ''}${deltaValue}`;
+        const currentCount = Number(entry.currentCount || 0);
+        const previousCount = Number(entry.previousCount || 0);
+        const deltaAria = `Referral trend: ${currentCount} this period vs ${previousCount} previous`;
         const partnerDisplay = {
           id: entry.partnerId,
           name: entry.partnerName || model.getPartnerDisplayName?.(entry.partnerId),
@@ -879,7 +934,10 @@ export function renderReferralTrendsWidget(container, model) {
         renderPartnerRow(row, partnerDisplay, {
           secondaryText: `Current ${entry.currentCount || 0} · Prev ${entry.previousCount || 0}`,
           metaText: `${direction} ${deltaText}`,
-          metaClass: entry.direction === 'up' ? 'is-positive' : (entry.direction === 'down' ? 'is-negative' : 'is-neutral')
+          metaClass: entry.direction === 'up' ? 'is-positive' : (entry.direction === 'down' ? 'is-negative' : 'is-neutral'),
+          current: currentCount,
+          previous: previousCount,
+          deltaAriaLabel: deltaAria
         });
 
         list.appendChild(row);

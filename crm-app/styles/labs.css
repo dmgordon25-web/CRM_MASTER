@@ -1836,3 +1836,84 @@
   animation: spin 0.9s linear infinite;
 }
 
+
+/* ========================================
+   Micro charts (Labs only)
+   ======================================== */
+
+.labs-microbar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 72px;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.labs-microbar--inline {
+  margin-left: 0.5rem;
+}
+
+.labs-microbar__fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--labs-accent-2), var(--labs-accent-1));
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.labs-microbar__label {
+  font-size: 0.75rem;
+  color: var(--labs-text-muted);
+}
+
+.labs-microbar--muted {
+  opacity: 0.8;
+}
+
+.labs-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+}
+
+.labs-delta__badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--labs-border);
+  background: var(--labs-bg-secondary);
+  color: var(--labs-text-secondary);
+}
+
+.labs-delta__badge.is-positive {
+  color: #0f766e;
+  background: #ecfdf3;
+  border-color: #a7f3d0;
+}
+
+.labs-delta__badge.is-negative {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecdd3;
+}
+
+.labs-delta__badge.is-neutral {
+  color: var(--labs-text-muted);
+}
+
+.labs-delta__bar {
+  flex: 1;
+  min-width: 72px;
+}
+
+.labs-sparkline {
+  width: 100px;
+  height: 24px;
+  color: var(--labs-accent-2);
+}
