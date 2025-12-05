@@ -100,6 +100,11 @@ export function renderLabsKpiSummaryWidget(container, model) {
     const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
     const openTasks = getOpenTasks(model.tasks || []);
 
+    const todayTaskCount = countTodayTasks(model.tasks || []);
+    const overdueTaskCount = countOverdueTasks(model.tasks || []);
+    const snapshotTodayTasks = Number(snapshotKPIs.kpiTasksToday || 0);
+    const snapshotOverdueTasks = Number(snapshotKPIs.kpiTasksOverdue || 0);
+
     const leadsWithoutFollowUp = activeContacts.filter((contact) => {
       const hasTask = openTasks.some((task) => task.contactId === contact.id);
       return !hasTask;
@@ -111,8 +116,8 @@ export function renderLabsKpiSummaryWidget(container, model) {
     const tiles = [
       { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
       { label: 'Active Volume', value: formatCurrency(activeVolume) },
-      { label: 'Tasks Today', value: formatNumber(countTodayTasks(model.tasks || [])) },
-      { label: 'Overdue Tasks', value: formatNumber(countOverdueTasks(model.tasks || [])) },
+      { label: 'Tasks Today', value: formatNumber(snapshotTodayTasks || todayTaskCount) },
+      { label: 'Overdue Tasks', value: formatNumber(snapshotOverdueTasks || overdueTaskCount) },
       { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
       { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
     ];
@@ -128,6 +133,14 @@ export function renderLabsKpiSummaryWidget(container, model) {
       return shell;
     }
 
+    const summaryBadges = `
+      <div class="labs-kpi-meta">
+        <div class="labs-chip tone-primary">Active: ${formatNumber(activeContacts.length)}</div>
+        <div class="labs-chip tone-info">Today: ${formatNumber(snapshotTodayTasks || todayTaskCount)}</div>
+        <div class="labs-chip tone-danger">Overdue: ${formatNumber(snapshotOverdueTasks || overdueTaskCount)}</div>
+      </div>
+    `;
+
     const tilesHtml = tiles.map((tile, idx) => `
       <div class="labs-kpi-tile" style="animation-delay:${idx * 0.05}s">
         <div class="labs-kpi-label">${tile.label}</div>
@@ -136,7 +149,7 @@ export function renderLabsKpiSummaryWidget(container, model) {
     `).join('');
 
     renderWidgetBody(shell, (body) => {
-      body.innerHTML = `<div class="labs-kpi-grid">${tilesHtml}</div>`;
+      body.innerHTML = `${summaryBadges}<div class="labs-kpi-grid">${tilesHtml}</div>`;
     });
   } catch (err) {
     console.error('[labs] labsKpiSummary render failed', err);
@@ -185,6 +198,13 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
       return shell;
     }
 
+    const headerSummary = `
+      <div class="momentum-summary">
+        <div class="summary-value">${formatNumber(total)}</div>
+        <div class="summary-label">Active pipeline files</div>
+      </div>
+    `;
+
     const rowsHtml = stages.map((stage, idx) => {
       const count = normalizedCounts?.[stage] || 0;
       const percent = total ? Math.round((count / total) * 100) : 0;
@@ -209,7 +229,7 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
     }).join('');
 
     renderWidgetBody(shell, (body) => {
-      body.innerHTML = `<div class="momentum-bars">${rowsHtml}</div>`;
+      body.innerHTML = `${headerSummary}<div class="momentum-bars">${rowsHtml}</div>`;
     });
   } catch (err) {
     console.error('[labs] pipeline snapshot render failed', err);
@@ -231,6 +251,8 @@ export function renderLabsTasksWidget(container, model) {
     const openTasks = getOpenTasks(model.tasks || []);
     const todayTasks = getTodayTasks(openTasks);
     const overdueTasks = getOverdueTasks(openTasks);
+    const todayCount = countTodayTasks(openTasks);
+    const overdueCount = countOverdueTasks(openTasks);
 
     const allTasks = [
       ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
@@ -266,7 +288,7 @@ export function renderLabsTasksWidget(container, model) {
       id: 'labsTasks',
       title: '✅ Tasks Due',
       status,
-      emptyMessage: 'No tasks due or overdue'
+      emptyMessage: 'No tasks due or overdue — you\'re all caught up'
     });
 
     if (status !== 'ok') {
@@ -274,7 +296,13 @@ export function renderLabsTasksWidget(container, model) {
     }
 
     const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more tasks</div>` : '';
-    const body = `<div class="labs-tasks-list">${rows.join('')}</div>${footer}`;
+    const summary = `
+      <div class="labs-task-summary">
+        <span class="labs-pill tone-primary">Today ${formatNumber(todayCount)}</span>
+        <span class="labs-pill tone-danger">Overdue ${formatNumber(overdueCount)}</span>
+      </div>
+    `;
+    const body = `${summary}<div class="labs-tasks-list">${rows.join('')}</div>${footer}`;
 
     renderWidgetBody(shell, (el) => {
       el.innerHTML = body;
@@ -1546,7 +1574,7 @@ export function renderFavoritesWidget(container, model) {
 
     shell = renderWidgetShell(container, widgetSpec('favorites', {
       status,
-      emptyMessage: 'No items yet.'
+      emptyMessage: 'No favorites yet — star leads from Focus to pin them here.'
     }));
 
     if (status !== 'ok') {

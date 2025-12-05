@@ -1,6 +1,15 @@
 // Labs CRM Dashboard - Canonical mirror with modern UI shell
 
-import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
+import {
+  ensureDatabase,
+  buildLabsModel,
+  formatNumber,
+  countTodayTasks,
+  countOverdueTasks,
+  groupByStage,
+  normalizeStagesForDisplay,
+  computeStaleSummary
+} from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 import { makeDraggableGrid } from '../ui/drag_core.js';
 import {
@@ -12,6 +21,7 @@ import {
 import openAnalyticsDrilldown from './analytics_drilldown.js';
 import openPortfolioDrilldown from './portfolio_drilldown.js';
 import { emitLabsEvent, onLabsEvent } from './labs_events.js';
+import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
 
 const LABS_DEBUG = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('labsDebug') === '1'
@@ -64,6 +74,82 @@ const WIDGET_LABELS = {
   pipelineCalendar: 'Pipeline Calendar',
   docPulse: 'Document Pulse'
 };
+
+function normalizeStageCountMap(counts = {}) {
+  const normalized = {};
+  Object.entries(counts).forEach(([stage, raw]) => {
+    const key = normalizeStagesForDisplay(stage);
+    if (!key) return;
+    const value = Number(raw) || 0;
+    normalized[key] = (normalized[key] || 0) + value;
+  });
+  return normalized;
+}
+
+function runLabsParityDiagnostics(model) {
+  if (!LABS_DEBUG || !model) return;
+  try {
+    const mappedEntries = DASH_TO_LABS_WIDGET_MAP.filter((entry) => entry.status === 'mapped' && entry.labsId);
+    const missingRenderers = mappedEntries.filter((entry) => !CRM_WIDGET_RENDERERS[entry.labsId]);
+    if (missingRenderers.length) {
+      console.warn('[labs:parity] Missing Labs renderers for mapped widgets', missingRenderers);
+    }
+
+    const snapshotStageCounts = normalizeStageCountMap(model.snapshot?.pipelineCounts || {});
+    const derivedStageGroups = groupByStage(model.contacts || []);
+    const stageDiffs = [];
+
+    Object.entries(snapshotStageCounts).forEach(([stage, value]) => {
+      const derived = Array.isArray(derivedStageGroups[stage])
+        ? derivedStageGroups[stage].length
+        : Number(derivedStageGroups[stage] || 0);
+      if (Math.abs(value - derived) > 0) {
+        stageDiffs.push({ stage, snapshot: value, derived });
+      }
+    });
+
+    Object.entries(derivedStageGroups).forEach(([stageKey, group]) => {
+      const stage = normalizeStagesForDisplay(stageKey);
+      if (!stage || snapshotStageCounts.hasOwnProperty(stage)) return;
+      const derived = Array.isArray(group) ? group.length : Number(group || 0);
+      if (derived > 0) {
+        stageDiffs.push({ stage, snapshot: 0, derived });
+      }
+    });
+
+    const taskDiffs = [];
+    const todayCount = countTodayTasks(model.tasks || []);
+    const overdueCount = countOverdueTasks(model.tasks || []);
+    const kpiToday = Number(model.snapshot?.kpis?.kpiTasksToday);
+    const kpiOverdue = Number(model.snapshot?.kpis?.kpiTasksOverdue);
+
+    if (Number.isFinite(kpiToday) && kpiToday !== todayCount) {
+      taskDiffs.push({ metric: 'tasksToday', snapshot: kpiToday, derived: todayCount });
+    }
+    if (Number.isFinite(kpiOverdue) && kpiOverdue !== overdueCount) {
+      taskDiffs.push({ metric: 'tasksOverdue', snapshot: kpiOverdue, derived: overdueCount });
+    }
+
+    const staleDiffs = [];
+    const staleFromModel = model.analytics?.staleSummary || {};
+    const staleDerived = computeStaleSummary(model.activePipeline || model.contacts || []);
+    Object.keys({ ...staleFromModel, ...staleDerived }).forEach((bucket) => {
+      const snapshotVal = Number(staleFromModel[bucket] || 0);
+      const derivedVal = Number(staleDerived[bucket] || 0);
+      if (Math.abs(snapshotVal - derivedVal) > 0) {
+        staleDiffs.push({ bucket, snapshot: snapshotVal, derived: derivedVal });
+      }
+    });
+
+    if (stageDiffs.length || taskDiffs.length || staleDiffs.length) {
+      console.warn('[labs:parity] Data mismatches detected', { stageDiffs, taskDiffs, staleDiffs });
+    } else {
+      console.info('[labs:parity] Core metrics aligned with snapshot data');
+    }
+  } catch (err) {
+    console.warn('[labs:parity] Parity diagnostics failed softly', err);
+  }
+}
 
 const LABS_PRESETS = {
   overview: {
@@ -1166,6 +1252,7 @@ async function mountLabsDashboard(root) {
   try {
     await hydrateModel();
     renderShell();
+    runLabsParityDiagnostics(labsModel);
     attachEventListeners();
     console.info('[labs] CRM Labs dashboard rendered');
   } catch (err) {
