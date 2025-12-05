@@ -8,7 +8,8 @@ export function renderWidgetShell(container, spec = {}) {
     status = 'ok',
     emptyMessage = 'No data yet',
     errorMessage = 'Something went wrong',
-    debugFootnote
+    debugFootnote,
+    actions
   } = spec;
 
   const shell = document.createElement('div');
@@ -43,6 +44,34 @@ export function renderWidgetShell(container, spec = {}) {
     insightEl.className = 'labs-insight';
     insightEl.textContent = insightText;
     header.appendChild(insightEl);
+  }
+
+  if (Array.isArray(actions) && actions.length) {
+    const actionGroup = document.createElement('div');
+    actionGroup.className = 'labs-action-group';
+
+    actions.forEach((action) => {
+      if (!action || typeof action.onClick !== 'function') return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'labs-action';
+      if (action.id) {
+        btn.dataset.actionId = action.id;
+      }
+      if (action.variant === 'subtle') {
+        btn.classList.add('labs-action--subtle');
+      }
+      btn.textContent = action.label || 'Action';
+      btn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        action.onClick(evt);
+      });
+      actionGroup.appendChild(btn);
+    });
+
+    if (actionGroup.childElementCount) {
+      header.appendChild(actionGroup);
+    }
   }
 
   shell.appendChild(header);
