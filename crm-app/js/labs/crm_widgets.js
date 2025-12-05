@@ -441,6 +441,25 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
     const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
     const status = totalCount ? 'ok' : 'empty';
 
+    const actions = [];
+    const topStage = funnel.reduce((best, stage) => {
+      if (!best || stage.count > best.count) return stage;
+      return best;
+    }, null);
+
+    if (status === 'ok' && onSegmentClick && topStage?.count > 0) {
+      actions.push({
+        id: 'funnel-top-stage',
+        label: 'See biggest stage',
+        variant: 'subtle',
+        onClick: () => onSegmentClick({
+          type: ANALYTICS_SEGMENT_TYPES.STAGE,
+          key: topStage.stageId,
+          label: topStage.label || 'Top stage'
+        })
+      });
+    }
+
     const funnelInsight = status === 'ok'
       ? getTopDriverInsight({
           label: 'Biggest load',
@@ -454,7 +473,8 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
       title: '📈 Pipeline Funnel',
       insightText: funnelInsight,
       status,
-      emptyMessage: 'No pipeline data yet'
+      emptyMessage: 'No pipeline data yet',
+      actions
     });
 
     if (status !== 'ok') {
@@ -545,6 +565,7 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
     const status = total ? 'ok' : 'empty';
 
     const agedBucket = buckets.find((bucket) => bucket.id === 'gt7');
+    const actions = [];
     const velocityInsight = status === 'ok'
       ? getThresholdInsight({
           label: 'aged deals (>7d)',
@@ -554,12 +575,26 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
         }) || (agedBucket && agedBucket.count === 0 ? 'Pipeline velocity looks healthy.' : null)
       : null;
 
+    if (status === 'ok' && agedBucket?.count > 0 && onSegmentClick) {
+      actions.push({
+        id: 'velocity-aged',
+        label: 'Review aged loans',
+        variant: 'subtle',
+        onClick: () => onSegmentClick({
+          type: ANALYTICS_SEGMENT_TYPES.VELOCITY,
+          key: agedBucket.id || 'gt7',
+          label: 'Aged loans'
+        })
+      });
+    }
+
     shell = renderWidgetShell(container, {
       id: 'pipelineVelocity',
       title: '⏱ Velocity',
       insightText: velocityInsight,
       status,
-      emptyMessage: 'No active deals to measure'
+      emptyMessage: 'No active deals to measure',
+      actions
     });
 
     if (status !== 'ok') {
@@ -647,6 +682,20 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 
     const status = total ? 'ok' : 'empty';
 
+    const actions = [];
+    if (status === 'ok' && total > 0 && onSegmentClick) {
+      actions.push({
+        id: 'risk-stale',
+        label: 'View stale deals',
+        variant: 'subtle',
+        onClick: () => onSegmentClick({
+          type: ANALYTICS_SEGMENT_TYPES.RISK,
+          key: 'stale',
+          label: 'Stale deals'
+        })
+      });
+    }
+
     const riskInsight = status === 'ok'
       ? getThresholdInsight({
           label: 'stale deals',
@@ -661,7 +710,8 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
       title: '🛑 Pipeline Risk',
       insightText: riskInsight,
       status,
-      emptyMessage: 'No stale deals 🎉'
+      emptyMessage: 'No stale deals 🎉',
+      actions
     });
 
     if (status !== 'ok') {
@@ -755,10 +805,31 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
       byKey: 'count'
     });
 
+    const actions = [];
+    const topTierSegment = tierSegments.reduce((best, seg) => {
+      if (!best || seg.count > best.count) return seg;
+      return best;
+    }, null);
+
+    if (status === 'ok' && topTierSegment && topTierSegment.count > 0 && onPortfolioSegment) {
+      actions.push({
+        id: 'portfolio-top-tier',
+        label: 'Open top partners',
+        variant: 'subtle',
+        onClick: () => onPortfolioSegment({
+          domain: 'partners',
+          type: 'tier',
+          key: topTierSegment.tier,
+          label: `${topTierSegment.tier} partners`
+        })
+      });
+    }
+
     shell = renderWidgetShell(container, widgetSpec('partnerPortfolio', {
       insightText: portfolioInsight,
       status,
-      emptyMessage: 'No partners tracked yet.'
+      emptyMessage: 'No partners tracked yet.',
+      actions
     }));
 
     if (status !== 'ok') {
@@ -942,9 +1013,10 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
 // =======================
 // Referral trends (momentum)
 // =======================
-export function renderReferralTrendsWidget(container, model) {
+export function renderReferralTrendsWidget(container, model, opts = {}) {
   let shell;
   try {
+    const onPortfolioSegment = opts?.onPortfolioSegment;
     const trends = model?.analytics?.referralTrends30 || [];
     const status = trends.length ? 'ok' : 'empty';
 
@@ -956,12 +1028,30 @@ export function renderReferralTrendsWidget(container, model) {
       ? `${(risingPartners[0].partnerName || model.getPartnerDisplayName?.(risingPartners[0].partnerId) || 'A partner')} is trending up.`
       : (trends.length ? 'Referral momentum is stable.' : null);
 
+    const actions = [];
+    const topRising = risingPartners[0];
+    if (status === 'ok' && topRising?.partnerId && onPortfolioSegment) {
+      const risingLabel = topRising.partnerName || model.getPartnerDisplayName?.(topRising.partnerId) || 'Referral partner';
+      actions.push({
+        id: 'referral-rising',
+        label: 'See rising partner loans',
+        variant: 'subtle',
+        onClick: () => onPortfolioSegment({
+          domain: 'loans',
+          type: 'referrals',
+          key: topRising.partnerId,
+          label: risingLabel
+        })
+      });
+    }
+
     shell = renderWidgetShell(container, widgetSpec('referralTrends', {
       title: 'Referral Trends',
       subtitle: 'Last 30 days vs prior 30',
       insightText: trendsInsight,
       status,
-      emptyMessage: 'No referral trend data yet.'
+      emptyMessage: 'No referral trend data yet.',
+      actions
     }));
 
     if (status !== 'ok') {
@@ -1536,10 +1626,26 @@ export function renderRelationshipWidget(container, model, opts = {}) {
       ? (overdueTouches > 0 ? `${overdueTouches} clients overdue for touch.` : 'Client touch cadence looks on track.')
       : null;
 
+    const actions = [];
+    if (status === 'ok' && overdueTouches > 0 && onPortfolioSegment) {
+      actions.push({
+        id: 'relationship-overdue',
+        label: 'View overdue touches',
+        variant: 'subtle',
+        onClick: () => onPortfolioSegment({
+          domain: 'contacts',
+          type: 'relationship',
+          key: 'overdue',
+          label: 'Overdue touches'
+        })
+      });
+    }
+
     shell = renderWidgetShell(container, widgetSpec('relationshipOpportunities', {
       insightText: relationshipInsight,
       status,
-      emptyMessage: 'No nurture targets right now.'
+      emptyMessage: 'No nurture targets right now.',
+      actions
     }));
 
     if (status !== 'ok') {
