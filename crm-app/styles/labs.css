@@ -1860,3 +1860,60 @@
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
+
+/* Referral trends */
+.trend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--labs-border);
+  border-radius: 10px;
+  background: var(--labs-bg-secondary);
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.04);
+}
+
+.trend-name {
+  font-weight: 700;
+  color: var(--labs-text-primary);
+}
+
+.trend-stats {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-weight: 700;
+}
+
+.trend-current {
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  background: #0ea5e914;
+  color: var(--labs-accent-1);
+}
+
+.trend-delta {
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  background: #6366f114;
+  color: var(--labs-text-primary);
+}
+
+.trend-previous {
+  color: var(--labs-text-muted);
+  font-weight: 600;
+}
+
+.trend-up .trend-delta {
+  color: var(--labs-accent-3);
+}
+
+.trend-down .trend-delta {
+  color: var(--labs-accent-4);
+}
