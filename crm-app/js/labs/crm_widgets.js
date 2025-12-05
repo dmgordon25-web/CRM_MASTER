@@ -1023,7 +1023,7 @@ export const CRM_WIDGET_RENDERERS = {
   partnerPortfolio: renderPartnerPortfolioWidget,
   referralLeaderboard: renderReferralLeaderboardWidget,
   leaderboard: renderReferralLeaderboardWidget,
-  staleDeals: renderStaleDealsWidget,
+  staleDeals: renderStaleDealsWidget, // Experimental: relies on data model tuning
   stale: renderStaleDealsWidget,
   pipelineFunnel: renderPipelineFunnelWidget,
   pipelineVelocity: renderPipelineVelocityWidget,
@@ -1042,7 +1042,7 @@ export const CRM_WIDGET_RENDERERS = {
   todo: renderTodoWidget,
   priorityActions: renderPriorityActionsWidget,
   milestones: renderMilestonesWidget,
-  docPulse: renderDocPulseWidget,
+  docPulse: renderDocPulseWidget, // Experimental: milestone mapping still in flux
   relationshipOpportunities: renderRelationshipWidget,
   clientCareRadar: renderRelationshipWidget,
   closingWatch: renderClosingWatchWidget,

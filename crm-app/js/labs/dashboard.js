@@ -50,7 +50,10 @@ const WIDGET_LABELS = {
   pipelineVelocity: 'Pipeline Velocity',
   pipelineRisk: 'Pipeline Risk',
   relationshipOpportunities: 'Relationship Opportunities',
-  closingWatch: 'Closing Watch'
+  closingWatch: 'Closing Watch',
+  staleDeals: 'Stale Deals',
+  pipelineCalendar: 'Pipeline Calendar',
+  docPulse: 'Document Pulse'
 };
 
 const LABS_PRESETS = {
@@ -95,13 +98,12 @@ const LABS_PRESETS = {
     default: { label: 'Default layout' },
     execution: {
       label: 'Execution focus',
-      order: ['labsTasks', 'priorityActions', 'today', 'todo', 'milestones', 'upcomingCelebrations'],
+      order: ['labsTasks', 'priorityActions', 'today', 'todo'],
       visibility: {
         labsTasks: true,
         priorityActions: true,
         today: true,
-        todo: true,
-        milestones: true
+        todo: true
       },
       widths: {
         labsTasks: 'w3',
@@ -111,14 +113,12 @@ const LABS_PRESETS = {
     },
     planning: {
       label: 'Planning focus',
-      order: ['priorityActions', 'today', 'labsTasks', 'todo', 'milestones', 'upcomingCelebrations'],
+      order: ['priorityActions', 'today', 'labsTasks', 'todo'],
       visibility: {
         priorityActions: true,
         today: true,
         labsTasks: true,
-        todo: true,
-        milestones: true,
-        upcomingCelebrations: true
+        todo: true
       },
       widths: {
         priorityActions: 'w2',
@@ -131,13 +131,11 @@ const LABS_PRESETS = {
     default: { label: 'Default layout' },
     partners: {
       label: 'Partner focus',
-      order: ['partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities', 'pipelineMomentum', 'closingWatch'],
+      order: ['partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities'],
       visibility: {
         partnerPortfolio: true,
         referralLeaderboard: true,
-        relationshipOpportunities: true,
-        pipelineMomentum: true,
-        closingWatch: true
+        relationshipOpportunities: true
       },
       widths: {
         partnerPortfolio: 'w3',
@@ -146,23 +144,29 @@ const LABS_PRESETS = {
     },
     pipeline: {
       label: 'Pipeline focus',
-      order: ['pipelineMomentum', 'closingWatch', 'partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities'],
+      order: ['partnerPortfolio', 'referralLeaderboard', 'relationshipOpportunities'],
       visibility: {
-        pipelineMomentum: true,
-        closingWatch: true,
         partnerPortfolio: true,
         referralLeaderboard: true,
         relationshipOpportunities: true
       },
       widths: {
-        pipelineMomentum: 'w2',
-        closingWatch: 'w2',
         partnerPortfolio: 'w3'
       }
     }
   }
 };
 
+
+const EXPERIMENTAL_WIDGETS = [
+  { id: 'pipelineMomentum', size: 'medium', note: 'prototype' },
+  { id: 'closingWatch', size: 'medium', note: 'prototype' },
+  { id: 'staleDeals', size: 'medium', note: 'prototype' },
+  { id: 'milestones', size: 'medium', note: 'appointments feed still evolving' },
+  { id: 'upcomingCelebrations', size: 'medium', note: 'needs data polish' },
+  { id: 'pipelineCalendar', size: 'medium', note: 'timeline styling WIP' },
+  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' }
+];
 
 const SECTIONS = [
   {
@@ -186,9 +190,7 @@ const SECTIONS = [
       { id: 'labsTasks', size: 'large' },
       { id: 'priorityActions', size: 'medium' },
       { id: 'today', size: 'medium' },
-      { id: 'todo', size: 'medium' },
-      { id: 'milestones', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' }
+      { id: 'todo', size: 'medium' }
     ]
   },
   {
@@ -198,10 +200,7 @@ const SECTIONS = [
     widgets: [
       { id: 'partnerPortfolio', size: 'large' },
       { id: 'referralLeaderboard', size: 'medium' },
-      { id: 'pipelineMomentum', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      { id: 'closingWatch', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' }
+      { id: 'relationshipOpportunities', size: 'medium' }
     ]
   },
   {
@@ -211,9 +210,14 @@ const SECTIONS = [
     widgets: [
       { id: 'pipelineFunnel', size: 'medium' },
       { id: 'pipelineVelocity', size: 'medium' },
-      { id: 'pipelineRisk', size: 'medium' },
-      { id: 'staleDeals', size: 'medium' }
+      { id: 'pipelineRisk', size: 'medium' }
     ]
+  },
+  {
+    id: 'experimental',
+    label: 'Experimental',
+    description: 'Early widgets under active development',
+    widgets: EXPERIMENTAL_WIDGETS
   }
 ];
 
