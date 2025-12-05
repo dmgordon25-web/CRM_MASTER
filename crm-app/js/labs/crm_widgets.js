@@ -35,6 +35,7 @@ const WIDGET_META = {
   priorityActions: { title: '🚨 Priority Actions', subtitle: 'Overdue tasks and stale deals' },
   partnerPortfolio: { title: '🎯 Partner Portfolio', subtitle: 'Breakdown by tier' },
   referralLeaderboard: { title: '🏆 Referral Leaders', subtitle: 'Top referral partners' },
+  referralTrends: { title: '📈 Referral Trends', subtitle: 'Last 30d vs prior 30d' },
   relationshipOpportunities: { title: '🤝 Client Care Radar', subtitle: 'Past and returning clients' },
   pipelineFunnel: { title: '📈 Pipeline Funnel', subtitle: 'Counts by stage' },
   pipelineVelocity: { title: '⏱ Velocity', subtitle: 'Cycle time buckets' },
@@ -769,6 +770,59 @@ export function renderReferralLeaderboardWidget(container, model) {
 }
 
 // =======================
+// Referral trends (momentum)
+// =======================
+export function renderReferralTrendsWidget(container, model) {
+  let shell;
+  try {
+    const trends = model?.analytics?.referralTrends30 || [];
+    const status = trends.length ? 'ok' : 'empty';
+
+    shell = renderWidgetShell(container, widgetSpec('referralTrends', {
+      title: 'Referral Trends',
+      subtitle: 'Last 30 days vs prior 30',
+      status,
+      emptyMessage: 'No referral trend data yet.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const rows = trends.slice(0, 10).map((entry, idx) => {
+        const direction = entry.direction === 'up' ? '▲' : (entry.direction === 'down' ? '▼' : '–');
+        const deltaValue = Number(entry.delta || 0);
+        const deltaText = `${deltaValue > 0 ? '+' : ''}${deltaValue}`;
+        const directionClass = entry.direction === 'up'
+          ? 'trend-up'
+          : (entry.direction === 'down' ? 'trend-down' : 'trend-flat');
+        return `
+          <div class="trend-row ${directionClass}" style="animation-delay:${idx * 0.05}s">
+            <div class="trend-name">${entry.partnerName || model.getPartnerDisplayName?.(entry.partnerId) || 'Partner'}</div>
+            <div class="trend-stats">
+              <div class="trend-current" title="Current window">${entry.currentCount || 0}</div>
+              <div class="trend-delta" title="Change vs prior">${direction} ${deltaText}</div>
+              <div class="trend-previous" title="Prior window">Prev ${entry.previousCount || 0}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      body.innerHTML = `<div class="trend-list">${rows}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] referral trends render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('referralTrends', {
+      status: 'error',
+      errorMessage: 'Unable to load referral trends'
+    }));
+  }
+
+  return shell;
+}
+
+// =======================
 // Stale deals
 // =======================
 export function renderStaleDealsWidget(container, model) {
@@ -1481,6 +1535,7 @@ export const CRM_WIDGET_RENDERERS = {
   partnerPortfolio: renderPartnerPortfolioWidget,
   referralLeaderboard: renderReferralLeaderboardWidget,
   leaderboard: renderReferralLeaderboardWidget,
+  referralTrends: renderReferralTrendsWidget,
   staleDeals: renderStaleDealsWidget, // Experimental: relies on data model tuning
   stale: renderStaleDealsWidget,
   pipelineFunnel: renderPipelineFunnelWidget,

@@ -50,6 +50,7 @@ const WIDGET_LABELS = {
   upcomingCelebrations: 'Upcoming Celebrations',
   partnerPortfolio: 'Partner Portfolio',
   referralLeaderboard: 'Referral Leaderboard',
+  referralTrends: 'Referral Trends',
   pipelineMomentum: 'Pipeline Momentum',
   pipelineFunnel: 'Pipeline Funnel',
   pipelineVelocity: 'Pipeline Velocity',
@@ -211,6 +212,7 @@ const SECTIONS = [
     description: 'Clients, partners, and referrals',
     widgets: [
       { id: 'partnerPortfolio', size: 'large' },
+      { id: 'referralTrends', size: 'medium' },
       { id: 'referralLeaderboard', size: 'medium' },
       { id: 'relationshipOpportunities', size: 'medium' }
     ]

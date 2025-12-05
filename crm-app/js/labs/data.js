@@ -317,6 +317,90 @@ export function groupPartnersByTier(partners) {
   return tiers;
 }
 
+// Compute referral momentum over adjacent time windows
+export function computeReferralTrends(model = {}, opts = {}) {
+  const windowDays = Number(opts.windowDays) > 0 ? Number(opts.windowDays) : 30;
+  const now = Date.now();
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const currentStart = now - windowMs;
+  const previousStart = currentStart - windowMs;
+
+  const getPartnerIds = (entry = {}) => {
+    const ids = [];
+    if (Array.isArray(entry.partners)) {
+      entry.partners.forEach((pid) => {
+        if (pid) ids.push(pid);
+      });
+    }
+    const fallbackId = entry.partnerId || entry.referralPartnerId;
+    if (fallbackId) ids.push(fallbackId);
+    return ids;
+  };
+
+  const getTimestamp = (entry = {}) => normalizeTimestamp(
+    entry.createdTs
+      || entry.createdAt
+      || entry.created
+      || entry.submittedTs
+      || entry.submittedAt
+      || entry.updatedTs
+  );
+
+  const partnerLookup = typeof model.getPartnerDisplayName === 'function'
+    ? model.getPartnerDisplayName
+    : (id) => {
+      const partner = model.partnersById?.[id] || {};
+      const value = partner.name || partner.displayName || partner.company;
+      return value || '(Unknown partner)';
+    };
+
+  const dataset = Array.isArray(model.activePipeline)
+    ? model.activePipeline
+    : (Array.isArray(model.pipeline) ? model.pipeline : (model.contacts || []));
+
+  const stats = new Map();
+
+  dataset.forEach((entry) => {
+    if (!entry) return;
+    const ts = getTimestamp(entry);
+    if (!ts || ts < previousStart) return;
+
+    const partnerIds = getPartnerIds(entry);
+    if (!partnerIds.length) return;
+
+    partnerIds.forEach((partnerId) => {
+      if (!partnerId) return;
+      const stat = stats.get(partnerId) || { partnerId, currentCount: 0, previousCount: 0 };
+      if (ts >= currentStart) {
+        stat.currentCount += 1;
+      } else if (ts >= previousStart) {
+        stat.previousCount += 1;
+      }
+      stats.set(partnerId, stat);
+    });
+  });
+
+  const trends = Array.from(stats.values())
+    .map((entry) => {
+      const delta = (entry.currentCount || 0) - (entry.previousCount || 0);
+      const direction = delta > 0 ? 'up' : (delta < 0 ? 'down' : 'flat');
+      return {
+        ...entry,
+        partnerName: partnerLookup(entry.partnerId),
+        delta,
+        direction
+      };
+    })
+    .filter((entry) => (entry.currentCount || 0) > 0 || (entry.previousCount || 0) > 0)
+    .sort((a, b) => {
+      const deltaDiff = (b.delta || 0) - (a.delta || 0);
+      if (deltaDiff !== 0) return deltaDiff;
+      return (b.currentCount || 0) - (a.currentCount || 0);
+    });
+
+  return trends;
+}
+
 // Get top referral partners
 export function getTopReferralPartners(partners, limit = 10) {
   return partners
@@ -526,7 +610,15 @@ export async function buildLabsModel() {
     console.warn('[LABS] model validation failed softly', err);
   }
 
-  const finalModel = { ...model, validationWarnings };
+  const referralTrends30 = computeReferralTrends(model, { windowDays: 30 });
+  const finalModel = {
+    ...model,
+    analytics: {
+      ...model.analytics,
+      referralTrends30
+    },
+    validationWarnings
+  };
 
   console.debug('[LABS] model loaded', {
     contactCount: finalModel.contacts.length,
