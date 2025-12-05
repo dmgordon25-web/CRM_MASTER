@@ -45,11 +45,11 @@ const CONTACT_VALIDATION_CONFIG = {
   },
   email: {
     fields: ['email'],
-    message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email or phone required'
+    message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email is required'
   },
   phone: {
     fields: ['phone'],
-    message: () => 'Phone or email required'
+    message: () => 'Phone is required'
   }
 };
 
