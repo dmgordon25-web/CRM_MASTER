@@ -7,6 +7,16 @@ import { stageLabelFromKey } from '../pipeline/stages.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
+function dedupeById(items = []) {
+  const map = new Map();
+  items.forEach((item) => {
+    const id = item?.id || item?._id;
+    if (!id || map.has(id)) return;
+    map.set(id, item);
+  });
+  return Array.from(map.values());
+}
+
 function getDbApi(method) {
   const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
   if (scope && typeof scope[method] === 'function') return scope[method];
@@ -357,14 +367,30 @@ export {
 };
 
 export async function buildLabsModel() {
-  const [contactsRaw, partners, tasksRaw] = await Promise.all([
+  const [contactsRaw, partnersRaw, tasksRaw] = await Promise.all([
     getAllContacts(),
     getAllPartners(),
     getAllTasks()
   ]);
 
-  const contacts = contactsRaw.map(normalizeContact);
-  const tasks = tasksRaw.map(normalizeTask);
+  const normalizedContacts = contactsRaw
+    .map(normalizeContact)
+    .filter((contact) => contact && contact.id);
+  const contacts = dedupeById(normalizedContacts).filter((contact) => {
+    const stage = canonicalStageKey(contact.stage || contact.lane);
+    if (!stage) return false;
+    const archived = contact.status === 'archived' || contact.isArchived;
+    return !archived;
+  });
+
+  const normalizedPartners = partnersRaw.filter((partner) => partner && partner.id);
+  const partners = dedupeById(normalizedPartners);
+
+  const normalizedTasks = tasksRaw
+    .map(normalizeTask)
+    .filter((task) => task && task.id && !task.deleted && !task.isDeleted && !task.isTemplate && !task.isPlaceholder);
+  const tasks = dedupeById(normalizedTasks);
+
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
   const partnerMap = new Map(partners.map((p) => [p.id, p]));
   const laneOrder = CANONICAL_STAGE_ORDER.concat(['lost']);
@@ -381,11 +407,16 @@ export async function buildLabsModel() {
     canonicalStage: canonicalStageKey
   });
 
-  const celebrations = getUpcomingCelebrations(contacts, 30);
+  const activePipelineContacts = contacts.filter((contact) => {
+    const stage = canonicalStageKey(contact.stage || contact.lane);
+    return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
+  });
+
+  const celebrations = getUpcomingCelebrations(activePipelineContacts, 30);
   const analytics = {
-    funnel: computeStageFunnel(contacts),
-    velocityBuckets: computeStageAgeBuckets(contacts),
-    staleSummary: computeStaleSummary(contacts)
+    funnel: computeStageFunnel(activePipelineContacts),
+    velocityBuckets: computeStageAgeBuckets(activePipelineContacts),
+    staleSummary: computeStaleSummary(activePipelineContacts)
   };
 
   console.debug('[LABS] model loaded', {
