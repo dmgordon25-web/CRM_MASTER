@@ -33,14 +33,13 @@ import { suggestFollowUpSchedule, describeFollowUpCadence } from './tasks/task_u
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import { acquireContactScrollLock, releaseContactScrollLock } from './ui/scroll_lock.js';
 import { logError, notifyError } from './util/errors.js';
+import { validateContact as validateContactSchema } from './validation/schema.js';
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
   const m = document.querySelector('[data-ui="contact-edit-modal"]');
   if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
 };
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function createTaskViaService(payload) {
   const api = await getTasksApi();
@@ -51,40 +50,35 @@ async function createTaskViaService(payload) {
   return fn(payload);
 }
 
-function resolveContactName(model) {
-  if (!model || typeof model !== 'object') return '';
-  if (typeof model.name === 'string' && model.name.trim()) {
-    return model.name.trim();
-  }
-  const first = typeof model.firstName === 'string' ? model.firstName.trim() : '';
-  const last = typeof model.lastName === 'string' ? model.lastName.trim() : '';
-  return [first, last].filter(Boolean).join(' ').trim();
+const SCHEMA_ERROR_MAPPINGS = [
+  { match: 'name', key: 'name', code: 'required' },
+  { match: 'email is required', key: 'email', code: 'required' },
+  { match: 'email is invalid', key: 'email', code: 'invalid' },
+  { match: 'phone is required', key: 'phone', code: 'required' },
+  { match: 'phone is invalid', key: 'phone', code: 'invalid' },
+  { match: 'stage', key: 'stage', code: 'invalid' },
+  { match: 'status', key: 'status', code: 'invalid' },
+  { match: 'pipelineMilestone', key: 'pipelineMilestone', code: 'invalid' },
+];
+
+function mapSchemaErrors(errors) {
+  const normalized = {};
+  if (!Array.isArray(errors)) return normalized;
+  errors.forEach((err) => {
+    const text = String(err || '').toLowerCase();
+    const found = SCHEMA_ERROR_MAPPINGS.find((entry) => text.includes(entry.match.toLowerCase()));
+    if (found && !normalized[found.key]) {
+      normalized[found.key] = found.code;
+    }
+  });
+  return normalized;
 }
 
 export function validateContact(model) {
-  const source = model && typeof model === 'object' ? model : {};
-  const errors = {};
-
-  const name = resolveContactName(source);
-  if (!name) {
-    errors.name = 'required';
-  }
-
-  const email = typeof source.email === 'string' ? source.email.trim() : '';
-  const phone = typeof source.phone === 'string' ? source.phone.trim() : '';
-  const hasPhone = Boolean(phone);
-  const hasEmail = Boolean(email);
-
-  if (hasEmail && !EMAIL_PATTERN.test(email)) {
-    errors.email = 'invalid';
-  }
-
-  if (!hasEmail && !hasPhone) {
-    errors.email = errors.email || 'required';
-    errors.phone = 'required';
-  }
-
-  return { ok: Object.keys(errors).length === 0, errors };
+  const result = validateContactSchema(model) || { ok: true, errors: [], normalized: model };
+  const errors = mapSchemaErrors(result.errors || []);
+  const ok = result.ok !== false && Object.keys(errors).length === 0;
+  return { ok, errors, normalized: result.normalized || model };
 }
 
 
@@ -182,11 +176,11 @@ export function normalizeContactId(input) {
     },
     email: {
       selectors: ['#c-email'],
-      message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email or phone required'
+      message: (code) => code === 'invalid' ? 'Enter a valid email' : 'Email is required'
     },
     phone: {
       selectors: ['#c-phone'],
-      message: () => 'Phone or email required'
+      message: () => 'Phone is required'
     }
   };
 
@@ -2024,7 +2018,7 @@ export function normalizeContactId(input) {
           email: emailValue,
           phone: phoneValue,
           name: `${firstNameValue} ${lastNameValue}`.trim()
-        }) || { ok: true, errors: {} };
+        }) || { ok: true, errors: {}, normalized: {} };
         const validationOutcome = applyContactValidation(body, validationResult.errors || {});
         if (!validationResult.ok) {
           if (validationOutcome.firstInvalid) {
@@ -2033,6 +2027,14 @@ export function normalizeContactId(input) {
           toastWarn(CONTACT_INVALID_TOAST);
           return null;
         }
+        const normalizedModel = validationResult.normalized || {};
+        const normalizedFirst = (normalizedModel.firstName ?? normalizedModel.first ?? '').trim() || firstNameValue;
+        const normalizedLast = (normalizedModel.lastName ?? normalizedModel.last ?? '').trim() || lastNameValue;
+        const normalizedEmail = (normalizedModel.email ?? '').trim() || emailValue;
+        const normalizedPhone = (normalizedModel.phone ?? '').trim() || phoneValue;
+        const normalizedStage = normalizedModel.stage || $('#c-stage', body).value;
+        const normalizedStatus = normalizedModel.status || $('#c-status', body).value;
+        const normalizedMilestone = normalizedModel.pipelineMilestone || $('#c-milestone', body).value;
         renderContactValidationSummary(body, '');
         setBusy(true);
         try {
@@ -2051,13 +2053,13 @@ export function normalizeContactId(input) {
           if (Array.isArray(baseExtras.timeline)) { baseExtras.timeline = baseExtras.timeline.slice(); }
           const lastContactValue = $('#c-lastcontact', body).value || '';
           const u = Object.assign({}, c, {
-            first: firstNameValue,
-            last: lastNameValue,
-            email: emailValue,
-            phone: phoneValue,
+            first: normalizedFirst,
+            last: normalizedLast,
+            email: normalizedEmail,
+            phone: normalizedPhone,
             address: $('#c-address', body).value.trim(), city: $('#c-city', body).value.trim(),
             state: ($('#c-state', body).value || '').toUpperCase(), zip: $('#c-zip', body).value.trim(),
-            stage: $('#c-stage', body).value, status: $('#c-status', body).value,
+            stage: normalizedStage, status: normalizedStatus,
             loanAmount: Number($('#c-amount', body).value || 0), rate: Number($('#c-rate', body).value || 0),
             fundedDate: $('#c-funded', body).value || '', buyerPartnerId: $('#c-buyer', body).value || null,
             listingPartnerId: $('#c-listing', body).value || null, lastContact: lastContactValue,
@@ -2077,7 +2079,7 @@ export function normalizeContactId(input) {
             employmentType: $('#c-employment', body).value,
             creditRange: $('#c-credit', body).value,
             docStage: $('#c-docstage', body).value,
-            pipelineMilestone: $('#c-milestone', body).value,
+            pipelineMilestone: normalizedMilestone,
             preApprovalExpires: $('#c-preexp', body).value || '',
             nextFollowUp: $('#c-nexttouch', body).value || '',
             secondaryEmail: $('#c-email2', body).value.trim(),
