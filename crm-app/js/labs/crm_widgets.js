@@ -25,6 +25,33 @@ import {
 } from './data.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 
+const WIDGET_META = {
+  labsKpiSummary: { title: '📊 CRM Snapshot', subtitle: 'Canonical metrics at a glance' },
+  labsPipelineSnapshot: { title: '🧭 Pipeline Snapshot', subtitle: 'Stage distribution' },
+  labsTasks: { title: '✅ Tasks Due', subtitle: 'Due today and overdue' },
+  today: { title: "📅 Today's Work", subtitle: 'Tasks, appointments, celebrations' },
+  todo: { title: '✅ To-Do', subtitle: 'Due today and overdue' },
+  favorites: { title: '⭐ Favorites', subtitle: 'Recently favorited leads' },
+  priorityActions: { title: '🚨 Priority Actions', subtitle: 'Overdue tasks and stale deals' },
+  partnerPortfolio: { title: '🎯 Partner Portfolio', subtitle: 'Breakdown by tier' },
+  referralLeaderboard: { title: '🏆 Referral Leaders', subtitle: 'Top referral partners' },
+  relationshipOpportunities: { title: '🤝 Client Care Radar', subtitle: 'Past and returning clients' },
+  pipelineFunnel: { title: '📈 Pipeline Funnel', subtitle: 'Counts by stage' },
+  pipelineVelocity: { title: '⏱ Velocity', subtitle: 'Cycle time buckets' },
+  pipelineRisk: { title: '🛑 Pipeline Risk', subtitle: '14+ day stale files' },
+  pipelineMomentum: { title: '🌊 Pipeline Momentum', subtitle: 'Stage mix' },
+  closingWatch: { title: '🛫 Closing Watch', subtitle: 'Nearing close' },
+  staleDeals: { title: '⚠️ Stale Deals', subtitle: 'Inactive for 14+ days' },
+  milestones: { title: '📌 Milestones Ahead', subtitle: 'Upcoming appointments' },
+  upcomingCelebrations: { title: '🎉 Upcoming Celebrations', subtitle: 'Birthdays & anniversaries' },
+  pipelineCalendar: { title: '🗓 Pipeline Calendar', subtitle: 'Next appointments' },
+  docPulse: { title: '📁 Document Pulse', subtitle: 'Milestone counts' }
+};
+
+function widgetSpec(id, overrides = {}) {
+  return { id, ...(WIDGET_META[id] || {}), ...overrides };
+}
+
 function renderCard(container, { title, body, badge } = {}) {
   const card = document.createElement('div');
   card.className = 'labs-crm-widget';
@@ -302,41 +329,58 @@ export function renderKPIsWidget(container, model) {
 // Pipeline momentum (bars)
 // =======================
 export function renderPipelineMomentumWidget(container, model) {
-  const groups = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
-  const total = model.contacts.length;
-  if (!total) {
-    renderCard(container, { title: '🌊 Pipeline Momentum', body: '<p class="empty-state">No pipeline data yet</p>' });
-    return;
-  }
-  const stages = Object.keys(STAGE_CONFIG);
+  let shell;
+  try {
+    const contacts = model.contacts || [];
+    const groups = model.snapshot?.pipelineCounts || groupByStage(contacts);
+    const total = contacts.length;
+    const status = total ? 'ok' : 'empty';
 
-  const barsHTML = stages.map((stage, idx) => {
-    const count = groups?.[stage] || 0;
-    const percent = ((count / total) * 100).toFixed(1);
-    const config = STAGE_CONFIG[stage] || {};
-    return `
-      <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
-        <div class="momentum-label">
-          <span class="stage-icon">${config.icon || '●'}</span>
-          <span class="stage-name">${config.label || stage}</span>
-        </div>
-        <div class="momentum-bar-container">
-          <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
-            <div class="momentum-glow"></div>
+    shell = renderWidgetShell(container, widgetSpec('pipelineMomentum', {
+      status,
+      emptyMessage: 'No pipeline data yet.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    const stages = Object.keys(STAGE_CONFIG);
+    renderWidgetBody(shell, (body) => {
+      const barsHTML = stages.map((stage, idx) => {
+        const count = groups?.[stage] || 0;
+        const percent = ((count / total) * 100).toFixed(1);
+        const config = STAGE_CONFIG[stage] || {};
+        return `
+          <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
+            <div class="momentum-label">
+              <span class="stage-icon">${config.icon || '●'}</span>
+              <span class="stage-name">${config.label || stage}</span>
+            </div>
+            <div class="momentum-bar-container">
+              <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
+                <div class="momentum-glow"></div>
+              </div>
+            </div>
+            <div class="momentum-stats">
+              <span class="stat-count">${count}</span>
+              <span class="stat-percent">${percent}%</span>
+            </div>
           </div>
-        </div>
-        <div class="momentum-stats">
-          <span class="stat-count">${count}</span>
-          <span class="stat-percent">${percent}%</span>
-        </div>
-      </div>
-    `;
-  }).join('');
+        `;
+      }).join('');
 
-  renderCard(container, {
-    title: '🌊 Pipeline Momentum',
-    body: `<div class="momentum-bars">${barsHTML}</div>`
-  });
+      body.innerHTML = `<div class="momentum-bars">${barsHTML}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline momentum render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('pipelineMomentum', {
+      status: 'error',
+      errorMessage: 'Unable to load pipeline momentum'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
@@ -602,184 +646,253 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 // Partner portfolio donut
 // =======================
 export function renderPartnerPortfolioWidget(container, model) {
-  const partners = model.partners || [];
-  if (!partners.length) {
-    renderCard(container, { title: '🎯 Partner Portfolio', body: '<p class="empty-state">No partners tracked yet</p>' });
-    return;
-  }
-  const tierGroups = groupPartnersByTier(partners);
-  const total = partners.length || 1;
-  const tiers = Object.keys(tierGroups).sort();
-  const colors = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1'];
+  let shell;
+  try {
+    const partners = model.partners || [];
+    const status = partners.length ? 'ok' : 'empty';
 
-  let cumulativePercent = 0;
-  const segments = tiers.map((tier, idx) => {
-    const count = tierGroups[tier].length;
-    const percent = (count / total) * 100;
-    const offset = cumulativePercent;
-    cumulativePercent += percent;
-    return { tier, count, percent, offset, color: colors[idx % colors.length] };
-  });
+    shell = renderWidgetShell(container, widgetSpec('partnerPortfolio', {
+      status,
+      emptyMessage: 'No partners tracked yet.'
+    }));
 
-  const legendHTML = segments.map((seg, idx) => `
-    <div class="portfolio-segment" style="animation-delay:${idx * 0.1}s">
-      <div class="segment-indicator" style="background:${seg.color}"></div>
-      <div class="segment-info">
-        <div class="segment-tier">${seg.tier}</div>
-        <div class="segment-count">${seg.count} partners</div>
-      </div>
-      <div class="segment-percent">${seg.percent.toFixed(1)}%</div>
-    </div>
-  `).join('');
+    if (status !== 'ok') {
+      return shell;
+    }
 
-  const donutSegments = segments.map((seg) => {
-    const circumference = 2 * Math.PI * 40;
-    const strokeDash = (seg.percent / 100) * circumference;
-    const strokeOffset = -((seg.offset / 100) * circumference);
-    return `<circle cx="50" cy="50" r="40" fill="none" stroke="${seg.color}" stroke-width="20" stroke-dasharray="${strokeDash} ${circumference}" stroke-dashoffset="${strokeOffset}" transform="rotate(-90 50 50)" class="donut-segment"/>`;
-  }).join('');
+    const tierGroups = groupPartnersByTier(partners);
+    const total = partners.length || 1;
+    const tiers = Object.keys(tierGroups).sort();
+    const colors = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1'];
 
-  renderCard(container, {
-    title: '🎯 Partner Portfolio',
-    body: `
-      <div class="portfolio-donut">
-        <svg viewBox="0 0 100 100" class="donut-chart">
-          <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" stroke-width="20"/>
-          ${donutSegments}
-        </svg>
-        <div class="donut-center">
-          <div class="donut-total">${partners.length}</div>
-          <div class="donut-label">Partners</div>
+    let cumulativePercent = 0;
+    const segments = tiers.map((tier, idx) => {
+      const count = tierGroups[tier].length;
+      const percent = (count / total) * 100;
+      const offset = cumulativePercent;
+      cumulativePercent += percent;
+      return { tier, count, percent, offset, color: colors[idx % colors.length] };
+    });
+
+    renderWidgetBody(shell, (body) => {
+      const legendHTML = segments.map((seg, idx) => `
+        <div class="portfolio-segment" style="animation-delay:${idx * 0.1}s">
+          <div class="segment-indicator" style="background:${seg.color}"></div>
+          <div class="segment-info">
+            <div class="segment-tier">${seg.tier}</div>
+            <div class="segment-count">${seg.count} partners</div>
+          </div>
+          <div class="segment-percent">${seg.percent.toFixed(1)}%</div>
         </div>
-      </div>
-      <div class="portfolio-legend">${legendHTML}</div>
-    `
-  });
+      `).join('');
+
+      const donutSegments = segments.map((seg) => {
+        const circumference = 2 * Math.PI * 40;
+        const strokeDash = (seg.percent / 100) * circumference;
+        const strokeOffset = -((seg.offset / 100) * circumference);
+        return `<circle cx="50" cy="50" r="40" fill="none" stroke="${seg.color}" stroke-width="20" stroke-dasharray="${strokeDash} ${circumference}" stroke-dashoffset="${strokeOffset}" transform="rotate(-90 50 50)" class="donut-segment"/>`;
+      }).join('');
+
+      body.innerHTML = `
+        <div class="portfolio-donut">
+          <svg viewBox="0 0 100 100" class="donut-chart">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" stroke-width="20"/>
+            ${donutSegments}
+          </svg>
+          <div class="donut-center">
+            <div class="donut-total">${partners.length}</div>
+            <div class="donut-label">Partners</div>
+          </div>
+        </div>
+        <div class="portfolio-legend">${legendHTML}</div>
+      `;
+    });
+  } catch (err) {
+    console.error('[labs] partner portfolio render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('partnerPortfolio', {
+      status: 'error',
+      errorMessage: 'Unable to load partner portfolio'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Referral leaderboard
 // =======================
 export function renderReferralLeaderboardWidget(container, model) {
-  const topPartners = model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5);
-  if (!topPartners.length) {
-    renderCard(container, { title: '🏆 Referral Leaders', body: '<p class="empty-state">No referral data yet</p>' });
-    return;
+  let shell;
+  try {
+    const topPartners = model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5);
+    const status = topPartners.length ? 'ok' : 'empty';
+
+    shell = renderWidgetShell(container, widgetSpec('referralLeaderboard', {
+      status,
+      emptyMessage: 'No referral data yet.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const partnersHTML = topPartners.map((partner, idx) => {
+        const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+        const ranks = ['gold', 'silver', 'bronze', 'standard', 'standard'];
+        return `
+          <div class="leaderboard-card rank-${ranks[idx]}" style="animation-delay:${idx * 0.1}s">
+            <div class="rank-badge">${medals[idx]}</div>
+            <div class="partner-info">
+              <div class="partner-name">${partner.name || partner.company || 'Partner'}</div>
+              <div class="partner-company">${partner.tier || ''}</div>
+            </div>
+            <div class="partner-stats">
+              <div class="stat-value">${partner.volume ? formatCurrency(partner.volume) : partner.referralVolume || 0}</div>
+              <div class="stat-label">Volume</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      body.innerHTML = `<div class="leaderboard-list">${partnersHTML}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] referral leaderboard render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('referralLeaderboard', {
+      status: 'error',
+      errorMessage: 'Unable to load referral leaders'
+    }));
   }
 
-  const partnersHTML = topPartners.map((partner, idx) => {
-    const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
-    const ranks = ['gold', 'silver', 'bronze', 'standard', 'standard'];
-    return `
-      <div class="leaderboard-card rank-${ranks[idx]}" style="animation-delay:${idx * 0.1}s">
-        <div class="rank-badge">${medals[idx]}</div>
-        <div class="partner-info">
-          <div class="partner-name">${partner.name || partner.company || 'Partner'}</div>
-          <div class="partner-company">${partner.tier || ''}</div>
-        </div>
-        <div class="partner-stats">
-          <div class="stat-value">${partner.volume ? formatCurrency(partner.volume) : partner.referralVolume || 0}</div>
-          <div class="stat-label">Volume</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  renderCard(container, {
-    title: '🏆 Referral Leaders',
-    body: `<div class="leaderboard-list">${partnersHTML}</div>`
-  });
+  return shell;
 }
 
 // =======================
 // Stale deals
 // =======================
 export function renderStaleDealsWidget(container, model) {
-  const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts, 14);
-  const dealsHTML = staleDeals.slice(0, 6).map((deal, idx) => {
-    const dealContact = deal.contact || deal;
-    const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(dealContact) : dealContact;
-    const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
-    const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
-    const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(loanDisplay.stage)] || {};
-    const name = loanDisplay.borrowerName
-      || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || dealContact.id) : null)
-      || loanDisplay.displayName
-      || loanDisplay.name;
-    return `
-      <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
-        <div class="stale-header">
-          <div class="stale-name">${name || 'Unknown'}</div>
-          <div class="stale-days">${daysSince}d</div>
-        </div>
-        <div class="stale-details">
-          <span class="stale-stage">${loanDisplay.stageLabel || stageConfig.label || dealContact.stage}</span>
-          ${loanDisplay.loanAmount || loanDisplay.amount ? `<span class="stale-amount">${formatCurrency(loanDisplay.loanAmount || loanDisplay.amount)}</span>` : ''}
-        </div>
-        <div class="stale-urgency-bar" style="--urgency:${Math.min(daysSince / 30, 1)}"></div>
-      </div>
-    `;
-  }).join('');
+  let shell;
+  try {
+    const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts || [], 14);
+    const status = staleDeals.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '⚠️ Stale Deals',
-    badge: staleDeals.length,
-    body: `<div class="stale-list">${dealsHTML || '<p class="empty-state">No stale deals 🎉</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('staleDeals', {
+      status,
+      emptyMessage: 'No stale deals for this view.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const dealsHTML = staleDeals.slice(0, 6).map((deal, idx) => {
+        const dealContact = deal.contact || deal;
+        const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(dealContact) : dealContact;
+        const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
+        const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
+        const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(loanDisplay.stage)] || {};
+        const name = loanDisplay.borrowerName
+          || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || dealContact.id) : null)
+          || loanDisplay.displayName
+          || loanDisplay.name;
+        return `
+          <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
+            <div class="stale-header">
+              <div class="stale-name">${name || 'Unknown'}</div>
+              <div class="stale-days">${daysSince}d</div>
+            </div>
+            <div class="stale-details">
+              <span class="stale-stage">${loanDisplay.stageLabel || stageConfig.label || dealContact.stage}</span>
+              ${loanDisplay.loanAmount || loanDisplay.amount ? `<span class="stale-amount">${formatCurrency(loanDisplay.loanAmount || loanDisplay.amount)}</span>` : ''}
+            </div>
+            <div class="stale-urgency-bar" style="--urgency:${Math.min(daysSince / 30, 1)}"></div>
+          </div>
+        `;
+      }).join('');
+
+      body.innerHTML = `<div class="stale-list">${dealsHTML}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] stale deals render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('staleDeals', {
+      status: 'error',
+      errorMessage: 'Unable to load stale deals'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Today's work & celebrations
 // =======================
 export function renderTodayWidget(container, model) {
-  const openTasks = getOpenTasks(model.tasks || []);
-  const todayTasks = model.snapshot?.focus?.tasksToday || getTodayTasks(openTasks).slice(0, 5);
-  const celebrations = getUpcomingCelebrations(model.contacts, 7).slice(0, 4);
-  const appointments = model.snapshot?.focus?.nextAppointments || [];
+  let shell;
+  try {
+    const openTasks = getOpenTasks(model.tasks || []);
+    const todayTasks = model.snapshot?.focus?.tasksToday || getTodayTasks(openTasks).slice(0, 5);
+    const celebrations = getUpcomingCelebrations(model.contacts || [], 7).slice(0, 4);
+    const appointments = model.snapshot?.focus?.nextAppointments || [];
 
-  const hasItems = todayTasks.length || celebrations.length || appointments.length;
-  if (!hasItems) {
-    renderCard(container, { title: "📅 Today's Work", body: '<p class="empty-state">No tasks or events scheduled</p>' });
-    return;
+    const hasItems = todayTasks.length || celebrations.length || appointments.length;
+    const status = hasItems ? 'ok' : 'empty';
+
+    shell = renderWidgetShell(container, widgetSpec('today', {
+      status,
+      emptyMessage: 'No tasks or events scheduled.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const tasksHTML = todayTasks.map((task, idx) => `
+        <div class="today-item task-item" style="animation-delay:${idx * 0.05}s">
+          <div class="today-icon">✓</div>
+          <div class="today-content">
+            <div class="today-title">${task.title || 'Task'}</div>
+            <div class="today-meta">${task.contactName || ''}</div>
+          </div>
+          <div class="today-time">${task.dueTime || 'All day'}</div>
+        </div>
+      `).join('');
+
+      const appointmentHTML = appointments.slice(0, 3).map((appt, idx) => `
+        <div class="today-item appointment-item" style="animation-delay:${idx * 0.06 + 0.2}s">
+          <div class="today-icon">📅</div>
+          <div class="today-content">
+            <div class="today-title">${appt.title || 'Appointment'}</div>
+            <div class="today-meta">${appt.contactName || ''}</div>
+          </div>
+          <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
+        </div>
+      `).join('');
+
+      const celebrationsHTML = celebrations.map((cel, idx) => `
+        <div class="today-item celebration-item" style="animation-delay:${idx * 0.05 + 0.2}s">
+          <div class="today-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</div>
+          <div class="today-content">
+            <div class="today-title">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact'}</div>
+            <div class="today-meta">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
+          </div>
+          <div class="today-time">${formatDate(cel.date)}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="today-list">${tasksHTML}${appointmentHTML}${celebrationsHTML}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] today widget render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('today', {
+      status: 'error',
+      errorMessage: 'Unable to load today\'s work'
+    }));
   }
 
-  const tasksHTML = todayTasks.map((task, idx) => `
-    <div class="today-item task-item" style="animation-delay:${idx * 0.05}s">
-      <div class="today-icon">✓</div>
-      <div class="today-content">
-        <div class="today-title">${task.title || 'Task'}</div>
-        <div class="today-meta">${task.contactName || ''}</div>
-      </div>
-      <div class="today-time">${task.dueTime || 'All day'}</div>
-    </div>
-  `).join('');
-
-  const appointmentHTML = appointments.slice(0, 3).map((appt, idx) => `
-    <div class="today-item appointment-item" style="animation-delay:${idx * 0.06 + 0.2}s">
-      <div class="today-icon">📅</div>
-      <div class="today-content">
-        <div class="today-title">${appt.title || 'Appointment'}</div>
-        <div class="today-meta">${appt.contactName || ''}</div>
-      </div>
-      <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
-    </div>
-  `).join('');
-
-  const celebrationsHTML = celebrations.map((cel, idx) => `
-    <div class="today-item celebration-item" style="animation-delay:${idx * 0.05 + 0.2}s">
-      <div class="today-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</div>
-      <div class="today-content">
-        <div class="today-title">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact'}</div>
-        <div class="today-meta">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
-      </div>
-      <div class="today-time">${formatDate(cel.date)}</div>
-    </div>
-  `).join('');
-
-  renderCard(container, {
-    title: "📅 Today's Work",
-    body: `<div class="today-list">${tasksHTML || '<p class="empty-state">No tasks for today</p>'}${appointmentHTML}${celebrationsHTML}</div>`
-  });
+  return shell;
 }
 
 // =======================
@@ -1009,182 +1122,352 @@ export function renderTodoWidget(container, model) {
 // Priority actions (overdue + stale)
 // =======================
 export function renderPriorityActionsWidget(container, model) {
-  const overdue = model.snapshot?.dueGroups?.overdue || [];
-  const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts, 14);
-  const rows = overdue.map((task) => ({
-    label: task.title || 'Task',
-    meta: 'Overdue',
-    tone: 'danger'
-  })).concat(staleDeals.slice(0, 5).map((deal) => {
-    const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(deal.contact || deal) : (deal.contact || deal);
-    const label = loanDisplay.borrowerName
-      || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || loanDisplay.id) : null)
-      || loanDisplay.displayName
-      || loanDisplay.name
-      || 'Contact';
-    return {
-      label,
-      meta: 'Stale deal',
-      tone: 'warning'
-    };
-  }));
+  let shell;
+  try {
+    const overdue = model.snapshot?.dueGroups?.overdue || [];
+    const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts || [], 14);
+    const rows = overdue.map((task) => ({
+      label: task.title || 'Task',
+      meta: 'Overdue',
+      tone: 'danger'
+    })).concat(staleDeals.slice(0, 5).map((deal) => {
+      const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(deal.contact || deal) : (deal.contact || deal);
+      const label = loanDisplay.borrowerName
+        || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || loanDisplay.id) : null)
+        || loanDisplay.displayName
+        || loanDisplay.name
+        || 'Contact';
+      return {
+        label,
+        meta: 'Stale deal',
+        tone: 'warning'
+      };
+    }));
 
-  const list = rows.map((row, idx) => `
-    <div class="priority-row tone-${row.tone}" style="animation-delay:${idx * 0.05}s">
-      <span class="priority-pill">${row.meta}</span>
-      <span class="priority-label">${row.label}</span>
-    </div>
-  `).join('');
+    const status = rows.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '🚨 Priority Actions',
-    body: `<div class="priority-list">${list || '<p class="empty-state">All clear</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('priorityActions', {
+      status,
+      emptyMessage: 'No priority actions right now.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const list = rows.map((row, idx) => `
+        <div class="priority-row tone-${row.tone}" style="animation-delay:${idx * 0.05}s">
+          <span class="priority-pill">${row.meta}</span>
+          <span class="priority-label">${row.label}</span>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="priority-list">${list}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] priority actions render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('priorityActions', {
+      status: 'error',
+      errorMessage: 'Unable to load priority actions'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Milestones / appointments
 // =======================
 export function renderMilestonesWidget(container, model) {
-  const appointments = model.snapshot?.focus?.nextAppointments || [];
-  const rows = appointments.slice(0, 6).map((appt, idx) => `
-    <div class="milestone-row" style="animation-delay:${idx * 0.05}s">
-      <div>
-        <div class="milestone-title">${appt.title || 'Appointment'}</div>
-        <div class="milestone-sub">${appt.contactName || ''}</div>
-      </div>
-      <div class="milestone-date">${formatDate(appt.due || appt.dueTs)}</div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const appointments = model.snapshot?.focus?.nextAppointments || [];
+    const status = appointments.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '📌 Milestones Ahead',
-    body: `<div class="milestone-list">${rows || '<p class="empty-state">No milestones</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('milestones', {
+      status,
+      emptyMessage: 'No milestones scheduled.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const rows = appointments.slice(0, 6).map((appt, idx) => `
+        <div class="milestone-row" style="animation-delay:${idx * 0.05}s">
+          <div>
+            <div class="milestone-title">${appt.title || 'Appointment'}</div>
+            <div class="milestone-sub">${appt.contactName || ''}</div>
+          </div>
+          <div class="milestone-date">${formatDate(appt.due || appt.dueTs)}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="milestone-list">${rows}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] milestones render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('milestones', {
+      status: 'error',
+      errorMessage: 'Unable to load milestones'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Celebrations (birthdays / anniversaries)
 // =======================
 export function renderUpcomingCelebrationsWidget(container, model) {
-  const celebrations = model.celebrations.slice(0, 8);
-  const items = celebrations.map((cel, idx) => `
-    <div class="celebration-row" style="animation-delay:${idx * 0.05}s">
-      <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
-      <div class="celebration-info">
-        <div class="celebration-name">${cel.contact.displayName || cel.contact.name || (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : 'Contact')}</div>
-        <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
-      </div>
-      <div class="celebration-date">${formatDate(cel.date)}</div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const celebrations = (model.celebrations || []).slice(0, 8);
+    const status = celebrations.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '🎉 Upcoming Celebrations',
-    body: `<div class="celebration-list">${items || '<p class="empty-state">No celebrations</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
+      status,
+      emptyMessage: 'No celebrations.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const items = celebrations.map((cel, idx) => `
+        <div class="celebration-row" style="animation-delay:${idx * 0.05}s">
+          <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
+          <div class="celebration-info">
+            <div class="celebration-name">${cel.contact.displayName || cel.contact.name || (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : 'Contact')}</div>
+            <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
+          </div>
+          <div class="celebration-date">${formatDate(cel.date)}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="celebration-list">${items}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] celebrations render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
+      status: 'error',
+      errorMessage: 'Unable to load celebrations'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Relationship / nurture radar
 // =======================
 export function renderRelationshipWidget(container, model) {
-  const nurture = model.contacts.filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
-  const items = nurture.slice(0, 8).map((contact, idx) => `
-    <div class="relationship-row" style="animation-delay:${idx * 0.05}s">
-      <div class="relationship-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
-      <div class="relationship-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
-      <div class="relationship-updated">${formatRelativeTime(contact.updatedTs)}</div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const nurture = (model.contacts || []).filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
+    const status = nurture.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '🤝 Client Care Radar',
-    body: `<div class="relationship-list">${items || '<p class="empty-state">No nurture targets</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('relationshipOpportunities', {
+      status,
+      emptyMessage: 'No nurture targets right now.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const items = nurture.slice(0, 8).map((contact, idx) => `
+        <div class="relationship-row" style="animation-delay:${idx * 0.05}s">
+          <div class="relationship-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
+          <div class="relationship-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
+          <div class="relationship-updated">${formatRelativeTime(contact.updatedTs)}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="relationship-list">${items}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] relationship opportunities render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('relationshipOpportunities', {
+      status: 'error',
+      errorMessage: 'Unable to load relationship insights'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Closing watchlist
 // =======================
 export function renderClosingWatchWidget(container, model) {
-  const closing = model.contacts.filter((c) => ['approved', 'cleared-to-close', 'funded'].includes(normalizeStagesForDisplay(c.stage)));
-  const items = closing.slice(0, 6).map((contact, idx) => `
-    <div class="closing-row" style="animation-delay:${idx * 0.05}s">
-      <div class="closing-main">
-        <div class="closing-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
-        <div class="closing-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
-      </div>
-      <div class="closing-amount">${contact.loanAmount ? formatCurrency(contact.loanAmount) : ''}</div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const closing = (model.contacts || []).filter((c) => ['approved', 'cleared-to-close', 'funded'].includes(normalizeStagesForDisplay(c.stage)));
+    const status = closing.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '🛫 Closing Watch',
-    body: `<div class="closing-list">${items || '<p class="empty-state">No files nearing close</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('closingWatch', {
+      status,
+      emptyMessage: 'No files nearing close.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const items = closing.slice(0, 6).map((contact, idx) => `
+        <div class="closing-row" style="animation-delay:${idx * 0.05}s">
+          <div class="closing-main">
+            <div class="closing-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
+            <div class="closing-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
+          </div>
+          <div class="closing-amount">${contact.loanAmount ? formatCurrency(contact.loanAmount) : ''}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="closing-list">${items}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] closing watch render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('closingWatch', {
+      status: 'error',
+      errorMessage: 'Unable to load closing watch'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Doc pulse based on milestones
 // =======================
 export function renderDocPulseWidget(container, model) {
-  const milestoneCounts = {};
-  model.contacts.forEach((contact) => {
-    const key = contact.milestone || 'Unknown';
-    milestoneCounts[key] = (milestoneCounts[key] || 0) + 1;
-  });
+  let shell;
+  try {
+    const milestoneCounts = {};
+    const contacts = model.contacts || [];
+    contacts.forEach((contact) => {
+      const key = contact.milestone || 'Unknown';
+      milestoneCounts[key] = (milestoneCounts[key] || 0) + 1;
+    });
 
-  const rows = Object.entries(milestoneCounts).map(([milestone, count], idx) => `
-    <div class="doc-row" style="animation-delay:${idx * 0.04}s">
-      <span class="doc-milestone">${milestone}</span>
-      <span class="doc-count">${count}</span>
-    </div>
-  `).join('');
+    const entries = Object.entries(milestoneCounts);
+    const status = entries.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '📁 Document Pulse',
-    body: `<div class="doc-list">${rows || '<p class="empty-state">No milestone data</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('docPulse', {
+      status,
+      emptyMessage: 'No milestone data.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const rows = entries.map(([milestone, count], idx) => `
+        <div class="doc-row" style="animation-delay:${idx * 0.04}s">
+          <span class="doc-milestone">${milestone}</span>
+          <span class="doc-count">${count}</span>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="doc-list">${rows}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] doc pulse render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('docPulse', {
+      status: 'error',
+      errorMessage: 'Unable to load document pulse'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Pipeline calendar (appointments timeline)
 // =======================
 export function renderPipelineCalendarWidget(container, model) {
-  const appointments = model.snapshot?.focus?.nextAppointments || [];
-  const timeline = appointments.slice(0, 6).map((appt, idx) => `
-    <div class="timeline-row" style="animation-delay:${idx * 0.05}s">
-      <div class="timeline-date">${formatDate(appt.due || appt.dueTs)}</div>
-      <div class="timeline-body">
-        <div class="timeline-title">${appt.title || 'Appointment'}</div>
-        <div class="timeline-meta">${appt.contactName || ''}</div>
-      </div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const appointments = model.snapshot?.focus?.nextAppointments || [];
+    const status = appointments.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '🗓 Pipeline Calendar',
-    body: `<div class="timeline-list">${timeline || '<p class="empty-state">No upcoming events</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('pipelineCalendar', {
+      status,
+      emptyMessage: 'No upcoming events.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const timeline = appointments.slice(0, 6).map((appt, idx) => `
+        <div class="timeline-row" style="animation-delay:${idx * 0.05}s">
+          <div class="timeline-date">${formatDate(appt.due || appt.dueTs)}</div>
+          <div class="timeline-body">
+            <div class="timeline-title">${appt.title || 'Appointment'}</div>
+            <div class="timeline-meta">${appt.contactName || ''}</div>
+          </div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="timeline-list">${timeline}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline calendar render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('pipelineCalendar', {
+      status: 'error',
+      errorMessage: 'Unable to load pipeline calendar'
+    }));
+  }
+
+  return shell;
 }
 
 // =======================
 // Favorites / recent leads
 // =======================
 export function renderFavoritesWidget(container, model) {
-  const leads = model.snapshot?.focus?.recentLeads || [];
-  const list = leads.map((lead, idx) => `
-    <div class="favorite-row" style="animation-delay:${idx * 0.05}s">
-      <div class="favorite-name">${lead.displayName || lead.name || 'Lead'}</div>
-      <div class="favorite-stage">${STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage}</div>
-    </div>
-  `).join('');
+  let shell;
+  try {
+    const leads = model.snapshot?.focus?.recentLeads || [];
+    const status = leads.length ? 'ok' : 'empty';
 
-  renderCard(container, {
-    title: '⭐ Favorites',
-    body: `<div class="favorite-list">${list || '<p class="empty-state">No saved favorites</p>'}</div>`
-  });
+    shell = renderWidgetShell(container, widgetSpec('favorites', {
+      status,
+      emptyMessage: 'No items yet.'
+    }));
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    renderWidgetBody(shell, (body) => {
+      const list = leads.map((lead, idx) => `
+        <div class="favorite-row" style="animation-delay:${idx * 0.05}s">
+          <div class="favorite-name">${lead.displayName || lead.name || 'Lead'}</div>
+          <div class="favorite-stage">${STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage}</div>
+        </div>
+      `).join('');
+
+      body.innerHTML = `<div class="favorite-list">${list}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] favorites render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('favorites', {
+      status: 'error',
+      errorMessage: 'Unable to load favorites'
+    }));
+  }
+
+  return shell;
 }
 
 // Map of widget renderers aligned to dashboard catalog

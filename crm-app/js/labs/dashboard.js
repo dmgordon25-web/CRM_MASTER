@@ -173,6 +173,13 @@ const EXPERIMENTAL_WIDGETS = [
   { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' }
 ];
 
+// Labs widget catalog audit:
+// Core widgets used in defaults/presets/customize: labsKpiSummary, labsPipelineSnapshot, labsTasks,
+// today, todo, favorites, priorityActions, partnerPortfolio, referralLeaderboard,
+// relationshipOpportunities, pipelineFunnel, pipelineVelocity, pipelineRisk.
+// Experimental widgets available only in the experimental section: pipelineMomentum, closingWatch,
+// staleDeals, milestones, upcomingCelebrations, pipelineCalendar, docPulse.
+
 const SECTIONS = [
   {
     id: 'overview',
