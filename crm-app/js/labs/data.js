@@ -244,36 +244,62 @@ export function computeStaleSummary(contacts = [], days = 14) {
 }
 
 export function getLoansForAnalyticsSegment(model = {}, segment = {}, now = Date.now()) {
-  const contacts = Array.isArray(model.contacts) ? model.contacts : [];
   if (!segment || !segment.type) return [];
+
+  const pipelineSource = Array.isArray(model.pipeline) && model.pipeline.length
+    ? model.pipeline
+    : Array.isArray(model.activePipeline) && model.activePipeline.length
+    ? model.activePipeline
+    : Array.isArray(model.contacts)
+    ? model.contacts
+    : [];
+
+  const displayLoan = (loan) => (typeof model.getLoanDisplay === 'function' ? model.getLoanDisplay(loan) : loan);
+
+  let matches = [];
 
   switch (segment.type) {
     case ANALYTICS_SEGMENT_TYPES.STAGE: {
       const key = canonicalStageKey(segment.key);
-      return contacts.filter((contact) => canonicalStageKey(contact.stage || contact.lane) === key);
+      matches = pipelineSource.filter((loan) => canonicalStageKey(loan.stage || loan.lane || loan.stageId) === key);
+      break;
     }
     case ANALYTICS_SEGMENT_TYPES.VELOCITY: {
       const bucket = VELOCITY_BUCKETS.find((b) => b.id === segment.key);
       if (!bucket) return [];
-      return contacts.filter((contact) => {
-        const stage = canonicalStageKey(contact.stage || contact.lane);
+      matches = pipelineSource.filter((loan) => {
+        const stage = canonicalStageKey(loan.stage || loan.lane || loan.stageId);
         if (!stage || ['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage)) return false;
-        const age = getStageAge(contact, now);
+        const age = getStageAge(loan, now);
         if (age === null) return false;
         const minOk = typeof bucket.minDays === 'number' ? age >= bucket.minDays : true;
         const maxOk = typeof bucket.maxDays === 'number' ? age <= bucket.maxDays : true;
         return minOk && maxOk;
       });
+      break;
     }
     case ANALYTICS_SEGMENT_TYPES.RISK: {
-      const staleDeals = getStaleDeals(contacts, segment.days || 14);
-      if (!segment.key || segment.key === 'all') return staleDeals;
+      const staleDeals = getStaleDeals(pipelineSource, segment.days || 14);
+      if (!segment.key || segment.key === 'all') {
+        matches = staleDeals;
+        break;
+      }
       const key = canonicalStageKey(segment.key);
-      return staleDeals.filter((deal) => canonicalStageKey(deal.stage || deal.lane) === key);
+      matches = staleDeals.filter((loan) => canonicalStageKey(loan.stage || loan.lane || loan.stageId) === key);
+      break;
     }
     default:
-      return [];
+      matches = [];
   }
+
+  const withDisplay = matches.map((loan) => {
+    const display = displayLoan(loan);
+    if (display && !display.id && (display.contactId || display.borrowerId)) {
+      return { ...display, id: display.contactId || display.borrowerId };
+    }
+    return display;
+  });
+  return dedupeById(withDisplay);
 }
 
 // Calculate partner tier distribution
