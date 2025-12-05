@@ -42,6 +42,7 @@ const SIZE_TO_WIDTH = {
 const WIDGET_LABELS = {
   labsKpiSummary: 'Snapshot KPIs',
   labsPipelineSnapshot: 'Pipeline Snapshot',
+  goalProgress: 'Production Goals',
   labsTasks: 'Tasks Due',
   today: 'Today\'s Work',
   todo: 'To-do List',
@@ -82,6 +83,55 @@ const LABS_PRESETS = {
         labsPipelineSnapshot: 'w3',
         favorites: 'w1'
       }
+    },
+    weeklyReview: {
+      label: 'Weekly Review',
+      order: [
+        'labsKpiSummary',
+        'goalProgress',
+        'labsPipelineSnapshot',
+        'pipelineFunnel',
+        'pipelineVelocity',
+        'pipelineRisk',
+        'closingWatch',
+        'referralTrends',
+        'partnerPortfolio',
+        'relationshipOpportunities',
+        'priorityActions',
+        'todo',
+        'favorites'
+      ],
+      visibility: {
+        labsKpiSummary: true,
+        goalProgress: true,
+        labsPipelineSnapshot: true,
+        pipelineFunnel: true,
+        pipelineVelocity: true,
+        pipelineRisk: true,
+        closingWatch: true,
+        referralTrends: true,
+        partnerPortfolio: true,
+        relationshipOpportunities: true,
+        priorityActions: true,
+        todo: true,
+        favorites: true
+      },
+      widths: {
+        labsKpiSummary: 'w3',
+        goalProgress: 'w2',
+        labsPipelineSnapshot: 'w3',
+        pipelineFunnel: 'w2',
+        pipelineVelocity: 'w2',
+        pipelineRisk: 'w2',
+        closingWatch: 'w2',
+        referralTrends: 'w2',
+        partnerPortfolio: 'w3',
+        relationshipOpportunities: 'w2',
+        priorityActions: 'w2',
+        todo: 'w2',
+        favorites: 'w1'
+      },
+      description: 'A 10-minute weekly planning layout'
     },
     tasksFocused: {
       label: 'Tasks focus',
@@ -189,11 +239,20 @@ const SECTIONS = [
     description: 'Pipeline health and today\'s work',
     widgets: [
       { id: 'labsKpiSummary', size: 'large' },
+      { id: 'goalProgress', size: 'medium' },
       { id: 'labsPipelineSnapshot', size: 'large' },
-      { id: 'today', size: 'medium' },
+      { id: 'pipelineFunnel', size: 'medium' },
+      { id: 'pipelineVelocity', size: 'medium' },
+      { id: 'pipelineRisk', size: 'medium' },
+      { id: 'closingWatch', size: 'medium' },
+      { id: 'referralTrends', size: 'medium' },
+      { id: 'partnerPortfolio', size: 'large' },
+      { id: 'relationshipOpportunities', size: 'medium' },
+      { id: 'priorityActions', size: 'medium' },
       { id: 'todo', size: 'medium' },
       { id: 'favorites', size: 'small' },
-      { id: 'labsTasks', size: 'medium' }
+      { id: 'labsTasks', size: 'medium' },
+      { id: 'today', size: 'medium' }
     ]
   },
   {
