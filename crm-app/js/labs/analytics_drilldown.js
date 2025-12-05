@@ -36,22 +36,23 @@ function createLoanRow(loan) {
 
   const name = document.createElement('div');
   name.className = 'drilldown-name';
-  name.textContent = loan.displayName || loan.name || 'Unnamed borrower';
+  name.textContent = loan.borrowerName || loan.displayName || loan.name || 'Unnamed borrower';
 
-  const stageKey = normalizeStagesForDisplay(loan.stage || loan.lane);
+  const stageKey = normalizeStagesForDisplay(loan.stage || loan.lane || loan.stageId);
   const stageConfig = stageKey ? STAGE_CONFIG[stageKey] || {} : {};
   const stage = document.createElement('div');
   stage.className = 'drilldown-stage';
-  stage.textContent = stageConfig.label || stageKey || 'Unknown';
+  stage.textContent = loan.stageLabel || stageConfig.label || stageKey || 'Unknown';
 
   const meta = document.createElement('div');
   meta.className = 'drilldown-meta';
   const pieces = [];
-  if (loan.loanAmount) {
-    pieces.push(formatCurrency(loan.loanAmount));
+  const amountValue = Number.isFinite(Number(loan.amount)) ? Number(loan.amount) : Number(loan.loanAmount);
+  if (Number.isFinite(amountValue) && amountValue > 0) {
+    pieces.push(formatCurrency(amountValue));
   }
-  if (loan.referralPartnerName || loan.partnerName) {
-    pieces.push(loan.referralPartnerName || loan.partnerName);
+  if (loan.partnerName || loan.referralPartnerName) {
+    pieces.push(loan.partnerName || loan.referralPartnerName);
   }
   const age = getStageAgeInDays(loan);
   if (typeof age === 'number') {
@@ -91,7 +92,7 @@ function renderLoansList(loans) {
   if (!loans.length) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
-    empty.textContent = 'No loans in this segment yet.';
+    empty.textContent = 'No loans in this segment.';
     list.appendChild(empty);
     return list;
   }
@@ -143,6 +144,10 @@ export function openAnalyticsDrilldown(model, segment) {
   modal.appendChild(createHeader(segment.label || segment.key || 'Segment', loans.length));
   modal.appendChild(buildDrilldownBody(segment, loans));
   modal.focus({ preventScroll: true });
+}
+
+export function closeAnalyticsDrilldown() {
+  closeSingletonModal(MODAL_KEY);
 }
 
 export default openAnalyticsDrilldown;

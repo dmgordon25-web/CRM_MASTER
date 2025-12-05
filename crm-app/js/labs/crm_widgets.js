@@ -16,6 +16,7 @@ import {
   computeStageAgeBuckets,
   computeStaleSummary,
   STAGE_CONFIG,
+  ANALYTICS_SEGMENT_TYPES,
   formatCurrency,
   formatNumber,
   formatDate,
@@ -375,7 +376,7 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
         if (onSegmentClick) {
           row.classList.add('segment-clickable');
           row.addEventListener('click', () => onSegmentClick({
-            type: 'stage',
+            type: ANALYTICS_SEGMENT_TYPES.STAGE,
             key: stage.stageId,
             label: stage.label
           }));
@@ -460,7 +461,7 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
         if (onSegmentClick) {
           row.classList.add('segment-clickable');
           row.addEventListener('click', () => onSegmentClick({
-            type: 'velocity',
+            type: ANALYTICS_SEGMENT_TYPES.VELOCITY,
             key: bucket.id,
             label: bucket.label
           }));
@@ -541,6 +542,14 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
       text.textContent = 'Stale deals (14d+)';
       header.appendChild(totalEl);
       header.appendChild(text);
+      if (onSegmentClick) {
+        header.classList.add('segment-clickable');
+        header.addEventListener('click', () => onSegmentClick({
+          type: ANALYTICS_SEGMENT_TYPES.RISK,
+          key: 'all',
+          label: 'Stale deals (14d+)'
+        }));
+      }
 
       const rowsWrapper = document.createElement('div');
       rowsWrapper.className = 'risk-rows';
@@ -554,7 +563,7 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
         if (onSegmentClick) {
           row.classList.add('segment-clickable');
           row.addEventListener('click', () => onSegmentClick({
-            type: 'risk',
+            type: ANALYTICS_SEGMENT_TYPES.RISK,
             key: stage,
             label
           }));
