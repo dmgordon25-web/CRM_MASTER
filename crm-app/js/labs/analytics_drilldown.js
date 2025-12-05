@@ -121,6 +121,9 @@ export function openAnalyticsDrilldown(model, segment) {
   if (!segment) return;
 
   const loans = getLoansForAnalyticsSegment(model, segment);
+  const displayLoans = Array.isArray(loans)
+    ? loans.map((loan) => (typeof model?.getLoanDisplay === 'function' ? model.getLoanDisplay(loan) : loan)).filter(Boolean)
+    : [];
   const modal = ensureSingletonModal(MODAL_KEY, () => {
     const dialog = document.createElement('dialog');
     dialog.className = 'labs-drilldown-modal';
@@ -141,8 +144,8 @@ export function openAnalyticsDrilldown(model, segment) {
   if (!modal) return;
 
   modal.innerHTML = '';
-  modal.appendChild(createHeader(segment.label || segment.key || 'Segment', loans.length));
-  modal.appendChild(buildDrilldownBody(segment, loans));
+  modal.appendChild(createHeader(segment.label || segment.key || 'Segment', displayLoans.length));
+  modal.appendChild(buildDrilldownBody(segment, displayLoans));
   modal.focus({ preventScroll: true });
 }
 
