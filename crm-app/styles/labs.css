@@ -1776,6 +1776,13 @@
   font-size: 0.9rem;
 }
 
+.labs-insight {
+  margin: 0;
+  color: var(--labs-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
 .labs-widget__body {
   min-height: 64px;
   flex: 1;
