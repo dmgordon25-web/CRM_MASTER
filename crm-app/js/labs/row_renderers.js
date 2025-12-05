@@ -1,3 +1,5 @@
+import { createDeltaBar, createInlineBar } from './micro_charts.js';
+
 const DEFAULT_PLACEHOLDER = '—';
 
 function ensureRowParts(row, type) {
@@ -55,7 +57,30 @@ function setBadge(badgeEl, text) {
   }
 }
 
-function setMeta(metaEl, text, metaClass) {
+function appendInlineBar(metaEl, value, max, ariaLabel) {
+  if (metaEl === null || metaEl === undefined) return;
+  if (value === undefined || value === null) return;
+  if (max === undefined || max === null) return;
+  const bar = createInlineBar({ value, max, ariaLabel });
+  if (bar) {
+    bar.classList.add('labs-microbar--inline');
+    metaEl.appendChild(bar);
+    metaEl.hidden = false;
+  }
+}
+
+function appendDelta(metaEl, current, previous, ariaLabel) {
+  if (metaEl === null || metaEl === undefined) return;
+  if (current === undefined || current === null) return;
+  if (previous === undefined || previous === null) return;
+  const deltaEl = createDeltaBar({ current, previous, ariaLabel });
+  if (deltaEl) {
+    metaEl.appendChild(deltaEl);
+    metaEl.hidden = false;
+  }
+}
+
+function setMeta(metaEl, text, metaClass, ariaLabel) {
   if (!metaEl) return;
   const hasMeta = text !== undefined && text !== null && text !== '';
   metaEl.textContent = hasMeta ? text : '';
@@ -63,6 +88,11 @@ function setMeta(metaEl, text, metaClass) {
   metaEl.classList.remove('is-positive', 'is-negative', 'is-neutral');
   if (metaClass) {
     metaEl.classList.add(metaClass);
+  }
+  if (ariaLabel) {
+    metaEl.setAttribute('aria-label', ariaLabel);
+  } else if (metaEl.hasAttribute('aria-label')) {
+    metaEl.removeAttribute('aria-label');
   }
 }
 
@@ -120,7 +150,10 @@ export function renderLoanRow(rowEl, loanDisplay = {}, opts = {}) {
 
   setText(primary, primaryText);
   setText(secondary, secondaryText);
-  setMeta(meta, metaText, opts.metaClass);
+  setMeta(meta, metaText, opts.metaClass, opts.metaAriaLabel);
+  if (opts.progressValue !== undefined && opts.progressMax !== undefined) {
+    appendInlineBar(meta, opts.progressValue, opts.progressMax, opts.progressAriaLabel);
+  }
   setBadge(badge, opts.badgeText);
   return rowEl;
 }
@@ -133,7 +166,9 @@ export function renderPartnerRow(rowEl, partnerDisplay = {}, opts = {}) {
 
   setText(primary, primaryText);
   setText(secondary, secondaryText);
-  setMeta(meta, metaText, opts.metaClass);
+  setMeta(meta, metaText, opts.metaClass, opts.metaAriaLabel);
+  appendInlineBar(meta, opts.currentCount, opts.maxCount, opts.barAriaLabel);
+  appendDelta(meta, opts.current, opts.previous, opts.deltaAriaLabel);
   setBadge(badge, opts.badgeText);
   return rowEl;
 }
@@ -146,7 +181,10 @@ export function renderContactRow(rowEl, contactDisplay = {}, opts = {}) {
 
   setText(primary, primaryText);
   setText(secondary, secondaryText);
-  setMeta(meta, metaText, opts.metaClass);
+  setMeta(meta, metaText, opts.metaClass, opts.metaAriaLabel);
+  if (opts.urgencyValue !== undefined && opts.urgencyMax !== undefined) {
+    appendInlineBar(meta, opts.urgencyValue, opts.urgencyMax, opts.urgencyAriaLabel);
+  }
   setBadge(badge, opts.badgeText);
   return rowEl;
 }
