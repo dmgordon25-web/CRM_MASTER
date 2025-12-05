@@ -12,6 +12,7 @@ import {
   saveSectionPreset
 } from './layout_state.js';
 import openAnalyticsDrilldown from './analytics_drilldown.js';
+import { emitLabsEvent, onLabsEvent } from './labs_events.js';
 
 const LABS_DEBUG = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('labsDebug') === '1'
@@ -24,6 +25,8 @@ let navClickHandler = null;
 let dataChangedHandler = null;
 let customizeChangeHandler = null;
 let presetChangeHandler = null;
+let labsEventUnsubscribers = [];
+let refreshThrottleTimer = null;
 let labsLayoutEditMode = false;
 const labsDragControllers = new Map();
 const labsResizeControllers = new Map();
@@ -307,6 +310,11 @@ function getCachedLayout(sectionId) {
   return sectionLayoutCache.get(sectionId) || null;
 }
 
+function notifyLayoutChanged(sectionId, layout, source = 'dashboard') {
+  if (!sectionId || !layout) return;
+  emitLabsEvent('labs:layout:changed', { sectionId, layout, source });
+}
+
 function getWidgetLabel(widgetId) {
   if (!widgetId) return '';
   return WIDGET_LABELS[widgetId] || widgetId;
@@ -330,6 +338,7 @@ function mutateLayoutState(sectionId, mutator) {
   saveSectionLayoutState(sectionId, next);
   const normalized = normalizeLayoutState(section, next);
   cacheSectionLayout(sectionId, normalized);
+  notifyLayoutChanged(sectionId, normalized);
   return normalized;
 }
 
@@ -382,6 +391,7 @@ function resetSectionLayout(sectionId) {
   const section = getSection(sectionId);
   const defaults = buildDefaultLayout(section);
   cacheSectionLayout(sectionId, defaults);
+  notifyLayoutChanged(sectionId, defaults);
   return defaults;
 }
 
@@ -431,6 +441,7 @@ function applyPreset(sectionId, presetKey) {
   saveSectionLayoutState(section.id, nextState);
   cacheSectionLayout(section.id, normalizeLayoutState(section, nextState));
   saveSectionPreset(section.id, presetKey);
+  notifyLayoutChanged(section.id, normalizeLayoutState(section, nextState));
 }
 
 function showLoading() {
@@ -893,6 +904,15 @@ function registerResizeHandles(section, grid) {
   labsResizeControllers.set(section.id, teardown);
 }
 
+function scheduleLabsModelRefresh(reason) {
+  if (refreshThrottleTimer) return;
+  refreshThrottleTimer = setTimeout(async () => {
+    refreshThrottleTimer = null;
+    console.debug('[labs] scheduling model recompute', reason || '');
+    await refreshDashboard();
+  }, 80);
+}
+
 async function refreshDashboard() {
   const grid = dashboardRoot?.querySelector('.labs-crm-grid');
   if (!grid) return;
@@ -909,6 +929,40 @@ async function refreshDashboard() {
     grid.removeAttribute('aria-busy');
     grid.style.opacity = '1';
   }
+}
+
+function teardownLabsEvents() {
+  labsEventUnsubscribers.forEach((unsubscribe) => {
+    try {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    } catch (err) {
+      console.warn('[labs] failed to teardown labs event listener', err);
+    }
+  });
+  labsEventUnsubscribers = [];
+}
+
+function registerLabsEventListeners() {
+  teardownLabsEvents();
+
+  labsEventUnsubscribers.push(onLabsEvent('labs:model:recompute', (detail) => {
+    scheduleLabsModelRefresh(detail?.source || 'labs:model:recompute');
+  }));
+
+  labsEventUnsubscribers.push(onLabsEvent('labs:tasks:changed', (detail) => {
+    emitLabsEvent('labs:model:recompute', { source: 'labs:tasks:changed', detail });
+  }));
+
+  labsEventUnsubscribers.push(onLabsEvent('labs:pipeline:changed', (detail) => {
+    emitLabsEvent('labs:model:recompute', { source: 'labs:pipeline:changed', detail });
+  }));
+
+  labsEventUnsubscribers.push(onLabsEvent('labs:layout:changed', (detail) => {
+    if (detail?.source === 'dashboard') return;
+    const targetSection = detail?.sectionId || activeSection;
+    if (!targetSection) return;
+    renderSection(targetSection, { forceCustomizerOpen: openCustomizerSections.has(targetSection) });
+  }));
 }
 
 function attachEventListeners() {
@@ -989,12 +1043,14 @@ function attachEventListeners() {
     if (dataChangedHandler) {
       document.removeEventListener('app:data:changed', dataChangedHandler);
     }
-    dataChangedHandler = async (evt) => {
+    dataChangedHandler = (evt) => {
       console.info('[labs] CRM data changed, refreshing...', evt.detail);
-      await refreshDashboard();
+      emitLabsEvent('labs:model:recompute', { source: 'app:data:changed', payload: evt?.detail });
     };
     document.addEventListener('app:data:changed', dataChangedHandler);
   }
+
+  registerLabsEventListeners();
 }
 
 function showNotification(message, type = 'info') {
