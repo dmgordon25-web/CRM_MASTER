@@ -13,6 +13,10 @@ import {
 } from './layout_state.js';
 import openAnalyticsDrilldown from './analytics_drilldown.js';
 
+const LABS_DEBUG = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search).get('labsDebug') === '1'
+  : false;
+
 let dashboardRoot = null;
 let labsModel = null;
 let activeSection = 'overview';
@@ -485,6 +489,9 @@ function createHeader() {
   const contactCount = formatNumber(labsModel?.contacts?.length || 0);
   const partnerCount = formatNumber(labsModel?.partners?.length || 0);
   const taskCount = formatNumber(labsModel?.tasks?.length || 0);
+  const warningBadge = LABS_DEBUG && labsModel?.validationWarnings?.length
+    ? `<div class="labs-debug-indicator" title="Labs model warnings">${labsModel.validationWarnings.length} warning${labsModel.validationWarnings.length === 1 ? '' : 's'}</div>`
+    : '';
 
   header.innerHTML = `
     <div class="labs-header-content">
@@ -496,11 +503,11 @@ function createHeader() {
         </h1>
         <p class="labs-subtitle">Canonical data • Alternate shell • Modern visuals</p>
       </div>
-      <div class="labs-header-stats">
-        <div class="header-stat">
-          <div class="stat-value">${contactCount}</div>
-          <div class="stat-label">Contacts</div>
-        </div>
+        <div class="labs-header-stats">
+          <div class="header-stat">
+            <div class="stat-value">${contactCount}</div>
+            <div class="stat-label">Contacts</div>
+          </div>
         <div class="header-stat">
           <div class="stat-value">${partnerCount}</div>
           <div class="stat-label">Partners</div>
@@ -511,6 +518,7 @@ function createHeader() {
         </div>
       </div>
       <div class="labs-header-actions">
+        ${warningBadge}
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
         <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">${labsLayoutEditMode ? 'Done editing' : 'Edit layout'}</button>

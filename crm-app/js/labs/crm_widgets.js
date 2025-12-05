@@ -168,10 +168,9 @@ export function renderLabsTasksWidget(container, model) {
 
   const rows = visibleTasks.map((entry, idx) => {
     const contact = contactMap.get(entry.task.contactId);
-    const contactName = contact?.displayName
-      || contact?.name
-      || entry.task.contactName
-      || (model.getContactDisplayName ? model.getContactDisplayName(entry.task.contactId) : null);
+    const contactName = model.getContactDisplayName
+      ? model.getContactDisplayName(entry.task.contactId)
+      : (contact?.displayName || contact?.name || entry.task.contactName);
     const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
     const overdue = entry.status === 'Overdue';
     return `
@@ -691,8 +690,10 @@ export function renderActivePipelineWidget(container, model) {
   });
 
   const contactsHTML = activeContacts.slice(0, 9).map((contact, idx) => {
-    const config = STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)] || {};
-    const displayName = contact.borrowerName
+    const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(contact) : contact;
+    const stageKey = normalizeStagesForDisplay(loanDisplay.stage || contact.stage);
+    const config = STAGE_CONFIG[stageKey] || {};
+    const displayName = loanDisplay?.borrowerName
       || contact.displayName
       || contact.name
       || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null);
@@ -701,7 +702,7 @@ export function renderActivePipelineWidget(container, model) {
         <div class="card-header">
           <div class="contact-name">${displayName || 'Unknown'}</div>
           <div class="contact-stage" style="background:${(config.color || '#4f46e5')}20; color:${config.color || '#4f46e5'}">
-            ${config.icon || ''} ${config.label || contact.stage}
+            ${config.icon || ''} ${loanDisplay?.stageLabel || config.label || contact.stage}
           </div>
         </div>
         <div class="card-body">
