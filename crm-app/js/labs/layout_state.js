@@ -1,17 +1,20 @@
 const STORAGE_PREFIX = 'labs:layout:';
-const ORDER_KEY = 'order';
-const WIDTHS_KEY = 'widths';
-const VISIBILITY_KEY = 'visibility';
-const PRESET_KEY = 'preset';
+const CURRENT_VERSION = 1;
+
+const WIDTH_TOKENS = ['w1', 'w2', 'w3'];
+const SIZE_TO_WIDTH = {
+  small: 'w1',
+  medium: 'w2',
+  large: 'w3'
+};
 
 function safeSectionId(sectionId) {
   const normalized = sectionId == null ? '' : String(sectionId).trim();
   return normalized || 'default';
 }
 
-export function layoutStorageKey(sectionId, kind) {
-  const suffix = kind ? String(kind).trim() : '';
-  return `${STORAGE_PREFIX}${safeSectionId(sectionId)}${suffix ? `:${suffix}` : ''}`;
+function layoutStorageKey(sectionId) {
+  return `${STORAGE_PREFIX}${safeSectionId(sectionId)}`;
 }
 
 function readJson(key) {
@@ -37,61 +40,186 @@ function writeJson(key, value) {
   } catch (_err) {}
 }
 
-export function loadSectionLayoutState(sectionId) {
-  let order = readJson(layoutStorageKey(sectionId, ORDER_KEY));
-  if (!order) {
-    const legacyOrder = readJson(`${STORAGE_PREFIX}${safeSectionId(sectionId)}`);
-    if (Array.isArray(legacyOrder)) order = legacyOrder;
-  }
+function normalizeWidthToken(token) {
+  const raw = typeof token === 'string' ? token.trim() : '';
+  if (WIDTH_TOKENS.includes(raw)) return raw;
+  const lower = raw.toLowerCase();
+  if (SIZE_TO_WIDTH[lower]) return SIZE_TO_WIDTH[lower];
+  return '';
+}
 
-  let widths = readJson(layoutStorageKey(sectionId, WIDTHS_KEY));
-  if (!widths) {
-    const legacyWidths = readJson(`labs:widths:${safeSectionId(sectionId)}`);
-    if (legacyWidths && typeof legacyWidths === 'object') widths = legacyWidths;
-  }
-  const visibility = readJson(layoutStorageKey(sectionId, VISIBILITY_KEY));
+function defaultWidthToken(size) {
+  const key = typeof size === 'string' ? size.toLowerCase() : '';
+  return SIZE_TO_WIDTH[key] || 'w2';
+}
+
+function buildDefaults(defaultWidgets = []) {
+  const order = [];
+  const widths = {};
+  const visibility = {};
+  (Array.isArray(defaultWidgets) ? defaultWidgets : []).forEach((widget) => {
+    const id = widget?.id ? String(widget.id) : '';
+    if (!id || order.includes(id)) return;
+    order.push(id);
+    widths[id] = defaultWidthToken(widget?.size);
+    visibility[id] = true;
+  });
+  return { order, widths, visibility };
+}
+
+function mergeOrder(defaultOrder, storedOrder = []) {
+  const normalizedDefault = Array.isArray(defaultOrder) ? defaultOrder : [];
+  const normalizedStored = Array.isArray(storedOrder) ? storedOrder.map(String) : [];
+  const seen = new Set();
+  const merged = [];
+
+  normalizedStored.forEach((id) => {
+    if (!id || seen.has(id)) return;
+    if (normalizedDefault.includes(id)) {
+      merged.push(id);
+      seen.add(id);
+    }
+  });
+
+  normalizedDefault.forEach((id) => {
+    if (!id || seen.has(id)) return;
+    merged.push(id);
+    seen.add(id);
+  });
+
+  return merged;
+}
+
+function normalizeLayout(defaultWidgets, rawState) {
+  const defaults = buildDefaults(defaultWidgets);
+  const order = mergeOrder(defaults.order, rawState?.order);
+
+  const widths = {};
+  order.forEach((id) => {
+    const override = rawState?.widths?.[id];
+    const normalized = normalizeWidthToken(override);
+    widths[id] = normalized || defaults.widths[id] || 'w2';
+  });
+
+  const visibility = {};
+  order.forEach((id) => {
+    const stored = rawState?.visibility?.[id];
+    visibility[id] = stored === false ? false : true;
+  });
+
+  const preset = typeof rawState?.preset === 'string' ? rawState.preset : '';
 
   return {
-    order: Array.isArray(order) ? order.map(String) : null,
-    widths: widths && typeof widths === 'object' ? widths : null,
-    visibility: visibility && typeof visibility === 'object' ? visibility : null
+    version: CURRENT_VERSION,
+    order,
+    widths,
+    visibility,
+    preset
   };
 }
 
-export function saveSectionLayoutState(sectionId, state) {
-  const nextState = state || {};
+function migrateLegacy(sectionId) {
+  const safeId = safeSectionId(sectionId);
+  const prefix = `${STORAGE_PREFIX}${safeId}`;
+  const legacyOrder = readJson(`${prefix}:order`) || readJson(prefix);
+  const legacyWidths = readJson(`${prefix}:widths`) || readJson(`labs:widths:${safeId}`);
+  const legacyVisibility = readJson(`${prefix}:visibility`);
+  const legacyPreset = readJson(`${prefix}:preset`);
 
-  const order = Array.isArray(nextState.order) ? nextState.order.map(String) : null;
-  writeJson(layoutStorageKey(sectionId, ORDER_KEY), order && order.length ? order : null);
+  const hasLegacy = !!(legacyOrder || legacyWidths || legacyVisibility || legacyPreset);
+  if (!hasLegacy) return null;
 
-  const widths = nextState.widths && typeof nextState.widths === 'object' ? nextState.widths : null;
-  writeJson(layoutStorageKey(sectionId, WIDTHS_KEY), widths && Object.keys(widths).length ? widths : null);
+  const merged = {
+    order: Array.isArray(legacyOrder) ? legacyOrder.map(String) : [],
+    widths: legacyWidths && typeof legacyWidths === 'object' ? legacyWidths : {},
+    visibility: legacyVisibility && typeof legacyVisibility === 'object' ? legacyVisibility : {},
+    preset: typeof legacyPreset === 'string' ? legacyPreset : ''
+  };
 
-  const visibility = nextState.visibility && typeof nextState.visibility === 'object'
-    ? nextState.visibility
-    : null;
-  writeJson(
-    layoutStorageKey(sectionId, VISIBILITY_KEY),
-    visibility && Object.keys(visibility).length ? visibility : null
-  );
+  // Clean up legacy fragments after migration to reduce confusion.
+  clearLegacyKeys(safeId);
+  return merged;
 }
 
-export function clearSectionLayoutState(sectionId) {
+function clearLegacyKeys(sectionId) {
   if (typeof localStorage === 'undefined') return;
-  localStorage.removeItem(layoutStorageKey(sectionId, ORDER_KEY));
-  localStorage.removeItem(layoutStorageKey(sectionId, WIDTHS_KEY));
-  localStorage.removeItem(layoutStorageKey(sectionId, VISIBILITY_KEY));
-  localStorage.removeItem(layoutStorageKey(sectionId, PRESET_KEY));
-  localStorage.removeItem(`${STORAGE_PREFIX}${safeSectionId(sectionId)}`);
-  localStorage.removeItem(`labs:widths:${safeSectionId(sectionId)}`);
+  const safeId = safeSectionId(sectionId);
+  const prefix = `${STORAGE_PREFIX}${safeId}`;
+  localStorage.removeItem(`${prefix}:order`);
+  localStorage.removeItem(`${prefix}:widths`);
+  localStorage.removeItem(`${prefix}:visibility`);
+  localStorage.removeItem(`${prefix}:preset`);
+  localStorage.removeItem(prefix);
+  localStorage.removeItem(`labs:widths:${safeId}`);
 }
 
-export function loadSectionPreset(sectionId) {
-  const value = readJson(layoutStorageKey(sectionId, PRESET_KEY));
-  return typeof value === 'string' ? value : null;
+export function loadSectionLayout(sectionId, defaultWidgets = []) {
+  const key = layoutStorageKey(sectionId);
+  const safeId = safeSectionId(sectionId);
+  let stored = readJson(key);
+
+  if (!stored) {
+    const migrated = migrateLegacy(safeId);
+    if (migrated) {
+      const normalized = normalizeLayout(defaultWidgets, migrated);
+      writeJson(key, normalized);
+      return normalized;
+    }
+  }
+
+  if (!stored || typeof stored !== 'object') {
+    const normalized = normalizeLayout(defaultWidgets, {});
+    writeJson(key, normalized);
+    return normalized;
+  }
+
+  const normalized = normalizeLayout(defaultWidgets, stored);
+  if (!stored.version || stored.version !== CURRENT_VERSION) {
+    writeJson(key, normalized);
+  }
+  return normalized;
 }
 
-export function saveSectionPreset(sectionId, presetKey) {
-  const value = presetKey ? String(presetKey).trim() : '';
-  writeJson(layoutStorageKey(sectionId, PRESET_KEY), value || null);
+export function saveSectionLayout(sectionId, layout, defaultWidgets = []) {
+  const normalized = normalizeLayout(defaultWidgets, layout || {});
+  writeJson(layoutStorageKey(sectionId), normalized);
+  return normalized;
 }
+
+export function resetSectionLayout(sectionId, defaultWidgets = []) {
+  const defaults = normalizeLayout(defaultWidgets, {});
+  writeJson(layoutStorageKey(sectionId), defaults);
+  clearLegacyKeys(sectionId);
+  return defaults;
+}
+
+export function applyPresetToSection(sectionId, presetId, defaultWidgets = [], presetConfig = {}) {
+  const safePreset = presetId ? String(presetId).trim() : '';
+  if (!safePreset || safePreset === 'default') {
+    return resetSectionLayout(sectionId, defaultWidgets);
+  }
+  const defaults = buildDefaults(defaultWidgets);
+  const order = mergeOrder(defaults.order, presetConfig.order);
+  const widths = {};
+  order.forEach((id) => {
+    const override = presetConfig.widths?.[id];
+    const normalized = normalizeWidthToken(override);
+    widths[id] = normalized || defaults.widths[id] || 'w2';
+  });
+  const visibility = {};
+  order.forEach((id) => {
+    const presetVisible = presetConfig.visibility?.[id];
+    visibility[id] = presetVisible === false ? false : true;
+  });
+
+  const layout = {
+    version: CURRENT_VERSION,
+    order,
+    widths,
+    visibility,
+    preset: safePreset
+  };
+  return saveSectionLayout(sectionId, layout, defaultWidgets);
+}
+
+export { layoutStorageKey };
