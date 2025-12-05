@@ -54,12 +54,12 @@ function snippet(text, limit = 80) {
 
 function buildLayout(root) {
   root.innerHTML = `
-    <section data-role="automation-templates" aria-label="Automation Templates" style="display:flex;flex-direction:column;gap:16px;">
+    <section data-role="automation-templates" aria-label="Email Draft Prompt Templates" style="display:flex;flex-direction:column;gap:16px;">
       <header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="flex:1 1 auto;">
-          <h3 style="margin:0;font-size:20px;">Automation / Templates</h3>
+          <h3 style="margin:0;font-size:20px;">Email Draft Prompts / Templates</h3>
           <p style="margin:4px 0 0;font-size:13px;color:var(--muted,#475569);">
-            Manage reusable email content for automation triggers and quick outreach.
+            Manage reusable email content for prompts that create drafts for you to review and send while the CRM stays open.
           </p>
         </div>
         <button type="button" data-action="new" class="btn brand" style="align-self:flex-start;">New Template</button>

@@ -1046,8 +1046,8 @@ export function normalizeContactId(input) {
                 <div class="stage-slider-labels">${stageSliderLabels}</div>
                 <input type="range" min="0" max="${STAGE_FLOW.length - 1}" step="1" value="0" id="contact-stage-range" aria-label="Pipeline stage slider">
                 <div class="stage-slider-help" id="contact-stage-help">
-                  <strong id="contact-stage-help-title">Automations</strong>
-                  <p id="contact-stage-helptext">Stage changes keep automations, partner notifications, and task lists in sync.</p>
+                  <strong id="contact-stage-help-title">Email Draft Prompts</strong>
+                  <p id="contact-stage-helptext">Stage changes queue email prompts for you to review and send alongside partner notifications and task updates.</p>
                 </div>
               </div>
               <div style="margin-top:18px">
