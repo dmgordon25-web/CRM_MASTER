@@ -242,6 +242,18 @@ export function normalizeContactId(input) {
     phone: {
       selectors: ['#c-phone'],
       message: () => 'Phone is required'
+    },
+    stage: {
+      selectors: ['#c-stage'],
+      message: () => 'Stage selection is invalid'
+    },
+    status: {
+      selectors: ['#c-status'],
+      message: () => 'Status selection is invalid'
+    },
+    pipelineMilestone: {
+      selectors: ['#c-milestone'],
+      message: () => 'Milestone selection is invalid'
     }
   };
 
@@ -2151,6 +2163,25 @@ export function normalizeContactId(input) {
           });
           u.status = normalizeStatusForStage(u.stage, u.status);
           u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
+          const schemaValidation = validateContactSchema(u) || { ok: true, errors: [], normalized: u };
+          const schemaValidationErrors = mapSchemaErrors(schemaValidation.errors || []);
+          const schemaOutcome = applyContactValidation(body, schemaValidationErrors);
+          if (!schemaValidation.ok || Object.keys(schemaValidationErrors).length) {
+            setBusy(false);
+            if (schemaOutcome.firstInvalid) {
+              focusContactField(schemaOutcome.firstInvalid);
+            }
+            toastWarn(CONTACT_INVALID_TOAST);
+            return null;
+          }
+          const normalizedFromSchema = schemaValidation.normalized || {};
+          u.first = normalizedFromSchema.first ?? normalizedFromSchema.firstName ?? u.first;
+          u.last = normalizedFromSchema.last ?? normalizedFromSchema.lastName ?? u.last;
+          u.email = normalizedFromSchema.email ?? u.email;
+          u.phone = normalizedFromSchema.phone ?? u.phone;
+          u.stage = normalizedFromSchema.stage ?? u.stage;
+          u.status = normalizedFromSchema.status ?? u.status;
+          u.pipelineMilestone = normalizedFromSchema.pipelineMilestone ?? u.pipelineMilestone;
           if (opts.touchLog) {
             appendTouchTimeline(u, opts.touchLog, lastContactValue || new Date());
           }
@@ -3654,6 +3685,10 @@ export function closeContactEditor(reason) {
 // --- Quick Add Support ---
 export async function createQuick(record) {
   if (!record) throw new Error('Record required');
+  const now = Date.now();
+  const stage = record.stage || 'Application';
+  const status = normalizeStatusForStage(stage, record.status);
+  const pipelineMilestone = normalizeMilestoneForStatus(record.pipelineMilestone || PIPELINE_MILESTONES[0], status);
   const contact = {
     id: record.id || (typeof window.uuid === 'function' ? window.uuid() : `contact-${Date.now()}`),
     first: record.first || '',
@@ -3661,19 +3696,29 @@ export async function createQuick(record) {
     email: record.email || '',
     phone: record.phone || '',
     notes: record.notes || '',
-    stage: record.stage || 'application',
-    status: record.status || 'inprogress',
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+    stage,
+    status,
+    pipelineMilestone,
+    createdAt: record.createdAt || now,
+    updatedAt: record.updatedAt || now
   };
 
+  const schemaResult = validateContactSchema(contact) || { ok: true, errors: [], normalized: contact };
+  if (!schemaResult.ok) {
+    try {
+      console.warn('[quickAdd] contact rejected by schema', schemaResult.errors || []);
+    } catch (_err) { }
+    throw new Error('Contact validation failed');
+  }
+  const normalizedContact = Object.assign({}, contact, schemaResult.normalized || {});
+
   if (typeof window.dbPut === 'function') {
-    await window.dbPut('contacts', contact);
+    await window.dbPut('contacts', normalizedContact);
   }
 
   // Dispatch event to update UI
   const event = new CustomEvent('app:data:changed', {
-    detail: { scope: 'contacts', action: 'create', id: contact.id }
+    detail: { scope: 'contacts', action: 'create', id: normalizedContact.id }
   });
   document.dispatchEvent(event);
 
@@ -3681,7 +3726,7 @@ export async function createQuick(record) {
     window.dispatchAppDataChanged('contacts');
   }
 
-  return contact;
+  return normalizedContact;
 }
 
 // --- Editor Export ---
