@@ -53,6 +53,7 @@ const WIDGET_LABELS = {
   partnerPortfolio: 'Partner Portfolio',
   referralLeaderboard: 'Referral Leaderboard',
   referralTrends: 'Referral Trends',
+  numbersMomentum: 'Pipeline Momentum',
   pipelineMomentum: 'Pipeline Momentum',
   pipelineFunnel: 'Pipeline Funnel',
   pipelineVelocity: 'Pipeline Velocity',
@@ -132,6 +133,67 @@ const LABS_PRESETS = {
         favorites: 'w1'
       },
       description: 'A 10-minute weekly planning layout'
+    },
+    monthlyReview: {
+      label: 'Monthly Review',
+      order: [
+        'labsKpiSummary',
+        'numbersMomentum',
+        'goalProgress',
+        'pipelineFunnel',
+        'pipelineVelocity',
+        'pipelineRisk',
+        'labsPipelineSnapshot',
+        'referralTrends',
+        'partnerPortfolio',
+        'referralLeaderboard',
+        'relationshipOpportunities',
+        'closingWatch',
+        'priorityActions',
+        'todo',
+        'favorites',
+        'labsTasks',
+        'today'
+      ],
+      visibility: {
+        labsKpiSummary: true,
+        numbersMomentum: true,
+        goalProgress: true,
+        pipelineFunnel: true,
+        pipelineVelocity: true,
+        pipelineRisk: true,
+        labsPipelineSnapshot: true,
+        referralTrends: true,
+        partnerPortfolio: true,
+        referralLeaderboard: true,
+        relationshipOpportunities: true,
+        closingWatch: true,
+        priorityActions: false,
+        todo: false,
+        favorites: false,
+        labsTasks: false,
+        today: false
+      },
+      widths: {
+        labsKpiSummary: 'w3',
+        numbersMomentum: 'w2',
+        goalProgress: 'w2',
+        pipelineFunnel: 'w3',
+        pipelineVelocity: 'w2',
+        pipelineRisk: 'w2',
+        labsPipelineSnapshot: 'w2',
+        referralTrends: 'w3',
+        partnerPortfolio: 'w2',
+        referralLeaderboard: 'w2',
+        relationshipOpportunities: 'w2',
+        closingWatch: 'w2',
+        priorityActions: 'w1',
+        todo: 'w1',
+        favorites: 'w1',
+        labsTasks: 'w1',
+        today: 'w1'
+      },
+      description: 'Strategic month-in-review with funnel, velocity, partner momentum, and relationship risk'
     },
     tasksFocused: {
       label: 'Tasks focus',
@@ -228,7 +290,7 @@ const EXPERIMENTAL_WIDGETS = [
 // Labs widget catalog audit:
 // Core widgets used in defaults/presets/customize: labsKpiSummary, labsPipelineSnapshot, labsTasks,
 // today, todo, favorites, priorityActions, partnerPortfolio, referralLeaderboard,
-// relationshipOpportunities, pipelineFunnel, pipelineVelocity, pipelineRisk.
+// numbersMomentum, relationshipOpportunities, pipelineFunnel, pipelineVelocity, pipelineRisk.
 // Experimental widgets available only in the experimental section: pipelineMomentum, closingWatch,
 // staleDeals, milestones, upcomingCelebrations, pipelineCalendar, docPulse.
 
@@ -239,6 +301,7 @@ const SECTIONS = [
     description: 'Pipeline health and today\'s work',
     widgets: [
       { id: 'labsKpiSummary', size: 'large' },
+      { id: 'numbersMomentum', size: 'medium' },
       { id: 'goalProgress', size: 'medium' },
       { id: 'labsPipelineSnapshot', size: 'large' },
       { id: 'pipelineFunnel', size: 'medium' },
@@ -247,6 +310,7 @@ const SECTIONS = [
       { id: 'closingWatch', size: 'medium' },
       { id: 'referralTrends', size: 'medium' },
       { id: 'partnerPortfolio', size: 'large' },
+      { id: 'referralLeaderboard', size: 'medium' },
       { id: 'relationshipOpportunities', size: 'medium' },
       { id: 'priorityActions', size: 'medium' },
       { id: 'todo', size: 'medium' },
