@@ -168,7 +168,10 @@ export function renderLabsTasksWidget(container, model) {
 
   const rows = visibleTasks.map((entry, idx) => {
     const contact = contactMap.get(entry.task.contactId);
-    const contactName = contact?.displayName || contact?.name || entry.task.contactName;
+    const contactName = contact?.displayName
+      || contact?.name
+      || entry.task.contactName
+      || (model.getContactDisplayName ? model.getContactDisplayName(entry.task.contactId) : null);
     const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
     const overdue = entry.status === 'Overdue';
     return `
@@ -565,10 +568,13 @@ export function renderStaleDealsWidget(container, model) {
     const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
     const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
     const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(dealContact.stage)] || {};
+    const name = model.getContactDisplayName
+      ? model.getContactDisplayName(dealContact.id)
+      : (dealContact.displayName || dealContact.name);
     return `
       <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
         <div class="stale-header">
-          <div class="stale-name">${dealContact.displayName || dealContact.name || 'Unknown'}</div>
+          <div class="stale-name">${name || 'Unknown'}</div>
           <div class="stale-days">${daysSince}d</div>
         </div>
         <div class="stale-details">
@@ -678,17 +684,22 @@ export function renderPipelineOverviewWidget(container, model) {
 // Active pipeline grid
 // =======================
 export function renderActivePipelineWidget(container, model) {
-  const activeContacts = model.contacts.filter((contact) => {
+  const pipeline = Array.isArray(model.activePipeline) ? model.activePipeline : (model.pipeline || model.contacts || []);
+  const activeContacts = pipeline.filter((contact) => {
     const stage = normalizeStagesForDisplay(contact.stage);
     return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
   });
 
   const contactsHTML = activeContacts.slice(0, 9).map((contact, idx) => {
     const config = STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)] || {};
+    const displayName = contact.borrowerName
+      || contact.displayName
+      || contact.name
+      || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null);
     return `
       <div class="pipeline-card" style="animation-delay:${idx * 0.05}s; border-left-color:${config.color || '#4f46e5'}">
         <div class="card-header">
-          <div class="contact-name">${contact.displayName || contact.name || 'Unknown'}</div>
+          <div class="contact-name">${displayName || 'Unknown'}</div>
           <div class="contact-stage" style="background:${(config.color || '#4f46e5')}20; color:${config.color || '#4f46e5'}">
             ${config.icon || ''} ${config.label || contact.stage}
           </div>
@@ -897,7 +908,7 @@ export function renderUpcomingCelebrationsWidget(container, model) {
     <div class="celebration-row" style="animation-delay:${idx * 0.05}s">
       <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
       <div class="celebration-info">
-        <div class="celebration-name">${cel.contact.name || cel.contact.displayName || 'Contact'}</div>
+        <div class="celebration-name">${cel.contact.displayName || cel.contact.name || (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : 'Contact')}</div>
         <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
       </div>
       <div class="celebration-date">${formatDate(cel.date)}</div>
@@ -917,7 +928,7 @@ export function renderRelationshipWidget(container, model) {
   const nurture = model.contacts.filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
   const items = nurture.slice(0, 8).map((contact, idx) => `
     <div class="relationship-row" style="animation-delay:${idx * 0.05}s">
-      <div class="relationship-name">${contact.displayName || contact.name || 'Contact'}</div>
+      <div class="relationship-name">${contact.displayName || contact.name || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : 'Contact')}</div>
       <div class="relationship-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
       <div class="relationship-updated">${formatRelativeTime(contact.updatedTs)}</div>
     </div>
@@ -937,7 +948,7 @@ export function renderClosingWatchWidget(container, model) {
   const items = closing.slice(0, 6).map((contact, idx) => `
     <div class="closing-row" style="animation-delay:${idx * 0.05}s">
       <div class="closing-main">
-        <div class="closing-name">${contact.displayName || contact.name || 'Contact'}</div>
+        <div class="closing-name">${contact.displayName || contact.name || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : 'Contact')}</div>
         <div class="closing-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
       </div>
       <div class="closing-amount">${contact.loanAmount ? formatCurrency(contact.loanAmount) : ''}</div>

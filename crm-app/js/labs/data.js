@@ -17,6 +17,16 @@ function dedupeById(items = []) {
   return Array.from(map.values());
 }
 
+function indexById(list = [], key = 'id') {
+  const index = {};
+  list.forEach((item) => {
+    const id = item?.[key];
+    if (!id || index[id]) return;
+    index[id] = item;
+  });
+  return index;
+}
+
 function getDbApi(method) {
   const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
   if (scope && typeof scope[method] === 'function') return scope[method];
@@ -391,6 +401,35 @@ export async function buildLabsModel() {
     .filter((task) => task && task.id && !task.deleted && !task.isDeleted && !task.isTemplate && !task.isPlaceholder);
   const tasks = dedupeById(normalizedTasks);
 
+  const contactsById = indexById(contacts);
+  const partnersById = indexById(partners);
+  const tasksById = indexById(tasks);
+
+  const getContactDisplayName = (contactId) => {
+    const contact = contactId ? contactsById[contactId] : null;
+    const candidate = contact || {};
+    const fallbackFields = [
+      candidate.displayName,
+      candidate.name,
+      candidate.fullName,
+      candidate.contactName,
+      candidate.borrowerName,
+      candidate.firstName && candidate.lastName ? `${candidate.firstName} ${candidate.lastName}` : null,
+      candidate.firstName,
+      candidate.lastName
+    ];
+    const value = fallbackFields.find((v) => v && String(v).trim());
+    return value ? String(value).trim() : '(Unknown contact)';
+  };
+
+  const getPartnerDisplayName = (partnerId) => {
+    const partner = partnerId ? partnersById[partnerId] : null;
+    const candidate = partner || {};
+    const fallbackFields = [candidate.name, candidate.displayName, candidate.company, candidate.fullName];
+    const value = fallbackFields.find((v) => v && String(v).trim());
+    return value ? String(value).trim() : '(Unknown partner)';
+  };
+
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
   const partnerMap = new Map(partners.map((p) => [p.id, p]));
   const laneOrder = CANONICAL_STAGE_ORDER.concat(['lost']);
@@ -406,6 +445,21 @@ export async function buildLabsModel() {
     pipelineActiveLanes: activeLanes,
     canonicalStage: canonicalStageKey
   });
+
+  const rawPipeline = Array.isArray(snapshot?.contacts) ? snapshot.contacts : contacts;
+  const enrichedPipeline = Array.isArray(rawPipeline)
+    ? rawPipeline.map((entry) => {
+        const contactId = entry.contactId || entry.id || entry.borrowerId;
+        const partnerId = entry.partnerId || entry.referralPartnerId;
+        const borrowerName = contactId ? getContactDisplayName(contactId) : (entry.displayName || entry.name || '(Unknown contact)');
+        const partnerName = partnerId ? getPartnerDisplayName(partnerId) : (entry.partnerName || entry.referralPartnerName || null);
+        return {
+          ...entry,
+          borrowerName,
+          partnerName: partnerName || (partnerId ? '(Unknown partner)' : null)
+        };
+      })
+    : [];
 
   const activePipelineContacts = contacts.filter((contact) => {
     const stage = canonicalStageKey(contact.stage || contact.lane);
@@ -429,6 +483,13 @@ export async function buildLabsModel() {
     contacts,
     partners,
     tasks,
+    contactsById,
+    partnersById,
+    tasksById,
+    getContactDisplayName,
+    getPartnerDisplayName,
+    pipeline: enrichedPipeline,
+    activePipeline: enrichedPipeline,
     snapshot,
     celebrations,
     laneOrder,
