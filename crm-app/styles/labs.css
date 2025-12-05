@@ -605,6 +605,30 @@
   gap: 1rem;
 }
 
+.labs-kpi-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.labs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 1px solid var(--labs-border);
+  background: #f8fafc;
+  color: var(--labs-text-primary);
+}
+
+.labs-chip.tone-primary { border-color: rgba(99, 102, 241, 0.25); color: var(--labs-accent-2); background: rgba(99, 102, 241, 0.08); }
+.labs-chip.tone-info { border-color: rgba(14, 165, 233, 0.25); color: var(--labs-accent-1); background: rgba(14, 165, 233, 0.08); }
+.labs-chip.tone-danger { border-color: rgba(239, 68, 68, 0.28); color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+
 .labs-kpi-tile {
   background: #ffffff;
   border: 1px solid var(--labs-border);
@@ -751,6 +775,27 @@
 /* ========================================
    PIPELINE MOMENTUM WIDGET
    ======================================== */
+
+.momentum-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--labs-text-primary);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.momentum-summary .summary-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.momentum-summary .summary-label {
+  font-size: 0.9rem;
+  color: var(--labs-text-secondary);
+}
 
 .momentum-bars {
   display: flex;
@@ -1230,6 +1275,28 @@
 /* ========================================
    TODAY'S WORK WIDGET
    ======================================== */
+
+.labs-task-summary {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.labs-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 1px solid var(--labs-border);
+  background: #f8fafc;
+  color: var(--labs-text-primary);
+}
+
+.labs-pill.tone-primary { border-color: rgba(99, 102, 241, 0.25); color: var(--labs-accent-2); background: rgba(99, 102, 241, 0.08); }
+.labs-pill.tone-danger { border-color: rgba(239, 68, 68, 0.25); color: #ef4444; background: rgba(239, 68, 68, 0.08); }
 
 .labs-tasks-list {
   display: flex;
