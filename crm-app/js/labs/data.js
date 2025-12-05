@@ -4,6 +4,7 @@
 import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
 import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
 import { stageLabelFromKey } from '../pipeline/stages.js';
+import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
@@ -473,13 +474,7 @@ export async function buildLabsModel() {
     staleSummary: computeStaleSummary(activePipelineContacts)
   };
 
-  console.debug('[LABS] model loaded', {
-    contactCount: contacts.length,
-    partnerCount: partners.length,
-    taskCount: tasks.length
-  });
-
-  return {
+  const rawModel = {
     contacts,
     partners,
     tasks,
@@ -496,6 +491,24 @@ export async function buildLabsModel() {
     activeLanes,
     analytics
   };
+
+  const model = normalizeLabsModel(rawModel);
+  let validationWarnings = [];
+  try {
+    validationWarnings = validateLabsModel(model, { debug: true }) || [];
+  } catch (err) {
+    console.warn('[LABS] model validation failed softly', err);
+  }
+
+  const finalModel = { ...model, validationWarnings };
+
+  console.debug('[LABS] model loaded', {
+    contactCount: finalModel.contacts.length,
+    partnerCount: finalModel.partners.length,
+    taskCount: finalModel.tasks.length
+  });
+
+  return finalModel;
 }
 
 // Format currency
