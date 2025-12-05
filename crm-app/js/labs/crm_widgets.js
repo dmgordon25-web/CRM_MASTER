@@ -22,6 +22,7 @@ import {
   formatRelativeTime,
   normalizeStagesForDisplay
 } from './data.js';
+import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 
 function renderCard(container, { title, body, badge } = {}) {
   const card = document.createElement('div');
@@ -59,142 +60,207 @@ function renderCard(container, { title, body, badge } = {}) {
 // Labs v1.5 baseline widgets
 // =======================
 export function renderLabsKpiSummaryWidget(container, model) {
-  const snapshotKPIs = calculateKPIsFromSnapshot(model.snapshot) || {};
-  const activeContacts = model.contacts.filter((contact) => {
-    const stage = normalizeStagesForDisplay(contact.stage);
-    return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
-  });
+  let shell;
+  try {
+    const snapshotKPIs = calculateKPIsFromSnapshot(model.snapshot) || {};
+    const activeContacts = model.contacts.filter((contact) => {
+      const stage = normalizeStagesForDisplay(contact.stage);
+      return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
+    });
 
-  const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
-  const openTasks = getOpenTasks(model.tasks || []);
-  const todayTasks = getTodayTasks(openTasks);
-  const overdueTasks = getOverdueTasks(openTasks);
+    const activeVolume = activeContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
+    const openTasks = getOpenTasks(model.tasks || []);
 
-  const leadsWithoutFollowUp = activeContacts.filter((contact) => {
-    const hasTask = openTasks.some((task) => task.contactId === contact.id);
-    return !hasTask;
-  });
+    const leadsWithoutFollowUp = activeContacts.filter((contact) => {
+      const hasTask = openTasks.some((task) => task.contactId === contact.id);
+      return !hasTask;
+    });
 
-  const tiles = [
-    { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
-    { label: 'Active Volume', value: formatCurrency(activeVolume) },
-    { label: 'Tasks Today', value: formatNumber(countTodayTasks(model.tasks || [])) },
-    { label: 'Overdue Tasks', value: formatNumber(countOverdueTasks(model.tasks || [])) },
-    { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
-    { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
-  ];
+    const hasActivity = Boolean((model.contacts && model.contacts.length) || (model.tasks && model.tasks.length));
+    const status = hasActivity ? 'ok' : 'empty';
 
-  const tilesHtml = tiles.map((tile, idx) => `
-    <div class="labs-kpi-tile" style="animation-delay:${idx * 0.05}s">
-      <div class="labs-kpi-label">${tile.label}</div>
-      <div class="labs-kpi-value">${tile.value}</div>
-    </div>
-  `).join('');
+    const tiles = [
+      { label: 'Active Pipeline', value: formatNumber(activeContacts.length) },
+      { label: 'Active Volume', value: formatCurrency(activeVolume) },
+      { label: 'Tasks Today', value: formatNumber(countTodayTasks(model.tasks || [])) },
+      { label: 'Overdue Tasks', value: formatNumber(countOverdueTasks(model.tasks || [])) },
+      { label: 'Leads w/o Follow-up', value: formatNumber(leadsWithoutFollowUp.length) },
+      { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
+    ];
 
-  renderCard(container, {
-    title: '📊 CRM Snapshot',
-    body: `<div class="labs-kpi-grid">${tilesHtml}</div>`
-  });
+    shell = renderWidgetShell(container, {
+      id: 'labsKpiSummary',
+      title: '📊 CRM Snapshot',
+      status,
+      emptyMessage: 'No CRM activity yet'
+    });
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    const tilesHtml = tiles.map((tile, idx) => `
+      <div class="labs-kpi-tile" style="animation-delay:${idx * 0.05}s">
+        <div class="labs-kpi-label">${tile.label}</div>
+        <div class="labs-kpi-value">${tile.value}</div>
+      </div>
+    `).join('');
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `<div class="labs-kpi-grid">${tilesHtml}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] labsKpiSummary render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'labsKpiSummary',
+      title: '📊 CRM Snapshot',
+      status: 'error',
+      errorMessage: 'Unable to load snapshot'
+    });
+  }
+
+  return shell;
 }
 
 export function renderLabsPipelineSnapshotWidget(container, model) {
-  const stages = Object.keys(STAGE_CONFIG);
-  const normalizedCounts = stages.reduce((acc, stage) => {
-    acc[stage] = 0;
-    return acc;
-  }, {});
+  let shell;
+  try {
+    const stages = Object.keys(STAGE_CONFIG);
+    const normalizedCounts = stages.reduce((acc, stage) => {
+      acc[stage] = 0;
+      return acc;
+    }, {});
 
-  const contactCounts = groupByStage(model.contacts || []);
-  const snapshotCounts = model.snapshot?.pipelineCounts || {};
-  const sourceCounts = Object.keys(snapshotCounts).length ? snapshotCounts : contactCounts;
+    const contactCounts = groupByStage(model.contacts || []);
+    const snapshotCounts = model.snapshot?.pipelineCounts || {};
+    const sourceCounts = Object.keys(snapshotCounts).length ? snapshotCounts : contactCounts;
 
-  Object.entries(sourceCounts).forEach(([stage, count]) => {
-    const normalized = normalizeStagesForDisplay(stage);
-    if (normalized && normalizedCounts.hasOwnProperty(normalized)) {
-      normalizedCounts[normalized] += count;
+    Object.entries(sourceCounts).forEach(([stage, count]) => {
+      const normalized = normalizeStagesForDisplay(stage);
+      if (normalized && normalizedCounts.hasOwnProperty(normalized)) {
+        normalizedCounts[normalized] += count;
+      }
+    });
+
+    const total = Object.values(normalizedCounts).reduce((sum, value) => sum + value, 0);
+    const status = total ? 'ok' : 'empty';
+
+    shell = renderWidgetShell(container, {
+      id: 'labsPipelineSnapshot',
+      title: '🧭 Pipeline Snapshot',
+      status,
+      emptyMessage: 'No pipeline data yet'
+    });
+
+    if (status !== 'ok') {
+      return shell;
     }
-  });
 
-  const total = Object.values(normalizedCounts).reduce((sum, value) => sum + value, 0);
-
-  if (!total) {
-    renderCard(container, { title: '🧭 Pipeline Snapshot', body: '<p class="empty-state">No pipeline data yet</p>' });
-    return;
-  }
-
-  const rowsHtml = stages.map((stage, idx) => {
-    const count = normalizedCounts?.[stage] || 0;
-    const percent = total ? Math.round((count / total) * 100) : 0;
-    const config = STAGE_CONFIG[stage] || {};
-    return `
-      <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
-        <div class="momentum-label">
-          <span class="stage-icon">${config.icon || '●'}</span>
-          <span class="stage-name">${config.label || stage}</span>
-        </div>
-        <div class="momentum-bar-container">
-          <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
-            <div class="momentum-glow"></div>
+    const rowsHtml = stages.map((stage, idx) => {
+      const count = normalizedCounts?.[stage] || 0;
+      const percent = total ? Math.round((count / total) * 100) : 0;
+      const config = STAGE_CONFIG[stage] || {};
+      return `
+        <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
+          <div class="momentum-label">
+            <span class="stage-icon">${config.icon || '●'}</span>
+            <span class="stage-name">${config.label || stage}</span>
+          </div>
+          <div class="momentum-bar-container">
+            <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
+              <div class="momentum-glow"></div>
+            </div>
+          </div>
+          <div class="momentum-stats">
+            <span class="stat-count">${count}</span>
+            <span class="stat-percent">${percent}%</span>
           </div>
         </div>
-        <div class="momentum-stats">
-          <span class="stat-count">${count}</span>
-          <span class="stat-percent">${percent}%</span>
-        </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
 
-  renderCard(container, {
-    title: '🧭 Pipeline Snapshot',
-    body: `<div class="momentum-bars">${rowsHtml}</div>`
-  });
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `<div class="momentum-bars">${rowsHtml}</div>`;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline snapshot render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'labsPipelineSnapshot',
+      title: '🧭 Pipeline Snapshot',
+      status: 'error',
+      errorMessage: 'Unable to load pipeline snapshot'
+    });
+  }
+
+  return shell;
 }
 
 export function renderLabsTasksWidget(container, model) {
-  const contactMap = new Map(model.contacts.map((c) => [c.id, c]));
-  const openTasks = getOpenTasks(model.tasks || []);
-  const todayTasks = getTodayTasks(openTasks);
-  const overdueTasks = getOverdueTasks(openTasks);
+  let shell;
+  try {
+    const contactMap = new Map((model.contacts || []).map((c) => [c.id, c]));
+    const openTasks = getOpenTasks(model.tasks || []);
+    const todayTasks = getTodayTasks(openTasks);
+    const overdueTasks = getOverdueTasks(openTasks);
 
-  const allTasks = [
-    ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
-    ...overdueTasks.map((task) => ({ task, status: 'Overdue', icon: '⚠️' }))
-  ];
+    const allTasks = [
+      ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
+      ...overdueTasks.map((task) => ({ task, status: 'Overdue', icon: '⚠️' }))
+    ];
 
-  const VISIBLE_LIMIT = 8;
-  const visibleTasks = allTasks.slice(0, VISIBLE_LIMIT);
-  const hiddenCount = Math.max(allTasks.length - visibleTasks.length, 0);
+    const VISIBLE_LIMIT = 8;
+    const visibleTasks = allTasks.slice(0, VISIBLE_LIMIT);
+    const hiddenCount = Math.max(allTasks.length - visibleTasks.length, 0);
 
-  const rows = visibleTasks.map((entry, idx) => {
-    const contact = contactMap.get(entry.task.contactId);
-    const contactName = model.getContactDisplayName
-      ? model.getContactDisplayName(entry.task.contactId)
-      : (contact?.displayName || contact?.name || entry.task.contactName);
-    const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
-    const overdue = entry.status === 'Overdue';
-    return `
-      <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
-        <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
-        <div class="labs-task-main">
-          <div class="labs-task-title">${entry.task.title || 'Task'}</div>
-          <div class="labs-task-meta">${contactLabel}</div>
+    const rows = visibleTasks.map((entry, idx) => {
+      const contact = contactMap.get(entry.task.contactId);
+      const contactName = model.getContactDisplayName
+        ? model.getContactDisplayName(entry.task.contactId)
+        : (contact?.displayName || contact?.name || entry.task.contactName);
+      const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
+      const overdue = entry.status === 'Overdue';
+      return `
+        <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
+          <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
+          <div class="labs-task-main">
+            <div class="labs-task-title">${entry.task.title || 'Task'}</div>
+            <div class="labs-task-meta">${contactLabel}</div>
+          </div>
+          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${entry.status}</div>
         </div>
-        <div class="labs-task-status ${overdue ? 'overdue' : ''}">${entry.status}</div>
-      </div>
-    `;
-  });
+      `;
+    });
 
-  const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more tasks</div>` : '';
+    const status = rows.length ? 'ok' : 'empty';
 
-  const body = rows.length
-    ? `<div class="labs-tasks-list">${rows.join('')}</div>${footer}`
-    : '<p class="empty-state">No tasks due or overdue</p>';
+    shell = renderWidgetShell(container, {
+      id: 'labsTasks',
+      title: '✅ Tasks Due',
+      status,
+      emptyMessage: 'No tasks due or overdue'
+    });
 
-  renderCard(container, {
-    title: '✅ Tasks Due',
-    body
-  });
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    const footer = hiddenCount > 0 ? `<div class="labs-task-footer">+${hiddenCount} more tasks</div>` : '';
+    const body = `<div class="labs-tasks-list">${rows.join('')}</div>${footer}`;
+
+    renderWidgetBody(shell, (el) => {
+      el.innerHTML = body;
+    });
+  } catch (err) {
+    console.error('[labs] tasks widget render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'labsTasks',
+      title: '✅ Tasks Due',
+      status: 'error',
+      errorMessage: 'Unable to load tasks'
+    });
+  }
+
+  return shell;
 }
 
 // =======================
@@ -276,192 +342,251 @@ export function renderPipelineMomentumWidget(container, model) {
 // Pipeline analytics (funnel, velocity, risk)
 // =======================
 export function renderPipelineFunnelWidget(container, model, options = {}) {
-  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
-  const funnel = model.analytics?.funnel || computeStageFunnel(model.contacts || []);
-  const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
-  if (!totalCount) {
-    renderCard(container, { title: '📈 Pipeline Funnel', body: '<p class="empty-state">No pipeline data yet</p>' });
-    return;
+  let shell;
+  try {
+    const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
+    const funnel = model.analytics?.funnel || computeStageFunnel(model.contacts || []);
+    const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
+    const status = totalCount ? 'ok' : 'empty';
+
+    shell = renderWidgetShell(container, {
+      id: 'pipelineFunnel',
+      title: '📈 Pipeline Funnel',
+      status,
+      emptyMessage: 'No pipeline data yet'
+    });
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    const maxCount = Math.max(...funnel.map((stage) => stage.count));
+
+    renderWidgetBody(shell, () => {
+      const body = document.createElement('div');
+      body.className = 'analytics-bars';
+
+      funnel.forEach((stage, idx) => {
+        const config = STAGE_CONFIG[stage.stageId] || {};
+        const percent = maxCount ? Math.round((stage.count / maxCount) * 100) : 0;
+        const row = document.createElement('div');
+        row.className = 'analytics-bar-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        if (onSegmentClick) {
+          row.classList.add('segment-clickable');
+          row.addEventListener('click', () => onSegmentClick({
+            type: 'stage',
+            key: stage.stageId,
+            label: stage.label
+          }));
+        }
+
+        const label = document.createElement('div');
+        label.className = 'analytics-label';
+        label.innerHTML = `<span class="stage-icon">${config.icon || '●'}</span><span class="stage-name">${stage.label}</span>`;
+
+        const barContainer = document.createElement('div');
+        barContainer.className = 'analytics-bar-container';
+        const bar = document.createElement('div');
+        bar.className = 'analytics-bar';
+        bar.style.setProperty('--bar-width', `${percent}%`);
+        bar.style.setProperty('--bar-color', config.color || '#4f46e5');
+        barContainer.appendChild(bar);
+
+        const stats = document.createElement('div');
+        stats.className = 'analytics-stats';
+        const count = document.createElement('span');
+        count.className = 'stat-count';
+        count.textContent = stage.count;
+        stats.appendChild(count);
+        if (stage.totalAmount) {
+          const amount = document.createElement('span');
+          amount.className = 'analytics-amount';
+          amount.textContent = formatCurrency(stage.totalAmount);
+          stats.appendChild(amount);
+        }
+
+        row.appendChild(label);
+        row.appendChild(barContainer);
+        row.appendChild(stats);
+        body.appendChild(row);
+      });
+
+      return body;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline funnel render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'pipelineFunnel',
+      title: '📈 Pipeline Funnel',
+      status: 'error',
+      errorMessage: 'Unable to load funnel'
+    });
   }
 
-  const maxCount = Math.max(...funnel.map((stage) => stage.count));
-  const body = document.createElement('div');
-  body.className = 'analytics-bars';
-
-  funnel.forEach((stage, idx) => {
-    const config = STAGE_CONFIG[stage.stageId] || {};
-    const percent = maxCount ? Math.round((stage.count / maxCount) * 100) : 0;
-    const row = document.createElement('div');
-    row.className = 'analytics-bar-row';
-    row.style.animationDelay = `${idx * 0.05}s`;
-    if (onSegmentClick) {
-      row.classList.add('segment-clickable');
-      row.addEventListener('click', () => onSegmentClick({
-        type: 'stage',
-        key: stage.stageId,
-        label: stage.label
-      }));
-    }
-
-    const label = document.createElement('div');
-    label.className = 'analytics-label';
-    label.innerHTML = `<span class="stage-icon">${config.icon || '●'}</span><span class="stage-name">${stage.label}</span>`;
-
-    const barContainer = document.createElement('div');
-    barContainer.className = 'analytics-bar-container';
-    const bar = document.createElement('div');
-    bar.className = 'analytics-bar';
-    bar.style.setProperty('--bar-width', `${percent}%`);
-    bar.style.setProperty('--bar-color', config.color || '#4f46e5');
-    barContainer.appendChild(bar);
-
-    const stats = document.createElement('div');
-    stats.className = 'analytics-stats';
-    const count = document.createElement('span');
-    count.className = 'stat-count';
-    count.textContent = stage.count;
-    stats.appendChild(count);
-    if (stage.totalAmount) {
-      const amount = document.createElement('span');
-      amount.className = 'analytics-amount';
-      amount.textContent = formatCurrency(stage.totalAmount);
-      stats.appendChild(amount);
-    }
-
-    row.appendChild(label);
-    row.appendChild(barContainer);
-    row.appendChild(stats);
-    body.appendChild(row);
-  });
-
-  renderCard(container, {
-    title: '📈 Pipeline Funnel',
-    body
-  });
+  return shell;
 }
 
 export function renderPipelineVelocityWidget(container, model, options = {}) {
-  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
-  const buckets = model.analytics?.velocityBuckets || computeStageAgeBuckets(model.contacts || []);
-  const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
-  if (!total) {
-    renderCard(container, { title: '⏱ Velocity', body: '<p class="empty-state">No active deals to measure</p>' });
-    return;
-  }
+  let shell;
+  try {
+    const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
+    const buckets = model.analytics?.velocityBuckets || computeStageAgeBuckets(model.contacts || []);
+    const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+    const status = total ? 'ok' : 'empty';
 
-  const maxCount = Math.max(...buckets.map((bucket) => bucket.count));
-  const body = document.createElement('div');
-  body.className = 'analytics-bars';
+    shell = renderWidgetShell(container, {
+      id: 'pipelineVelocity',
+      title: '⏱ Velocity',
+      status,
+      emptyMessage: 'No active deals to measure'
+    });
 
-  buckets.forEach((bucket, idx) => {
-    const percent = maxCount ? Math.round((bucket.count / maxCount) * 100) : 0;
-    const row = document.createElement('div');
-    row.className = 'analytics-bar-row compact';
-    row.style.animationDelay = `${idx * 0.05}s`;
-    if (onSegmentClick) {
-      row.classList.add('segment-clickable');
-      row.addEventListener('click', () => onSegmentClick({
-        type: 'velocity',
-        key: bucket.id,
-        label: bucket.label
-      }));
+    if (status !== 'ok') {
+      return shell;
     }
 
-    const label = document.createElement('div');
-    label.className = 'analytics-label';
-    label.textContent = bucket.label;
+    const maxCount = Math.max(...buckets.map((bucket) => bucket.count));
 
-    const barContainer = document.createElement('div');
-    barContainer.className = 'analytics-bar-container';
-    const bar = document.createElement('div');
-    bar.className = 'analytics-bar';
-    bar.style.setProperty('--bar-width', `${percent}%`);
-    bar.style.setProperty('--bar-color', 'var(--labs-accent-2)');
-    barContainer.appendChild(bar);
+    renderWidgetBody(shell, () => {
+      const body = document.createElement('div');
+      body.className = 'analytics-bars';
 
-    const stats = document.createElement('div');
-    stats.className = 'analytics-stats';
-    const count = document.createElement('span');
-    count.className = 'stat-count';
-    count.textContent = bucket.count;
-    stats.appendChild(count);
+      buckets.forEach((bucket, idx) => {
+        const percent = maxCount ? Math.round((bucket.count / maxCount) * 100) : 0;
+        const row = document.createElement('div');
+        row.className = 'analytics-bar-row compact';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        if (onSegmentClick) {
+          row.classList.add('segment-clickable');
+          row.addEventListener('click', () => onSegmentClick({
+            type: 'velocity',
+            key: bucket.id,
+            label: bucket.label
+          }));
+        }
 
-    row.appendChild(label);
-    row.appendChild(barContainer);
-    row.appendChild(stats);
-    body.appendChild(row);
-  });
+        const label = document.createElement('div');
+        label.className = 'analytics-label';
+        label.textContent = bucket.label;
 
-  renderCard(container, {
-    title: '⏱ Velocity',
-    body
-  });
+        const barContainer = document.createElement('div');
+        barContainer.className = 'analytics-bar-container';
+        const bar = document.createElement('div');
+        bar.className = 'analytics-bar';
+        bar.style.setProperty('--bar-width', `${percent}%`);
+        bar.style.setProperty('--bar-color', 'var(--labs-accent-2)');
+        barContainer.appendChild(bar);
+
+        const stats = document.createElement('div');
+        stats.className = 'analytics-stats';
+        const count = document.createElement('span');
+        count.className = 'stat-count';
+        count.textContent = bucket.count;
+        stats.appendChild(count);
+
+        row.appendChild(label);
+        row.appendChild(barContainer);
+        row.appendChild(stats);
+        body.appendChild(row);
+      });
+
+      return body;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline velocity render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'pipelineVelocity',
+      title: '⏱ Velocity',
+      status: 'error',
+      errorMessage: 'Unable to load velocity'
+    });
+  }
+
+  return shell;
 }
 
 export function renderPipelineRiskWidget(container, model, options = {}) {
-  const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
-  const summary = model.analytics?.staleSummary || computeStaleSummary(model.contacts || []);
-  const total = summary?.total || 0;
-  const byStage = summary?.byStage || {};
-  const stageEntries = Object.entries(byStage)
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1]);
+  let shell;
+  try {
+    const onSegmentClick = typeof options.onAnalyticsSegment === 'function' ? options.onAnalyticsSegment : null;
+    const summary = model.analytics?.staleSummary || computeStaleSummary(model.contacts || []);
+    const total = summary?.total || 0;
+    const byStage = summary?.byStage || {};
+    const stageEntries = Object.entries(byStage)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1]);
 
-  const header = document.createElement('div');
-  header.className = 'risk-summary';
-  const totalEl = document.createElement('div');
-  totalEl.className = 'risk-total';
-  totalEl.textContent = total;
-  const text = document.createElement('div');
-  text.className = 'risk-text';
-  text.textContent = 'Stale deals (14d+)';
-  header.appendChild(totalEl);
-  header.appendChild(text);
+    const status = total ? 'ok' : 'empty';
 
-  const rowsWrapper = document.createElement('div');
-  rowsWrapper.className = 'risk-rows';
+    shell = renderWidgetShell(container, {
+      id: 'pipelineRisk',
+      title: '🛑 Pipeline Risk',
+      status,
+      emptyMessage: 'No stale deals 🎉'
+    });
 
-  stageEntries.forEach(([stage, count], idx) => {
-    const config = STAGE_CONFIG[stage] || {};
-    const label = config.label || stage || 'Unknown';
-    const row = document.createElement('div');
-    row.className = 'risk-row';
-    row.style.animationDelay = `${idx * 0.05}s`;
-    if (onSegmentClick) {
-      row.classList.add('segment-clickable');
-      row.addEventListener('click', () => onSegmentClick({
-        type: 'risk',
-        key: stage,
-        label
-      }));
+    if (status !== 'ok') {
+      return shell;
     }
 
-    const labelEl = document.createElement('div');
-    labelEl.className = 'risk-label';
-    labelEl.textContent = `${config.icon || '⚠️'} ${label}`;
-    const countEl = document.createElement('div');
-    countEl.className = 'risk-count';
-    countEl.textContent = count;
-    row.appendChild(labelEl);
-    row.appendChild(countEl);
-    rowsWrapper.appendChild(row);
-  });
+    renderWidgetBody(shell, () => {
+      const header = document.createElement('div');
+      header.className = 'risk-summary';
+      const totalEl = document.createElement('div');
+      totalEl.className = 'risk-total';
+      totalEl.textContent = total;
+      const text = document.createElement('div');
+      text.className = 'risk-text';
+      text.textContent = 'Stale deals (14d+)';
+      header.appendChild(totalEl);
+      header.appendChild(text);
 
-  const body = document.createElement('div');
-  if (total) {
-    body.appendChild(header);
-    body.appendChild(rowsWrapper);
-  } else {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = 'No stale deals 🎉';
-    body.appendChild(empty);
+      const rowsWrapper = document.createElement('div');
+      rowsWrapper.className = 'risk-rows';
+
+      stageEntries.forEach(([stage, count], idx) => {
+        const config = STAGE_CONFIG[stage] || {};
+        const label = config.label || stage || 'Unknown';
+        const row = document.createElement('div');
+        row.className = 'risk-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        if (onSegmentClick) {
+          row.classList.add('segment-clickable');
+          row.addEventListener('click', () => onSegmentClick({
+            type: 'risk',
+            key: stage,
+            label
+          }));
+        }
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'risk-label';
+        labelEl.textContent = `${config.icon || '⚠️'} ${label}`;
+        const countEl = document.createElement('div');
+        countEl.className = 'risk-count';
+        countEl.textContent = count;
+        row.appendChild(labelEl);
+        row.appendChild(countEl);
+        rowsWrapper.appendChild(row);
+      });
+
+      const body = document.createElement('div');
+      body.appendChild(header);
+      body.appendChild(rowsWrapper);
+      return body;
+    });
+  } catch (err) {
+    console.error('[labs] pipeline risk render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'pipelineRisk',
+      title: '🛑 Pipeline Risk',
+      status: 'error',
+      errorMessage: 'Unable to load risk summary'
+    });
   }
 
-  renderCard(container, {
-    title: '🛑 Pipeline Risk',
-    body
-  });
+  return shell;
 }
 
 // =======================
@@ -823,33 +948,52 @@ export function renderGoalProgressWidget(container, model) {
 // To-do / due tasks
 // =======================
 export function renderTodoWidget(container, model) {
-  const dueGroups = model.snapshot?.dueGroups || {};
-  const today = dueGroups.today || [];
-  const overdue = dueGroups.overdue || [];
+  let shell;
+  try {
+    const dueGroups = model.snapshot?.dueGroups || {};
+    const today = dueGroups.today || [];
+    const overdue = dueGroups.overdue || [];
+    const status = today.length || overdue.length ? 'ok' : 'empty';
 
-  if (!today.length && !overdue.length) {
-    renderCard(container, { title: '✅ To-Do', body: '<p class="empty-state">Nothing due right now</p>' });
-    return;
+    shell = renderWidgetShell(container, {
+      id: 'todo',
+      title: '✅ To-Do',
+      status,
+      emptyMessage: 'Nothing due right now'
+    });
+
+    if (status !== 'ok') {
+      return shell;
+    }
+
+    const renderTasks = (items) => items.map((item) => `<li><strong>${item.title || 'Task'}</strong> · ${formatDate(item.due || item.dueTs)}</li>`).join('')
+      || '<li class="muted">Nothing queued</li>';
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `
+        <div class="todo-columns">
+          <div>
+            <div class="muted">Due Today</div>
+            <ul>${renderTasks(today)}</ul>
+          </div>
+          <div>
+            <div class="muted">Overdue</div>
+            <ul>${renderTasks(overdue)}</ul>
+          </div>
+        </div>
+      `;
+    });
+  } catch (err) {
+    console.error('[labs] todo widget render failed', err);
+    shell = renderWidgetShell(container, {
+      id: 'todo',
+      title: '✅ To-Do',
+      status: 'error',
+      errorMessage: 'Unable to load to-do list'
+    });
   }
 
-  const renderTasks = (items) => items.map((item) => `<li><strong>${item.title || 'Task'}</strong> · ${formatDate(item.due || item.dueTs)}</li>`).join('')
-    || '<li class="muted">Nothing queued</li>';
-
-  renderCard(container, {
-    title: '✅ To-Do',
-    body: `
-      <div class="todo-columns">
-        <div>
-          <div class="muted">Due Today</div>
-          <ul>${renderTasks(today)}</ul>
-        </div>
-        <div>
-          <div class="muted">Overdue</div>
-          <ul>${renderTasks(overdue)}</ul>
-        </div>
-      </div>
-    `
-  });
+  return shell;
 }
 
 // =======================
