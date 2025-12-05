@@ -363,6 +363,8 @@
 .labs-grid-item {
   width: 100%;
   position: relative;
+  cursor: default;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .labs-grid-item.labs-w1 { grid-column: span 1; }
@@ -388,16 +390,27 @@
   user-select: none;
 }
 
+.labs-widget-drag-handle,
+.labs-widget-resize-handle {
+  pointer-events: none;
+}
+
 .labs-widget-drag-handle .handle-icon {
   font-size: 1rem;
 }
 
 .labs-layout-edit-mode .labs-widget-drag-handle {
   display: inline-flex;
+  pointer-events: auto;
 }
 
 .labs-layout-edit-mode .labs-grid-item {
   cursor: grab;
+  box-shadow: 0 0 0 1px var(--labs-border);
+}
+
+.labs-layout-edit-mode .labs-grid-item .labs-widget-container {
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.18);
 }
 
 .labs-widget-resize-handle {
@@ -427,6 +440,7 @@
 
 .labs-layout-edit-mode .labs-widget-resize-handle {
   display: flex;
+  pointer-events: auto;
 }
 
 .labs-layout-edit-mode .labs-widget-resize-handle:hover {

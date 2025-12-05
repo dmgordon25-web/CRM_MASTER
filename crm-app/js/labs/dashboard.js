@@ -4,12 +4,10 @@ import { ensureDatabase, buildLabsModel, formatNumber } from './data.js';
 import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
 import { makeDraggableGrid } from '../ui/drag_core.js';
 import {
-  clearSectionLayoutState,
-  layoutStorageKey,
-  loadSectionLayoutState,
-  loadSectionPreset,
-  saveSectionLayoutState,
-  saveSectionPreset
+  applyPresetToSection,
+  loadSectionLayout,
+  resetSectionLayout,
+  saveSectionLayout
 } from './layout_state.js';
 import openAnalyticsDrilldown from './analytics_drilldown.js';
 import { emitLabsEvent, onLabsEvent } from './labs_events.js';
@@ -245,63 +243,6 @@ function getSection(sectionId) {
   return SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
 }
 
-function applyOrder(defaultOrder, storedOrder = []) {
-  const normalizedDefault = Array.isArray(defaultOrder) ? defaultOrder : [];
-  if (!normalizedDefault.length) return [];
-  const normalizedStored = Array.isArray(storedOrder) ? storedOrder.map(String) : [];
-  const seen = new Set();
-  const ordered = [];
-
-  normalizedStored.forEach((id) => {
-    if (!id || seen.has(id)) return;
-    if (normalizedDefault.includes(id)) {
-      ordered.push(id);
-      seen.add(id);
-    }
-  });
-
-  normalizedDefault.forEach((id) => {
-    if (!id || seen.has(id)) return;
-    ordered.push(id);
-    seen.add(id);
-  });
-
-  return ordered;
-}
-
-function buildDefaultLayout(section) {
-  const widgets = section?.widgets || [];
-  const order = widgets.map((widget) => widget?.id).filter(Boolean);
-  const widths = {};
-  const visibility = {};
-  widgets.forEach((widget) => {
-    if (!widget?.id) return;
-    widths[widget.id] = defaultWidthToken(widget.size);
-    visibility[widget.id] = true;
-  });
-  return { order, widths, visibility };
-}
-
-function normalizeLayoutState(section, rawState) {
-  const defaults = buildDefaultLayout(section);
-  const order = applyOrder(defaults.order, rawState?.order);
-
-  const widths = {};
-  order.forEach((id) => {
-    const override = rawState?.widths?.[id];
-    const normalized = normalizeWidthToken(override);
-    widths[id] = normalized || defaults.widths[id] || 'w2';
-  });
-
-  const visibility = {};
-  order.forEach((id) => {
-    const stored = rawState?.visibility?.[id];
-    visibility[id] = stored === false ? false : true;
-  });
-
-  return { order, widths, visibility };
-}
-
 function cacheSectionLayout(sectionId, layout) {
   sectionLayoutCache.set(sectionId, layout);
 }
@@ -321,8 +262,7 @@ function getWidgetLabel(widgetId) {
 }
 
 function buildSectionRenderData(section) {
-  const rawState = loadSectionLayoutState(section.id);
-  const layoutState = normalizeLayoutState(section, rawState);
+  const layoutState = loadSectionLayout(section.id, section.widgets);
   cacheSectionLayout(section.id, layoutState);
   const widgetsInOrder = layoutState.order
     .map((id) => (section.widgets || []).find((widget) => widget?.id === id))
@@ -330,13 +270,12 @@ function buildSectionRenderData(section) {
   return { layoutState, widgetsInOrder };
 }
 
-function mutateLayoutState(sectionId, mutator) {
+function commitLayout(sectionId, updater) {
   const section = getSection(sectionId);
-  if (!section || typeof mutator !== 'function') return null;
-  const current = loadSectionLayoutState(sectionId) || {};
-  const next = mutator({ ...current }) || current;
-  saveSectionLayoutState(sectionId, next);
-  const normalized = normalizeLayoutState(section, next);
+  if (!section || typeof updater !== 'function') return null;
+  const current = loadSectionLayout(sectionId, section.widgets) || {};
+  const next = updater({ ...current }) || current;
+  const normalized = saveSectionLayout(sectionId, next, section.widgets);
   cacheSectionLayout(sectionId, normalized);
   notifyLayoutChanged(sectionId, normalized);
   return normalized;
@@ -344,7 +283,7 @@ function mutateLayoutState(sectionId, mutator) {
 
 function updateVisibility(sectionId, widgetId, isVisible) {
   if (!sectionId || !widgetId) return;
-  mutateLayoutState(sectionId, (state) => {
+  commitLayout(sectionId, (state) => {
     const next = state || {};
     next.visibility = next.visibility && typeof next.visibility === 'object' ? { ...next.visibility } : {};
     next.visibility[widgetId] = !!isVisible;
@@ -371,7 +310,7 @@ function getWidgetWidthToken(sectionId, widget) {
 function setWidgetWidthToken(sectionId, widgetId, token) {
   const normalized = normalizeWidthToken(token);
   if (!sectionId || !widgetId || !normalized) return;
-  mutateLayoutState(sectionId, (state) => {
+  commitLayout(sectionId, (state) => {
     const next = state || {};
     next.widths = next.widths && typeof next.widths === 'object' ? { ...next.widths } : {};
     next.widths[widgetId] = normalized;
@@ -382,14 +321,14 @@ function setWidgetWidthToken(sectionId, widgetId, token) {
 function persistLayout(sectionId, order) {
   if (!sectionId) return;
   const normalized = Array.isArray(order) ? order.map(String) : [];
-  mutateLayoutState(sectionId, (state) => ({ ...state, order: normalized }));
+  commitLayout(sectionId, (state) => ({ ...state, order: normalized }));
 }
 
-function resetSectionLayout(sectionId) {
+function resetSectionLayoutToDefault(sectionId) {
   if (!sectionId) return null;
-  clearSectionLayoutState(sectionId);
   const section = getSection(sectionId);
-  const defaults = buildDefaultLayout(section);
+  if (!section) return null;
+  const defaults = resetSectionLayout(sectionId, section.widgets);
   cacheSectionLayout(sectionId, defaults);
   notifyLayoutChanged(sectionId, defaults);
   return defaults;
@@ -405,8 +344,10 @@ function getPresetOptions(sectionId) {
 }
 
 function getPresetSelection(sectionId) {
-  const stored = loadSectionPreset(sectionId);
+  const section = getSection(sectionId);
+  const layout = loadSectionLayout(sectionId, section?.widgets || []);
   const presets = LABS_PRESETS[sectionId];
+  const stored = layout?.preset;
   if (stored && presets && presets[stored]) return stored;
   if (presets?.default) return 'default';
   return '';
@@ -417,31 +358,9 @@ function applyPreset(sectionId, presetKey) {
   if (!sectionId || !presetKey || !section) return;
   const presets = LABS_PRESETS[section.id] || {};
   const preset = presets[presetKey];
-  if (!preset || presetKey === 'default') {
-    resetSectionLayout(sectionId);
-    saveSectionPreset(sectionId, '');
-    return;
-  }
-
-  const defaults = buildDefaultLayout(section);
-  const order = applyOrder(defaults.order, preset.order);
-  const widths = {};
-  const visibility = {};
-
-  order.forEach((id) => {
-    const override = preset.widths?.[id];
-    const normalized = normalizeWidthToken(override);
-    widths[id] = normalized || defaults.widths[id] || 'w2';
-
-    const presetVisible = preset.visibility?.[id];
-    visibility[id] = presetVisible === false ? false : true;
-  });
-
-  const nextState = { order, widths, visibility };
-  saveSectionLayoutState(section.id, nextState);
-  cacheSectionLayout(section.id, normalizeLayoutState(section, nextState));
-  saveSectionPreset(section.id, presetKey);
-  notifyLayoutChanged(section.id, normalizeLayoutState(section, nextState));
+  const layout = applyPresetToSection(section.id, presetKey, section.widgets, preset || {});
+  cacheSectionLayout(section.id, layout);
+  notifyLayoutChanged(section.id, layout);
 }
 
 function showLoading() {
@@ -532,7 +451,7 @@ function createHeader() {
         ${warningBadge}
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">${labsLayoutEditMode ? 'Done editing' : 'Edit layout'}</button>
+        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">${labsLayoutEditMode ? 'Layout mode: On' : 'Layout mode: Off'}</button>
       </div>
     </div>
   `;
@@ -542,7 +461,7 @@ function createHeader() {
 function updateLayoutToggleUi() {
   const toggle = dashboardRoot?.querySelector('[data-action="layout-toggle"]');
   if (!toggle) return;
-  toggle.textContent = labsLayoutEditMode ? 'Done editing' : 'Edit layout';
+  toggle.textContent = labsLayoutEditMode ? 'Layout mode: On' : 'Layout mode: Off';
   toggle.setAttribute('aria-pressed', labsLayoutEditMode ? 'true' : 'false');
 }
 
@@ -810,7 +729,6 @@ function registerGridDrag(section, grid) {
       container: grid,
       itemSel: '.labs-grid-item',
       handleSel: '.labs-widget-drag-handle',
-      storageKey: layoutStorageKey(section.id, 'order'),
       idGetter: (el) => (el?.dataset?.widgetId ? String(el.dataset.widgetId).trim() : ''),
       onOrderChange: (order) => persistLayout(section.id, order),
       enabled: labsLayoutEditMode
@@ -1000,8 +918,7 @@ function attachEventListeners() {
     if (action === 'reset-layout') {
       const sectionId = event.target.closest('[data-section-id]')?.dataset.sectionId || activeSection;
       if (!sectionId) return;
-      resetSectionLayout(sectionId);
-      saveSectionPreset(sectionId, '');
+      resetSectionLayoutToDefault(sectionId);
       renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
       showNotification('Layout reset to default', 'info');
       return;
@@ -1034,7 +951,6 @@ function attachEventListeners() {
     const sectionId = select.dataset.sectionId;
     const presetKey = select.value;
     applyPreset(sectionId, presetKey);
-    saveSectionPreset(sectionId, presetKey === 'default' ? '' : presetKey);
     renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
   };
   dashboardRoot.addEventListener('change', presetChangeHandler);
