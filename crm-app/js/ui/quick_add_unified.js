@@ -3,6 +3,7 @@ import { toastSoftError, toastSuccess, toastWarn } from './toast_helpers.js';
 import { validateContact } from '../contacts.js';
 import { validatePartner } from '../partners.js';
 import { bindQuickAddValidation } from './quick_add_validation.js';
+import { PIPELINE_MILESTONES, normalizeMilestoneForStatus, normalizeStatusForStage } from '../pipeline/constants.js';
 
 function broadcastDataChanged(detail){
   const payload = detail && typeof detail === 'object' ? detail : {};
@@ -63,8 +64,11 @@ const PARTNER_VALIDATION_CONFIG = {
 const QUICK_ADD_INVALID_TOAST = 'Please fix highlighted fields';
 
 function readContactFormModel(form){
+  const fallbackStage = 'Application';
+  const fallbackStatus = normalizeStatusForStage(fallbackStage, '');
+  const fallbackMilestone = normalizeMilestoneForStatus(PIPELINE_MILESTONES[0], fallbackStatus);
   if(!form || typeof form.querySelector !== 'function'){
-    return { firstName: '', lastName: '', email: '', phone: '', name: '' };
+    return { firstName: '', lastName: '', email: '', phone: '', name: '', stage: fallbackStage, status: fallbackStatus, pipelineMilestone: fallbackMilestone };
   }
   const read = (name) => {
     const input = form.querySelector(`[name="${name}"]`);
@@ -77,7 +81,10 @@ function readContactFormModel(form){
   const email = read('email');
   const phone = read('phone');
   const name = `${firstName} ${lastName}`.trim();
-  return { firstName, lastName, email, phone, name };
+  const stage = fallbackStage;
+  const status = fallbackStatus;
+  const pipelineMilestone = fallbackMilestone;
+  return { firstName, lastName, email, phone, name, stage, status, pipelineMilestone };
 }
 
 function readPartnerFormModel(form){
@@ -264,6 +271,9 @@ export function wireQuickAddUnified(options = {}) {
         const email = model.email || '';
         const phone = model.phone || '';
         const name = model.name || [first, last].filter(Boolean).join(' ').trim();
+        const stage = model.stage || 'Application';
+        const status = normalizeStatusForStage(stage, model.status || '');
+        const pipelineMilestone = normalizeMilestoneForStatus(model.pipelineMilestone || PIPELINE_MILESTONES[0], status);
         const rec = {
           firstName: first,
           lastName: last,
@@ -274,8 +284,9 @@ export function wireQuickAddUnified(options = {}) {
           phone,
           createdAt: now,
           updatedAt: now,
-          stage: "Application",
-          status: "Active",
+          stage,
+          status,
+          pipelineMilestone,
         };
         let saved = false;
         let assignedId = model.id != null ? model.id : null;
