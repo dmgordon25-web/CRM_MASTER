@@ -23,6 +23,12 @@ import {
   formatRelativeTime,
   normalizeStagesForDisplay
 } from './data.js';
+import {
+  createRowContainer,
+  renderContactRow,
+  renderLoanRow,
+  renderPartnerRow
+} from './row_renderers.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 
 const WIDGET_META = {
@@ -627,14 +633,24 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
       const rowsWrapper = document.createElement('div');
       rowsWrapper.className = 'risk-rows';
 
-      stageEntries.forEach(([stage, count], idx) => {
+      stageEntries.forEach(([stage, count]) => {
         const config = STAGE_CONFIG[stage] || {};
         const label = config.label || stage || 'Unknown';
-        const row = document.createElement('div');
-        row.className = 'risk-row';
-        row.style.animationDelay = `${idx * 0.05}s`;
+        const row = createRowContainer('metric');
+        const primary = row.querySelector('.labs-row__primary');
+        const secondary = row.querySelector('.labs-row__secondary');
+        const meta = row.querySelector('.labs-row__meta');
+
+        if (primary) primary.textContent = `${config.icon || '⚠️'} ${label}`;
+        if (secondary) secondary.textContent = '14+ days stale';
+        if (meta) {
+          meta.textContent = count;
+          meta.hidden = false;
+          meta.classList.add('is-negative');
+        }
+
         if (onSegmentClick) {
-          row.classList.add('segment-clickable');
+          row.classList.add('segment-clickable', 'labs-row--clickable');
           row.addEventListener('click', () => onSegmentClick({
             type: ANALYTICS_SEGMENT_TYPES.RISK,
             key: stage,
@@ -642,14 +658,6 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
           }));
         }
 
-        const labelEl = document.createElement('div');
-        labelEl.className = 'risk-label';
-        labelEl.textContent = `${config.icon || '⚠️'} ${label}`;
-        const countEl = document.createElement('div');
-        countEl.className = 'risk-count';
-        countEl.textContent = count;
-        row.appendChild(labelEl);
-        row.appendChild(countEl);
         rowsWrapper.appendChild(row);
       });
 
@@ -778,48 +786,47 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
       emptyMessage: 'No referral data yet.'
     }));
 
-    if (status !== 'ok') {
+  if (status !== 'ok') {
       return shell;
     }
 
     renderWidgetBody(shell, (body) => {
-      const partnersHTML = topPartners.map((partner, idx) => {
-        const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
-        const ranks = ['gold', 'silver', 'bronze', 'standard', 'standard'];
-        return `
-          <div class="leaderboard-card rank-${ranks[idx]}" style="animation-delay:${idx * 0.1}s" data-partner-id="${partner.id || ''}" data-partner-name="${partner.name || partner.company || ''}">
-            <div class="rank-badge">${medals[idx]}</div>
-            <div class="partner-info">
-              <div class="partner-name">${partner.name || partner.company || 'Partner'}</div>
-              <div class="partner-company">${partner.tier || ''}</div>
-            </div>
-            <div class="partner-stats">
-              <div class="stat-value">${partner.volume ? formatCurrency(partner.volume) : partner.referralVolume || 0}</div>
-              <div class="stat-label">Volume</div>
-            </div>
-          </div>
-        `;
-      }).join('');
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
 
-      body.innerHTML = `<div class="leaderboard-list">${partnersHTML}</div>`;
+      topPartners.forEach((partner, idx) => {
+        const partnerDisplay = {
+          id: partner.id,
+          name: partner.name || partner.company,
+          tier: partner.tier,
+          volume: partner.volume ? formatCurrency(partner.volume) : (partner.referralVolume || 0)
+        };
+        const row = createRowContainer('partner');
+        renderPartnerRow(row, partnerDisplay, {
+          badgeText: ['🥇', '🥈', '🥉'][idx] || '🏅',
+          secondaryText: partnerDisplay.tier || 'Referral partner',
+          metaText: partnerDisplay.volume,
+          metaClass: idx === 0 ? 'is-positive' : undefined
+        });
 
-      if (onPortfolioSegment) {
-        const rows = body.querySelectorAll('.leaderboard-card');
-        rows.forEach((row) => {
-          const partnerId = row.dataset.partnerId;
-          if (!partnerId) return;
-          row.style.cursor = 'pointer';
+        if (onPortfolioSegment && partnerDisplay.id) {
+          row.classList.add('labs-row--clickable');
           row.addEventListener('click', () => {
-            const label = row.dataset.partnerName || 'Referral partner';
+            const label = partnerDisplay.name || 'Referral partner';
             onPortfolioSegment({
               domain: 'loans',
               type: 'referrals',
-              key: partnerId,
+              key: partnerDisplay.id,
               label
             });
           });
-        });
-      }
+        }
+
+        list.appendChild(row);
+      });
+
+      body.innerHTML = '';
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] referral leaderboard render failed', err);
@@ -853,26 +860,33 @@ export function renderReferralTrendsWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const rows = trends.slice(0, 10).map((entry, idx) => {
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
+
+      trends.slice(0, 10).forEach((entry) => {
         const direction = entry.direction === 'up' ? '▲' : (entry.direction === 'down' ? '▼' : '–');
         const deltaValue = Number(entry.delta || 0);
         const deltaText = `${deltaValue > 0 ? '+' : ''}${deltaValue}`;
-        const directionClass = entry.direction === 'up'
-          ? 'trend-up'
-          : (entry.direction === 'down' ? 'trend-down' : 'trend-flat');
-        return `
-          <div class="trend-row ${directionClass}" style="animation-delay:${idx * 0.05}s">
-            <div class="trend-name">${entry.partnerName || model.getPartnerDisplayName?.(entry.partnerId) || 'Partner'}</div>
-            <div class="trend-stats">
-              <div class="trend-current" title="Current window">${entry.currentCount || 0}</div>
-              <div class="trend-delta" title="Change vs prior">${direction} ${deltaText}</div>
-              <div class="trend-previous" title="Prior window">Prev ${entry.previousCount || 0}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
+        const partnerDisplay = {
+          id: entry.partnerId,
+          name: entry.partnerName || model.getPartnerDisplayName?.(entry.partnerId),
+          currentCount: entry.currentCount,
+          delta: deltaText,
+          previousCount: entry.previousCount
+        };
 
-      body.innerHTML = `<div class="trend-list">${rows}</div>`;
+        const row = createRowContainer('partner');
+        renderPartnerRow(row, partnerDisplay, {
+          secondaryText: `Current ${entry.currentCount || 0} · Prev ${entry.previousCount || 0}`,
+          metaText: `${direction} ${deltaText}`,
+          metaClass: entry.direction === 'up' ? 'is-positive' : (entry.direction === 'down' ? 'is-negative' : 'is-neutral')
+        });
+
+        list.appendChild(row);
+      });
+
+      body.innerHTML = '';
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] referral trends render failed', err);
@@ -904,7 +918,10 @@ export function renderStaleDealsWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const dealsHTML = staleDeals.slice(0, 6).map((deal, idx) => {
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
+
+      staleDeals.slice(0, 6).forEach((deal) => {
         const dealContact = deal.contact || deal;
         const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(dealContact) : dealContact;
         const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
@@ -913,23 +930,27 @@ export function renderStaleDealsWidget(container, model) {
         const name = loanDisplay.borrowerName
           || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || dealContact.id) : null)
           || loanDisplay.displayName
-          || loanDisplay.name;
-        return `
-          <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
-            <div class="stale-header">
-              <div class="stale-name">${name || 'Unknown'}</div>
-              <div class="stale-days">${daysSince}d</div>
-            </div>
-            <div class="stale-details">
-              <span class="stale-stage">${loanDisplay.stageLabel || stageConfig.label || dealContact.stage}</span>
-              ${loanDisplay.loanAmount || loanDisplay.amount ? `<span class="stale-amount">${formatCurrency(loanDisplay.loanAmount || loanDisplay.amount)}</span>` : ''}
-            </div>
-            <div class="stale-urgency-bar" style="--urgency:${Math.min(daysSince / 30, 1)}"></div>
-          </div>
-        `;
-      }).join('');
+          || loanDisplay.name
+          || 'Borrower';
+        const secondaryPieces = [loanDisplay.stageLabel || stageConfig.label || dealContact.stage];
+        if (loanDisplay.loanAmount || loanDisplay.amount) {
+          secondaryPieces.push(formatCurrency(loanDisplay.loanAmount || loanDisplay.amount));
+        }
 
-      body.innerHTML = `<div class="stale-list">${dealsHTML}</div>`;
+        const row = createRowContainer('loan');
+        row.classList.add(`urgency-${urgency}`);
+        renderLoanRow(row, loanDisplay, {
+          primaryText: name,
+          secondaryText: secondaryPieces.filter(Boolean).join(' • '),
+          metaText: `${daysSince}d`,
+          metaClass: 'is-negative'
+        });
+
+        list.appendChild(row);
+      });
+
+      body.innerHTML = '';
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] stale deals render failed', err);
@@ -1398,29 +1419,40 @@ export function renderRelationshipWidget(container, model, opts = {}) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const items = nurture.slice(0, 8).map((contact, idx) => `
-        <div class="relationship-row" style="animation-delay:${idx * 0.05}s">
-          <div class="relationship-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
-          <div class="relationship-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
-          <div class="relationship-updated">${formatRelativeTime(contact.updatedTs)}</div>
-        </div>
-      `).join('');
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
 
-      body.innerHTML = `<div class="relationship-list">${items}</div>`;
-
-      const rows = body.querySelectorAll('.relationship-row');
-      rows.forEach((row) => {
-        if (!onPortfolioSegment) return;
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', () => {
-          onPortfolioSegment({
-            domain: 'contacts',
-            type: 'relationship',
-            key: 'nurture',
-            label: 'Relationship opportunities'
-          });
+      nurture.slice(0, 8).forEach((contact) => {
+        const contactDisplay = {
+          id: contact.id,
+          name: (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name,
+          lastTouchLabel: STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage,
+          ageLabel: formatRelativeTime(contact.updatedTs)
+        };
+        const row = createRowContainer('contact');
+        renderContactRow(row, contactDisplay, {
+          secondaryText: contactDisplay.lastTouchLabel,
+          metaText: contactDisplay.ageLabel,
+          metaClass: 'is-neutral'
         });
+
+        if (onPortfolioSegment) {
+          row.classList.add('labs-row--clickable');
+          row.addEventListener('click', () => {
+            onPortfolioSegment({
+              domain: 'contacts',
+              type: 'relationship',
+              key: 'nurture',
+              label: 'Relationship opportunities'
+            });
+          });
+        }
+
+        list.appendChild(row);
       });
+
+      body.innerHTML = '';
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] relationship opportunities render failed', err);
@@ -1452,17 +1484,28 @@ export function renderClosingWatchWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const items = closing.slice(0, 6).map((contact, idx) => `
-        <div class="closing-row" style="animation-delay:${idx * 0.05}s">
-          <div class="closing-main">
-            <div class="closing-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
-            <div class="closing-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
-          </div>
-          <div class="closing-amount">${contact.loanAmount ? formatCurrency(contact.loanAmount) : ''}</div>
-        </div>
-      `).join('');
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
 
-      body.innerHTML = `<div class="closing-list">${items}</div>`;
+      closing.slice(0, 6).forEach((contact) => {
+        const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(contact) : contact;
+        const primaryName = (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null)
+          || loanDisplay.displayName
+          || loanDisplay.name
+          || 'Contact';
+        const row = createRowContainer('loan');
+        renderLoanRow(row, loanDisplay, {
+          primaryText: primaryName,
+          secondaryText: STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage,
+          metaText: contact.loanAmount ? formatCurrency(contact.loanAmount) : loanDisplay.loanAmountLabel,
+          metaClass: 'is-positive'
+        });
+
+        list.appendChild(row);
+      });
+
+      body.innerHTML = '';
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] closing watch render failed', err);
