@@ -45,6 +45,7 @@ import { stageLabelFromKey } from '../pipeline/stages.js';
  * @property {Array} [funnel]
  * @property {Array} [velocityBuckets]
  * @property {Array} [staleSummary]
+ * @property {Object} [riskSummary]
  */
 
 /**
@@ -75,9 +76,9 @@ function buildMapById(list = [], key = 'id') {
 
 function safeContactName(contact = {}) {
   const fallback = [
-    contact.displayName,
     contact.name,
     contact.fullName,
+    contact.displayName,
     contact.contactName,
     contact.borrowerName,
     contact.firstName && contact.lastName ? `${contact.firstName} ${contact.lastName}` : null,
@@ -130,14 +131,20 @@ export function normalizeLabsModel(rawModel = {}) {
           if (!loan) return loan;
           const contactId = loan.contactId || loan.id || loan.borrowerId;
           const partnerId = loan.partnerId || loan.referralPartnerId;
-          const borrowerName = loan.borrowerName || (contactId ? getContactDisplayName(contactId) : '(Unknown contact)');
+          const borrowerName =
+            loan.borrowerName || (contactId ? getContactDisplayName(contactId) : '(Unknown contact)');
           const partnerName = loan.partnerName || (partnerId ? getPartnerDisplayName(partnerId) : null);
           const stageLabel = loan.stageLabel || fallbackStageLabel(loan.stage || loan.lane || loan.stageId);
+          const amountValue = Number(loan.amount ?? loan.loanAmount);
+          const amount = Number.isFinite(amountValue) ? amountValue : 0;
           return {
             ...loan,
             borrowerName,
             partnerName: partnerName || (partnerId ? '(Unknown partner)' : null),
-            stageLabel
+            stageLabel,
+            amount,
+            contactId,
+            partnerId
           };
         };
 
@@ -152,7 +159,8 @@ export function normalizeLabsModel(rawModel = {}) {
   const analytics = {
     funnel: rawModel.analytics?.funnel || [],
     velocityBuckets: rawModel.analytics?.velocityBuckets || [],
-    staleSummary: rawModel.analytics?.staleSummary || []
+    staleSummary: rawModel.analytics?.staleSummary || [],
+    riskSummary: rawModel.analytics?.riskSummary || {}
   };
 
   return {
@@ -221,6 +229,9 @@ export function validateLabsModel(model, opts = {}) {
   }
   if (!model.analytics || !Array.isArray(model.analytics.staleSummary)) {
     addWarning('analytics.staleSummary missing or invalid');
+  }
+  if (!model.analytics || typeof model.analytics.riskSummary !== 'object') {
+    addWarning('analytics.riskSummary missing or invalid');
   }
 
   return opts.debug ? warnings : [];
