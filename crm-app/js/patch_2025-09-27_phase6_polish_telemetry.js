@@ -747,7 +747,7 @@ function runPatch(){
             <pre data-field="render"></pre>
           </article>
           <article class="diag-card" data-card="automation">
-            <h3>Automations <button type="button" class="small" data-role="copy-card">Copy</button></h3>
+            <h3>Email Draft Prompts <button type="button" class="small" data-role="copy-card">Copy</button></h3>
             <pre data-field="automation"></pre>
           </article>
           <article class="diag-card" data-card="stores">

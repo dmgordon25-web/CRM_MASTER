@@ -676,7 +676,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const anchor = document.createElement('a');
       anchor.href = '#settings/automation';
       anchor.dataset.route = 'settings-automation';
-      anchor.textContent = 'Automation';
+      anchor.textContent = 'Email Draft Prompts';
       anchor.style.marginLeft = '8px';
       anchor.style.fontSize = '12px';
       anchor.style.alignSelf = 'center';

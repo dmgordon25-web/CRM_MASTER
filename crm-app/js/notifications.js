@@ -537,7 +537,7 @@
       if(filtered.length){
         subhead.textContent = 'Queued notifications respect daily throttles per contact/event.';
       }else{
-        subhead.textContent = 'No queued notifications. Automations are up to date.';
+        subhead.textContent = 'No queued notifications. Email prompts stay current while this app remains open.';
       }
     }
 

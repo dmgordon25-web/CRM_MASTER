@@ -19,6 +19,20 @@ function runPatch(){
     const QUEUE_META_ID = 'automationsQueue';
     const PARTNER_NONE_ID = window.PARTNER_NONE_ID || window.NONE_PARTNER_ID || '00000000-0000-none-partner-000000000000';
 
+    function retitleEmailPromptUI(){
+      const navBtn = document.querySelector('#settings-nav button[data-panel="automation"]');
+      if(navBtn) navBtn.textContent = 'Email Draft Prompts';
+      const anchor = document.querySelector('#settings-nav a[data-route="settings-automation"]');
+      if(anchor) anchor.textContent = 'Email Draft Prompts';
+      const automationPanel = document.querySelector('#view-settings .settings-panel[data-panel="automation"]');
+      if(automationPanel){
+        const heading = automationPanel.querySelector('h2');
+        if(heading) heading.textContent = 'Email Draft Prompts';
+        const subhead = automationPanel.querySelector('.panel-head .muted');
+        if(subhead) subhead.textContent = 'Creates an email draft for you to review and send. Checks run only while this app is open.';
+      }
+    }
+
     let OWNER_SIGNATURE = 'Your mortgage team';
     let ownerSignatureLoading = null;
 
@@ -75,6 +89,7 @@ function runPatch(){
 
     primeOwnerSignatureFromWindow();
     refreshOwnerSignature();
+    domReady().then(retitleEmailPromptUI);
 
     const state = {
       contacts: new Map(),
@@ -364,7 +379,7 @@ function runPatch(){
         if(normalized.meta.dedupeKey){
           state.seenKeys.add(String(normalized.meta.dedupeKey));
         }
-        normalized.label = normalized.label || normalized.type || 'Automation';
+        normalized.label = normalized.label || normalized.type || 'Email prompt';
         state.queue.set(String(normalized.id), normalized);
       }
       state.queueLoaded = true;
@@ -803,7 +818,8 @@ function runPatch(){
         section = document.createElement('div');
         section.id = 'contact-automations';
         section.innerHTML = `
-          <h4>Automations</h4>
+          <h4>Email Draft Prompts</h4>
+          <p class="muted fine-print">Creates an email draft for you to review and send. Reminders run only while this app is open.</p>
           <label class="checkbox"><input type="checkbox" data-pb="newLead"> New Lead</label>
           <label class="checkbox"><input type="checkbox" data-pb="milestones"> Stage Milestones</label>
           <label class="checkbox"><input type="checkbox" data-pb="postClose"> Post-Close</label>
@@ -840,7 +856,7 @@ function runPatch(){
       item.status = 'canceled';
       item.canceledAt = Date.now();
       await persistQueue();
-      toastSafe('Automation canceled');
+      toastSafe('Email prompt canceled');
       refreshTimeline(item.contactId);
     }
 
