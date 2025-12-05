@@ -23,6 +23,7 @@ import {
   formatRelativeTime,
   normalizeStagesForDisplay
 } from './data.js';
+import { getDeltaInsight, getThresholdInsight, getTopDriverInsight } from './insight_callouts.js';
 import {
   createRowContainer,
   renderContactRow,
@@ -129,9 +130,19 @@ export function renderLabsKpiSummaryWidget(container, model) {
       { label: 'New Leads (7d)', value: formatNumber(snapshotKPIs.kpiNewLeads7d || 0) }
     ];
 
+    const kpiInsight = status === 'ok'
+      ? getThresholdInsight({
+          label: 'overdue tasks',
+          value: snapshotOverdueTasks || overdueTaskCount,
+          warnAt: 3,
+          urgentAt: 8
+        })
+      : null;
+
     shell = renderWidgetShell(container, {
       id: 'labsKpiSummary',
       title: '📊 CRM Snapshot',
+      insightText: kpiInsight,
       status,
       emptyMessage: 'No CRM activity yet'
     });
@@ -430,9 +441,18 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
     const totalCount = funnel.reduce((sum, stage) => sum + stage.count, 0);
     const status = totalCount ? 'ok' : 'empty';
 
+    const funnelInsight = status === 'ok'
+      ? getTopDriverInsight({
+          label: 'Biggest load',
+          items: funnel,
+          byKey: (stage) => stage.count
+        })
+      : null;
+
     shell = renderWidgetShell(container, {
       id: 'pipelineFunnel',
       title: '📈 Pipeline Funnel',
+      insightText: funnelInsight,
       status,
       emptyMessage: 'No pipeline data yet'
     });
@@ -524,9 +544,20 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
     const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
     const status = total ? 'ok' : 'empty';
 
+    const agedBucket = buckets.find((bucket) => bucket.id === 'gt7');
+    const velocityInsight = status === 'ok'
+      ? getThresholdInsight({
+          label: 'aged deals (>7d)',
+          value: agedBucket?.count || 0,
+          warnAt: 3,
+          urgentAt: 7
+        }) || (agedBucket && agedBucket.count === 0 ? 'Pipeline velocity looks healthy.' : null)
+      : null;
+
     shell = renderWidgetShell(container, {
       id: 'pipelineVelocity',
       title: '⏱ Velocity',
+      insightText: velocityInsight,
       status,
       emptyMessage: 'No active deals to measure'
     });
@@ -616,9 +647,19 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 
     const status = total ? 'ok' : 'empty';
 
+    const riskInsight = status === 'ok'
+      ? getThresholdInsight({
+          label: 'stale deals',
+          value: total,
+          warnAt: 1,
+          urgentAt: 5
+        }) || 'No stale deals detected.'
+      : null;
+
     shell = renderWidgetShell(container, {
       id: 'pipelineRisk',
       title: '🛑 Pipeline Risk',
+      insightText: riskInsight,
       status,
       emptyMessage: 'No stale deals 🎉'
     });
@@ -705,8 +746,17 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
     const onPortfolioSegment = opts?.onPortfolioSegment;
     const partners = model.partners || [];
     const status = partners.length ? 'ok' : 'empty';
+    const tierGroups = groupPartnersByTier(partners);
+    const tiers = Object.keys(tierGroups).sort();
+    const tierSegments = tiers.map((tier) => ({ tier, count: tierGroups[tier].length }));
+    const portfolioInsight = getTopDriverInsight({
+      label: 'Largest tier',
+      items: tierSegments,
+      byKey: 'count'
+    });
 
     shell = renderWidgetShell(container, widgetSpec('partnerPortfolio', {
+      insightText: portfolioInsight,
       status,
       emptyMessage: 'No partners tracked yet.'
     }));
@@ -715,9 +765,7 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
       return shell;
     }
 
-    const tierGroups = groupPartnersByTier(partners);
     const total = partners.length || 1;
-    const tiers = Object.keys(tierGroups).sort();
     const colors = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1'];
 
     let cumulativePercent = 0;
@@ -900,9 +948,18 @@ export function renderReferralTrendsWidget(container, model) {
     const trends = model?.analytics?.referralTrends30 || [];
     const status = trends.length ? 'ok' : 'empty';
 
+    const risingPartners = trends
+      .filter((entry) => (entry.direction === 'up') && Number(entry.delta || 0) > 0)
+      .sort((a, b) => Number(b.delta || 0) - Number(a.delta || 0));
+
+    const trendsInsight = risingPartners.length
+      ? `${(risingPartners[0].partnerName || model.getPartnerDisplayName?.(risingPartners[0].partnerId) || 'A partner')} is trending up.`
+      : (trends.length ? 'Referral momentum is stable.' : null);
+
     shell = renderWidgetShell(container, widgetSpec('referralTrends', {
       title: 'Referral Trends',
       subtitle: 'Last 30 days vs prior 30',
+      insightText: trendsInsight,
       status,
       emptyMessage: 'No referral trend data yet.'
     }));
@@ -1467,7 +1524,20 @@ export function renderRelationshipWidget(container, model, opts = {}) {
     const nurture = (model.contacts || []).filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
     const status = nurture.length ? 'ok' : 'empty';
 
+    const now = Date.now();
+    const overdueTouches = nurture.filter((contact) => {
+      const lastTouch = contact.updatedTs || contact.lastTouchTs || contact.createdTs;
+      if (!lastTouch) return false;
+      const days = Math.floor((now - lastTouch) / (1000 * 60 * 60 * 24));
+      return days > 30;
+    }).length;
+
+    const relationshipInsight = nurture.length
+      ? (overdueTouches > 0 ? `${overdueTouches} clients overdue for touch.` : 'Client touch cadence looks on track.')
+      : null;
+
     shell = renderWidgetShell(container, widgetSpec('relationshipOpportunities', {
+      insightText: relationshipInsight,
       status,
       emptyMessage: 'No nurture targets right now.'
     }));

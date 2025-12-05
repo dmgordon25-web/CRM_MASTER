@@ -3,6 +3,7 @@ export function renderWidgetShell(container, spec = {}) {
     id,
     title,
     subtitle,
+    insightText,
     size,
     status = 'ok',
     emptyMessage = 'No data yet',
@@ -35,6 +36,13 @@ export function renderWidgetShell(container, spec = {}) {
     subtitleEl.className = 'labs-widget__subtitle';
     subtitleEl.textContent = subtitle;
     header.appendChild(subtitleEl);
+  }
+
+  if (insightText) {
+    const insightEl = document.createElement('div');
+    insightEl.className = 'labs-insight';
+    insightEl.textContent = insightText;
+    header.appendChild(insightEl);
   }
 
   shell.appendChild(header);
