@@ -564,12 +564,14 @@ export function renderStaleDealsWidget(container, model) {
   const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts, 14);
   const dealsHTML = staleDeals.slice(0, 6).map((deal, idx) => {
     const dealContact = deal.contact || deal;
+    const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(dealContact) : dealContact;
     const daysSince = deal.days || Math.floor((Date.now() - (dealContact.updatedTs || dealContact.createdTs || 0)) / (1000 * 60 * 60 * 24));
     const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
-    const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(dealContact.stage)] || {};
-    const name = model.getContactDisplayName
-      ? model.getContactDisplayName(dealContact.id)
-      : (dealContact.displayName || dealContact.name);
+    const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(loanDisplay.stage)] || {};
+    const name = loanDisplay.borrowerName
+      || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || dealContact.id) : null)
+      || loanDisplay.displayName
+      || loanDisplay.name;
     return `
       <div class="stale-card urgency-${urgency}" style="animation-delay:${idx * 0.08}s">
         <div class="stale-header">
@@ -577,8 +579,8 @@ export function renderStaleDealsWidget(container, model) {
           <div class="stale-days">${daysSince}d</div>
         </div>
         <div class="stale-details">
-          <span class="stale-stage">${stageConfig.label || dealContact.stage}</span>
-          ${dealContact.loanAmount ? `<span class="stale-amount">${formatCurrency(dealContact.loanAmount)}</span>` : ''}
+          <span class="stale-stage">${loanDisplay.stageLabel || stageConfig.label || dealContact.stage}</span>
+          ${loanDisplay.loanAmount || loanDisplay.amount ? `<span class="stale-amount">${formatCurrency(loanDisplay.loanAmount || loanDisplay.amount)}</span>` : ''}
         </div>
         <div class="stale-urgency-bar" style="--urgency:${Math.min(daysSince / 30, 1)}"></div>
       </div>
@@ -633,7 +635,7 @@ export function renderTodayWidget(container, model) {
     <div class="today-item celebration-item" style="animation-delay:${idx * 0.05 + 0.2}s">
       <div class="today-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</div>
       <div class="today-content">
-        <div class="today-title">${cel.contact.name || cel.contact.displayName || 'Contact'}</div>
+        <div class="today-title">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact'}</div>
         <div class="today-meta">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
       </div>
       <div class="today-time">${formatDate(cel.date)}</div>
@@ -774,7 +776,7 @@ export function renderFocusWidget(container, model) {
       <div class="focus-grid">
         ${block('Tasks Today', tasks.map((t) => t.title || 'Task'))}
         ${block('Next Appointments', appointments.map((a) => `${formatDate(a.due || a.dueTs)} · ${a.title || 'Appointment'}`))}
-        ${block('Recent Leads', leads.map((l) => l.displayName || l.name || 'Lead'))}
+        ${block('Recent Leads', leads.map((l) => (model.getContactDisplayName ? model.getContactDisplayName(l.id) : null) || l.displayName || l.name || 'Lead'))}
       </div>
     `
   });
@@ -860,11 +862,19 @@ export function renderPriorityActionsWidget(container, model) {
     label: task.title || 'Task',
     meta: 'Overdue',
     tone: 'danger'
-  })).concat(staleDeals.slice(0, 5).map((deal) => ({
-    label: deal.displayName || deal.name || 'Contact',
-    meta: 'Stale deal',
-    tone: 'warning'
-  })));
+  })).concat(staleDeals.slice(0, 5).map((deal) => {
+    const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(deal.contact || deal) : (deal.contact || deal);
+    const label = loanDisplay.borrowerName
+      || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || loanDisplay.id) : null)
+      || loanDisplay.displayName
+      || loanDisplay.name
+      || 'Contact';
+    return {
+      label,
+      meta: 'Stale deal',
+      tone: 'warning'
+    };
+  }));
 
   const list = rows.map((row, idx) => `
     <div class="priority-row tone-${row.tone}" style="animation-delay:${idx * 0.05}s">
@@ -929,7 +939,7 @@ export function renderRelationshipWidget(container, model) {
   const nurture = model.contacts.filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
   const items = nurture.slice(0, 8).map((contact, idx) => `
     <div class="relationship-row" style="animation-delay:${idx * 0.05}s">
-      <div class="relationship-name">${contact.displayName || contact.name || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : 'Contact')}</div>
+      <div class="relationship-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
       <div class="relationship-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
       <div class="relationship-updated">${formatRelativeTime(contact.updatedTs)}</div>
     </div>
@@ -949,7 +959,7 @@ export function renderClosingWatchWidget(container, model) {
   const items = closing.slice(0, 6).map((contact, idx) => `
     <div class="closing-row" style="animation-delay:${idx * 0.05}s">
       <div class="closing-main">
-        <div class="closing-name">${contact.displayName || contact.name || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : 'Contact')}</div>
+        <div class="closing-name">${(model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null) || contact.displayName || contact.name || 'Contact'}</div>
         <div class="closing-stage">${STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage}</div>
       </div>
       <div class="closing-amount">${contact.loanAmount ? formatCurrency(contact.loanAmount) : ''}</div>
