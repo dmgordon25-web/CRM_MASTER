@@ -646,9 +646,10 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 // =======================
 // Partner portfolio donut
 // =======================
-export function renderPartnerPortfolioWidget(container, model) {
+export function renderPartnerPortfolioWidget(container, model, opts = {}) {
   let shell;
   try {
+    const onPortfolioSegment = opts?.onPortfolioSegment;
     const partners = model.partners || [];
     const status = partners.length ? 'ok' : 'empty';
 
@@ -707,6 +708,21 @@ export function renderPartnerPortfolioWidget(container, model) {
         </div>
         <div class="portfolio-legend">${legendHTML}</div>
       `;
+
+      const legendItems = body.querySelectorAll('.portfolio-segment');
+      legendItems.forEach((node, idx) => {
+        const seg = segments[idx];
+        if (!seg || !onPortfolioSegment) return;
+        node.style.cursor = 'pointer';
+        node.addEventListener('click', () => {
+          onPortfolioSegment({
+            domain: 'partners',
+            type: 'tier',
+            key: seg.tier,
+            label: `${seg.tier} partners`
+          });
+        });
+      });
     });
   } catch (err) {
     console.error('[labs] partner portfolio render failed', err);
@@ -722,9 +738,10 @@ export function renderPartnerPortfolioWidget(container, model) {
 // =======================
 // Referral leaderboard
 // =======================
-export function renderReferralLeaderboardWidget(container, model) {
+export function renderReferralLeaderboardWidget(container, model, opts = {}) {
   let shell;
   try {
+    const onPortfolioSegment = opts?.onPortfolioSegment;
     const topPartners = model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5);
     const status = topPartners.length ? 'ok' : 'empty';
 
@@ -742,7 +759,7 @@ export function renderReferralLeaderboardWidget(container, model) {
         const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
         const ranks = ['gold', 'silver', 'bronze', 'standard', 'standard'];
         return `
-          <div class="leaderboard-card rank-${ranks[idx]}" style="animation-delay:${idx * 0.1}s">
+          <div class="leaderboard-card rank-${ranks[idx]}" style="animation-delay:${idx * 0.1}s" data-partner-id="${partner.id || ''}" data-partner-name="${partner.name || partner.company || ''}">
             <div class="rank-badge">${medals[idx]}</div>
             <div class="partner-info">
               <div class="partner-name">${partner.name || partner.company || 'Partner'}</div>
@@ -757,6 +774,24 @@ export function renderReferralLeaderboardWidget(container, model) {
       }).join('');
 
       body.innerHTML = `<div class="leaderboard-list">${partnersHTML}</div>`;
+
+      if (onPortfolioSegment) {
+        const rows = body.querySelectorAll('.leaderboard-card');
+        rows.forEach((row) => {
+          const partnerId = row.dataset.partnerId;
+          if (!partnerId) return;
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', () => {
+            const label = row.dataset.partnerName || 'Referral partner';
+            onPortfolioSegment({
+              domain: 'loans',
+              type: 'referrals',
+              key: partnerId,
+              label
+            });
+          });
+        });
+      }
     });
   } catch (err) {
     console.error('[labs] referral leaderboard render failed', err);
@@ -1318,9 +1353,10 @@ export function renderUpcomingCelebrationsWidget(container, model) {
 // =======================
 // Relationship / nurture radar
 // =======================
-export function renderRelationshipWidget(container, model) {
+export function renderRelationshipWidget(container, model, opts = {}) {
   let shell;
   try {
+    const onPortfolioSegment = opts?.onPortfolioSegment;
     const nurture = (model.contacts || []).filter((c) => ['past-client', 'returning', 'post-close'].includes(normalizeStagesForDisplay(c.stage)));
     const status = nurture.length ? 'ok' : 'empty';
 
@@ -1343,6 +1379,20 @@ export function renderRelationshipWidget(container, model) {
       `).join('');
 
       body.innerHTML = `<div class="relationship-list">${items}</div>`;
+
+      const rows = body.querySelectorAll('.relationship-row');
+      rows.forEach((row) => {
+        if (!onPortfolioSegment) return;
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', () => {
+          onPortfolioSegment({
+            domain: 'contacts',
+            type: 'relationship',
+            key: 'nurture',
+            label: 'Relationship opportunities'
+          });
+        });
+      });
     });
   } catch (err) {
     console.error('[labs] relationship opportunities render failed', err);

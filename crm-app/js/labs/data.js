@@ -8,7 +8,7 @@ import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
-function dedupeById(items = []) {
+export function dedupeById(items = []) {
   const map = new Map();
   items.forEach((item) => {
     const id = item?.id || item?._id;
@@ -16,6 +16,36 @@ function dedupeById(items = []) {
     map.set(id, item);
   });
   return Array.from(map.values());
+}
+
+// Labs portfolio segment descriptor
+// {
+//   domain: 'partners' | 'contacts' | 'loans',
+//   type: 'tier' | 'relationship' | 'referrals' | 'custom',
+//   key: string,
+//   label: string
+// }
+export const PORTFOLIO_SEGMENT_DOMAINS = {
+  PARTNERS: 'partners',
+  CONTACTS: 'contacts',
+  LOANS: 'loans'
+};
+
+const PORTFOLIO_SEGMENT_TYPES = {
+  TIER: 'tier',
+  RELATIONSHIP: 'relationship',
+  REFERRALS: 'referrals',
+  CUSTOM: 'custom'
+};
+
+export function buildPortfolioSegment(domain, type, key, label) {
+  const segment = {
+    domain: domain || null,
+    type: type || PORTFOLIO_SEGMENT_TYPES.CUSTOM,
+    key: key || null,
+    label: label || key || type || 'segment'
+  };
+  return segment;
 }
 
 function indexById(list = [], key = 'id') {
@@ -300,6 +330,90 @@ export function getLoansForAnalyticsSegment(model = {}, segment = {}, now = Date
     return display;
   });
   return dedupeById(withDisplay);
+}
+
+function isNurtureContact(contact) {
+  const stage = canonicalStageKey(contact?.stage || contact?.lane);
+  return ['past-client', 'returning', 'post-close'].includes(stage);
+}
+
+function safeList(list) {
+  return Array.isArray(list) ? list : [];
+}
+
+export function getPartnersForPortfolioSegment(model = {}, segment = {}) {
+  try {
+    if (!segment || (segment.domain && segment.domain !== PORTFOLIO_SEGMENT_DOMAINS.PARTNERS)) return [];
+    const partners = safeList(model.partners);
+    let matches = [];
+
+    switch (segment.type) {
+      case PORTFOLIO_SEGMENT_TYPES.TIER: {
+        if (!segment.key) return [];
+        matches = partners.filter((partner) => (partner?.tier || 'Unknown') === segment.key);
+        break;
+      }
+      case PORTFOLIO_SEGMENT_TYPES.CUSTOM:
+      default:
+        matches = [];
+    }
+
+    return dedupeById(matches);
+  } catch (err) {
+    console.warn('[labs] portfolio partner resolver failed', err);
+    return [];
+  }
+}
+
+export function getContactsForPortfolioSegment(model = {}, segment = {}) {
+  try {
+    if (!segment || (segment.domain && segment.domain !== PORTFOLIO_SEGMENT_DOMAINS.CONTACTS)) return [];
+    const contacts = safeList(model.contacts);
+    let matches = [];
+
+    switch (segment.type) {
+      case PORTFOLIO_SEGMENT_TYPES.RELATIONSHIP: {
+        if (segment.key && segment.key !== 'nurture') return [];
+        matches = contacts.filter((contact) => isNurtureContact(contact));
+        break;
+      }
+      case PORTFOLIO_SEGMENT_TYPES.CUSTOM:
+      default:
+        matches = [];
+    }
+
+    return dedupeById(matches);
+  } catch (err) {
+    console.warn('[labs] portfolio contact resolver failed', err);
+    return [];
+  }
+}
+
+export function getLoansForPortfolioSegment(model = {}, segment = {}) {
+  try {
+    if (!segment || (segment.domain && segment.domain !== PORTFOLIO_SEGMENT_DOMAINS.LOANS)) return [];
+    const pipeline = safeList(model.pipeline).length ? safeList(model.pipeline) : safeList(model.activePipeline);
+    let matches = [];
+
+    switch (segment.type) {
+      case PORTFOLIO_SEGMENT_TYPES.REFERRALS: {
+        if (!segment.key) return [];
+        matches = pipeline.filter((loan) => {
+          const partnerId = loan?.partnerId || loan?.referralPartnerId;
+          return partnerId && String(partnerId) === String(segment.key);
+        });
+        break;
+      }
+      case PORTFOLIO_SEGMENT_TYPES.CUSTOM:
+      default:
+        matches = [];
+    }
+
+    return dedupeById(matches);
+  } catch (err) {
+    console.warn('[labs] portfolio loan resolver failed', err);
+    return [];
+  }
 }
 
 // Calculate partner tier distribution
