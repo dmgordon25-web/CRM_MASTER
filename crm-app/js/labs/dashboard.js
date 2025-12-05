@@ -10,6 +10,7 @@ import {
   saveSectionLayout
 } from './layout_state.js';
 import openAnalyticsDrilldown from './analytics_drilldown.js';
+import openPortfolioDrilldown from './portfolio_drilldown.js';
 import { emitLabsEvent, onLabsEvent } from './labs_events.js';
 
 const LABS_DEBUG = typeof window !== 'undefined'
@@ -668,6 +669,10 @@ function renderWidgets(grid, widgetList = []) {
     if (!segment) return;
     openAnalyticsDrilldown(model, segment);
   };
+  const onPortfolioSegment = (segment) => {
+    if (!segment) return;
+    openPortfolioDrilldown(model, segment);
+  };
   widgetList.forEach((widget, index) => {
     const renderer = CRM_WIDGET_RENDERERS[widget.id];
     if (!renderer) return;
@@ -694,7 +699,7 @@ function renderWidgets(grid, widgetList = []) {
     resizeHandle.setAttribute('aria-label', 'Resize widget');
 
     try {
-      const rendered = renderer(content, model, { onAnalyticsSegment });
+      const rendered = renderer(content, model, { onAnalyticsSegment, onPortfolioSegment });
       if (typeof rendered === 'string') {
         content.innerHTML = rendered;
       } else if (rendered instanceof HTMLElement) {

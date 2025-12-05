@@ -1711,6 +1711,18 @@
   font-weight: 700;
 }
 
+.labs-drilldown-row.portfolio-partner-row {
+  grid-template-columns: 1.6fr 0.8fr 1.6fr;
+}
+
+.labs-drilldown-row.portfolio-contact-row {
+  grid-template-columns: 1.6fr 1fr 1.6fr;
+}
+
+.labs-drilldown-row.portfolio-loan-row {
+  grid-template-columns: 1.6fr 1fr 1.8fr auto;
+}
+
 /* ========================================
    ANIMATIONS
    ======================================== */
