@@ -648,6 +648,13 @@ function renderSection(sectionId, options = {}) {
   const host = dashboardRoot?.querySelector('.labs-section-host');
   if (!host) return;
   const section = SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
+
+  const previousSection = activeSection;
+  if (previousSection && previousSection !== section.id) {
+    destroySectionController(previousSection);
+    destroyResizeController(previousSection);
+  }
+
   activeSection = section.id;
 
   destroySectionController(section.id);
