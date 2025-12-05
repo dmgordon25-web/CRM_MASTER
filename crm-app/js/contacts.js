@@ -35,6 +35,67 @@ import { acquireContactScrollLock, releaseContactScrollLock } from './ui/scroll_
 import { logError, notifyError } from './util/errors.js';
 import { validateContact as validateContactSchema } from './validation/schema.js';
 
+// Shared guard for Missing Docs rules so UI and automations fail loudly in-console,
+// not silently in-product. Exposed on window for reuse by automation patches.
+const MISSING_DOC_FALLBACK = ['Photo ID', 'Income verification', 'Asset statements', 'Authorization forms'];
+let missingDocsWarned = false;
+
+function normalizeDocName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function getRequiredDocsGuarded(loanType, options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const fallback = Array.isArray(opts.fallback) && opts.fallback.length
+    ? opts.fallback.map(v => String(v || '')).filter(Boolean)
+    : MISSING_DOC_FALLBACK;
+  let docs = [];
+  let hadConfig = false;
+  let encounteredError = false;
+  if (typeof window.requiredDocsFor === 'function') {
+    hadConfig = true;
+    try {
+      const result = await window.requiredDocsFor(loanType);
+      docs = Array.isArray(result) ? result.map(v => String(v || '')).filter(Boolean) : [];
+    } catch (err) {
+      encounteredError = true;
+      console.warn('requiredDocsFor', err);
+    }
+  }
+  const missingConfig = !hadConfig || encounteredError || !docs.length;
+  if (missingConfig) {
+    if (!missingDocsWarned && !opts.silentWarn) {
+      console.warn('Missing Docs rules not configured; using fallback.');
+      missingDocsWarned = true;
+    }
+    docs = fallback.slice();
+  }
+  return { docs, missingConfig };
+}
+
+async function computeMissingDocsGuarded(docs, loanType, options) {
+  const list = Array.isArray(docs) ? docs : [];
+  const { docs: required, missingConfig } = await getRequiredDocsGuarded(loanType, Object.assign({}, options, { silentWarn: true }));
+  const byName = new Map();
+  list.forEach(doc => {
+    const key = normalizeDocName(doc && doc.name);
+    if (!key) return;
+    byName.set(key, doc);
+  });
+  const missing = [];
+  required.forEach(name => {
+    const key = normalizeDocName(name);
+    if (!key) return;
+    const doc = byName.get(key);
+    const status = String(doc && doc.status || '');
+    if (!doc || !/^received|waived$/i.test(status)) missing.push(name);
+  });
+  return { missing: missing.join(', '), missingList: missing, missingConfig };
+}
+
+if (typeof window.getRequiredDocsGuarded !== 'function') window.getRequiredDocsGuarded = getRequiredDocsGuarded;
+if (typeof window.computeMissingDocsGuarded !== 'function') window.computeMissingDocsGuarded = computeMissingDocsGuarded;
+
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = () => {
   const m = document.querySelector('[data-ui="contact-edit-modal"]');
@@ -1735,10 +1796,11 @@ export function normalizeContactId(input) {
         const loanSel = $('#c-loanType', body);
         const loanType = loanSel ? loanSel.value : '';
         const loanLabel = getLoanLabel();
-        let required = [];
-        try {
-          required = typeof window.requiredDocsFor === 'function' ? await window.requiredDocsFor(loanType) : [];
-        } catch (err) { console.warn('requiredDocsFor', err); }
+        const guardResult = typeof window.getRequiredDocsGuarded === 'function'
+          ? await window.getRequiredDocsGuarded(loanType)
+          : { docs: [], missingConfig: true };
+        const required = Array.isArray(guardResult.docs) ? guardResult.docs : [];
+        const usingFallbackRules = !!(guardResult && guardResult.missingConfig);
         let persisted = null;
         let docs = [];
         let missing = '';
@@ -1752,16 +1814,6 @@ export function normalizeContactId(input) {
               missing = persisted.missingDocs || '';
             }
           } catch (err) { console.warn('doc checklist load', err); }
-        }
-
-        if (!required.length) {
-          docListEl.innerHTML = '<li class="doc-chip muted">No automation rules configured.</li>';
-          if (docSummaryEl) {
-            docSummaryEl.textContent = loanType ? `No required docs configured for ${loanLabel}.` : 'Select a loan program to view required docs.';
-          }
-          if (docMissingEl) { docMissingEl.textContent = ''; docMissingEl.classList.remove('warn'); }
-          if (docEmailBtn) { docEmailBtn.disabled = true; docEmailBtn.dataset.docs = '[]'; }
-          return;
         }
 
         const chips = [];
@@ -1799,6 +1851,17 @@ export function normalizeContactId(input) {
           docEmailBtn.disabled = false;
           docEmailBtn.dataset.docs = JSON.stringify(required);
           docEmailBtn.dataset.loan = loanLabel;
+        }
+
+        if (usingFallbackRules) {
+          const warningText = 'Missing Docs rules are not configured yet. Using a default checklist until rules are set in Settings.';
+          if (docMissingEl) {
+            const base = docMissingEl.textContent ? `${docMissingEl.textContent} ` : '';
+            docMissingEl.textContent = `${base}${warningText}`;
+            docMissingEl.classList.add('warn');
+          } else if (docSummaryEl) {
+            docSummaryEl.textContent = warningText;
+          }
         }
       }
 

@@ -994,7 +994,31 @@ function runPatch(){
     async function syncDocChecklist(contact){
       const result = {created:0, missingChanged:false};
       if(!contact || !contact.id) return result;
-      if(typeof window.requiredDocsFor !== 'function') return result;
+      const guardedRequiredDocs = typeof window.getRequiredDocsGuarded === 'function'
+        ? window.getRequiredDocsGuarded
+        : async (loanType) => ({
+          docs: typeof window.requiredDocsFor === 'function' ? await window.requiredDocsFor(loanType) : [],
+          missingConfig: typeof window.requiredDocsFor !== 'function'
+        });
+      const guardedMissing = typeof window.computeMissingDocsGuarded === 'function'
+        ? window.computeMissingDocsGuarded
+        : async (docs, loanType) => {
+          const { docs: required } = await guardedRequiredDocs(loanType, { silentWarn:true });
+          const byName = new Map();
+          (Array.isArray(docs) ? docs : []).forEach(doc => {
+            const key = String(doc && doc.name || '').trim().toLowerCase();
+            if(!key) return; byName.set(key, doc);
+          });
+          const missingList = [];
+          (required || []).forEach(name => {
+            const key = String(name || '').trim().toLowerCase();
+            if(!key) return;
+            const doc = byName.get(key);
+            const status = String(doc && doc.status || '');
+            if(!doc || !/^received|waived$/i.test(status)) missingList.push(name);
+          });
+          return { missing: missingList.join(', '), missingList };
+        };
       let docList = null;
       try{
         const ensure = typeof window.ensureRequiredDocs === 'function'
@@ -1015,9 +1039,11 @@ function runPatch(){
             docList = [];
           }
         }
-        if(Array.isArray(docList) && typeof window.computeMissingDocsFrom === 'function'){
-          const missing = await window.computeMissingDocsFrom(docList, contact.loanType);
-          const normalized = typeof missing === 'string' ? missing : '';
+        if(Array.isArray(docList)){
+          const missingResult = typeof window.computeMissingDocsFrom === 'function'
+            ? { missing: await window.computeMissingDocsFrom(docList, contact.loanType) }
+            : await guardedMissing(docList, contact.loanType);
+          const normalized = typeof missingResult.missing === 'string' ? missingResult.missing : '';
           if((contact.missingDocs || '') !== normalized){
             contact.missingDocs = normalized;
             contact.updatedAt = Date.now();
