@@ -322,7 +322,12 @@ function emitImportChanged(scope) {
     } else if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
       console.warn('[soft] [importer] dispatchAppDataChanged unavailable; import change not broadcast.', detail);
     }
-  } catch (_err) {}
+  } catch (_err) {
+    // Silent failure replaced with logged error for user-critical import notification.
+    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+      console.error('[importer] failed to emit import change', _err);
+    }
+  }
 }
 
 export const IMPORTER_INTERNALS = {
