@@ -190,7 +190,7 @@ const WIDGET_META = {
     title: '📌 Milestones Ahead',
     description: 'Upcoming appointments and key dates.',
     category: 'tasks',
-    status: 'experimental'
+    status: 'stable'
   },
   upcomingCelebrations: {
     id: 'upcomingCelebrations',
@@ -592,6 +592,7 @@ export function renderLabsTasksWidget(container, model) {
     const overdueTasks = getDisplayTasks(model, { scope: 'overdue' });
     const todayCount = todayTasks.length;
     const overdueCount = overdueTasks.length;
+    const totalCount = todayCount + overdueCount;
 
     const deduped = [];
     const seen = new Set();
@@ -611,26 +612,14 @@ export function renderLabsTasksWidget(container, model) {
     const visibleTasks = deduped.slice(0, VISIBLE_LIMIT);
     const hiddenCount = Math.max(deduped.length - visibleTasks.length, 0);
 
-    const rows = visibleTasks.map((entry, idx) => {
-      const overdue = entry.status === 'Overdue';
-      return `
-        <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
-          <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
-          <div class="labs-task-main">
-            <div class="labs-task-title">${entry.task.taskLabel}</div>
-            <div class="labs-task-meta">${entry.task.contactName}</div>
-          </div>
-          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${overdue ? 'Overdue' : 'Due today'}</div>
-        </div>
-      `;
-    });
-
-    const status = rows.length ? 'ok' : 'empty';
+    const status = totalCount ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, {
       id: 'labsTasks',
       title: '✅ Tasks Due',
       status,
+      count: totalCount,
+      shown: visibleTasks.length,
       emptyMessage: 'No tasks due or overdue — you\'re all caught up'
     });
 
@@ -661,9 +650,8 @@ export function renderLabsTasksWidget(container, model) {
           <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
           <div class="labs-task-main">
             <div class="labs-task-title">${entry.task.taskLabel}</div>
-            <div class="labs-task-meta">${entry.task.contactName}</div>
+            <div class="labs-task-meta">${entry.task.contactName || ''}</div>
           </div>
-          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${overdue ? 'Overdue' : 'Due today'}</div>
         `;
 
         // Click-to-editor: navigate to contact view
@@ -1483,7 +1471,9 @@ export function renderStaleDealsWidget(container, model) {
 
     shell = renderWidgetShell(container, widgetSpec('staleDeals', {
       status,
-      emptyMessage: 'No stale deals for this view.'
+      count: staleDeals.length,
+      shown: Math.min(staleDeals.length, 6),
+      emptyMessage: 'No stale deals — pipeline is healthy'
     }));
 
     if (status !== 'ok') {
@@ -1834,12 +1824,14 @@ export function renderTodoWidget(container, model) {
     const todayTasks = getDisplayTasks(model, { scope: 'today' });
     const overdueTasks = getDisplayTasks(model, { scope: 'overdue' });
     const status = todayTasks.length || overdueTasks.length ? 'ok' : 'empty';
+    const totalCount = todayTasks.length + overdueTasks.length;
 
     shell = renderWidgetShell(container, {
       id: 'todo',
       title: '✅ To-Do',
       status,
-      emptyMessage: 'Nothing due right now'
+      count: totalCount,
+      emptyMessage: 'No urgent tasks — all clear'
     });
 
     if (status !== 'ok') {
@@ -1941,12 +1933,13 @@ export function renderPriorityActionsWidget(container, model) {
     });
 
     const rows = taskRows.concat(staleRows);
-
     const status = rows.length ? 'ok' : 'empty';
+    const totalCount = rows.length;
 
     shell = renderWidgetShell(container, widgetSpec('priorityActions', {
       status,
-      emptyMessage: 'No priority actions right now.'
+      count: totalCount,
+      emptyMessage: 'No priority items found'
     }));
 
     if (status !== 'ok') {
@@ -2064,12 +2057,15 @@ export function renderUpcomingCelebrationsWidget(container, model) {
       const date = cel?.date || cel?.due || '';
       const type = cel?.type || 'unknown';
       return `${contactId}:${type}:${date}`;
-    }).slice(0, 8);
+    });
+    const displayedCelebrations = celebrations.slice(0, 8);
     const status = celebrations.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
       status,
-      emptyMessage: 'No celebrations.'
+      count: celebrations.length,
+      shown: displayedCelebrations.length,
+      emptyMessage: 'No upcoming celebrations'
     }));
 
     if (status !== 'ok') {
@@ -2243,7 +2239,9 @@ export function renderClosingWatchWidget(container, model) {
 
     shell = renderWidgetShell(container, widgetSpec('closingWatch', {
       status,
-      emptyMessage: 'No files nearing close.'
+      count: closing.length,
+      shown: Math.min(closing.length, 6),
+      emptyMessage: 'No files nearing close'
     }));
 
     if (status !== 'ok') {

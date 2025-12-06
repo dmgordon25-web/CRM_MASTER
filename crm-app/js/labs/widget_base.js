@@ -12,7 +12,9 @@ export function renderWidgetShell(container, spec = {}) {
     debugFootnote,
     actions,
     metaStatus,
-    labsStatus
+    labsStatus,
+    count,
+    shown
   } = spec;
 
   const fallbackTitle = id ? id.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').trim() : 'Widget';
@@ -42,6 +44,18 @@ export function renderWidgetShell(container, spec = {}) {
   titleEl.className = 'labs-widget__title';
   titleEl.textContent = resolvedTitle || '';
   titleRow.appendChild(titleEl);
+
+  if (typeof count === 'number' && count > 0) {
+    const countBadge = document.createElement('span');
+    countBadge.className = 'labs-widget__count';
+
+    if (typeof shown === 'number' && shown < count) {
+      countBadge.textContent = `${shown} shown • ${count} total`;
+    } else {
+      countBadge.textContent = count;
+    }
+    titleRow.appendChild(countBadge);
+  }
 
   if (badgeStatus === 'experimental') {
     const badgeEl = document.createElement('span');

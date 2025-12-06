@@ -1982,3 +1982,32 @@
   height: 24px;
   color: var(--labs-accent-2);
 }
+
+/* Header Counters & Badges */
+.labs-widget__title-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.labs-widget__count {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  background: var(--labs-bg-primary, #f8fafc);
+  color: var(--labs-text-secondary, #475569);
+  border: 1px solid var(--labs-border, #e2e8f0);
+  border-radius: 999px;
+  font-weight: 700;
+  margin-left: auto;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* Ensure title doesn't break */
+.labs-widget__title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
