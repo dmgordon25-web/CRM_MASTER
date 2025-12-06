@@ -427,12 +427,9 @@ const LABS_PRESETS = {
 
 
 const EXPERIMENTAL_WIDGETS = [
-  // Pipeline variants (opt-in only, not default-mounted)
-  { id: 'numbersMomentum', size: 'medium', note: 'alternate pipeline momentum' },
-  { id: 'activePipeline', size: 'medium', note: 'open files by stage' },
-  { id: 'statusStack', size: 'medium', note: 'quick counts by status' },
-  // Other experimental widgets (still WIP)
-  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' }
+  // Truly WIP widgets with incomplete data contracts
+  { id: 'activePipeline', size: 'medium', note: 'view raw open files' },
+  { id: 'statusStack', size: 'medium', note: 'quick counts by status' }
 ];
 
 // ---------------------------------------------------------------------------
@@ -448,7 +445,7 @@ const EXPERIMENTAL_WIDGETS = [
 //   pipelineMomentum (Bars), pipelineOverview (Funnel)
 //
 // EXPERIMENTAL (opt-in via Experimental section):
-//   numbersMomentum, activePipeline, statusStack, docPulse
+//   activePipeline, statusStack
 //
 // HIDDEN FEATURE SHORTCUTS (Advanced-only, stable):
 //   printSuiteShortcut, templatesShortcut
@@ -493,6 +490,7 @@ const SECTIONS = [
     description: 'Today\'s work and follow-ups',
     widgets: [
       { id: 'labsTasks', size: 'large' },
+      { id: 'pipelineCalendar', size: 'large' }, // Graduated
       { id: 'priorityActions', size: 'medium' },
       { id: 'today', size: 'medium' },
       { id: 'todo', size: 'medium' }

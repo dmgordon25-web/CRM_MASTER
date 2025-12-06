@@ -14,6 +14,10 @@ function ensureRowParts(row, type) {
     row.classList.add(`labs-row--${type}`);
   }
 
+  // ZERO-UNKNOWN ENFORCEMENT
+  // If we mistakenly render a row that should be hidden, ensure we can toggle it.
+  row.hidden = false;
+
   const primary = row.querySelector('.labs-row__primary');
   const secondary = row.querySelector('.labs-row__secondary');
   const meta = row.querySelector('.labs-row__meta');
@@ -141,7 +145,14 @@ export function renderLoanRow(rowEl, loanDisplay = {}, opts = {}) {
     || loanDisplay.borrowerName
     || loanDisplay.displayName
     || loanDisplay.name
-    || 'Borrower';
+    || loanDisplay.name;
+  // || 'Borrower'; // REMOVED fallback to enforce strictness
+
+  // STRICT PARITY: Hide if no name
+  if (!primaryText || primaryText === 'Unknown contact' || primaryText === 'Unknown') {
+    rowEl.hidden = true;
+    return rowEl;
+  }
   const secondaryText = opts.secondaryText
     || loanDisplay.stageLabel
     || loanDisplay.stage
@@ -160,7 +171,12 @@ export function renderLoanRow(rowEl, loanDisplay = {}, opts = {}) {
 
 export function renderPartnerRow(rowEl, partnerDisplay = {}, opts = {}) {
   const { primary, secondary, meta, badge } = ensureRowParts(rowEl, 'partner');
-  const primaryText = opts.primaryText || partnerDisplay.name || partnerDisplay.company || 'Partner';
+  const primaryText = opts.primaryText || partnerDisplay.name || partnerDisplay.company; // removed 'Partner' fallback
+
+  if (!primaryText || primaryText === 'Unknown contact' || primaryText === 'Unknown partner') {
+    rowEl.hidden = true;
+    return rowEl;
+  }
   const secondaryText = opts.secondaryText || partnerDisplay.tier || partnerDisplay.company || DEFAULT_PLACEHOLDER;
   const metaText = opts.metaText ?? partnerDisplay.currentCount ?? partnerDisplay.volume ?? partnerDisplay.delta;
 
@@ -175,7 +191,12 @@ export function renderPartnerRow(rowEl, partnerDisplay = {}, opts = {}) {
 
 export function renderContactRow(rowEl, contactDisplay = {}, opts = {}) {
   const { primary, secondary, meta, badge } = ensureRowParts(rowEl, 'contact');
-  const primaryText = opts.primaryText || contactDisplay.name || 'Contact';
+  const primaryText = opts.primaryText || contactDisplay.name; // removed 'Contact' fallback
+
+  if (!primaryText || primaryText === 'Unknown contact') {
+    rowEl.hidden = true;
+    return rowEl;
+  }
   const secondaryText = opts.secondaryText || contactDisplay.lastTouchLabel || contactDisplay.reasonLabel || DEFAULT_PLACEHOLDER;
   const metaText = opts.metaText ?? contactDisplay.ageLabel;
 

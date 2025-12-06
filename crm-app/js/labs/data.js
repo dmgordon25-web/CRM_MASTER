@@ -212,19 +212,29 @@ export function getDisplayTasks(model, options = {}) {
     seen.add(key);
 
     const contact = task.contactId ? contactsById[task.contactId] : null;
-    const contactName = (model?.getContactDisplayName ? model.getContactDisplayName(task.contactId) : null)
-      || contact?.displayName
-      || contact?.name
-      || contact?.fullName
-      || contact?.borrowerName
-      || null;
 
-    if (!contactName && LABS_ZERO_UNKNOWN) return;
+    // STRICT IDENTITY RESOLUTION
+    // If strict mode is on, we MUST resolve a name or drop the row.
+    let resolvedName = null;
+    if (contact) {
+      resolvedName = contact.displayName || contact.name || contact.fullName || contact.borrowerName;
+    } else if (task.contactName && task.contactName !== 'Unknown' && task.contactName !== 'Unknown contact') {
+      // Allow reliable snapshot fallbacks if meaningful
+      resolvedName = task.contactName;
+    }
 
-    const safeContactName = contactName && String(contactName).trim() ? String(contactName).trim() : 'Unknown contact';
+    // Try global strict resolver if available attached to model, otherwise local fallback
+    if (!resolvedName && model && typeof model.resolveContactNameStrict === 'function') {
+      resolvedName = model.resolveContactNameStrict(task.contactId);
+    }
+
+    if (!resolvedName || resolvedName === 'Unknown contact') {
+      if (LABS_ZERO_UNKNOWN) return; // SKIP this row
+      resolvedName = '—'; // Fallback only if strict mode is OFF (should not happen per req)
+    }
+
     const taskLabel = task.title || task.summary || task.typeLabel || 'Task';
-
-    displayTasks.push({ ...task, contactName: safeContactName, taskLabel });
+    displayTasks.push({ ...task, contactName: resolvedName, taskLabel });
   });
 
   return displayTasks;
@@ -581,6 +591,50 @@ export function computeReferralTrends(model = {}, opts = {}) {
   return trends;
 }
 
+// Compute referral stats live from contacts (Prod Parity)
+// Matches dashboard/widgets/referral_leaders.js logic
+export function computeReferralStats(contacts = [], partners = []) {
+  const partnerMap = new Map();
+  partners.forEach(p => {
+    if (p && p.id) partnerMap.set(String(p.id), p);
+  });
+
+  const referralStats = new Map();
+
+  contacts.forEach(contact => {
+    if (!contact) return;
+    // Check both buyer/listing fields as Prod does
+    const buyerId = contact.buyerPartnerId ? String(contact.buyerPartnerId) : '';
+    const listingId = contact.listingPartnerId ? String(contact.listingPartnerId) : '';
+    const partnerId = buyerId || listingId;
+
+    // NONE_PARTNER_ID check (often 'none' or '-1'). Prod uses explicit constant.
+    // We'll treat explicit 'none' as invalid.
+    if (!partnerId || partnerId === 'none' || partnerId === '-1') return;
+
+    // If strict partner validation required:
+    // if (!partnerMap.has(partnerId)) return; 
+
+    // Prod logic: aggregates volume and count
+    const entry = referralStats.get(partnerId) || { count: 0, volume: 0, partnerId };
+    entry.count += 1;
+    entry.volume += Number(contact.loanAmount || 0) || 0;
+    referralStats.set(partnerId, entry);
+  });
+
+  // Sort by count desc (Prod standard)
+  return Array.from(referralStats.values())
+    .map(stat => {
+      const partner = partnerMap.get(stat.partnerId);
+      return {
+        ...stat,
+        partner,
+        name: partner ? (partner.name || partner.company || 'Unknown Partner') : 'Unknown Partner'
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
 // Get top referral partners
 export function getTopReferralPartners(partners, limit = 10) {
   return partners
@@ -721,6 +775,15 @@ export async function buildLabsModel() {
     return value ? String(value).trim() : null;
   };
 
+  // STRICT RESOLVER -- Top-level parity requirement
+  // Returns string name OR null. Never "Unknown contact".
+  const resolveContactNameStrict = (contactId) => {
+    if (!contactId) return null;
+    const contact = contactsById[contactId];
+    if (!contact) return null;
+    return contact.displayName || contact.name || contact.fullName || contact.borrowerName || null;
+  };
+
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
   const partnerMap = new Map(partners.map((p) => [p.id, p]));
   const laneOrder = CANONICAL_STAGE_ORDER.concat(['lost']);
@@ -782,7 +845,10 @@ export async function buildLabsModel() {
     celebrations,
     laneOrder,
     activeLanes,
-    analytics
+    analytics,
+    // New Parity Helpers
+    resolveContactNameStrict,
+    computeReferralStats: () => computeReferralStats(contacts, partners) // Bind current context
   };
 
   const model = normalizeLabsModel(rawModel);

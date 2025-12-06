@@ -1305,7 +1305,11 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
   let shell;
   try {
     const onPortfolioSegment = opts?.onPortfolioSegment;
-    const topPartners = model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5);
+    // PARITY: Use live compute if available, else static snapshot, else raw calc
+    const topPartners = (typeof model.computeReferralStats === 'function')
+      ? model.computeReferralStats().slice(0, 5) // Live Compute (Prod Match)
+      : (model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5));
+
     const maxVolume = topPartners.reduce((max, partner) => {
       const volume = Number(partner.referralVolume || partner.volume || 0);
       return volume > max ? volume : max;
@@ -1497,10 +1501,11 @@ export function renderStaleDealsWidget(container, model) {
         const urgency = daysSince > 30 ? 'critical' : daysSince > 21 ? 'high' : 'medium';
         const stageConfig = STAGE_CONFIG[normalizeStagesForDisplay(loanDisplay.stage)] || {};
         const name = loanDisplay.borrowerName
+          || (model.resolveContactNameStrict ? model.resolveContactNameStrict(loanDisplay.contactId || dealContact.id) : null)
           || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || dealContact.id) : null)
           || loanDisplay.displayName
-          || loanDisplay.name
-          || 'Borrower';
+          || loanDisplay.name;
+        // Removed 'Borrower' fallback to allow renderer to hide it
         const secondaryPieces = [loanDisplay.stageLabel || stageConfig.label || dealContact.stage];
         if (loanDisplay.loanAmount || loanDisplay.amount) {
           secondaryPieces.push(formatCurrency(loanDisplay.loanAmount || loanDisplay.amount));
