@@ -21,7 +21,7 @@ All 22 classic dashboard widgets are represented in Labs. Labs now includes 36+ 
 | pipeline | labsPipelineSnapshot | ✅ mapped | Canonical pipeline widget |
 | today | today | ✅ mapped | Today's work |
 | leaderboard | referralLeaderboard | ✅ mapped | Referral leaders |
-| stale | staleDeals | ⚗️ experimental | Stale deals 14+ days |
+| stale | staleDeals | ✅ mapped | Stale deals 14+ days |
 | goalProgress | goalProgress | ✅ mapped | Production goals |
 | numbersPortfolio | partnerPortfolio | ✅ mapped | Partner portfolio |
 | numbersReferrals | referralLeaderboard | ✅ mapped | Referral leaders |
@@ -29,12 +29,12 @@ All 22 classic dashboard widgets are represented in Labs. Labs now includes 36+ 
 | pipelineCalendar | pipelineCalendar | ⚗️ experimental | Timeline WIP |
 | todo | todo | ✅ mapped | To-do list |
 | priorityActions | priorityActions | ✅ mapped | Priority actions |
-| milestones | milestones | ⚗️ experimental | Appointments feed |
+| milestones | milestones | ✅ mapped | Appointments feed |
 | docPulse | docPulse | ⚗️ experimental | Document milestones |
 | relationshipOpportunities | relationshipOpportunities | ✅ mapped | Client care radar |
 | clientCareRadar | clientCareRadar | ✅ mapped | Shares renderer |
-| closingWatch | closingWatch | ⚗️ experimental | Deals near close |
-| upcomingCelebrations | upcomingCelebrations | ⚗️ experimental | Birthdays/anniversaries |
+| closingWatch | closingWatch | ✅ mapped | Deals near close |
+| upcomingCelebrations | upcomingCelebrations | ✅ mapped | Birthdays/anniversaries |
 | docCenter | docPulse | ❌ notApplicable | Superseded |
 | favorites | favorites | ✅ mapped | Favorites list |
 
@@ -51,8 +51,8 @@ All 22 classic dashboard widgets are represented in Labs. Labs now includes 36+ 
 
 ## Coverage Statistics
 
-- **Mapped (default-mounted):** 14 widgets
-- **Experimental (opt-in):** 9 widgets
+- **Mapped (default-mounted):** 18 widgets
+- **Experimental (opt-in):** 5 widgets
 - **Not Applicable:** 1 widget
 - **Hidden Shortcuts:** 2 widgets
 
@@ -60,14 +60,9 @@ All 22 classic dashboard widgets are represented in Labs. Labs now includes 36+ 
 
 ---
 
-## Intentionally Deferred
+## Files Modified (v3)
 
-None. All classic widgets have Labs equivalents.
-
----
-
-## Files Modified (v2)
-
-- [crm_widgets.js](../crm-app/js/labs/crm_widgets.js) — Added shortcut renderers
-- [dashboard.js](../crm-app/js/labs/dashboard.js) — Added shortcuts to experimental
-- [widget_parity_map.js](../crm-app/js/labs/widget_parity_map.js) — Added shortcut entries
+- [crm_widgets.js](../crm-app/js/labs/crm_widgets.js) — Added click-through handlers
+- [dashboard.js](../crm-app/js/labs/dashboard.js) — Graduated milestones widget
+- [widget_parity_map.js](../crm-app/js/labs/widget_parity_map.js) — Parity updates
+- [LABS_DASHBOARD_PARITY_REPORT.md](LABS_DASHBOARD_PARITY_REPORT.md) — Status update

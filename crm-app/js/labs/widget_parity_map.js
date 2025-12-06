@@ -29,7 +29,7 @@ export const DASH_TO_LABS_WIDGET_MAP = [
   { dashId: 'today', labsId: 'today', status: 'mapped', mountedVia: 'labs-native', note: 'Uses getDisplayTasks for proper contact name resolution' },
   { dashId: 'todo', labsId: 'todo', status: 'mapped', mountedVia: 'labs-native', note: 'Uses getDisplayTasks for proper contact name resolution' },
   { dashId: 'priorityActions', labsId: 'priorityActions', status: 'mapped', mountedVia: 'labs-native' },
-  { dashId: 'milestones', labsId: 'milestones', status: 'experimental', mountedVia: 'labs-native', note: 'Appointments feed still evolving' },
+  { dashId: 'milestones', labsId: 'milestones', status: 'mapped', mountedVia: 'labs-native', note: 'Appointments feed' },
 
   // Partner & Referral widgets
   { dashId: 'leaderboard', labsId: 'referralLeaderboard', status: 'mapped', mountedVia: 'labs-native' },

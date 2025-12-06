@@ -2014,17 +2014,36 @@ export function renderMilestonesWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const rows = appointments.slice(0, 6).map((appt, idx) => `
-        <div class="milestone-row" style="animation-delay:${idx * 0.05}s">
+      const list = document.createElement('div');
+      list.className = 'milestone-list';
+
+      appointments.slice(0, 6).forEach((appt, idx) => {
+        const row = document.createElement('div');
+        row.className = 'milestone-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        row.innerHTML = `
           <div>
             <div class="milestone-title">${appt.title || 'Appointment'}</div>
             <div class="milestone-sub">${appt.contactName || ''}</div>
           </div>
           <div class="milestone-date">${formatDate(appt.due || appt.dueTs)}</div>
-        </div>
-      `).join('');
+        `;
 
-      body.innerHTML = `<div class="milestone-list">${rows}</div>`;
+        // Click-to-editor: navigate to contact view
+        const contactId = appt.contactId || (appt.contact && appt.contact.id);
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
+        list.appendChild(row);
+      });
+
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] milestones render failed', err);
@@ -2174,7 +2193,18 @@ export function renderRelationshipWidget(container, model, opts = {}) {
           metaClass: 'is-neutral'
         });
 
-        if (onPortfolioSegment) {
+        // Click-to-editor: navigate to contact view (prioritize direct navigation)
+        const contactId = contact.id || contact.contactId;
+        if (contactId) {
+          row.classList.add('labs-row--clickable');
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        } else if (onPortfolioSegment) {
+          // Fallback to portfolio segment drilldown if no contactId
           row.classList.add('labs-row--clickable');
           row.addEventListener('click', () => {
             onPortfolioSegment({
@@ -2348,17 +2378,36 @@ export function renderPipelineCalendarWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const timeline = appointments.slice(0, 6).map((appt, idx) => `
-        <div class="timeline-row" style="animation-delay:${idx * 0.05}s">
+      const list = document.createElement('div');
+      list.className = 'timeline-list';
+
+      appointments.slice(0, 6).forEach((appt, idx) => {
+        const row = document.createElement('div');
+        row.className = 'timeline-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        row.innerHTML = `
           <div class="timeline-date">${formatDate(appt.due || appt.dueTs)}</div>
           <div class="timeline-body">
             <div class="timeline-title">${appt.title || 'Appointment'}</div>
             <div class="timeline-meta">${appt.contactName || ''}</div>
           </div>
-        </div>
-      `).join('');
+        `;
 
-      body.innerHTML = `<div class="timeline-list">${timeline}</div>`;
+        // Click-to-editor: navigate to contact view
+        const contactId = appt.contactId || (appt.contact && appt.contact.id);
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
+        list.appendChild(row);
+      });
+
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] pipeline calendar render failed', err);
@@ -2390,14 +2439,33 @@ export function renderFavoritesWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const list = leads.map((lead, idx) => `
-        <div class="favorite-row" style="animation-delay:${idx * 0.05}s">
+      const listEl = document.createElement('div');
+      listEl.className = 'favorite-list';
+
+      leads.forEach((lead, idx) => {
+        const row = document.createElement('div');
+        row.className = 'favorite-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        row.innerHTML = `
           <div class="favorite-name">${lead.displayName || lead.name || 'Lead'}</div>
           <div class="favorite-stage">${STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage}</div>
-        </div>
-      `).join('');
+        `;
 
-      body.innerHTML = `<div class="favorite-list">${list}</div>`;
+        // Click-to-editor: navigate to contact view
+        const contactId = lead.id || lead.contactId;
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
+        listEl.appendChild(row);
+      });
+
+      body.appendChild(listEl);
     });
   } catch (err) {
     console.error('[labs] favorites render failed', err);

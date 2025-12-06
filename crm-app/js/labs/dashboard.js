@@ -409,7 +409,6 @@ const EXPERIMENTAL_WIDGETS = [
   { id: 'activePipeline', size: 'medium', note: 'open files by stage' },
   { id: 'statusStack', size: 'medium', note: 'quick counts by status' },
   // Other experimental widgets (still WIP)
-  { id: 'milestones', size: 'medium', note: 'appointments feed evolving' },
   { id: 'pipelineCalendar', size: 'medium', note: 'timeline styling WIP' },
   { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' },
   // Hidden feature shortcuts (Advanced-only)
@@ -424,11 +423,11 @@ const EXPERIMENTAL_WIDGETS = [
 //   labsKpiSummary, labsPipelineSnapshot, labsTasks, today, todo, favorites,
 //   priorityActions, partnerPortfolio, referralLeaderboard, referralTrends,
 //   relationshipOpportunities, goalProgress, pipelineVelocity, pipelineRisk,
-//   pipelineFunnel, closingWatch, staleDeals, upcomingCelebrations
+//   pipelineFunnel, closingWatch, staleDeals, upcomingCelebrations, milestones
 //
 // EXPERIMENTAL (opt-in via Experimental section):
 //   numbersMomentum, pipelineMomentum, pipelineOverview, activePipeline,
-//   statusStack, milestones, pipelineCalendar, docPulse
+//   statusStack, pipelineCalendar, docPulse
 //
 // HIDDEN FEATURE SHORTCUTS (Advanced-only, experimental):
 //   printSuiteShortcut, templatesShortcut
@@ -439,6 +438,7 @@ const EXPERIMENTAL_WIDGETS = [
 //   - Tasks widget shows real labels + contact names via getDisplayTasks()
 //   - Shortcut widgets only visible when Advanced mode is enabled
 //   - closingWatch, staleDeals, upcomingCelebrations graduated 2025-12
+//   - milestones graduated 2025-12 (now has click-to-editor)
 // ---------------------------------------------------------------------------
 
 const SECTIONS = [
