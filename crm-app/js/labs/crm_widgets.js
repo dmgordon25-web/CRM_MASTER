@@ -23,8 +23,10 @@ import {
   formatNumber,
   formatDate,
   formatRelativeTime,
-  normalizeStagesForDisplay
+  normalizeStagesForDisplay,
+  getContactDisplayName
 } from './data.js';
+import { PIPELINE_MILESTONES } from '../pipeline/constants.js';
 import { getDeltaInsight, getThresholdInsight, getTopDriverInsight } from './insight_callouts.js';
 import {
   createRowContainer,
@@ -209,7 +211,7 @@ const WIDGET_META = {
     title: '📁 Document Pulse',
     description: 'Document milestone counts across your pipeline.',
     category: 'system',
-    status: 'experimental'
+    status: 'stable'
   },
   docCenter: {
     id: 'docCenter',
@@ -2316,22 +2318,35 @@ export function renderClosingWatchWidget(container, model) {
 export function renderDocPulseWidget(container, model) {
   let shell;
   try {
-    const milestoneCounts = {};
-    const contacts = dedupeById(model.contacts || []);
-    contacts.forEach((contact) => {
-      const rawLabel = (contact.milestoneLabel || contact.milestone || '').toString().trim();
-      const normalized = rawLabel ? rawLabel : 'Unspecified';
-      const normalizedLower = normalized.toLowerCase();
-      const bucketed = ['unknown', 'unspecified', 'n/a', 'na', 'none'].includes(normalizedLower) ? 'Unspecified' : normalized;
-      milestoneCounts[bucketed] = (milestoneCounts[bucketed] || 0) + 1;
+    // 1. Filter: Active pipeline only (exclude lost, funded, post-close unless specifically tracking post-close docs)
+    //    For Doc Pulse, we generally focus on active deals getting to 'Funded'.
+    const activeContacts = (model.contacts || []).filter((contact) => {
+      const stage = normalizeStagesForDisplay(contact.stage);
+      return stage && !['lost', 'funded', 'post-close', 'past-client', 'returning'].includes(stage);
     });
 
-    const entries = Object.entries(milestoneCounts).sort((a, b) => b[1] - a[1]);
-    const status = entries.length ? 'ok' : 'empty';
+    // 2. Group by canonical milestone
+    const groups = {};
+    PIPELINE_MILESTONES.forEach((m) => { groups[m] = []; });
+    // Also catch 'Unspecified' or others
+    groups.Other = [];
+
+    activeContacts.forEach((contact) => {
+      const m = contact.milestone; // Normalized by data.js
+      if (m && groups[m]) {
+        groups[m].push(contact);
+      } else {
+        groups.Other.push(contact);
+      }
+    });
+
+    // 3. Determine status
+    const hasData = activeContacts.length > 0;
+    const status = hasData ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('docPulse', {
       status,
-      emptyMessage: 'No milestone data.'
+      emptyMessage: 'No active files needing documents.'
     }));
 
     if (status !== 'ok') {
@@ -2339,15 +2354,60 @@ export function renderDocPulseWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const rows = entries.map(([milestone, count], idx) => `
-        <div class="doc-row" style="animation-delay:${idx * 0.04}s">
-          <span class="doc-milestone">${milestone}</span>
-          <span class="doc-count">${count}</span>
-        </div>
-      `).join('');
+      const list = document.createElement('div');
+      list.className = 'labs-row-list';
 
-      body.innerHTML = `<div class="doc-list">${rows}</div>`;
+      // 4. Render groups
+      [...PIPELINE_MILESTONES, 'Other'].forEach((milestone) => {
+        const groupContacts = groups[milestone];
+        if (!groupContacts || !groupContacts.length) return;
+
+        // Header for the milestone group
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'labs-group-header'; // Ensure this class exists or use a generic styled div
+        groupHeader.style.cssText = 'padding: 8px 12px; font-weight: 600; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-surface-2); border-bottom: 1px solid var(--border-color);';
+        groupHeader.textContent = `${milestone} (${groupContacts.length})`;
+        list.appendChild(groupHeader);
+
+        // Render rows
+        groupContacts.forEach((contact, idx) => {
+          const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(contact) : contact;
+          const display = {
+            id: contact.id || contact.contactId,
+            name: loanDisplay.borrowerName
+              || (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null)
+              || contact.displayName
+              || contact.name
+              || 'Unknown',
+            sub: contact.stageLabel || contact.stage,
+            amount: contact.loanAmount || 0
+          };
+
+          const row = createRowContainer('loan');
+          renderLoanRow(row, display, {
+            primaryText: display.name,
+            secondaryText: display.sub,
+            metaText: display.amount ? formatCurrency(display.amount) : '',
+            metaClass: 'is-neutral'
+          });
+
+          // Actionability
+          if (display.id) {
+            row.style.cursor = 'pointer';
+            row.setAttribute('role', 'button');
+            row.setAttribute('tabindex', '0');
+            row.addEventListener('click', () => {
+              window.location.hash = `#/contacts/${display.id}`;
+            });
+          }
+
+          list.appendChild(row);
+        });
+      });
+
+      body.appendChild(list);
     });
+
   } catch (err) {
     console.error('[labs] doc pulse render failed', err);
     shell = renderWidgetShell(container, widgetSpec('docPulse', {

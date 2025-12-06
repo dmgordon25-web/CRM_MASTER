@@ -52,7 +52,7 @@ export const DASH_TO_LABS_WIDGET_MAP = [
   { dashId: 'momentum', labsId: 'pipelineMomentum', status: 'mapped', mountedVia: 'labs-native', note: 'Pipeline Momentum (Bars) - graduated 2025-12' },
 
   // Experimental widgets (still opt-in)
-  { dashId: 'docPulse', labsId: 'docPulse', status: 'experimental', mountedVia: 'labs-native', note: 'Milestone mapping incomplete' },
+  { dashId: 'docPulse', labsId: 'docPulse', status: 'mapped', mountedVia: 'labs-native', note: 'Canonical milestones with actionable rows - graduated 2025-12' },
 
   // Deprecated/Superseded
   { dashId: 'docCenter', labsId: 'docPulse', status: 'notApplicable', mountedVia: 'labs-native', note: 'Superseded by Doc Pulse in Labs' },
