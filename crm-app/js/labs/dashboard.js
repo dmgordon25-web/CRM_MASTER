@@ -87,12 +87,37 @@ function normalizeStageCountMap(counts = {}) {
 }
 
 function runLabsParityDiagnostics(model) {
-  if (!LABS_DEBUG || !model) return;
+  if (!LABS_DEBUG && !model) return;
   try {
+    // 1. Hard QA Gate: Zero-Unknown Contract
+    // Scan the entire Labs container for forbidden text
+    if (dashboardRoot) {
+      const pageText = dashboardRoot.innerText || '';
+      if (pageText.includes('(Unknown contact)') || pageText.includes('Unknown contact')) {
+        console.error('❌ [Labs QA] Zero-Unknown Contract violated! Found "Unknown contact" in rendered output.');
+        if (typeof window !== 'undefined' && window.alert && LABS_DEBUG) {
+          // alert('Labs Zero-Unknown Contract Violated!');
+        }
+      } else {
+        console.info('✅ [Labs QA] Zero-Unknown Contract passed (text scan).');
+      }
+    }
+
+    // 2. Data Contract Check
+    // Ensure no tasks or pipeline items in the model have "Unknown" names that slipped through
+    const invalidTasks = (model.tasks || []).filter(t => t.contactName === 'Unknown contact' || (t.contactName && t.contactName.includes('Unknown contact')));
+    if (invalidTasks.length > 0) {
+      console.error('❌ [Labs QA] Model contains tasks with Unknown contact name:', invalidTasks.length);
+    }
+    const invalidPipeline = (model.pipeline || []).filter(p => !p.borrowerName || p.borrowerName.includes('Unknown contact'));
+    if (invalidPipeline.length > 0) {
+      console.error('❌ [Labs QA] Model contains pipeline items with Unknown borrower name:', invalidPipeline.length);
+    }
+
     const mappedEntries = DASH_TO_LABS_WIDGET_MAP.filter((entry) => entry.status === 'mapped' && entry.labsId);
     const missingRenderers = mappedEntries.filter((entry) => !CRM_WIDGET_RENDERERS[entry.labsId]);
     if (missingRenderers.length) {
-      console.warn('[labs:parity] Missing Labs renderers for mapped widgets', missingRenderers);
+      console.warn('[labs:parity] Missing Renderers', missingRenderers);
     }
 
     const snapshotStageCounts = normalizeStageCountMap(model.snapshot?.pipelineCounts || {});

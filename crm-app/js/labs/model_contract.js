@@ -67,10 +67,10 @@ import { stageLabelFromKey } from '../pipeline/stages.js';
 function buildMapById(list = [], key = 'id') {
   return Array.isArray(list)
     ? list.reduce((acc, item) => {
-        const id = item?.[key];
-        if (id && !acc[id]) acc[id] = item;
-        return acc;
-      }, {})
+      const id = item?.[key];
+      if (id && !acc[id]) acc[id] = item;
+      return acc;
+    }, {})
     : {};
 }
 
@@ -85,14 +85,14 @@ function safeContactName(contact = {}) {
     contact.firstName,
     contact.lastName
   ].find((value) => value && String(value).trim());
-  return fallback ? String(fallback).trim() : '(Unknown contact)';
+  return fallback ? String(fallback).trim() : null;
 }
 
 function safePartnerName(partner = {}) {
   const fallback = [partner.name, partner.displayName, partner.company, partner.fullName].find(
     (value) => value && String(value).trim()
   );
-  return fallback ? String(fallback).trim() : '(Unknown partner)';
+  return fallback ? String(fallback).trim() : null;
 }
 
 function fallbackStageLabel(stageKey) {
@@ -128,31 +128,31 @@ export function normalizeLabsModel(rawModel = {}) {
     typeof rawModel.getLoanDisplay === 'function'
       ? rawModel.getLoanDisplay
       : (loan) => {
-          if (!loan) return loan;
-          const contactId = loan.contactId || loan.id || loan.borrowerId;
-          const partnerId = loan.partnerId || loan.referralPartnerId;
-          const borrowerName =
-            loan.borrowerName || (contactId ? getContactDisplayName(contactId) : '(Unknown contact)');
-          const partnerName = loan.partnerName || (partnerId ? getPartnerDisplayName(partnerId) : null);
-          const stageLabel = loan.stageLabel || fallbackStageLabel(loan.stage || loan.lane || loan.stageId);
-          const amountValue = Number(loan.amount ?? loan.loanAmount);
-          const amount = Number.isFinite(amountValue) ? amountValue : 0;
-          return {
-            ...loan,
-            borrowerName,
-            partnerName: partnerName || (partnerId ? '(Unknown partner)' : null),
-            stageLabel,
-            amount,
-            contactId,
-            partnerId
-          };
+        if (!loan) return loan;
+        const contactId = loan.contactId || loan.id || loan.borrowerId;
+        const partnerId = loan.partnerId || loan.referralPartnerId;
+        const borrowerName =
+          loan.borrowerName || (contactId ? getContactDisplayName(contactId) : null);
+        const partnerName = loan.partnerName || (partnerId ? getPartnerDisplayName(partnerId) : null);
+        const stageLabel = loan.stageLabel || fallbackStageLabel(loan.stage || loan.lane || loan.stageId);
+        const amountValue = Number(loan.amount ?? loan.loanAmount);
+        const amount = Number.isFinite(amountValue) ? amountValue : 0;
+        return {
+          ...loan,
+          borrowerName,
+          partnerName: partnerName || null,
+          stageLabel,
+          amount,
+          contactId,
+          partnerId
         };
+      };
 
   const pipelineSource = Array.isArray(rawModel.pipeline)
     ? rawModel.pipeline
     : Array.isArray(rawModel.activePipeline)
-    ? rawModel.activePipeline
-    : [];
+      ? rawModel.activePipeline
+      : [];
 
   const pipeline = pipelineSource.map((loan) => getLoanDisplay(loan));
 

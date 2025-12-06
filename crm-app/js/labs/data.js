@@ -8,6 +8,8 @@ import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
+export const LABS_ZERO_UNKNOWN = true;
+
 export function dedupeById(items = []) {
   const map = new Map();
   items.forEach((item) => {
@@ -216,6 +218,9 @@ export function getDisplayTasks(model, options = {}) {
       || contact?.fullName
       || contact?.borrowerName
       || null;
+
+    if (!contactName && LABS_ZERO_UNKNOWN) return;
+
     const safeContactName = contactName && String(contactName).trim() ? String(contactName).trim() : 'Unknown contact';
     const taskLabel = task.title || task.summary || task.typeLabel || 'Task';
 
@@ -337,10 +342,10 @@ export function getLoansForAnalyticsSegment(model = {}, segment = {}, now = Date
   const pipelineSource = Array.isArray(model.pipeline) && model.pipeline.length
     ? model.pipeline
     : Array.isArray(model.activePipeline) && model.activePipeline.length
-    ? model.activePipeline
-    : Array.isArray(model.contacts)
-    ? model.contacts
-    : [];
+      ? model.activePipeline
+      : Array.isArray(model.contacts)
+        ? model.contacts
+        : [];
 
   const displayLoan = (loan) => (typeof model.getLoanDisplay === 'function' ? model.getLoanDisplay(loan) : loan);
 
@@ -386,6 +391,9 @@ export function getLoansForAnalyticsSegment(model = {}, segment = {}, now = Date
       return { ...display, id: display.contactId || display.borrowerId };
     }
     return display;
+  }).filter(item => {
+    if (!LABS_ZERO_UNKNOWN) return true;
+    return item && (item.borrowerName || item.displayName || item.name);
   });
   return dedupeById(withDisplay);
 }
@@ -511,11 +519,11 @@ export function computeReferralTrends(model = {}, opts = {}) {
 
   const getTimestamp = (entry = {}) => normalizeTimestamp(
     entry.createdTs
-      || entry.createdAt
-      || entry.created
-      || entry.submittedTs
-      || entry.submittedAt
-      || entry.updatedTs
+    || entry.createdAt
+    || entry.created
+    || entry.submittedTs
+    || entry.submittedAt
+    || entry.updatedTs
   );
 
   const partnerLookup = typeof model.getPartnerDisplayName === 'function'
@@ -702,7 +710,7 @@ export async function buildLabsModel() {
       candidate.lastName
     ];
     const value = fallbackFields.find((v) => v && String(v).trim());
-    return value ? String(value).trim() : '(Unknown contact)';
+    return value ? String(value).trim() : null;
   };
 
   const getPartnerDisplayName = (partnerId) => {
@@ -710,7 +718,7 @@ export async function buildLabsModel() {
     const candidate = partner || {};
     const fallbackFields = [candidate.name, candidate.displayName, candidate.company, candidate.fullName];
     const value = fallbackFields.find((v) => v && String(v).trim());
-    return value ? String(value).trim() : '(Unknown partner)';
+    return value ? String(value).trim() : null;
   };
 
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
@@ -732,16 +740,19 @@ export async function buildLabsModel() {
   const rawPipeline = Array.isArray(snapshot?.contacts) ? snapshot.contacts : contacts;
   const enrichedPipeline = Array.isArray(rawPipeline)
     ? rawPipeline.map((entry) => {
-        const contactId = entry.contactId || entry.id || entry.borrowerId;
-        const partnerId = entry.partnerId || entry.referralPartnerId;
-        const borrowerName = contactId ? getContactDisplayName(contactId) : (entry.displayName || entry.name || '(Unknown contact)');
-        const partnerName = partnerId ? getPartnerDisplayName(partnerId) : (entry.partnerName || entry.referralPartnerName || null);
-        return {
-          ...entry,
-          borrowerName,
-          partnerName: partnerName || (partnerId ? '(Unknown partner)' : null)
-        };
-      })
+      const contactId = entry.contactId || entry.id || entry.borrowerId;
+      const partnerId = entry.partnerId || entry.referralPartnerId;
+      const borrowerName = contactId ? getContactDisplayName(contactId) : (entry.displayName || entry.name || null);
+      const partnerName = partnerId ? getPartnerDisplayName(partnerId) : (entry.partnerName || entry.referralPartnerName || null);
+
+      if (!borrowerName && LABS_ZERO_UNKNOWN) return null;
+
+      return {
+        ...entry,
+        borrowerName,
+        partnerName: partnerName || null
+      };
+    }).filter(item => item !== null)
     : [];
 
   const activePipelineContacts = contacts.filter((contact) => {
