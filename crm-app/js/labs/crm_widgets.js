@@ -12,6 +12,7 @@ import {
   getTodayTasks,
   getOverdueTasks,
   getOpenTasks,
+  getDisplayTasks,
   computeStageFunnel,
   computeStageAgeBuckets,
   computeStaleSummary,
@@ -152,14 +153,14 @@ const WIDGET_META = {
     title: '🌊 Pipeline Momentum',
     description: 'Stage mix indicators showing movement.',
     category: 'pipeline',
-    status: 'stable'
+    status: 'experimental'
   },
   numbersMomentum: {
     id: 'numbersMomentum',
     title: '🌊 Pipeline Momentum',
     description: 'Stage mix indicators showing movement.',
     category: 'pipeline',
-    status: 'stable'
+    status: 'experimental'
   },
   closingWatch: {
     id: 'closingWatch',
@@ -566,37 +567,39 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
 export function renderLabsTasksWidget(container, model) {
   let shell;
   try {
-    const contactMap = new Map((model.contacts || []).map((c) => [c.id, c]));
-    const openTasks = getOpenTasks(model.tasks || []);
-    const todayTasks = getTodayTasks(openTasks);
-    const overdueTasks = getOverdueTasks(openTasks);
-    const todayCount = countTodayTasks(openTasks);
-    const overdueCount = countOverdueTasks(openTasks);
+    const todayTasks = getDisplayTasks(model, { scope: 'today' });
+    const overdueTasks = getDisplayTasks(model, { scope: 'overdue' });
+    const todayCount = todayTasks.length;
+    const overdueCount = overdueTasks.length;
 
-    const allTasks = [
-      ...todayTasks.map((task) => ({ task, status: 'Today', icon: '✓' })),
-      ...overdueTasks.map((task) => ({ task, status: 'Overdue', icon: '⚠️' }))
-    ];
+    const deduped = [];
+    const seen = new Set();
+    const addTasks = (list, status, icon) => {
+      list.forEach((task) => {
+        const key = `${task.id || ''}:${task.contactId || ''}:${task.due || ''}:${task.taskLabel || task.title || ''}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        deduped.push({ task, status, icon });
+      });
+    };
+
+    addTasks(todayTasks, 'Today', '✓');
+    addTasks(overdueTasks, 'Overdue', '⚠️');
 
     const VISIBLE_LIMIT = 8;
-    const visibleTasks = allTasks.slice(0, VISIBLE_LIMIT);
-    const hiddenCount = Math.max(allTasks.length - visibleTasks.length, 0);
+    const visibleTasks = deduped.slice(0, VISIBLE_LIMIT);
+    const hiddenCount = Math.max(deduped.length - visibleTasks.length, 0);
 
     const rows = visibleTasks.map((entry, idx) => {
-      const contact = contactMap.get(entry.task.contactId);
-      const contactName = model.getContactDisplayName
-        ? model.getContactDisplayName(entry.task.contactId)
-        : (contact?.displayName || contact?.name || entry.task.contactName);
-      const contactLabel = contactName && String(contactName).trim() ? contactName : 'No contact';
       const overdue = entry.status === 'Overdue';
       return `
         <div class="labs-task-row" style="animation-delay:${idx * 0.04}s">
           <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
           <div class="labs-task-main">
-            <div class="labs-task-title">${entry.task.title || 'Task'}</div>
-            <div class="labs-task-meta">${contactLabel}</div>
+            <div class="labs-task-title">${entry.task.taskLabel}</div>
+            <div class="labs-task-meta">${entry.task.contactName}</div>
           </div>
-          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${entry.status}</div>
+          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${overdue ? 'Overdue' : 'Due today'}</div>
         </div>
       `;
     });
@@ -1768,16 +1771,20 @@ export function renderTodoWidget(container, model) {
 export function renderPriorityActionsWidget(container, model) {
   let shell;
   try {
-    const overdue = model.snapshot?.dueGroups?.overdue || [];
-    const staleDeals = getDedupedStaleDeals(model, 14);
-    const rows = overdue.map((task) => ({
-      label: task.title || 'Task',
-      meta: 'Overdue',
+    const overdueTasks = getDisplayTasks(model, { scope: 'overdue' }).slice(0, 5);
+    const taskRows = overdueTasks.map((task) => ({
+      label: task.taskLabel,
+      meta: task.contactName,
       tone: 'danger'
-    })).concat(staleDeals.slice(0, 5).map((deal) => {
+    }));
+
+    const staleDeals = getDedupedStaleDeals(model, 14);
+    const staleRows = staleDeals.slice(0, 3).map((deal) => {
       const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(deal.contact || deal) : (deal.contact || deal);
-      const label = loanDisplay.borrowerName
-        || (model.getContactDisplayName ? model.getContactDisplayName(loanDisplay.contactId || loanDisplay.id) : null)
+      const contactId = loanDisplay.contactId || loanDisplay.id || deal.contactId;
+      const nameFromModel = contactId && model.getContactDisplayName ? model.getContactDisplayName(contactId) : null;
+      const label = nameFromModel
+        || loanDisplay.borrowerName
         || loanDisplay.displayName
         || loanDisplay.name
         || 'Contact';
@@ -1786,7 +1793,9 @@ export function renderPriorityActionsWidget(container, model) {
         meta: 'Stale deal',
         tone: 'warning'
       };
-    }));
+    });
+
+    const rows = taskRows.concat(staleRows);
 
     const status = rows.length ? 'ok' : 'empty';
 
@@ -2014,7 +2023,17 @@ export function renderRelationshipWidget(container, model, opts = {}) {
 export function renderClosingWatchWidget(container, model) {
   let shell;
   try {
-    const closing = dedupeById((model.contacts || []).filter((c) => ['approved', 'cleared-to-close', 'funded'].includes(normalizeStagesForDisplay(c.stage))));
+    const closingSource = Array.isArray(model.snapshot?.contacts) ? model.snapshot.contacts : (model.contacts || []);
+    const seen = new Set();
+    const closing = closingSource.reduce((acc, contact) => {
+      const stageKey = normalizeStagesForDisplay(contact.stage);
+      if (!['approved', 'cleared-to-close', 'funded'].includes(stageKey)) return acc;
+      const dedupeKey = `${contact.id || contact.contactId || ''}:${stageKey}:${contact.closeDate || contact.expectedCloseDate || contact.loanAmount || ''}`;
+      if (seen.has(dedupeKey)) return acc;
+      seen.add(dedupeKey);
+      acc.push(contact);
+      return acc;
+    }, []);
     const status = closing.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('closingWatch', {
@@ -2032,11 +2051,14 @@ export function renderClosingWatchWidget(container, model) {
 
       closing.slice(0, 6).forEach((contact) => {
         const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(contact) : contact;
-        const primaryName = (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null)
+        const contactId = loanDisplay.contactId || contact.contactId || contact.id;
+        const primaryName = (contactId && model.getContactDisplayName ? model.getContactDisplayName(contactId) : null)
           || loanDisplay.borrowerName
           || loanDisplay.displayName
           || loanDisplay.name
-          || 'Contact';
+          || contact.displayName
+          || contact.name
+          || 'Unknown contact';
         const row = createRowContainer('loan');
         renderLoanRow(row, loanDisplay, {
           primaryText: primaryName,

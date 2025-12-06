@@ -177,7 +177,6 @@ const LABS_PRESETS = {
         'labsKpiSummary',
         'goalProgress',
         'labsPipelineSnapshot',
-        'pipelineFunnel',
         'pipelineVelocity',
         'pipelineRisk',
         'closingWatch',
@@ -192,7 +191,6 @@ const LABS_PRESETS = {
         labsKpiSummary: true,
         goalProgress: true,
         labsPipelineSnapshot: true,
-        pipelineFunnel: true,
         pipelineVelocity: true,
         pipelineRisk: true,
         closingWatch: true,
@@ -207,7 +205,6 @@ const LABS_PRESETS = {
         labsKpiSummary: 'w3',
         goalProgress: 'w2',
         labsPipelineSnapshot: 'w3',
-        pipelineFunnel: 'w2',
         pipelineVelocity: 'w2',
         pipelineRisk: 'w2',
         closingWatch: 'w2',
@@ -224,9 +221,7 @@ const LABS_PRESETS = {
       label: 'Monthly Review',
       order: [
         'labsKpiSummary',
-        'numbersMomentum',
         'goalProgress',
-        'pipelineFunnel',
         'pipelineVelocity',
         'pipelineRisk',
         'labsPipelineSnapshot',
@@ -243,9 +238,7 @@ const LABS_PRESETS = {
       ],
       visibility: {
         labsKpiSummary: true,
-        numbersMomentum: true,
         goalProgress: true,
-        pipelineFunnel: true,
         pipelineVelocity: true,
         pipelineRisk: true,
         labsPipelineSnapshot: true,
@@ -262,9 +255,7 @@ const LABS_PRESETS = {
       },
       widths: {
         labsKpiSummary: 'w3',
-        numbersMomentum: 'w2',
         goalProgress: 'w2',
-        pipelineFunnel: 'w3',
         pipelineVelocity: 'w2',
         pipelineRisk: 'w2',
         labsPipelineSnapshot: 'w2',
@@ -279,7 +270,7 @@ const LABS_PRESETS = {
         labsTasks: 'w1',
         today: 'w1'
       },
-      description: 'Strategic month-in-review with funnel, velocity, partner momentum, and relationship risk'
+      description: 'Strategic month-in-review with velocity, partner momentum, and relationship risk'
     },
     tasksFocused: {
       label: 'Tasks focus',
@@ -364,6 +355,7 @@ const LABS_PRESETS = {
 
 
 const EXPERIMENTAL_WIDGETS = [
+  { id: 'numbersMomentum', size: 'medium', note: 'alternate pipeline momentum' },
   { id: 'pipelineMomentum', size: 'medium', note: 'prototype' },
   { id: 'closingWatch', size: 'medium', note: 'prototype' },
   { id: 'staleDeals', size: 'medium', note: 'prototype' },
@@ -387,10 +379,8 @@ const SECTIONS = [
     description: 'Pipeline health and today\'s work',
     widgets: [
       { id: 'labsKpiSummary', size: 'large' },
-      { id: 'numbersMomentum', size: 'medium' },
-      { id: 'goalProgress', size: 'medium' },
       { id: 'labsPipelineSnapshot', size: 'large' },
-      { id: 'pipelineFunnel', size: 'medium' },
+      { id: 'goalProgress', size: 'medium' },
       { id: 'pipelineVelocity', size: 'medium' },
       { id: 'pipelineRisk', size: 'medium' },
       { id: 'closingWatch', size: 'medium' },
