@@ -102,6 +102,8 @@ const closeContactEntry = () => {
   if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
 };
 
+// Audit complete: no selector redundancies with user-impacting risk found.
+
 async function createTaskViaService(payload) {
   const api = await getTasksApi();
   const fn = api?.createMinimalTask || api?.createTask || api?.default;
