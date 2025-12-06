@@ -869,3 +869,27 @@ export function formatRelativeTime(timestamp) {
   if (minutes > 0) return `${minutes}m ago`;
   return 'Just now';
 }
+
+// Resolve contact display name (compatibility export)
+export function getContactDisplayName(contactId, modelOrContactsById) {
+  try {
+    if (!contactId) return null;
+
+    // Handle both full model object and direct contactsById map
+    const contactsById = modelOrContactsById?.contactsById || modelOrContactsById || {};
+    const contact = contactsById[contactId];
+
+    if (!contact) return null;
+
+    // Fallback chain as requested: displayName -> fullName -> borrowerName -> name
+    return contact.displayName ||
+      contact.fullName ||
+      contact.borrowerName ||
+      contact.name ||
+      null;
+  } catch (err) {
+    // NEVER throw from this compatibility function
+    console.warn('[labs] getContactDisplayName lookup failed', err);
+    return null;
+  }
+}

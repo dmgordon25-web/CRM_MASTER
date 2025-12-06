@@ -2276,7 +2276,7 @@ export function renderClosingWatchWidget(container, model) {
           || loanDisplay.name
           || contact.displayName
           || contact.name
-          || 'Unknown contact';
+          || 'Unknown';
         const row = createRowContainer('loan');
         renderLoanRow(row, loanDisplay, {
           primaryText: primaryName,

@@ -35,14 +35,27 @@ async function run() {
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
 
-  const navTargets = ['dashboard', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
+  const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
     const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
     if (await btn.count() > 0) {
       await btn.first().click();
     }
-    await page.waitForSelector(`#view-${nav}`, { state: 'visible', timeout: 10000 }).catch(() => {});
+    await page.waitForSelector(`#view-${nav}`, { state: 'visible', timeout: 10000 }).catch(() => { });
   }
+
+  // Labs module sanity check
+  await page.evaluate(async () => {
+    try {
+      const mod = await import('./js/labs/data.js');
+      if (typeof mod.getContactDisplayName !== 'function') {
+        throw new Error('getContactDisplayName is missing from labs/data.js exports');
+      }
+      console.log('[boot-smoke] labs/data.js verified');
+    } catch (e) {
+      throw new Error('Labs module verification failed: ' + e.message);
+    }
+  });
 
   if (errors.length) {
     throw errors[0];
