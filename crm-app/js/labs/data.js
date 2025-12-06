@@ -18,6 +18,10 @@ export function dedupeById(items = []) {
   return Array.from(map.values());
 }
 
+function stableTaskKey(task = {}) {
+  return `${task.id || ''}:${task.contactId || ''}:${task.due || task.dueDate || ''}:${task.title || ''}`;
+}
+
 // Labs portfolio segment descriptor
 // {
 //   domain: 'partners' | 'contacts' | 'loans',
@@ -138,6 +142,13 @@ function normalizeTimestamp(value) {
   return Number.isNaN(ts) ? null : ts;
 }
 
+function startOfDayTs(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
 function normalizeContact(contact = {}) {
   const normalizedWorkflow = normalizeWorkflow(contact);
   const createdTs = normalizeTimestamp(contact.createdTs || contact.createdAt || contact.created);
@@ -165,6 +176,53 @@ function normalizeTask(task = {}) {
     dueTs: dueTs || null,
     completed: !!task.completed
   };
+}
+
+export function getDisplayTasks(model, options = {}) {
+  const scope = options.scope || null;
+  const contactsById = model?.contactsById || {};
+  const tasks = Array.isArray(model?.tasks) ? model.tasks : [];
+  const openTasks = getOpenTasks(tasks);
+  const todayTs = startOfDayTs(options.today || Date.now());
+
+  let scopedTasks = openTasks;
+  if (scope === 'today') {
+    scopedTasks = getTodayTasks(openTasks, options.today);
+  } else if (scope === 'overdue') {
+    scopedTasks = getOverdueTasks(openTasks, options.today);
+  } else if (scope === 'week' && todayTs) {
+    const weekCutoff = todayTs + (7 * 24 * 60 * 60 * 1000);
+    scopedTasks = openTasks
+      .filter((task) => {
+        const dueTs = normalizeTimestamp(task.dueTs || task.dueDate || task.due);
+        if (!dueTs) return false;
+        return dueTs >= todayTs && dueTs <= weekCutoff;
+      })
+      .sort((a, b) => (a.dueTs || 0) - (b.dueTs || 0));
+  }
+
+  const seen = new Set();
+  const displayTasks = [];
+
+  scopedTasks.forEach((task) => {
+    const key = stableTaskKey(task);
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const contact = task.contactId ? contactsById[task.contactId] : null;
+    const contactName = (model?.getContactDisplayName ? model.getContactDisplayName(task.contactId) : null)
+      || contact?.displayName
+      || contact?.name
+      || contact?.fullName
+      || contact?.borrowerName
+      || null;
+    const safeContactName = contactName && String(contactName).trim() ? String(contactName).trim() : 'Unknown contact';
+    const taskLabel = task.title || task.summary || task.typeLabel || 'Task';
+
+    displayTasks.push({ ...task, contactName: safeContactName, taskLabel });
+  });
+
+  return displayTasks;
 }
 
 // KPI calculation helpers powered by canonical baseline snapshot
@@ -727,6 +785,12 @@ export async function buildLabsModel() {
   const referralTrends30 = computeReferralTrends(model, { windowDays: 30 });
   const finalModel = {
     ...model,
+    contacts,
+    partners,
+    tasks,
+    contactsById,
+    partnersById,
+    snapshot,
     analytics: {
       ...model.analytics,
       referralTrends30
