@@ -1517,19 +1517,9 @@ export function renderStaleDealsWidget(container, model) {
           primaryText: name,
           secondaryText: secondaryPieces.filter(Boolean).join(' • '),
           metaText: `${daysSince}d`,
-          metaClass: 'is-negative'
+          metaClass: 'is-negative',
+          id: contactId
         });
-
-        // Click-to-editor: navigate to contact view
-        const contactId = loanDisplay.contactId || dealContact.id || dealContact.contactId;
-        if (contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
-        }
 
         list.appendChild(row);
       });
@@ -2197,21 +2187,13 @@ export function renderRelationshipWidget(container, model, opts = {}) {
         renderContactRow(row, contactDisplay, {
           secondaryText: contactDisplay.lastTouchLabel,
           metaText: contactDisplay.ageLabel,
-          metaClass: 'is-neutral'
+          metaClass: 'is-neutral',
+          id: contactId
         });
 
-        // Click-to-editor: navigate to contact view (prioritize direct navigation)
-        const contactId = contact.id || contact.contactId;
-        if (contactId) {
-          row.classList.add('labs-row--clickable');
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
-        } else if (onPortfolioSegment) {
-          // Fallback to portfolio segment drilldown if no contactId
+        // Click-to-editor: handled by renderer if contactId present
+        // Fallback to portfolio segment drilldown if no contactId
+        if (!contactId && onPortfolioSegment) {
           row.classList.add('labs-row--clickable');
           row.addEventListener('click', () => {
             onPortfolioSegment({
@@ -2287,18 +2269,9 @@ export function renderClosingWatchWidget(container, model) {
           primaryText: primaryName,
           secondaryText: STAGE_CONFIG[normalizeStagesForDisplay(contact.stage)]?.label || contact.stage,
           metaText: contact.loanAmount ? formatCurrency(contact.loanAmount) : loanDisplay.loanAmountLabel,
-          metaClass: 'is-positive'
+          metaClass: 'is-positive',
+          id: contactId
         });
-
-        // Click-to-editor: navigate to contact view
-        if (contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
-        }
 
         list.appendChild(row);
       });
@@ -2393,18 +2366,9 @@ export function renderDocPulseWidget(container, model) {
             primaryText: display.name,
             secondaryText: display.sub,
             metaText: display.amount ? formatCurrency(display.amount) : '',
-            metaClass: 'is-neutral'
+            metaClass: 'is-neutral',
+            id: display.id
           });
-
-          // Actionability
-          if (display.id) {
-            row.style.cursor = 'pointer';
-            row.setAttribute('role', 'button');
-            row.setAttribute('tabindex', '0');
-            row.addEventListener('click', () => {
-              window.location.hash = `#/contacts/${display.id}`;
-            });
-          }
 
           list.appendChild(row);
         });

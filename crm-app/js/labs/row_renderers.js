@@ -166,6 +166,21 @@ export function renderLoanRow(rowEl, loanDisplay = {}, opts = {}) {
     appendInlineBar(meta, opts.progressValue, opts.progressMax, opts.progressAriaLabel);
   }
   setBadge(badge, opts.badgeText);
+
+  // Click wiring
+  if (loanDisplay.id || opts.id || loanDisplay.contactId || loanDisplay.borrowerId) {
+    const targetId = loanDisplay.contactId || loanDisplay.borrowerId || loanDisplay.id || opts.id;
+    if (targetId) {
+      rowEl.style.cursor = 'pointer';
+      rowEl.setAttribute('role', 'button');
+      rowEl.setAttribute('tabindex', '0');
+      rowEl.onclick = (e) => {
+        e.stopPropagation();
+        window.location.hash = `#/contacts/${targetId}`;
+      };
+    }
+  }
+
   return rowEl;
 }
 
@@ -186,6 +201,19 @@ export function renderPartnerRow(rowEl, partnerDisplay = {}, opts = {}) {
   appendInlineBar(meta, opts.currentCount, opts.maxCount, opts.barAriaLabel);
   appendDelta(meta, opts.current, opts.previous, opts.deltaAriaLabel);
   setBadge(badge, opts.badgeText);
+
+  // Click wiring
+  if (partnerDisplay.id || opts.id) {
+    const targetId = partnerDisplay.id || opts.id;
+    rowEl.style.cursor = 'pointer';
+    rowEl.setAttribute('role', 'button');
+    rowEl.setAttribute('tabindex', '0');
+    rowEl.onclick = (e) => {
+      e.stopPropagation();
+      window.location.hash = `#/partners/${targetId}`;
+    };
+  }
+
   return rowEl;
 }
 
@@ -207,5 +235,18 @@ export function renderContactRow(rowEl, contactDisplay = {}, opts = {}) {
     appendInlineBar(meta, opts.urgencyValue, opts.urgencyMax, opts.urgencyAriaLabel);
   }
   setBadge(badge, opts.badgeText);
+
+  // Click wiring
+  if (contactDisplay.id || opts.id) {
+    const targetId = contactDisplay.id || opts.id;
+    rowEl.style.cursor = 'pointer';
+    rowEl.setAttribute('role', 'button');
+    rowEl.setAttribute('tabindex', '0');
+    rowEl.onclick = (e) => {
+      e.stopPropagation();
+      window.location.hash = `#/contacts/${targetId}`;
+    };
+  }
+
   return rowEl;
 }

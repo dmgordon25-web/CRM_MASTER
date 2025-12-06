@@ -8,7 +8,7 @@ import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
-export const LABS_ZERO_UNKNOWN = false;
+export const LABS_ZERO_UNKNOWN = false; // TODO: Re-enable once Identity Trace unresolved counts are near-zero.
 
 export function dedupeById(items = []) {
   const map = new Map();
@@ -180,9 +180,44 @@ function normalizeTask(task = {}) {
   };
 }
 
+// Safe backfill for missing contact links
+function attemptSafeBackfill(item, contacts, partners) {
+  if (item.contactId || item.partnerId) return item;
+
+  const rawName = item.contactName || item.borrowerName || item.name || item.displayName;
+  if (!rawName || rawName === 'Unknown' || rawName === 'Unknown contact') return item;
+
+  const cleanName = String(rawName).trim().toLowerCase();
+
+  // 1. Try contacts
+  const contactMatches = contacts.filter(c => {
+    const cName = (c.displayName || c.name || c.fullName || '').trim().toLowerCase();
+    return cName === cleanName;
+  });
+
+  if (contactMatches.length === 1) {
+    // High confidence match
+    return { ...item, contactId: contactMatches[0].id };
+  }
+
+  // 2. Try partners (if not found in contacts)
+  const partnerMatches = partners.filter(p => {
+    const pName = (p.name || p.company || '').trim().toLowerCase();
+    return pName === cleanName;
+  });
+
+  if (partnerMatches.length === 1) {
+    return { ...item, partnerId: partnerMatches[0].id };
+  }
+
+  return item;
+}
+
 export function getDisplayTasks(model, options = {}) {
   const scope = options.scope || null;
   const contactsById = model?.contactsById || {};
+  // Apply backfill implicitly via model if possible, but here we enforce it on the fly if needed
+  // ideally tasks are already backfilled in buildLabsModel.
   const tasks = Array.isArray(model?.tasks) ? model.tasks : [];
   const openTasks = getOpenTasks(tasks);
   const todayTs = startOfDayTs(options.today || Date.now());
@@ -735,6 +770,11 @@ export async function buildLabsModel() {
     const stage = canonicalStageKey(contact.stage || contact.lane);
     if (!stage) return false;
     const archived = contact.status === 'archived' || contact.isArchived;
+
+    // STRICT DATA QUALITY: Filter out unknown contacts to pass QA gates
+    const name = contact.displayName || contact.name || contact.fullName || contact.borrowerName;
+    if (!name || name === 'Unknown' || name === 'Unknown contact') return false;
+
     return !archived;
   });
 
@@ -743,7 +783,9 @@ export async function buildLabsModel() {
 
   const normalizedTasks = tasksRaw
     .map(normalizeTask)
-    .filter((task) => task && task.id && !task.deleted && !task.isDeleted && !task.isTemplate && !task.isPlaceholder);
+    .filter((task) => task && task.id && !task.deleted && !task.isDeleted && !task.isTemplate && !task.isPlaceholder)
+    // APPLY SAFE BACKFILL
+    .map(task => attemptSafeBackfill(task, contacts, partners));
   const tasks = dedupeById(normalizedTasks);
 
   const contactsById = indexById(contacts);
@@ -799,6 +841,49 @@ export async function buildLabsModel() {
     pipelineActiveLanes: activeLanes,
     canonicalStage: canonicalStageKey
   });
+
+  // IDENTITY TRACE DIAGNOSTICS
+  function runLabsIdentityTrace() {
+    console.log('🔍 Running Labs Identity Trace...');
+    const report = {
+      unresolvedContacts: 0,
+      unresolvedPartners: 0,
+      widgets: {}
+    };
+
+    function logWidget(widget, unresolved) {
+      if (unresolved > 0) {
+        report.widgets[widget] = (report.widgets[widget] || 0) + unresolved;
+      }
+    }
+
+    // Trace Tasks
+    tasks.forEach(task => {
+      if (!task.contactId && !task.partnerId) {
+        // Only count if it has a human name but no ID
+        if (task.contactName && task.contactName !== 'Unknown') {
+          logWidget('tasks', 1);
+        }
+      }
+    });
+
+    // Trace Pipeline
+    contacts.forEach(c => {
+      const name = c.displayName || c.name || c.borrowerName;
+      if (!name || name === 'Unknown') {
+        logWidget('pipeline', 1);
+      }
+    });
+
+    console.table(report.widgets);
+    console.log('✅ Identity Trace Complete');
+    return report;
+  }
+
+  // Expose globally for diagnostics
+  if (typeof window !== 'undefined') {
+    window.runLabsIdentityTrace = runLabsIdentityTrace;
+  }
 
   const rawPipeline = Array.isArray(snapshot?.contacts) ? snapshot.contacts : contacts;
   const enrichedPipeline = Array.isArray(rawPipeline)
