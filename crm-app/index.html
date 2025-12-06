@@ -1997,6 +1997,203 @@
     </form>
    </div>
   </dialog>
+  <template id="contact-editor-template">
+      <input type="hidden" id="c-id" value="">
+      <input type="hidden" id="c-lastname" value="">
+      <div class="modal-form-layout">
+        <aside class="modal-summary">
+          <div class="" data-role="favorite-host" data-favorite-type="contact" data-record-id="">
+            <span class="summary-name-text" data-role="summary-name-text"></span>
+            <span class="summary-actions" data-role="favorite-actions"></span>
+          </div>
+          <div class="summary-meta">
+            <span data-role="stage-chip-wrapper" data-stage=""></span>
+            <span class="status-pill" data-status=""></span>
+          </div>
+          <div class="summary-metrics">
+            <div class="summary-metric">
+              <span class="metric-label">Loan Program</span>
+              <span class="metric-value" id="c-summary-program"></span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Loan Amount</span>
+              <span class="metric-value" id="c-summary-amount"></span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Next Touch</span>
+              <span class="metric-value" id="c-summary-touch"></span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Lead Source</span>
+              <span class="metric-value" id="c-summary-source"></span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Referral Partner</span>
+              <span class="metric-value" id="c-summary-referral"></span>
+            </div>
+          </div>
+          <div class="modal-note" id="c-summary-note">
+            Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
+          </div>
+        </aside>
+        <div class="modal-main">
+          <div class="modal-core">
+            <section class="milestone-header" data-role="milestone-header">
+              <div class="milestone-header-top">
+                <div class="milestone-progress" role="progressbar" aria-label="Pipeline milestone progress" aria-valuemin="1" aria-valuemax="" aria-valuenow="1" data-role="milestone-progress" data-qa="milestone-bar">
+                  <div class="milestone-progress-fill" data-role="milestone-progress-fill"></div>
+                </div>
+                <button class="btn ghost compact" type="button" data-role="milestone-next" data-qa="milestone-next">Log Next Step</button>
+              </div>
+              <div class="milestone-badges" role="group" aria-label="Milestone badges">
+              </div>
+            </section>
+            <div class="modal-content">
+              <nav class="modal-tabs" id="contact-tabs">
+                <button class="btn active" data-panel="profile" type="button">Profile</button>
+                <button class="btn" data-panel="loan" type="button">Loan &amp; Property</button>
+                <button class="btn" data-panel="relationships" type="button">Relationships</button>
+                <button class="btn" data-panel="docs" type="button">Document Checklist</button>
+              </nav>
+              <div class="modal-panels">
+                <section class="modal-section modal-panel active" data-panel="profile">
+              <h4>Borrower Profile</h4>
+              <div class="field-grid cols-2">
+                <label data-required="true">First Name<input aria-required="true" id="c-first" value=""></label>
+                <label data-required="true">Last Name<input aria-required="true" id="c-last" value=""></label>
+                <label>Contact Role<select id="c-type"></select></label>
+                <label>Priority<select id="c-priority"></select></label>
+                <label>Lead Source<select id="c-source"><option value="">Select source</option></select></label>
+                <label>Communication Preference<select id="c-pref"></select></label>
+                <label data-required="true">Primary Email<input aria-required="true" id="c-email" type="email" value=""></label>
+                <label data-required="true">Mobile / Direct Line<input aria-required="true" id="c-phone" type="tel" value=""></label>
+                <label data-advanced="contact">Secondary Email<input id="c-email2" type="email" value=""></label>
+                <label data-advanced="contact">Secondary Phone<input id="c-phone2" type="tel" value=""></label>
+              </div>
+            </section>
+            <section class="modal-section modal-panel" data-panel="loan">
+              <h4>Pipeline Stage</h4>
+              <div class="stage-slider" id="contact-stage-slider">
+                <div class="stage-slider-track">
+                  <div class="stage-slider-progress" id="contact-stage-progress"></div>
+                  <div class="stage-slider-marks"></div>
+                </div>
+                <div class="stage-slider-labels"></div>
+                <input type="range" min="0" max="" step="1" value="0" id="contact-stage-range" aria-label="Pipeline stage slider">
+                <div class="stage-slider-help" id="contact-stage-help">
+                  <strong id="contact-stage-help-title">Email Draft Prompts</strong>
+                  <p id="contact-stage-helptext">Stage changes queue email prompts for you to review and send alongside partner notifications and task updates.</p>
+                </div>
+              </div>
+              <div style="margin-top:18px">
+                <h4>Property &amp; Loan Snapshot</h4>
+                <div class="field-grid cols-3">
+                  <label data-required="true">Stage<select aria-required="true" id="c-stage"></select></label>
+                  <label data-required="true">Status<select aria-required="true" id="c-status"></select></label>
+                  <label data-advanced="loan">Closing Timeline<select id="c-timeline"></select></label>
+                  <label data-advanced="loan">Loan Purpose<select id="c-purpose"></select></label>
+                  <label data-advanced="loan">Loan Program<select id="c-loanType"></select></label>
+                  <label data-advanced="loan">Property Type<select id="c-property"></select></label>
+                  <label data-advanced="loan">Occupancy<select id="c-occupancy"></select></label>
+                  <label data-advanced="loan">Employment Type<select id="c-employment"></select></label>
+                  <label data-advanced="loan">Credit Range<select id="c-credit"></select></label>
+                </div>
+                <div class="field-grid cols-3" style="margin-top:12px">
+                  <label data-advanced="loan">Loan Amount<input id="c-amount" type="number" value=""></label>
+                  <label data-advanced="loan">Rate<input id="c-rate" type="number" step="0.001" value=""></label>
+                  <label data-advanced="loan">Funded / Expected Closing<input id="c-funded" type="date" value=""></label>
+                  <label data-advanced="loan">Pre-Approval Expires<input id="c-preexp" type="date" value=""></label>
+                  <label data-advanced="loan">Documentation Stage<select id="c-docstage"></select></label>
+                  <label data-advanced="loan">Pipeline Milestone<select id="c-milestone"></select></label>
+                </div>
+              </div>
+              <div style="margin-top:18px">
+                <h4>Property Address</h4>
+                <div class="field-grid cols-2">
+                  <label>Street Address<input id="c-address" value=""></label>
+                  <label>City<input id="c-city" value=""></label>
+                  <label>State<select id="c-state"></select></label>
+                  <label>ZIP<input id="c-zip" value=""></label>
+                </div>
+              </div>
+            </section>
+            <section class="modal-section modal-panel" data-panel="relationships">
+              <h4>Relationships &amp; Follow-Up</h4>
+              <div class="field-grid cols-2">
+                  <label data-advanced="relationships">Buyer Partner<select id="c-buyer"><option value="">Select partner</option></select></label>
+                  <label data-advanced="relationships">Listing Partner<select id="c-listing"><option value="">Select partner</option></select></label>
+                  <label data-advanced="relationships">Referral Partner<select id="c-referral-partner"><option value="">Select partner</option></select></label>
+                  <label data-advanced="relationships">Referred By<select id="c-ref"><option value="">Select source</option></select></label>
+                  <label data-advanced="relationships">Last Contact<input id="c-lastcontact" type="date" value=""></label>
+                  <label data-advanced="relationships">Next Follow-Up<input id="c-nexttouch" type="date" value=""></label>
+              </div>
+              <label class="section-subhead" style="margin-top:14px">Conversation Notes</label>
+              <textarea id="c-notes"></textarea>
+            </section>
+                <section class="modal-section modal-panel" data-panel="docs" data-simple-advanced-only="docs">
+                  <h4>Document Checklist</h4>
+                  <div class="doc-automation-grid">
+                    <div class="doc-automation-summary">
+                      <div class="muted" id="c-doc-summary">Select a loan program to generate the checklist.</div>
+                      <div class="doc-missing" id="c-doc-missing"></div>
+                      <ul class="doc-chip-list" id="c-doc-list"></ul>
+                    </div>
+                    <div class="doc-automation-actions">
+                      <button class="btn" type="button" id="c-sync-docs">Sync Required Docs</button>
+                      <button class="btn brand" type="button" id="c-email-docs">Email Document Request</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <aside class="modal-aside" data-ui="contact-detail-pane">
+            <section class="detail-card" data-role="contact-detail-overview">
+              <h4>Contact Snapshot</h4>
+              <dl class="detail-list">
+                <div class="detail-list-row">
+                  <dt>Stage</dt>
+                  <dd id="c-detail-stage"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Status</dt>
+                  <dd id="c-detail-status"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Last Touch</dt>
+                  <dd id="c-detail-last"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Next Follow-Up</dt>
+                  <dd id="c-detail-next"></dd>
+                </div>
+              </dl>
+            </section>
+            <section class="detail-card" data-role="contact-detail-highlights">
+              <h4>Key Details</h4>
+              <dl class="detail-list">
+                <div class="detail-list-row">
+                  <dt>Loan Program</dt>
+                  <dd id="c-detail-program"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Loan Amount</dt>
+                  <dd id="c-detail-amount"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Lead Source</dt>
+                  <dd id="c-detail-source"></dd>
+                </div>
+                <div class="detail-list-row">
+                  <dt>Referral Partner</dt>
+                  <dd id="c-detail-referral"></dd>
+                </div>
+              </dl>
+            </section>
+          </aside>
+        </div>
+      </div>
+  </template>
   <div class="toast" id="toast">
   </div>
   <!-- Filters Modal (Phase 7) -->

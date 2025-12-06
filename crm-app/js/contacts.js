@@ -1027,6 +1027,12 @@ export function normalizeContactId(input) {
       const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
       const summaryIdAttr = escape(c.id || '');
       const referralSummaryMarkup = `<button type="button" class="btn-link more" data-role="referral-partner-summary"${referralPartnerId ? ` data-partner-id="${escape(referralPartnerId)}"` : ''}>${escape(referralPartnerLabel || 'Assign Referral Partner')}</button>`;
+      const template = document.getElementById('contact-editor-template');
+      const usedTemplate = !!(template && template.content);
+      body.innerHTML = '';
+      if (usedTemplate) {
+        body.appendChild(template.content.cloneNode(true));
+      } else {
       body.innerHTML = `
       <input type="hidden" id="c-id" value="${escape(c.id || '')}">
       <input type="hidden" id="c-lastname" value="${escape(c.last || '')}">
@@ -1225,7 +1231,136 @@ export function normalizeContactId(input) {
           </aside>
         </div>
       </div>`;
-      const toggleAdvancedSections = (mode) => {
+
+      }
+      if (usedTemplate) {
+        const setText = (selector, value) => {
+          const node = body.querySelector(selector);
+          if (node) node.textContent = value != null ? String(value) : '';
+        };
+        const setHTML = (selector, value) => {
+          const node = body.querySelector(selector);
+          if (node) node.innerHTML = value || '';
+        };
+        const setValue = (selector, value) => {
+          const node = body.querySelector(selector);
+          if (node) node.value = value != null ? value : '';
+        };
+        const setOptions = (selector, html, value) => {
+          const node = body.querySelector(selector);
+          if (!node) return;
+          node.innerHTML = html || '';
+          if (value != null) node.value = value;
+        };
+
+        setValue('#c-id', c.id || '');
+        setValue('#c-lastname', c.last || '');
+
+        const summaryHost = body.querySelector('[data-role="favorite-host"]');
+        if (summaryHost) {
+          summaryHost.className = summaryClasses.join(' ');
+          summaryHost.dataset.favoriteType = 'contact';
+          summaryHost.dataset.recordId = summaryIdAttr;
+          if (isFavoriteContact) summaryHost.dataset.favorite = '1';
+          else delete summaryHost.dataset.favorite;
+          summaryHost.innerHTML = `${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span><span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>`;
+        }
+
+        const summaryMeta = body.querySelector('.summary-meta');
+        let statusPill = body.querySelector('.status-pill');
+        if (!statusPill && summaryMeta) {
+          statusPill = document.createElement('span');
+          statusPill.className = 'status-pill';
+          summaryMeta.appendChild(statusPill);
+        }
+
+        const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
+        if (stageWrap) {
+          stageWrap.innerHTML = stageChip;
+          stageWrap.dataset.stage = String(c.stage || 'application');
+          if (stageCanonicalKey) stageWrap.dataset.stageCanonical = stageCanonicalKey;
+          else stageWrap.removeAttribute('data-stage-canonical');
+        }
+        if (statusPill) {
+          statusPill.textContent = statusLabel;
+          statusPill.dataset.status = String(c.status || 'inprogress');
+          statusPill.className = `status-pill${statusToneClass ? ` ${statusToneClass}` : ''}`;
+          if (statusToneKey) statusPill.dataset.tone = statusToneKey;
+          else statusPill.removeAttribute('data-tone');
+        }
+
+        setText('#c-summary-program', c.loanType || c.loanProgram || 'Select');
+        setText('#c-summary-amount', loanMetric);
+        setText('#c-summary-touch', nextTouch || 'TBD');
+        setText('#c-summary-source', c.leadSource || 'Set Source');
+        setHTML('#c-summary-referral', referralSummaryMarkup);
+        setText('#c-summary-note', 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.');
+
+        setText('#c-detail-stage', stageLabel);
+        setText('#c-detail-status', statusLabel);
+        setText('#c-detail-last', detailLastTouch);
+        setText('#c-detail-next', detailNextFollowUp);
+        setText('#c-detail-program', c.loanType || c.loanProgram || 'Select');
+        setText('#c-detail-amount', loanMetric);
+        setText('#c-detail-source', c.leadSource || 'Set Source');
+        setText('#c-detail-referral', detailReferralDisplay);
+
+        const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
+        if (milestoneBar) {
+          milestoneBar.setAttribute('aria-valuemax', String(PIPELINE_MILESTONES.length));
+        }
+        const milestoneBadgesHost = body.querySelector('.milestone-badges');
+        if (milestoneBadgesHost) {
+          milestoneBadgesHost.innerHTML = PIPELINE_MILESTONES.map((label, idx) => `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('');
+        }
+
+        setHTML('.stage-slider-marks', stageSliderMarks);
+        setHTML('.stage-slider-labels', stageSliderLabels);
+        const stageRangeInput = body.querySelector('#contact-stage-range');
+        if (stageRangeInput) {
+          stageRangeInput.setAttribute('max', String(Math.max(0, STAGE_FLOW.length - 1)));
+        }
+
+        setOptions('#c-type', optionList(CONTACT_TYPES, c.contactType || 'Borrower'), c.contactType || 'Borrower');
+        setOptions('#c-priority', optionList(PRIORITIES, c.priority || 'Warm'), c.priority || 'Warm');
+        setOptions('#c-source', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.leadSource || '')}`, c.leadSource || '');
+        setOptions('#c-pref', optionList(COMM_PREFS, c.communicationPreference || 'Phone'), c.communicationPreference || 'Phone');
+        setOptions('#c-stage', optionList(STAGES, c.stage || 'application'), c.stage || 'application');
+        setOptions('#c-status', optionList(STATUSES, c.status || 'inprogress'), c.status || 'inprogress');
+        setOptions('#c-timeline', optionList(TIMELINES, c.closingTimeline || ''), c.closingTimeline || '');
+        setOptions('#c-purpose', optionList(LOAN_PURPOSES, c.loanPurpose || 'Purchase'), c.loanPurpose || 'Purchase');
+        setOptions('#c-loanType', optionList(LOAN_PROGRAMS, c.loanType || c.loanProgram || 'Conventional'), c.loanType || c.loanProgram || 'Conventional');
+        setOptions('#c-property', optionList(PROPERTY_TYPES, c.propertyType || 'Single-Family'), c.propertyType || 'Single-Family');
+        setOptions('#c-occupancy', optionList(OCCUPANCY, c.occupancy || 'Primary Residence'), c.occupancy || 'Primary Residence');
+        setOptions('#c-employment', optionList(EMPLOYMENT, c.employmentType || 'W-2'), c.employmentType || 'W-2');
+        setOptions('#c-credit', optionList(CREDIT_BANDS, c.creditRange || 'Unknown'), c.creditRange || 'Unknown');
+        setOptions('#c-docstage', optionList(DOC_STAGES, c.docStage || 'application-started'), c.docStage || 'application-started');
+        setOptions('#c-milestone', optionList(PIPELINE_MILESTONES, c.pipelineMilestone || 'Intro Call'), c.pipelineMilestone || 'Intro Call');
+        setOptions('#c-buyer', `<option value="">Select partner</option>${opts}`, c.buyerPartnerId ? String(c.buyerPartnerId) : '');
+        setOptions('#c-listing', `<option value="">Select partner</option>${opts}`, c.listingPartnerId ? String(c.listingPartnerId) : '');
+        setOptions('#c-referral-partner', `<option value="">Select partner</option>${opts}`, referralPartnerId);
+        setOptions('#c-ref', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.referredBy || c.leadSource || '')}`, c.referredBy || c.leadSource || '');
+        setOptions('#c-state', optionList(STATES, (c.state || '').toUpperCase()), (c.state || '').toUpperCase());
+
+        setValue('#c-first', c.first || '');
+        setValue('#c-last', c.last || '');
+        setValue('#c-email', c.email || '');
+        setValue('#c-phone', c.phone || '');
+        setValue('#c-email2', c.secondaryEmail || '');
+        setValue('#c-phone2', c.secondaryPhone || '');
+        setValue('#c-amount', c.loanAmount || '');
+        setValue('#c-rate', c.rate || '');
+        setValue('#c-funded', (c.fundedDate || '').slice(0, 10));
+        setValue('#c-preexp', (c.preApprovalExpires || '').slice(0, 10));
+        setValue('#c-address', c.address || '');
+        setValue('#c-city', c.city || '');
+        setValue('#c-zip', c.zip || '');
+        setValue('#c-lastcontact', (c.lastContact || '').slice(0, 10));
+        setValue('#c-nexttouch', (c.nextFollowUp || '').slice(0, 10));
+        setValue('#c-notes', c.notes || '');
+      }
+      const toggleAdvancedSections
+ = (mode) => {
         const simple = mode === 'simple';
         Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
           if (!node) return;
@@ -2087,12 +2222,18 @@ export function normalizeContactId(input) {
         const lastNameValue = $('#c-last', body)?.value?.trim() || '';
         const emailValue = $('#c-email', body)?.value?.trim() || '';
         const phoneValue = $('#c-phone', body)?.value?.trim() || '';
+        const stageValue = $('#c-stage', body)?.value || '';
+        const statusValue = $('#c-status', body)?.value || '';
+        const milestoneValue = $('#c-milestone', body)?.value || '';
         const validationResult = validateContact({
           firstName: firstNameValue,
           lastName: lastNameValue,
           email: emailValue,
           phone: phoneValue,
-          name: `${firstNameValue} ${lastNameValue}`.trim()
+          name: `${firstNameValue} ${lastNameValue}`.trim(),
+          stage: stageValue,
+          status: statusValue,
+          pipelineMilestone: milestoneValue,
         }) || { ok: true, errors: {}, normalized: {} };
         const validationOutcome = applyContactValidation(body, validationResult.errors || {});
         if (!validationResult.ok) {
