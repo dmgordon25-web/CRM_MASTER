@@ -1474,6 +1474,17 @@ export function renderStaleDealsWidget(container, model) {
           metaClass: 'is-negative'
         });
 
+        // Click-to-editor: navigate to contact view
+        const contactId = loanDisplay.contactId || dealContact.id || dealContact.contactId;
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
         list.appendChild(row);
       });
 
@@ -2092,6 +2103,16 @@ export function renderClosingWatchWidget(container, model) {
           metaText: contact.loanAmount ? formatCurrency(contact.loanAmount) : loanDisplay.loanAmountLabel,
           metaClass: 'is-positive'
         });
+
+        // Click-to-editor: navigate to contact view
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
 
         list.appendChild(row);
       });
