@@ -70,11 +70,21 @@
   async function loadStore(store){
     if (typeof window.dbGetAll === 'function'){
       try { return await window.dbGetAll(store); }
-      catch (_err) {}
+      catch (_err) {
+        // Silent failure replaced with logged error for import dependency.
+        if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+          console.error('[importer:partners] dbGetAll failed', store, _err);
+        }
+      }
     }
     if (window.db && typeof window.db.getAll === 'function'){
       try { return await window.db.getAll(store); }
-      catch (_err) {}
+      catch (_err) {
+        // Silent failure replaced with logged error for import dependency.
+        if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+          console.error('[importer:partners] db.getAll failed', store, _err);
+        }
+      }
     }
     return [];
   }
