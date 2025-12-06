@@ -2,6 +2,7 @@ export function renderWidgetShell(container, spec = {}) {
   const {
     id,
     title,
+    description,
     subtitle,
     insightText,
     size,
@@ -9,8 +10,15 @@ export function renderWidgetShell(container, spec = {}) {
     emptyMessage = 'No data yet',
     errorMessage = 'Something went wrong',
     debugFootnote,
-    actions
+    actions,
+    metaStatus,
+    labsStatus
   } = spec;
+
+  const fallbackTitle = id ? id.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').trim() : 'Widget';
+  const resolvedTitle = title || fallbackTitle;
+  const resolvedDescription = description || subtitle;
+  const badgeStatus = metaStatus || labsStatus;
 
   const shell = document.createElement('div');
   shell.className = 'labs-widget';
@@ -27,16 +35,28 @@ export function renderWidgetShell(container, spec = {}) {
   const header = document.createElement('div');
   header.className = 'labs-widget__header';
 
+  const titleRow = document.createElement('div');
+  titleRow.className = 'labs-widget__title-row';
+
   const titleEl = document.createElement('h3');
   titleEl.className = 'labs-widget__title';
-  titleEl.textContent = title || '';
-  header.appendChild(titleEl);
+  titleEl.textContent = resolvedTitle || '';
+  titleRow.appendChild(titleEl);
 
-  if (subtitle) {
-    const subtitleEl = document.createElement('div');
-    subtitleEl.className = 'labs-widget__subtitle';
-    subtitleEl.textContent = subtitle;
-    header.appendChild(subtitleEl);
+  if (badgeStatus === 'experimental') {
+    const badgeEl = document.createElement('span');
+    badgeEl.className = 'labs-widget__badge labs-widget__badge--experimental';
+    badgeEl.textContent = 'Experimental';
+    titleRow.appendChild(badgeEl);
+  }
+
+  header.appendChild(titleRow);
+
+  if (resolvedDescription) {
+    const descriptionEl = document.createElement('div');
+    descriptionEl.className = 'labs-widget__description';
+    descriptionEl.textContent = resolvedDescription;
+    header.appendChild(descriptionEl);
   }
 
   if (insightText) {
