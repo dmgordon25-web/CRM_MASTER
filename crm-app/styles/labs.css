@@ -1763,6 +1763,12 @@
   margin-bottom: 0.1rem;
 }
 
+.labs-widget__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .labs-widget__title {
   margin: 0;
   font-size: 1.05rem;
@@ -1770,10 +1776,29 @@
   color: var(--labs-text-primary);
 }
 
+.labs-widget__description,
 .labs-widget__subtitle {
   margin: 0;
   color: var(--labs-text-secondary);
   font-size: 0.9rem;
+}
+
+.labs-widget__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--labs-border);
+}
+
+.labs-widget__badge--experimental {
+  color: var(--labs-text-primary);
+  background: #fff7ed;
+  border-color: #fdba74;
 }
 
 .labs-insight {
