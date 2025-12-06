@@ -26,8 +26,8 @@ export const DASH_TO_LABS_WIDGET_MAP = [
   { dashId: 'numbersMomentum', labsId: 'numbersMomentum', status: 'experimental', mountedVia: 'labs-native', note: 'Alternate pipeline momentum - opt-in' },
 
   // Task & Today widgets
-  { dashId: 'today', labsId: 'today', status: 'mapped', mountedVia: 'labs-native' },
-  { dashId: 'todo', labsId: 'todo', status: 'mapped', mountedVia: 'labs-native' },
+  { dashId: 'today', labsId: 'today', status: 'mapped', mountedVia: 'labs-native', note: 'Uses getDisplayTasks for proper contact name resolution' },
+  { dashId: 'todo', labsId: 'todo', status: 'mapped', mountedVia: 'labs-native', note: 'Uses getDisplayTasks for proper contact name resolution' },
   { dashId: 'priorityActions', labsId: 'priorityActions', status: 'mapped', mountedVia: 'labs-native' },
   { dashId: 'milestones', labsId: 'milestones', status: 'experimental', mountedVia: 'labs-native', note: 'Appointments feed still evolving' },
 

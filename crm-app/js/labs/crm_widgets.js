@@ -1497,8 +1497,8 @@ export function renderStaleDealsWidget(container, model) {
 export function renderTodayWidget(container, model) {
   let shell;
   try {
-    const openTasks = getOpenTasks(model.tasks || []);
-    const todayTasks = model.snapshot?.focus?.tasksToday || getTodayTasks(openTasks).slice(0, 5);
+    // Use getDisplayTasks for enriched task data with contact names
+    const todayTasks = getDisplayTasks(model, { scope: 'today' }).slice(0, 5);
     const celebrations = getUpcomingCelebrations(model.contacts || [], 7).slice(0, 4);
     const appointments = model.snapshot?.focus?.nextAppointments || [];
 
@@ -1519,8 +1519,8 @@ export function renderTodayWidget(container, model) {
         <div class="today-item task-item" style="animation-delay:${idx * 0.05}s">
           <div class="today-icon">✓</div>
           <div class="today-content">
-            <div class="today-title">${task.title || 'Task'}</div>
-            <div class="today-meta">${task.contactName || ''}</div>
+            <div class="today-title">${task.taskLabel}</div>
+            <div class="today-meta">${task.contactName}</div>
           </div>
           <div class="today-time">${task.dueTime || 'All day'}</div>
         </div>
@@ -1738,10 +1738,10 @@ export function renderGoalProgressWidget(container, model) {
 export function renderTodoWidget(container, model) {
   let shell;
   try {
-    const dueGroups = model.snapshot?.dueGroups || {};
-    const today = dueGroups.today || [];
-    const overdue = dueGroups.overdue || [];
-    const status = today.length || overdue.length ? 'ok' : 'empty';
+    // Use getDisplayTasks for enriched task data with contact names
+    const todayTasks = getDisplayTasks(model, { scope: 'today' });
+    const overdueTasks = getDisplayTasks(model, { scope: 'overdue' });
+    const status = todayTasks.length || overdueTasks.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, {
       id: 'todo',
@@ -1754,19 +1754,26 @@ export function renderTodoWidget(container, model) {
       return shell;
     }
 
-    const renderTasks = (items) => items.map((item) => `<li><strong>${item.title || 'Task'}</strong> · ${formatDate(item.due || item.dueTs)}</li>`).join('')
-      || '<li class="muted">Nothing queued</li>';
+    const renderTasks = (items) => {
+      if (!items.length) return '<li class="muted">Nothing queued</li>';
+      return items.slice(0, 5).map((task) => `
+        <li>
+          <strong>${task.taskLabel}</strong>
+          <span class="muted"> · ${task.contactName}</span>
+        </li>
+      `).join('');
+    };
 
     renderWidgetBody(shell, (body) => {
       body.innerHTML = `
         <div class="todo-columns">
           <div>
-            <div class="muted">Due Today</div>
-            <ul>${renderTasks(today)}</ul>
+            <div class="muted">Due Today (${todayTasks.length})</div>
+            <ul>${renderTasks(todayTasks)}</ul>
           </div>
           <div>
-            <div class="muted">Overdue</div>
-            <ul>${renderTasks(overdue)}</ul>
+            <div class="muted">Overdue (${overdueTasks.length})</div>
+            <ul>${renderTasks(overdueTasks)}</ul>
           </div>
         </div>
       `;
