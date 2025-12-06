@@ -2191,13 +2191,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       }
     },
-      partners: {
-        id: 'view-partners',
-        ui: 'partners-table',
-        resetOnDeactivate: true,
-        async mount(root) {
-          const viewRoot = document.getElementById('view-partners');
-          if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
+    partners: {
+      id: 'view-partners',
+      ui: 'partners-table',
+      resetOnDeactivate: true,
+      async mount(root) {
+        const viewRoot = document.getElementById('view-partners');
+        if (viewRoot) viewRoot.innerHTML = ''; // CLEAR CONTAINER to prevent bleed
 
         try {
           const { renderPartnersView } = await import('./render.js');
@@ -3236,9 +3236,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     });
   }
-  $('#toggle-dark').addEventListener('change', (e) => {
-    document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
-  });
+  // Dark mode is now controlled via the theme dropdown (Settings > Theme > Dark)
 
   window.addEventListener('beforeunload', async (event) => {
     const enabled = $('#toggle-autobackup')?.checked;

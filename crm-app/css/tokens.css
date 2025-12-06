@@ -162,3 +162,66 @@ body[data-theme="slate"] {
   --card-border: rgba(20, 184, 166, 0.12);
   --calendar-today-ring: rgba(15, 118, 110, 0.65);
 }
+
+/* Dark - Full dark mode with proper contrast */
+body[data-theme="dark"] {
+  /* Surfaces */
+  --surface-background: #0f172a;
+  --surface-panel: #1e293b;
+  --surface-subtle: #334155;
+  --surface-elevated: #1e293b;
+
+  /* Typography */
+  --text-primary: #f1f5f9;
+  --text-muted: #94a3b8;
+
+  /* Accent colors */
+  --primary: #3b82f6;
+  --primary-text: #ffffff;
+  --focus-ring: #3b82f6;
+  --accent-contact: #60a5fa;
+  --accent-task: #4ade80;
+  --accent-milestone: #fb923c;
+  --accent-success: #4ade80;
+
+  /* Cards & shadows */
+  --card-border: rgba(148, 163, 184, 0.15);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 16px 40px rgba(0, 0, 0, 0.4);
+
+  /* Buttons */
+  --button-secondary-bg: #1e293b;
+  --button-secondary-border: rgba(148, 163, 184, 0.3);
+  --button-secondary-text: #e2e8f0;
+  --button-secondary-hover: rgba(148, 163, 184, 0.15);
+  --button-ghost-text: #e2e8f0;
+  --button-ghost-hover: rgba(148, 163, 184, 0.1);
+
+  /* Chips */
+  --chip-bg: rgba(148, 163, 184, 0.15);
+  --chip-border: rgba(148, 163, 184, 0.2);
+  --chip-text: #e2e8f0;
+  --chip-muted: #94a3b8;
+  --event-chip-bg: rgba(30, 41, 59, 0.95);
+  --event-chip-border: rgba(148, 163, 184, 0.2);
+  --event-chip-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --event-chip-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.4);
+
+  /* Navigation */
+  --nav-bg: rgba(59, 130, 246, 0.08);
+  --nav-text: #e2e8f0;
+  --nav-border: rgba(148, 163, 184, 0.2);
+  --nav-hover-bg: rgba(59, 130, 246, 0.12);
+  --nav-active-bg: rgba(59, 130, 246, 0.2);
+  --nav-active-border: rgba(59, 130, 246, 0.5);
+  --nav-active-text: #93c5fd;
+  --header-border: rgba(148, 163, 184, 0.15);
+  --widget-header-bg: #334155;
+
+  /* Calendar */
+  --calendar-weekend: rgba(148, 163, 184, 0.08);
+  --calendar-grid-line: rgba(148, 163, 184, 0.1);
+  --calendar-today-ring: rgba(59, 130, 246, 0.65);
+  --calendar-popover-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+  --calendar-popover-border: rgba(148, 163, 184, 0.15);
+}
