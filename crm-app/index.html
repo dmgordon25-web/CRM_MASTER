@@ -1375,18 +1375,19 @@
          <button class="btn" id="btn-run-qa">Run QA Sweep</button>
         </div>
        </div>
-       <div class="card">
-        <h3>QA Panel</h3>
-        <p class="widget-summary muted">View diagnostics produced by the self-test suite.</p>
-        <div class="muted" id="qa-output">—</div>
-       </div>
-      </div>
-     </section>
-    <section class="settings-panel" data-panel="data">
-     <header class="panel-head">
-      <h2>Data Tools</h2>
-      <p class="muted">Inspect health of imported extras and manage workspace snapshots.</p>
-     </header>
+     <div class="card">
+      <h3>QA Panel</h3>
+      <p class="widget-summary muted">View diagnostics produced by the self-test suite.</p>
+      <div class="muted" id="qa-output">—</div>
+     </div>
+    </div>
+   </section>
+   <section class="settings-panel" data-panel="data">
+    <header class="panel-head">
+     <h2>Data Tools</h2>
+     <p class="muted">Inspect health of imported extras and manage workspace snapshots.</p>
+      <p class="muted fine-print">If the app won’t load, try Safe Mode: add ?safe=1 to the URL.</p>
+    </header>
      <div class="settings-panel-grid">
       <div class="card">
        <h3>Data Health</h3>
@@ -2081,6 +2082,7 @@
                 <div class="stage-slider-labels"></div>
                 <input type="range" min="0" max="" step="1" value="0" id="contact-stage-range" aria-label="Pipeline stage slider">
                 <div class="stage-slider-help" id="contact-stage-help">
+                  <!-- Audit 2025-10-06: Wording already clarifies manual email drafts; no auto-send implied. -->
                   <strong id="contact-stage-help-title">Email Draft Prompts</strong>
                   <p id="contact-stage-helptext">Stage changes queue email prompts for you to review and send alongside partner notifications and task updates.</p>
                 </div>
