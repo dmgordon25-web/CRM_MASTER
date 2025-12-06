@@ -1661,6 +1661,37 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
+  function isSelectableRowVisible(row) {
+    if (!row) return false;
+    return !row.hidden && row.style.display !== 'none' && !row.classList.contains('hidden');
+  }
+
+  function wireSelectAllForTable(table) {
+    if (!table) return;
+    const checkbox = table.querySelector('thead input[data-role="select-all"]');
+    if (!checkbox || checkbox.__wired) return;
+    checkbox.__wired = true;
+    checkbox.addEventListener('change', () => {
+      const scope = table.dataset.selectionScope || 'contacts';
+      const store = getSelectionStore();
+      if (!store) return;
+
+      const visibleRows = Array.from(table.querySelectorAll('tbody tr[data-id]'))
+        .filter(isSelectableRowVisible);
+
+      const ids = visibleRows.map(r => r.getAttribute('data-id')).filter(Boolean);
+      const current = store.get(scope);
+      const next = new Set(current);
+
+      if (checkbox.checked) {
+        ids.forEach(id => next.add(id));
+      } else {
+        ids.forEach(id => next.delete(id));
+      }
+      store.set(next, scope);
+    });
+  }
+
   function syncSelectionCheckboxes(scope, ids, options) {
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     const providedIds = ids instanceof Set
@@ -2077,7 +2108,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     calendar: {
       id: 'view-calendar',
       ui: 'calendar-root',
-      resetOnDeactivate: false,
+      resetOnDeactivate: true,
       async mount() {
         try {
           const mod = await import('./calendar.js');
