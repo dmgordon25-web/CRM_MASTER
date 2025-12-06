@@ -167,21 +167,21 @@ const WIDGET_META = {
     title: '🛫 Closing Watch',
     description: 'Deals nearing their close date.',
     category: 'pipeline',
-    status: 'experimental'
+    status: 'stable'
   },
   staleDeals: {
     id: 'staleDeals',
     title: '⚠️ Stale Deals',
     description: 'Pipeline files with no movement for 14+ days.',
     category: 'pipeline',
-    status: 'experimental'
+    status: 'stable'
   },
   stale: {
     id: 'stale',
     title: '⚠️ Stale Deals',
     description: 'Pipeline files with no movement for 14+ days.',
     category: 'pipeline',
-    status: 'experimental'
+    status: 'stable'
   },
   milestones: {
     id: 'milestones',
@@ -195,7 +195,7 @@ const WIDGET_META = {
     title: '🎉 Upcoming Celebrations',
     description: 'Birthdays and anniversaries for your contacts.',
     category: 'people',
-    status: 'experimental'
+    status: 'stable'
   },
   pipelineCalendar: {
     id: 'pipelineCalendar',
@@ -643,10 +643,49 @@ export function renderLabsTasksWidget(container, model) {
         <span class="labs-pill tone-danger">Overdue ${formatNumber(overdueCount)}</span>
       </div>
     `;
-    const body = `${summary}<div class="labs-tasks-list">${rows.join('')}</div>${footer}`;
 
     renderWidgetBody(shell, (el) => {
-      el.innerHTML = body;
+      el.innerHTML = summary;
+
+      const list = document.createElement('div');
+      list.className = 'labs-tasks-list';
+
+      visibleTasks.forEach((entry, idx) => {
+        const overdue = entry.status === 'Overdue';
+        const row = document.createElement('div');
+        row.className = 'labs-task-row';
+        row.style.animationDelay = `${idx * 0.04}s`;
+        row.innerHTML = `
+          <div class="labs-task-icon ${overdue ? 'overdue' : 'today'}">${entry.icon}</div>
+          <div class="labs-task-main">
+            <div class="labs-task-title">${entry.task.taskLabel}</div>
+            <div class="labs-task-meta">${entry.task.contactName}</div>
+          </div>
+          <div class="labs-task-status ${overdue ? 'overdue' : ''}">${overdue ? 'Overdue' : 'Due today'}</div>
+        `;
+
+        // Click-to-editor: navigate to contact view
+        const contactId = entry.task.contactId;
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
+        list.appendChild(row);
+      });
+
+      el.appendChild(list);
+
+      if (footer) {
+        const footerEl = document.createElement('div');
+        footerEl.className = 'labs-task-footer';
+        footerEl.textContent = `+${hiddenCount} more tasks`;
+        el.appendChild(footerEl);
+      }
     });
   } catch (err) {
     console.error('[labs] tasks widget render failed', err);
@@ -1526,40 +1565,85 @@ export function renderTodayWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const tasksHTML = todayTasks.map((task, idx) => `
-        <div class="today-item task-item" style="animation-delay:${idx * 0.05}s">
+      const list = document.createElement('div');
+      list.className = 'today-list';
+
+      // Task rows with click-to-editor
+      todayTasks.forEach((task, idx) => {
+        const row = document.createElement('div');
+        row.className = 'today-item task-item';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        row.innerHTML = `
           <div class="today-icon">✓</div>
           <div class="today-content">
             <div class="today-title">${task.taskLabel}</div>
             <div class="today-meta">${task.contactName}</div>
           </div>
           <div class="today-time">${task.dueTime || 'All day'}</div>
-        </div>
-      `).join('');
+        `;
+        if (task.contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${task.contactId}`;
+          });
+        }
+        list.appendChild(row);
+      });
 
-      const appointmentHTML = appointments.slice(0, 3).map((appt, idx) => `
-        <div class="today-item appointment-item" style="animation-delay:${idx * 0.06 + 0.2}s">
+      // Appointment rows with click-to-editor
+      appointments.slice(0, 3).forEach((appt, idx) => {
+        const row = document.createElement('div');
+        row.className = 'today-item appointment-item';
+        row.style.animationDelay = `${idx * 0.06 + 0.2}s`;
+        row.innerHTML = `
           <div class="today-icon">📅</div>
           <div class="today-content">
             <div class="today-title">${appt.title || 'Appointment'}</div>
             <div class="today-meta">${appt.contactName || ''}</div>
           </div>
           <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
-        </div>
-      `).join('');
+        `;
+        const contactId = appt.contactId || (appt.contact && appt.contact.id);
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+        list.appendChild(row);
+      });
 
-      const celebrationsHTML = celebrations.map((cel, idx) => `
-        <div class="today-item celebration-item" style="animation-delay:${idx * 0.05 + 0.2}s">
+      // Celebration rows with click-to-editor
+      celebrations.forEach((cel, idx) => {
+        const row = document.createElement('div');
+        row.className = 'today-item celebration-item';
+        row.style.animationDelay = `${idx * 0.05 + 0.2}s`;
+        const celContactName = (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact';
+        row.innerHTML = `
           <div class="today-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</div>
           <div class="today-content">
-            <div class="today-title">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact'}</div>
+            <div class="today-title">${celContactName}</div>
             <div class="today-meta">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
           </div>
           <div class="today-time">${formatDate(cel.date)}</div>
-        </div>
-      `).join('');
+        `;
+        const contactId = cel.contact.id || cel.contact.contactId;
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+        list.appendChild(row);
+      });
 
-      body.innerHTML = `<div class="today-list">${tasksHTML}${appointmentHTML}${celebrationsHTML}</div>`;
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] today widget render failed', err);
@@ -1765,29 +1849,54 @@ export function renderTodoWidget(container, model) {
       return shell;
     }
 
-    const renderTasks = (items) => {
-      if (!items.length) return '<li class="muted">Nothing queued</li>';
-      return items.slice(0, 5).map((task) => `
-        <li>
-          <strong>${task.taskLabel}</strong>
-          <span class="muted"> · ${task.contactName}</span>
-        </li>
-      `).join('');
+    const renderTaskList = (items, parentUl) => {
+      if (!items.length) {
+        const li = document.createElement('li');
+        li.className = 'muted';
+        li.textContent = 'Nothing queued';
+        parentUl.appendChild(li);
+        return;
+      }
+      items.slice(0, 5).forEach((task) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${task.taskLabel}</strong><span class="muted"> · ${task.contactName}</span>`;
+        if (task.contactId) {
+          li.style.cursor = 'pointer';
+          li.setAttribute('role', 'button');
+          li.setAttribute('tabindex', '0');
+          li.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${task.contactId}`;
+          });
+        }
+        parentUl.appendChild(li);
+      });
     };
 
     renderWidgetBody(shell, (body) => {
-      body.innerHTML = `
-        <div class="todo-columns">
-          <div>
-            <div class="muted">Due Today (${todayTasks.length})</div>
-            <ul>${renderTasks(todayTasks)}</ul>
-          </div>
-          <div>
-            <div class="muted">Overdue (${overdueTasks.length})</div>
-            <ul>${renderTasks(overdueTasks)}</ul>
-          </div>
-        </div>
-      `;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'todo-columns';
+
+      const todayCol = document.createElement('div');
+      const todayLabel = document.createElement('div');
+      todayLabel.className = 'muted';
+      todayLabel.textContent = `Due Today (${todayTasks.length})`;
+      todayCol.appendChild(todayLabel);
+      const todayUl = document.createElement('ul');
+      renderTaskList(todayTasks, todayUl);
+      todayCol.appendChild(todayUl);
+
+      const overdueCol = document.createElement('div');
+      const overdueLabel = document.createElement('div');
+      overdueLabel.className = 'muted';
+      overdueLabel.textContent = `Overdue (${overdueTasks.length})`;
+      overdueCol.appendChild(overdueLabel);
+      const overdueUl = document.createElement('ul');
+      renderTaskList(overdueTasks, overdueUl);
+      overdueCol.appendChild(overdueUl);
+
+      wrapper.appendChild(todayCol);
+      wrapper.appendChild(overdueCol);
+      body.appendChild(wrapper);
     });
   } catch (err) {
     console.error('[labs] todo widget render failed', err);
@@ -1812,7 +1921,8 @@ export function renderPriorityActionsWidget(container, model) {
     const taskRows = overdueTasks.map((task) => ({
       label: task.taskLabel,
       meta: task.contactName,
-      tone: 'danger'
+      tone: 'danger',
+      contactId: task.contactId
     }));
 
     const staleDeals = getDedupedStaleDeals(model, 14);
@@ -1828,7 +1938,8 @@ export function renderPriorityActionsWidget(container, model) {
       return {
         label,
         meta: 'Stale deal',
-        tone: 'warning'
+        tone: 'warning',
+        contactId
       };
     });
 
@@ -1846,14 +1957,32 @@ export function renderPriorityActionsWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const list = rows.map((row, idx) => `
-        <div class="priority-row tone-${row.tone}" style="animation-delay:${idx * 0.05}s">
+      const listEl = document.createElement('div');
+      listEl.className = 'priority-list';
+
+      rows.forEach((row, idx) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = `priority-row tone-${row.tone}`;
+        rowEl.style.animationDelay = `${idx * 0.05}s`;
+        rowEl.innerHTML = `
           <span class="priority-pill">${row.meta}</span>
           <span class="priority-label">${row.label}</span>
-        </div>
-      `).join('');
+        `;
 
-      body.innerHTML = `<div class="priority-list">${list}</div>`;
+        // Click-to-editor: navigate to contact view
+        if (row.contactId) {
+          rowEl.style.cursor = 'pointer';
+          rowEl.setAttribute('role', 'button');
+          rowEl.setAttribute('tabindex', '0');
+          rowEl.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${row.contactId}`;
+          });
+        }
+
+        listEl.appendChild(rowEl);
+      });
+
+      body.appendChild(listEl);
     });
   } catch (err) {
     console.error('[labs] priority actions render failed', err);
@@ -1932,21 +2061,41 @@ export function renderUpcomingCelebrationsWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const items = celebrations.map((cel, idx) => `
-        <div class="celebration-row" style="animation-delay:${idx * 0.05}s">
+      const list = document.createElement('div');
+      list.className = 'celebration-list';
+
+      celebrations.forEach((cel, idx) => {
+        const row = document.createElement('div');
+        row.className = 'celebration-row';
+        row.style.animationDelay = `${idx * 0.05}s`;
+        const contactName = (model.getContactDisplayName ? model.getContactDisplayName(cel.contact?.id) : null)
+          || cel.contact?.displayName
+          || cel.contact?.name
+          || 'Contact';
+        row.innerHTML = `
           <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
           <div class="celebration-info">
-            <div class="celebration-name">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact?.id) : null)
-        || cel.contact?.displayName
-        || cel.contact?.name
-        || 'Contact'}</div>
+            <div class="celebration-name">${contactName}</div>
             <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
           </div>
           <div class="celebration-date">${formatDate(cel.date)}</div>
-        </div>
-      `).join('');
+        `;
 
-      body.innerHTML = `<div class="celebration-list">${items}</div>`;
+        // Click-to-editor: navigate to contact view
+        const contactId = cel.contact?.id || cel.contact?.contactId || cel.contactId;
+        if (contactId) {
+          row.style.cursor = 'pointer';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          row.addEventListener('click', () => {
+            window.location.hash = `#/contacts/${contactId}`;
+          });
+        }
+
+        list.appendChild(row);
+      });
+
+      body.appendChild(list);
     });
   } catch (err) {
     console.error('[labs] celebrations render failed', err);

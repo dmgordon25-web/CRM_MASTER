@@ -141,9 +141,56 @@ function runLabsParityDiagnostics(model) {
       }
     });
 
+    // Top-N record ID comparison
+    const idDiffs = [];
+
+    // Helper: compare top-N IDs between derived and snapshot lists
+    const compareTopNIds = (derivedList, snapshotList, n, label) => {
+      const derivedIds = (derivedList || []).slice(0, n).map((item) => item?.id || item?.contactId).filter(Boolean);
+      const snapshotIds = (snapshotList || []).slice(0, n).map((item) => item?.id || item?.contactId).filter(Boolean);
+      derivedIds.forEach((id, idx) => {
+        if (snapshotIds[idx] !== id) {
+          idDiffs.push({ label, index: idx, derived: id, snapshot: snapshotIds[idx] || null });
+        }
+      });
+    };
+
+    // Overdue tasks: compare top 5 IDs
+    const overdueTasks = (model.tasks || []).filter((t) => {
+      const due = t.due || t.dueTs || t.dueDate;
+      if (!due) return false;
+      const dueDate = new Date(due);
+      return dueDate < new Date() && !t.completed;
+    });
+    const snapshotOverdueTasks = model.snapshot?.overdueTasks || [];
+    compareTopNIds(overdueTasks, snapshotOverdueTasks, 5, 'overdueTask');
+
+    // Stale deals: compare top 5 IDs (contacts stale 14+ days)
+    const now = Date.now();
+    const staleDeals = (model.contacts || []).filter((c) => {
+      const updated = c.updatedTs || c.lastTouchTs || c.createdTs;
+      if (!updated) return false;
+      const days = Math.floor((now - updated) / (1000 * 60 * 60 * 24));
+      return days >= 14;
+    });
+    const snapshotStaleDeals = model.snapshot?.staleDeals || [];
+    compareTopNIds(staleDeals, snapshotStaleDeals, 5, 'staleDeal');
+
+    // Closing watch: compare top 5 IDs (approved/cleared-to-close/funded stage contacts)
+    const closingContacts = (model.contacts || []).filter((c) => {
+      const stageKey = normalizeStagesForDisplay(c.stage);
+      return ['approved', 'cleared-to-close', 'funded'].includes(stageKey);
+    });
+    const snapshotClosingWatch = model.snapshot?.closingWatch || [];
+    compareTopNIds(closingContacts, snapshotClosingWatch, 5, 'closingWatch');
+
+    if (idDiffs.length) {
+      console.warn('[labs:parity] Top-N ID mismatches detected', idDiffs);
+    }
+
     if (stageDiffs.length || taskDiffs.length || staleDiffs.length) {
       console.warn('[labs:parity] Data mismatches detected', { stageDiffs, taskDiffs, staleDiffs });
-    } else {
+    } else if (!idDiffs.length) {
       console.info('[labs:parity] Core metrics aligned with snapshot data');
     }
   } catch (err) {
