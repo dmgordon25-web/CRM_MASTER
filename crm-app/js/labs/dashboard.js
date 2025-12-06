@@ -403,7 +403,8 @@ const SECTIONS = [
     label: 'Overview',
     description: 'Pipeline health and today\'s work',
     widgets: [
-      // KPI & Pipeline (canonical snapshot only)
+      // Focus & KPI (classic Home parity)
+      { id: 'focus', size: 'medium' },
       { id: 'labsKpiSummary', size: 'large' },
       { id: 'labsPipelineSnapshot', size: 'large' },
       { id: 'goalProgress', size: 'medium' },
