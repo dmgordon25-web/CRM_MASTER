@@ -19,6 +19,16 @@
   }
   </script>
   <script src="./js/boot/early_trap.js"></script>
+  <!-- Early theme application (before first paint) -->
+  <script>
+  (function(){
+    try {
+      if (/[?&]safe=1/.test(location.search)) return;
+      var t = localStorage.getItem('crm:theme');
+      if (t && t !== 'classic') document.body.dataset.theme = t;
+    } catch(e){}
+  })();
+  </script>
  <title>
   THE CRM Tool — Modular v1 (Unified v0905 R5 baseline)
  </title>
@@ -1339,6 +1349,15 @@
         <label class="switch">
          <input id="toggle-dark" type="checkbox"/>
          <span>Dark Mode</span>
+        </label>
+        <label style="margin-top:8px">
+         Theme
+         <select id="select-theme" style="margin-top:4px">
+          <option value="classic">Classic (Default)</option>
+          <option value="ocean">Ocean Blue</option>
+          <option value="fresh">Fresh Green</option>
+          <option value="slate">Slate Blue-Green</option>
+         </select>
         </label>
         <label class="switch">
          <input checked="" id="toggle-autobackup" type="checkbox"/>

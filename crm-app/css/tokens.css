@@ -86,4 +86,79 @@
   --calendar-popover-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
   --calendar-popover-border: rgba(15, 23, 42, 0.1);
   --calendar-hour-height: 48px;
+
+  /* Nav & Theme Polish (Classic defaults) */
+  --nav-bg: transparent;
+  --nav-text: var(--text-primary);
+  --nav-border: rgba(148, 163, 184, 0.35);
+  --nav-hover-bg: rgba(148, 163, 184, 0.12);
+  --nav-active-bg: color-mix(in srgb, var(--primary) 12%, #eef2ff);
+  --nav-active-border: color-mix(in srgb, var(--primary) 40%, transparent);
+  --nav-active-text: color-mix(in srgb, var(--primary) 45%, var(--text-primary));
+  --header-border: rgba(148, 163, 184, 0.28);
+  --widget-header-bg: var(--surface-subtle);
+}
+
+/* ========================================
+   THEME VARIANTS
+   ======================================== */
+
+/* Ocean Blue - Cool professional palette */
+body[data-theme="ocean"] {
+  --surface-background: #f0f7ff;
+  --surface-panel: #ffffff;
+  --surface-subtle: #e0ecff;
+  --primary: #1d4ed8;
+  --focus-ring: #1d4ed8;
+  --accent-contact: #2563eb;
+  --nav-bg: rgba(30, 64, 175, 0.04);
+  --nav-border: rgba(30, 64, 175, 0.22);
+  --nav-hover-bg: rgba(30, 64, 175, 0.08);
+  --nav-active-bg: #dbeafe;
+  --nav-active-border: rgba(59, 130, 246, 0.45);
+  --nav-active-text: #1e40af;
+  --header-border: rgba(59, 130, 246, 0.25);
+  --button-secondary-border: rgba(59, 130, 246, 0.35);
+  --card-border: rgba(59, 130, 246, 0.12);
+  --calendar-today-ring: rgba(29, 78, 216, 0.65);
+}
+
+/* Fresh Green - Natural, approachable palette */
+body[data-theme="fresh"] {
+  --surface-background: #f0fdf4;
+  --surface-panel: #ffffff;
+  --surface-subtle: #dcfce7;
+  --primary: #16a34a;
+  --focus-ring: #16a34a;
+  --accent-task: #15803d;
+  --nav-bg: rgba(22, 163, 74, 0.04);
+  --nav-border: rgba(22, 163, 74, 0.22);
+  --nav-hover-bg: rgba(22, 163, 74, 0.08);
+  --nav-active-bg: #dcfce7;
+  --nav-active-border: rgba(34, 197, 94, 0.45);
+  --nav-active-text: #166534;
+  --header-border: rgba(34, 197, 94, 0.25);
+  --button-secondary-border: rgba(34, 197, 94, 0.35);
+  --card-border: rgba(34, 197, 94, 0.12);
+  --calendar-today-ring: rgba(22, 163, 74, 0.65);
+}
+
+/* Slate Blue-Green - Sophisticated teal palette */
+body[data-theme="slate"] {
+  --surface-background: #f0fdfa;
+  --surface-panel: #ffffff;
+  --surface-subtle: #ccfbf1;
+  --primary: #0f766e;
+  --focus-ring: #0f766e;
+  --accent-contact: #0d9488;
+  --nav-bg: rgba(15, 118, 110, 0.04);
+  --nav-border: rgba(15, 118, 110, 0.22);
+  --nav-hover-bg: rgba(15, 118, 110, 0.08);
+  --nav-active-bg: #ccfbf1;
+  --nav-active-border: rgba(20, 184, 166, 0.45);
+  --nav-active-text: #115e59;
+  --header-border: rgba(20, 184, 166, 0.25);
+  --button-secondary-border: rgba(20, 184, 166, 0.35);
+  --card-border: rgba(20, 184, 166, 0.12);
+  --calendar-today-ring: rgba(15, 118, 110, 0.65);
 }
