@@ -15,6 +15,7 @@ import {
   computeStageFunnel,
   computeStageAgeBuckets,
   computeStaleSummary,
+  dedupeById,
   STAGE_CONFIG,
   ANALYTICS_SEGMENT_TYPES,
   formatCurrency,
@@ -91,6 +92,44 @@ function renderCard(container, { title, body, badge } = {}) {
   card.appendChild(bodyEl);
   container.appendChild(card);
   return card;
+}
+
+function getStableId(item) {
+  return item?.id || item?._id || item?.contactId || null;
+}
+
+function uniqByKey(list = [], keyFn) {
+  const seen = new Set();
+  return list.filter((item) => {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getDedupedStaleDeals(model, days = 14) {
+  const rawStaleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts || [], days);
+  const dedupedContacts = dedupeById(rawStaleDeals.map((deal) => deal?.contact || deal).filter(Boolean));
+  return dedupedContacts.map((contact) => {
+    const matched = rawStaleDeals.find((deal) => getStableId(deal?.contact || deal) === getStableId(contact));
+    if (matched) {
+      return matched.contact ? { ...matched, contact } : { ...matched, contact };
+    }
+    return { contact };
+  });
+}
+
+function getDedupedAppointments(model) {
+  const appointments = Array.isArray(model.snapshot?.focus?.nextAppointments)
+    ? model.snapshot.focus.nextAppointments
+    : [];
+  return uniqByKey(appointments.filter(Boolean), (appt) => {
+    const keyContact = appt.contactId || getStableId(appt.contact) || '';
+    const keyDate = appt.due || appt.dueTs || '';
+    const keyTitle = appt.title || '';
+    return `${keyContact}:${keyDate}:${keyTitle}`;
+  });
 }
 
 // =======================
@@ -1110,7 +1149,7 @@ export function renderReferralTrendsWidget(container, model, opts = {}) {
 export function renderStaleDealsWidget(container, model) {
   let shell;
   try {
-    const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts || [], 14);
+    const staleDeals = getDedupedStaleDeals(model, 14);
     const status = staleDeals.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('staleDeals', {
@@ -1468,7 +1507,7 @@ export function renderPriorityActionsWidget(container, model) {
   let shell;
   try {
     const overdue = model.snapshot?.dueGroups?.overdue || [];
-    const staleDeals = model.snapshot?.staleDeals || getStaleDeals(model.contacts || [], 14);
+    const staleDeals = getDedupedStaleDeals(model, 14);
     const rows = overdue.map((task) => ({
       label: task.title || 'Task',
       meta: 'Overdue',
@@ -1525,7 +1564,7 @@ export function renderPriorityActionsWidget(container, model) {
 export function renderMilestonesWidget(container, model) {
   let shell;
   try {
-    const appointments = model.snapshot?.focus?.nextAppointments || [];
+    const appointments = getDedupedAppointments(model);
     const status = appointments.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('milestones', {
@@ -1567,7 +1606,12 @@ export function renderMilestonesWidget(container, model) {
 export function renderUpcomingCelebrationsWidget(container, model) {
   let shell;
   try {
-    const celebrations = (model.celebrations || []).slice(0, 8);
+    const celebrations = uniqByKey(model.celebrations || [], (cel) => {
+      const contactId = getStableId(cel?.contact) || cel?.contactId || 'unknown';
+      const date = cel?.date || cel?.due || '';
+      const type = cel?.type || 'unknown';
+      return `${contactId}:${type}:${date}`;
+    }).slice(0, 8);
     const status = celebrations.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
@@ -1584,7 +1628,10 @@ export function renderUpcomingCelebrationsWidget(container, model) {
         <div class="celebration-row" style="animation-delay:${idx * 0.05}s">
           <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
           <div class="celebration-info">
-            <div class="celebration-name">${cel.contact.displayName || cel.contact.name || (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : 'Contact')}</div>
+            <div class="celebration-name">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact?.id) : null)
+              || cel.contact?.displayName
+              || cel.contact?.name
+              || 'Contact'}</div>
             <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
           </div>
           <div class="celebration-date">${formatDate(cel.date)}</div>
@@ -1705,7 +1752,7 @@ export function renderRelationshipWidget(container, model, opts = {}) {
 export function renderClosingWatchWidget(container, model) {
   let shell;
   try {
-    const closing = (model.contacts || []).filter((c) => ['approved', 'cleared-to-close', 'funded'].includes(normalizeStagesForDisplay(c.stage)));
+    const closing = dedupeById((model.contacts || []).filter((c) => ['approved', 'cleared-to-close', 'funded'].includes(normalizeStagesForDisplay(c.stage))));
     const status = closing.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('closingWatch', {
@@ -1724,6 +1771,7 @@ export function renderClosingWatchWidget(container, model) {
       closing.slice(0, 6).forEach((contact) => {
         const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(contact) : contact;
         const primaryName = (model.getContactDisplayName ? model.getContactDisplayName(contact.id) : null)
+          || loanDisplay.borrowerName
           || loanDisplay.displayName
           || loanDisplay.name
           || 'Contact';
@@ -1759,13 +1807,16 @@ export function renderDocPulseWidget(container, model) {
   let shell;
   try {
     const milestoneCounts = {};
-    const contacts = model.contacts || [];
+    const contacts = dedupeById(model.contacts || []);
     contacts.forEach((contact) => {
-      const key = contact.milestone || 'Unknown';
-      milestoneCounts[key] = (milestoneCounts[key] || 0) + 1;
+      const rawLabel = (contact.milestoneLabel || contact.milestone || '').toString().trim();
+      const normalized = rawLabel ? rawLabel : 'Unspecified';
+      const normalizedLower = normalized.toLowerCase();
+      const bucketed = ['unknown', 'unspecified', 'n/a', 'na', 'none'].includes(normalizedLower) ? 'Unspecified' : normalized;
+      milestoneCounts[bucketed] = (milestoneCounts[bucketed] || 0) + 1;
     });
 
-    const entries = Object.entries(milestoneCounts);
+    const entries = Object.entries(milestoneCounts).sort((a, b) => b[1] - a[1]);
     const status = entries.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('docPulse', {
@@ -1804,7 +1855,7 @@ export function renderDocPulseWidget(container, model) {
 export function renderPipelineCalendarWidget(container, model) {
   let shell;
   try {
-    const appointments = model.snapshot?.focus?.nextAppointments || [];
+    const appointments = getDedupedAppointments(model);
     const status = appointments.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('pipelineCalendar', {
