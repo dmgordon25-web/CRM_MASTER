@@ -153,7 +153,7 @@ const WIDGET_META = {
     title: '🌊 Pipeline Momentum',
     description: 'Stage mix indicators showing movement.',
     category: 'pipeline',
-    status: 'experimental'
+    status: 'stable'
   },
   numbersMomentum: {
     id: 'numbersMomentum',
@@ -202,7 +202,7 @@ const WIDGET_META = {
     title: '🗓 Pipeline Calendar',
     description: 'Upcoming pipeline events on the calendar.',
     category: 'tasks',
-    status: 'experimental'
+    status: 'stable'
   },
   docPulse: {
     id: 'docPulse',
@@ -296,7 +296,7 @@ const WIDGET_META = {
     title: '🖨️ Print Suite',
     description: 'Quick access to document printing tools.',
     category: 'shortcuts',
-    status: 'experimental',
+    status: 'stable',
     advancedOnly: true
   },
   templatesShortcut: {
@@ -304,7 +304,7 @@ const WIDGET_META = {
     title: '📝 Templates',
     description: 'Quick access to email and document templates.',
     category: 'shortcuts',
-    status: 'experimental',
+    status: 'stable',
     advancedOnly: true
   }
 };

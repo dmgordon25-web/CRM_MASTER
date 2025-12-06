@@ -404,16 +404,10 @@ const LABS_PRESETS = {
 const EXPERIMENTAL_WIDGETS = [
   // Pipeline variants (opt-in only, not default-mounted)
   { id: 'numbersMomentum', size: 'medium', note: 'alternate pipeline momentum' },
-  { id: 'pipelineMomentum', size: 'medium', note: 'prototype momentum bars' },
-  { id: 'pipelineOverview', size: 'medium', note: 'alternate pipeline snapshot' },
   { id: 'activePipeline', size: 'medium', note: 'open files by stage' },
   { id: 'statusStack', size: 'medium', note: 'quick counts by status' },
   // Other experimental widgets (still WIP)
-  { id: 'pipelineCalendar', size: 'medium', note: 'timeline styling WIP' },
-  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' },
-  // Hidden feature shortcuts (Advanced-only)
-  { id: 'printSuiteShortcut', size: 'small', note: 'navigates to #/print', advancedOnly: true },
-  { id: 'templatesShortcut', size: 'small', note: 'navigates to #/templates', advancedOnly: true }
+  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' }
 ];
 
 // ---------------------------------------------------------------------------
@@ -425,20 +419,20 @@ const EXPERIMENTAL_WIDGETS = [
 //   relationshipOpportunities, goalProgress, pipelineVelocity, pipelineRisk,
 //   pipelineFunnel, closingWatch, staleDeals, upcomingCelebrations, milestones
 //
-// EXPERIMENTAL (opt-in via Experimental section):
-//   numbersMomentum, pipelineMomentum, pipelineOverview, activePipeline,
-//   statusStack, pipelineCalendar, docPulse
+// OPT-IN VISUAL ALTERNATES (stable, in picker):
+//   pipelineMomentum (Bars), pipelineOverview (Funnel)
 //
-// HIDDEN FEATURE SHORTCUTS (Advanced-only, experimental):
+// EXPERIMENTAL (opt-in via Experimental section):
+//   numbersMomentum, activePipeline, statusStack, docPulse
+//
+// HIDDEN FEATURE SHORTCUTS (Advanced-only, stable):
 //   printSuiteShortcut, templatesShortcut
 //
 // PARITY NOTES:
 //   - Only ONE pipeline snapshot widget (labsPipelineSnapshot) is default-mounted
-//   - Pipeline variants are registered but experimental/opt-in
+//   - Pipeline variants are registered stable but opt-in
 //   - Tasks widget shows real labels + contact names via getDisplayTasks()
 //   - Shortcut widgets only visible when Advanced mode is enabled
-//   - closingWatch, staleDeals, upcomingCelebrations graduated 2025-12
-//   - milestones graduated 2025-12 (now has click-to-editor)
 // ---------------------------------------------------------------------------
 
 const SECTIONS = [

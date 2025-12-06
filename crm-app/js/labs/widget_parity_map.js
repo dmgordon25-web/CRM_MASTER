@@ -47,16 +47,19 @@ export const DASH_TO_LABS_WIDGET_MAP = [
   { dashId: 'closingWatch', labsId: 'closingWatch', status: 'mapped', mountedVia: 'labs-native', note: 'Deals nearing close date - graduated 2025-12' },
   { dashId: 'upcomingCelebrations', labsId: 'upcomingCelebrations', status: 'mapped', mountedVia: 'labs-native', note: 'Birthdays/anniversaries - graduated 2025-12' },
 
+  // Graduated alternates (stable, opt-in)
+  { dashId: 'pipelineCalendar', labsId: 'pipelineCalendar', status: 'mapped', mountedVia: 'labs-native', note: 'Timeline styling - graduated 2025-12' },
+  { dashId: 'momentum', labsId: 'pipelineMomentum', status: 'mapped', mountedVia: 'labs-native', note: 'Pipeline Momentum (Bars) - graduated 2025-12' },
+
   // Experimental widgets (still opt-in)
-  { dashId: 'pipelineCalendar', labsId: 'pipelineCalendar', status: 'experimental', mountedVia: 'labs-native', note: 'Timeline styling WIP' },
   { dashId: 'docPulse', labsId: 'docPulse', status: 'experimental', mountedVia: 'labs-native', note: 'Milestone mapping incomplete' },
 
   // Deprecated/Superseded
   { dashId: 'docCenter', labsId: 'docPulse', status: 'notApplicable', mountedVia: 'labs-native', note: 'Superseded by Doc Pulse in Labs' },
 
   // Hidden Feature Shortcuts (Labs-only, Advanced-only)
-  { dashId: null, labsId: 'printSuiteShortcut', status: 'experimental', mountedVia: 'labs-native', note: 'Advanced-only, navigates to #/print' },
-  { dashId: null, labsId: 'templatesShortcut', status: 'experimental', mountedVia: 'labs-native', note: 'Advanced-only, navigates to #/templates' }
+  { dashId: null, labsId: 'printSuiteShortcut', status: 'mapped', mountedVia: 'labs-native', note: 'Advanced-only, navigates to #/print' },
+  { dashId: null, labsId: 'templatesShortcut', status: 'mapped', mountedVia: 'labs-native', note: 'Advanced-only, navigates to #/templates' }
 ];
 
 /**
