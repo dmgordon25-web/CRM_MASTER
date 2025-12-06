@@ -8,7 +8,7 @@ import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
 
-export const LABS_ZERO_UNKNOWN = true;
+export const LABS_ZERO_UNKNOWN = false;
 
 export function dedupeById(items = []) {
   const map = new Map();
