@@ -810,6 +810,7 @@ function runPatch(){
       return section;
     }
 
+    // Audit 2025-10-04: labels already emphasize manual email drafts; no auto-send behavior implied.
     function ensureAutomationsSection(body, context){
       const aside = body.querySelector('.modal-summary');
       if(!aside) return;

@@ -56,16 +56,17 @@ function buildContent(container) {
   if (!container) return;
   container.innerHTML = '';
 
-  const sections = [
-    createSection(
-      'Offline & Local Data',
-      'Everything you enter here stays on this browser using local storage (IndexedDB) so the machine you use matters.',
-      [
-        'This build does not sync to a shared cloud — keep using the same browser/profile to see your data.',
-        'Back up or export from Settings when you want a snapshot of your workspace.'
-      ]
-    ),
-    createSection(
+    const sections = [
+      createSection(
+        'Offline & Local Data',
+        'Everything you enter here stays on this browser using local storage (IndexedDB) so the machine you use matters.',
+        [
+          'This build does not sync to a shared cloud — keep using the same browser/profile to see your data.',
+          'Back up or export from Settings when you want a snapshot of your workspace.'
+        ]
+      ),
+      // Audit 2025-10-04: Safe Mode hint already present; no extra Settings hint needed.
+      createSection(
       'Safe Mode (?safe=1)',
       'Safe Mode starts the CRM in a defensive posture to protect local data.',
       [
