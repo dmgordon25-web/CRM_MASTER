@@ -42,10 +42,12 @@ export const DASH_TO_LABS_WIDGET_MAP = [
   { dashId: 'clientCareRadar', labsId: 'relationshipOpportunities', status: 'mapped', mountedVia: 'labs-native', note: 'Shares renderer with relationship opportunities' },
   { dashId: 'favorites', labsId: 'favorites', status: 'mapped', mountedVia: 'labs-native' },
 
-  // Experimental widgets (opt-in only)
-  { dashId: 'stale', labsId: 'staleDeals', status: 'experimental', mountedVia: 'labs-native', note: 'Files stale 14+ days' },
-  { dashId: 'closingWatch', labsId: 'closingWatch', status: 'experimental', mountedVia: 'labs-native', note: 'Deals nearing close date' },
-  { dashId: 'upcomingCelebrations', labsId: 'upcomingCelebrations', status: 'experimental', mountedVia: 'labs-native', note: 'Needs data polish' },
+  // Graduated widgets (2025-12) - now default-mounted
+  { dashId: 'stale', labsId: 'staleDeals', status: 'mapped', mountedVia: 'labs-native', note: 'Files stale 14+ days - graduated 2025-12' },
+  { dashId: 'closingWatch', labsId: 'closingWatch', status: 'mapped', mountedVia: 'labs-native', note: 'Deals nearing close date - graduated 2025-12' },
+  { dashId: 'upcomingCelebrations', labsId: 'upcomingCelebrations', status: 'mapped', mountedVia: 'labs-native', note: 'Birthdays/anniversaries - graduated 2025-12' },
+
+  // Experimental widgets (still opt-in)
   { dashId: 'pipelineCalendar', labsId: 'pipelineCalendar', status: 'experimental', mountedVia: 'labs-native', note: 'Timeline styling WIP' },
   { dashId: 'docPulse', labsId: 'docPulse', status: 'experimental', mountedVia: 'labs-native', note: 'Milestone mapping incomplete' },
 

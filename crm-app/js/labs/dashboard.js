@@ -361,11 +361,8 @@ const EXPERIMENTAL_WIDGETS = [
   { id: 'pipelineOverview', size: 'medium', note: 'alternate pipeline snapshot' },
   { id: 'activePipeline', size: 'medium', note: 'open files by stage' },
   { id: 'statusStack', size: 'medium', note: 'quick counts by status' },
-  // Other experimental widgets
-  { id: 'closingWatch', size: 'medium', note: 'deals nearing close date' },
-  { id: 'staleDeals', size: 'medium', note: 'files stale 14+ days' },
+  // Other experimental widgets (still WIP)
   { id: 'milestones', size: 'medium', note: 'appointments feed evolving' },
-  { id: 'upcomingCelebrations', size: 'medium', note: 'needs data polish' },
   { id: 'pipelineCalendar', size: 'medium', note: 'timeline styling WIP' },
   { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' },
   // Hidden feature shortcuts (Advanced-only)
@@ -380,12 +377,11 @@ const EXPERIMENTAL_WIDGETS = [
 //   labsKpiSummary, labsPipelineSnapshot, labsTasks, today, todo, favorites,
 //   priorityActions, partnerPortfolio, referralLeaderboard, referralTrends,
 //   relationshipOpportunities, goalProgress, pipelineVelocity, pipelineRisk,
-//   pipelineFunnel
+//   pipelineFunnel, closingWatch, staleDeals, upcomingCelebrations
 //
 // EXPERIMENTAL (opt-in via Experimental section):
 //   numbersMomentum, pipelineMomentum, pipelineOverview, activePipeline,
-//   statusStack, closingWatch, staleDeals, milestones, upcomingCelebrations,
-//   pipelineCalendar, docPulse
+//   statusStack, milestones, pipelineCalendar, docPulse
 //
 // HIDDEN FEATURE SHORTCUTS (Advanced-only, experimental):
 //   printSuiteShortcut, templatesShortcut
@@ -395,6 +391,7 @@ const EXPERIMENTAL_WIDGETS = [
 //   - Pipeline variants are registered but experimental/opt-in
 //   - Tasks widget shows real labels + contact names via getDisplayTasks()
 //   - Shortcut widgets only visible when Advanced mode is enabled
+//   - closingWatch, staleDeals, upcomingCelebrations graduated 2025-12
 // ---------------------------------------------------------------------------
 
 const SECTIONS = [
@@ -418,7 +415,10 @@ const SECTIONS = [
       { id: 'partnerPortfolio', size: 'large' },
       { id: 'referralLeaderboard', size: 'medium' },
       { id: 'referralTrends', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' }
+      { id: 'relationshipOpportunities', size: 'medium' },
+      // Graduated from experimental (2025-12)
+      { id: 'closingWatch', size: 'medium' },
+      { id: 'upcomingCelebrations', size: 'medium' }
     ]
   },
   {
@@ -450,7 +450,8 @@ const SECTIONS = [
     widgets: [
       { id: 'pipelineFunnel', size: 'medium' },
       { id: 'pipelineVelocity', size: 'medium' },
-      { id: 'pipelineRisk', size: 'medium' }
+      { id: 'pipelineRisk', size: 'medium' },
+      { id: 'staleDeals', size: 'medium' }
     ]
   },
   {
