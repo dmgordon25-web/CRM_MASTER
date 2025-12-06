@@ -287,6 +287,25 @@ const WIDGET_META = {
     description: 'Top referral partners ranked by volume.',
     category: 'portfolio',
     status: 'stable'
+  },
+  // ---------------------------------------------------------------------------
+  // Hidden Feature Shortcut Widgets (Advanced-only)
+  // ---------------------------------------------------------------------------
+  printSuiteShortcut: {
+    id: 'printSuiteShortcut',
+    title: '🖨️ Print Suite',
+    description: 'Quick access to document printing tools.',
+    category: 'shortcuts',
+    status: 'experimental',
+    advancedOnly: true
+  },
+  templatesShortcut: {
+    id: 'templatesShortcut',
+    title: '📝 Templates',
+    description: 'Quick access to email and document templates.',
+    category: 'shortcuts',
+    status: 'experimental',
+    advancedOnly: true
   }
 };
 
@@ -434,11 +453,11 @@ export function renderLabsKpiSummaryWidget(container, model) {
 
     const kpiInsight = status === 'ok'
       ? getThresholdInsight({
-          label: 'overdue tasks',
-          value: snapshotOverdueTasks || overdueTaskCount,
-          warnAt: 3,
-          urgentAt: 8
-        })
+        label: 'overdue tasks',
+        value: snapshotOverdueTasks || overdueTaskCount,
+        warnAt: 3,
+        urgentAt: 8
+      })
       : null;
 
     shell = renderWidgetShell(container, {
@@ -766,10 +785,10 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
 
     const funnelInsight = status === 'ok'
       ? getTopDriverInsight({
-          label: 'Biggest load',
-          items: funnel,
-          byKey: (stage) => stage.count
-        })
+        label: 'Biggest load',
+        items: funnel,
+        byKey: (stage) => stage.count
+      })
       : null;
 
     shell = renderWidgetShell(container, {
@@ -872,11 +891,11 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
     const actions = [];
     const velocityInsight = status === 'ok'
       ? getThresholdInsight({
-          label: 'aged deals (>7d)',
-          value: agedBucket?.count || 0,
-          warnAt: 3,
-          urgentAt: 7
-        }) || (agedBucket && agedBucket.count === 0 ? 'Pipeline velocity looks healthy.' : null)
+        label: 'aged deals (>7d)',
+        value: agedBucket?.count || 0,
+        warnAt: 3,
+        urgentAt: 7
+      }) || (agedBucket && agedBucket.count === 0 ? 'Pipeline velocity looks healthy.' : null)
       : null;
 
     if (status === 'ok' && agedBucket?.count > 0 && onSegmentClick) {
@@ -1002,11 +1021,11 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 
     const riskInsight = status === 'ok'
       ? getThresholdInsight({
-          label: 'stale deals',
-          value: total,
-          warnAt: 1,
-          urgentAt: 5
-        }) || 'No stale deals detected.'
+        label: 'stale deals',
+        value: total,
+        warnAt: 1,
+        urgentAt: 5
+      }) || 'No stale deals detected.'
       : null;
 
     shell = renderWidgetShell(container, {
@@ -1900,9 +1919,9 @@ export function renderUpcomingCelebrationsWidget(container, model) {
           <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
           <div class="celebration-info">
             <div class="celebration-name">${(model.getContactDisplayName ? model.getContactDisplayName(cel.contact?.id) : null)
-              || cel.contact?.displayName
-              || cel.contact?.name
-              || 'Contact'}</div>
+        || cel.contact?.displayName
+        || cel.contact?.name
+        || 'Contact'}</div>
             <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
           </div>
           <div class="celebration-date">${formatDate(cel.date)}</div>
@@ -2214,6 +2233,100 @@ export function renderFavoritesWidget(container, model) {
   return shell;
 }
 
+// =======================
+// Hidden Feature Shortcut Widgets (Advanced-only)
+// =======================
+
+/**
+ * Navigate to a hash route
+ * @param {string} hash - Target hash route (e.g., '#/print')
+ */
+function navigateToRoute(hash) {
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      window.location.hash = hash;
+    } catch (_err) { /* noop */ }
+  }
+}
+
+/**
+ * Print Suite shortcut widget - navigates to #/print
+ */
+export function renderPrintSuiteShortcutWidget(container, _model) {
+  let shell;
+  try {
+    shell = renderWidgetShell(container, widgetSpec('printSuiteShortcut', {
+      status: 'ok'
+    }));
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `
+        <div class="shortcut-widget">
+          <p class="shortcut-description">
+            Generate professional printed materials from your CRM data — 
+            reports, one-pagers, and client packages.
+          </p>
+          <button class="labs-btn labs-btn-primary" data-action="open-print-suite">
+            Open Print Suite
+          </button>
+        </div>
+      `;
+
+      const btn = body.querySelector('[data-action="open-print-suite"]');
+      if (btn) {
+        btn.addEventListener('click', () => navigateToRoute('#/print'));
+      }
+    });
+  } catch (err) {
+    console.error('[labs] print suite shortcut render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('printSuiteShortcut', {
+      status: 'error',
+      errorMessage: 'Unable to load shortcut'
+    }));
+  }
+
+  return shell;
+}
+
+/**
+ * Templates shortcut widget - navigates to #/templates
+ */
+export function renderTemplatesShortcutWidget(container, _model) {
+  let shell;
+  try {
+    shell = renderWidgetShell(container, widgetSpec('templatesShortcut', {
+      status: 'ok'
+    }));
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `
+        <div class="shortcut-widget">
+          <p class="shortcut-description">
+            Access your saved email and document templates — 
+            quick-start common communications.
+          </p>
+          <button class="labs-btn labs-btn-primary" data-action="open-templates">
+            Open Templates
+          </button>
+        </div>
+      `;
+
+      const btn = body.querySelector('[data-action="open-templates"]');
+      if (btn) {
+        btn.addEventListener('click', () => navigateToRoute('#/templates'));
+      }
+    });
+  } catch (err) {
+    console.error('[labs] templates shortcut render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('templatesShortcut', {
+      status: 'error',
+      errorMessage: 'Unable to load shortcut'
+    }));
+  }
+
+  return shell;
+}
+
 // Map of widget renderers aligned to dashboard catalog
 export const CRM_WIDGET_RENDERERS = {
   labsKpiSummary: renderLabsKpiSummaryWidget,
@@ -2251,7 +2364,10 @@ export const CRM_WIDGET_RENDERERS = {
   closingWatch: renderClosingWatchWidget,
   upcomingCelebrations: renderUpcomingCelebrationsWidget,
   docCenter: renderDocPulseWidget,
-  favorites: renderFavoritesWidget
+  favorites: renderFavoritesWidget,
+  // Hidden feature shortcuts (Advanced-only, experimental)
+  printSuiteShortcut: renderPrintSuiteShortcutWidget,
+  templatesShortcut: renderTemplatesShortcutWidget
 };
 
 export default CRM_WIDGET_RENDERERS;

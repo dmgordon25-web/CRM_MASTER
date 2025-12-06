@@ -355,22 +355,47 @@ const LABS_PRESETS = {
 
 
 const EXPERIMENTAL_WIDGETS = [
+  // Pipeline variants (opt-in only, not default-mounted)
   { id: 'numbersMomentum', size: 'medium', note: 'alternate pipeline momentum' },
-  { id: 'pipelineMomentum', size: 'medium', note: 'prototype' },
-  { id: 'closingWatch', size: 'medium', note: 'prototype' },
-  { id: 'staleDeals', size: 'medium', note: 'prototype' },
-  { id: 'milestones', size: 'medium', note: 'appointments feed still evolving' },
+  { id: 'pipelineMomentum', size: 'medium', note: 'prototype momentum bars' },
+  { id: 'pipelineOverview', size: 'medium', note: 'alternate pipeline snapshot' },
+  { id: 'activePipeline', size: 'medium', note: 'open files by stage' },
+  { id: 'statusStack', size: 'medium', note: 'quick counts by status' },
+  // Other experimental widgets
+  { id: 'closingWatch', size: 'medium', note: 'deals nearing close date' },
+  { id: 'staleDeals', size: 'medium', note: 'files stale 14+ days' },
+  { id: 'milestones', size: 'medium', note: 'appointments feed evolving' },
   { id: 'upcomingCelebrations', size: 'medium', note: 'needs data polish' },
   { id: 'pipelineCalendar', size: 'medium', note: 'timeline styling WIP' },
-  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' }
+  { id: 'docPulse', size: 'medium', note: 'milestone mapping incomplete' },
+  // Hidden feature shortcuts (Advanced-only)
+  { id: 'printSuiteShortcut', size: 'small', note: 'navigates to #/print', advancedOnly: true },
+  { id: 'templatesShortcut', size: 'small', note: 'navigates to #/templates', advancedOnly: true }
 ];
 
-// Labs widget catalog audit:
-// Core widgets used in defaults/presets/customize: labsKpiSummary, labsPipelineSnapshot, labsTasks,
-// today, todo, favorites, priorityActions, partnerPortfolio, referralLeaderboard,
-// numbersMomentum, relationshipOpportunities, pipelineFunnel, pipelineVelocity, pipelineRisk.
-// Experimental widgets available only in the experimental section: pipelineMomentum, closingWatch,
-// staleDeals, milestones, upcomingCelebrations, pipelineCalendar, docPulse.
+// ---------------------------------------------------------------------------
+// Labs Widget Catalog Audit (2025-12)
+// ---------------------------------------------------------------------------
+// CANONICAL (stable, default-mounted):
+//   labsKpiSummary, labsPipelineSnapshot, labsTasks, today, todo, favorites,
+//   priorityActions, partnerPortfolio, referralLeaderboard, referralTrends,
+//   relationshipOpportunities, goalProgress, pipelineVelocity, pipelineRisk,
+//   pipelineFunnel
+//
+// EXPERIMENTAL (opt-in via Experimental section):
+//   numbersMomentum, pipelineMomentum, pipelineOverview, activePipeline,
+//   statusStack, closingWatch, staleDeals, milestones, upcomingCelebrations,
+//   pipelineCalendar, docPulse
+//
+// HIDDEN FEATURE SHORTCUTS (Advanced-only, experimental):
+//   printSuiteShortcut, templatesShortcut
+//
+// PARITY NOTES:
+//   - Only ONE pipeline snapshot widget (labsPipelineSnapshot) is default-mounted
+//   - Pipeline variants are registered but experimental/opt-in
+//   - Tasks widget shows real labels + contact names via getDisplayTasks()
+//   - Shortcut widgets only visible when Advanced mode is enabled
+// ---------------------------------------------------------------------------
 
 const SECTIONS = [
   {
@@ -378,21 +403,21 @@ const SECTIONS = [
     label: 'Overview',
     description: 'Pipeline health and today\'s work',
     widgets: [
+      // KPI & Pipeline (canonical snapshot only)
       { id: 'labsKpiSummary', size: 'large' },
       { id: 'labsPipelineSnapshot', size: 'large' },
       { id: 'goalProgress', size: 'medium' },
-      { id: 'pipelineVelocity', size: 'medium' },
-      { id: 'pipelineRisk', size: 'medium' },
-      { id: 'closingWatch', size: 'medium' },
-      { id: 'referralTrends', size: 'medium' },
+      // Tasks & Today
+      { id: 'labsTasks', size: 'medium' },
+      { id: 'today', size: 'medium' },
+      { id: 'todo', size: 'medium' },
+      { id: 'priorityActions', size: 'medium' },
+      { id: 'favorites', size: 'small' },
+      // Partners & Referrals
       { id: 'partnerPortfolio', size: 'large' },
       { id: 'referralLeaderboard', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      { id: 'priorityActions', size: 'medium' },
-      { id: 'todo', size: 'medium' },
-      { id: 'favorites', size: 'small' },
-      { id: 'labsTasks', size: 'medium' },
-      { id: 'today', size: 'medium' }
+      { id: 'referralTrends', size: 'medium' },
+      { id: 'relationshipOpportunities', size: 'medium' }
     ]
   },
   {
@@ -921,7 +946,7 @@ function destroySectionController(sectionId) {
   if (existing && typeof existing.destroy === 'function') {
     try {
       existing.destroy();
-    } catch (_err) {}
+    } catch (_err) { }
   }
   labsDragControllers.delete(sectionId);
 }
@@ -930,7 +955,7 @@ function destroyResizeController(sectionId) {
   if (!sectionId) return;
   const teardown = labsResizeControllers.get(sectionId);
   if (typeof teardown === 'function') {
-    try { teardown(); } catch (_err) {}
+    try { teardown(); } catch (_err) { }
   }
   labsResizeControllers.delete(sectionId);
 }
@@ -963,7 +988,7 @@ function registerGridDrag(section, grid) {
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[labs] drag init failed', err);
-    } catch (_warnErr) {}
+    } catch (_warnErr) { }
   }
 }
 
