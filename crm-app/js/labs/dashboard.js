@@ -428,9 +428,8 @@ const LABS_PRESETS = {
 
 
 const EXPERIMENTAL_WIDGETS = [
-  // Truly WIP widgets with incomplete data contracts
-  { id: 'activePipeline', size: 'medium', note: 'view raw open files' },
-  { id: 'statusStack', size: 'medium', note: 'quick counts by status' }
+  // Consolidating valid widgets into main sections.
+  // This section is now reserved for true WIP items.
 ];
 
 // ---------------------------------------------------------------------------
@@ -516,7 +515,10 @@ const SECTIONS = [
       { id: 'pipelineFunnel', size: 'medium' },
       { id: 'pipelineVelocity', size: 'medium' },
       { id: 'pipelineRisk', size: 'medium' },
-      { id: 'staleDeals', size: 'medium' }
+      { id: 'staleDeals', size: 'medium' },
+      // Graduated 2025-12
+      { id: 'statusStack', size: 'medium' },
+      { id: 'activePipeline', size: 'large' }
     ]
   },
   {

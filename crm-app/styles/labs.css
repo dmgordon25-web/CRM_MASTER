@@ -1820,6 +1820,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 /* Labs Dashboard specific styles */
 .labs-hidden-count {
   font-weight: 400;
@@ -1830,65 +1831,123 @@
 
 /* Drag and Drop & Resize Styles */
 .dash-drag-placeholder {
-    background: rgba(99, 102, 241, 0.05);
-    border: 2px dashed rgba(99, 102, 241, 0.4);
-    border-radius: 14px;
-    box-sizing: border-box;
-    transition: all 0.2s ease;
+  background: rgba(99, 102, 241, 0.05);
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 14px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
 }
 
 .dash-drag-ghost {
-    opacity: 0.8;
-    z-index: 1000 !important;
-    pointer-events: none;
-    box-shadow: 0 15px 35px rgba(15, 23, 42, 0.2);
-    transform: scale(1.02);
+  opacity: 0.8;
+  z-index: 1000 !important;
+  pointer-events: none;
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.2);
+  transform: scale(1.02);
 }
 
 .dash-gridlines {
-    background-image: 
-        linear-gradient(to right, rgba(99, 102, 241, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
-    background-size: var(--dash-grid-step-x, 100px) var(--dash-grid-step-y, 100px);
-    opacity: 0;
-    transition: opacity 0.2s;
+  background-image:
+    linear-gradient(to right, rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+  background-size: var(--dash-grid-step-x, 100px) var(--dash-grid-step-y, 100px);
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .dash-gridlines.dragging {
-    opacity: 1;
+  opacity: 1;
 }
 
 /* Resize Handle */
 .labs-widget-resize-handle {
-    position: absolute;
-    bottom: 0px;
-    right: 0px;
-    width: 20px;
-    height: 20px;
-    cursor: nwse-resize;
-    z-index: 20;
-    opacity: 0;
-    transition: opacity 0.2s;
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .labs-widget-resize-handle::after {
-    content: '';
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    width: 0;
-    height: 0;
-    border-style: solid;
-    border-width: 0 0 8px 8px;
-    border-color: transparent transparent var(--labs-text-muted) transparent;
-    opacity: 0.5;
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 0 8px 8px;
+  border-color: transparent transparent var(--labs-text-muted) transparent;
+  opacity: 0.5;
 }
 
 .labs-grid-item:hover .labs-widget-resize-handle {
-    opacity: 1;
+  opacity: 1;
 }
 
 .labs-grid-item.labs-resizing {
-    z-index: 100 !important;
-    box-shadow: 0 0 0 2px var(--labs-accent-2);
+  z-index: 100 !important;
+  box-shadow: 0 0 0 2px var(--labs-accent-2);
+}
+
+/* ========================================
+   DRAG HANDLES (HOTFIX)
+   ======================================== */
+
+.labs-widget-drag-handle {
+  display: none;
+  /* Hidden by default */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--labs-border);
+  border-radius: 12px 12px 0 0;
+  z-index: 50;
+  cursor: grab;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--labs-text-secondary);
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Only show in edit mode */
+.labs-layout-edit-mode .labs-widget-drag-handle {
+  display: flex !important;
+  opacity: 1;
+}
+
+.labs-layout-edit-mode .labs-widget-drag-handle:hover {
+  background: var(--labs-bg-primary);
+  color: var(--labs-accent-2);
+}
+
+.labs-layout-edit-mode .labs-grid-item:hover {
+  box-shadow: 0 0 0 2px var(--labs-accent-2);
+}
+
+/* Active dragging state */
+.dash-drag-ghost .labs-widget-drag-handle {
+  cursor: grabbing;
+  background: var(--labs-accent-2);
+  color: white;
+}
+
+/* When editing, ensure widget content doesn't eat clicks */
+.labs-layout-edit-mode .labs-widget-container {
+  pointer-events: none;
+  /* Let clicks pass to handle/grid */
+  opacity: 0.8;
+  filter: grayscale(0.2);
 }
