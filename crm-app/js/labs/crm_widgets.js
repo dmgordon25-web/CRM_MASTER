@@ -40,252 +40,288 @@ import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 const WIDGET_META = {
   labsKpiSummary: {
     id: 'labsKpiSummary',
-    title: '📊 CRM Snapshot',
+    icon: '📊',
+    title: 'CRM Snapshot',
     description: 'CRM health KPIs in one glance.',
     category: 'system',
     status: 'stable'
   },
   labsPipelineSnapshot: {
     id: 'labsPipelineSnapshot',
-    title: '🧭 Pipeline Snapshot',
+    icon: '🧭',
+    title: 'Pipeline Snapshot',
     description: 'Stage distribution across active deals.',
     category: 'pipeline',
     status: 'stable'
   },
   labsTasks: {
     id: 'labsTasks',
-    title: '✅ Tasks Due',
+    icon: '✅',
+    title: 'Tasks Due',
     description: 'Tasks due today and overdue counts.',
     category: 'tasks',
     status: 'stable'
   },
   today: {
     id: 'today',
-    title: "📅 Today's Work",
+    icon: '📅',
+    title: "Today's Work",
     description: 'Tasks, appointments, and celebrations happening now.',
     category: 'tasks',
     status: 'stable'
   },
   todo: {
     id: 'todo',
-    title: '✅ To-Do',
+    icon: '✅',
+    title: 'To-Do',
     description: 'Your due and overdue tasks with quick links.',
     category: 'tasks',
     status: 'stable'
   },
   favorites: {
     id: 'favorites',
-    title: '⭐ Favorites',
+    icon: '⭐',
+    title: 'Favorites',
     description: 'Recently favorited leads for quick access.',
     category: 'people',
     status: 'stable'
   },
   priorityActions: {
     id: 'priorityActions',
-    title: '🚨 Priority Actions',
+    icon: '🚨',
+    title: 'Priority Actions',
     description: 'Overdue tasks and stale deals that need attention.',
     category: 'tasks',
     status: 'stable'
   },
   partnerPortfolio: {
     id: 'partnerPortfolio',
-    title: '🎯 Partner Portfolio',
+    icon: '🎯',
+    title: 'Partner Portfolio',
     description: 'Production breakdown by partner tier.',
     category: 'portfolio',
     status: 'stable'
   },
   referralLeaderboard: {
     id: 'referralLeaderboard',
-    title: '🏆 Referral Leaders',
+    icon: '🏆',
+    title: 'Referral Leaders',
     description: 'Top referral partners ranked by volume.',
     category: 'portfolio',
     status: 'stable'
   },
   leaderboard: {
     id: 'leaderboard',
-    title: '🏆 Referral Leaders',
+    icon: '🏆',
+    title: 'Referral Leaders',
     description: 'Top referral partners ranked by volume.',
     category: 'portfolio',
     status: 'stable'
   },
   referralTrends: {
     id: 'referralTrends',
-    title: '📈 Referral Trends',
+    icon: '📈',
+    title: 'Referral Trends',
     description: 'Referral volume trends over the last 30 days.',
     category: 'portfolio',
     status: 'stable'
   },
   relationshipOpportunities: {
     id: 'relationshipOpportunities',
-    title: '🤝 Client Care Radar',
+    icon: '🤝',
+    title: 'Client Care Radar',
     description: 'Past and returning clients that need outreach.',
     category: 'people',
     status: 'stable'
   },
   clientCareRadar: {
     id: 'clientCareRadar',
-    title: '🤝 Client Care Radar',
+    icon: '🤝',
+    title: 'Client Care Radar',
     description: 'Past and returning clients that need outreach.',
     category: 'people',
     status: 'stable'
   },
   pipelineFunnel: {
     id: 'pipelineFunnel',
-    title: '📈 Pipeline Funnel',
+    icon: '📈',
+    title: 'Pipeline Funnel',
     description: 'Counts by stage across the pipeline.',
     category: 'pipeline',
     status: 'stable'
   },
   pipelineVelocity: {
     id: 'pipelineVelocity',
-    title: '⏱ Velocity',
+    icon: '⏱',
+    title: 'Velocity',
     description: 'Cycle time buckets showing speed to close.',
     category: 'pipeline',
     status: 'stable'
   },
   pipelineRisk: {
     id: 'pipelineRisk',
-    title: '🛑 Pipeline Risk',
+    icon: '🛑',
+    title: 'Pipeline Risk',
     description: 'Files stale for 14+ days by stage.',
     category: 'pipeline',
     status: 'stable'
   },
   pipelineMomentum: {
     id: 'pipelineMomentum',
-    title: '🌊 Pipeline Momentum',
+    icon: '🌊',
+    title: 'Pipeline Momentum',
     description: 'Stage mix indicators showing movement.',
     category: 'pipeline',
     status: 'stable'
   },
   numbersMomentum: {
     id: 'numbersMomentum',
-    title: '🌊 Pipeline Momentum',
+    icon: '🌊',
+    title: 'Pipeline Momentum',
     description: 'Stage mix indicators showing movement.',
     category: 'pipeline',
     status: 'experimental'
   },
   closingWatch: {
     id: 'closingWatch',
-    title: '🛫 Closing Watch',
+    icon: '🛫',
+    title: 'Closing Watch',
     description: 'Deals nearing their close date.',
     category: 'pipeline',
     status: 'stable'
   },
   staleDeals: {
     id: 'staleDeals',
-    title: '⚠️ Stale Deals',
+    icon: '⚠️',
+    title: 'Stale Deals',
     description: 'Pipeline files with no movement for 14+ days.',
     category: 'pipeline',
     status: 'stable'
   },
   stale: {
     id: 'stale',
-    title: '⚠️ Stale Deals',
+    icon: '⚠️',
+    title: 'Stale Deals',
     description: 'Pipeline files with no movement for 14+ days.',
     category: 'pipeline',
     status: 'stable'
   },
   milestones: {
     id: 'milestones',
-    title: '📌 Milestones Ahead',
+    icon: '📌',
+    title: 'Milestones Ahead',
     description: 'Upcoming appointments and key dates.',
     category: 'tasks',
     status: 'stable'
   },
   upcomingCelebrations: {
     id: 'upcomingCelebrations',
-    title: '🎉 Upcoming Celebrations',
+    icon: '🎉',
+    title: 'Upcoming Celebrations',
     description: 'Birthdays and anniversaries for your contacts.',
     category: 'people',
     status: 'stable'
   },
   pipelineCalendar: {
     id: 'pipelineCalendar',
-    title: '🗓 Pipeline Calendar',
+    icon: '🗓',
+    title: 'Pipeline Calendar',
     description: 'Upcoming pipeline events on the calendar.',
     category: 'tasks',
     status: 'stable'
   },
   docPulse: {
     id: 'docPulse',
-    title: '📁 Document Pulse',
+    icon: '📁',
+    title: 'Document Pulse',
     description: 'Document milestone counts across your pipeline.',
     category: 'system',
     status: 'stable'
   },
   docCenter: {
     id: 'docCenter',
-    title: '📁 Document Pulse',
+    icon: '📁',
+    title: 'Document Pulse',
     description: 'Document milestone counts across your pipeline.',
     category: 'system',
     status: 'experimental'
   },
   kpis: {
     id: 'kpis',
-    title: '📊 KPI Overview',
+    icon: '📊',
+    title: 'KPI Overview',
     description: 'Classic KPI rollup for quick reference.',
     category: 'system',
     status: 'stable'
   },
   pipeline: {
     id: 'pipeline',
-    title: '🧭 Pipeline Snapshot',
+    icon: '🧭',
+    title: 'Pipeline Snapshot',
     description: 'Stage distribution across active deals.',
     category: 'pipeline',
     status: 'stable'
   },
   pipelineOverview: {
     id: 'pipelineOverview',
-    title: '🧭 Pipeline Snapshot',
+    icon: '🧭',
+    title: 'Pipeline Snapshot',
     description: 'Stage distribution across active deals.',
     category: 'pipeline',
     status: 'stable'
   },
   activePipeline: {
     id: 'activePipeline',
-    title: '📂 Active Pipeline',
+    icon: '📂',
+    title: 'Active Pipeline',
     description: 'Open files organized by current stage.',
     category: 'pipeline',
     status: 'stable'
   },
   statusStack: {
     id: 'statusStack',
-    title: '📶 Status Stack',
+    icon: '📶',
+    title: 'Status Stack',
     description: 'Quick counts by pipeline status.',
     category: 'pipeline',
     status: 'stable'
   },
   focus: {
     id: 'focus',
-    title: '🎯 Focus Summary',
+    icon: '🎯',
+    title: 'Focus Summary',
     description: 'Personalized focus summary for the day.',
     category: 'system',
     status: 'stable'
   },
   filters: {
     id: 'filters',
-    title: '🔍 Filters',
+    icon: '🔍',
+    title: 'Filters',
     description: 'Saved filters mirrored for Labs dashboards.',
     category: 'system',
     status: 'stable'
   },
   goalProgress: {
     id: 'goalProgress',
-    title: '🎯 Production Goals',
+    icon: '🎯',
+    title: 'Production Goals',
     description: 'Year-to-date production progress versus goals.',
     category: 'pipeline',
     status: 'stable'
   },
   numbersPortfolio: {
     id: 'numbersPortfolio',
-    title: '🎯 Partner Portfolio',
+    icon: '🎯',
+    title: 'Partner Portfolio',
     description: 'Production breakdown by partner tier.',
     category: 'portfolio',
     status: 'stable'
   },
   numbersReferrals: {
     id: 'numbersReferrals',
-    title: '🏆 Referral Leaders',
+    icon: '🏆',
+    title: 'Referral Leaders',
     description: 'Top referral partners ranked by volume.',
     category: 'portfolio',
     status: 'stable'
@@ -295,7 +331,8 @@ const WIDGET_META = {
   // ---------------------------------------------------------------------------
   printSuiteShortcut: {
     id: 'printSuiteShortcut',
-    title: '🖨️ Print Suite',
+    icon: '🖨️',
+    title: 'Print Suite',
     description: 'Quick access to document printing tools.',
     category: 'shortcuts',
     status: 'stable',
@@ -303,7 +340,8 @@ const WIDGET_META = {
   },
   templatesShortcut: {
     id: 'templatesShortcut',
-    title: '📝 Templates',
+    icon: '📝',
+    title: 'Templates',
     description: 'Quick access to email and document templates.',
     category: 'shortcuts',
     status: 'stable',
@@ -838,8 +876,13 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
     renderWidgetBody(shell, () => {
       const body = document.createElement('div');
       body.className = 'analytics-bars';
+      const seenStages = new Set();
 
       funnel.forEach((stage, idx) => {
+        // PARITY: Dedupe stages by ID
+        if (seenStages.has(stage.stageId)) return;
+        seenStages.add(stage.stageId);
+
         const config = STAGE_CONFIG[stage.stageId] || {};
         const percent = maxCount ? Math.round((stage.count / maxCount) * 100) : 0;
         const row = document.createElement('div');
@@ -1503,12 +1546,16 @@ export function renderStaleDealsWidget(container, model) {
 
         const row = createRowContainer('loan');
         row.classList.add(`urgency-${urgency}`);
+
+        // FIX: Ensure contactId is defined for the click handler in row_renderers
+        const targetId = loanDisplay.contactId || dealContact.id || deal.contactId;
+
         renderLoanRow(row, loanDisplay, {
           primaryText: name,
           secondaryText: secondaryPieces.filter(Boolean).join(' • '),
           metaText: `${daysSince}d`,
           metaClass: 'is-negative',
-          id: contactId
+          id: targetId
         });
 
         list.appendChild(row);
@@ -1753,7 +1800,8 @@ export function renderStatusStackWidget(container, model) {
 export function renderFocusWidget(container, model) {
   const focus = model.snapshot?.focus || {};
   const tasks = focus.tasksToday || [];
-  const appointments = focus.nextAppointments || [];
+  // PARITY: Dedupe Focus appointments
+  const appointments = getDedupedAppointments(model);
   const leads = focus.recentLeads || [];
 
   const block = (title, items) => `

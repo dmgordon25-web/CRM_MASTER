@@ -37,47 +37,66 @@ export function renderWidgetShell(container, spec = {}) {
   const header = document.createElement('div');
   header.className = 'labs-widget__header';
 
-  const titleRow = document.createElement('div');
-  titleRow.className = 'labs-widget__title-row';
+  // --- LEFT: Icon + Title/Subtitle ---
+  const headerLeft = document.createElement('div');
+  headerLeft.className = 'labs-widget__header-left';
+
+  // Icon Badge (if provided)
+  if (spec.icon) {
+    const iconEl = document.createElement('div');
+    iconEl.className = 'labs-widget__icon';
+    iconEl.innerHTML = spec.icon;
+    headerLeft.appendChild(iconEl);
+  }
+
+  // Text Column (Title + Subtitle)
+  const textCol = document.createElement('div');
+  textCol.className = 'labs-widget__header-text';
 
   const titleEl = document.createElement('h3');
   titleEl.className = 'labs-widget__title';
   titleEl.textContent = resolvedTitle || '';
-  titleRow.appendChild(titleEl);
+  textCol.appendChild(titleEl);
 
-  if (typeof count === 'number' && count > 0) {
-    const countBadge = document.createElement('span');
-    countBadge.className = 'labs-widget__count';
-
-    if (typeof shown === 'number' && shown < count) {
-      countBadge.textContent = `${shown} shown • ${count} total`;
-    } else {
-      countBadge.textContent = count;
-    }
-    titleRow.appendChild(countBadge);
+  if (resolvedDescription) {
+    const descEl = document.createElement('div');
+    descEl.className = 'labs-widget__subtitle';
+    descEl.textContent = resolvedDescription;
+    textCol.appendChild(descEl);
   }
 
   if (badgeStatus === 'experimental') {
-    const badgeEl = document.createElement('span');
-    badgeEl.className = 'labs-widget__badge labs-widget__badge--experimental';
-    badgeEl.textContent = 'Experimental';
-    titleRow.appendChild(badgeEl);
+    const expBadge = document.createElement('span');
+    expBadge.className = 'labs-widget__badge labs-widget__badge--experimental';
+    expBadge.textContent = 'Experimental';
+    // Append to title or text col? Let's add it to text col for now, 
+    // or maybe title row if we want it inline. Text col is safer for layout.
+    textCol.appendChild(expBadge);
   }
 
-  header.appendChild(titleRow);
+  headerLeft.appendChild(textCol);
+  header.appendChild(headerLeft);
 
-  if (resolvedDescription) {
-    const descriptionEl = document.createElement('div');
-    descriptionEl.className = 'labs-widget__description';
-    descriptionEl.textContent = resolvedDescription;
-    header.appendChild(descriptionEl);
-  }
+  // --- RIGHT: Insight/Tools + Count + Actions ---
+  const headerRight = document.createElement('div');
+  headerRight.className = 'labs-widget__header-right';
 
   if (insightText) {
+    // Insight can be a tooltip or small text. For now, let's keep it if it was used,
+    // but maybe more subtle.
     const insightEl = document.createElement('div');
     insightEl.className = 'labs-insight';
     insightEl.textContent = insightText;
-    header.appendChild(insightEl);
+    headerRight.appendChild(insightEl);
+  }
+
+  if (typeof count === 'number') {
+    const countBadge = document.createElement('span');
+    countBadge.className = 'labs-widget__count';
+    // If we have a 'shown' vs 'total', we can show nicely?
+    // Dashboard usually just shows the total count in a pill.
+    countBadge.textContent = count;
+    headerRight.appendChild(countBadge);
   }
 
   if (Array.isArray(actions) && actions.length) {
@@ -102,11 +121,10 @@ export function renderWidgetShell(container, spec = {}) {
       });
       actionGroup.appendChild(btn);
     });
-
-    if (actionGroup.childElementCount) {
-      header.appendChild(actionGroup);
-    }
+    headerRight.appendChild(actionGroup);
   }
+
+  header.appendChild(headerRight);
 
   shell.appendChild(header);
 
