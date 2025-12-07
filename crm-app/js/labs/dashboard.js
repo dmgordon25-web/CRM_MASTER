@@ -1330,36 +1330,7 @@ function setLayoutMode(enabled) {
   showNotification(labsLayoutEditMode ? 'Layout editing enabled' : 'Layout saved', 'info');
 }
 
-function getWidgetWidthToken(sectionId, widget) {
-  const layout = loadSectionLayout(sectionId);
-  const widgetId = widget?.id || widget;
-  if (layout && layout.widths && layout.widths[widgetId]) {
-    return layout.widths[widgetId];
-  }
-  return defaultWidgetWidth(widget);
-}
 
-function setWidgetWidthToken(sectionId, widgetId, token) {
-  const layout = loadSectionLayout(sectionId);
-  if (!layout.widths) layout.widths = {};
-  layout.widths[widgetId] = token;
-  saveSectionLayout(sectionId, layout);
-}
-
-function defaultWidgetWidth(widget) {
-  if (!widget || typeof widget !== 'object') return 'w2';
-  return SIZE_TO_WIDTH[widget.size] || 'w2';
-}
-
-function persistLayout(sectionId, order) {
-  const layout = loadSectionLayout(sectionId);
-  layout.order = order;
-  saveSectionLayout(sectionId, layout);
-  emitLabsEvent('labs:layout:changed', {
-    source: 'dashboard',
-    sectionId
-  });
-}
 
 async function mountLabsDashboard(root) {
   if (!root) {
