@@ -81,7 +81,7 @@ const WIDGET_META = {
   favorites: {
     id: 'favorites',
     icon: '⭐',
-    title: 'Favorites',
+    title: 'New Favorites',
     description: 'Recently favorited leads for quick access.',
     category: 'people',
     status: 'stable'
@@ -96,7 +96,7 @@ const WIDGET_META = {
   },
   partnerPortfolio: {
     id: 'partnerPortfolio',
-    icon: '🎯',
+    icon: '🏆',
     title: 'Partner Portfolio',
     description: 'Production breakdown by partner tier.',
     category: 'portfolio',
@@ -104,14 +104,6 @@ const WIDGET_META = {
   },
   referralLeaderboard: {
     id: 'referralLeaderboard',
-    icon: '🏆',
-    title: 'Referral Leaders',
-    description: 'Top referral partners ranked by volume.',
-    category: 'portfolio',
-    status: 'stable'
-  },
-  leaderboard: {
-    id: 'leaderboard',
     icon: '🏆',
     title: 'Referral Leaders',
     description: 'Top referral partners ranked by volume.',
@@ -128,14 +120,6 @@ const WIDGET_META = {
   },
   relationshipOpportunities: {
     id: 'relationshipOpportunities',
-    icon: '🤝',
-    title: 'Client Care Radar',
-    description: 'Past and returning clients that need outreach.',
-    category: 'people',
-    status: 'stable'
-  },
-  clientCareRadar: {
-    id: 'clientCareRadar',
     icon: '🤝',
     title: 'Client Care Radar',
     description: 'Past and returning clients that need outreach.',
@@ -174,14 +158,6 @@ const WIDGET_META = {
     category: 'pipeline',
     status: 'stable'
   },
-  numbersMomentum: {
-    id: 'numbersMomentum',
-    icon: '🌊',
-    title: 'Pipeline Momentum',
-    description: 'Stage mix indicators showing movement.',
-    category: 'pipeline',
-    status: 'experimental'
-  },
   closingWatch: {
     id: 'closingWatch',
     icon: '🛫',
@@ -192,14 +168,6 @@ const WIDGET_META = {
   },
   staleDeals: {
     id: 'staleDeals',
-    icon: '⚠️',
-    title: 'Stale Deals',
-    description: 'Pipeline files with no movement for 14+ days.',
-    category: 'pipeline',
-    status: 'stable'
-  },
-  stale: {
-    id: 'stale',
     icon: '⚠️',
     title: 'Stale Deals',
     description: 'Pipeline files with no movement for 14+ days.',
@@ -236,38 +204,6 @@ const WIDGET_META = {
     title: 'Document Pulse',
     description: 'Document milestone counts across your pipeline.',
     category: 'system',
-    status: 'stable'
-  },
-  docCenter: {
-    id: 'docCenter',
-    icon: '📁',
-    title: 'Document Pulse',
-    description: 'Document milestone counts across your pipeline.',
-    category: 'system',
-    status: 'experimental'
-  },
-  kpis: {
-    id: 'kpis',
-    icon: '📊',
-    title: 'KPI Overview',
-    description: 'Classic KPI rollup for quick reference.',
-    category: 'system',
-    status: 'stable'
-  },
-  pipeline: {
-    id: 'pipeline',
-    icon: '🧭',
-    title: 'Pipeline Snapshot',
-    description: 'Stage distribution across active deals.',
-    category: 'pipeline',
-    status: 'stable'
-  },
-  pipelineOverview: {
-    id: 'pipelineOverview',
-    icon: '🧭',
-    title: 'Pipeline Snapshot',
-    description: 'Stage distribution across active deals.',
-    category: 'pipeline',
     status: 'stable'
   },
   activePipeline: {
@@ -308,22 +244,6 @@ const WIDGET_META = {
     title: 'Production Goals',
     description: 'Year-to-date production progress versus goals.',
     category: 'pipeline',
-    status: 'stable'
-  },
-  numbersPortfolio: {
-    id: 'numbersPortfolio',
-    icon: '🎯',
-    title: 'Partner Portfolio',
-    description: 'Production breakdown by partner tier.',
-    category: 'portfolio',
-    status: 'stable'
-  },
-  numbersReferrals: {
-    id: 'numbersReferrals',
-    icon: '🏆',
-    title: 'Referral Leaders',
-    description: 'Top referral partners ranked by volume.',
-    category: 'portfolio',
     status: 'stable'
   },
   // ---------------------------------------------------------------------------
@@ -447,10 +367,13 @@ function getDedupedAppointments(model) {
     ? model.snapshot.focus.nextAppointments
     : [];
   return uniqByKey(appointments.filter(Boolean), (appt) => {
+    // Parity: Key by time-slot + contact.
+    // If we have strict dueTs/dueDate, use that.
     const keyContact = appt.contactId || getStableId(appt.contact) || '';
-    const keyDate = appt.due || appt.dueTs || '';
-    const keyTitle = appt.title || '';
-    return `${keyContact}:${keyDate}:${keyTitle}`;
+    const dueRaw = appt.due || appt.dueTs;
+    const keyDate = dueRaw ? new Date(dueRaw).toISOString() : '';
+    const keyTitle = (appt.title || '').trim().toLowerCase();
+    return `appt|${keyContact}|${keyDate}|${keyTitle}`;
   });
 }
 
@@ -879,7 +802,7 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
       const seenStages = new Set();
 
       funnel.forEach((stage, idx) => {
-        // PARITY: Dedupe stages by ID
+        // PARITY: Dedupe stages by ID to prevent loop echo
         if (seenStages.has(stage.stageId)) return;
         seenStages.add(stage.stageId);
 
@@ -1582,9 +1505,10 @@ export function renderTodayWidget(container, model) {
   let shell;
   try {
     // Use getDisplayTasks for enriched task data with contact names
+    // PARITY: Use getDedupedAppointments to ensure we don't show double entries
     const todayTasks = getDisplayTasks(model, { scope: 'today' }).slice(0, 5);
     const celebrations = getUpcomingCelebrations(model.contacts || [], 7).slice(0, 4);
-    const appointments = model.snapshot?.focus?.nextAppointments || [];
+    const appointments = getDedupedAppointments(model).slice(0, 5);
 
     const hasItems = todayTasks.length || celebrations.length || appointments.length;
     const status = hasItems ? 'ok' : 'empty';
@@ -2232,12 +2156,13 @@ export function renderRelationshipWidget(container, model, opts = {}) {
           secondaryText: contactDisplay.lastTouchLabel,
           metaText: contactDisplay.ageLabel,
           metaClass: 'is-neutral',
-          id: contactId
+          metaClass: 'is-neutral',
+          id: contact.id
         });
 
-        // Click-to-editor: handled by renderer if contactId present
-        // Fallback to portfolio segment drilldown if no contactId
-        if (!contactId && onPortfolioSegment) {
+        // Click-to-editor: handled by renderer if id present
+        // Fallback to portfolio segment drilldown if no contact.id
+        if (!contact.id && onPortfolioSegment) {
           row.classList.add('labs-row--clickable');
           row.addEventListener('click', () => {
             onPortfolioSegment({
@@ -2501,12 +2426,16 @@ export function renderPipelineCalendarWidget(container, model) {
 export function renderFavoritesWidget(container, model) {
   let shell;
   try {
-    const leads = model.snapshot?.focus?.recentLeads || [];
-    const status = leads.length ? 'ok' : 'empty';
+    // PARITY: Favorites should come from 'favorites' collection if available, or fallback to known good lists.
+    // Dashboard typically uses a Favorites store. Labs model should have it.
+    // Fallback to recentLeads only if favorites missing.
+    const favoritesSource = Array.isArray(model.favorites) ? model.favorites : (model.snapshot?.focus?.recentLeads || []);
+    const status = favoritesSource.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('favorites', {
       status,
-      emptyMessage: 'No favorites yet — star leads from Focus to pin them here.'
+      count: favoritesSource.length,
+      emptyMessage: 'No favorites yet — star leads to pin them here.'
     }));
 
     if (status !== 'ok') {
@@ -2517,13 +2446,20 @@ export function renderFavoritesWidget(container, model) {
       const listEl = document.createElement('div');
       listEl.className = 'favorite-list';
 
-      leads.forEach((lead, idx) => {
+      favoritesSource.forEach((lead, idx) => {
         const row = document.createElement('div');
         row.className = 'favorite-row';
         row.style.animationDelay = `${idx * 0.05}s`;
+
+        // Ensure we have a display name. Favorites might have raw DB fields.
+        const displayName = lead.displayName || lead.name
+          || (model.getContactDisplayName ? model.getContactDisplayName(lead.id || lead.contactId) : 'Favorite');
+
+        const stageLabel = lead.stageLabel || STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage || '';
+
         row.innerHTML = `
-          <div class="favorite-name">${lead.displayName || lead.name || 'Lead'}</div>
-          <div class="favorite-stage">${STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage}</div>
+          <div class="favorite-name">${displayName}</div>
+          <div class="favorite-stage">${stageLabel}</div>
         `;
 
         // Click-to-editor: navigate to contact view

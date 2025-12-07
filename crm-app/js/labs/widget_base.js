@@ -19,7 +19,8 @@ export function renderWidgetShell(container, spec = {}) {
 
   const fallbackTitle = id ? id.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').trim() : 'Widget';
   const resolvedTitle = title || fallbackTitle;
-  const resolvedDescription = description || subtitle;
+  // Dashboard parity: Subline is the description/subtitle
+  const resolvedSubline = description || subtitle;
   const badgeStatus = metaStatus || labsStatus;
 
   const shell = document.createElement('div');
@@ -37,11 +38,11 @@ export function renderWidgetShell(container, spec = {}) {
   const header = document.createElement('div');
   header.className = 'labs-widget__header';
 
-  // --- LEFT: Icon + Title/Subtitle ---
+  // --- LEFT: Icon + Title Group ---
   const headerLeft = document.createElement('div');
   headerLeft.className = 'labs-widget__header-left';
 
-  // Icon Badge (if provided)
+  // Icon Badge
   if (spec.icon) {
     const iconEl = document.createElement('div');
     iconEl.className = 'labs-widget__icon';
@@ -49,29 +50,31 @@ export function renderWidgetShell(container, spec = {}) {
     headerLeft.appendChild(iconEl);
   }
 
-  // Text Column (Title + Subtitle)
+  // Text Column (Title + Subline)
   const textCol = document.createElement('div');
   textCol.className = 'labs-widget__header-text';
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'labs-widget__title-row';
 
   const titleEl = document.createElement('h3');
   titleEl.className = 'labs-widget__title';
   titleEl.textContent = resolvedTitle || '';
-  textCol.appendChild(titleEl);
-
-  if (resolvedDescription) {
-    const descEl = document.createElement('div');
-    descEl.className = 'labs-widget__subtitle';
-    descEl.textContent = resolvedDescription;
-    textCol.appendChild(descEl);
-  }
+  titleRow.appendChild(titleEl);
 
   if (badgeStatus === 'experimental') {
     const expBadge = document.createElement('span');
     expBadge.className = 'labs-widget__badge labs-widget__badge--experimental';
     expBadge.textContent = 'Experimental';
-    // Append to title or text col? Let's add it to text col for now, 
-    // or maybe title row if we want it inline. Text col is safer for layout.
-    textCol.appendChild(expBadge);
+    titleRow.appendChild(expBadge);
+  }
+  textCol.appendChild(titleRow);
+
+  if (resolvedSubline) {
+    const sublineEl = document.createElement('div');
+    sublineEl.className = 'labs-widget__subline';
+    sublineEl.textContent = resolvedSubline;
+    textCol.appendChild(sublineEl);
   }
 
   headerLeft.appendChild(textCol);
@@ -81,22 +84,21 @@ export function renderWidgetShell(container, spec = {}) {
   const headerRight = document.createElement('div');
   headerRight.className = 'labs-widget__header-right';
 
-  if (insightText) {
-    // Insight can be a tooltip or small text. For now, let's keep it if it was used,
-    // but maybe more subtle.
+  if (insightText && status === 'ok') {
     const insightEl = document.createElement('div');
     insightEl.className = 'labs-insight';
     insightEl.textContent = insightText;
     headerRight.appendChild(insightEl);
   }
 
-  if (typeof count === 'number') {
-    const countBadge = document.createElement('span');
-    countBadge.className = 'labs-widget__count';
-    // If we have a 'shown' vs 'total', we can show nicely?
-    // Dashboard usually just shows the total count in a pill.
-    countBadge.textContent = count;
-    headerRight.appendChild(countBadge);
+  // Count Pill (Dashboard Parity)
+  // Only show if count is explicitly provided and > 0, or if valid '0' handling desired
+  if (typeof count === 'number' && count >= 0) {
+    const countPill = document.createElement('span');
+    countPill.className = 'labs-widget__count-pill';
+    // If shown is provided and different, maybe show fraction? For now match Dashboard: just total.
+    countPill.textContent = count;
+    headerRight.appendChild(countPill);
   }
 
   if (Array.isArray(actions) && actions.length) {
@@ -125,7 +127,6 @@ export function renderWidgetShell(container, spec = {}) {
   }
 
   header.appendChild(headerRight);
-
   shell.appendChild(header);
 
   const body = document.createElement('div');
