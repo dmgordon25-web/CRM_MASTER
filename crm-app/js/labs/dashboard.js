@@ -10,7 +10,7 @@ import {
   normalizeStagesForDisplay,
   computeStaleSummary
 } from './data.js';
-import { CRM_WIDGET_RENDERERS } from './crm_widgets.js';
+import { CRM_WIDGET_RENDERERS, WIDGET_META } from './crm_widgets.js';
 import { makeDraggableGrid } from '../ui/drag_core.js';
 import {
   applyPresetToSection,
@@ -22,6 +22,7 @@ import openAnalyticsDrilldown from './analytics_drilldown.js';
 import openPortfolioDrilldown from './portfolio_drilldown.js';
 import { emitLabsEvent, onLabsEvent } from './labs_events.js';
 import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
+import { getUiMode } from '../ui/ui_mode.js';
 
 const LABS_DEBUG = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('labsDebug') === '1'
@@ -850,16 +851,26 @@ function createCustomizePanel(section, layoutState, isOpen) {
   panel.dataset.sectionId = section.id;
   panel.hidden = !isOpen;
 
+  const currentMode = getUiMode();
+  const widgetsToShow = (section.widgets || []).filter((widget) => {
+    if (!widget?.id) return false;
+    const meta = WIDGET_META[widget.id];
+    if (meta?.advancedOnly && currentMode === 'simple') return false;
+    return true;
+  });
+
+  const hiddenCount = widgetsToShow.filter((w) => layoutState.visibility[w.id] === false).length;
+
   const header = document.createElement('div');
   header.className = 'labs-customize-header';
-  header.textContent = 'Show or hide widgets in this section';
+  const countBadge = hiddenCount > 0 ? ` <span class="labs-hidden-count">(${hiddenCount} hidden)</span>` : '';
+  header.innerHTML = `Show or hide widgets in this section${countBadge}`;
   panel.appendChild(header);
 
   const list = document.createElement('div');
   list.className = 'labs-customize-list';
 
-  (section.widgets || []).forEach((widget) => {
-    if (!widget?.id) return;
+  widgetsToShow.forEach((widget) => {
     const row = document.createElement('label');
     row.className = 'labs-customize-row';
 

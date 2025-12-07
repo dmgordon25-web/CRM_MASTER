@@ -37,7 +37,7 @@ function writeJson(key, value) {
     }
     const serialized = JSON.stringify(value);
     localStorage.setItem(key, serialized);
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function normalizeWidthToken(token) {
@@ -198,16 +198,33 @@ export function applyPresetToSection(sectionId, presetId, defaultWidgets = [], p
   if (!safePreset || safePreset === 'default') {
     return resetSectionLayout(sectionId, defaultWidgets);
   }
+
+  // Sticky Hiding Logic:
+  // We want to respect the user's explicit choice to hide a widget.
+  // If the user currently has a widget hidden, applying a preset should NOT re-show it.
+  // Exception: If the user resets the layout, that's handled by resetSectionLayout.
+  const currentLayout = loadSectionLayout(sectionId, defaultWidgets);
+  const currentVisibility = currentLayout?.visibility || {};
+
   const defaults = buildDefaults(defaultWidgets);
   const order = mergeOrder(defaults.order, presetConfig.order);
   const widths = {};
+
   order.forEach((id) => {
     const override = presetConfig.widths?.[id];
     const normalized = normalizeWidthToken(override);
     widths[id] = normalized || defaults.widths[id] || 'w2';
   });
+
   const visibility = {};
   order.forEach((id) => {
+    // 1. If currently hidden by user, keep it hidden (sticky).
+    if (currentVisibility[id] === false) {
+      visibility[id] = false;
+      return;
+    }
+
+    // 2. Otherwise apply preset preference.
     const presetVisible = presetConfig.visibility?.[id];
     visibility[id] = presetVisible === false ? false : true;
   });

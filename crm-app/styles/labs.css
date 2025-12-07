@@ -1820,3 +1820,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Labs Dashboard specific styles */
+.labs-hidden-count {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin-left: 8px;
+}

@@ -37,7 +37,7 @@ import {
 import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 
-const WIDGET_META = {
+export const WIDGET_META = {
   labsKpiSummary: {
     id: 'labsKpiSummary',
     icon: '📊',
