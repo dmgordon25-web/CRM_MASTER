@@ -7,6 +7,7 @@ import { stageLabelFromKey } from '../pipeline/stages.js';
 import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
+import { ensureFavoriteState } from '../util/favorites.js';
 
 export const LABS_ZERO_UNKNOWN = false; // TODO: Re-enable once Identity Trace unresolved counts are near-zero.
 
@@ -799,31 +800,49 @@ export async function buildLabsModel() {
       candidate.displayName,
       candidate.name,
       candidate.fullName,
-      candidate.contactName,
       candidate.borrowerName,
-      candidate.firstName && candidate.lastName ? `${candidate.firstName} ${candidate.lastName}` : null,
-      candidate.firstName,
-      candidate.lastName
+      candidate.company
     ];
-    const value = fallbackFields.find((v) => v && String(v).trim());
-    return value ? String(value).trim() : null;
+    for (const val of fallbackFields) {
+      if (val && val !== 'Unknown' && val !== 'Unknown contact') return val;
+    }
+    return 'Unknown contact';
   };
 
   const getPartnerDisplayName = (partnerId) => {
     const partner = partnerId ? partnersById[partnerId] : null;
-    const candidate = partner || {};
-    const fallbackFields = [candidate.name, candidate.displayName, candidate.company, candidate.fullName];
-    const value = fallbackFields.find((v) => v && String(v).trim());
-    return value ? String(value).trim() : null;
+    return partner?.name || partner?.company || partner?.displayName || 'Unknown Partner';
   };
 
-  // STRICT RESOLVER -- Top-level parity requirement
-  // Returns string name OR null. Never "Unknown contact".
+  // Resolve favorites using canonical state
+  const favoriteState = ensureFavoriteState();
+  const favorites = [];
+
+  if (favoriteState && favoriteState.contacts) {
+    favoriteState.contacts.forEach(id => {
+      const contact = contactsById[id];
+      if (contact) {
+        favorites.push({ ...contact, type: 'contact', isFavorite: true });
+      }
+    });
+  }
+
+  if (favoriteState && favoriteState.partners) {
+    favoriteState.partners.forEach(id => {
+      const partner = partnersById[id];
+      if (partner) {
+        favorites.push({ ...partner, type: 'partner', isFavorite: true });
+      }
+    });
+  }
+
+  // New Parity Helper
   const resolveContactNameStrict = (contactId) => {
-    if (!contactId) return null;
-    const contact = contactsById[contactId];
-    if (!contact) return null;
-    return contact.displayName || contact.name || contact.fullName || contact.borrowerName || null;
+    const c = contactsById[contactId];
+    if (!c) return null;
+    const name = c.displayName || c.name || c.fullName || c.borrowerName;
+    if (!name || name === 'Unknown' || name === 'Unknown contact') return null;
+    return name;
   };
 
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
@@ -922,6 +941,7 @@ export async function buildLabsModel() {
     contactsById,
     partnersById,
     tasksById,
+    favorites,
     getContactDisplayName,
     getPartnerDisplayName,
     pipeline: enrichedPipeline,

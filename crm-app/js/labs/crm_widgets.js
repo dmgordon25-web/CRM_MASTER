@@ -36,6 +36,7 @@ import {
 } from './row_renderers.js';
 import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
+import { loadTodoItems, saveTodoItems, generateId } from '../dashboard/widgets/todo_widget.js';
 
 export const WIDGET_META = {
   labsKpiSummary: {
@@ -1789,74 +1790,133 @@ export function renderGoalProgressWidget(container, model) {
 // =======================
 // To-do / due tasks
 // =======================
+// =======================
+// To-Do Widget (Production Parity)
+// =======================
 export function renderTodoWidget(container, model) {
   let shell;
   try {
-    // Use getDisplayTasks for enriched task data with contact names
-    const todayTasks = getDisplayTasks(model, { scope: 'today' });
-    const overdueTasks = getDisplayTasks(model, { scope: 'overdue' });
-    const status = todayTasks.length || overdueTasks.length ? 'ok' : 'empty';
-    const totalCount = todayTasks.length + overdueTasks.length;
+    const items = loadTodoItems();
+    const status = items.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, {
       id: 'todo',
       title: '✅ To-Do',
       status,
-      count: totalCount,
-      emptyMessage: 'No urgent tasks — all clear'
+      count: items.length,
+      emptyMessage: 'No active tasks'
     });
-
-    if (status !== 'ok') {
-      return shell;
-    }
-
-    const renderTaskList = (items, parentUl) => {
-      if (!items.length) {
-        const li = document.createElement('li');
-        li.className = 'muted';
-        li.textContent = 'Nothing queued';
-        parentUl.appendChild(li);
-        return;
-      }
-      items.slice(0, 5).forEach((task) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<strong>${task.taskLabel}</strong><span class="muted"> · ${task.contactName}</span>`;
-        if (task.contactId) {
-          li.style.cursor = 'pointer';
-          li.setAttribute('role', 'button');
-          li.setAttribute('tabindex', '0');
-          li.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${task.contactId}`;
-          });
-        }
-        parentUl.appendChild(li);
-      });
-    };
 
     renderWidgetBody(shell, (body) => {
       const wrapper = document.createElement('div');
-      wrapper.className = 'todo-columns';
+      wrapper.className = 'labs-todo-wrapper';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.gap = '12px';
 
-      const todayCol = document.createElement('div');
-      const todayLabel = document.createElement('div');
-      todayLabel.className = 'muted';
-      todayLabel.textContent = `Due Today (${todayTasks.length})`;
-      todayCol.appendChild(todayLabel);
-      const todayUl = document.createElement('ul');
-      renderTaskList(todayTasks, todayUl);
-      todayCol.appendChild(todayUl);
+      // 1. Render List
+      const list = document.createElement('ul');
+      list.className = 'labs-list';
+      list.style.margin = '0';
+      list.style.padding = '0';
+      list.style.listStyle = 'none';
+      list.style.display = 'flex';
+      list.style.flexDirection = 'column';
+      list.style.gap = '8px';
 
-      const overdueCol = document.createElement('div');
-      const overdueLabel = document.createElement('div');
-      overdueLabel.className = 'muted';
-      overdueLabel.textContent = `Overdue (${overdueTasks.length})`;
-      overdueCol.appendChild(overdueLabel);
-      const overdueUl = document.createElement('ul');
-      renderTaskList(overdueTasks, overdueUl);
-      overdueCol.appendChild(overdueUl);
+      if (items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'labs-empty-text';
+        empty.style.color = 'var(--text-muted, #64748b)';
+        empty.style.fontSize = '0.9rem';
+        empty.style.padding = '1rem 0';
+        empty.style.textAlign = 'center';
+        empty.textContent = 'No to-dos yet — add a quick note.';
+        wrapper.appendChild(empty);
+      } else {
+        items.forEach((item) => {
+          const row = document.createElement('li');
+          row.className = 'labs-list-row';
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '10px';
+          row.style.padding = '8px 10px';
+          row.style.background = 'var(--bg-card-hover, rgba(255,255,255,0.5))';
+          row.style.borderRadius = '8px';
+          row.style.border = '1px solid var(--border-color, #e2e8f0)';
 
-      wrapper.appendChild(todayCol);
-      wrapper.appendChild(overdueCol);
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.style.cursor = 'pointer';
+          checkbox.style.width = '16px';
+          checkbox.style.height = '16px';
+          checkbox.addEventListener('change', () => {
+            const next = items.filter((i) => i.id !== item.id);
+            saveTodoItems(next);
+            // Refresh widget
+            if (container) {
+              container.innerHTML = '';
+              renderTodoWidget(container, model);
+            }
+          });
+
+          const text = document.createElement('span');
+          text.textContent = item.text;
+          text.style.flex = '1';
+          text.style.fontSize = '0.95rem';
+          text.style.color = 'var(--text-primary, #0f172a)';
+          text.style.wordBreak = 'break-word';
+
+          row.appendChild(checkbox);
+          row.appendChild(text);
+          list.appendChild(row);
+        });
+        wrapper.appendChild(list);
+      }
+
+      // 2. Render Add Form
+      const addForm = document.createElement('form');
+      addForm.style.display = 'flex';
+      addForm.style.gap = '8px';
+      addForm.style.marginTop = '4px';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'labs-input'; // Assumes labs.css has this or generic input styles
+      input.placeholder = 'Add Item...';
+      input.style.flex = '1';
+      input.style.padding = '8px 10px';
+      input.style.borderRadius = '6px';
+      input.style.border = '1px solid var(--border-color, #cbd5e1)';
+      input.style.fontSize = '0.9rem';
+
+      const btn = document.createElement('button');
+      btn.type = 'submit';
+      btn.textContent = '+';
+      btn.className = 'labs-btn-primary'; // Assumes labs.css
+      btn.style.padding = '0 12px';
+      btn.style.borderRadius = '6px';
+      btn.style.background = 'var(--primary-color, #3b82f6)';
+      btn.style.color = 'white';
+      btn.style.border = 'none';
+      btn.style.cursor = 'pointer';
+
+      addForm.appendChild(input);
+      addForm.appendChild(btn);
+
+      addForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const val = input.value.trim();
+        if (!val) return;
+        const next = items.concat([{ id: generateId(), text: val, createdAt: new Date().toISOString() }]);
+        saveTodoItems(next);
+        if (container) {
+          container.innerHTML = '';
+          renderTodoWidget(container, model);
+        }
+      });
+
+      wrapper.appendChild(addForm);
       body.appendChild(wrapper);
     });
   } catch (err) {

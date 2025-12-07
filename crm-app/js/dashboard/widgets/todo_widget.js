@@ -31,7 +31,7 @@ function ensureTodoStyles() {
   document.head.appendChild(style);
 }
 
-function generateId() {
+export function generateId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
@@ -197,7 +197,7 @@ export function renderTodoWidget(options = {}) {
   const dot = document.createElement('span');
   dot.className = 'dot';
   footer.appendChild(dot);
-  footer.appendChild(document.createTextNode(' Items stay here until you check them off.')); 
+  footer.appendChild(document.createTextNode(' Items stay here until you check them off.'));
   shell.appendChild(footer);
 
   root.appendChild(shell);

@@ -23,6 +23,19 @@ import openPortfolioDrilldown from './portfolio_drilldown.js';
 import { emitLabsEvent, onLabsEvent } from './labs_events.js';
 import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
 import { getUiMode } from '../ui/ui_mode.js';
+import { enableVNextGrid } from './vnext.js';
+
+const USE_VNEXT_KEY = 'labs.vnext.enabled';
+const isVNextEnabled = () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('engine') === 'vnext') return true;
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(USE_VNEXT_KEY) === 'true';
+    }
+  }
+  return false;
+};
 
 const LABS_DEBUG = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('labsDebug') === '1'
@@ -754,7 +767,11 @@ function createHeader() {
         ${warningBadge}
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">${labsLayoutEditMode ? 'Layout mode: On' : 'Layout mode: Off'}</button>
+  <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="false" disabled style="opacity: 0.6; cursor: default;">Layout mode: Off</button>
+        <button class="labs-btn-ghost" data-action="toggle-engine" style="min-width: 140px;">
+            ${isVNextEnabled() ? 'Engine: vNext (Beta)' : 'Engine: Classic'}
+        </button>
+        <span class="labs-muted-text" style="font-size: 11px; margin-left: 8px;">(Layout editing temporarily disabled while stabilizing)</span>
       </div>
     </div>
   `;
@@ -764,8 +781,12 @@ function createHeader() {
 function updateLayoutToggleUi() {
   const toggle = dashboardRoot?.querySelector('[data-action="layout-toggle"]');
   if (!toggle) return;
-  toggle.textContent = labsLayoutEditMode ? 'Layout mode: On' : 'Layout mode: Off';
-  toggle.setAttribute('aria-pressed', labsLayoutEditMode ? 'true' : 'false');
+  // FORCE DISABLED STATE
+  toggle.textContent = 'Layout mode: Off';
+  toggle.setAttribute('aria-pressed', 'false');
+  toggle.disabled = true;
+  toggle.style.opacity = '0.6';
+  toggle.style.cursor = 'default';
 }
 
 function createNavigation() {
@@ -941,8 +962,14 @@ function renderSection(sectionId, options = {}) {
   host.appendChild(gridShell);
 
   renderWidgets(grid, widgetsInOrder);
-  registerGridDrag(section, grid);
-  registerResizeHandles(section, grid);
+
+  if (isVNextEnabled()) {
+    enableVNextGrid(grid, section.id);
+  } else {
+    registerGridDrag(section, grid);
+    registerResizeHandles(section, grid);
+  }
+
   updateNavState();
   updateLayoutToggleUi();
 }
@@ -1247,6 +1274,12 @@ function attachEventListeners() {
       resetSectionLayoutToDefault(sectionId);
       renderSection(sectionId, { forceCustomizerOpen: openCustomizerSections.has(sectionId) });
       showNotification('Layout reset to default', 'info');
+      return;
+    }
+    if (action === 'toggle-engine') {
+      const next = !isVNextEnabled();
+      localStorage.setItem(USE_VNEXT_KEY, String(next));
+      window.location.reload();
       return;
     }
     if (action === 'layout-toggle') {
