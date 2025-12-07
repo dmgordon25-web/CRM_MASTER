@@ -11,7 +11,7 @@ import {
   computeStaleSummary
 } from './data.js';
 import { CRM_WIDGET_RENDERERS, WIDGET_META } from './crm_widgets.js';
-import { makeDraggableGrid } from '../ui/drag_core.js';
+import { makeDraggableGrid, makeResizableGrid } from './drag_lab.js';
 import {
   applyPresetToSection,
   loadSectionLayout,
@@ -1073,6 +1073,8 @@ function registerResizeHandles(section, grid) {
   if (!section || !grid) return;
   destroyResizeController(section.id);
 
+  const resizable = makeResizableGrid({ container: grid });
+
   let active = null;
 
   const onMouseMove = (evt) => {
@@ -1090,11 +1092,18 @@ function registerResizeHandles(section, grid) {
     active.token = nextToken;
     applyWidthClass(active.item, nextToken);
     if (active.content) applyWidthClass(active.content, nextToken);
-    setWidgetWidthToken(active.sectionId, active.widgetId, nextToken);
+
+    // We defer persistence to mouseup to avoid thrashing storage
+    if (resizable && typeof resizable.reflow === 'function') {
+      resizable.reflow();
+    }
   };
 
   const stop = () => {
     if (active) {
+      if (active.token) {
+        setWidgetWidthToken(active.sectionId, active.widgetId, active.token);
+      }
       active = null;
     }
     window.removeEventListener('mousemove', onMouseMove);
@@ -1319,6 +1328,37 @@ function setLayoutMode(enabled) {
   }
   updateLayoutToggleUi();
   showNotification(labsLayoutEditMode ? 'Layout editing enabled' : 'Layout saved', 'info');
+}
+
+function getWidgetWidthToken(sectionId, widget) {
+  const layout = loadSectionLayout(sectionId);
+  const widgetId = widget?.id || widget;
+  if (layout && layout.widths && layout.widths[widgetId]) {
+    return layout.widths[widgetId];
+  }
+  return defaultWidgetWidth(widget);
+}
+
+function setWidgetWidthToken(sectionId, widgetId, token) {
+  const layout = loadSectionLayout(sectionId);
+  if (!layout.widths) layout.widths = {};
+  layout.widths[widgetId] = token;
+  saveSectionLayout(sectionId, layout);
+}
+
+function defaultWidgetWidth(widget) {
+  if (!widget || typeof widget !== 'object') return 'w2';
+  return SIZE_TO_WIDTH[widget.size] || 'w2';
+}
+
+function persistLayout(sectionId, order) {
+  const layout = loadSectionLayout(sectionId);
+  layout.order = order;
+  saveSectionLayout(sectionId, layout);
+  emitLabsEvent('labs:layout:changed', {
+    source: 'dashboard',
+    sectionId
+  });
 }
 
 async function mountLabsDashboard(root) {
