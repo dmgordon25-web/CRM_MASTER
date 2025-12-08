@@ -875,27 +875,92 @@ function createCustomizePanel(section, layoutState, isOpen) {
   panel.hidden = !isOpen;
 
   const currentMode = getUiMode();
-  const widgetsToShow = (section.widgets || []).filter((widget) => {
-    if (!widget?.id) return false;
-    const meta = WIDGET_META[widget.id];
-    if (meta?.advancedOnly && currentMode === 'simple') return false;
-    return true;
-  });
+
+  // Sort widgets by current layout order
+  const orderMap = new Map();
+  layoutState.order.forEach((id, index) => orderMap.set(id, index));
+
+  const widgetsToShow = (section.widgets || [])
+    .filter((widget) => {
+      if (!widget?.id) return false;
+      const meta = WIDGET_META[widget.id];
+      if (meta?.advancedOnly && currentMode === 'simple') return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id) : 9999;
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id) : 9999;
+      return idxA - idxB;
+    });
 
   const hiddenCount = widgetsToShow.filter((w) => layoutState.visibility[w.id] === false).length;
 
   const header = document.createElement('div');
   header.className = 'labs-customize-header';
   const countBadge = hiddenCount > 0 ? ` <span class="labs-hidden-count">(${hiddenCount} hidden)</span>` : '';
-  header.innerHTML = `Show or hide widgets in this section${countBadge}`;
+  header.innerHTML = `Drag to reorder • Show or hide${countBadge}`;
   panel.appendChild(header);
 
   const list = document.createElement('div');
   list.className = 'labs-customize-list';
 
+  // Drag State
+  let dragSrcEl = null;
+
+  function handleDragStart(e) {
+    dragSrcEl = this;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.widgetId);
+    this.classList.add('is-dragging');
+  }
+
+  function handleDragOver(e) {
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+
+    const target = e.target.closest('.labs-customize-row');
+    if (target && target !== dragSrcEl && list.contains(target)) {
+      const children = [...list.children];
+      const srcIndex = children.indexOf(dragSrcEl);
+      const targetIndex = children.indexOf(target);
+
+      if (srcIndex < targetIndex) {
+        target.after(dragSrcEl);
+      } else {
+        target.before(dragSrcEl);
+      }
+    }
+    return false;
+  }
+
+  function handleDragEnd(e) {
+    this.classList.remove('is-dragging');
+    dragSrcEl = null;
+
+    // Save new order
+    const newOrder = [];
+    [...list.querySelectorAll('.labs-customize-row')].forEach((row) => {
+      if (row.dataset.widgetId) {
+        newOrder.push(row.dataset.widgetId);
+      }
+    });
+    persistLayout(section.id, newOrder);
+  }
+
   widgetsToShow.forEach((widget) => {
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'labs-customize-row';
+    row.draggable = true;
+    row.dataset.widgetId = widget.id;
+
+    row.addEventListener('dragstart', handleDragStart);
+    row.addEventListener('dragover', handleDragOver);
+    row.addEventListener('dragend', handleDragEnd);
+
+    const checkWrapper = document.createElement('div');
+    checkWrapper.className = 'labs-check-wrapper';
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -907,8 +972,16 @@ function createCustomizePanel(section, layoutState, isOpen) {
     label.className = 'labs-customize-label';
     label.textContent = getWidgetLabel(widget.id);
 
-    row.appendChild(checkbox);
-    row.appendChild(label);
+    checkWrapper.appendChild(checkbox);
+    checkWrapper.appendChild(label);
+
+    const handle = document.createElement('div');
+    handle.className = 'labs-list-drag-handle';
+    handle.innerHTML = '⋮⋮';
+    handle.setAttribute('aria-hidden', 'true');
+
+    row.appendChild(checkWrapper);
+    row.appendChild(handle);
     list.appendChild(row);
   });
 
