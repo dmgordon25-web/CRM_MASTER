@@ -24,6 +24,7 @@ import { emitLabsEvent, onLabsEvent } from './labs_events.js';
 import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
 import { getUiMode } from '../ui/ui_mode.js';
 import { enableVNextGrid } from './vnext.js';
+import { initActionBarDrag, teardownActionBarWiring } from '../ui/action_bar.js';
 
 const USE_VNEXT_KEY = 'labs.vnext.enabled';
 const isVNextEnabled = () => {
@@ -763,15 +764,14 @@ function createHeader() {
           <div class="stat-label">Tasks</div>
         </div>
       </div>
-      <div class="labs-header-actions">
-        ${warningBadge}
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-  <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="false" disabled style="opacity: 0.6; cursor: default;">Layout mode: Off</button>
-        <button class="labs-btn-ghost" data-action="toggle-engine" style="min-width: 140px;">
+        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">
+          ${labsLayoutEditMode ? 'Layout: On' : 'Layout: Off'}
+        </button>
+        <button class="labs-btn-ghost" data-action="toggle-engine" style="min-width: 140px;" title="Switch between Classic and vNext grid engines">
             ${isVNextEnabled() ? 'Engine: vNext (Beta)' : 'Engine: Classic'}
         </button>
-        <span class="labs-muted-text" style="font-size: 11px; margin-left: 8px;">(Layout editing temporarily disabled while stabilizing)</span>
       </div>
     </div>
   `;
@@ -781,12 +781,12 @@ function createHeader() {
 function updateLayoutToggleUi() {
   const toggle = dashboardRoot?.querySelector('[data-action="layout-toggle"]');
   if (!toggle) return;
-  // FORCE DISABLED STATE
-  toggle.textContent = 'Layout mode: Off';
-  toggle.setAttribute('aria-pressed', 'false');
-  toggle.disabled = true;
-  toggle.style.opacity = '0.6';
-  toggle.style.cursor = 'default';
+  toggle.textContent = labsLayoutEditMode ? 'Layout: On' : 'Layout: Off';
+  toggle.setAttribute('aria-pressed', String(labsLayoutEditMode));
+  toggle.classList.toggle('active', labsLayoutEditMode);
+  toggle.disabled = false;
+  toggle.style.opacity = '';
+  toggle.style.cursor = '';
 }
 
 function createNavigation() {
@@ -1361,8 +1361,71 @@ function setLayoutMode(enabled) {
       controller.refresh();
     }
   }
+
+  // Strict quarantine: Only attach action bar drag in editing mode
+  if (labsLayoutEditMode) {
+    initActionBarDrag();
+  } else {
+    teardownActionBarWiring();
+  }
+
   updateLayoutToggleUi();
   showNotification(labsLayoutEditMode ? 'Layout editing enabled' : 'Layout saved', 'info');
+}
+
+export function unmountLabsDashboard() {
+  if (typeof document !== 'undefined' && dataChangedHandler) {
+    document.removeEventListener('app:data:changed', dataChangedHandler);
+    dataChangedHandler = null;
+  }
+
+  if (dashboardRoot) {
+    if (navClickHandler) {
+      dashboardRoot.removeEventListener('click', navClickHandler);
+      navClickHandler = null;
+    }
+    if (customizeChangeHandler) {
+      dashboardRoot.removeEventListener('change', customizeChangeHandler);
+      customizeChangeHandler = null;
+    }
+    if (presetChangeHandler) {
+      dashboardRoot.removeEventListener('change', presetChangeHandler);
+      presetChangeHandler = null;
+    }
+  }
+
+  // Teardown drag controllers
+  if (labsDragControllers) {
+    labsDragControllers.forEach((controller) => {
+      if (controller && typeof controller.destroy === 'function') {
+        try { controller.destroy(); } catch (e) { console.warn(e); }
+      }
+    });
+    labsDragControllers.clear();
+  }
+
+  // Teardown resize controllers
+  if (labsResizeControllers) {
+    labsResizeControllers.forEach((teardown) => {
+      if (typeof teardown === 'function') {
+        try { teardown(); } catch (e) { console.warn(e); }
+      }
+    });
+    labsResizeControllers.clear();
+  }
+
+  // Force Action Bar cleanup
+  teardownActionBarWiring();
+
+  // Reset state
+  labsLayoutEditMode = false;
+  if (labsEventUnsubscribers) {
+    labsEventUnsubscribers.forEach(u => typeof u === 'function' && u());
+    labsEventUnsubscribers = [];
+  }
+
+  dashboardRoot = null;
+  console.info('[labs] unmounted');
 }
 
 

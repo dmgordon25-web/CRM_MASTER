@@ -2,38 +2,38 @@ import { initActionBarDrag } from '../ui/action_bar.js';
 
 const FLAG_KEY = 'patch:2025-10-23:actionbar-drag';
 
-if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
-if(!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
+if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
+if (!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
 
-(function boot(){
-  if(window.__INIT_FLAGS__[FLAG_KEY]) return;
+(function boot() {
+  if (window.__INIT_FLAGS__[FLAG_KEY]) return;
   window.__INIT_FLAGS__[FLAG_KEY] = true;
   const spec = '/js/patches/patch_2025-10-23_actionbar_drag.js';
-  if(!window.__PATCHES_LOADED__.includes(spec)){
+  if (!window.__PATCHES_LOADED__.includes(spec)) {
     window.__PATCHES_LOADED__.push(spec);
   }
 
-  function postLog(event, data){
+  function postLog(event, data) {
     const payload = JSON.stringify(Object.assign({ event }, data || {}));
-    if(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'){
-      try{
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      try {
         const blob = new Blob([payload], { type: 'application/json' });
         navigator.sendBeacon('/__log', blob);
         return;
-      }catch (_err){}
+      } catch (_err) { }
     }
-    if(typeof fetch === 'function'){
-      try{ fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }); }
-      catch (_err){}
+    if (typeof fetch === 'function') {
+      try { fetch('/__log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }); }
+      catch (_err) { }
     }
   }
 
-  function arm(){
-    try{
-      initActionBarDrag();
-      console.info('[VIS] action-bar drag armed');
-      postLog('actionbar-drag-armed');
-    }catch (err){
+  function arm() {
+    try {
+      // Quarantined: initActionBarDrag();
+      console.info('[VIS] action-bar drag quarantined (disabled in patch)');
+      postLog('actionbar-drag-quarantined');
+    } catch (err) {
       console.warn('[VIS] action-bar drag arm failed', err);
     }
   }
@@ -41,19 +41,19 @@ if(!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
   const start = () => {
     const invoke = () => {
       const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
-      if(!bar) return;
+      if (!bar) return;
       arm();
     };
-    if(typeof requestAnimationFrame === 'function'){
+    if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(invoke);
-    }else{
+    } else {
       invoke();
     }
   };
 
-  if(document.readyState === 'loading'){
+  if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start, { once: true });
-  }else{
+  } else {
     start();
   }
 })();

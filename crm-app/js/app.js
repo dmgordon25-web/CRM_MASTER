@@ -2188,10 +2188,21 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     labs: {
       id: 'view-labs',
       ui: 'labs-root',
+      resetOnDeactivate: true,
       mount(root) {
         if (!root) return;
         if (root.dataset && root.dataset.labsReady === '1') return;
         bootLabs(root);
+      },
+      async unmount() {
+        try {
+          const mod = await import('./labs/entry.js');
+          if (mod && typeof mod.unmountLabs === 'function') {
+            mod.unmountLabs();
+          }
+        } catch (err) {
+          console.warn('[app] Labs unmount failed', err);
+        }
       }
     },
     pipeline: {
@@ -2647,6 +2658,21 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === previous) return;
 
     const previousLifecycle = previous ? VIEW_LIFECYCLE[previous] : null;
+
+    if (previousLifecycle && typeof previousLifecycle.unmount === 'function') {
+      try {
+        const result = previousLifecycle.unmount();
+        if (result && typeof result.then === 'function') {
+          // Fire and forget promise or await? 
+          // Since activate is not async here (or at least treated synchronously usually), 
+          // we treat it as fire-and-forget but catch errors.
+          result.catch(err => console.warn('[app] unmount async error', err));
+        }
+      } catch (err) {
+        console.warn('[app] unmount sync error', err);
+      }
+    }
+
     if (previousLifecycle?.resetOnDeactivate && previous !== normalized) {
       const previousId = previousLifecycle.id || ('view-' + previous);
       const prevRoot = previousId ? document.getElementById(previousId) : null;

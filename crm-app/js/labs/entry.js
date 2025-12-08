@@ -41,4 +41,15 @@ export async function initLabs(root) {
   }
 }
 
+export async function unmountLabs() {
+  try {
+    const module = await loadDashboard();
+    if (module && typeof module.unmountLabsDashboard === 'function') {
+      module.unmountLabsDashboard();
+    }
+  } catch (err) {
+    console.warn('[labs] unmount failed', err);
+  }
+}
+
 export default initLabs;
