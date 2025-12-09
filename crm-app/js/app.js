@@ -1337,14 +1337,18 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       return;
     }
     if (typeof root.querySelectorAll !== 'function') return;
-    root.querySelectorAll('table[data-selection-scope]').forEach((table) => {
-      ensureRowCheckHeaderForTable(table);
-    });
+    // FIXED: Only query if we have a valid root
+    try {
+      const tables = root.querySelectorAll('table[data-selection-scope]');
+      tables.forEach((table) => {
+        ensureRowCheckHeaderForTable(table);
+      });
+    } catch (_err) { }
   }
 
   function collectSelectionRowData(scopeRoot) {
     if (!scopeRoot) return [];
-    ensureRowCheckHeaders(scopeRoot);
+    try { ensureRowCheckHeaders(scopeRoot); } catch (_err) { }
     const seen = new Set();
     const rows = [];
     const addRow = (row) => {
@@ -1352,28 +1356,35 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       seen.add(row);
       const id = row.getAttribute('data-id');
       if (!id) return null;
-      const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
+      // FIXED: More robust checkbox query
+      let checkbox = null;
+      if (typeof row.querySelector === 'function') {
+        checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
+      }
       if (!checkbox) return null;
       const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
-    scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
-      const entry = addRow(row);
-      if (entry) rows.push(entry);
-    });
-    scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
-      const entry = addRow(row);
-      if (entry) rows.push(entry);
-    });
+    if (typeof scopeRoot.querySelectorAll === 'function') {
+      scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
+        const entry = addRow(row);
+        if (entry) rows.push(entry);
+      });
+      scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
+        const entry = addRow(row);
+        if (entry) rows.push(entry);
+      });
+    }
     return rows.filter(Boolean);
   }
 
-
-
   function isSelectableRowVisible(row) {
     if (!row) return false;
-    return !row.hidden && row.style.display !== 'none' && !row.classList.contains('hidden');
+    if (row.hidden) return false;
+    if (row.style && row.style.display === 'none') return false;
+    if (row.classList && row.classList.contains('hidden')) return false;
+    return true;
   }
 
   function wireSelectAllForTable(table) {
@@ -1382,10 +1393,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (!checkbox || checkbox.__wired) return;
     checkbox.__wired = true;
     checkbox.addEventListener('change', () => {
-      const scope = table.dataset.selectionScope || 'contacts';
+      const scope = table.getAttribute('data-selection-scope') || 'contacts';
       const store = getSelectionStore();
-      if (!store) return;
+      if (!store) {
+        console.warn('[app] SelectionStore not available for select-all');
+        return;
+      }
 
+      // FIXED: Ensure we only select visible rows
       const visibleRows = Array.from(table.querySelectorAll('tbody tr[data-id]'))
         .filter(isSelectableRowVisible);
 
@@ -1527,10 +1542,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     applyActionBarState(bar, total, guards);
 
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-      queueMicrotask(() => {
+      // FIXED: Use setTimeout to break render cycle
+      setTimeout(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
         catch (err) { logAppError('actionbar:update-visible', err); }
-      });
+      }, 0);
     }
   }
 

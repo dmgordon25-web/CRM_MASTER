@@ -3781,8 +3781,9 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 
   // HOTFIX: Delegated listener for Milestones clicks to prevent freeze
-  if (milestonesCard || doc.body) {
-    (milestonesCard || doc.body).addEventListener('click', (evt) => {
+  const root = doc.body; // Safe fallback
+  if (root) {
+    root.addEventListener('click', (evt) => {
       const card = evt.target.closest('#milestones-card');
       if (!card) return;
       const link = evt.target.closest('[data-contact-id]');
@@ -3794,7 +3795,7 @@ function bindDashboardEventListeners() {
       const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
       if (!contactId) return;
 
-      queueMicrotask(() => {
+      setTimeout(() => {
         try {
           // Assume tryOpenContact is globally available or we can use generic openContactModal
           if (typeof tryOpenContact === 'function') {
@@ -3805,7 +3806,7 @@ function bindDashboardEventListeners() {
         } catch (err) {
           console.warn('[dashboard] Failed to open contact from milestones:', err);
         }
-      });
+      }, 0);
     });
   }
 
