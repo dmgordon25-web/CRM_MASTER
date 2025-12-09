@@ -1387,12 +1387,24 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return true;
   }
 
+  /* FIX: Recursion guard for selection sync */
+  let isApplyingSelectionSync = false;
+
   function wireSelectAllForTable(table) {
     if (!table) return;
     const checkbox = table.querySelector('thead input[data-role="select-all"]');
     if (!checkbox || checkbox.__wired) return;
     checkbox.__wired = true;
-    checkbox.addEventListener('change', () => {
+
+    // Stop propagation on click to prevent bubbling to row handlers
+    checkbox.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    checkbox.addEventListener('change', (e) => {
+      // Prevent double-handling if triggered programmatically
+      if (isApplyingSelectionSync) return;
+
       const scope = table.getAttribute('data-selection-scope') || 'contacts';
       const store = getSelectionStore();
       if (!store) {
@@ -1456,73 +1468,83 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   }
 
   function syncSelectionCheckboxes(scope, ids, options) {
-    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
-    const providedIds = ids instanceof Set
-      ? Array.from(ids, value => String(value))
-      : Array.isArray(ids)
-        ? ids.map(String)
-        : [];
-    const idSet = new Set(providedIds);
-    const roots = [];
-    const optRoot = options && options.root;
-    if (optRoot) {
-      if (Array.isArray(optRoot)) {
-        optRoot.forEach((node) => {
-          if (node) roots.push(node);
-        });
-      } else if (optRoot) {
-        roots.push(optRoot);
-      }
-    }
-    if (!roots.length) {
-      document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
-        if (table) roots.push(table);
-      });
-    }
-    const seen = new Set();
-    roots.forEach(table => {
-      if (!table || seen.has(table)) return;
-      seen.add(table);
-      const entries = collectSelectionRowData(table);
-      entries.forEach(entry => {
-        const shouldCheck = idSet.has(entry.id);
-        if (entry.checkbox.checked !== shouldCheck) {
-          entry.checkbox.checked = shouldCheck;
+    if (isApplyingSelectionSync) return;
+    isApplyingSelectionSync = true;
+    try {
+      const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+      const providedIds = ids instanceof Set
+        ? Array.from(ids, value => String(value))
+        : Array.isArray(ids)
+          ? ids.map(String)
+          : [];
+      const idSet = new Set(providedIds);
+      const roots = [];
+      const optRoot = options && options.root;
+      if (optRoot) {
+        if (Array.isArray(optRoot)) {
+          optRoot.forEach((node) => {
+            if (node) roots.push(node);
+          });
+        } else if (optRoot) {
+          roots.push(optRoot);
         }
-        try {
-          if (shouldCheck) {
-            entry.row.setAttribute('data-selected', '1');
-          } else {
-            entry.row.removeAttribute('data-selected');
+      }
+      if (!roots.length) {
+        document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
+          if (table) roots.push(table);
+        });
+      }
+      const seen = new Set();
+      roots.forEach(table => {
+        if (!table || seen.has(table)) return;
+        seen.add(table);
+        const entries = collectSelectionRowData(table);
+        entries.forEach(entry => {
+          const shouldCheck = idSet.has(entry.id);
+          if (entry.checkbox.checked !== shouldCheck) {
+            entry.checkbox.checked = shouldCheck;
           }
-        } catch (_err) { }
-        try {
-          entry.checkbox.setAttribute('aria-checked', shouldCheck ? 'true' : 'false');
-        } catch (_err) { }
-      });
-      const header = table.querySelector('thead input[data-role="select-all"]');
-      if (header) {
-        const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
-        const total = visible.length;
-        let selectedVisible = 0;
-        visible.forEach((entry) => {
-          if (idSet.has(entry.id)) selectedVisible += 1;
+          try {
+            if (shouldCheck) {
+              entry.row.setAttribute('data-selected', '1');
+              if (entry.row.classList) entry.row.classList.add('selected');
+            } else {
+              entry.row.removeAttribute('data-selected');
+              if (entry.row.classList) entry.row.classList.remove('selected');
+            }
+          } catch (_err) { }
+          try {
+            entry.checkbox.setAttribute('aria-checked', shouldCheck ? 'true' : 'false');
+          } catch (_err) { }
         });
-        const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
-        const shouldChecked = total > 0 && selectedVisible === total;
-        header.indeterminate = shouldIndeterminate;
-        header.checked = shouldChecked;
-        try {
-          header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
-        } catch (_err) { }
-        if (!total) {
-          header.indeterminate = false;
-          header.checked = false;
-          try { header.setAttribute('aria-checked', 'false'); }
-          catch (_err) { }
+        const header = table.querySelector('thead input[data-role="select-all"]');
+        if (header) {
+          const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+          const total = visible.length;
+          let selectedVisible = 0;
+          visible.forEach((entry) => {
+            if (idSet.has(entry.id)) selectedVisible += 1;
+          });
+          const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
+          const shouldChecked = total > 0 && selectedVisible === total;
+
+          if (header.indeterminate !== shouldIndeterminate) header.indeterminate = shouldIndeterminate;
+          if (header.checked !== shouldChecked) header.checked = shouldChecked;
+
+          try {
+            header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
+          } catch (_err) { }
+          if (!total) {
+            header.indeterminate = false;
+            header.checked = false;
+            try { header.setAttribute('aria-checked', 'false'); }
+            catch (_err) { }
+          }
         }
-      }
-    });
+      });
+    } finally {
+      isApplyingSelectionSync = false;
+    }
   }
 
   function syncSelectionScope(scope, options) {
@@ -1551,13 +1573,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const totalRaw = Number(count);
     const total = Number.isFinite(totalRaw) ? Math.max(0, Math.floor(totalRaw)) : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
+    // FIXED: Only update selection-type if not already set or if explicitly changing
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
-    } else {
-      bar.removeAttribute('data-selection-type');
     }
 
-    const guards = scopeKey === 'notifications'
+    const inNotificationScope = scopeKey === 'notifications';
+
+    const guards = inNotificationScope
       ? {
         edit: false,
         merge: false,
@@ -1577,6 +1600,26 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     applyActionBarGuards(bar, guards);
+
+    // Logic for visibility: simple > 0 check
+    if (total > 0) {
+      bar.setAttribute('data-visible', '1');
+      bar.style.display = ''; // Clear inline hide
+      // If minimized, un-minimize
+      if (bar.hasAttribute('data-minimized')) {
+        bar.removeAttribute('data-minimized');
+      }
+    } else {
+      bar.removeAttribute('data-visible');
+      /* 
+         FIX: Do not force display:none here immediately if we want 
+         smooth exit or minimized state. But for stability, ensure
+         it doesn't block UI if empty.
+         If we want "Clear" to hide it:
+      */
+      // bar.style.display = 'none'; // Optional: Aggressive hide
+    }
+
     applyActionBarState(bar, total, guards);
 
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
