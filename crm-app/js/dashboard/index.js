@@ -3823,7 +3823,7 @@ function bindDashboardEventListeners() {
       const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
       if (!contactId) return;
 
-      queueMicrotask(() => {
+      setTimeout(() => {
         try {
           if (typeof tryOpenContact === 'function') {
             tryOpenContact(contactId);
@@ -3833,7 +3833,32 @@ function bindDashboardEventListeners() {
         } catch (err) {
           console.warn('[dashboard] Failed to open contact from celebrations:', err);
         }
-      });
+      }, 0);
+    });
+
+    // HOTFIX: Delegated listener for Closing Watch and Client Care Radar (Rel Opps)
+    dashboardView.addEventListener('click', (evt) => {
+      const card = evt.target.closest('#closing-watch') || evt.target.closest('#rel-opps');
+      if (!card) return;
+      const link = evt.target.closest('[data-contact-id]');
+      if (!link) return;
+
+      evt.preventDefault();
+      evt.stopPropagation();
+      const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
+      if (!contactId) return;
+
+      setTimeout(() => {
+        try {
+          if (typeof tryOpenContact === 'function') {
+            tryOpenContact(contactId);
+          } else if (typeof window.openContactModal === 'function') {
+            window.openContactModal(contactId);
+          }
+        } catch (err) {
+          console.warn('[dashboard] Failed to open contact from legacy list:', err);
+        }
+      }, 0);
     });
   }
 }

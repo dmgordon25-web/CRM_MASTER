@@ -1038,12 +1038,12 @@ function injectActionBarStyle() {
   if (typeof document === 'undefined') return;
   if (document.getElementById('ab-inline-style')) return;
   ensureStyle('crm:action-bar', `
-      #actionbar{
         position:fixed; left:50%; transform:translateX(-50%);
         bottom:16px; z-index:9999;
         max-width:960px; width:auto; padding:8px 12px;
         border-radius:12px; background:rgba(20,22,28,0.88); color:#fff;
         box-shadow:0 8px 24px rgba(0,0,0,.25);
+        pointer-events:auto;
       }
       #actionbar[data-minimized="1"]{
         top:72px; right:24px; left:auto; bottom:auto;
