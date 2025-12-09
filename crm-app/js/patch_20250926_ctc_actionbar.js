@@ -591,6 +591,8 @@ function runPatch() {
       }
       bar.setAttribute('aria-expanded', 'true');
       bar.dataset.count = String(numeric);
+      // RESTORE DRAG: Ensure it's draggable when visible
+      bar.setAttribute('draggable', 'true');
     } else {
       // When 0, allow it to be minimized (pill state) or hidden by CSS
       bar.removeAttribute('data-visible');
@@ -598,6 +600,8 @@ function runPatch() {
       bar.setAttribute('data-minimized', '1');
       bar.setAttribute('aria-expanded', 'false');
       bar.dataset.count = '0';
+      // Optional: remove draggable if hidden, but keeping it doesn't hurt. 
+      // We'll leave it to avoid flickering state.
     }
 
     if (typeof window !== 'undefined') {
@@ -609,51 +613,58 @@ function runPatch() {
   }
 
   function deselectAllRows() {
+    // 1. Reset DOM elements (visual state)
     if (typeof document !== 'undefined') {
-      document.querySelectorAll('[data-ui="row-check"]').forEach(node => {
-        if (node && typeof node.removeAttribute === 'function') node.removeAttribute('aria-checked');
-        if (node && 'checked' in node) {
-          try { node.checked = false; }
-          catch (_err) { }
-        }
-        const row = node && typeof node.closest === 'function'
-          ? node.closest('[data-id],[data-row]')
-          : null;
-        if (row) {
-          if (typeof row.removeAttribute === 'function') {
-            row.removeAttribute('data-selected');
-            row.removeAttribute('aria-selected');
+      const rowChecks = document.querySelectorAll('[data-ui="row-check"]');
+      for (let i = 0; i < rowChecks.length; i++) {
+        const node = rowChecks[i];
+        if (node) {
+          if (node.removeAttribute) node.removeAttribute('aria-checked');
+          if ('checked' in node) {
+            try { node.checked = false; node.indeterminate = false; } catch (_) { }
           }
-          if (row.classList) {
-            row.classList.remove('selected');
-            row.classList.remove('is-selected');
+          const row = node.closest('[data-id],[data-row]');
+          if (row) {
+            if (row.removeAttribute) {
+              row.removeAttribute('data-selected');
+              row.removeAttribute('aria-selected');
+            }
+            if (row.classList) {
+              row.classList.remove('selected');
+              row.classList.remove('is-selected');
+            }
           }
         }
-      });
+      }
+
+      // 2. Clear Select All headers
+      const headers = document.querySelectorAll('[data-ui="row-check-all"], [data-role="select-all"]');
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i];
+        if (h && h instanceof HTMLInputElement) {
+          h.checked = false;
+          h.indeterminate = false;
+          h.setAttribute('aria-checked', 'false');
+        }
+      }
     }
-    if (ensureSelectionService() && typeof SelectionService.clear === 'function') {
-      try { SelectionService.clear('patch_20250926:init'); }
-      catch (_err) { console.warn('SelectionService.clear failed', _err); }
-    }
-    if (typeof window !== 'undefined') {
-      try { window.Selection?.clear?.('patch_20250926:init'); }
-      catch (_err) { }
-      try { window.SelectionStore?.clear?.('partners'); }
-      catch (_err) { }
-      try { window.SelectionStore?.clear?.('leads'); }
-      catch (_err) { }
-      try { window.SelectionStore?.clear?.('partners:active'); }
-      catch (_err) { }
-      // Also uncheck and reset all select-all checkboxes
+
+    // 3. Clear Service State (Single Source of Truth)
+    if (ensureSelectionService()) {
       try {
-        document.querySelectorAll('[data-ui="row-check-all"], [data-role="select-all"]').forEach(node => {
-          if (node && node instanceof HTMLInputElement) {
-            node.checked = false;
-            node.indeterminate = false;
-            node.setAttribute('aria-checked', 'false');
-          }
-        });
-      } catch (_err) { }
+        if (typeof SelectionService.clear === 'function') {
+          // Pass a distinct source to avoid loops if the service echoes back
+          SelectionService.clear('patch_20250926:hard_reset');
+        }
+      } catch (err) { console.warn('SelectionService.clear failed', err); }
+    }
+
+    // 4. Force-Clear known globals purely as backup
+    if (typeof window !== 'undefined') {
+      try { window.Selection?.clear?.('patch_20250926:hard_reset'); } catch (_) { }
+      try { window.SelectionStore?.clear?.('partners'); } catch (_) { }
+      try { window.SelectionStore?.clear?.('leads'); } catch (_) { }
+      try { window.SelectionStore?.clear?.('partners:active'); } catch (_) { }
     }
   }
 

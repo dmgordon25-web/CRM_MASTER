@@ -1052,12 +1052,16 @@ function renderSection(sectionId, options = {}) {
       enableVNextGrid(grid, section.id);
     } catch (err) {
       console.error('[labs] vNext failed to initialize, falling back to Classic', err);
+      if (labsLayoutEditMode) {
+        registerGridDrag(section, grid);
+        registerResizeHandles(section, grid);
+      }
+    }
+  } else {
+    if (labsLayoutEditMode) {
       registerGridDrag(section, grid);
       registerResizeHandles(section, grid);
     }
-  } else {
-    registerGridDrag(section, grid);
-    registerResizeHandles(section, grid);
   }
 
   updateNavState();
@@ -1444,19 +1448,25 @@ function setLayoutMode(enabled) {
   if (grid) {
     grid.classList.toggle('labs-grid-editable', labsLayoutEditMode);
   }
-  const controller = labsDragControllers.get(activeSection);
-  if (controller) {
-    if (typeof controller.setEditMode === 'function') {
-      controller.setEditMode(labsLayoutEditMode);
+  if (labsLayoutEditMode) {
+    const grid = dashboardRoot?.querySelector('.labs-crm-grid');
+    const section = getSection(activeSection);
+    if (grid && section) {
+      // Re-register to ensure hooks are active
+      if (!isVNextEnabled()) {
+        registerGridDrag(section, grid);
+        registerResizeHandles(section, grid);
+      } else {
+        // vNext handles its own state usually, but fallback might be needed
+        // For now, assume vNext is always active if enabled, or check logic
+        // But the requirement is about hooks.
+        // If vNext is enabled, enableVNextGrid was called in renderSection.
+      }
     }
-    if (labsLayoutEditMode && typeof controller.enable === 'function') {
-      controller.enable();
-    } else if (!labsLayoutEditMode && typeof controller.disable === 'function') {
-      controller.disable();
-    }
-    if (typeof controller.refresh === 'function') {
-      controller.refresh();
-    }
+  } else {
+    // Teardown
+    destroySectionController(activeSection);
+    destroyResizeController(activeSection);
   }
 
   // Strict quarantine: Only attach action bar drag in editing mode

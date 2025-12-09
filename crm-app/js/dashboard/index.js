@@ -3781,7 +3781,7 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 
   // HOTFIX: Delegated listener for Milestones clicks to prevent freeze
-  // Scoped to view-dashboard to avoid global leaks
+  // Scoped to view-dashboard to avoid global leaks. Using capture phase to preempt inline handlers.
   const dashboardView = doc.getElementById('view-dashboard');
   if (dashboardView) {
     dashboardView.addEventListener('click', (evt) => {
@@ -3793,12 +3793,12 @@ function bindDashboardEventListeners() {
       // Found a contact link inside milestones card
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation();
       const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
       if (!contactId) return;
 
       setTimeout(() => {
         try {
-          // Assume tryOpenContact is globally available or we can use generic openContactModal
           if (typeof tryOpenContact === 'function') {
             tryOpenContact(contactId);
           } else if (typeof window.openContactModal === 'function') {
@@ -3808,7 +3808,7 @@ function bindDashboardEventListeners() {
           console.warn('[dashboard] Failed to open contact from milestones:', err);
         }
       }, 0);
-    });
+    }, true); // Capture phase
 
     // HOTFIX: Delegated listener for Celebrations (Birthdays) clicks to prevent freeze
     dashboardView.addEventListener('click', (evt) => {
@@ -3817,9 +3817,9 @@ function bindDashboardEventListeners() {
       const link = evt.target.closest('[data-contact-id]');
       if (!link) return;
 
-      // Found a contact link inside celebrations card
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation();
       const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
       if (!contactId) return;
 
@@ -3834,7 +3834,7 @@ function bindDashboardEventListeners() {
           console.warn('[dashboard] Failed to open contact from celebrations:', err);
         }
       }, 0);
-    });
+    }, true); // Capture phase
 
     // HOTFIX: Delegated listener for Closing Watch and Client Care Radar (Rel Opps)
     dashboardView.addEventListener('click', (evt) => {
@@ -3845,6 +3845,7 @@ function bindDashboardEventListeners() {
 
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation();
       const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
       if (!contactId) return;
 
@@ -3859,7 +3860,7 @@ function bindDashboardEventListeners() {
           console.warn('[dashboard] Failed to open contact from legacy list:', err);
         }
       }, 0);
-    });
+    }, true); // Capture phase
   }
 }
 
