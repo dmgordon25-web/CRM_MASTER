@@ -1,32 +1,32 @@
-(function(global){
+(function (global) {
   if (!global) return;
 
   const bridgeKey = '__appDataChangedWindowBridge__';
   const legacyBridgeKey = '__AD_BRIDGE__';
-  if (!global[bridgeKey] && global[legacyBridgeKey]){
+  if (!global[bridgeKey] && global[legacyBridgeKey]) {
     global[bridgeKey] = global[legacyBridgeKey];
     return;
   }
-  if (!global[bridgeKey] && typeof global.addEventListener === 'function'){
-    const reemit = function(event){
+  if (!global[bridgeKey] && typeof global.addEventListener === 'function') {
+    const reemit = function (event) {
       const doc = global.document || null;
       if (!event || !doc || event.target === doc) return;
-      if (typeof global.dispatchAppDataChanged === 'function'){
+      if (typeof global.dispatchAppDataChanged === 'function') {
         global.dispatchAppDataChanged(event.detail);
-      } else if (doc && typeof doc.dispatchEvent === 'function'){
+      } else if (doc && typeof doc.dispatchEvent === 'function') {
         doc.dispatchEvent(new CustomEvent('app:data:changed', { detail: event && event.detail }));
       }
     };
     global.addEventListener('app:data:changed', reemit, true);
     global[bridgeKey] = {
       handler: reemit,
-      remove(){
+      remove() {
         try { global.removeEventListener('app:data:changed', reemit, true); }
-        catch (_err) {}
+        catch (_err) { }
       }
     };
     if (!global[legacyBridgeKey]) global[legacyBridgeKey] = true;
-  } else if (global[bridgeKey] && !global[legacyBridgeKey]){
+  } else if (global[bridgeKey] && !global[legacyBridgeKey]) {
     global[legacyBridgeKey] = true;
   }
 
@@ -36,21 +36,21 @@
   let scheduled = false;
   let depth = 0;
 
-  function enter(){
+  function enter() {
     depth += 1;
     global.__RENDERING__ = depth > 0;
   }
 
-  function exit(){
+  function exit() {
     if (depth > 0) depth -= 1;
     global.__RENDERING__ = depth > 0;
   }
 
-  function isRendering(){
+  function isRendering() {
     return depth > 0;
   }
 
-  function safeCall(fn){
+  function safeCall(fn) {
     if (typeof fn !== 'function') return null;
     try {
       const result = fn();
@@ -70,7 +70,7 @@
     }
   }
 
-  function runAfterRender(){
+  function runAfterRender() {
     afterRender.forEach(fn => {
       try { fn(); }
       catch (err) {
@@ -81,7 +81,7 @@
     });
   }
 
-  function flush(){
+  function flush() {
     scheduled = false;
     enter();
     const pending = [];
@@ -93,14 +93,19 @@
       runAfterRender();
       exit();
     };
-    if (pending.length){
-      Promise.allSettled(pending).finally(finalize);
+    if (pending.length) {
+      // Enforce 500ms hard timeout on all render subscribers
+      const timedPending = pending.map(p => {
+        const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 500));
+        return Promise.race([p, timeout]);
+      });
+      Promise.allSettled(timedPending).finally(finalize);
     } else {
       finalize();
     }
   }
 
-  function requestRender(){
+  function requestRender() {
     if (scheduled) return;
     scheduled = true;
     const raf = typeof global.requestAnimationFrame === 'function'
@@ -111,23 +116,23 @@
     });
   }
 
-  function subscribeRender(fn){
+  function subscribeRender(fn) {
     if (typeof fn === 'function') subscribers.add(fn);
   }
 
-  function unsubscribeRender(fn){
+  function unsubscribeRender(fn) {
     if (typeof fn === 'function') subscribers.delete(fn);
   }
 
-  function registerHook(fn){
+  function registerHook(fn) {
     if (typeof fn === 'function') afterRender.add(fn);
   }
 
-  function unregisterHook(fn){
+  function unregisterHook(fn) {
     afterRender.delete(fn);
   }
 
-  function reset(){
+  function reset() {
     subscribers.clear();
     afterRender.clear();
     scheduled = false;
@@ -145,8 +150,8 @@
     exit,
     isRendering,
     __reset: reset,
-    __getSubscriberCount(){ return subscribers.size; },
-    __getHookCount(){ return afterRender.size; }
+    __getSubscriberCount() { return subscribers.size; },
+    __getHookCount() { return afterRender.size; }
   };
 
   const existing = global.RenderGuard && typeof global.RenderGuard === 'object'
@@ -160,18 +165,18 @@
     writable: true
   });
 
-  if (typeof global.registerRenderHook !== 'function'){
+  if (typeof global.registerRenderHook !== 'function') {
     global.registerRenderHook = registerHook;
   }
 
-  function normalizeDataChangedDetail(detail){
-    if(detail && typeof detail === 'object') return detail;
-    if(typeof detail === 'string') return { scope:'', reason: detail };
-    return { scope:'' };
+  function normalizeDataChangedDetail(detail) {
+    if (detail && typeof detail === 'object') return detail;
+    if (typeof detail === 'string') return { scope: '', reason: detail };
+    return { scope: '' };
   }
 
-  if (typeof global.dispatchAppDataChanged !== 'function'){
-    global.dispatchAppDataChanged = function(detail){
+  if (typeof global.dispatchAppDataChanged !== 'function') {
+    global.dispatchAppDataChanged = function (detail) {
       const payload = normalizeDataChangedDetail(detail);
       if (isRendering()) return;
       const meter = global.__METER__ = global.__METER__ || {};
@@ -182,17 +187,17 @@
         : '';
       bucket.lastSource = source;
       const doc = global.document;
-      if (doc && typeof doc.dispatchEvent === 'function'){
+      if (doc && typeof doc.dispatchEvent === 'function') {
         doc.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
         return;
       }
-      if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function'){
+      if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
         global.dispatchEvent(new global.CustomEvent('app:data:changed', { detail: payload }));
       }
     };
   }
 
-  if (typeof module !== 'undefined' && module.exports){
+  if (typeof module !== 'undefined' && module.exports) {
     module.exports = merged;
   }
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null));

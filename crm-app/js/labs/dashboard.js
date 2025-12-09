@@ -1392,8 +1392,15 @@ function attachEventListeners() {
       document.removeEventListener('app:data:changed', dataChangedHandler);
     }
     dataChangedHandler = (evt) => {
-      console.info('[labs] CRM data changed, refreshing...', evt.detail);
-      emitLabsEvent('labs:model:recompute', { source: 'app:data:changed', payload: evt?.detail });
+      // Guard: Only react if Labs is mounted and visible
+      if (!dashboardRoot || !document.contains(dashboardRoot)) return;
+
+      const detail = evt?.detail || {};
+      // Guard: Ignore internal Labs layout events or self-loops to prevent storms
+      if (detail.source === 'labs:layout' || detail.reason === 'labs:refresh') return;
+
+      console.info('[labs] CRM data changed, refreshing...', detail);
+      emitLabsEvent('labs:model:recompute', { source: 'app:data:changed', payload: detail });
     };
     document.addEventListener('app:data:changed', dataChangedHandler);
   }
