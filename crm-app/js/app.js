@@ -1413,7 +1413,45 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       } else {
         ids.forEach(id => next.delete(id));
       }
+
       store.set(next, scope);
+
+      const normalizedIds = Array.from(next).map(String);
+      const selectionCount = normalizedIds.length;
+
+      // CRITICAL: Dispatch selection:changed event to notify action bar
+      try {
+        const eventDetail = {
+          type: scope === 'partners' ? 'partners' : 'contacts',
+          ids: normalizedIds,
+          count: selectionCount,
+          source: checkbox.checked ? 'select-all:on' : 'select-all:off',
+          scope: scope
+        };
+        if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+          document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+        }
+      } catch (_err) {
+        console.warn('[select-all] Failed to dispatch selection:changed', _err);
+      }
+
+      // Explicitly update action bar visibility
+      const updateActionBar = () => {
+        if (typeof window !== 'undefined') {
+          if (typeof window.updateActionBarMinimizedState === 'function') {
+            try { window.updateActionBarMinimizedState(selectionCount); } catch (_) { }
+          }
+          if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
+            try { window.__UPDATE_ACTION_BAR_VISIBLE__(); } catch (_) { }
+          }
+        }
+      };
+
+      updateActionBar();
+      // Double check via microtask
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(updateActionBar);
+      }
     });
   }
 

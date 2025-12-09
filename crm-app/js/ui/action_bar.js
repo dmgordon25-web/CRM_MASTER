@@ -916,8 +916,8 @@ function markActionbarHost() {
     /* position restored from storage */
     centerActionBarForRoute({ pulse: false, silent: true });
   }
-  // FIX: Remove forced drag handle initialization.
-  // ensureActionBarDragHandles(bar);
+  // Restored: Ensure drag handles are initialized
+  ensureActionBarDragHandles(bar);
   ensureHeaderQuickAddBinding();
   ensureHeaderQuickAddBinding();
   ensureClearHandler(bar);

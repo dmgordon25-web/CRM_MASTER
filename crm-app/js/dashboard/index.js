@@ -3781,9 +3781,10 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 
   // HOTFIX: Delegated listener for Milestones clicks to prevent freeze
-  const root = doc.body; // Safe fallback
-  if (root) {
-    root.addEventListener('click', (evt) => {
+  // Scoped to view-dashboard to avoid global leaks
+  const dashboardView = doc.getElementById('view-dashboard');
+  if (dashboardView) {
+    dashboardView.addEventListener('click', (evt) => {
       const card = evt.target.closest('#milestones-card');
       if (!card) return;
       const link = evt.target.closest('[data-contact-id]');
@@ -3808,12 +3809,9 @@ function bindDashboardEventListeners() {
         }
       }, 0);
     });
-  }
 
-  // HOTFIX: Delegated listener for Celebrations (Birthdays) clicks to prevent freeze
-  const celebrationsCard = doc.getElementById('dashboard-celebrations');
-  if (celebrationsCard || doc.body) {
-    (celebrationsCard || doc.body).addEventListener('click', (evt) => {
+    // HOTFIX: Delegated listener for Celebrations (Birthdays) clicks to prevent freeze
+    dashboardView.addEventListener('click', (evt) => {
       const card = evt.target.closest('#dashboard-celebrations') || evt.target.closest('#upcomingCelebrations');
       if (!card) return;
       const link = evt.target.closest('[data-contact-id]');
