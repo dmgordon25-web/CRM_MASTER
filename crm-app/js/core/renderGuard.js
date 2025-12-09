@@ -176,25 +176,63 @@
   }
 
   if (typeof global.dispatchAppDataChanged !== 'function') {
+    // STABILITY FIX: Coalesce rapid updates to prevent render storms
+    let updateQueue = [];
+    let updateTimer = null;
+    const DEBOUNCE_MS = 50;
+
     global.dispatchAppDataChanged = function (detail) {
       const payload = normalizeDataChangedDetail(detail);
-      if (isRendering()) return;
+
+      // If we are currently locked in a render loop, do NOT synchronously dispatch.
+      // Instead, queue it up.
+      if (isRendering()) {
+        updateQueue.push(payload);
+        scheduleDispatch();
+        return;
+      }
+
+      // If we are not rendering, still debounce slightly to catch bursts
+      updateQueue.push(payload);
+      scheduleDispatch();
+    };
+
+    function scheduleDispatch() {
+      if (updateTimer) return;
+      updateTimer = setTimeout(flushDispatch, DEBOUNCE_MS);
+    }
+
+    function flushDispatch() {
+      updateTimer = null;
+      if (!updateQueue.length) return;
+
+      // Collapse metrics
+      const count = updateQueue.length;
+      const last = updateQueue[updateQueue.length - 1];
+      updateQueue = [];
+
       const meter = global.__METER__ = global.__METER__ || {};
       const bucket = meter.dataChanged = meter.dataChanged || { count: 0, lastSource: '' };
-      bucket.count += 1;
-      const source = payload && typeof payload.source === 'string'
-        ? detail.source
-        : '';
-      bucket.lastSource = source;
+      bucket.count += count;
+      bucket.lastSource = last.source || '';
+
+      // Dispatch ONE coalesced event (using the details of the last one, or a generic one)
+      // Ideally we'd merge scopes, but for now we trust the last one or generic.
+      const eventDetail = {
+        scope: last.scope || '',
+        reason: last.reason || 'coalesced-update',
+        batchSize: count
+      };
+
       const doc = global.document;
       if (doc && typeof doc.dispatchEvent === 'function') {
-        doc.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
+        doc.dispatchEvent(new CustomEvent('app:data:changed', { detail: eventDetail }));
         return;
       }
       if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
-        global.dispatchEvent(new global.CustomEvent('app:data:changed', { detail: payload }));
+        global.dispatchEvent(new global.CustomEvent('app:data:changed', { detail: eventDetail }));
       }
-    };
+    }
   }
 
   if (typeof module !== 'undefined' && module.exports) {

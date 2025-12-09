@@ -1124,16 +1124,22 @@ function handleCelebrationsListClick(evt) {
   evt.preventDefault();
   evt.stopPropagation();
   const contactId = target.getAttribute('data-contact-id') || target.dataset.contactId || '';
-  if (!contactId) return;
 
-  // HOTFIX: Break synchronous render loop
-  queueMicrotask(() => {
+  // SAFETY: ID Check
+  if (!contactId || contactId === 'null' || contactId === 'undefined') {
+    console.warn('[dashboard] Invalid celebration contact ID, ignoring click.');
+    return;
+  }
+
+  // STABILITY FIX: Use setTimeout(0) to fully break the call stack.
+  // queueMicrotask is often too aggressive and keeps the JS loop locked if re-renders happen immediately.
+  setTimeout(() => {
     try {
       tryOpenContact(contactId);
     } catch (err) {
       console.warn('[dashboard] Failed to open contact from celebrations:', err);
     }
-  });
+  }, 0);
 }
 
 function formatCelebrationDate(date) {

@@ -7,6 +7,10 @@ if (!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
 
 (function boot() {
   if (window.__INIT_FLAGS__[FLAG_KEY]) return;
+  // STRICT GUARD: Prevent multiple active instances
+  if (window.__PATCH_ACTIONBAR_DRAG_ACTIVE__) return;
+  window.__PATCH_ACTIONBAR_DRAG_ACTIVE__ = true;
+
   window.__INIT_FLAGS__[FLAG_KEY] = true;
   const spec = '/js/patches/patch_2025-10-23_actionbar_drag.js';
   if (!window.__PATCHES_LOADED__.includes(spec)) {
@@ -39,6 +43,9 @@ if (!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
   }
 
   const start = () => {
+    // GUARD: Ensure body exists
+    if (!document.body) return;
+
     const invoke = () => {
       const bar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
       if (!bar) return;

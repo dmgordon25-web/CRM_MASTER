@@ -1,7 +1,8 @@
 (function quickCreateWiringGuard() {
-  if (typeof document === 'undefined') {
-    return;
-  }
+  if (typeof document === 'undefined') return;
+  // GUARD: Singleton
+  if (window.__PATCH_QUICK_CREATE_WIRED__) return;
+  window.__PATCH_QUICK_CREATE_WIRED__ = true;
 
   let logged = false;
   let observer = null;
@@ -12,7 +13,7 @@
     if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         sent = !!navigator.sendBeacon('/__log', payload) || sent;
-      } catch (_) {}
+      } catch (_) { }
     }
     if (sent || typeof fetch !== 'function') {
       return;
@@ -23,21 +24,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: payload,
         keepalive: true
-      }).catch(() => {});
-    } catch (_) {}
+      }).catch(() => { });
+    } catch (_) { }
   }
 
   function disconnectObserver() {
     if (observer) {
       try {
         observer.disconnect();
-      } catch (_) {}
+      } catch (_) { }
       observer = null;
     }
   }
 
   function logReady() {
     if (logged) {
+      disconnectObserver(); // Ensure disconnected if already logged
       return true;
     }
     const headerBtn = document.getElementById('quick-add-unified')
@@ -53,7 +55,7 @@
     disconnectObserver();
     try {
       console && typeof console.info === 'function' && console.info('[VIS] quick-create wired');
-    } catch (_) {}
+    } catch (_) { }
     postLog('quick-create-wired');
     return true;
   }
@@ -64,7 +66,7 @@
       return;
     }
     try { fn(); }
-    catch (_) {}
+    catch (_) { }
   }
 
   function watch() {
@@ -74,6 +76,9 @@
     if (typeof MutationObserver !== 'function') {
       return;
     }
+    // Safety: disconnect existing if somehow re-entrant
+    disconnectObserver();
+
     observer = new MutationObserver(() => {
       if (logReady()) {
         disconnectObserver();
@@ -84,6 +89,10 @@
       return;
     }
     observer.observe(target, { childList: true, subtree: true });
+
+    // Safety: timeout to stop observing if it never happens
+    setTimeout(disconnectObserver, 10000);
+
     logReady();
   }
 
