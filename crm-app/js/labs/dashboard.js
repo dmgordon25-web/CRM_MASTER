@@ -1048,7 +1048,13 @@ function renderSection(sectionId, options = {}) {
   renderWidgets(grid, widgetsInOrder);
 
   if (isVNextEnabled()) {
-    enableVNextGrid(grid, section.id);
+    try {
+      enableVNextGrid(grid, section.id);
+    } catch (err) {
+      console.error('[labs] vNext failed to initialize, falling back to Classic', err);
+      registerGridDrag(section, grid);
+      registerResizeHandles(section, grid);
+    }
   } else {
     registerGridDrag(section, grid);
     registerResizeHandles(section, grid);

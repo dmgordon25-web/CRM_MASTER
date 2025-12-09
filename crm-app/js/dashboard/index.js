@@ -3781,7 +3781,6 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 
   // HOTFIX: Delegated listener for Milestones clicks to prevent freeze
-  const milestonesCard = doc.getElementById('milestones-card');
   if (milestonesCard || doc.body) {
     (milestonesCard || doc.body).addEventListener('click', (evt) => {
       const card = evt.target.closest('#milestones-card');
@@ -3805,6 +3804,35 @@ function bindDashboardEventListeners() {
           }
         } catch (err) {
           console.warn('[dashboard] Failed to open contact from milestones:', err);
+        }
+      });
+    });
+  }
+
+  // HOTFIX: Delegated listener for Celebrations (Birthdays) clicks to prevent freeze
+  const celebrationsCard = doc.getElementById('dashboard-celebrations');
+  if (celebrationsCard || doc.body) {
+    (celebrationsCard || doc.body).addEventListener('click', (evt) => {
+      const card = evt.target.closest('#dashboard-celebrations') || evt.target.closest('#upcomingCelebrations');
+      if (!card) return;
+      const link = evt.target.closest('[data-contact-id]');
+      if (!link) return;
+
+      // Found a contact link inside celebrations card
+      evt.preventDefault();
+      evt.stopPropagation();
+      const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
+      if (!contactId) return;
+
+      queueMicrotask(() => {
+        try {
+          if (typeof tryOpenContact === 'function') {
+            tryOpenContact(contactId);
+          } else if (typeof window.openContactModal === 'function') {
+            window.openContactModal(contactId);
+          }
+        } catch (err) {
+          console.warn('[dashboard] Failed to open contact from celebrations:', err);
         }
       });
     });
