@@ -123,7 +123,7 @@ function ensureStyle(originId, cssText, legacyId) {
   if (style) {
     if (style.getAttribute && style.getAttribute('data-origin') !== originId) {
       try { style.setAttribute('data-origin', originId); }
-      catch (_) {}
+      catch (_) { }
     }
     if (typeof cssText === 'string' && style.textContent !== cssText) {
       style.textContent = cssText;
@@ -167,17 +167,17 @@ const WIDGET_RESOLVERS = {
 
 const WIDGET_CARD_RESOLVERS = {
   priorityActions: () => {
-    if(!doc) return null;
+    if (!doc) return null;
     const node = doc.getElementById('needs-attn');
     return node ? node.closest('.insight-card') : null;
   },
   milestones: () => {
-    if(!doc) return null;
+    if (!doc) return null;
     const node = doc.getElementById('upcoming');
     return node ? node.closest('.insight-card') : null;
   },
   docPulse: () => {
-    if(!doc) return null;
+    if (!doc) return null;
     const node = doc.getElementById('doc-status-summary');
     return node ? node.closest('.insight-card') : null;
   },
@@ -217,7 +217,7 @@ function logDashboardWidgetError(widgetKey, error) {
     if (console && typeof console.error === 'function') {
       console.error(`[DASHBOARD_WIDGET_ERROR:${widgetKey}]`, error);
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 const WIDGET_ID_LOOKUP = new Map();
@@ -320,10 +320,10 @@ function isDashboardEditingEnabled() {
 function applyRootEditingState(container, enabled) {
   if (!container) return;
   if (enabled) {
-    try { container.setAttribute('data-editing', '1'); } catch (_err) {}
+    try { container.setAttribute('data-editing', '1'); } catch (_err) { }
   } else {
     if (container.removeAttribute) {
-      try { container.removeAttribute('data-editing'); } catch (_err) {}
+      try { container.removeAttribute('data-editing'); } catch (_err) { }
     }
   }
 }
@@ -365,20 +365,20 @@ const pointerTapState = new Map();
 function detachLayoutToggleButton(target) {
   if (!target) return;
   try { target.removeEventListener('click', handleLayoutToggleClick); }
-  catch (_err) {}
+  catch (_err) { }
   try { target.removeEventListener('keydown', handleLayoutToggleKeydown); }
-  catch (_err) {}
+  catch (_err) { }
 }
 
 function releaseLayoutToggleGlobals() {
   if (layoutToggleState.modeListenerBound && doc && typeof doc.removeEventListener === 'function') {
     try { doc.removeEventListener('dashboard:layout-mode', handleExternalLayoutMode); }
-    catch (_err) {}
+    catch (_err) { }
     layoutToggleState.modeListenerBound = false;
   }
   if (layoutToggleState.storageBound && win && typeof win.removeEventListener === 'function') {
     try { win.removeEventListener('storage', handleLayoutToggleStorage); }
-    catch (_err) {}
+    catch (_err) { }
     layoutToggleState.storageBound = false;
   }
 }
@@ -450,7 +450,7 @@ function tryNavigateDashboardRoute(route, target) {
         win.location.hash = `#${value.replace(/^[#/]+/, '')}`;
         return true;
       }
-    } catch (_err) {}
+    } catch (_err) { }
   }
   const detail = { view: value, trigger: target || null };
   let dispatched = false;
@@ -458,13 +458,13 @@ function tryNavigateDashboardRoute(route, target) {
     try {
       doc.dispatchEvent(new CustomEvent('app:navigate', { detail }));
       dispatched = true;
-    } catch (_err) {}
+    } catch (_err) { }
   }
   if (win && typeof win.dispatchEvent === 'function') {
     try {
       win.dispatchEvent(new CustomEvent('app:navigate', { detail }));
       dispatched = true;
-    } catch (_err) {}
+    } catch (_err) { }
   }
   return dispatched;
 }
@@ -514,7 +514,7 @@ function exposeDashboardDnDHandlers() {
   };
   try {
     win.__DASH_DND_HANDLERS__ = api;
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function cleanupPointerHandlersFor(container) {
@@ -525,12 +525,12 @@ function cleanupPointerHandlersFor(container) {
       ? dashDnDState.container
       : null);
   if (target && handlers) {
-    try { target.removeEventListener('pointerdown', handlers.onPointerDown); } catch (_err) {}
-    try { target.removeEventListener('pointermove', handlers.onPointerMove); } catch (_err) {}
-    try { target.removeEventListener('pointerup', handlers.onPointerUp); } catch (_err) {}
-    try { target.removeEventListener('pointercancel', handlers.onPointerCancel); } catch (_err) {}
-    try { target.removeEventListener('keydown', handlers.onKeyDown); } catch (_err) {}
-    try { target.removeEventListener('click', handlers.onClick); } catch (_err) {}
+    try { target.removeEventListener('pointerdown', handlers.onPointerDown); } catch (_err) { }
+    try { target.removeEventListener('pointermove', handlers.onPointerMove); } catch (_err) { }
+    try { target.removeEventListener('pointerup', handlers.onPointerUp); } catch (_err) { }
+    try { target.removeEventListener('pointercancel', handlers.onPointerCancel); } catch (_err) { }
+    try { target.removeEventListener('keydown', handlers.onKeyDown); } catch (_err) { }
+    try { target.removeEventListener('click', handlers.onClick); } catch (_err) { }
   }
   dashDnDState.pointerHandlers = null;
   pointerTapState.clear();
@@ -539,7 +539,7 @@ function cleanupPointerHandlersFor(container) {
 
 function disconnectDashboardHostObserver() {
   if (dashDnDState.hostObserver) {
-    try { dashDnDState.hostObserver.disconnect(); } catch (_err) {}
+    try { dashDnDState.hostObserver.disconnect(); } catch (_err) { }
   }
   dashDnDState.hostObserver = null;
   dashDnDState.hostObserverTarget = null;
@@ -577,7 +577,7 @@ function observeDashboardHost(container) {
     dashDnDState.hostObserverTarget = parent || rootTarget || null;
     dashDnDState.hostNode = container;
   } catch (_err) {
-    try { observer.disconnect(); } catch (_err2) {}
+    try { observer.disconnect(); } catch (_err2) { }
   }
 }
 
@@ -589,10 +589,10 @@ function teardownWidgetDnD(reason) {
   cleanupPointerHandlersFor(container);
   const controller = dashDnDState.controller;
   if (controller && typeof controller.destroy === 'function') {
-    try { controller.destroy(); } catch (_err) {}
+    try { controller.destroy(); } catch (_err) { }
   }
   if (container) {
-    try { destroyDraggable(container); } catch (_err) {}
+    try { destroyDraggable(container); } catch (_err) { }
   }
   applyWidgetEditingMarkers(container, false);
   applyRootEditingState(container, false);
@@ -687,7 +687,7 @@ function dispatchLayoutModeEvent(enabled) {
   if (!CustomEventCtor) return;
   try {
     doc.dispatchEvent(new CustomEventCtor('dashboard:layout-mode', { detail: { enabled: !!enabled, source: 'dashboard-toggle' } }));
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function updateLayoutToggleButton(enabled) {
@@ -830,7 +830,7 @@ async function handleLayoutResetClick(evt) {
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[dashboard] layout reset failed', err);
-    } catch (_warnErr) {}
+    } catch (_warnErr) { }
   } finally {
     layoutResetState.pending = false;
     ensureLayoutResetButton();
@@ -1016,7 +1016,7 @@ function clearCelebrationsFallback() {
     }
   } catch (_err) {
     try { fallback.remove(); }
-    catch (_removeErr) {}
+    catch (_removeErr) { }
   }
   celebrationsState.fallback = null;
 }
@@ -1056,9 +1056,9 @@ function navigateToDashboardSettings() {
     if (doc && typeof doc.dispatchEvent === 'function') {
       try {
         doc.dispatchEvent(new CustomEvent('app:navigate', { detail: { view: 'settings', panel: 'dashboard' } }));
-      } catch (_err) {}
+      } catch (_err) { }
     }
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function renderCelebrationsFallback(message, options = {}) {
@@ -1122,9 +1122,18 @@ function handleCelebrationsListClick(evt) {
   const target = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
   if (!target) return;
   evt.preventDefault();
+  evt.stopPropagation();
   const contactId = target.getAttribute('data-contact-id') || target.dataset.contactId || '';
   if (!contactId) return;
-  tryOpenContact(contactId);
+
+  // HOTFIX: Break synchronous render loop
+  queueMicrotask(() => {
+    try {
+      tryOpenContact(contactId);
+    } catch (err) {
+      console.warn('[dashboard] Failed to open contact from celebrations:', err);
+    }
+  });
 }
 
 function formatCelebrationDate(date) {
@@ -1143,7 +1152,7 @@ function formatCelebrationDate(date) {
   if (celebrationsState.dateFormatter) {
     try {
       return celebrationsState.dateFormatter.format(date);
-    } catch (_err) {}
+    } catch (_err) { }
   }
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
@@ -1421,7 +1430,7 @@ async function runCelebrationsHydration() {
       attachLoadingBlock(node, { lines: 4, reserve: 'widget', minHeight: 220, message: 'Loading…', size: 'sm' });
       releaseLoadingBlock = () => {
         try { detachLoadingBlock(node); }
-        catch (_err) {}
+        catch (_err) { }
       };
     } catch (_err) {
       releaseLoadingBlock = null;
@@ -1553,11 +1562,11 @@ function maybeHydrateCelebrations(prefs) {
   }
 }
 
-function ensureDashboardLegend(){
-  if(!doc) return;
+function ensureDashboardLegend() {
+  if (!doc) return;
   const header = doc.getElementById('dashboard-header');
-  if(!header || header.__legendAttached) return;
-  if(typeof header.querySelector !== 'function' || typeof header.appendChild !== 'function'){
+  if (!header || header.__legendAttached) return;
+  if (typeof header.querySelector !== 'function' || typeof header.appendChild !== 'function') {
     header.__legendAttached = true;
     return;
   }
@@ -1569,16 +1578,16 @@ function ensureDashboardLegend(){
     entries: STAGE_LEGEND_ENTRIES,
     note: 'Status pills reuse these tones for Active, Client, Lost, and Paused states.'
   });
-  if(!legend) return;
+  if (!legend) return;
   const canInsertBefore = typeof header.insertBefore === 'function';
   const scopeGroup = typeof header.querySelector === 'function' ? header.querySelector('[role="group"][aria-label]') : null;
-  if(scopeGroup && canInsertBefore){
+  if (scopeGroup && canInsertBefore) {
     header.insertBefore(legend, scopeGroup);
-  }else{
+  } else {
     const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
-    if(grow && grow.parentElement === header && canInsertBefore){
+    if (grow && grow.parentElement === header && canInsertBefore) {
       header.insertBefore(legend, grow.nextSibling);
-    }else{
+    } else {
       header.appendChild(legend);
     }
   }
@@ -1612,7 +1621,7 @@ function syncStoredDashboardOrder(orderLike) {
         if (Array.isArray(parsed)) {
           current = parsed.map(value => (value == null ? '' : String(value))).filter(Boolean);
         }
-      } catch (_err) {}
+      } catch (_err) { }
     }
     const sameLength = normalized.length === current.length;
     const matches = sameLength && normalized.every((value, index) => value === current[index]);
@@ -1620,7 +1629,7 @@ function syncStoredDashboardOrder(orderLike) {
       localStorage.setItem(DASHBOARD_ORDER_STORAGE_KEY, JSON.stringify(normalized));
     }
     dashDnDState.orderSignature = normalized.join('|');
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function ensureDashboardDragStyles() {
@@ -1922,7 +1931,7 @@ function resolveGridGap(container) {
         }
       }
     }
-  } catch (_err) {}
+  } catch (_err) { }
   return 12;
 }
 
@@ -2135,11 +2144,11 @@ function snapshotLayoutWidths(host) {
   const container = host || dashDnDState.container || getDashboardContainerNode();
   if (!container) { setDebugWidths([]); return; }
   const widths = collectWidgetNodes(container).filter(node => node && (!node.getAttribute || node.getAttribute('aria-hidden') !== 'true') && !(node.style && node.style.display === 'none') && (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function' || window.getComputedStyle(node).display !== 'none')).map(node => {
-      const dataset = node.dataset || {}, key = dataset.dashWidget || dataset.widgetId || node.id || '';
-      const token = normalizeWidthToken(dataset.dashWidth) || (key && dashDnDState.widths.get(key)) || inferDefaultWidth(key, node);
-      const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
-      return DASHBOARD_WIDTH_DEBUG_LABELS[normalized] || normalized;
-    });
+    const dataset = node.dataset || {}, key = dataset.dashWidget || dataset.widgetId || node.id || '';
+    const token = normalizeWidthToken(dataset.dashWidth) || (key && dashDnDState.widths.get(key)) || inferDefaultWidth(key, node);
+    const normalized = normalizeWidthToken(token) || DASHBOARD_DEFAULT_WIDTH;
+    return DASHBOARD_WIDTH_DEBUG_LABELS[normalized] || normalized;
+  });
   setDebugWidths(widths);
 }
 
@@ -2179,11 +2188,11 @@ function finishWidgetResize(evt, commit) {
   }
   try {
     if (session.node && session.node.releasePointerCapture && session.pointerId != null) session.node.releasePointerCapture(session.pointerId);
-  } catch (_err) {}
+  } catch (_err) { }
   const placeholder = session.placeholder;
   if (placeholder) {
     placeholder.classList.remove('dragging');
-    if (placeholder.parentElement) try { placeholder.remove(); } catch (_err) {}
+    if (placeholder.parentElement) try { placeholder.remove(); } catch (_err) { }
   }
   session.container.classList.remove('dash-resizing', 'dragging');
   session.node.classList.remove('dash-resize-active');
@@ -2259,7 +2268,7 @@ function beginWidgetResize(node, evt) {
   }
   try {
     if (node.setPointerCapture && evt.pointerId != null) node.setPointerCapture(evt.pointerId);
-  } catch (_err) {}
+  } catch (_err) { }
   handleWidgetResizeMove(evt);
 }
 
@@ -2282,7 +2291,7 @@ function persistDashboardLayoutState(columns, options = {}) {
     .catch(err => {
       try {
         if (console && console.warn) console.warn('[dashboard] layout save failed', err);
-      } catch (_warnErr) {}
+      } catch (_warnErr) { }
     })
     .finally(() => {
       if (pendingLayoutPersist === promise) pendingLayoutPersist = null;
@@ -2387,7 +2396,7 @@ function findWidgetLabel(node) {
     if (labelNode && typeof labelNode.textContent === 'string') {
       return labelNode.textContent.trim();
     }
-  } catch (_err) {}
+  } catch (_err) { }
   return node.id ? String(node.id).trim() : '';
 }
 
@@ -2396,7 +2405,7 @@ function ensureWidgetHandle(node) {
   try {
     const existing = node.querySelector(':scope > .dash-drag-handle');
     if (existing) return existing;
-  } catch (_err) {}
+  } catch (_err) { }
   const handle = doc.createElement('button');
   handle.type = 'button';
   handle.className = 'dash-drag-handle';
@@ -2455,7 +2464,7 @@ function renderDashboardInitError(container, error) {
       if (console && typeof console.error === 'function') {
         console.error('[DASHBOARD_INIT_ERROR]', error);
       }
-    } catch (_) {}
+    } catch (_) { }
     return;
   }
   let host = null;
@@ -2477,13 +2486,13 @@ function renderDashboardInitError(container, error) {
     host.appendChild(message);
     try {
       container.appendChild(host);
-    } catch (_err) {}
+    } catch (_err) { }
   }
   try {
     if (console && typeof console.error === 'function') {
       console.error('[DASHBOARD_INIT_ERROR]', error);
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function collectWidgetNodes(container) {
@@ -2538,7 +2547,7 @@ function buildCanonicalWidgetKeyIndex(container) {
     if (!node || !canonical) return;
     try {
       byNode.set(node, canonical);
-    } catch (_err) {}
+    } catch (_err) { }
     registerCanonicalKey(byKey, canonical, canonical);
     const dataset = node.dataset || {};
     registerCanonicalKey(byKey, dataset.dashWidget, canonical);
@@ -2553,7 +2562,7 @@ function buildCanonicalWidgetKeyIndex(container) {
     let resolved = null;
     try {
       resolved = resolver();
-    } catch (_err) {}
+    } catch (_err) { }
     if (!resolved) return;
     const widgetNode = container.contains(resolved)
       ? resolved
@@ -2653,13 +2662,13 @@ function tryOpenContact(contactId) {
       result.catch(err => {
         try {
           if (console && console.warn) console.warn('[dashboard] openContactModal failed', err);
-        } catch (_warnErr) {}
+        } catch (_warnErr) { }
       });
     }
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[dashboard] openContactModal failed', err);
-    } catch (_warnErr) {}
+    } catch (_warnErr) { }
   }
 }
 
@@ -2672,13 +2681,13 @@ function tryOpenPartner(partnerId) {
       result.catch(err => {
         try {
           if (console && console.warn) console.warn('[dashboard] openPartnerEditor failed', err);
-        } catch (_warnErr) {}
+        } catch (_warnErr) { }
       });
     }
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[dashboard] openPartnerEditor failed', err);
-    } catch (_warnErr) {}
+    } catch (_warnErr) { }
   }
 }
 
@@ -2702,7 +2711,7 @@ function logDrilldownSuccess(target, fallbackKey) {
   if (!key) return;
   try {
     console.log(`DRILLDOWN_OK:${key}`);
-  } catch (_err) {}
+  } catch (_err) { }
 }
 
 function handleDashboardTap(evt, target) {
@@ -2848,13 +2857,13 @@ function persistDashboardOrder(orderLike) {
         result.catch(err => {
           try {
             if (console && console.warn) console.warn('[dashboard] order save failed', err);
-          } catch (_warnErr) {}
+          } catch (_warnErr) { }
         });
       }
     } catch (err) {
       try {
         if (console && console.warn) console.warn('[dashboard] order save failed', err);
-      } catch (_warnErr) {}
+      } catch (_warnErr) { }
     }
   }
 }
@@ -2897,14 +2906,14 @@ function ensureDashboardRouteLifecycle() {
         ensureWidgetDnD();
       } catch (err) {
         try { if (console && console.warn) console.warn('[dashboard] route mount failed', err); }
-        catch (_warnErr) {}
+        catch (_warnErr) { }
       }
     },
     unmount() {
       teardownWidgetDnD('route-lifecycle');
     }
   });
-  releaseDashboardRouteToken = typeof release === 'function' ? release : () => {};
+  releaseDashboardRouteToken = typeof release === 'function' ? release : () => { };
 }
 
 function ensureWidgetDnD() {
@@ -3005,7 +3014,7 @@ function ensureWidgetDnD() {
     } catch (err) {
       try {
         if (console && console.warn) console.warn('[dashboard] drag init failed', err);
-      } catch (_warnErr) {}
+      } catch (_warnErr) { }
     }
   } else {
     if (typeof dashDnDState.controller.setGrid === 'function') {
@@ -3175,7 +3184,7 @@ function sanitizePrefs(settings) {
   if (dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
       dashboardStateApi.setMode(prefs.mode, { notify: false, refresh: false, reason: 'dashboard:index:hydrate' });
-    } catch (_err) {}
+    } catch (_err) { }
   }
   return prefs;
 }
@@ -3301,7 +3310,7 @@ function applyHiddenWidgetPrefs(hiddenList) {
       if (node) {
         try {
           container.appendChild(node);
-        } catch (_err) {}
+        } catch (_err) { }
       }
     });
     applyWidgetWidths(container);
@@ -3428,7 +3437,7 @@ function persistDashboardMode(mode) {
     .catch(err => {
       try {
         if (console && console.warn) console.warn('[dashboard] mode save failed', err);
-      } catch (_warnErr) {}
+      } catch (_warnErr) { }
     });
 }
 
@@ -3459,7 +3468,7 @@ function setDashboardMode(mode, options = {}) {
   if (!skipBus && dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
       dashboardStateApi.setMode(normalized, { reason: 'dashboard:index:set-mode' });
-    } catch (_err) {}
+    } catch (_err) { }
   }
   return normalized;
 }
@@ -3606,7 +3615,7 @@ function applySurfaceVisibility(prefs) {
 }
 
 function applyKpiVisibility(prefs) {
-  if(!doc) return;
+  if (!doc) return;
   const host = doc.getElementById('dashboard-kpis');
   if (!host) return;
   const grid = host.querySelector('.grid.kpi');
@@ -3650,8 +3659,8 @@ function scheduleApply() {
   // --- INSERT THIS CHECK ---
   const dashboardView = doc.getElementById('view-dashboard');
   if (dashboardView && dashboardView.classList.contains('hidden')) {
-      // Stop! We are not looking at the dashboard.
-      return;
+    // Stop! We are not looking at the dashboard.
+    return;
   }
   // -------------------------
 
@@ -3755,7 +3764,7 @@ function bindDashboardEventListeners() {
   if (win && win.RenderGuard && typeof win.RenderGuard.registerHook === 'function') {
     try {
       win.RenderGuard.registerHook(scheduleApply);
-    } catch (_err) {}
+    } catch (_err) { }
   }
   if (win && typeof win.addEventListener === 'function') {
     win.addEventListener('hashchange', scheduleApply);
@@ -3764,6 +3773,36 @@ function bindDashboardEventListeners() {
   doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
   doc.addEventListener('dashboard:layout-columns', handleLayoutColumnsChange);
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
+
+  // HOTFIX: Delegated listener for Milestones clicks to prevent freeze
+  const milestonesCard = doc.getElementById('milestones-card');
+  if (milestonesCard || doc.body) {
+    (milestonesCard || doc.body).addEventListener('click', (evt) => {
+      const card = evt.target.closest('#milestones-card');
+      if (!card) return;
+      const link = evt.target.closest('[data-contact-id]');
+      if (!link) return;
+
+      // Found a contact link inside milestones card
+      evt.preventDefault();
+      evt.stopPropagation();
+      const contactId = link.getAttribute('data-contact-id') || link.dataset.contactId;
+      if (!contactId) return;
+
+      queueMicrotask(() => {
+        try {
+          // Assume tryOpenContact is globally available or we can use generic openContactModal
+          if (typeof tryOpenContact === 'function') {
+            tryOpenContact(contactId);
+          } else if (typeof window.openContactModal === 'function') {
+            window.openContactModal(contactId);
+          }
+        } catch (err) {
+          console.warn('[dashboard] Failed to open contact from milestones:', err);
+        }
+      });
+    });
+  }
 }
 
 function ensureDashboardUiModeListener() {
@@ -3809,7 +3848,7 @@ export function initDashboard(options = {}) {
       try {
         const readyEvent = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
         doc.dispatchEvent(readyEvent);
-      } catch (_) {}
+      } catch (_) { }
     }
     return true;
   })().then(result => {
@@ -3829,5 +3868,5 @@ if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
       if (!changed || typeof changed.has !== 'function' || !changed.has('mode')) return;
       setDashboardMode(state.mode, { skipPersist: true, fromBus: true, force: true, skipBus: true });
     });
-  } catch (_err) {}
+  } catch (_err) { }
 }

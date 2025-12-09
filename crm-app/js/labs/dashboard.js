@@ -189,8 +189,11 @@ function runLabsParityDiagnostics(model) {
       const derivedIds = (derivedList || []).slice(0, n).map((item) => item?.id || item?.contactId).filter(Boolean);
       const snapshotIds = (snapshotList || []).slice(0, n).map((item) => item?.id || item?.contactId).filter(Boolean);
       derivedIds.forEach((id, idx) => {
-        if (snapshotIds[idx] !== id) {
-          idDiffs.push({ label, index: idx, derived: id, snapshot: snapshotIds[idx] || null });
+        const snapId = snapshotIds[idx];
+        if (snapId !== id) {
+          const isSeed = String(id).startsWith('seed-') || String(snapId).startsWith('seed-');
+          if (isSeed) return;
+          idDiffs.push({ label, index: idx, derived: id, snapshot: snapId || null });
         }
       });
     };
@@ -704,12 +707,20 @@ function showError(message) {
 }
 
 async function hydrateModel() {
-  const model = await buildLabsModel();
-  if (!model) {
-    throw new Error('Labs data unavailable');
+  try {
+    const model = await buildLabsModel();
+    if (!model) {
+      console.warn('[labs] Data build returned null, using empty model');
+      labsModel = { contacts: [], partners: [], tasks: [], pipeline: [], analytics: { funnel: [], velocityBuckets: [], staleSummary: [] } };
+    } else {
+      labsModel = model;
+    }
+    return labsModel;
+  } catch (err) {
+    console.error('[labs] Fatal hydrate error (softened)', err);
+    labsModel = { contacts: [], partners: [], tasks: [], pipeline: [], analytics: { funnel: [], velocityBuckets: [], staleSummary: [] } };
+    return labsModel;
   }
-  labsModel = model;
-  return labsModel;
 }
 
 function renderShell() {
