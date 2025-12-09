@@ -512,12 +512,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   ensureDefaultRoute();
 
 
+  /* FIX: Do not clear selection on boot. Let Persistence/Store decide.
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
   try {
     window.SelectionService?.clear?.('app:boot');
   } catch (err) { logAppError('selectionService:clear-boot', err); }
+  */
 
   function dedupeHeaderSettings() {
     try {
@@ -566,6 +568,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(preferredDefaultRoute());
   applyNotificationsNavVisibility(notificationsEnabled);
+  /* FIX: Remove redundant boot clears
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
@@ -575,6 +578,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   try {
     window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
+  */
   window.CRM.openPipelineWithFilter = function (stage) {
     try {
       const raw = stage == null ? '' : String(stage).trim();
