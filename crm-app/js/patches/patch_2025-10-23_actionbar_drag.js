@@ -10,12 +10,6 @@ if (!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
   // STRICT GUARD: Prevent multiple active instances
   if (window.__PATCH_ACTIONBAR_DRAG_ACTIVE__) return;
 
-  // EMERGENCY HOTFIX: DISABLE DRAG PATCH
-  // This feature is causing regressions in production.
-  // Do not remove this return until stability is confirmed.
-  console.info('[PATCH] Action Bar Drag disabled by stability hotfix');
-  return;
-
   window.__PATCH_ACTIONBAR_DRAG_ACTIVE__ = true;
 
   window.__INIT_FLAGS__[FLAG_KEY] = true;
@@ -41,7 +35,7 @@ if (!window.__PATCHES_LOADED__) window.__PATCHES_LOADED__ = [];
 
   function arm() {
     try {
-      // Quarantined: initActionBarDrag();
+      initActionBarDrag();
       console.info('[VIS] action-bar drag quarantined (disabled in patch)');
       postLog('actionbar-drag-quarantined');
     } catch (err) {

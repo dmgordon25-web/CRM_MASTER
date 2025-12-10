@@ -2728,31 +2728,71 @@ function logDrilldownSuccess(target, fallbackKey) {
 
 function handleDashboardTap(evt, target) {
   if (!target) return false;
-  if (isDashboardEditingEnabled()) return false;
+  // ALLOW drilling down even if editing is slightly active, unless clearly dragging.
+  // The previous check "if (isDashboardEditingEnabled()) return false" blocked drilldown in safe/demo modes sometimes.
+  // We rely on pointerTapState to filter out drags.
+
   const dataset = target.dataset || {};
+
+  // Helper to open editor safely
+  const openEditor = (fn, id, label) => {
+    if (!id) return false;
+    evt.preventDefault();
+    evt.stopPropagation();
+    try {
+      fn(id);
+      logDrilldownSuccess(target, label);
+    } catch (err) {
+      console.warn(`[dashboard] Failed to open ${label}`, err);
+    }
+    return true;
+  };
+
+  // Contacts
   const contactId = dataset.contactId || target.getAttribute('data-contact-id');
-  if (contactId) {
-    evt.preventDefault();
-    evt.stopPropagation();
-    tryOpenContact(contactId);
-    logDrilldownSuccess(target);
-    return true;
-  }
+  if (contactId) return openEditor(tryOpenContact, contactId, 'contact');
+
+  // Partners
   const partnerId = dataset.partnerId || target.getAttribute('data-partner-id');
-  if (partnerId) {
+  if (partnerId) return openEditor(tryOpenPartner, partnerId, 'partner');
+
+  // Leads (if applicable, generic openContact usually works for leads in this CRM if they share ID space, otherwise warn)
+  const leadId = dataset.leadId || target.getAttribute('data-lead-id');
+  if (leadId) return openEditor(tryOpenContact, leadId, 'lead');
+
+  // Tasks
+  const taskId = dataset.taskId || target.getAttribute('data-task-id');
+  if (taskId) {
+    // Dynamic import fallback for tasks if not globally available
     evt.preventDefault();
     evt.stopPropagation();
-    tryOpenPartner(partnerId);
-    logDrilldownSuccess(target);
+    import('../tasks.js').then(mod => {
+      if (mod && mod.openTaskEditor) mod.openTaskEditor(taskId);
+    }).catch(err => console.warn('Task open failed', err));
     return true;
   }
+
+  // Deals
+  const dealId = dataset.dealId || target.getAttribute('data-deal-id');
+  if (dealId) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    import('../pipeline.js').then(mod => {
+      // Assuming pipeline has an editor or we use a generic method
+      if (mod && mod.openDealEditor) mod.openDealEditor(dealId);
+      else console.warn('No deal editor found');
+    }).catch(err => console.warn('Deal open failed', err));
+    return true;
+  }
+
+  // Dash Routes
   const route = resolveDashboardRouteTarget(target);
   if (route) {
     evt.preventDefault();
     evt.stopPropagation();
     const navigated = tryNavigateDashboardRoute(route, target);
     if (navigated) {
-      logDrilldownSuccess(target);
+      logDrilldownSuccess(target, 'route');
       return true;
     }
   }
