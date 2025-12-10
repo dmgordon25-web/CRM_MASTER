@@ -1125,7 +1125,11 @@ function handleCelebrationsListClick(evt) {
   // Fix for freeze: Check if already handled by pointer events (wireTileTap)
   // This prevents double-invocation which causes potential race conditions/loops
   const lastHandled = target[DASHBOARD_HANDLED_CLICK_KEY] || 0;
-  if (lastHandled && Date.now() - lastHandled < 1000) return;
+  if (lastHandled && Date.now() - lastHandled < 1000) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    return;
+  }
 
   evt.preventDefault();
   evt.stopPropagation(); // Stop bubbling to container handlers
@@ -1134,10 +1138,14 @@ function handleCelebrationsListClick(evt) {
   if (!contactId) return;
 
   // Mark as handled to prevent other listeners from reacting
-  target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
+  try {
+    target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
+  } catch (_err) { }
 
   // Use shared safe opener
-  tryOpenContact(contactId);
+  requestAnimationFrame(() => {
+    tryOpenContact(contactId);
+  });
 }
 
 function formatCelebrationDate(date) {
@@ -3779,6 +3787,20 @@ function bindDashboardEventListeners() {
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
 }
 
+function wireDashboardModeButtons() {
+  if (!doc) return;
+  const buttons = doc.querySelectorAll('[data-dashboard-mode]');
+  buttons.forEach(btn => {
+    if (btn.__modeWired) return;
+    btn.__modeWired = true;
+    btn.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      const mode = btn.getAttribute('data-dashboard-mode');
+      if (mode) setDashboardMode(mode);
+    });
+  });
+}
+
 function ensureDashboardUiModeListener() {
   if (dashboardUiModeUnsub || typeof onUiModeChanged !== 'function') return;
   dashboardUiModeUnsub = onUiModeChanged(() => {
@@ -3805,6 +3827,7 @@ export function initDashboard(options = {}) {
     }
     ensureDashboardRouteLifecycle();
     bindDashboardEventListeners();
+    wireDashboardModeButtons();
     ensureDashboardUiModeListener();
     if (typeof ensureLayoutToggle === 'function') {
       ensureLayoutToggle();

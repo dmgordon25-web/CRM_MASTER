@@ -1680,20 +1680,23 @@ export async function renderAll(request) {
           const stageKey = normalizeStatus(c.stage);
           const status = String(c.status || '').toLowerCase();
           return STAGES_PIPE.includes(stageKey) || status === 'inprogress';
-        });
+        }).sort((a, b) => (fullName(a) || '').localeCompare(fullName(b) || ''));
+
         const lshot = contacts.filter(c => {
           const status = String(c.status || '').toLowerCase();
           const stageKey = normalizeStatus(c.stage);
           return status === 'prospect' || status === 'longshot' || status === 'nurture' || status === 'paused' || (stageKey || '').includes('long') || (stageKey || '').includes('nurture');
-        });
+        }).sort((a, b) => (fullName(a) || '').localeCompare(fullName(b) || ''));
+
         const pipe = contacts.filter(c => {
           const stageKey = normalizeStatus(c.stage);
           return STAGES_PIPE.includes(stageKey);
-        });
+        }).sort((a, b) => (fullName(a) || '').localeCompare(fullName(b) || ''));
+
         const clientsTbl = contacts.filter(c => {
           const stageKey = normalizeStatus(c.stage);
           return STAGES_CLIENT.includes(stageKey);
-        });
+        }).sort((a, b) => (fullName(a) || '').localeCompare(fullName(b) || ''));
 
         const columnMode = resolveColumnMode();
         const pipelineColumns = getColumnsForView('pipeline-main', columnMode).visibleColumns;

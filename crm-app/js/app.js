@@ -1463,6 +1463,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     });
   }
 
+  function isSelectableRowVisible(row) {
+    if (!row) return false;
+    // Check if element consumes space
+    if (row.offsetWidth > 0 || row.offsetHeight > 0 || row.getClientRects().length > 0) return true;
+    // Fallback for some edge cases (fixed position etc)
+    const style = window.getComputedStyle(row);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
   function collectSelectionRowData(scopeRoot) {
     if (!scopeRoot) return [];
     ensureRowCheckHeaders(scopeRoot);
