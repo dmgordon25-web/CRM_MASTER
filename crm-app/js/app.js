@@ -1488,142 +1488,125 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (entry) rows.push(entry);
     });
     return rows.filter(Boolean);
-    function applySelectAllToStore(checkbox, store) {
-      if (!checkbox || !store) return;
-      const scope = selectionScopeFor(checkbox);
-      checkbox.indeterminate = false; // Always clear indeterminate on interaction
-      const host = checkbox.closest('[data-selection-scope]');
-      const entries = host ? collectSelectionRowData(host) : [];
-      const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+  }
 
-      if (!visible.length) {
-        checkbox.checked = false;
-        try { checkbox.setAttribute('aria-checked', 'false'); } catch (_) { }
-        return;
-      }
+  function applySelectAllToStore(checkbox, store) {
+    if (!checkbox || !store) return;
+    const scope = selectionScopeFor(checkbox);
+    checkbox.indeterminate = false; // Always clear indeterminate on interaction
+    const host = checkbox.closest('[data-selection-scope]');
+    const entries = host ? collectSelectionRowData(host) : [];
+    const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
-      const visibleIds = visible.map(entry => entry.id);
+    if (!visible.length) {
+      checkbox.checked = false;
+      try { checkbox.setAttribute('aria-checked', 'false'); } catch (_) { }
+      return;
+    }
 
-      // OPTIMIZED: Use batch operations to minimize event storms
-      if (checkbox.checked) {
-        store.selectMany(visibleIds, scope);
-      } else {
-        store.clearMany(visibleIds, scope);
-      }
+    const ids = visible.map(entry => entry.id);
+    const base = store.get(scope);
+    const next = base instanceof Set
+      ? new Set(base)
+      : new Set(Array.from(base || [], value => String(value)));
 
-      // SYNC: Fetch canonical state after update
-      const nextIds = store.get(scope);
-      const normalizedIds = Array.from(nextIds).map(String);
-      const selectionCount = normalizedIds.length;
-
-      // Sync Selection APIs before updating store (like workbench does)
-      const type = scope === 'partners' ? 'partners' : 'contacts';
-      const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
-
-      if (typeof window !== 'undefined') {
-        const selection = window.Selection;
-        if (selection && typeof selection.set === 'function') {
-          try {
-            selection.set(normalizedIds, type, origin);
-          } catch (err) {
-            try { console && console.warn && console.warn('[select-all] Selection.set failed', err); }
-            catch (_warnErr) { }
+    if (checkbox.checked) {
+      ids.forEach(id => next.add(id));
+      try { checkbox.setAttribute('aria-checked', 'true'); }
+      catch (_err) { }
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = true;
+          try { entry.checkbox.setAttribute('aria-checked', 'true'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.setAttribute('data-selected', '1'); }
+            catch (_err) { }
           }
         }
-
-        const service = window.SelectionService;
-        if (service && typeof service.set === 'function') {
-          try {
-            service.set(normalizedIds, type, origin);
-          } catch (err) {
-            try { console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
-            catch (_warnErr) { }
+      });
+    } else {
+      ids.forEach(id => next.delete(id));
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = false;
+          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.removeAttribute('data-selected'); }
+            catch (_err) { }
           }
         }
-      }
+      });
+    }
 
-      // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
-      // This ensures the action bar shows properly, not just the minimized icon
-      try {
-        const eventDetail = {
-          type: scope === 'partners' ? 'partners' : 'contacts',
-          ids: normalizedIds,
-          count: selectionCount,
-          source: checkbox.checked ? 'select-all:on' : 'select-all:off',
-          scope: scope
-        };
-        if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-          document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+    const normalizedIds = Array.from(next).map(String);
+    const selectionCount = normalizedIds.length;
+
+    // Sync Selection APIs before updating store (like workbench does)
+    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+
+    if (typeof window !== 'undefined') {
+      const selection = window.Selection;
+      if (selection && typeof selection.set === 'function') {
+        try {
+          selection.set(normalizedIds, type, origin);
+        } catch (err) {
+          try { console && console.warn && console.warn('[select-all] Selection.set failed', err); }
+          catch (_warnErr) { }
         }
-      } catch (_err) {
-        console.warn('[select-all] Failed to dispatch selection:changed', _err);
       }
 
-      // Comprehensive action bar update
-      if (typeof window !== 'undefined' && typeof window.updateActionbar === 'function') {
-        try { window.updateActionbar(); }
+      const service = window.SelectionService;
+      if (service && typeof service.set === 'function') {
+        try {
+          service.set(normalizedIds, type, origin);
+        } catch (err) {
+          try { console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
+          catch (_warnErr) { }
+        }
+      }
+    }
+
+    store.set(next, scope);
+
+    // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
+    // This ensures the action bar shows properly, not just the minimized icon
+    try {
+      const eventDetail = {
+        type: scope === 'partners' ? 'partners' : 'contacts',
+        ids: normalizedIds,
+        count: selectionCount,
+        source: checkbox.checked ? 'select-all:on' : 'select-all:off',
+        scope: scope
+      };
+      if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+      }
+    } catch (_err) {
+      console.warn('[select-all] Failed to dispatch selection:changed', _err);
+    }
+
+    // Comprehensive action bar update
+    if (typeof window !== 'undefined' && typeof window.updateActionbar === 'function') {
+      try { window.updateActionbar(); }
+      catch (_err) { }
+    }
+    // Trigger all update mechanisms
+    if (typeof window !== 'undefined') {
+      if (typeof window.ensureActionBarPostPaintRefresh === 'function') {
+        try { window.ensureActionBarPostPaintRefresh(); }
         catch (_err) { }
       }
-      // Directly manipulate action bar visibility
-      const bar = typeof document !== 'undefined'
-        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
-        : null;
-      if (bar) {
-        if (selectionCount > 0) {
-          // CRITICAL: Remove minimized state when we have selections
-          if (bar.hasAttribute('data-minimized')) {
-            bar.removeAttribute('data-minimized');
-          }
-          bar.setAttribute('data-visible', '1');
-          if (bar.dataset) bar.dataset.idleVisible = '1';
-          if (bar.style) {
-            bar.style.display = '';
-            bar.style.opacity = '1';
-            bar.style.visibility = 'visible';
-            bar.style.pointerEvents = 'auto';
-          }
-          bar.dataset.count = String(selectionCount);
-          // Update aria-expanded to indicate the bar is now expanded
-          bar.setAttribute('aria-expanded', 'true');
-        } else {
-          bar.removeAttribute('data-visible');
-          bar.removeAttribute('data-idle-visible');
-          // Restore minimized state when count is 0
-          bar.setAttribute('data-minimized', '1');
-          if (bar.style) {
-            bar.style.display = '';  // Don't set to 'none' - let CSS handle visibility via data-minimized
-            bar.style.opacity = '1';
-            bar.style.visibility = 'visible';
-            bar.style.pointerEvents = 'auto';
-          }
-          bar.dataset.count = '0';
-          // Update aria-expanded to indicate the bar is now minimized
-          bar.setAttribute('aria-expanded', 'false');
-        }
+      if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
+        try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+        catch (_err) { }
       }
-      // Trigger all update mechanisms
-      if (typeof window !== 'undefined') {
-        if (typeof window.ensureActionBarPostPaintRefresh === 'function') {
-          try { window.ensureActionBarPostPaintRefresh(); }
-          catch (_err) { }
-        }
-        if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-          catch (_err) { }
-        }
-      }
-    };
-    // Immediate update
-    updateActionBar();
-    // Update after microtask
-    if (typeof queueMicrotask === 'function') {
-      queueMicrotask(updateActionBar);
-    } else if (typeof Promise !== 'undefined') {
-      Promise.resolve().then(updateActionBar).catch(() => { });
-    }
-    // Update after RAF for final sync
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(updateActionBar);
     }
   }
 
