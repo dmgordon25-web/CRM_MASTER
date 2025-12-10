@@ -73,6 +73,36 @@ export const SelectionStore = {
     SCOPES.set(key, next);
     notify(key);
   },
+  selectMany(ids, scope) {
+    if (!ids) return;
+    const key = normalizeScope(scope);
+    const target = ensureScope(key);
+    const toAdd = Array.isArray(ids) || ids instanceof Set ? Array.from(ids) : [ids];
+    let changed = false;
+    toAdd.forEach(raw => {
+      const val = String(raw);
+      if (!target.has(val)) {
+        target.add(val);
+        changed = true;
+      }
+    });
+    if (changed) notify(key);
+  },
+  clearMany(ids, scope) {
+    if (!ids) return;
+    const key = normalizeScope(scope);
+    const target = ensureScope(key);
+    const toRemove = Array.isArray(ids) || ids instanceof Set ? Array.from(ids) : [ids];
+    let changed = false;
+    toRemove.forEach(raw => {
+      const val = String(raw);
+      if (target.has(val)) {
+        target.delete(val);
+        changed = true;
+      }
+    });
+    if (changed) notify(key);
+  },
   toggle(id, scope) {
     if (id == null) return;
     const key = normalizeScope(scope);
