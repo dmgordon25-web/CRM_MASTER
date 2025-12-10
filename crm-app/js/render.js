@@ -2092,7 +2092,6 @@ export async function renderAll(request) {
               return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblPipeline, tbPipe, pipelineRows);
-
           }
         }
         if (wantsContactTables) {
@@ -2261,7 +2260,12 @@ export async function renderAll(request) {
               ensureContactRowOpener(tblContacts);
             }
           }
-
+          if (typeof window.ensureSortable === 'function') {
+            ['tbl-pipeline', 'tbl-clients', 'tbl-longshots', 'tbl-contacts'].forEach((id) => {
+              try { window.ensureSortable(id); }
+              catch (_err) { }
+            });
+          }
         }
 
         ensureKanbanStageAttributes();

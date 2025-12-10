@@ -577,14 +577,13 @@ function handleSelectionChanged(detail) {
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
 
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
-    // FIX: Do not auto-clear selection on init. Trust the store.
-    // This prevents desync where Action Bar clears state that the Grid just restored.
-    /*
     count = 0;
-    try { window.Selection?.clear?.('actionbar:init'); } catch (_) { }
-    try { window.SelectionService?.clear?.('actionbar:init'); } catch (_) { }
-    try { window.SelectionStore?.clear?.('partners'); } catch (_) { }
-    */
+    try { window.Selection?.clear?.('actionbar:init'); }
+    catch (_) { }
+    try { window.SelectionService?.clear?.('actionbar:init'); }
+    catch (_) { }
+    try { window.SelectionStore?.clear?.('partners'); }
+    catch (_) { }
   }
   setSelectedCount(count);
 }
@@ -914,9 +913,9 @@ function markActionbarHost() {
     applyManualPosition(bar, left, top);
   } else if (applyStoredActionBarPosition(bar)) {
     /* position restored from storage */
+  } else if (globalWiringState.routeState && globalWiringState.routeState.centerActive) {
     centerActionBarForRoute({ pulse: false, silent: true });
   }
-  // Restored: Ensure drag handles are initialized
   ensureActionBarDragHandles(bar);
   ensureHeaderQuickAddBinding();
   ensureHeaderQuickAddBinding();
@@ -1038,12 +1037,12 @@ function injectActionBarStyle() {
   if (typeof document === 'undefined') return;
   if (document.getElementById('ab-inline-style')) return;
   ensureStyle('crm:action-bar', `
+      #actionbar{
         position:fixed; left:50%; transform:translateX(-50%);
         bottom:16px; z-index:9999;
         max-width:960px; width:auto; padding:8px 12px;
         border-radius:12px; background:rgba(20,22,28,0.88); color:#fff;
         box-shadow:0 8px 24px rgba(0,0,0,.25);
-        pointer-events:auto;
       }
       #actionbar[data-minimized="1"]{
         top:72px; right:24px; left:auto; bottom:auto;

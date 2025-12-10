@@ -512,14 +512,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   ensureDefaultRoute();
 
 
-  /* FIX: Do not clear selection on boot. Let Persistence/Store decide.
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
   try {
     window.SelectionService?.clear?.('app:boot');
   } catch (err) { logAppError('selectionService:clear-boot', err); }
-  */
 
   function dedupeHeaderSettings() {
     try {
@@ -562,14 +560,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
     } catch (err) { logAppError('quick-add:wire', err); }
   }
-  /* FIX: Remove redundant boot clears - consolidated
   try {
-    // window.SelectionStore?.clear?.('partners');
+    window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(preferredDefaultRoute());
   applyNotificationsNavVisibility(notificationsEnabled);
-  
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
@@ -579,7 +575,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   try {
     window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
-  */
   window.CRM.openPipelineWithFilter = function (stage) {
     try {
       const raw = stage == null ? '' : String(stage).trim();
@@ -1265,7 +1260,133 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return store ? store.get(scope) : new Set();
   }
 
+  function wireSelectAllForTable(table) {
+    if (!isTableElement(table)) return;
+    const store = getSelectionStore();
+    if (!store) return;
+    const scopeRaw = selectionScopeFor(table);
+    const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
+    const existing = TABLE_SELECT_ALL_BINDINGS.get(table);
+    if (existing && typeof existing.refresh === 'function') {
+      existing.refresh();
+      return;
+    }
+    let cleaned = false;
+    let unsubscribe = null;
+    let removalObserver = null;
+    let refreshing = false;
+    const ensureHeader = () => {
+      const header = typeof table.querySelector === 'function'
+        ? table.querySelector(SELECT_ALL_INPUT_SELECTOR)
+        : null;
+      if (!header) return null;
+      try {
+        if (header.getAttribute('role') !== 'checkbox') {
+          header.setAttribute('role', 'checkbox');
+        }
+        const state = header.indeterminate ? 'mixed' : (header.checked ? 'true' : 'false');
+        header.setAttribute('aria-checked', state);
+      } catch (_err) { }
+      return header;
+    };
 
+    const header = ensureHeader();
+    if (!header) return;
+
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      try { table.removeEventListener('change', handleTableChange); }
+      catch (_err) { }
+      if (unsubscribe) {
+        try { unsubscribe(); }
+        catch (_err) { }
+        unsubscribe = null;
+      }
+      if (removalObserver) {
+        try { removalObserver.disconnect(); }
+        catch (_err) { }
+        removalObserver = null;
+      }
+      TABLE_SELECT_ALL_BINDINGS.delete(table);
+    };
+
+    const sync = (ids, count) => {
+      if (cleaned) return;
+      if (!table.isConnected) {
+        cleanup();
+        return;
+      }
+      const normalizedIds = normalizeIdSet(ids, scope, store);
+      const payload = { root: table, ids: normalizedIds };
+      if (Number.isFinite(count)) {
+        payload.count = Number(count);
+      }
+      syncSelectionScope(scope, payload);
+    };
+
+    const handleTableChange = (event) => {
+      const target = event && event.target;
+      if (cleaned) return;
+      const nextHeader = ensureHeader();
+      if (!nextHeader) return;
+      if (target !== nextHeader) return;
+      if (!table.isConnected) {
+        cleanup();
+        return;
+      }
+      nextHeader.indeterminate = false;
+      applySelectAllToStore(nextHeader, store);
+    };
+
+    try {
+      table.addEventListener('change', handleTableChange, true);
+    } catch (_err) { }
+
+    if (typeof MutationObserver === 'function') {
+      try {
+        removalObserver = new MutationObserver(() => {
+          if (cleaned) return;
+          if (table.isConnected) return;
+          cleanup();
+        });
+        const doc = table.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        const root = doc && doc.documentElement ? doc.documentElement : null;
+        if (root) {
+          removalObserver.observe(root, { childList: true, subtree: true });
+        }
+      } catch (_err) {
+        removalObserver = null;
+      }
+    }
+
+    unsubscribe = store.subscribe((snapshot) => {
+      if (cleaned) return;
+      if (!snapshot || snapshot.scope !== scope) return;
+      sync(snapshot.ids, snapshot.count);
+    });
+
+    const refresh = () => {
+      if (cleaned || refreshing) return;
+      refreshing = true;
+      try {
+        ensureHeader();
+        sync(store.get(scope), store.count(scope));
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const binding = {
+      cleanup,
+      scope,
+      refresh
+    };
+
+    TABLE_SELECT_ALL_BINDINGS.set(table, binding);
+
+    refresh();
+  }
 
   function isTableElement(node) {
     if (!node || typeof node !== 'object') return false;
@@ -1337,18 +1458,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       return;
     }
     if (typeof root.querySelectorAll !== 'function') return;
-    // FIXED: Only query if we have a valid root
-    try {
-      const tables = root.querySelectorAll('table[data-selection-scope]');
-      tables.forEach((table) => {
-        ensureRowCheckHeaderForTable(table);
-      });
-    } catch (_err) { }
+    root.querySelectorAll('table[data-selection-scope]').forEach((table) => {
+      ensureRowCheckHeaderForTable(table);
+    });
   }
 
   function collectSelectionRowData(scopeRoot) {
     if (!scopeRoot) return [];
-    try { ensureRowCheckHeaders(scopeRoot); } catch (_err) { }
+    ensureRowCheckHeaders(scopeRoot);
     const seen = new Set();
     const rows = [];
     const addRow = (row) => {
@@ -1356,195 +1473,262 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       seen.add(row);
       const id = row.getAttribute('data-id');
       if (!id) return null;
-      // FIXED: More robust checkbox query
-      let checkbox = null;
-      if (typeof row.querySelector === 'function') {
-        checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
-      }
+      const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
       if (!checkbox) return null;
       const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
-    if (typeof scopeRoot.querySelectorAll === 'function') {
-      scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
-        const entry = addRow(row);
-        if (entry) rows.push(entry);
-      });
-      scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
-        const entry = addRow(row);
-        if (entry) rows.push(entry);
-      });
-    }
+    scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
+      const entry = addRow(row);
+      if (entry) rows.push(entry);
+    });
+    scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
+      const entry = addRow(row);
+      if (entry) rows.push(entry);
+    });
     return rows.filter(Boolean);
   }
 
-  function isSelectableRowVisible(row) {
-    if (!row) return false;
-    if (row.hidden) return false;
-    if (row.style && row.style.display === 'none') return false;
-    if (row.classList && row.classList.contains('hidden')) return false;
-    return true;
-  }
-
-  /* FIX: Recursion guard for selection sync */
-  let isApplyingSelectionSync = false;
-
-  function wireSelectAllForTable(table) {
-    if (!table) return;
-    const checkbox = table.querySelector('thead input[data-role="select-all"]');
-    if (!checkbox || checkbox.__wired) return;
-    checkbox.__wired = true;
-
-    // Stop propagation on click to prevent bubbling to row handlers
-    checkbox.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-
-    checkbox.addEventListener('change', (e) => {
-      // Prevent double-handling if triggered programmatically
-      if (isApplyingSelectionSync) return;
-
-      const scope = table.getAttribute('data-selection-scope') || 'contacts';
-      const store = getSelectionStore();
-      if (!store) {
-        console.warn('[app] SelectionStore not available for select-all');
-        return;
-      }
-
-      // FIXED: Ensure we only select visible rows
-      const visibleRows = Array.from(table.querySelectorAll('tbody tr[data-id]'))
-        .filter(isSelectableRowVisible);
-
-      const ids = visibleRows.map(r => r.getAttribute('data-id')).filter(Boolean);
-      const current = store.get(scope);
-      const next = new Set(current);
-
-      if (checkbox.checked) {
-        ids.forEach(id => next.add(id));
-      } else {
-        ids.forEach(id => next.delete(id));
-      }
-
-      store.set(next, scope);
-
-      const normalizedIds = Array.from(next).map(String);
-      const selectionCount = normalizedIds.length;
-
-      // CRITICAL: Dispatch selection:changed event to notify action bar
-      try {
-        const eventDetail = {
-          type: scope === 'partners' ? 'partners' : 'contacts',
-          ids: normalizedIds,
-          count: selectionCount,
-          source: checkbox.checked ? 'select-all:on' : 'select-all:off',
-          scope: scope
-        };
-        if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-          document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
-        }
-      } catch (_err) {
-        console.warn('[select-all] Failed to dispatch selection:changed', _err);
-      }
-
-      // Explicitly update action bar visibility
-      const updateActionBar = () => {
-        if (typeof window !== 'undefined') {
-          if (typeof window.updateActionBarMinimizedState === 'function') {
-            try { window.updateActionBarMinimizedState(selectionCount); } catch (_) { }
-          }
-          if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-            try { window.__UPDATE_ACTION_BAR_VISIBLE__(); } catch (_) { }
-          }
-        }
-      };
-
-      updateActionBar();
-      // Double check via microtask
-      if (typeof queueMicrotask === 'function') {
-        queueMicrotask(updateActionBar);
-      }
-    });
-  }
-
-  function syncSelectionCheckboxes(scope, ids, options) {
-    if (isApplyingSelectionSync) return;
-    isApplyingSelectionSync = true;
-    try {
-      const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
-      const providedIds = ids instanceof Set
-        ? Array.from(ids, value => String(value))
-        : Array.isArray(ids)
-          ? ids.map(String)
-          : [];
-      const idSet = new Set(providedIds);
-      const roots = [];
-      const optRoot = options && options.root;
-      if (optRoot) {
-        if (Array.isArray(optRoot)) {
-          optRoot.forEach((node) => {
-            if (node) roots.push(node);
-          });
-        } else if (optRoot) {
-          roots.push(optRoot);
-        }
-      }
-      if (!roots.length) {
-        document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
-          if (table) roots.push(table);
-        });
-      }
-      const seen = new Set();
-      roots.forEach(table => {
-        if (!table || seen.has(table)) return;
-        seen.add(table);
-        const entries = collectSelectionRowData(table);
-        entries.forEach(entry => {
-          const shouldCheck = idSet.has(entry.id);
-          if (entry.checkbox.checked !== shouldCheck) {
-            entry.checkbox.checked = shouldCheck;
-          }
-          try {
-            if (shouldCheck) {
-              entry.row.setAttribute('data-selected', '1');
-              if (entry.row.classList) entry.row.classList.add('selected');
-            } else {
-              entry.row.removeAttribute('data-selected');
-              if (entry.row.classList) entry.row.classList.remove('selected');
-            }
-          } catch (_err) { }
-          try {
-            entry.checkbox.setAttribute('aria-checked', shouldCheck ? 'true' : 'false');
-          } catch (_err) { }
-        });
-        const header = table.querySelector('thead input[data-role="select-all"]');
-        if (header) {
-          const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
-          const total = visible.length;
-          let selectedVisible = 0;
-          visible.forEach((entry) => {
-            if (idSet.has(entry.id)) selectedVisible += 1;
-          });
-          const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
-          const shouldChecked = total > 0 && selectedVisible === total;
-
-          if (header.indeterminate !== shouldIndeterminate) header.indeterminate = shouldIndeterminate;
-          if (header.checked !== shouldChecked) header.checked = shouldChecked;
-
-          try {
-            header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
-          } catch (_err) { }
-          if (!total) {
-            header.indeterminate = false;
-            header.checked = false;
-            try { header.setAttribute('aria-checked', 'false'); }
+  function applySelectAllToStore(checkbox, store) {
+    if (!checkbox || !store) return;
+    const scope = selectionScopeFor(checkbox);
+    checkbox.indeterminate = false;
+    const host = checkbox.closest('[data-selection-scope]');
+    const entries = host ? collectSelectionRowData(host) : [];
+    const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+    if (!visible.length) {
+      checkbox.indeterminate = false;
+      checkbox.checked = false;
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
+      return;
+    }
+    const ids = visible.map(entry => entry.id);
+    const base = store.get(scope);
+    const next = base instanceof Set
+      ? new Set(base)
+      : new Set(Array.from(base || [], value => String(value)));
+    if (checkbox.checked) {
+      ids.forEach(id => next.add(id));
+      try { checkbox.setAttribute('aria-checked', 'true'); }
+      catch (_err) { }
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      // This ensures the action bar sees checked boxes when it receives the notification
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = true;
+          try { entry.checkbox.setAttribute('aria-checked', 'true'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.setAttribute('data-selected', '1'); }
             catch (_err) { }
           }
         }
       });
-    } finally {
-      isApplyingSelectionSync = false;
+    } else {
+      ids.forEach(id => next.delete(id));
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
+      // UPDATE DOM CHECKBOXES BEFORE CALLING store.set()
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = false;
+          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.removeAttribute('data-selected'); }
+            catch (_err) { }
+          }
+        }
+      });
     }
+    const normalizedIds = Array.from(next).map(String);
+    const selectionCount = normalizedIds.length;
+
+    // Sync Selection APIs before updating store (like workbench does)
+    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+
+    if (typeof window !== 'undefined') {
+      const selection = window.Selection;
+      if (selection && typeof selection.set === 'function') {
+        try {
+          selection.set(normalizedIds, type, origin);
+        } catch (err) {
+          try { console && console.warn && console.warn('[select-all] Selection.set failed', err); }
+          catch (_warnErr) { }
+        }
+      }
+
+      const service = window.SelectionService;
+      if (service && typeof service.set === 'function') {
+        try {
+          service.set(normalizedIds, type, origin);
+        } catch (err) {
+          try { console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
+          catch (_warnErr) { }
+        }
+      }
+    }
+
+    store.set(next, scope);
+
+    // CRITICAL: Dispatch selection:changed event to notify action bar (like workbench does)
+    // This ensures the action bar shows properly, not just the minimized icon
+    try {
+      const eventDetail = {
+        type: scope === 'partners' ? 'partners' : 'contacts',
+        ids: normalizedIds,
+        count: selectionCount,
+        source: checkbox.checked ? 'select-all:on' : 'select-all:off',
+        scope: scope
+      };
+      if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+      }
+    } catch (_err) {
+      console.warn('[select-all] Failed to dispatch selection:changed', _err);
+    }
+
+    // Comprehensive action bar update (adapted from workbench implementation)
+    const updateActionBar = () => {
+      // Call updateActionbar if available to trigger full update
+      if (typeof window !== 'undefined' && typeof window.updateActionbar === 'function') {
+        try { window.updateActionbar(); }
+        catch (_err) { }
+      }
+      // Directly manipulate action bar visibility
+      const bar = typeof document !== 'undefined'
+        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+        : null;
+      if (bar) {
+        if (selectionCount > 0) {
+          // CRITICAL: Remove minimized state when we have selections
+          if (bar.hasAttribute('data-minimized')) {
+            bar.removeAttribute('data-minimized');
+          }
+          bar.setAttribute('data-visible', '1');
+          if (bar.dataset) bar.dataset.idleVisible = '1';
+          if (bar.style) {
+            bar.style.display = '';
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+          bar.dataset.count = String(selectionCount);
+          // Update aria-expanded to indicate the bar is now expanded
+          bar.setAttribute('aria-expanded', 'true');
+        } else {
+          bar.removeAttribute('data-visible');
+          bar.removeAttribute('data-idle-visible');
+          // Restore minimized state when count is 0
+          bar.setAttribute('data-minimized', '1');
+          if (bar.style) {
+            bar.style.display = '';  // Don't set to 'none' - let CSS handle visibility via data-minimized
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+          bar.dataset.count = '0';
+          // Update aria-expanded to indicate the bar is now minimized
+          bar.setAttribute('aria-expanded', 'false');
+        }
+      }
+      // Trigger all update mechanisms
+      if (typeof window !== 'undefined') {
+        if (typeof window.ensureActionBarPostPaintRefresh === 'function') {
+          try { window.ensureActionBarPostPaintRefresh(); }
+          catch (_err) { }
+        }
+        if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
+          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+          catch (_err) { }
+        }
+      }
+    };
+    // Immediate update
+    updateActionBar();
+    // Update after microtask
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(updateActionBar);
+    } else if (typeof Promise !== 'undefined') {
+      Promise.resolve().then(updateActionBar).catch(() => { });
+    }
+    // Update after RAF for final sync
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(updateActionBar);
+    }
+  }
+
+  function syncSelectionCheckboxes(scope, ids, options) {
+    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+    const providedIds = ids instanceof Set
+      ? Array.from(ids, value => String(value))
+      : Array.isArray(ids)
+        ? ids.map(String)
+        : [];
+    const idSet = new Set(providedIds);
+    const roots = [];
+    const optRoot = options && options.root;
+    if (optRoot) {
+      if (Array.isArray(optRoot)) {
+        optRoot.forEach((node) => {
+          if (node) roots.push(node);
+        });
+      } else if (optRoot) {
+        roots.push(optRoot);
+      }
+    }
+    if (!roots.length) {
+      document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`).forEach(table => {
+        if (table) roots.push(table);
+      });
+    }
+    const seen = new Set();
+    roots.forEach(table => {
+      if (!table || seen.has(table)) return;
+      seen.add(table);
+      const entries = collectSelectionRowData(table);
+      entries.forEach(entry => {
+        const shouldCheck = idSet.has(entry.id);
+        if (entry.checkbox.checked !== shouldCheck) {
+          entry.checkbox.checked = shouldCheck;
+        }
+        try {
+          if (shouldCheck) {
+            entry.row.setAttribute('data-selected', '1');
+          } else {
+            entry.row.removeAttribute('data-selected');
+          }
+        } catch (_err) { }
+        try {
+          entry.checkbox.setAttribute('aria-checked', shouldCheck ? 'true' : 'false');
+        } catch (_err) { }
+      });
+      const header = table.querySelector('thead input[data-role="select-all"]');
+      if (header) {
+        const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+        const total = visible.length;
+        let selectedVisible = 0;
+        visible.forEach((entry) => {
+          if (idSet.has(entry.id)) selectedVisible += 1;
+        });
+        const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
+        const shouldChecked = total > 0 && selectedVisible === total;
+        header.indeterminate = shouldIndeterminate;
+        header.checked = shouldChecked;
+        try {
+          header.setAttribute('aria-checked', shouldIndeterminate ? 'mixed' : (shouldChecked ? 'true' : 'false'));
+        } catch (_err) { }
+        if (!total) {
+          header.indeterminate = false;
+          header.checked = false;
+          try { header.setAttribute('aria-checked', 'false'); }
+          catch (_err) { }
+        }
+      }
+    });
   }
 
   function syncSelectionScope(scope, options) {
@@ -1573,14 +1757,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const totalRaw = Number(count);
     const total = Number.isFinite(totalRaw) ? Math.max(0, Math.floor(totalRaw)) : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
-    // FIXED: Only update selection-type if not already set or if explicitly changing
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
+    } else {
+      bar.removeAttribute('data-selection-type');
     }
 
-    const inNotificationScope = scopeKey === 'notifications';
-
-    const guards = inNotificationScope
+    const guards = scopeKey === 'notifications'
       ? {
         edit: false,
         merge: false,
@@ -1600,34 +1783,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     applyActionBarGuards(bar, guards);
-
-    // Logic for visibility: simple > 0 check
-    if (total > 0) {
-      bar.setAttribute('data-visible', '1');
-      bar.style.display = ''; // Clear inline hide
-      // If minimized, un-minimize
-      if (bar.hasAttribute('data-minimized')) {
-        bar.removeAttribute('data-minimized');
-      }
-    } else {
-      bar.removeAttribute('data-visible');
-      /* 
-         FIX: Do not force display:none here immediately if we want 
-         smooth exit or minimized state. But for stability, ensure
-         it doesn't block UI if empty.
-         If we want "Clear" to hide it:
-      */
-      // bar.style.display = 'none'; // Optional: Aggressive hide
-    }
-
     applyActionBarState(bar, total, guards);
 
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-      // FIXED: Use setTimeout to break render cycle
-      setTimeout(() => {
+      queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
         catch (err) { logAppError('actionbar:update-visible', err); }
-      }, 0);
+      });
     }
   }
 
@@ -1915,7 +2077,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     calendar: {
       id: 'view-calendar',
       ui: 'calendar-root',
-      resetOnDeactivate: true,
+      resetOnDeactivate: false,
       async mount() {
         try {
           const mod = await import('./calendar.js');
@@ -1995,21 +2157,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     labs: {
       id: 'view-labs',
       ui: 'labs-root',
-      resetOnDeactivate: true,
       mount(root) {
         if (!root) return;
         if (root.dataset && root.dataset.labsReady === '1') return;
         bootLabs(root);
-      },
-      async unmount() {
-        try {
-          const mod = await import('./labs/entry.js');
-          if (mod && typeof mod.unmountLabs === 'function') {
-            mod.unmountLabs();
-          }
-        } catch (err) {
-          console.warn('[app] Labs unmount failed', err);
-        }
       }
     },
     pipeline: {
@@ -2465,21 +2616,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === previous) return;
 
     const previousLifecycle = previous ? VIEW_LIFECYCLE[previous] : null;
-
-    if (previousLifecycle && typeof previousLifecycle.unmount === 'function') {
-      try {
-        const result = previousLifecycle.unmount();
-        if (result && typeof result.then === 'function') {
-          // Fire and forget promise or await? 
-          // Since activate is not async here (or at least treated synchronously usually), 
-          // we treat it as fire-and-forget but catch errors.
-          result.catch(err => console.warn('[app] unmount async error', err));
-        }
-      } catch (err) {
-        console.warn('[app] unmount sync error', err);
-      }
-    }
-
     if (previousLifecycle?.resetOnDeactivate && previous !== normalized) {
       const previousId = previousLifecycle.id || ('view-' + previous);
       const prevRoot = previousId ? document.getElementById(previousId) : null;
@@ -3100,7 +3236,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     });
   }
-  // Dark mode is now controlled via the theme dropdown (Settings > Theme > Dark)
+  const toggleDark = $('#toggle-dark');
+  if (toggleDark) {
+    toggleDark.addEventListener('change', (e) => {
+      document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
+    });
+  }
 
   window.addEventListener('beforeunload', async (event) => {
     const enabled = $('#toggle-autobackup')?.checked;
