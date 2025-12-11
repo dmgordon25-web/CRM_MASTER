@@ -97,9 +97,16 @@ if (typeof window.getRequiredDocsGuarded !== 'function') window.getRequiredDocsG
 if (typeof window.computeMissingDocsGuarded !== 'function') window.computeMissingDocsGuarded = computeMissingDocsGuarded;
 
 // [PATCH] Fix ReferenceError causing crash on view transition
-const closeContactEntry = () => {
-  const m = document.querySelector('[data-ui="contact-edit-modal"]');
-  if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+const closeContactEntry = (reason) => {
+  try {
+    closeContactEditor(reason || 'route-leave');
+  } catch (_err) {
+    const m = document.querySelector('[data-ui="contact-edit-modal"]');
+    if (m) {
+      try { m.style.display = 'none'; m.removeAttribute('open'); }
+      catch (__err) { }
+    }
+  }
 };
 
 // Audit complete: no selector redundancies with user-impacting risk found.
@@ -3612,6 +3619,8 @@ export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
   try {
+    try { closeQuickAddOverlayIfOpen(); }
+    catch (_err) { }
     const m = document.querySelector('[data-ui="contact-edit-modal"]');
     if (m) {
       m.style.display = 'none';
