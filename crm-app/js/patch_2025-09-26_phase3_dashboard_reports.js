@@ -1070,6 +1070,21 @@ function runPatch() {
     }
   }
 
+  function buildFocusRecordAttrs(record, widgetKey) {
+    const ids = record || {};
+    const contactId = ids.contactId || (ids.contact && ids.contact.id) || ids.id || '';
+    const partnerId = ids.partnerId || (ids.contact && ids.contact.partnerId) || '';
+    const attrs = [];
+    const widget = widgetKey || 'dashboard-focus';
+    if (widget) attrs.push(`data-widget="${escapeHtml(widget)}"`);
+    if (contactId) {
+      const safeId = escapeHtml(String(contactId));
+      attrs.push(`data-contact-id="${safeId}"`, `data-id="${safeId}"`);
+    }
+    if (partnerId) attrs.push(`data-partner-id="${escapeHtml(String(partnerId))}"`);
+    return attrs.length ? ` ${attrs.join(' ')}` : '';
+  }
+
   function renderFocusList(title, items, emptyMessage, renderer) {
     const content = items.length ? items.map(renderer).join('') : `<li class="empty">${emptyMessage}</li>`;
     return `<div>
@@ -1082,7 +1097,8 @@ function runPatch() {
     const contact = state.contactMap.get(task.contactId) || null;
     const name = displayName(contact);
     const time = formatFocusTime(task.due);
-    return `<li>
+    const rowAttrs = buildFocusRecordAttrs({ contactId: task.contactId, partnerId: task.partnerId || (contact && contact.partnerId) }, 'focus:tasks');
+    return `<li${rowAttrs}>
         <div><strong>${escapeHtml(task.title || 'Task')}</strong></div>
         <div class="muted" style="font-size:12px">${escapeHtml(name)} • ${escapeHtml(time)}</div>
       </li>`;
@@ -1093,7 +1109,8 @@ function runPatch() {
     const name = displayName(contact);
     const date = formatFocusDate(task.due);
     const time = formatFocusTime(task.due);
-    return `<li>
+    const rowAttrs = buildFocusRecordAttrs({ contactId: task.contactId, partnerId: task.partnerId || (contact && contact.partnerId) }, 'focus:appointments');
+    return `<li${rowAttrs}>
         <div><strong>${escapeHtml(task.title || 'Appointment')}</strong></div>
         <div class="muted" style="font-size:12px">${escapeHtml(name)} • ${escapeHtml(date)} ${escapeHtml(time)}</div>
       </li>`;
@@ -1102,7 +1119,8 @@ function runPatch() {
   function renderFocusLeadItem(contact) {
     const created = contact.createdTs ? formatFocusDate(new Date(contact.createdTs)) : '—';
     const stage = STAGE_LABELS[contact.lane] || contact.lane;
-    return `<li>
+    const rowAttrs = buildFocusRecordAttrs({ contactId: contact.id, partnerId: contact.partnerId }, 'focus:recent-leads');
+    return `<li${rowAttrs}>
         <div><strong>${escapeHtml(displayName(contact))}</strong></div>
         <div class="muted" style="font-size:12px">${escapeHtml(stage || 'Stage')} • Added ${escapeHtml(created)}</div>
       </li>`;

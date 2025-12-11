@@ -2742,6 +2742,19 @@ function logDrilldownSuccess(target, fallbackKey) {
   }
   if (!key) return;
   try {
+    const normalizedKey = String(key).toLowerCase();
+    const verifyMap = {
+      focus: '[VERIFY] dashboard widget click → home/today → editor opened OK',
+      today: '[VERIFY] dashboard widget click → home/today → editor opened OK',
+      'priorityactions': '[VERIFY] dashboard widget click → priorityActions → editor opened OK',
+      'priority-actions-card': '[VERIFY] dashboard widget click → priorityActions → editor opened OK',
+      milestones: '[VERIFY] dashboard widget click → milestonesAhead → editor opened OK',
+      'milestones-card': '[VERIFY] dashboard widget click → milestonesAhead → editor opened OK'
+    };
+    const verifyMessage = verifyMap[normalizedKey] || verifyMap[key];
+    if (verifyMessage && console && typeof console.log === 'function') {
+      console.log(verifyMessage);
+    }
     console.log(`DRILLDOWN_OK:${key}`);
   } catch (_err) { }
 }

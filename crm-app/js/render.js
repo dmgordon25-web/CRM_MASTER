@@ -1971,6 +1971,9 @@ export async function renderAll(request) {
                 const typeClass = `pipeline-type ${safe(ev.type.toLowerCase())}`;
                 const badge = pipelineTypeLabels[ev.type.toLowerCase()] || ev.type;
                 const metaLine = ev.meta ? `<div class="pipeline-meta">${safe(ev.meta)}</div>` : '';
+                // Pipeline calendar click path:
+                //   record ids → buildRecordDataAttrs → data-contact-id / data-partner-id on <li>
+                //   dashboard delegated click (handleDashboardTap) → dispatchContactModal / dispatchPartnerModal
                 const widgetAttrs = buildRecordDataAttrs(normalizeRecordRefs(ev.contactId, ev.partnerId), 'pipeline-calendar');
                 return `<li${widgetAttrs}><div class="pipeline-date">${safe(shortDate(ev.date))}</div><div class="pipeline-detail"><div class="pipeline-label">${safe(ev.label)}</div>${metaLine}</div><span class="${typeClass}">${safe(badge)}</span></li>`;
               }).join('');
