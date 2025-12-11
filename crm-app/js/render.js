@@ -1120,7 +1120,14 @@ function buildRecordDataAttrs(ids, widgetKey) {
   const contactAttr = ids && ids.contactId ? attr(ids.contactId) : '';
   const partnerAttr = ids && ids.partnerId ? attr(ids.partnerId) : '';
   const attrs = [];
-  if (widgetKey) attrs.push(`data-widget="${attr(widgetKey)}"`);
+  if (widgetKey) {
+    const widgetAttr = attr(widgetKey);
+    attrs.push(
+      `data-widget="${widgetAttr}"`,
+      `data-dash-widget="${widgetAttr}"`,
+      `data-widget-id="${widgetAttr}"`
+    );
+  }
   if (contactAttr) attrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
   if (partnerAttr) attrs.push(`data-partner-id="${partnerAttr}"`);
   return attrs.length ? ` ${attrs.join(' ')}` : '';

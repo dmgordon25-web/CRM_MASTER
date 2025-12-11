@@ -2741,30 +2741,23 @@ function logDrilldownSuccess(target, fallbackKey) {
     key = target.dataset.widgetId;
   }
   if (!key) return;
-  try {
-    const normalizedKey = String(key).toLowerCase();
-    const verifyMap = {
-      focus: '[VERIFY] dashboard widget click → home/today → editor opened OK',
-      today: '[VERIFY] dashboard widget click → home/today → editor opened OK',
-      'priorityactions': '[VERIFY] dashboard widget click → priorityActions → editor opened OK',
-      'priority-actions-card': '[VERIFY] dashboard widget click → priorityActions → editor opened OK',
-      milestones: '[VERIFY] dashboard widget click → milestonesAhead → editor opened OK',
-      'milestones-card': '[VERIFY] dashboard widget click → milestonesAhead → editor opened OK'
-    };
-    const verifyMessage = verifyMap[normalizedKey] || verifyMap[key];
-    if (verifyMessage && console && typeof console.log === 'function') {
-      console.log(verifyMessage);
-    }
-    console.log(`DRILLDOWN_OK:${key}`);
-  } catch (_err) { }
+  try { console.log(`DRILLDOWN_OK:${key}`); }
+  catch (_err) { }
 }
 
 function handleDashboardTap(evt, target) {
   if (!target) return false;
   if (isDashboardEditingEnabled()) return false;
-  const dataset = target.dataset || {};
-  const widgetSource = dataset.widget || dataset.widgetId || dataset.dashWidget || target.id || '';
-  const contactId = dataset.contactId || target.getAttribute('data-contact-id');
+
+  const eventNode = target.closest
+    ? target.closest('[data-contact-id], [data-partner-id], [data-dash-widget], [data-widget-id]')
+    : null;
+  if (!eventNode) return false;
+
+  const dataset = eventNode.dataset || {};
+  const widgetSource = dataset.widget || dataset.widgetId || dataset.dashWidget || eventNode.id || '';
+
+  const contactId = dataset.contactId || eventNode.getAttribute('data-contact-id');
   if (contactId) {
     evt.preventDefault();
     evt.stopPropagation();
@@ -2774,10 +2767,10 @@ function handleDashboardTap(evt, target) {
       }
     } catch (_err) { }
     tryOpenContact(contactId);
-    logDrilldownSuccess(target);
+    logDrilldownSuccess(eventNode);
     return true;
   }
-  const partnerId = dataset.partnerId || target.getAttribute('data-partner-id');
+  const partnerId = dataset.partnerId || eventNode.getAttribute('data-partner-id');
   if (partnerId) {
     evt.preventDefault();
     evt.stopPropagation();
@@ -2787,16 +2780,16 @@ function handleDashboardTap(evt, target) {
       }
     } catch (_err) { }
     tryOpenPartner(partnerId);
-    logDrilldownSuccess(target);
+    logDrilldownSuccess(eventNode);
     return true;
   }
-  const route = resolveDashboardRouteTarget(target);
+  const route = resolveDashboardRouteTarget(eventNode);
   if (route) {
     evt.preventDefault();
     evt.stopPropagation();
-    const navigated = tryNavigateDashboardRoute(route, target);
+    const navigated = tryNavigateDashboardRoute(route, eventNode);
     if (navigated) {
-      logDrilldownSuccess(target);
+      logDrilldownSuccess(eventNode);
       return true;
     }
   }
