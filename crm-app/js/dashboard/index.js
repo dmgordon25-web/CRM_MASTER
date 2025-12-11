@@ -3250,6 +3250,12 @@ function getSettingsPrefs() {
         if (orderFromSettings) syncStoredDashboardOrder(orderFromSettings);
       }
       const prefs = sanitizePrefs(settings);
+      const latestMode = dashboardStateApi && typeof dashboardStateApi.getMode === 'function'
+        ? dashboardStateApi.getMode()
+        : null;
+      if (latestMode === 'all' || latestMode === 'today') {
+        prefs.mode = latestMode;
+      }
       if (pendingMode === 'all' || pendingMode === 'today') {
         prefs.mode = pendingMode;
       }
@@ -3506,6 +3512,11 @@ function setDashboardMode(mode, options = {}) {
   maybeHydrateCelebrations(prefCache.value);
   ensureWidgetDnD();
   applyTodayPrioritiesHighlight();
+  if (!skipPersist && !fromBus) {
+    try {
+      console.info('[DASHBOARD] preset changed to', normalized);
+    } catch (_err) { }
+  }
   if (!skipPersist) {
     persistDashboardMode(normalized);
   }
