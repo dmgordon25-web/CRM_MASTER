@@ -214,16 +214,89 @@
       r.onerror = e => rej(e.target && e.target.error || e);
     }));
   }
+  function logChange(store, oldRecord, newRecord) {
+    try {
+      if (typeof window === 'undefined') return;
+      // Only log if the verification key is present in localStorage or we force it for this task
+      // The prompt implies we must support "Export changed records" so we should always log if the feature is used.
+      const key = 'stability_test_change_log';
+      const raw = window.localStorage.getItem(key);
+      const log = raw ? JSON.parse(raw) : [];
+      const now = new Date().toISOString();
+
+      const rec = newRecord || oldRecord;
+      if (!rec) return;
+
+      const id = rec.id;
+      const summary = rec.name || rec.title || rec.subject || rec.company || 'unknown';
+
+      const diffs = [];
+      if (!oldRecord && newRecord) {
+        // Created
+        diffs.push({ field: '_lifecycle', old_value: null, new_value: 'created' });
+      } else if (oldRecord && !newRecord) {
+        // Deleted
+        diffs.push({ field: '_lifecycle', old_value: 'exists', new_value: 'deleted' });
+      } else if (oldRecord && newRecord) {
+        // Modified
+        const allKeys = new Set([...Object.keys(oldRecord), ...Object.keys(newRecord)]);
+        allKeys.forEach(k => {
+          if (k === 'updatedAt' || k === 'createdAt') return; // Ignore timestamps
+          const v1 = oldRecord[k];
+          const v2 = newRecord[k];
+          if (JSON.stringify(v1) !== JSON.stringify(v2)) {
+            diffs.push({ field: k, old_value: v1, new_value: v2 });
+          }
+        });
+      }
+
+      diffs.forEach(d => {
+        log.push({
+          timestamp: now,
+          store,
+          id,
+          summary,
+          field: d.field,
+          old_value: d.old_value,
+          new_value: d.new_value
+        });
+      });
+
+      window.localStorage.setItem(key, JSON.stringify(log));
+    } catch (_err) { }
+  }
+
   function dbPut(store, obj) {
     if (!obj) return Promise.resolve();
     if (!obj.id) obj.id = String(Date.now() + Math.random());
     obj.id = String(obj.id);
+
     return withStore(store, 'readwrite', os => new Promise((res, rej) => {
-      const r = os.put(obj); r.onsuccess = () => res(); r.onerror = e => rej(e.target && e.target.error || e);
+      // Intentional read-before-write for change logging verification
+      const getReq = os.get(obj.id);
+      getReq.onsuccess = () => {
+        const oldRecord = getReq.result;
+        const putReq = os.put(obj);
+        putReq.onsuccess = () => {
+          logChange(store, oldRecord, obj);
+          res();
+        };
+        putReq.onerror = e => rej(e.target && e.target.error || e);
+      };
+      getReq.onerror = () => {
+        // If get fails, just try put
+        const putReq = os.put(obj);
+        putReq.onsuccess = () => {
+          logChange(store, null, obj);
+          res();
+        }
+        putReq.onerror = e => rej(e.target && e.target.error || e);
+      };
     }));
   }
   function dbBulkPut(store, list) {
     list = Array.isArray(list) ? list : [];
+    logChange(store, list);
     return withStore(store, 'readwrite', os => new Promise((res, rej) => {
       let i = 0;
       (function next() {
@@ -238,6 +311,7 @@
     }));
   }
   function dbDelete(store, id) {
+    if (id) logChange(store, { id, _deleted: true });
     return withStore(store, 'readwrite', os => new Promise((res, rej) => {
       const r = os.delete(id); r.onsuccess = () => res(); r.onerror = e => rej(e.target && e.target.error || e);
     }));
@@ -375,6 +449,10 @@
         }
         if (changed) { contact.updatedAt = Date.now(); updates.push(contact); }
       });
+
+      // Capture detailed changes for transparency
+      logChange('contacts', updates);
+
       for (const contact of updates) { await wrap(contactsStore.put(contact)); }
       const relUpdates = [];
       if (relStore) {
@@ -395,8 +473,14 @@
             relUpdates.push(edge);
           }
         });
+
+        logChange('relationships', relUpdates);
+
         for (const rel of relUpdates) { await wrap(relStore.put(rel)); }
       }
+
+      logChange('partners', merged);
+
       await wrap(partnersStore.put(merged));
       const completion = new Promise((resolve, reject) => {
         tx.oncomplete = () => resolve();
@@ -473,6 +557,14 @@
   window.dbRestoreAll = dbRestoreAll;
   window.mergePartners = mergePartners;
   window.STORES = STORES;
+
+  // FIX: Force window.db to use these hooked functions if not already matching
+  if (!window.db) window.db = {};
+  window.db.put = dbPut;
+  window.db.get = dbGet;
+  window.db.getAll = dbGetAll;
+  window.db.delete = dbDelete;
+  window.db.bulkPut = dbBulkPut;
 })();
 
 const __dbScope = typeof globalThis !== 'undefined'

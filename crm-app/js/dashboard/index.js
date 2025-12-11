@@ -2777,11 +2777,14 @@ function handleDashboardTap(evt, target) {
   if (dealId) {
     evt.preventDefault();
     evt.stopPropagation();
-    import('../pipeline.js').then(mod => {
-      // Assuming pipeline has an editor or we use a generic method
-      if (mod && mod.openDealEditor) mod.openDealEditor(dealId);
-      else console.warn('No deal editor found');
-    }).catch(err => console.warn('Deal open failed', err));
+    import('../contacts/contacts.js').then(mod => {
+      // Fallback to openContactEditor since pipeline.js is missing
+      if (mod && typeof mod.openContactEditor === 'function') {
+        mod.openContactEditor(dealId, { source: 'dashboard', sourceHint: 'dashboard:deal', trigger: target });
+      }
+    }).catch(err => {
+      console.warn('Deal open failed', err);
+    });
     return true;
   }
 
@@ -2800,93 +2803,28 @@ function handleDashboardTap(evt, target) {
 }
 
 function wireTileTap(container) {
-  if (!container || dashDnDState.pointerHandlers) return;
-  const onPointerDown = evt => {
-    if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
-      if (evt.button != null && evt.button !== 0) return;
-    }
-    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const dataTarget = findDashboardDrilldownTarget(evt.target);
-    if (!dataTarget) return;
-    pointerTapState.set(evt.pointerId, {
-      startX: evt.clientX,
-      startY: evt.clientY,
-      dataTarget,
-      cancelled: false,
-      preventClick: false
-    });
-  };
-  const onPointerMove = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    if (!state || state.cancelled) return;
-    const dx = Math.abs(evt.clientX - state.startX);
-    const dy = Math.abs(evt.clientY - state.startY);
-    if (dx > DASHBOARD_CLICK_THRESHOLD || dy > DASHBOARD_CLICK_THRESHOLD) {
-      state.cancelled = true;
-      state.preventClick = true;
-    }
-  };
-  const onPointerUp = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    pointerTapState.delete(evt.pointerId);
-    if (!state) return;
-    if (state.preventClick && state.dataTarget) {
-      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
-      return;
-    }
-    if (state.cancelled) return;
-    if (evt.target && evt.target.closest && evt.target.closest('.dash-resize-handle')) return;
-    const resolved = findDashboardDrilldownTarget(evt.target);
-    const target = resolved || state.dataTarget;
-    if (!target) return;
-    const handled = handleDashboardTap(evt, target);
-    if (handled) {
-      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
-    }
-  };
-  const onPointerCancel = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    pointerTapState.delete(evt.pointerId);
-    if (state && state.dataTarget && state.preventClick) {
-      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
-    }
-  };
-  const onKeyDown = evt => {
-    if (evt.repeat) return;
-    if (evt.key !== 'Enter' && evt.key !== ' ') return;
-    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const target = findDashboardDrilldownTarget(evt.target);
-    if (!target) return;
-    const handled = handleDashboardTap(evt, target);
-    if (handled) {
-      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
-    }
-  };
+  if (!container) return;
+  // REMOVED LEGACY POINTER STATE MACHINE TO FIX FREEZE/LOCKS.
+  // The complex pointerdown/move/up logic was causing render locks on some devices/browsers.
+  // Reverted to simple click handling for legacy/stable dashboard behavior.
+
   const onClick = evt => {
+    // If specific drag/resize handles are clicked, ignore (Labs logic might still inject them)
     if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
+
     const target = findDashboardDrilldownTarget(evt.target);
     if (!target) return;
-    const skipUntil = target[DASHBOARD_SKIP_CLICK_KEY] || 0;
-    if (skipUntil && skipUntil > Date.now()) {
-      target[DASHBOARD_SKIP_CLICK_KEY] = 0;
-      return;
-    }
-    const lastHandled = target[DASHBOARD_HANDLED_CLICK_KEY] || 0;
-    if (lastHandled && Date.now() - lastHandled < DASHBOARD_SKIP_CLICK_WINDOW) {
-      return;
-    }
+
+    // Use refined handleDashboardTap logic
     const handled = handleDashboardTap(evt, target);
     if (handled) {
       target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
     }
   };
-  container.addEventListener('pointerdown', onPointerDown);
-  container.addEventListener('pointermove', onPointerMove);
-  container.addEventListener('pointerup', onPointerUp);
-  container.addEventListener('pointercancel', onPointerCancel);
-  container.addEventListener('keydown', onKeyDown);
+
   container.addEventListener('click', onClick);
-  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onKeyDown, onClick };
+  // Expose empty handlers if something external tries to read dashDnDState.pointerHandlers
+  dashDnDState.pointerHandlers = { onClick };
   exposeDashboardDnDHandlers();
 }
 

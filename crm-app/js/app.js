@@ -1502,33 +1502,64 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function applySelectAllToStore(checkbox, store) {
     if (!checkbox || !store) return;
     const scope = selectionScopeFor(checkbox);
+    // Determine visible IDs
     const host = checkbox.closest('[data-selection-scope]');
     const entries = host ? collectSelectionRowData(host) : [];
     const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
+    // If nothing visible to select, just clear the header state and return
     if (!visible.length) {
-      if (checkbox.checked) {
-        checkbox.checked = false;
-        checkbox.indeterminate = false;
-      }
+      checkbox.indeterminate = false;
+      checkbox.checked = false;
+      try { checkbox.setAttribute('aria-checked', 'false'); } catch (_) { }
       return;
     }
 
     const ids = visible.map(entry => entry.id);
 
+    // Batch update the store
+    // Use selectMany/clearMany if available for performance and atomicity
     if (checkbox.checked) {
-      // BATCH SELECT
-      store.selectMany(ids, scope);
-      // Let the subscribers update the DOM.
-      // But we can optimistically update the header to avoid UI lag.
-      checkbox.indeterminate = false;
-      try { checkbox.setAttribute('aria-checked', 'true'); } catch (_err) { }
+      if (typeof store.selectMany === 'function') {
+        store.selectMany(ids, scope);
+      } else {
+        const current = store.get(scope);
+        const next = new Set(current instanceof Set ? current : []);
+        ids.forEach(id => next.add(id));
+        store.set(next, scope);
+      }
     } else {
-      // BATCH CLEAR
-      store.clearMany(ids, scope);
-      // Let subscribers update.
-      checkbox.indeterminate = false;
-      try { checkbox.setAttribute('aria-checked', 'false'); } catch (_err) { }
+      if (typeof store.clearMany === 'function') {
+        store.clearMany(ids, scope);
+      } else {
+        const current = store.get(scope);
+        const next = new Set(current instanceof Set ? current : []);
+        ids.forEach(id => next.delete(id));
+        store.set(next, scope);
+      }
+    }
+
+    // Sync Window Selection Service to notify Action Bar and other listeners
+    // This emission should cover the requirement for selection:changed
+    if (typeof window !== 'undefined') {
+      const type = scope === 'partners' ? 'partners' : 'contacts';
+      // Calculate origin based on action
+      const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+
+      // We need to pass the FULL set of selected IDs to the Selection service
+      // because it might not be bound to the Store in the same way.
+      // Re-read from store to get the authoritative set after update.
+      const updatedSet = store.get(scope);
+      const updatedIds = Array.from(updatedSet || []).map(String);
+
+      const selection = window.SelectionService || window.Selection;
+      if (selection && typeof selection.set === 'function') {
+        try {
+          selection.set(updatedIds, type, origin);
+        } catch (err) {
+          try { console.warn('[select-all] SelectionService.set failed', err); } catch (_) { }
+        }
+      }
     }
   }
 
@@ -1626,40 +1657,74 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const bar = document.getElementById('actionbar');
     if (!bar) return;
     const totalRaw = Number(count);
-    const total = Number.isFinite(totalRaw) ? Math.max(0, Math.floor(totalRaw)) : 0;
+    const total = Number.isFinite(totalRaw) ? totalRaw : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
     } else {
       bar.removeAttribute('data-selection-type');
     }
-
-    const guards = scopeKey === 'notifications'
-      ? {
+    const mergeReadyAttr = total >= 2 ? '1' : '0';
+    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
+      bar.setAttribute('data-merge-ready', mergeReadyAttr);
+    }
+    const apply = typeof window.applyActionBarGuards === 'function'
+      ? window.applyActionBarGuards
+      : null;
+    let guards = null;
+    if (scopeKey === 'notifications') {
+      guards = {
         edit: false,
         merge: false,
         emailTogether: false,
         emailMass: false,
         addTask: false,
         bulkLog: false,
-        convertToPipeline: false,
         delete: false,
-        clear: total > 0
-      }
-      : computeActionBarGuards(total);
-
-    const mergeReadyAttr = total >= 2 ? '1' : '0';
-    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
-      bar.setAttribute('data-merge-ready', mergeReadyAttr);
+        clear: true
+      };
+    } else if (apply) {
+      guards = apply(bar, total);
+    } else {
+      const compute = typeof window.computeActionBarGuards === 'function'
+        ? window.computeActionBarGuards
+        : (() => ({}));
+      guards = compute(total);
+      const fallbackActs = {
+        edit: 'edit',
+        merge: 'merge',
+        emailTogether: 'emailTogether',
+        emailMass: 'emailMass',
+        addTask: 'task',
+        bulkLog: 'bulkLog',
+        delete: 'delete',
+        clear: 'clear'
+      };
+      Object.entries(fallbackActs).forEach(([key, act]) => {
+        const btn = bar.querySelector(`[data-act="${act}"]`);
+        if (!btn) return;
+        const enabled = !!guards[key];
+        btn.disabled = !enabled;
+        btn.classList?.toggle('disabled', !enabled);
+        const isPrimary = act === 'edit' || act === 'merge';
+        btn.classList?.toggle('active', isPrimary && enabled);
+      });
     }
-
-    applyActionBarGuards(bar, guards);
-    applyActionBarState(bar, total, guards);
-
+    if (total > 0) {
+      bar.classList.add('has-selection');
+    } else {
+      bar.classList.remove('has-selection');
+    }
+    if (bar.dataset && bar.dataset.idleVisible === '1') {
+      bar.setAttribute('data-visible', '1');
+      if (bar.style && bar.style.display === 'none') {
+        bar.style.display = '';
+      }
+    }
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
       queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-        catch (err) { logAppError('actionbar:update-visible', err); }
+        catch (_) { }
       });
     }
   }
@@ -3459,12 +3524,18 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         });
         if (scopedHandled) return;
       }
+      const meaningfulScopes = scopeCandidates
+        .map(scope => String(scope || '').toLowerCase())
+        .filter(label => label && label !== 'selection');
+
+      // FIX: If selection is the only scope, do NOT trigger a render (handled by selection:changed)
+      if (!shouldFullRender && meaningfulScopes.length === 0 && scopeCandidates.length > 0) {
+        return;
+      }
+
       const renderScopeLabel = shouldFullRender
         ? 'full'
-        : (scopeCandidates
-          .map(scope => String(scope || '').toLowerCase())
-          .filter(label => label && label !== 'selection')
-          .join(',') || 'full');
+        : (meaningfulScopes.join(',') || 'full');
       queueAppDataRender(renderScopeLabel);
     };
     if (document && typeof document.addEventListener === 'function') {

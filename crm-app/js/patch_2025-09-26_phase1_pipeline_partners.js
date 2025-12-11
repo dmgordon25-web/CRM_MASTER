@@ -400,7 +400,7 @@ function runPatch() {
       }
       const ta = stageEntryTimestamp(ca, lane) || 0;
       const tb = stageEntryTimestamp(cb, lane) || 0;
-      if (ta === tb) return (cb?.updatedAt || 0) - (ca?.updatedAt || 0);
+      if (ta === tb) return String(a).localeCompare(String(b));
       return ta - tb;
     });
   }
