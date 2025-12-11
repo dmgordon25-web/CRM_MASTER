@@ -1820,30 +1820,31 @@ export async function renderAll(request) {
           const rangeStart = today.getTime();
           const rangeEnd = horizon.getTime();
           const events = [];
-          const addEvent = (rawDate, label, meta, type) => {
+          const addEvent = (rawDate, label, meta, type, contactId, partnerId) => {
             const when = rawDate instanceof Date ? rawDate : toDate(rawDate);
             if (!when) return;
             const stamp = when.getTime();
             if (Number.isNaN(stamp) || stamp < rangeStart || stamp > rangeEnd) return;
             const typeKey = pipelineTypeLabels[type] ? type : 'task';
             const typeLabel = pipelineTypeLabels[typeKey] || pipelineTypeLabels.task;
-            events.push({ date: when, label, meta, type: typeKey, typeLabel });
+            events.push({ date: when, label, meta, type: typeKey, typeLabel, contactId, partnerId });
           };
           openTasks.forEach(task => {
             if (task.dueDate) {
               const metaParts = [task.name];
               if (task.stage) metaParts.push(task.stage);
-              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task');
+              const contactId = task.contact && task.contact.id ? task.contact.id : null;
+              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task', contactId);
             }
           });
           contacts.forEach(c => {
             if (c.nextFollowUp) {
               const stageKey = normalizeStatus(c.stage);
               const stage = stageLabels[stageKey] || c.stage || STR['stage.pipeline'];
-              addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup');
+              addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup', c.id);
             }
             if (c.preApprovalExpires) {
-              addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring');
+              addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring', c.id);
             }
           });
           closingCandidates.forEach(item => {
@@ -1851,7 +1852,7 @@ export async function renderAll(request) {
             const stage = stageLabels[item.stage] || (c.stage || '');
             const metaParts = [stage];
             if (Number(c.loanAmount || 0)) metaParts.push(money(c.loanAmount));
-            addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal');
+            addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal', c.id);
           });
           events.sort((a, b) => a.date.getTime() - b.date.getTime());
           return events;
@@ -1925,7 +1926,12 @@ export async function renderAll(request) {
                 const typeClass = `pipeline-type ${safe(ev.type.toLowerCase())}`;
                 const badge = pipelineTypeLabels[ev.type.toLowerCase()] || ev.type;
                 const metaLine = ev.meta ? `<div class="pipeline-meta">${safe(ev.meta)}</div>` : '';
-                return `<li><div class="pipeline-date">${safe(shortDate(ev.date))}</div><div class="pipeline-detail"><div class="pipeline-label">${safe(ev.label)}</div>${metaLine}</div><span class="${typeClass}">${safe(badge)}</span></li>`;
+                const contactAttr = ev.contactId ? attr(ev.contactId) : '';
+                const partnerAttr = !contactAttr && ev.partnerId ? attr(ev.partnerId) : '';
+                const widgetAttrs = [`data-widget="pipeline-calendar"`];
+                if (contactAttr) widgetAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
+                if (!contactAttr && partnerAttr) widgetAttrs.push(`data-partner-id="${partnerAttr}"`);
+                return `<li ${widgetAttrs.join(' ')}><div class="pipeline-date">${safe(shortDate(ev.date))}</div><div class="pipeline-detail"><div class="pipeline-label">${safe(ev.label)}</div>${metaLine}</div><span class="${typeClass}">${safe(badge)}</span></li>`;
               }).join('');
               pipelineCal.innerHTML = `<ul class="pipeline-timeline">${items}</ul>`;
             }
