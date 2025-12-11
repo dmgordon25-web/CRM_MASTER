@@ -1506,9 +1506,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const host = checkbox.closest('[data-selection-scope]');
     const entries = host ? collectSelectionRowData(host) : [];
-    const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+    const targets = entries.filter(entry => !entry.disabled);
 
-    if (!visible.length) {
+    if (!targets.length) {
       checkbox.indeterminate = false;
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
@@ -1516,7 +1516,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       return;
     }
 
-    const ids = visible.map(entry => entry.id);
+    const ids = targets.map(entry => entry.id);
     const base = store.get(scope);
     const next = base instanceof Set
       ? new Set(base)
@@ -1527,7 +1527,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err) { }
       // Update DOM checkboxes BEFORE calling store.set() so the action bar sees the checked state immediately
-      visible.forEach(entry => {
+      targets.forEach(entry => {
         if (entry.checkbox && entry.id) {
           entry.checkbox.checked = true;
           try { entry.checkbox.setAttribute('aria-checked', 'true'); }
@@ -1543,7 +1543,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
       // Update DOM checkboxes BEFORE calling store.set()
-      visible.forEach(entry => {
+      targets.forEach(entry => {
         if (entry.checkbox && entry.id) {
           entry.checkbox.checked = false;
           try { entry.checkbox.setAttribute('aria-checked', 'false'); }
@@ -1630,10 +1630,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           bar.removeAttribute('data-idle-visible');
           bar.setAttribute('data-minimized', '1');
           if (bar.style) {
-            bar.style.display = '';
-            bar.style.opacity = '1';
-            bar.style.visibility = 'visible';
-            bar.style.pointerEvents = 'auto';
+            bar.style.display = 'none';
+            bar.style.visibility = '';
           }
           bar.dataset.count = '0';
           bar.setAttribute('aria-expanded', 'false');
@@ -1714,7 +1712,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
       const header = table.querySelector('thead input[data-role="select-all"]');
       if (header) {
-        const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+        const visible = entries.filter(entry => !entry.disabled);
         const total = visible.length;
         let selectedVisible = 0;
         visible.forEach((entry) => {
