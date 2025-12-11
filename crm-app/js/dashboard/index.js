@@ -3209,7 +3209,8 @@ function sanitizePrefs(settings) {
     : null;
   const normalizedBusMode = busMode === 'all' ? 'all' : (busMode === 'today' ? 'today' : null);
   const settingsMode = dash.mode === 'all' ? 'all' : 'today';
-  prefs.mode = hasCustomConfig ? prefs.mode : (normalizedBusMode || settingsMode);
+  const persistedMode = normalizedBusMode || settingsMode || prefs.mode;
+  prefs.mode = persistedMode === 'all' ? 'all' : 'today';
   const widthSource = layoutSource && typeof layoutSource.widths === 'object' ? layoutSource.widths : null;
   prefs.layout.columns = normalizedLayout.value;
   prefs.layout.widths = normalizeWidthMap(widthSource);
