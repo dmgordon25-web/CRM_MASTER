@@ -8,6 +8,7 @@ export const BASELINE_WIDGET_POLICY = Object.freeze({
   kpis: { today: true, all: true },
   pipeline: { today: true, all: true },
   today: { today: true, all: true },
+  favorites: { today: true, all: true },
   leaderboard: { today: false, all: true },
   stale: { today: false, all: true },
   goalProgress: { today: false, all: true },

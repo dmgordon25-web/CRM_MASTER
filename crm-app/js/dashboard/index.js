@@ -3204,7 +3204,12 @@ function sanitizePrefs(settings) {
   const normalizedLayout = layoutSource && Object.prototype.hasOwnProperty.call(layoutSource, 'columns')
     ? normalizeColumnCount(layoutSource.columns)
     : normalizeColumnCount(undefined);
-  prefs.mode = hasCustomConfig ? prefs.mode : (dash.mode === 'all' ? 'all' : 'today');
+  const busMode = dashboardStateApi && typeof dashboardStateApi.getMode === 'function'
+    ? dashboardStateApi.getMode()
+    : null;
+  const normalizedBusMode = busMode === 'all' ? 'all' : (busMode === 'today' ? 'today' : null);
+  const settingsMode = dash.mode === 'all' ? 'all' : 'today';
+  prefs.mode = hasCustomConfig ? prefs.mode : (normalizedBusMode || settingsMode);
   const widthSource = layoutSource && typeof layoutSource.widths === 'object' ? layoutSource.widths : null;
   prefs.layout.columns = normalizedLayout.value;
   prefs.layout.widths = normalizeWidthMap(widthSource);

@@ -1123,7 +1123,7 @@ function ensureWidgetClickHandlers() {
       list.__wired = true;
       list.addEventListener('click', evt => {
         if (evt.target.closest('[data-ics-source]')) return;
-        const item = evt.target.closest('li[data-id], li[data-contact-id], li[data-partner-id]');
+        const item = evt.target.closest('[data-contact-id], [data-partner-id], li[data-id]');
         if (!item) return;
         evt.preventDefault();
         const rawId = item.dataset.id;
