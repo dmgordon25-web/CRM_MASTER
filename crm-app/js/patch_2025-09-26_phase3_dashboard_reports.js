@@ -1777,6 +1777,48 @@ function runPatch() {
     }
   }
 
+  function resolveRowEntity(row) {
+    if (!row) return { contactId: '', partnerId: '' };
+    const dataset = row.dataset || {};
+    const contactId = row.getAttribute('data-contact-id') || dataset.contactId || '';
+    const partnerId = row.getAttribute('data-partner-id') || dataset.partnerId || '';
+    return { contactId, partnerId };
+  }
+
+  function openEntityForRow(row, context) {
+    const { contactId, partnerId } = resolveRowEntity(row);
+    const sourceHint = `dashboard:widget:${context}`;
+    if (contactId && typeof openContactModal === 'function') {
+      openContactModal(contactId, { sourceHint, trigger: row });
+      return true;
+    }
+    if (partnerId && typeof openPartnerEditModal === 'function') {
+      try {
+        openPartnerEditModal(partnerId, { sourceHint, trigger: row });
+      } catch (err) {
+        try { console && console.warn && console.warn('openPartnerEditModal failed', err); }
+        catch (_warn) { }
+      }
+      return true;
+    }
+    try {
+      console && console.warn && console.warn(`[dashboard] ${context} row missing contactId/partnerId`, row);
+    } catch (_err) { }
+    return false;
+  }
+
+  function wireWidgetCardClicks(containerId, context) {
+    const host = document.getElementById(containerId);
+    if (!host || host.__clickWired) return;
+    host.__clickWired = true;
+    host.addEventListener('click', evt => {
+      const row = evt.target && evt.target.closest('[data-contact-id], [data-partner-id], li[data-id]');
+      if (!row || !host.contains(row)) return;
+      evt.preventDefault();
+      openEntityForRow(row, context);
+    });
+  }
+
   async function setDashboardMode(mode) {
     const normalized = mode === 'all' ? 'all' : 'today';
     if (state.dashboard.mode === normalized) {
@@ -1883,6 +1925,9 @@ function runPatch() {
       handleExport(key);
     }
   });
+
+  wireWidgetCardClicks('priority-actions-card', 'priority-actions');
+  wireWidgetCardClicks('milestones-card', 'milestones');
 
   const watchedEvents = ['contact:updated', 'stage:changed', 'automation:executed', 'task:updated'];
   watchedEvents.forEach(evtName => {
