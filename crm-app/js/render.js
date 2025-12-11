@@ -1515,7 +1515,9 @@ export async function renderAll(request) {
           // Priority Actions drilldown matches the Pipeline Calendar pattern:
           //   buildRecordDataAttrs → data-contact-id / data-partner-id on <li> → dashboard delegate opens the editor.
           const widgetAttrs = buildRecordDataAttrs(ids, 'priorityActions');
-          return `<li class="${task.status}"${widgetAttrs}>
+          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
+          const taskAttr = taskId ? `data-task-id="${taskId}"` : '';
+          return `<li class="${task.status}"${widgetAttrs} ${taskAttr}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>
@@ -1534,7 +1536,9 @@ export async function renderAll(request) {
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
           // Milestones Ahead drilldown mirrors the pipeline calendar wiring with data-contact-id / data-partner-id on the row.
           const widgetAttrs = buildRecordDataAttrs(ids, 'milestonesAhead');
-          return `<li${widgetAttrs}>
+          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
+          const taskAttr = taskId ? `data-task-id="${taskId}"` : '';
+          return `<li${widgetAttrs} ${taskAttr}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>
