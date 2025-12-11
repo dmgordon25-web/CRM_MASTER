@@ -2757,6 +2757,10 @@ export function __setDashboardDrilldownTestHooks(hooks = {}) {
   drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
 }
 
+export function __getHandleDashboardClickForTest() {
+  return handleDashboardClick;
+}
+
 export function __getHandleDashboardTapForTest() {
   return handleDashboardTap;
 }

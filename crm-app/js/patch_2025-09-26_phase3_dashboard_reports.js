@@ -1030,9 +1030,11 @@ function runPatch() {
     return `<div><h4>${title}</h4><ul class="insight-list">${groups.map(group => {
       const name = displayName(group.contact);
       const contactId = group.contact ? group.contact.id : '';
+      const partnerId = group.contact ? group.contact.partnerId : '';
+      const rowAttrs = buildTodayRecordAttrs({ contactId, partnerId });
       const tasks = group.tasks.map(task => {
         const due = task.due ? task.due.toLocaleDateString() : '—';
-        return `<li data-task-id="${task.id}">
+        return `<li data-task-id="${task.id}"${rowAttrs}>
             <div class="row" style="align-items:center;gap:8px">
               <div class="grow">
                 <div><strong>${task.title}</strong></div>
@@ -1077,6 +1079,19 @@ function runPatch() {
     const attrs = [];
     const widget = widgetKey || 'dashboard-focus';
     if (widget) attrs.push(`data-widget="${escapeHtml(widget)}"`);
+    if (contactId) {
+      const safeId = escapeHtml(String(contactId));
+      attrs.push(`data-contact-id="${safeId}"`, `data-id="${safeId}"`);
+    }
+    if (partnerId) attrs.push(`data-partner-id="${escapeHtml(String(partnerId))}"`);
+    return attrs.length ? ` ${attrs.join(' ')}` : '';
+  }
+
+  function buildTodayRecordAttrs(ids) {
+    const record = ids || {};
+    const contactId = record.contactId || (record.contact && record.contact.id) || '';
+    const partnerId = record.partnerId || (record.contact && record.contact.partnerId) || '';
+    const attrs = ['data-widget="today"', 'data-dash-widget="today"', 'data-widget-id="today"'];
     if (contactId) {
       const safeId = escapeHtml(String(contactId));
       attrs.push(`data-contact-id="${safeId}"`, `data-id="${safeId}"`);
