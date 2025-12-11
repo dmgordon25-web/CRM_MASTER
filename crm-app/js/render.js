@@ -1106,6 +1106,26 @@ function dispatchPartnerModal(partnerId, options) {
   return null;
 }
 
+function normalizeRecordRefs(rawContactId, rawPartnerId, contact) {
+  const contactId = rawContactId != null && rawContactId !== ''
+    ? String(rawContactId)
+    : (contact && contact.id != null ? String(contact.id) : '');
+  const partnerId = rawPartnerId != null && rawPartnerId !== ''
+    ? String(rawPartnerId)
+    : (contact && contact.partnerId != null ? String(contact.partnerId) : '');
+  return { contactId, partnerId };
+}
+
+function buildRecordDataAttrs(ids, widgetKey) {
+  const contactAttr = ids && ids.contactId ? attr(ids.contactId) : '';
+  const partnerAttr = ids && ids.partnerId ? attr(ids.partnerId) : '';
+  const attrs = [];
+  if (widgetKey) attrs.push(`data-widget="${attr(widgetKey)}"`);
+  if (contactAttr) attrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
+  if (partnerAttr) attrs.push(`data-partner-id="${partnerAttr}"`);
+  return attrs.length ? ` ${attrs.join(' ')}` : '';
+}
+
 function ensureWidgetClickHandlers() {
   [
     'rel-opps',
@@ -1393,6 +1413,7 @@ export async function renderAll(request) {
         const contactId = t && t.contactId != null ? String(t.contactId) : '';
         const partnerId = t && t.partnerId != null ? String(t.partnerId) : '';
         const contact = contactById.get(contactId);
+        const ids = normalizeRecordRefs(contactId, partnerId, contact);
         const stageKey = contact ? normalizeStatus(contact.stage) : '';
         const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g, ' ')) : '';
         const diffFromToday = dueDate ? Math.floor((dueDate.getTime() - today.getTime()) / 86400000) : null;
@@ -1403,19 +1424,19 @@ export async function renderAll(request) {
         }
         const dueLabel = dueDate ? dueDate.toISOString().slice(0, 10) : 'No date';
         return {
-          raw: t,
-          title: t.title || t.text || 'Follow up',
-          dueDate,
-          dueLabel,
-          status,
-          diffFromToday,
-          contactId,
-          partnerId: partnerId || (contact && contact.partnerId != null ? String(contact.partnerId) : ''),
-          contact,
-          name: contact ? fullName(contact) : 'General Task',
-          stage
-        };
-      }).sort((a, b) => {
+        raw: t,
+        title: t.title || t.text || 'Follow up',
+        dueDate,
+        dueLabel,
+        status,
+        diffFromToday,
+        contactId: ids.contactId,
+        partnerId: ids.partnerId,
+        contact,
+        name: contact ? fullName(contact) : 'General Task',
+        stage
+      };
+    }).sort((a, b) => {
         const ad = a.dueDate ? a.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
         const bd = b.dueDate ? b.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
         return ad - bd;
@@ -1542,14 +1563,8 @@ export async function renderAll(request) {
         html($('#needs-attn'), attention.length ? attention.map(task => {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
-          const contactId = task.contactId || (task.raw && task.raw.contactId) || (task.contact ? task.contact.id : '');
-          const partnerId = task.partnerId || (task.raw && task.raw.partnerId) || (task.contact ? task.contact.partnerId : '');
-          const contactAttr = contactId ? attr(contactId) : '';
-          const partnerAttr = (!contactAttr && partnerId) ? attr(partnerId) : '';
-          const idAttr = contactAttr || partnerAttr;
-          const widgetAttrs = idAttr
-            ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="priorityActions"`
-            : '';
+          const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          const widgetAttrs = buildRecordDataAttrs(ids, 'priorityActions');
           return `<li class="${task.status}"${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1566,14 +1581,8 @@ export async function renderAll(request) {
         html($('#upcoming'), timeline.length ? timeline.map(task => {
           const cls = task.status === 'soon' ? 'warn' : 'good';
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
-          const contactId = task.contactId || (task.raw && task.raw.contactId) || (task.contact ? task.contact.id : '');
-          const partnerId = task.partnerId || (task.raw && task.raw.partnerId) || (task.contact ? task.contact.partnerId : '');
-          const contactAttr = contactId ? attr(contactId) : '';
-          const partnerAttr = (!contactAttr && partnerId) ? attr(partnerId) : '';
-          const idAttr = contactAttr || partnerAttr;
-          const widgetAttrs = idAttr
-            ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="milestones"`
-            : '';
+          const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          const widgetAttrs = buildRecordDataAttrs(ids, 'milestones');
           return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1859,25 +1868,27 @@ export async function renderAll(request) {
             if (Number.isNaN(stamp) || stamp < rangeStart || stamp > rangeEnd) return;
             const typeKey = pipelineTypeLabels[type] ? type : 'task';
             const typeLabel = pipelineTypeLabels[typeKey] || pipelineTypeLabels.task;
-            events.push({ date: when, label, meta, type: typeKey, typeLabel, contactId, partnerId });
+            const ids = normalizeRecordRefs(contactId, partnerId);
+            events.push({ date: when, label, meta, type: typeKey, typeLabel, contactId: ids.contactId, partnerId: ids.partnerId });
           };
           openTasks.forEach(task => {
             if (task.dueDate) {
               const metaParts = [task.name];
               if (task.stage) metaParts.push(task.stage);
-              const contactId = task.contactId || (task.contact && task.contact.id ? String(task.contact.id) : null);
-              const partnerId = task.partnerId || (task.contact && task.contact.partnerId != null ? String(task.contact.partnerId) : null);
-              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task', contactId, partnerId);
+              const ids = normalizeRecordRefs(task.contactId, task.partnerId, task.contact);
+              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task', ids.contactId, ids.partnerId);
             }
           });
           contacts.forEach(c => {
             if (c.nextFollowUp) {
               const stageKey = normalizeStatus(c.stage);
               const stage = stageLabels[stageKey] || c.stage || STR['stage.pipeline'];
-              addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup', c.id);
+              const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+              addEvent(c.nextFollowUp, `${fullName(c)} — Next Touch`, stage, 'followup', ids.contactId, ids.partnerId);
             }
             if (c.preApprovalExpires) {
-              addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring', c.id);
+              const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+              addEvent(c.preApprovalExpires, `${fullName(c)} — Pre-Approval`, 'Expires', 'expiring', ids.contactId, ids.partnerId);
             }
           });
           closingCandidates.forEach(item => {
@@ -1885,7 +1896,8 @@ export async function renderAll(request) {
             const stage = stageLabels[item.stage] || (c.stage || '');
             const metaParts = [stage];
             if (Number(c.loanAmount || 0)) metaParts.push(money(c.loanAmount));
-            addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal', c.id);
+            const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+            addEvent(item.date, `${fullName(c)} — Closing`, metaParts.filter(Boolean).join(' • '), 'deal', ids.contactId, ids.partnerId);
           });
           events.sort((a, b) => a.date.getTime() - b.date.getTime());
           return events;
@@ -1959,12 +1971,8 @@ export async function renderAll(request) {
                 const typeClass = `pipeline-type ${safe(ev.type.toLowerCase())}`;
                 const badge = pipelineTypeLabels[ev.type.toLowerCase()] || ev.type;
                 const metaLine = ev.meta ? `<div class="pipeline-meta">${safe(ev.meta)}</div>` : '';
-                const contactAttr = ev.contactId ? attr(ev.contactId) : '';
-                const partnerAttr = !contactAttr && ev.partnerId ? attr(ev.partnerId) : '';
-                const widgetAttrs = [`data-widget="pipeline-calendar"`];
-                if (contactAttr) widgetAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
-                if (!contactAttr && partnerAttr) widgetAttrs.push(`data-partner-id="${partnerAttr}"`);
-                return `<li ${widgetAttrs.join(' ')}><div class="pipeline-date">${safe(shortDate(ev.date))}</div><div class="pipeline-detail"><div class="pipeline-label">${safe(ev.label)}</div>${metaLine}</div><span class="${typeClass}">${safe(badge)}</span></li>`;
+                const widgetAttrs = buildRecordDataAttrs(normalizeRecordRefs(ev.contactId, ev.partnerId), 'pipeline-calendar');
+                return `<li${widgetAttrs}><div class="pipeline-date">${safe(shortDate(ev.date))}</div><div class="pipeline-detail"><div class="pipeline-label">${safe(ev.label)}</div>${metaLine}</div><span class="${typeClass}">${safe(badge)}</span></li>`;
               }).join('');
               pipelineCal.innerHTML = `<ul class="pipeline-timeline">${items}</ul>`;
             }
