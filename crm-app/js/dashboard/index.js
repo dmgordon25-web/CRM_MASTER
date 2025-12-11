@@ -49,7 +49,6 @@ const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
 const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
 const DASHBOARD_STYLE_ORIGIN = 'crm:dashboard:dnd';
-const DASHBOARD_CLICK_THRESHOLD = 5;
 const DASHBOARD_DRILLDOWN_SELECTOR = '[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
 const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
@@ -361,7 +360,7 @@ const layoutResetState = {
   pending: false
 };
 
-const pointerTapState = new Map();
+let dashboardClickHandlersBound = false;
 
 function resolveDashboardDrilldownDispatcher() {
   const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
@@ -410,23 +409,6 @@ function teardownLayoutControls() {
   layoutToggleState.editLabel = null;
   layoutToggleState.wired = false;
   releaseLayoutToggleGlobals();
-}
-
-function findDashboardDrilldownTarget(node) {
-  if (!node || typeof node.closest !== 'function') return null;
-  const selector = `${DASHBOARD_DRILLDOWN_SELECTOR},[data-dash-widget],[data-widget],[data-widget-id]`;
-  const target = node.closest(selector);
-  if (target) {
-    const data = target.dataset || {};
-    if (data.contactId || data.partnerId || resolveDashboardRouteTarget(target)) {
-      return target;
-    }
-  }
-  if (node.closest) {
-    const anchor = node.closest('a[data-dashboard-link],a[href^="#"],a[href^="/"]');
-    if (anchor && resolveDashboardRouteTarget(anchor)) return anchor;
-  }
-  return null;
 }
 
 function resolveDashboardRouteTarget(node) {
@@ -486,10 +468,8 @@ function tryNavigateDashboardRoute(route, target) {
   }
   return dispatched;
 }
-const DASHBOARD_SKIP_CLICK_KEY = '__dashSkipClickUntil';
 const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
-const DASHBOARD_SKIP_CLICK_WINDOW = 350;
-const POINTER_HANDLER_KEYS = ['onPointerDown', 'onPointerMove', 'onPointerUp', 'onPointerCancel', 'onKeyDown', 'onClick'];
+const POINTER_HANDLER_KEYS = ['onClick'];
 
 function countPointerHandlers() {
   const handlers = dashDnDState.pointerHandlers;
@@ -545,15 +525,10 @@ function cleanupPointerHandlersFor(container) {
         ? dashDnDState.container
         : null));
   if (target && handlers) {
-    try { target.removeEventListener('pointerdown', handlers.onPointerDown); } catch (_err) { }
-    try { target.removeEventListener('pointermove', handlers.onPointerMove); } catch (_err) { }
-    try { target.removeEventListener('pointerup', handlers.onPointerUp); } catch (_err) { }
-    try { target.removeEventListener('pointercancel', handlers.onPointerCancel); } catch (_err) { }
-    try { target.removeEventListener('keydown', handlers.onKeyDown); } catch (_err) { }
     try { target.removeEventListener('click', handlers.onClick); } catch (_err) { }
   }
   dashDnDState.pointerHandlers = null;
-  pointerTapState.clear();
+  dashboardClickHandlersBound = false;
   exposeDashboardDnDHandlers();
 }
 
@@ -1142,8 +1117,7 @@ function handleCelebrationsListClick(evt) {
   const target = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
   if (!target) return;
 
-  // Fix for freeze: Check if already handled by pointer events (wireTileTap)
-  // This prevents double-invocation which causes potential race conditions/loops
+  // Skip if another handler already processed this row recently
   const lastHandled = target[DASHBOARD_HANDLED_CLICK_KEY] || 0;
   if (lastHandled && Date.now() - lastHandled < 1000) {
     evt.preventDefault();
@@ -1164,7 +1138,7 @@ function handleCelebrationsListClick(evt) {
 
   // Use shared safe opener
   requestAnimationFrame(() => {
-    tryOpenContact(contactId);
+    tryOpenContactModal(contactId);
   });
 }
 
@@ -2685,7 +2659,7 @@ function ensureDashboardWidgets(container) {
   return nodes;
 }
 
-function tryOpenContact(contactId) {
+function tryOpenContactModal(contactId) {
   const id = contactId == null ? '' : String(contactId).trim();
   if (!id) return;
   try {
@@ -2704,7 +2678,7 @@ function tryOpenContact(contactId) {
   }
 }
 
-function tryOpenPartner(partnerId) {
+function tryOpenPartnerModal(partnerId) {
   const id = partnerId == null ? '' : String(partnerId).trim();
   if (!id) return;
   try {
@@ -2735,164 +2709,64 @@ export function __getHandleDashboardTapForTest() {
 }
 
 function handleDashboardTap(evt, target) {
-  if (!target) return false;
-  if (isDashboardEditingEnabled()) return false;
+  const tapTarget = target || (evt && evt.target) || null;
+  if (!tapTarget || isDashboardEditingEnabled()) return false;
 
-  const eventNode = target.closest
-    ? target.closest('[data-contact-id], [data-partner-id], [data-dash-widget], [data-widget-id]')
-    : null;
-  if (!eventNode) return false;
+  const actionable = tapTarget.closest && tapTarget.closest(DASHBOARD_DRILLDOWN_SELECTOR);
+  const hasIcsSource = actionable && ((typeof actionable.hasAttribute === 'function'
+    ? actionable.hasAttribute('data-ics-source')
+    : (typeof actionable.getAttribute === 'function'
+      ? actionable.getAttribute('data-ics-source') != null
+      : false)));
+  if (!actionable || hasIcsSource) return false;
 
-  const dataset = eventNode.dataset || {};
-  const widgetSource = dataset.widget || dataset.widgetId || dataset.dashWidget || eventNode.id || '';
-  const contactId = dataset.contactId || eventNode.getAttribute('data-contact-id');
-  const partnerId = dataset.partnerId || eventNode.getAttribute('data-partner-id');
-  try {
-    if (console && typeof console.info === 'function') {
-      console.info('[DRILLDOWN] tap', {
-        widget: widgetSource || 'dashboard',
-        contactId: contactId || '',
-        partnerId: partnerId || ''
-      });
-    }
-  } catch (_err) { }
-
-  const openContact = drilldownTestHooks.openContact || tryOpenContact;
-  const openPartner = drilldownTestHooks.openPartner || tryOpenPartner;
+  const dataset = actionable.dataset || {};
+  const contactId = dataset.contactId || actionable.getAttribute('data-contact-id');
+  const partnerId = dataset.partnerId || actionable.getAttribute('data-partner-id');
+  const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
+  const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
 
   if (contactId) {
-    evt.preventDefault();
-    evt.stopPropagation();
-    try {
-      if (console && typeof console.info === 'function') {
-        console.info('[DRILLDOWN] Opening contact editor from widget', widgetSource || 'dashboard', 'contactId=', contactId);
-      }
-    } catch (_err) { }
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    try { actionable[DASHBOARD_HANDLED_CLICK_KEY] = Date.now(); } catch (_err) { }
     openContact(contactId);
     return true;
   }
+
   if (partnerId) {
-    evt.preventDefault();
-    evt.stopPropagation();
-    try {
-      if (console && typeof console.info === 'function') {
-        console.info('[DRILLDOWN] Opening partner editor from widget', widgetSource || 'dashboard', 'partnerId=', partnerId);
-      }
-    } catch (_err) { }
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    try { actionable[DASHBOARD_HANDLED_CLICK_KEY] = Date.now(); } catch (_err) { }
     openPartner(partnerId);
     return true;
   }
 
-  const route = resolveDashboardRouteTarget(eventNode);
+  const route = resolveDashboardRouteTarget(actionable);
   if (route) {
-    evt.preventDefault();
-    evt.stopPropagation();
-    const navigated = tryNavigateDashboardRoute(route, eventNode);
-    if (navigated) {
-      return true;
-    }
-  }
-
-  if (widgetSource === 'priorityActions' || widgetSource === 'needs-attn' || widgetSource === 'milestones' || widgetSource === 'upcoming' || widgetSource === 'dashboard-today') {
-    try {
-      if (console && typeof console.warn === 'function') {
-        console.warn('[DRILLDOWN] Missing contact/partner id for widget', widgetSource || 'dashboard', eventNode);
-      }
-    } catch (_err) { }
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    try { actionable[DASHBOARD_HANDLED_CLICK_KEY] = Date.now(); } catch (_err) { }
+    return tryNavigateDashboardRoute(route, actionable);
   }
 
   return false;
 }
 
-function wireTileTap(container) {
-  if (!container || dashDnDState.pointerHandlers) return;
-  const onPointerDown = evt => {
-    if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
-      if (evt.button != null && evt.button !== 0) return;
-    }
-    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const dataTarget = findDashboardDrilldownTarget(evt.target);
-    if (!dataTarget) return;
-    pointerTapState.set(evt.pointerId, {
-      startX: evt.clientX,
-      startY: evt.clientY,
-      dataTarget,
-      cancelled: false,
-      preventClick: false
-    });
+function bindDashboardEvents(container = getDashboardContainerNode()) {
+  const root = container;
+  if (!root || dashboardClickHandlersBound) return;
+
+  const onClick = (evt) => {
+    handleDashboardTap(evt, evt && evt.target ? evt.target : null);
   };
-  const onPointerMove = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    if (!state || state.cancelled) return;
-    const dx = Math.abs(evt.clientX - state.startX);
-    const dy = Math.abs(evt.clientY - state.startY);
-    if (dx > DASHBOARD_CLICK_THRESHOLD || dy > DASHBOARD_CLICK_THRESHOLD) {
-      state.cancelled = true;
-      state.preventClick = true;
-    }
-  };
-  const onPointerUp = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    pointerTapState.delete(evt.pointerId);
-    if (!state) return;
-    if (state.preventClick && state.dataTarget) {
-      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
-      return;
-    }
-    if (state.cancelled) return;
-    if (evt.target && evt.target.closest && evt.target.closest('.dash-resize-handle')) return;
-    const resolved = findDashboardDrilldownTarget(evt.target);
-    const target = resolved || state.dataTarget;
-    if (!target) return;
-    const handled = handleDashboardTap(evt, target);
-    if (handled) {
-      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
-    }
-  };
-  const onPointerCancel = evt => {
-    const state = pointerTapState.get(evt.pointerId);
-    pointerTapState.delete(evt.pointerId);
-    if (state && state.dataTarget && state.preventClick) {
-      state.dataTarget[DASHBOARD_SKIP_CLICK_KEY] = Date.now() + DASHBOARD_SKIP_CLICK_WINDOW;
-    }
-  };
-  const onKeyDown = evt => {
-    if (evt.repeat) return;
-    if (evt.key !== 'Enter' && evt.key !== ' ') return;
-    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const target = findDashboardDrilldownTarget(evt.target);
-    if (!target) return;
-    const handled = handleDashboardTap(evt, target);
-    if (handled) {
-      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
-    }
-  };
-  const onClick = evt => {
-    if (evt.target && evt.target.closest && (evt.target.closest('.dash-drag-handle') || evt.target.closest('.dash-resize-handle'))) return;
-    const target = findDashboardDrilldownTarget(evt.target);
-    if (!target) return;
-    const skipUntil = target[DASHBOARD_SKIP_CLICK_KEY] || 0;
-    if (skipUntil && skipUntil > Date.now()) {
-      target[DASHBOARD_SKIP_CLICK_KEY] = 0;
-      return;
-    }
-    const lastHandled = target[DASHBOARD_HANDLED_CLICK_KEY] || 0;
-    if (lastHandled && Date.now() - lastHandled < DASHBOARD_SKIP_CLICK_WINDOW) {
-      return;
-    }
-    const handled = handleDashboardTap(evt, target);
-    if (handled) {
-      target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
-    }
-  };
-  container.addEventListener('pointerdown', onPointerDown);
-  container.addEventListener('pointermove', onPointerMove);
-  container.addEventListener('pointerup', onPointerUp);
-  container.addEventListener('pointercancel', onPointerCancel);
-  container.addEventListener('keydown', onKeyDown);
-  container.addEventListener('click', onClick);
-  dashDnDState.pointerHandlers = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onKeyDown, onClick };
-  exposeDashboardDnDHandlers();
+
+  try {
+    root.addEventListener('click', onClick);
+    dashDnDState.pointerHandlers = { target: root, onClick };
+    dashboardClickHandlersBound = true;
+    exposeDashboardDnDHandlers();
+  } catch (_err) { }
 }
 
 function persistDashboardOrder(orderLike) {
@@ -3033,7 +2907,7 @@ function ensureWidgetDnD() {
   }
   if (!DASHBOARD_EDITING_LABS_ENABLED) {
     dashDnDState.active = false;
-    wireTileTap(container);
+    bindDashboardEvents(container);
     exposeDashboardDnDHandlers();
     if (celebrationsState.shouldRender) {
       if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
@@ -3098,7 +2972,7 @@ function ensureWidgetDnD() {
     ? controller.isEnabled()
     : editing;
   dashDnDState.active = !!(hasNodes && enabled);
-  wireTileTap(container);
+  bindDashboardEvents(container);
   exposeDashboardDnDHandlers();
   if (celebrationsState.shouldRender) {
     if (celebrationsState.dirty || celebrationsState.pendingHydration || !celebrationsState.hydrated) {
@@ -3897,6 +3771,7 @@ export function initDashboard(options = {}) {
       renderDashboardInitError(getDashboardContainerNode(), missingError);
       throw missingError;
     }
+    bindDashboardEvents(container);
     ensureDashboardRouteLifecycle();
     bindDashboardEventListeners();
     wireDashboardModeButtons();

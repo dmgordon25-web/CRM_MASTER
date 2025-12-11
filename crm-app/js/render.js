@@ -1133,66 +1133,6 @@ function buildRecordDataAttrs(ids, widgetKey) {
   return attrs.length ? ` ${attrs.join(' ')}` : '';
 }
 
-function ensureWidgetClickHandlers() {
-  [
-    'rel-opps',
-    'nurture',
-    'closing-watch',
-    'needs-attn',
-    'upcoming',
-    'favorites-list',
-    'priority-actions-card',
-    'milestones-card',
-    'dashboard-today'
-  ].forEach(listId => {
-    const list = asEl(listId);
-    if (list && !list.__wired) {
-      list.__wired = true;
-      list.addEventListener('click', evt => {
-        if (evt.target.closest('[data-ics-source]')) return;
-        const item = evt.target.closest('[data-contact-id], [data-partner-id], li[data-id]');
-        if (!item) return;
-        evt.preventDefault();
-        const rawId = item.dataset.id;
-        const widgetKey = item.dataset.widget || listId || rawId || 'widget';
-        const sourceHint = `dashboard:widget:${widgetKey}`;
-        const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId || '';
-        const contactId = item.getAttribute('data-contact-id') || item.dataset.contactId || '';
-        if (contactId) {
-          dispatchContactModal(contactId, { sourceHint, trigger: item });
-          return;
-        }
-        if (partnerId) {
-          dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
-          return;
-        }
-        try {
-          const warnLabel = (widgetKey === 'priorityActions' || widgetKey === 'priority-actions-card' || widgetKey === 'needs-attn')
-            ? 'Priority Actions'
-            : (widgetKey === 'milestones' || widgetKey === 'milestones-card' || widgetKey === 'upcoming')
-              ? 'Milestones Ahead'
-              : widgetKey;
-          console.warn(`[WARN] ${warnLabel} row missing contactId/partnerId`, item);
-        } catch (_err) { }
-      });
-    }
-  });
-  const partnerList = asEl('top3');
-  if (partnerList && !partnerList.__wired) {
-    partnerList.__wired = true;
-    partnerList.addEventListener('click', evt => {
-      const item = evt.target.closest('li[data-partner-id]');
-      if (!item) return;
-      evt.preventDefault();
-      const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId;
-      if (!partnerId) return;
-      const widgetKey = item.dataset.widget || 'top-partners';
-      const sourceHint = `dashboard:widget:${widgetKey}`;
-      dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
-    });
-  }
-}
-
 document.addEventListener('click', evt => {
   const btn = evt.target.closest('[data-ics-source]');
   if (!btn) return;
@@ -1593,7 +1533,7 @@ export async function renderAll(request) {
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
           // Milestones Ahead drilldown mirrors the pipeline calendar wiring with data-contact-id / data-partner-id on the row.
-          const widgetAttrs = buildRecordDataAttrs(ids, 'milestones');
+          const widgetAttrs = buildRecordDataAttrs(ids, 'milestonesAhead');
           return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -2100,7 +2040,6 @@ export async function renderAll(request) {
         const favoritesForWidget = computeFavoriteRecords();
         window.__WIDGET_DATA__ = { relOpportunities, nurtureCandidates, closingCandidates, pipelineEvents, attention, timeline, favorites: favoritesForWidget };
         renderFavoritesWidget();
-        ensureWidgetClickHandlers();
 
         // Workbench restoration: Removed explicit deletion of .status-stack
         // ensurePipelineLegend();
