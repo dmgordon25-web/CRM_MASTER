@@ -1863,6 +1863,12 @@ function runPatch() {
     host.addEventListener('click', evt => {
       const row = evt.target && evt.target.closest('[data-contact-id], [data-partner-id], [data-task-id], li[data-id]');
       if (!row || !host.contains(row)) return;
+      // Let the global dashboard drilldown delegate handle contact/partner rows
+      // so we do not double-open editors. This handler only needs to cover
+      // non-entity task rows inside the cards.
+      if (row.hasAttribute('data-contact-id') || row.hasAttribute('data-partner-id')) {
+        return;
+      }
       evt.preventDefault();
       openEntityForRow(row, context);
     });
@@ -1914,52 +1920,17 @@ function runPatch() {
       evt.preventDefault();
       const id = contactBtn.getAttribute('data-contact-id');
       if (!id || typeof openContactModal !== 'function') return;
-      // FIXED: setTimeout to prevent freeze
-      setTimeout(() => {
-        try {
-          openContactModal(id, { sourceHint: 'dashboard:reports', trigger: contactBtn });
-        } catch (err) {
-          try { console && console.warn && console.warn('[dashboard:reports] openContactModal failed', err); }
-          catch (_warn) { }
-        }
-      }, 0);
+      try {
+        openContactModal(id, { sourceHint: 'dashboard:reports', trigger: contactBtn });
+      } catch (err) {
+        try { console && console.warn && console.warn('[dashboard:reports] openContactModal failed', err); }
+        catch (_warn) { }
+      }
       return;
     }
-    const row = evt.target.closest('#referral-leaderboard [data-partner-id]');
-    if (row) {
-      evt.preventDefault();
-      if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
-      if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
-      const pid = row.getAttribute('data-partner-id');
-      if (!pid) return;
-      const openOpts = { trigger: row, sourceHint: 'dashboard:leaderboard-click' };
-      // FIXED: setTimeout to prevent freeze
-      setTimeout(() => {
-        let result = null;
-        try {
-          if (typeof openPartnerEditModal === 'function') {
-            result = openPartnerEditModal(pid, openOpts);
-          } else if (typeof window.requestPartnerModal === 'function') {
-            result = window.requestPartnerModal(pid, openOpts);
-          }
-        } catch (err) {
-          try { console && console.warn && console.warn('openPartnerEditModal failed', err); }
-          catch (_err) { }
-          try {
-            if (typeof window.requestPartnerModal === 'function') {
-              window.requestPartnerModal(pid, openOpts);
-            }
-          } catch (_err2) { }
-        }
-        if (result && typeof result.catch === 'function') {
-          result.catch(err => {
-            try { console && console.warn && console.warn('openPartnerEditModal failed', err); }
-            catch (_err) { }
-          });
-        }
-      }, 0);
-      return;
-    }
+    // Referral leaderboard rows declare data-partner-id and are handled by the
+    // global dashboard drilldown delegate in dashboard/index.js. Avoid adding a
+    // competing click path here so drilldowns stay single-sourced.
     const tab = evt.target.closest('[data-report-tab]');
     if (tab) {
       evt.preventDefault();
