@@ -1412,8 +1412,9 @@ export async function renderAll(request) {
         const dueDate = toDate(t.due);
         const contactId = t && t.contactId != null ? String(t.contactId) : '';
         const partnerId = t && t.partnerId != null ? String(t.partnerId) : '';
-        const contact = contactById.get(contactId);
-        const ids = normalizeRecordRefs(contactId, partnerId, contact);
+        const fallbackContact = (t && t.contact) || (t && t.contactRecord) || null;
+        const contact = contactById.get(contactId) || fallbackContact;
+        const ids = normalizeRecordRefs(contactId || (contact && contact.id), partnerId || (contact && contact.partnerId), contact);
         const stageKey = contact ? normalizeStatus(contact.stage) : '';
         const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g, ' ')) : '';
         const diffFromToday = dueDate ? Math.floor((dueDate.getTime() - today.getTime()) / 86400000) : null;
@@ -1861,6 +1862,10 @@ export async function renderAll(request) {
           const rangeStart = today.getTime();
           const rangeEnd = horizon.getTime();
           const events = [];
+          // Pipeline calendar click path:
+          //   addEvent(normalizeRecordRefs) → buildRecordDataAttrs on <li>
+          //   dashboard delegated click (handleDashboardTap) reads data-contact-id / data-partner-id
+          //   dispatches Contacts/Partner editors just like table rows
           const addEvent = (rawDate, label, meta, type, contactId, partnerId) => {
             const when = rawDate instanceof Date ? rawDate : toDate(rawDate);
             if (!when) return;

@@ -2763,10 +2763,16 @@ function handleDashboardTap(evt, target) {
   if (!target) return false;
   if (isDashboardEditingEnabled()) return false;
   const dataset = target.dataset || {};
+  const widgetSource = dataset.widget || dataset.widgetId || dataset.dashWidget || target.id || '';
   const contactId = dataset.contactId || target.getAttribute('data-contact-id');
   if (contactId) {
     evt.preventDefault();
     evt.stopPropagation();
+    try {
+      if (console && typeof console.info === 'function') {
+        console.info('[VERIFY] Dashboard event click', { widget: widgetSource || 'dashboard', kind: 'contact', contactId });
+      }
+    } catch (_err) { }
     tryOpenContact(contactId);
     logDrilldownSuccess(target);
     return true;
@@ -2775,6 +2781,11 @@ function handleDashboardTap(evt, target) {
   if (partnerId) {
     evt.preventDefault();
     evt.stopPropagation();
+    try {
+      if (console && typeof console.info === 'function') {
+        console.info('[VERIFY] Dashboard event click', { widget: widgetSource || 'dashboard', kind: 'partner', partnerId });
+      }
+    } catch (_err) { }
     tryOpenPartner(partnerId);
     logDrilldownSuccess(target);
     return true;
