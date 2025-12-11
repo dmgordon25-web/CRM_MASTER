@@ -143,16 +143,23 @@ export function applyActionBarState(target, countLike, guardsLike) {
     bar.classList.add('has-selection');
     bar.removeAttribute('data-minimized');
     bar.setAttribute('data-visible', '1');
+    bar.setAttribute('aria-expanded', 'true');
     if (bar.style) {
       bar.style.display = '';
-      bar.style.visibility = '';
+      bar.style.visibility = 'visible';
+      bar.style.opacity = '1';
+      bar.style.pointerEvents = 'auto';
     }
   } else {
     bar.classList.remove('has-selection');
     bar.removeAttribute('data-visible');
-    bar.removeAttribute('data-minimized');
+    bar.setAttribute('data-minimized', '1');
+    bar.setAttribute('aria-expanded', 'false');
     if (bar.style) {
-      bar.style.display = 'none';
+      bar.style.display = '';
+      bar.style.visibility = 'visible';
+      bar.style.opacity = '1';
+      bar.style.pointerEvents = 'auto';
     }
   }
 

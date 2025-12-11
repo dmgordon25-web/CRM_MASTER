@@ -1502,65 +1502,169 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function applySelectAllToStore(checkbox, store) {
     if (!checkbox || !store) return;
     const scope = selectionScopeFor(checkbox);
-    // Determine visible IDs
+    checkbox.indeterminate = false;
+
     const host = checkbox.closest('[data-selection-scope]');
     const entries = host ? collectSelectionRowData(host) : [];
     const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
-    // If nothing visible to select, just clear the header state and return
     if (!visible.length) {
       checkbox.indeterminate = false;
       checkbox.checked = false;
-      try { checkbox.setAttribute('aria-checked', 'false'); } catch (_) { }
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
       return;
     }
 
     const ids = visible.map(entry => entry.id);
+    const base = store.get(scope);
+    const next = base instanceof Set
+      ? new Set(base)
+      : new Set(Array.from(base || [], value => String(value)));
 
-    // Batch update the store
-    // Use selectMany/clearMany if available for performance and atomicity
     if (checkbox.checked) {
-      if (typeof store.selectMany === 'function') {
-        store.selectMany(ids, scope);
-      } else {
-        const current = store.get(scope);
-        const next = new Set(current instanceof Set ? current : []);
-        ids.forEach(id => next.add(id));
-        store.set(next, scope);
-      }
+      ids.forEach(id => next.add(id));
+      try { checkbox.setAttribute('aria-checked', 'true'); }
+      catch (_err) { }
+      // Update DOM checkboxes BEFORE calling store.set() so the action bar sees the checked state immediately
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = true;
+          try { entry.checkbox.setAttribute('aria-checked', 'true'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.setAttribute('data-selected', '1'); }
+            catch (_err) { }
+          }
+        }
+      });
     } else {
-      if (typeof store.clearMany === 'function') {
-        store.clearMany(ids, scope);
-      } else {
-        const current = store.get(scope);
-        const next = new Set(current instanceof Set ? current : []);
-        ids.forEach(id => next.delete(id));
-        store.set(next, scope);
-      }
+      ids.forEach(id => next.delete(id));
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
+      // Update DOM checkboxes BEFORE calling store.set()
+      visible.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = false;
+          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.removeAttribute('data-selected'); }
+            catch (_err) { }
+          }
+        }
+      });
     }
 
-    // Sync Window Selection Service to notify Action Bar and other listeners
-    // This emission should cover the requirement for selection:changed
+    const normalizedIds = Array.from(next).map(String);
+    const selectionCount = normalizedIds.length;
+    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+
+    // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
     if (typeof window !== 'undefined') {
-      const type = scope === 'partners' ? 'partners' : 'contacts';
-      // Calculate origin based on action
-      const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
-
-      // We need to pass the FULL set of selected IDs to the Selection service
-      // because it might not be bound to the Store in the same way.
-      // Re-read from store to get the authoritative set after update.
-      const updatedSet = store.get(scope);
-      const updatedIds = Array.from(updatedSet || []).map(String);
-
-      const selection = window.SelectionService || window.Selection;
+      const selection = window.Selection;
       if (selection && typeof selection.set === 'function') {
-        try {
-          selection.set(updatedIds, type, origin);
-        } catch (err) {
-          try { console.warn('[select-all] SelectionService.set failed', err); } catch (_) { }
+        try { selection.set(normalizedIds, type, origin); }
+        catch (err) {
+          try { console && console.warn && console.warn('[select-all] Selection.set failed', err); }
+          catch (_warnErr) { }
+        }
+      }
+
+      const service = window.SelectionService;
+      if (service && typeof service.set === 'function') {
+        try { service.set(normalizedIds, type, origin); }
+        catch (err) {
+          try { console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
+          catch (_warnErr) { }
         }
       }
     }
+
+    store.set(next, scope);
+
+    // Notify consumers that rely on the event bus (action bar, etc.)
+    try {
+      const eventDetail = {
+        type,
+        ids: normalizedIds,
+        count: selectionCount,
+        source: origin,
+        scope
+      };
+      if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+      }
+    } catch (_err) {
+      console.warn('[select-all] Failed to dispatch selection:changed', _err);
+    }
+
+    // Comprehensive action bar update (match DEMO_MODE behavior)
+    const updateActionBar = () => {
+      if (typeof window !== 'undefined' && typeof window.updateActionbar === 'function') {
+        try { window.updateActionbar(); }
+        catch (_err) { }
+      }
+
+      const bar = typeof document !== 'undefined'
+        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
+        : null;
+      if (bar) {
+        if (selectionCount > 0) {
+          if (bar.hasAttribute('data-minimized')) {
+            bar.removeAttribute('data-minimized');
+          }
+          bar.setAttribute('data-visible', '1');
+          if (bar.dataset) bar.dataset.idleVisible = '1';
+          if (bar.style) {
+            bar.style.display = '';
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+          bar.dataset.count = String(selectionCount);
+          bar.setAttribute('aria-expanded', 'true');
+        } else {
+          bar.removeAttribute('data-visible');
+          bar.removeAttribute('data-idle-visible');
+          bar.setAttribute('data-minimized', '1');
+          if (bar.style) {
+            bar.style.display = '';
+            bar.style.opacity = '1';
+            bar.style.visibility = 'visible';
+            bar.style.pointerEvents = 'auto';
+          }
+          bar.dataset.count = '0';
+          bar.setAttribute('aria-expanded', 'false');
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        if (typeof window.ensureActionBarPostPaintRefresh === 'function') {
+          try { window.ensureActionBarPostPaintRefresh(); }
+          catch (_err) { }
+        }
+        if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
+          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
+          catch (_err) { }
+        }
+      }
+    };
+
+    updateActionBar();
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(updateActionBar);
+    } else if (typeof Promise !== 'undefined') {
+      Promise.resolve().then(updateActionBar).catch(() => { });
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(updateActionBar);
+    }
+  }
+
+  if (typeof window !== 'undefined' && !window.applySelectAllToStore) {
+    window.applySelectAllToStore = applySelectAllToStore;
   }
 
   function syncSelectionCheckboxes(scope, ids, options) {
