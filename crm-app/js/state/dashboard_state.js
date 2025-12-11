@@ -251,6 +251,11 @@ function applyStateChange(key, value, presetKey, options){
     if(ROOT) ROOT.DASH_RANGE = state.range;
   }else if(key === 'mode'){
     state.mode = validateMode(value);
+    try{
+      if(ROOT && ROOT.console && typeof ROOT.console.info === 'function'){
+        ROOT.console.info('[DEBUG] dashboard preset set to', state.mode);
+      }
+    }catch(_err){}
   }else{
     state[key] = value;
   }
