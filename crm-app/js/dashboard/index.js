@@ -525,6 +525,12 @@ function cleanupPointerHandlersFor(container) {
         ? dashDnDState.container
         : null));
   if (target && handlers) {
+    if (target === doc && doc && doc.__crmDashboardClickBound) {
+      dashDnDState.pointerHandlers = null;
+      dashboardClickHandlersBound = false;
+      exposeDashboardDnDHandlers();
+      return;
+    }
     try { target.removeEventListener('click', handlers.onClick); } catch (_err) { }
   }
   dashDnDState.pointerHandlers = null;
@@ -2697,6 +2703,59 @@ function tryOpenPartnerModal(partnerId) {
   }
 }
 
+function handleDashboardClick(evt) {
+  const target = evt && evt.target ? evt.target : null;
+  if (!target) return false;
+
+  // Find any ancestor row that declares an id for drilldown
+  const row = target.closest('[data-contact-id],[data-partner-id]');
+  if (!row) {
+    return false; // not a drilldown row
+  }
+
+  // Only handle clicks from within the dashboard to avoid hijacking other screens
+  const dashboardRoot = getDashboardContainerNode();
+  if (dashboardRoot && !dashboardRoot.contains(row)) {
+    return false;
+  }
+
+  evt.preventDefault();
+  evt.stopPropagation();
+
+  const contactId = row.getAttribute('data-contact-id');
+  const partnerId = row.getAttribute('data-partner-id');
+  const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
+  const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
+  const widgetKey =
+    row.getAttribute('data-dash-widget') ||
+    row.getAttribute('data-widget-id') ||
+    row.id ||
+    '';
+
+  try {
+    console.info('[DRILLDOWN] click', { widgetKey, contactId, partnerId });
+  } catch (_) {}
+
+  if (contactId && typeof openContact === 'function') {
+    openContact(contactId);
+    return true;
+  }
+  if (partnerId && typeof openPartner === 'function') {
+    openPartner(partnerId);
+    return true;
+  }
+
+  return false;
+}
+
+function bindDashboardGlobalClick() {
+  if (!doc || doc.__crmDashboardClickBound) return;
+  if (typeof doc.addEventListener === 'function') {
+    doc.addEventListener('click', handleDashboardClick, true);
+    doc.__crmDashboardClickBound = true;
+  }
+}
+
 const drilldownTestHooks = { openContact: null, openPartner: null };
 
 export function __setDashboardDrilldownTestHooks(hooks = {}) {
@@ -2711,6 +2770,9 @@ export function __getHandleDashboardTapForTest() {
 function handleDashboardTap(evt, target) {
   const tapTarget = target || (evt && evt.target) || null;
   if (!tapTarget || isDashboardEditingEnabled()) return false;
+
+  const drilldownHandled = handleDashboardClick(evt);
+  if (drilldownHandled) return true;
 
   const actionable = tapTarget.closest && tapTarget.closest(DASHBOARD_DRILLDOWN_SELECTOR);
   const hasIcsSource = actionable && ((typeof actionable.hasAttribute === 'function'
@@ -2754,19 +2816,11 @@ function handleDashboardTap(evt, target) {
 }
 
 function bindDashboardEvents(container = getDashboardContainerNode()) {
-  const root = container;
-  if (!root || dashboardClickHandlersBound) return;
-
-  const onClick = (evt) => {
-    handleDashboardTap(evt, evt && evt.target ? evt.target : null);
-  };
-
-  try {
-    root.addEventListener('click', onClick);
-    dashDnDState.pointerHandlers = { target: root, onClick };
-    dashboardClickHandlersBound = true;
-    exposeDashboardDnDHandlers();
-  } catch (_err) { }
+  if (!container || dashboardClickHandlersBound) return;
+  bindDashboardGlobalClick();
+  dashDnDState.pointerHandlers = { target: doc, onClick: handleDashboardClick };
+  dashboardClickHandlersBound = true;
+  exposeDashboardDnDHandlers();
 }
 
 function persistDashboardOrder(orderLike) {
@@ -2857,6 +2911,7 @@ function ensureWidgetDnD() {
   if (dashDnDState.container && dashDnDState.container !== container) {
     teardownWidgetDnD('container-replaced');
   }
+  bindDashboardGlobalClick();
   ensureLayoutResetButton();
   if (DASHBOARD_EDITING_LABS_ENABLED && typeof ensureLayoutToggle === 'function' && !dashDnDState.updatingEditing) {
     ensureLayoutToggle();
@@ -3814,3 +3869,7 @@ if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
     });
   } catch (_err) { }
 }
+
+// Ensure the global drilldown delegate is registered even before the dashboard
+// bootstraps, so every widget row click is observed consistently.
+bindDashboardGlobalClick();
