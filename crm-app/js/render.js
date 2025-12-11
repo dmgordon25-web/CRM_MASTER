@@ -1107,30 +1107,41 @@ function dispatchPartnerModal(partnerId, options) {
 }
 
 function ensureWidgetClickHandlers() {
-  ['rel-opps', 'nurture', 'closing-watch', 'needs-attn', 'upcoming', 'favorites-list'].forEach(listId => {
+  [
+    'rel-opps',
+    'nurture',
+    'closing-watch',
+    'needs-attn',
+    'upcoming',
+    'favorites-list',
+    'priority-actions-card',
+    'milestones-card',
+    'dashboard-today'
+  ].forEach(listId => {
     const list = asEl(listId);
     if (list && !list.__wired) {
       list.__wired = true;
       list.addEventListener('click', evt => {
         if (evt.target.closest('[data-ics-source]')) return;
-        const item = evt.target.closest('li[data-id]');
+        const item = evt.target.closest('li[data-id], li[data-contact-id], li[data-partner-id]');
         if (!item) return;
         evt.preventDefault();
         const rawId = item.dataset.id;
         const widgetKey = item.dataset.widget || listId || rawId || 'widget';
         const sourceHint = `dashboard:widget:${widgetKey}`;
-        const itemKind = item.dataset.kind === 'partner' ? 'partner' : 'contact';
-        if (itemKind === 'partner') {
-          const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId || rawId;
-          if (partnerId) {
-            dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
-          }
-        } else {
-          const contactId = item.getAttribute('data-contact-id') || item.dataset.contactId || rawId;
-          if (contactId) {
-            dispatchContactModal(contactId, { sourceHint, trigger: item });
-          }
+        const partnerId = item.getAttribute('data-partner-id') || item.dataset.partnerId || '';
+        const contactId = item.getAttribute('data-contact-id') || item.dataset.contactId || '';
+        if (contactId) {
+          dispatchContactModal(contactId, { sourceHint, trigger: item });
+          return;
         }
+        if (partnerId) {
+          dispatchPartnerModal(partnerId, { sourceHint, trigger: item });
+          return;
+        }
+        try {
+          console.warn(`[WARN] ${widgetKey} row missing contactId/partnerId`, item);
+        } catch (_err) { }
       });
     }
   });
