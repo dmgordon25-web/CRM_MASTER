@@ -2905,6 +2905,7 @@ function ensureWidgetDnD() {
   if (dashDnDState.container && dashDnDState.container !== container) {
     teardownWidgetDnD('container-replaced');
   }
+  bindDashboardGlobalClick();
   ensureLayoutResetButton();
   if (DASHBOARD_EDITING_LABS_ENABLED && typeof ensureLayoutToggle === 'function' && !dashDnDState.updatingEditing) {
     ensureLayoutToggle();
