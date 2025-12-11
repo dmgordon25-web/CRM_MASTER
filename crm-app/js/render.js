@@ -1140,7 +1140,12 @@ function ensureWidgetClickHandlers() {
           return;
         }
         try {
-          console.warn(`[WARN] ${widgetKey} row missing contactId/partnerId`, item);
+          const warnLabel = (widgetKey === 'priorityActions' || widgetKey === 'priority-actions-card' || widgetKey === 'needs-attn')
+            ? 'Priority Actions'
+            : (widgetKey === 'milestones' || widgetKey === 'milestones-card' || widgetKey === 'upcoming')
+              ? 'Milestones Ahead'
+              : widgetKey;
+          console.warn(`[WARN] ${warnLabel} row missing contactId/partnerId`, item);
         } catch (_err) { }
       });
     }
@@ -1385,7 +1390,9 @@ export async function renderAll(request) {
       const contactById = new Map((contacts || []).map(c => [String(c.id), c]));
       const openTasks = (tasks || []).filter(t => t && t.due && !t.done).map(t => {
         const dueDate = toDate(t.due);
-        const contact = contactById.get(String(t.contactId || ''));
+        const contactId = t && t.contactId != null ? String(t.contactId) : '';
+        const partnerId = t && t.partnerId != null ? String(t.partnerId) : '';
+        const contact = contactById.get(contactId);
         const stageKey = contact ? normalizeStatus(contact.stage) : '';
         const stage = stageKey ? (stageLabels[stageKey] || stageKey.replace(/-/g, ' ')) : '';
         const diffFromToday = dueDate ? Math.floor((dueDate.getTime() - today.getTime()) / 86400000) : null;
@@ -1402,6 +1409,8 @@ export async function renderAll(request) {
           dueLabel,
           status,
           diffFromToday,
+          contactId,
+          partnerId: partnerId || (contact && contact.partnerId != null ? String(contact.partnerId) : ''),
           contact,
           name: contact ? fullName(contact) : 'General Task',
           stage
@@ -1533,8 +1542,12 @@ export async function renderAll(request) {
         html($('#needs-attn'), attention.length ? attention.map(task => {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
-          const idAttr = task.contact ? attr(task.contact.id || '') : '';
-          const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-contact-id="${idAttr}" data-widget="needs-attn"` : '';
+          const contactAttr = task.contactId ? attr(task.contactId) : (task.contact ? attr(task.contact.id || '') : '');
+          const partnerAttr = (!contactAttr && task.partnerId) ? attr(task.partnerId) : '';
+          const idAttr = contactAttr || partnerAttr;
+          const widgetAttrs = idAttr
+            ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="priorityActions"`
+            : '';
           return `<li class="${task.status}"${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1551,8 +1564,12 @@ export async function renderAll(request) {
         html($('#upcoming'), timeline.length ? timeline.map(task => {
           const cls = task.status === 'soon' ? 'warn' : 'good';
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
-          const idAttr = task.contact ? attr(task.contact.id || '') : '';
-          const widgetAttrs = idAttr ? ` data-id="${idAttr}" data-contact-id="${idAttr}" data-widget="upcoming"` : '';
+          const contactAttr = task.contactId ? attr(task.contactId) : (task.contact ? attr(task.contact.id || '') : '');
+          const partnerAttr = (!contactAttr && task.partnerId) ? attr(task.partnerId) : '';
+          const idAttr = contactAttr || partnerAttr;
+          const widgetAttrs = idAttr
+            ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="milestones"`
+            : '';
           return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
@@ -1844,8 +1861,9 @@ export async function renderAll(request) {
             if (task.dueDate) {
               const metaParts = [task.name];
               if (task.stage) metaParts.push(task.stage);
-              const contactId = task.contact && task.contact.id ? task.contact.id : null;
-              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task', contactId);
+              const contactId = task.contactId || (task.contact && task.contact.id ? String(task.contact.id) : null);
+              const partnerId = task.partnerId || (task.contact && task.contact.partnerId != null ? String(task.contact.partnerId) : null);
+              addEvent(task.dueDate, task.title, metaParts.filter(Boolean).join(' • '), 'task', contactId, partnerId);
             }
           });
           contacts.forEach(c => {
