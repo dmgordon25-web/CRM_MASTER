@@ -1542,8 +1542,10 @@ export async function renderAll(request) {
         html($('#needs-attn'), attention.length ? attention.map(task => {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
-          const contactAttr = task.contactId ? attr(task.contactId) : (task.contact ? attr(task.contact.id || '') : '');
-          const partnerAttr = (!contactAttr && task.partnerId) ? attr(task.partnerId) : '';
+          const contactId = task.contactId || (task.raw && task.raw.contactId) || (task.contact ? task.contact.id : '');
+          const partnerId = task.partnerId || (task.raw && task.raw.partnerId) || (task.contact ? task.contact.partnerId : '');
+          const contactAttr = contactId ? attr(contactId) : '';
+          const partnerAttr = (!contactAttr && partnerId) ? attr(partnerId) : '';
           const idAttr = contactAttr || partnerAttr;
           const widgetAttrs = idAttr
             ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="priorityActions"`
@@ -1564,8 +1566,10 @@ export async function renderAll(request) {
         html($('#upcoming'), timeline.length ? timeline.map(task => {
           const cls = task.status === 'soon' ? 'warn' : 'good';
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
-          const contactAttr = task.contactId ? attr(task.contactId) : (task.contact ? attr(task.contact.id || '') : '');
-          const partnerAttr = (!contactAttr && task.partnerId) ? attr(task.partnerId) : '';
+          const contactId = task.contactId || (task.raw && task.raw.contactId) || (task.contact ? task.contact.id : '');
+          const partnerId = task.partnerId || (task.raw && task.raw.partnerId) || (task.contact ? task.contact.partnerId : '');
+          const contactAttr = contactId ? attr(contactId) : '';
+          const partnerAttr = (!contactAttr && partnerId) ? attr(partnerId) : '';
           const idAttr = contactAttr || partnerAttr;
           const widgetAttrs = idAttr
             ? ` data-id="${idAttr}"${contactAttr ? ` data-contact-id="${contactAttr}"` : ''}${partnerAttr ? ` data-partner-id="${partnerAttr}"` : ''} data-widget="milestones"`
