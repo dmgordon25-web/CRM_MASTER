@@ -120,4 +120,29 @@ describe('dashboard drilldown widgets', () => {
     expect(handled).toBe(true);
     expect(openContact).toHaveBeenCalledWith('contact-789');
   });
+
+  it('opens partner editor from referral leaderboard row', () => {
+    const openPartner = vi.fn();
+    setHooks({ openPartner });
+    const { child } = makeSyntheticRow({ partnerId: 'partner-abc', widget: 'referral-leaderboard' });
+    const evt = { target: child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openPartner).toHaveBeenCalledWith('partner-abc');
+  });
+
+  it('prevents propagation for entity rows so other click delegates do not double-handle', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const evt = { target: makeSyntheticRow({ contactId: 'contact-stop' }).child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(evt.preventDefault).toHaveBeenCalledTimes(1);
+    expect(evt.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(openContact).toHaveBeenCalledWith('contact-stop');
+  });
 });
