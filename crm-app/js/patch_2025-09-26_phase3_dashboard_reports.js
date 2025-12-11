@@ -1830,7 +1830,7 @@ function runPatch() {
       // which satisfies the requirement of "interaction".
       // Ideally: openTaskEditor({ id: taskId, mode: 'edit' });
       try {
-        openTaskEditor();
+        openTaskEditor(taskId);
       } catch (err) {
         console.warn('openTaskEditor failed', err);
       }

@@ -1119,6 +1119,7 @@ function normalizeRecordRefs(rawContactId, rawPartnerId, contact) {
 function buildRecordDataAttrs(ids, widgetKey) {
   const contactAttr = ids && ids.contactId ? attr(ids.contactId) : '';
   const partnerAttr = ids && ids.partnerId ? attr(ids.partnerId) : '';
+  const taskAttr = ids && ids.taskId ? attr(ids.taskId) : '';
   const attrs = [];
   if (widgetKey) {
     const widgetAttr = attr(widgetKey);
@@ -1130,6 +1131,7 @@ function buildRecordDataAttrs(ids, widgetKey) {
   }
   if (contactAttr) attrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
   if (partnerAttr) attrs.push(`data-partner-id="${partnerAttr}"`);
+  if (taskAttr) attrs.push(`data-task-id="${taskAttr}"`);
   return attrs.length ? ` ${attrs.join(' ')}` : '';
 }
 
@@ -1372,19 +1374,19 @@ export async function renderAll(request) {
         }
         const dueLabel = dueDate ? dueDate.toISOString().slice(0, 10) : 'No date';
         return {
-        raw: t,
-        title: t.title || t.text || 'Follow up',
-        dueDate,
-        dueLabel,
-        status,
-        diffFromToday,
-        contactId: ids.contactId,
-        partnerId: ids.partnerId,
-        contact,
-        name: contact ? fullName(contact) : 'General Task',
-        stage
-      };
-    }).sort((a, b) => {
+          raw: t,
+          title: t.title || t.text || 'Follow up',
+          dueDate,
+          dueLabel,
+          status,
+          diffFromToday,
+          contactId: ids.contactId,
+          partnerId: ids.partnerId,
+          contact,
+          name: contact ? fullName(contact) : 'General Task',
+          stage
+        };
+      }).sort((a, b) => {
         const ad = a.dueDate ? a.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
         const bd = b.dueDate ? b.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
         return ad - bd;
@@ -1511,13 +1513,13 @@ export async function renderAll(request) {
         html($('#needs-attn'), attention.length ? attention.map(task => {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
+          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          ids.taskId = taskId;
           // Priority Actions drilldown matches the Pipeline Calendar pattern:
           //   buildRecordDataAttrs → data-contact-id / data-partner-id on <li> → dashboard delegate opens the editor.
           const widgetAttrs = buildRecordDataAttrs(ids, 'priorityActions');
-          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
-          const taskAttr = taskId ? `data-task-id="${taskId}"` : '';
-          return `<li class="${task.status}"${widgetAttrs} ${taskAttr}>
+          return `<li class="${task.status}"${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>
@@ -1533,12 +1535,12 @@ export async function renderAll(request) {
         html($('#upcoming'), timeline.length ? timeline.map(task => {
           const cls = task.status === 'soon' ? 'warn' : 'good';
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
+          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          ids.taskId = taskId;
           // Milestones Ahead drilldown mirrors the pipeline calendar wiring with data-contact-id / data-partner-id on the row.
           const widgetAttrs = buildRecordDataAttrs(ids, 'milestonesAhead');
-          const taskId = task.raw && task.raw.id ? task.raw.id : task.id;
-          const taskAttr = taskId ? `data-task-id="${taskId}"` : '';
-          return `<li${widgetAttrs} ${taskAttr}>
+          return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>
