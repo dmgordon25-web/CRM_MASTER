@@ -362,6 +362,23 @@ const layoutResetState = {
 
 const pointerTapState = new Map();
 
+function resolveDashboardDrilldownDispatcher() {
+  const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
+    ? win.__DASHBOARD_DRILLDOWN__
+    : (win && typeof win.__DEMO_DASHBOARD_DRILLDOWN__ === 'function'
+      ? win.__DEMO_DASHBOARD_DRILLDOWN__
+      : null);
+
+  if (shared) return shared;
+
+  if (win && !win.__DASHBOARD_DRILLDOWN__) {
+    try { win.__DASHBOARD_DRILLDOWN__ = handleDashboardTap; }
+    catch (_err) { }
+  }
+
+  return handleDashboardTap;
+}
+
 function detachLayoutToggleButton(target) {
   if (!target) return;
   try { target.removeEventListener('click', handleLayoutToggleClick); }
@@ -521,9 +538,11 @@ function cleanupPointerHandlersFor(container) {
   const handlers = dashDnDState.pointerHandlers;
   const target = container && typeof container.removeEventListener === 'function'
     ? container
-    : (dashDnDState.container && typeof dashDnDState.container.removeEventListener === 'function'
-      ? dashDnDState.container
-      : null);
+    : (handlers && handlers.target && typeof handlers.target.removeEventListener === 'function'
+      ? handlers.target
+      : (dashDnDState.container && typeof dashDnDState.container.removeEventListener === 'function'
+        ? dashDnDState.container
+        : null));
   if (target && handlers) {
     try { target.removeEventListener('pointerdown', handlers.onPointerDown); } catch (_err) { }
     try { target.removeEventListener('pointermove', handlers.onPointerMove); } catch (_err) { }
@@ -2804,9 +2823,16 @@ function handleDashboardTap(evt, target) {
 
 function wireTileTap(container) {
   if (!container) return;
+  const existingHandlers = dashDnDState.pointerHandlers;
+  if (existingHandlers && existingHandlers.onClick && existingHandlers.target) {
+    try { existingHandlers.target.removeEventListener('click', existingHandlers.onClick); }
+    catch (_err) { }
+  }
   // REMOVED LEGACY POINTER STATE MACHINE TO FIX FREEZE/LOCKS.
   // The complex pointerdown/move/up logic was causing render locks on some devices/browsers.
   // Reverted to simple click handling for legacy/stable dashboard behavior.
+
+  const dispatcher = resolveDashboardDrilldownDispatcher();
 
   const onClick = evt => {
     // If specific drag/resize handles are clicked, ignore (Labs logic might still inject them)
@@ -2815,8 +2841,8 @@ function wireTileTap(container) {
     const target = findDashboardDrilldownTarget(evt.target);
     if (!target) return;
 
-    // Use refined handleDashboardTap logic
-    const handled = handleDashboardTap(evt, target);
+    // Use refined handleDashboardTap logic (shared with DEMO_MODE dispatcher)
+    const handled = dispatcher(evt, target);
     if (handled) {
       target[DASHBOARD_HANDLED_CLICK_KEY] = Date.now();
     }
@@ -2824,7 +2850,7 @@ function wireTileTap(container) {
 
   container.addEventListener('click', onClick);
   // Expose empty handlers if something external tries to read dashDnDState.pointerHandlers
-  dashDnDState.pointerHandlers = { onClick };
+  dashDnDState.pointerHandlers = { onClick, target: container };
   exposeDashboardDnDHandlers();
 }
 
