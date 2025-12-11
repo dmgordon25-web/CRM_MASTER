@@ -1523,8 +1523,27 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
 
-    if (checkbox.checked) {
+    const allSelected = ids.length > 0 && ids.every(id => next.has(id));
+
+    if (allSelected) {
+      ids.forEach(id => next.delete(id));
+      checkbox.checked = false;
+      try { checkbox.setAttribute('aria-checked', 'false'); }
+      catch (_err) { }
+      targets.forEach(entry => {
+        if (entry.checkbox && entry.id) {
+          entry.checkbox.checked = false;
+          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
+          catch (_err) { }
+          if (entry.row) {
+            try { entry.row.removeAttribute('data-selected'); }
+            catch (_err) { }
+          }
+        }
+      });
+    } else {
       ids.forEach(id => next.add(id));
+      checkbox.checked = true;
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err) { }
       // Update DOM checkboxes BEFORE calling store.set() so the action bar sees the checked state immediately
@@ -1535,22 +1554,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           catch (_err) { }
           if (entry.row) {
             try { entry.row.setAttribute('data-selected', '1'); }
-            catch (_err) { }
-          }
-        }
-      });
-    } else {
-      ids.forEach(id => next.delete(id));
-      try { checkbox.setAttribute('aria-checked', 'false'); }
-      catch (_err) { }
-      // Update DOM checkboxes BEFORE calling store.set()
-      targets.forEach(entry => {
-        if (entry.checkbox && entry.id) {
-          entry.checkbox.checked = false;
-          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
-          catch (_err) { }
-          if (entry.row) {
-            try { entry.row.removeAttribute('data-selected'); }
             catch (_err) { }
           }
         }

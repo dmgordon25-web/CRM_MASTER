@@ -79,6 +79,7 @@ const TODAY_WIDGET_KEYS = new Set([
   'focus',
   'today',
   'todo',
+  'favorites',
   CELEBRATIONS_WIDGET_KEY
 ]);
 
@@ -3223,6 +3224,10 @@ function sanitizePrefs(settings) {
 function getSettingsPrefs() {
   if (prefCache.value) return Promise.resolve(clonePrefs(prefCache.value));
   if (prefCache.loading) return prefCache.loading.then(clonePrefs);
+  const pendingMode = prefCache.value && typeof prefCache.value.mode === 'string'
+    ? prefCache.value.mode
+    : null;
+
   prefCache.loading = (async () => {
     try {
       let settings = null;
@@ -3240,6 +3245,9 @@ function getSettingsPrefs() {
         if (orderFromSettings) syncStoredDashboardOrder(orderFromSettings);
       }
       const prefs = sanitizePrefs(settings);
+      if (pendingMode === 'all' || pendingMode === 'today') {
+        prefs.mode = pendingMode;
+      }
       prefCache.value = prefs;
       return prefs;
     } catch (err) {
