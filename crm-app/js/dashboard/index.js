@@ -3863,3 +3863,7 @@ if (dashboardStateApi && typeof dashboardStateApi.subscribe === 'function') {
     });
   } catch (_err) { }
 }
+
+// Ensure the global drilldown delegate is registered even before the dashboard
+// bootstraps, so every widget row click is observed consistently.
+bindDashboardGlobalClick();
