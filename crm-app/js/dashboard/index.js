@@ -2718,6 +2718,8 @@ function handleDashboardClick(evt) {
 
   const contactId = row.getAttribute('data-contact-id');
   const partnerId = row.getAttribute('data-partner-id');
+  const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
+  const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
   const widgetKey =
     row.getAttribute('data-dash-widget') ||
     row.getAttribute('data-widget-id') ||
@@ -2728,12 +2730,12 @@ function handleDashboardClick(evt) {
     console.info('[DRILLDOWN] click', { widgetKey, contactId, partnerId });
   } catch (_) {}
 
-  if (contactId && typeof tryOpenContactModal === 'function') {
-    tryOpenContactModal(contactId);
+  if (contactId && typeof openContact === 'function') {
+    openContact(contactId);
     return true;
   }
-  if (partnerId && typeof tryOpenPartnerModal === 'function') {
-    tryOpenPartnerModal(partnerId);
+  if (partnerId && typeof openPartner === 'function') {
+    openPartner(partnerId);
     return true;
   }
 
