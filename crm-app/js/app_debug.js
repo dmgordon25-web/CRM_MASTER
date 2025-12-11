@@ -1674,6 +1674,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
+  if (typeof window !== 'undefined' && !window.applySelectAllToStore) {
+    window.applySelectAllToStore = applySelectAllToStore;
+  }
+
   function syncSelectionCheckboxes(scope, ids, options) {
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     const providedIds = ids instanceof Set
