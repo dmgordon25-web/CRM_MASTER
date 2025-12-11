@@ -2713,12 +2713,6 @@ function handleDashboardClick(evt) {
     return false; // not a drilldown row
   }
 
-  // Only handle clicks from within the dashboard to avoid hijacking other screens
-  const dashboardRoot = getDashboardContainerNode();
-  if (dashboardRoot && !dashboardRoot.contains(row)) {
-    return false;
-  }
-
   evt.preventDefault();
   evt.stopPropagation();
 
@@ -2761,6 +2755,10 @@ const drilldownTestHooks = { openContact: null, openPartner: null };
 export function __setDashboardDrilldownTestHooks(hooks = {}) {
   drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
   drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
+}
+
+export function __getHandleDashboardClickForTest() {
+  return handleDashboardClick;
 }
 
 export function __getHandleDashboardTapForTest() {
