@@ -414,7 +414,7 @@ function teardownLayoutControls() {
 
 function findDashboardDrilldownTarget(node) {
   if (!node || typeof node.closest !== 'function') return null;
-  const selector = DASHBOARD_DRILLDOWN_SELECTOR;
+  const selector = `${DASHBOARD_DRILLDOWN_SELECTOR},[data-dash-widget],[data-widget],[data-widget-id]`;
   const target = node.closest(selector);
   if (target) {
     const data = target.dataset || {};
@@ -2723,26 +2723,15 @@ function tryOpenPartner(partnerId) {
   }
 }
 
-function logDrilldownSuccess(target, fallbackKey) {
-  let key = '';
-  if (target && target.closest) {
-    const widgetNode = target.closest('[data-dash-widget]');
-    if (widgetNode && widgetNode.dataset) {
-      key = widgetNode.dataset.dashWidget || widgetNode.dataset.widgetId || widgetNode.dataset.widget || widgetNode.id || '';
-    }
-  }
-  if (!key && fallbackKey) {
-    key = fallbackKey;
-  }
-  if (!key && target && target.id) {
-    key = resolveWidgetKeyFromId(target.id);
-  }
-  if (!key && target && target.dataset && target.dataset.widgetId) {
-    key = target.dataset.widgetId;
-  }
-  if (!key) return;
-  try { console.log(`DRILLDOWN_OK:${key}`); }
-  catch (_err) { }
+const drilldownTestHooks = { openContact: null, openPartner: null };
+
+export function __setDashboardDrilldownTestHooks(hooks = {}) {
+  drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
+  drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
+}
+
+export function __getHandleDashboardTapForTest() {
+  return handleDashboardTap;
 }
 
 function handleDashboardTap(evt, target) {
@@ -2756,43 +2745,62 @@ function handleDashboardTap(evt, target) {
 
   const dataset = eventNode.dataset || {};
   const widgetSource = dataset.widget || dataset.widgetId || dataset.dashWidget || eventNode.id || '';
-
   const contactId = dataset.contactId || eventNode.getAttribute('data-contact-id');
+  const partnerId = dataset.partnerId || eventNode.getAttribute('data-partner-id');
+  try {
+    if (console && typeof console.info === 'function') {
+      console.info('[DRILLDOWN] tap', {
+        widget: widgetSource || 'dashboard',
+        contactId: contactId || '',
+        partnerId: partnerId || ''
+      });
+    }
+  } catch (_err) { }
+
+  const openContact = drilldownTestHooks.openContact || tryOpenContact;
+  const openPartner = drilldownTestHooks.openPartner || tryOpenPartner;
+
   if (contactId) {
     evt.preventDefault();
     evt.stopPropagation();
     try {
       if (console && typeof console.info === 'function') {
-        console.info('[VERIFY] Dashboard event click', { widget: widgetSource || 'dashboard', kind: 'contact', contactId });
+        console.info('[DRILLDOWN] Opening contact editor from widget', widgetSource || 'dashboard', 'contactId=', contactId);
       }
     } catch (_err) { }
-    tryOpenContact(contactId);
-    logDrilldownSuccess(eventNode);
+    openContact(contactId);
     return true;
   }
-  const partnerId = dataset.partnerId || eventNode.getAttribute('data-partner-id');
   if (partnerId) {
     evt.preventDefault();
     evt.stopPropagation();
     try {
       if (console && typeof console.info === 'function') {
-        console.info('[VERIFY] Dashboard event click', { widget: widgetSource || 'dashboard', kind: 'partner', partnerId });
+        console.info('[DRILLDOWN] Opening partner editor from widget', widgetSource || 'dashboard', 'partnerId=', partnerId);
       }
     } catch (_err) { }
-    tryOpenPartner(partnerId);
-    logDrilldownSuccess(eventNode);
+    openPartner(partnerId);
     return true;
   }
+
   const route = resolveDashboardRouteTarget(eventNode);
   if (route) {
     evt.preventDefault();
     evt.stopPropagation();
     const navigated = tryNavigateDashboardRoute(route, eventNode);
     if (navigated) {
-      logDrilldownSuccess(eventNode);
       return true;
     }
   }
+
+  if (widgetSource === 'priorityActions' || widgetSource === 'needs-attn' || widgetSource === 'milestones' || widgetSource === 'upcoming' || widgetSource === 'dashboard-today') {
+    try {
+      if (console && typeof console.warn === 'function') {
+        console.warn('[DRILLDOWN] Missing contact/partner id for widget', widgetSource || 'dashboard', eventNode);
+      }
+    } catch (_err) { }
+  }
+
   return false;
 }
 

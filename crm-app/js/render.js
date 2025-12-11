@@ -1572,6 +1572,8 @@ export async function renderAll(request) {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          // Priority Actions drilldown matches the Pipeline Calendar pattern:
+          //   buildRecordDataAttrs → data-contact-id / data-partner-id on <li> → dashboard delegate opens the editor.
           const widgetAttrs = buildRecordDataAttrs(ids, 'priorityActions');
           return `<li class="${task.status}"${widgetAttrs}>
         <div class="list-main">
@@ -1590,6 +1592,7 @@ export async function renderAll(request) {
           const cls = task.status === 'soon' ? 'warn' : 'good';
           const phr = task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
           const ids = normalizeRecordRefs(task.contactId || (task.raw && task.raw.contactId), task.partnerId || (task.raw && task.raw.partnerId), task.contact);
+          // Milestones Ahead drilldown mirrors the pipeline calendar wiring with data-contact-id / data-partner-id on the row.
           const widgetAttrs = buildRecordDataAttrs(ids, 'milestones');
           return `<li${widgetAttrs}>
         <div class="list-main">
