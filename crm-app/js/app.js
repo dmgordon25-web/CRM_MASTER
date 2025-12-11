@@ -1336,7 +1336,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
       nextHeader.indeterminate = false;
-      applySelectAllToStore(nextHeader, store);
+      applyHeaderSelectAll(nextHeader);
     };
 
     try {
@@ -1506,13 +1506,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const host = checkbox.closest('[data-selection-scope]');
     const entries = host ? collectSelectionRowData(host) : [];
-    const targets = entries.filter(entry => !entry.disabled);
+    const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
     if (!targets.length) {
       checkbox.indeterminate = false;
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
+      store.set(new Set(), scope);
       return;
     }
 
@@ -1583,6 +1584,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     store.set(next, scope);
+    syncSelectionScope(scope, { ids: next, count: selectionCount, root: host });
 
     // Notify consumers that rely on the event bus (action bar, etc.)
     try {
@@ -1661,8 +1663,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
   }
 
-  if (typeof window !== 'undefined' && !window.applySelectAllToStore) {
-    window.applySelectAllToStore = applySelectAllToStore;
+  function applyHeaderSelectAll(checkbox) {
+    const store = getSelectionStore();
+    if (!store) return;
+    applySelectAllToStore(checkbox, store);
+  }
+
+  if (typeof window !== 'undefined') {
+    if (!window.applySelectAllToStore) window.applySelectAllToStore = applySelectAllToStore;
+    if (!window.applyHeaderSelectAll) window.applyHeaderSelectAll = applyHeaderSelectAll;
   }
 
   function syncSelectionCheckboxes(scope, ids, options) {

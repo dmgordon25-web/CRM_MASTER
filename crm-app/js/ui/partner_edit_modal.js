@@ -19,6 +19,13 @@ const STRAY_DIALOG_ALLOW = '[data-ui="merge-modal"],[data-ui="merge-confirm"],[d
 
 const PARTNER_INVALID_TOAST = 'Please fix highlighted fields';
 
+const PARTNER_TEMPLATE_HTML = typeof document !== 'undefined'
+  ? (() => {
+    const tpl = document.getElementById('partner-modal');
+    return tpl ? tpl.outerHTML : '';
+  })()
+  : '';
+
 function focusPartnerField(field){
   if(!field || typeof field.focus !== 'function') return;
   try {
@@ -862,11 +869,29 @@ function wireCloseButtons(root){
   });
 }
 
+function buildPartnerShellFromTemplate(){
+  if(typeof document === 'undefined') return null;
+  if(!PARTNER_TEMPLATE_HTML) return null;
+  const mount = document.querySelector('[data-ui="modal-root"]')
+    || document.body
+    || document.documentElement
+    || null;
+  if(!mount) return null;
+  const container = document.createElement('div');
+  container.innerHTML = PARTNER_TEMPLATE_HTML;
+  const node = container.firstElementChild;
+  if(!node) return null;
+  mount.appendChild(node);
+  return node;
+}
+
 function ensurePartnerShell(){
   const existing = findPartnerModal();
-  if(existing) return existing;
+  if(existing && existing.querySelector('#partner-form')) return existing;
   const template = typeof document !== 'undefined' ? document.getElementById('partner-modal') : null;
-  if(template) return template;
+  if(template && template.querySelector('#partner-form')) return template;
+  const rebuilt = buildPartnerShellFromTemplate();
+  if(rebuilt) return rebuilt;
   if(typeof document === 'undefined') return null;
   const host = document.querySelector('[data-ui="modal-root"]')
     || document.body
