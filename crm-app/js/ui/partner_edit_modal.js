@@ -925,6 +925,7 @@ function resolveInvoker(source){
 }
 
 export function closePartnerEditModal(){
+  // Global safety net on partner modal close as well.
   try {
     if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
       window.unfreezeCrmUi('partner-close');
