@@ -214,6 +214,12 @@ export function closeSingletonModal(target, options = {}){
     root.style.display = 'none';
     root.setAttribute('aria-hidden', 'true');
   }
+
+  try {
+    if (typeof window !== 'undefined' && typeof window.__resetQuickCreateOverlay === 'function') {
+      window.__resetQuickCreateOverlay('editor-close');
+    }
+  } catch (_) { }
 }
 
 function closeAllOtherModals(currentKey){
