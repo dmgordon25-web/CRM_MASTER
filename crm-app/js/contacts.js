@@ -3624,6 +3624,7 @@ export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
   try {
+    // Global safety net: ensure UI is interactive again after closing.
     try {
       if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
         window.unfreezeCrmUi('contact-close');
