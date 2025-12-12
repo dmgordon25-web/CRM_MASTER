@@ -1,8 +1,55 @@
 /* crm-app/js/ui/modal_singleton.js */
+import { resetScrollLock } from './scroll_lock.js';
+
 const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
 
 function reportModalError(err){
   if(console && typeof console.error === 'function') console.error('[MODAL_ERROR]', err);
+}
+
+// NEW: global modal safety reset — KILL SWITCH for stuck overlays / locks
+function resetModalSafetyGuards() {
+  if (typeof document === 'undefined') return;
+  const doc = document;
+  const body = doc.body || doc.documentElement || null;
+
+  // 1) Remove any obvious overlays/backdrops that can intercept clicks
+  try {
+    const zombies = doc.querySelectorAll('.qa-overlay, .modal-backdrop');
+    zombies.forEach(node => {
+      try { node.remove(); }
+      catch (_err) {
+        if (node.parentElement) {
+          try { node.parentElement.removeChild(node); } catch (__err) {}
+        }
+      }
+    });
+  } catch (_err) {}
+
+  // 2) Reset body pointerEvents if some modal left it weird
+  if (body && body.style) {
+    try {
+      const pe = body.style.pointerEvents;
+      if (pe && pe !== '' && pe !== 'auto') {
+        body.style.pointerEvents = '';
+      }
+    } catch (_err) {}
+  }
+
+  // 3) Hard reset scroll lock (safe because it just restores original styles)
+  try {
+    resetScrollLock('modal-safety-net');
+  } catch (_err) {}
+
+  // 4) Make sure diagnostics overlay, if present, can never keep blocking clicks
+  try {
+    const splash = doc.getElementById('diagnostics-splash');
+    if (splash && splash.style) {
+      splash.style.opacity = '0';
+      splash.style.pointerEvents = 'none';
+      splash.style.visibility = 'hidden';
+    }
+  } catch (_err) {}
 }
 
 function toElement(node){
@@ -45,6 +92,9 @@ export function closeSingletonModal(target, options = {}){
   let root = key ? document.querySelector(`[data-modal-key="${key}"]`) : toElement(target);
 
   if(!root) return;
+
+  // NEW: Always ensure global interaction guard is reset any time a singleton modal closes
+  resetModalSafetyGuards();
 
   // 1. Run Registered Cleanup Callbacks
   const bucket = root[CLEANUP_SYMBOL];

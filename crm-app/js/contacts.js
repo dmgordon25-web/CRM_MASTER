@@ -3013,9 +3013,10 @@ function closeQuickAddOverlayIfOpen() {
       }
     }
   }
+  
+  // Clean up *any* generic modal backdrops
   const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
   backdrops.forEach(node => {
-    if (!node) return;
     try { node.remove(); }
     catch (_err) {
       if (node.parentElement) {
@@ -3024,11 +3025,12 @@ function closeQuickAddOverlayIfOpen() {
       }
     }
   });
+  
   const body = document.body;
   if (body && body.style) {
-    try { body.style.pointerEvents = ''; }
-    catch (_err) { }
-    releaseContactScrollLock();
+    // Hard reset pointerEvents and scroll lock — this is local to contacts.
+    try { body.style.pointerEvents = ''; } catch (_err) { }
+    try { releaseContactScrollLock(); } catch (_err) { }
   }
   const host = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`) || document.getElementById('contact-modal');
   if (host) {
