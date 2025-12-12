@@ -1867,13 +1867,15 @@ export async function renderAll(request) {
         if (wantsPipeline) {
           html($('#rel-opps'), relOpportunities.length ? relOpportunities.map(item => {
             const c = item.contact;
+            const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+            const widgetAttrs = buildRecordDataAttrs(ids, 'rel-opps');
             const name = fullName(c);
             const last = item.days == null ? 'No touches yet' : (item.days <= 0 ? 'Touched today' : `${item.days}d since touch`);
             const urgencyClass = item.days == null || item.days > 14 ? 'bad' : 'warn';
             const stageKey = normalizeStatus(c.stage);
             const stage = stageLabels[stageKey] || (c.stage || '');
             const amount = Number(c.loanAmount || 0) ? ` • ${money(c.loanAmount)}` : '';
-            return `<li data-id="${attr(c.id || '')}" data-contact-id="${attr(c.id || '')}" data-widget="rel-opps">
+            return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
@@ -1887,12 +1889,14 @@ export async function renderAll(request) {
 
           html($('#nurture'), nurtureCandidates.length ? nurtureCandidates.map(item => {
             const c = item.contact;
+            const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+            const widgetAttrs = buildRecordDataAttrs(ids, 'nurture');
             const name = fullName(c);
             const last = item.days == null ? 'Never nurtured' : `${item.days}d since touch`;
             const stageKey = normalizeStatus(c.stage);
             const stage = stageLabels[stageKey] || (c.stage || STR['kanban.placeholder.client']);
             const funded = c.fundedDate ? `${translate('calendar.event.funded')} ${safe(c.fundedDate)}` : STR['kanban.placeholder.client'];
-            return `<li data-id="${attr(c.id || '')}" data-contact-id="${attr(c.id || '')}" data-widget="nurture">
+            return `<li${widgetAttrs}>
         <div class="list-main">
           <span class="insight-avatar">${initials(name)}</span>
           <div>
