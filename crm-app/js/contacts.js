@@ -103,15 +103,10 @@ const closeContactEntry = (reason) => {
   } catch (_err) {
     const m = document.querySelector('[data-ui="contact-edit-modal"]');
     if (m) {
-<<<<<<< HEAD
       try {
         m.style.display = 'none';
         m.removeAttribute('open');
       } catch (_) { }
-=======
-      try { m.style.display = 'none'; m.removeAttribute('open'); }
-      catch (__err) { }
->>>>>>> 2cf91011265e9ca669e9e9d3f1e409db3749e893
     }
   }
 };
