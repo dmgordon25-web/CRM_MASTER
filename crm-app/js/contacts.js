@@ -1,4 +1,4 @@
-import { ensureSingletonModal } from './ui/modal_singleton.js';
+import { ensureSingletonModal, resetUiInteractivity } from './ui/modal_singleton.js';
 import { createFormFooter } from './ui/form_footer.js';
 import { setReferredBy } from './contacts/form.js';
 import { acquireRouteLifecycleToken } from './ui/route_lifecycle.js';
@@ -921,6 +921,8 @@ export function normalizeContactId(input) {
         try { dlg.removeAttribute('open'); }
         catch (_) { }
         try { dlg.style.display = 'none'; }
+        catch (_) { }
+        try { resetUiInteractivity('contact-close-dialog'); }
         catch (_) { }
       };
 
@@ -3647,6 +3649,8 @@ export function closeContactEditor(reason) {
         releaseContactScrollLock();
       }
     }
+    try { resetUiInteractivity('contact-editor-close'); }
+    catch (_) { }
   } catch (_) { }
   _localEditorState.status = 'idle';
   _localEditorState.activeId = null;

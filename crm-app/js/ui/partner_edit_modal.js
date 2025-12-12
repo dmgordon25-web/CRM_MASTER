@@ -1,4 +1,4 @@
-import { ensureSingletonModal, closeSingletonModal, registerModalCleanup } from './modal_singleton.js';
+import { ensureSingletonModal, closeSingletonModal, registerModalCleanup, resetUiInteractivity } from './modal_singleton.js';
 import { createFormFooter } from './form_footer.js';
 import { registerModalActions } from '../contacts/modal.js';
 import { toastError, toastSuccess, toastWarn } from './toast_helpers.js';
@@ -962,6 +962,8 @@ export function closePartnerEditModal(){
     }
   };
   closeSingletonModal(root, { beforeRemove, remove: false });
+  try { resetUiInteractivity('partner-editor-close'); }
+  catch (_) { }
   const invoker = root.__partnerInvoker || lastInvoker;
   if(invoker && typeof invoker.focus === 'function'){
     try{ invoker.focus({ preventScroll: true }); }

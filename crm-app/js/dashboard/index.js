@@ -2752,6 +2752,23 @@ function bindDashboardGlobalClick() {
 
 const drilldownTestHooks = { openContact: null, openPartner: null };
 
+function bindNurtureListClickFallback() {
+  if (!doc) return;
+  const host = doc.getElementById('nurture');
+  if (!host || host.__nurtureClickWired) return;
+  host.__nurtureClickWired = true;
+  host.addEventListener('click', evt => {
+    if (evt && evt.defaultPrevented) return;
+    const row = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
+    if (!row || !host.contains(row)) return;
+    const contactId = row.getAttribute('data-contact-id');
+    if (!contactId) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    tryOpenContactModal(contactId);
+  });
+}
+
 export function __setDashboardDrilldownTestHooks(hooks = {}) {
   drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
   drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
@@ -2816,6 +2833,7 @@ function handleDashboardTap(evt, target) {
 function bindDashboardEvents(container = getDashboardContainerNode()) {
   if (!container || dashboardClickHandlersBound) return;
   bindDashboardGlobalClick();
+  bindNurtureListClickFallback();
   dashDnDState.pointerHandlers = { target: doc, onClick: handleDashboardClick };
   dashboardClickHandlersBound = true;
   exposeDashboardDnDHandlers();
