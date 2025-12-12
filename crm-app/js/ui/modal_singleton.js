@@ -1,5 +1,6 @@
 /* crm-app/js/ui/modal_singleton.js */
 import scrollLock from './scroll_lock.js';
+import { detachLoadingBlock } from './loading_block.js';
 
 const CLEANUP_SYMBOL = Symbol.for('crm.singletonModal.cleanup');
 
@@ -7,7 +8,7 @@ function reportModalError(err){
   if(console && typeof console.error === 'function') console.error('[MODAL_ERROR]', err);
 }
 
-function resetUiInteractivity(reason) {
+export function resetUiInteractivity(reason) {
   try {
     const win = typeof window !== 'undefined' ? window : null;
     const doc = typeof document !== 'undefined' ? document : null;
@@ -41,13 +42,46 @@ function resetUiInteractivity(reason) {
     if (body && body.style) {
       try { body.style.pointerEvents = ''; } catch (_) {}
       try { body.style.overflow = ''; } catch (_) {}
+      try { body.removeAttribute('data-modal-open'); } catch (_) {}
+      try { body.classList?.remove('modal-open', 'no-scroll', 'is-loading'); } catch (_) {}
     }
+
+    // 2b) Clear orphaned loading blockers.
+    try {
+      const loadingHosts = doc.querySelectorAll('.loading-host.is-loading');
+      loadingHosts.forEach(node => {
+        let guard = 0;
+        while (node && node.classList.contains('is-loading') && guard < 5) {
+          const before = node.__loadingBlock ? node.__loadingBlock.count : null;
+          try { detachLoadingBlock(node); } catch (_) {}
+          const after = node.__loadingBlock ? node.__loadingBlock.count : null;
+          guard += 1;
+          if (before != null && after != null && after >= before) break;
+        }
+        try {
+          if (node.__loadingBlock && node.__loadingBlock.count <= 0) delete node.__loadingBlock;
+        } catch (_) {}
+        const orphan = node.querySelector ? node.querySelector(':scope > .loading-block') : null;
+        if (orphan && orphan.parentNode === node) {
+          try { orphan.remove(); } catch (_) { try { node.removeChild(orphan); } catch (__e) {} }
+        }
+        try { node.classList.remove('is-loading'); node.classList.remove('loading-host'); } catch (_) {}
+        try { node.removeAttribute('aria-busy'); } catch (_) {}
+      });
+    } catch (_) {}
 
     // 3) Reset scroll-lock bookkeeping (safe even if nothing was locked).
     try {
       if (scrollLock && typeof scrollLock.resetScrollLock === 'function') {
         scrollLock.resetScrollLock(reason || 'modal-unfreeze');
       }
+    } catch (_) {}
+
+    // 3b) Remove inert markers so the UI is clickable again.
+    try {
+      doc.querySelectorAll('[inert]').forEach(el => {
+        try { el.removeAttribute('inert'); } catch (_) {}
+      });
     } catch (_) {}
 
     // 4) If RenderGuard exists and is "stuck", reset it as well.
@@ -59,9 +93,44 @@ function resetUiInteractivity(reason) {
     } catch (_) {
       // Swallow; this is a last-resort safety net.
     }
+
+    // 5) Final pointer events reset.
+    try { if (body && body.style) body.style.pointerEvents = ''; } catch (_) {}
+    try { win.__crmDebugUIState && win.__crmDebugUIState('after-resetUiInteractivity'); } catch (_) {}
   } catch (_) {
     // Never throw from the safety net.
   }
+}
+
+function debugUIState(label){
+  try {
+    const doc = typeof document !== 'undefined' ? document : null;
+    if(!doc) return;
+    const body = doc.body;
+    const overlays = doc.querySelectorAll('.modal-backdrop, .qa-overlay, dialog[open]');
+    const loadingHosts = doc.querySelectorAll('.loading-host.is-loading');
+    const inertEls = doc.querySelectorAll('[inert]');
+    const containerLoading = doc.querySelectorAll('.container.is-loading, #view-dashboard.is-loading');
+    const state = {
+      label: label || 'ui-state',
+      overlays: overlays.length,
+      loadingHosts: loadingHosts.length,
+      dialogOpen: doc.querySelectorAll('dialog[open]').length,
+      qaOverlays: doc.querySelectorAll('.qa-overlay').length,
+      backdrops: doc.querySelectorAll('.modal-backdrop').length,
+      containerLoading: containerLoading.length,
+      bodyLoading: body?.classList?.contains('is-loading') || false,
+      bodyPointerEvents: body?.style?.pointerEvents || '',
+      bodyOverflow: body?.style?.overflow || '',
+      inert: inertEls.length
+    };
+    // eslint-disable-next-line no-console
+    console.info('[CRM_DEBUG_UI]', state);
+  } catch (_) {}
+}
+
+if(typeof window !== 'undefined'){
+  window.__crmDebugUIState = debugUIState;
 }
 
 // Expose a manual hook for debugging in the console.
