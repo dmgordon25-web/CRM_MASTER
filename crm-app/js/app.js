@@ -1959,21 +1959,23 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (event && event.__crmRowEditorHandled) return;
       if (!target) return;
       const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
-      if (target.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"]')) return;
+      if (target.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"], button, [role="button"]')) return;
 
-      const contactRow = (anchor && anchor.closest?.('tr[data-contact-id]'))
-        || target.closest?.('[data-contact-id]');
-      if (contactRow) {
-        const id = contactRow.getAttribute('data-contact-id')
-          || anchor?.getAttribute('data-id')
-          || contactRow.getAttribute('data-id');
-        if (!id) return;
+      const row = (anchor && anchor.closest?.('[data-contact-id],[data-partner-id]'))
+        || target.closest?.('[data-contact-id],[data-partner-id]');
+      if (!row) return;
+
+      const contactId = row.getAttribute('data-contact-id')
+        || anchor?.getAttribute('data-contact-id')
+        || anchor?.getAttribute('data-id')
+        || row.getAttribute('data-id');
+      if (contactId) {
         event.preventDefault();
         event.stopPropagation();
         try {
           const mod = await import('./contacts.js');
           if (mod && typeof mod.openContactEditor === 'function') {
-            mod.openContactEditor(id, { sourceHint: 'contacts:row-click', trigger: contactRow });
+            mod.openContactEditor(contactId, { sourceHint: 'contacts:row-click', trigger: row });
           }
         } catch (err) {
           try { console && console.warn && console.warn('contact row open failed', err); }
@@ -1982,19 +1984,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
 
-      const partnerRow = (anchor && anchor.closest?.('tr[data-partner-id]'))
-        || target.closest?.('[data-partner-id]');
-      if (partnerRow) {
-        const id = partnerRow.getAttribute('data-partner-id')
-          || anchor?.getAttribute('data-partner-id')
-          || partnerRow.getAttribute('data-id');
-        if (!id) return;
+      const partnerId = row.getAttribute('data-partner-id')
+        || anchor?.getAttribute('data-partner-id')
+        || row.getAttribute('data-id');
+      if (partnerId) {
         event.preventDefault();
         event.stopPropagation();
         try {
           const mod = await import('./partners.js');
           if (mod && typeof mod.openPartnerEditModal === 'function') {
-            mod.openPartnerEditModal(id, { sourceHint: 'partners:row-click', trigger: partnerRow });
+            mod.openPartnerEditModal(partnerId, { sourceHint: 'partners:row-click', trigger: row });
           }
         } catch (err) {
           try { console && console.warn && console.warn('partner row open failed', err); }

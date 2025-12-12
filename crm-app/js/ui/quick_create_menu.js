@@ -11,20 +11,38 @@ const QC_DEBUG_KEY = '__QC_DEBUG__';
 export function resetQuickCreateOverlay(reason = '') {
   if (typeof document === 'undefined') return;
 
-  const hosts = document.querySelectorAll(
-    '.dropdown.header-new-wrap, [data-role="header-new-host"]'
-  );
+  try {
+    closeQuickCreateMenu();
+  } catch (_) { }
 
-  hosts.forEach((el) => {
-    try {
-      el.remove();
-    } catch (_) {
-      el.style.display = 'none';
-      el.style.pointerEvents = 'none';
+  try {
+    const wrapper = document.getElementById('global-new-menu');
+    if (wrapper) {
+      wrapper.hidden = true;
+      wrapper.style.pointerEvents = 'none';
+      wrapper.style.left = '';
+      wrapper.style.top = '';
+      wrapper.style.right = '';
+      wrapper.style.bottom = '';
     }
-  });
 
-  document.querySelectorAll('.dropdown-menu').forEach((m) => m.remove());
+    const menu = document.getElementById('header-new-menu');
+    if (menu) {
+      menu.hidden = true;
+      menu.setAttribute('aria-hidden', 'true');
+      if (menu.classList && typeof menu.classList.add === 'function') {
+        menu.classList.add('hidden');
+      }
+    }
+
+    const taskOverlay = document.getElementById('qc-task-modal');
+    if (taskOverlay) {
+      taskOverlay.hidden = true;
+      taskOverlay.style.pointerEvents = 'none';
+      taskOverlay.style.visibility = 'hidden';
+      taskOverlay.setAttribute('aria-hidden', 'true');
+    }
+  } catch (_) { }
 
   try {
     if (typeof window !== 'undefined') {
