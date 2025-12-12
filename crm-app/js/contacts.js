@@ -97,9 +97,18 @@ if (typeof window.getRequiredDocsGuarded !== 'function') window.getRequiredDocsG
 if (typeof window.computeMissingDocsGuarded !== 'function') window.computeMissingDocsGuarded = computeMissingDocsGuarded;
 
 // [PATCH] Fix ReferenceError causing crash on view transition
-const closeContactEntry = () => {
-  const m = document.querySelector('[data-ui="contact-edit-modal"]');
-  if (m) { m.style.display = 'none'; m.removeAttribute('open'); }
+const closeContactEntry = (reason) => {
+  try {
+    closeContactEditor(reason || 'route-leave');
+  } catch (_err) {
+    const m = document.querySelector('[data-ui="contact-edit-modal"]');
+    if (m) {
+      try {
+        m.style.display = 'none';
+        m.removeAttribute('open');
+      } catch (_) { }
+    }
+  }
 };
 
 // Audit complete: no selector redundancies with user-impacting risk found.
@@ -802,6 +811,7 @@ export function normalizeContactId(input) {
       dlg.__contactScrollRestore = acquireContactScrollLock();
       if (!dlg.__contactScrollCleanupBound) {
         dlg.addEventListener('close', () => {
+          try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
           if (dlg.__contactScrollRestore) {
             releaseContactScrollLock(dlg.__contactScrollRestore);
             dlg.__contactScrollRestore = null;
@@ -1168,14 +1178,14 @@ export function normalizeContactId(input) {
         setValue('#c-notes', c.notes || '');
       }
       const toggleAdvancedSections
- = (mode) => {
-        const simple = mode === 'simple';
-        Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
-          if (!node) return;
-          node.hidden = simple;
-          node.classList.toggle('is-hidden-simple', simple);
-        });
-      };
+        = (mode) => {
+          const simple = mode === 'simple';
+          Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
+            if (!node) return;
+            node.hidden = simple;
+            node.classList.toggle('is-hidden-simple', simple);
+          });
+        };
       const applyFieldVisibility = (mode) => {
         applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
         toggleAdvancedSections(mode);
@@ -3612,12 +3622,15 @@ export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
   try {
+    // Ensure any overlays/backdrops/pointer locks are released
+    try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
+
     const m = document.querySelector('[data-ui="contact-edit-modal"]');
     if (m) {
       m.style.display = 'none';
       m.removeAttribute('open');
       if (m.tagName === 'DIALOG' && m.open) {
-        try { m.close(); } catch (_) {}
+        try { m.close(); } catch (_) { }
       }
       if (m.__contactScrollRestore) {
         releaseContactScrollLock(m.__contactScrollRestore);
@@ -3626,7 +3639,7 @@ export function closeContactEditor(reason) {
         releaseContactScrollLock();
       }
     }
-  } catch (_) {}
+  } catch (_) { }
   _localEditorState.status = 'idle';
   _localEditorState.activeId = null;
 }
