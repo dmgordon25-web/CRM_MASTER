@@ -3624,6 +3624,12 @@ export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
   try {
+    try {
+      if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
+        window.unfreezeCrmUi('contact-close');
+      }
+    } catch (_) {}
+
     // Ensure any overlays/backdrops/pointer locks are released
     try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
     const m = document.querySelector('[data-ui="contact-edit-modal"]');

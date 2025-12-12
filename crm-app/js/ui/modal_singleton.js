@@ -7,49 +7,82 @@ function reportModalError(err){
   if(console && typeof console.error === 'function') console.error('[MODAL_ERROR]', err);
 }
 
-// NEW: global modal safety reset — KILL SWITCH for stuck overlays / locks
-function resetModalSafetyGuards() {
-  if (typeof document === 'undefined') return;
-  const doc = document;
-  const body = doc.body || doc.documentElement || null;
-
-  // 1) Remove any obvious overlays/backdrops that can intercept clicks
+// Global safety net for stuck overlays / scroll lock / diagnostics splash
+function resetModalSafetyGuards(reason) {
   try {
-    const zombies = doc.querySelectorAll('.qa-overlay, .modal-backdrop');
-    zombies.forEach(node => {
-      try { node.remove(); }
-      catch (_err) {
-        if (node.parentElement) {
-          try { node.parentElement.removeChild(node); } catch (__err) {}
-        }
-      }
-    });
-  } catch (_err) {}
+    const win = typeof window !== 'undefined' ? window : null;
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (!win || !doc) return;
 
-  // 2) Reset body pointerEvents if some modal left it weird
-  if (body && body.style) {
+    // 1) Kill any obvious “full-screen blockers”
     try {
-      const pe = body.style.pointerEvents;
-      if (pe && pe !== '' && pe !== 'auto') {
-        body.style.pointerEvents = '';
-      }
-    } catch (_err) {}
-  }
+      const zombies = doc.querySelectorAll('.qa-overlay, .modal-backdrop, #app-modal, #diagnostics-splash');
+      zombies.forEach(node => {
+        if (!node) return;
+        try { node.remove(); }
+        catch (_) {
+          try {
+            node.style.pointerEvents = 'none';
+            node.style.display = 'none';
+            node.setAttribute('aria-hidden', 'true');
+          } catch (_) {}
+        }
+      });
+    } catch (_) {}
 
-  // 3) Hard reset scroll lock (safe because it just restores original styles)
-  try {
-    resetScrollLock('modal-safety-net');
-  } catch (_err) {}
-
-  // 4) Make sure diagnostics overlay, if present, can never keep blocking clicks
-  try {
-    const splash = doc.getElementById('diagnostics-splash');
-    if (splash && splash.style) {
-      splash.style.opacity = '0';
-      splash.style.pointerEvents = 'none';
-      splash.style.visibility = 'hidden';
+    // 2) Reset body pointer-events + scroll lock
+    const body = doc.body || doc.documentElement || null;
+    if (body && body.style) {
+      try { body.style.pointerEvents = ''; } catch (_) {}
+      try { body.style.overflow = ''; } catch (_) {}
     }
-  } catch (_err) {}
+
+    try {
+      // Hard reset scroll lock stack (safe even if nothing is locked)
+      resetScrollLock(reason || 'modal-unfreeze');
+    } catch (_) {}
+
+    // 3) If diagnostics splash exists, make sure it’s not intercepting clicks
+    try {
+      const splash = doc.getElementById('diagnostics-splash');
+      if (splash && splash.style) {
+        splash.style.opacity = '0';
+        splash.style.pointerEvents = 'none';
+        splash.style.visibility = 'hidden';
+      }
+    } catch (_) {}
+
+    // 4) If RenderGuard exists and is “stuck”, reset it and nudge a repaint
+    try {
+      const guard = win.RenderGuard;
+      if (guard && typeof guard.__reset === 'function') {
+        guard.__reset();
+      }
+      if (guard && typeof guard.requestRender === 'function') {
+        guard.requestRender();
+      }
+    } catch (err) {
+      try {
+        console.warn('[UNFREEZE] RenderGuard reset failed', err);
+      } catch (_) {}
+    }
+
+    // 5) Optional: log once per unfreeze to help diagnostics
+    try {
+      if (win.__ENV__ && win.__ENV__.DEBUG && console && console.info) {
+        console.info('[UNFREEZE] UI safety reset invoked', { reason });
+      }
+    } catch (_) {}
+  } catch (_) {
+    // Absolutely never throw from the safety net
+  }
+}
+
+// Expose for manual debugging (e.g. window.unfreezeCrmUi('manual'))
+if (typeof window !== 'undefined' && !window.unfreezeCrmUi) {
+  window.unfreezeCrmUi = function(reason) {
+    resetModalSafetyGuards(reason || 'manual');
+  };
 }
 
 function toElement(node){
@@ -93,8 +126,8 @@ export function closeSingletonModal(target, options = {}){
 
   if(!root) return;
 
-  // NEW: Always ensure global interaction guard is reset any time a singleton modal closes
-  resetModalSafetyGuards();
+  // Always try to restore global UI interactivity when a modal closes.
+  try { resetModalSafetyGuards('singleton-close'); } catch (_) {}
 
   // 1. Run Registered Cleanup Callbacks
   const bucket = root[CLEANUP_SYMBOL];

@@ -925,6 +925,12 @@ function resolveInvoker(source){
 }
 
 export function closePartnerEditModal(){
+  try {
+    if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
+      window.unfreezeCrmUi('partner-close');
+    }
+  } catch (_) {}
+
   const root = document.querySelector(`[data-modal-key="${MODAL_KEY}"]`) || findPartnerModal();
   if(!root) return;
   const wasOpen = root.dataset?.open === '1'
