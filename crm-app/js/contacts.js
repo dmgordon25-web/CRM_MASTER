@@ -3651,6 +3651,11 @@ export function closeContactEditor(reason) {
     }
     try { resetUiInteractivity('contact-editor-close'); }
     catch (_) { }
+    try {
+      if (typeof window !== 'undefined' && typeof window.__resetQuickCreateOverlay === 'function') {
+        window.__resetQuickCreateOverlay('editor-close');
+      }
+    } catch (_) { }
   } catch (_) { }
   _localEditorState.status = 'idle';
   _localEditorState.activeId = null;

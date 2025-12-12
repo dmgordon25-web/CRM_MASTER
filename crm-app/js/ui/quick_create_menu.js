@@ -8,6 +8,39 @@ import { bindQuickAddValidation } from './quick_add_validation.js';
 const MENU_DEFAULT_QA = 'fab-menu';
 const QC_DEBUG_KEY = '__QC_DEBUG__';
 
+export function resetQuickCreateOverlay(reason = '') {
+  if (typeof document === 'undefined') return;
+
+  const hosts = document.querySelectorAll(
+    '.dropdown.header-new-wrap, [data-role="header-new-host"]'
+  );
+
+  hosts.forEach((el) => {
+    try {
+      el.remove();
+    } catch (_) {
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
+    }
+  });
+
+  document.querySelectorAll('.dropdown-menu').forEach((m) => m.remove());
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.__resetQuickCreateOverlay = resetQuickCreateOverlay;
+    }
+  } catch (_) { }
+
+  console.debug('[QC] overlay reset', reason);
+}
+
+if (typeof window !== 'undefined') {
+  try {
+    window.__resetQuickCreateOverlay = resetQuickCreateOverlay;
+  } catch (_) { }
+}
+
 const WRAPPER_ID = 'global-new-menu';
 const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';

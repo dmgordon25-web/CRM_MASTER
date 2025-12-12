@@ -964,6 +964,11 @@ export function closePartnerEditModal(){
   closeSingletonModal(root, { beforeRemove, remove: false });
   try { resetUiInteractivity('partner-editor-close'); }
   catch (_) { }
+  try {
+    if (typeof window !== 'undefined' && typeof window.__resetQuickCreateOverlay === 'function') {
+      window.__resetQuickCreateOverlay('editor-close');
+    }
+  } catch (_) { }
   const invoker = root.__partnerInvoker || lastInvoker;
   if(invoker && typeof invoker.focus === 'function'){
     try{ invoker.focus({ preventScroll: true }); }

@@ -1959,12 +1959,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (event && event.__crmRowEditorHandled) return;
       if (!target) return;
       const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
-      if (!anchor) return;
-      if (anchor.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"]')) return;
+      if (target.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"]')) return;
 
-      const contactRow = anchor.closest?.('tr[data-contact-id]');
+      const contactRow = (anchor && anchor.closest?.('tr[data-contact-id]'))
+        || target.closest?.('[data-contact-id]');
       if (contactRow) {
-        const id = contactRow.getAttribute('data-contact-id') || anchor.getAttribute('data-id');
+        const id = contactRow.getAttribute('data-contact-id')
+          || anchor?.getAttribute('data-id')
+          || contactRow.getAttribute('data-id');
         if (!id) return;
         event.preventDefault();
         event.stopPropagation();
@@ -1980,9 +1982,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
 
-      const partnerRow = anchor.closest?.('tr[data-partner-id]');
+      const partnerRow = (anchor && anchor.closest?.('tr[data-partner-id]'))
+        || target.closest?.('[data-partner-id]');
       if (partnerRow) {
-        const id = partnerRow.getAttribute('data-partner-id') || anchor.getAttribute('data-partner-id');
+        const id = partnerRow.getAttribute('data-partner-id')
+          || anchor?.getAttribute('data-partner-id')
+          || partnerRow.getAttribute('data-id');
         if (!id) return;
         event.preventDefault();
         event.stopPropagation();
