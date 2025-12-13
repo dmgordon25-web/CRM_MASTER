@@ -88,6 +88,10 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
 .header-new-wrap #quick-add-unified{transition:background-color .18s ease,box-shadow .18s ease,transform .18s ease}
 .header-new-wrap:hover #quick-add-unified,.header-new-wrap:focus-within #quick-add-unified,#quick-add-unified:focus-visible{box-shadow:var(--btn-shadow-hover);background:color-mix(in srgb,var(--button-primary-bg) 92%,#ffffff 8%);border-color:color-mix(in srgb,var(--button-primary-border) 70%,#ffffff 30%);transform:translateY(-1px)}
 .header-new-wrap #quick-add-unified[aria-expanded="true"]{box-shadow:var(--btn-shadow-hover);outline:2px solid var(--ring);outline-offset:2px}
+/* Quick Create host should only be as big as its contents */
+.dropdown.header-new-wrap[data-role="header-new-host"]{display:inline-flex !important;align-items:center;width:auto !important;max-width:max-content !important;pointer-events:auto !important}
+/* If the QC global wrapper exists, it must NOT intercept clicks when hidden */
+#global-new-menu[hidden],#header-new-menu[hidden]{pointer-events:none !important}
 .nav-split{margin-left:auto;order:10}
 .pill{padding:6px var(--space-3);border-radius:999px;background:color-mix(in srgb,var(--brand) 12%,#eef2ff);border:1px solid color-mix(in srgb,var(--brand) 35%,transparent);color:var(--ink);font-size:var(--font-size-sm);font-weight:600;letter-spacing:var(--letter-spacing-tight);}
 .row{display:flex;gap:var(--space-3)}
