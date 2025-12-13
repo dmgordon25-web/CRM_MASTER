@@ -89,7 +89,11 @@ export function renderReferralLeadersWidget(options = {}){
     const volumeLine = stat.volume ? `<div class="insight-sub">Loan Volume: ${safe(money(stat.volume))}</div>` : '';
     const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
     const partnerAttr = attr(partnerId);
-    const widgetAttrs = [`data-widget="top-partners"`];
+    const widgetAttrs = [
+      'data-widget="referral-leaderboard"',
+      'data-dash-widget="referral-leaderboard"',
+      'data-widget-id="referral-leaderboard"'
+    ];
     if(partnerAttr) widgetAttrs.push(`data-partner-id="${partnerAttr}"`);
     return `<li role="button" ${widgetAttrs.join(' ')}>
       <div class="list-main">
