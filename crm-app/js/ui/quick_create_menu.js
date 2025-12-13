@@ -20,10 +20,11 @@ export function resetQuickCreateOverlay(reason = '') {
     if (wrapper) {
       wrapper.hidden = true;
       wrapper.style.pointerEvents = 'none';
-      wrapper.style.left = '';
-      wrapper.style.top = '';
-      wrapper.style.right = '';
-      wrapper.style.bottom = '';
+      wrapper.style.inset = 'auto';
+      wrapper.style.left = 'auto';
+      wrapper.style.top = 'auto';
+      wrapper.style.right = 'auto';
+      wrapper.style.bottom = 'auto';
     }
 
     const menu = document.getElementById('header-new-menu');
@@ -617,7 +618,7 @@ function teardownRepositionListeners() {
 export function closeQuickCreateMenu() {
   teardownRepositionListeners();
   const { wrapper, menu, restoreFocus } = state;
-  if (!wrapper || !menu || wrapper.hidden) return;
+  if (!wrapper || !menu) return;
   wrapper.hidden = true;
   menu.hidden = true;
   if (menu.classList && typeof menu.classList.add === 'function') {
@@ -625,10 +626,10 @@ export function closeQuickCreateMenu() {
   }
   menu.setAttribute('aria-hidden', 'true');
   menu.setAttribute('data-qa', MENU_DEFAULT_QA);
-  wrapper.style.left = '';
-  wrapper.style.top = '';
-  wrapper.style.right = '';
-  wrapper.style.bottom = '';
+  wrapper.style.left = 'auto';
+  wrapper.style.top = 'auto';
+  wrapper.style.right = 'auto';
+  wrapper.style.bottom = 'auto';
   wrapper.style.inset = 'auto';
   wrapper.style.width = 'auto';
   wrapper.style.height = 'auto';
@@ -820,6 +821,13 @@ function resetHeaderQuickCreateBinding() {
 export function createBinding(host, options = {}) {
   console.log('[QC] createBinding called', host, options);
   const hostEl = host instanceof HTMLElement ? host : null;
+  if (hostEl && hostEl.dataset) {
+    if (hostEl.dataset.qcBound === '1') {
+      const existingBinding = hostEl[BIND_GUARD_KEY];
+      return existingBinding && existingBinding.binding ? existingBinding.binding : existingBinding;
+    }
+    hostEl.dataset.qcBound = '1';
+  }
   if (hostEl) {
     const existing = hostEl[BIND_GUARD_KEY];
     if (existing && existing.binding && typeof existing.binding.unbind === 'function') {
