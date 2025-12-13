@@ -186,6 +186,42 @@ describe('dashboard drilldown widgets', () => {
     expect(openContact).toHaveBeenCalledWith('closing-123');
   });
 
+  it('handles Priority Actions button clicks when ids live on the button', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const { row } = makeSyntheticRow({ contactId: 'btn-contact-1', widget: 'priorityActions' });
+    const evt = { target: row, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('btn-contact-1');
+  });
+
+  it('handles Milestones Ahead clicks when the clickable node carries the id', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const { row } = makeSyntheticRow({ contactId: 'btn-contact-2', widget: 'milestonesAhead' });
+    const evt = { target: row, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('btn-contact-2');
+  });
+
+  it('handles Referral Leader clicks when the button itself has the partner id', () => {
+    const openPartner = vi.fn();
+    setHooks({ openPartner });
+    const { row } = makeSyntheticRow({ partnerId: 'partner-self', widget: 'referral-leaderboard' });
+    const evt = { target: row, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openPartner).toHaveBeenCalledWith('partner-self');
+  });
+
   it('prevents propagation for entity rows so other click delegates do not double-handle', () => {
     const openContact = vi.fn();
     setHooks({ openContact });

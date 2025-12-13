@@ -1993,6 +1993,11 @@ export function renderPriorityActionsWidget(container, model) {
 
         // Click-to-editor: navigate to contact view
         if (row.contactId) {
+          rowEl.setAttribute('data-contact-id', row.contactId);
+          rowEl.setAttribute('data-id', row.contactId);
+          rowEl.setAttribute('data-widget', 'priorityActions');
+          rowEl.setAttribute('data-dash-widget', 'priorityActions');
+          rowEl.setAttribute('data-widget-id', 'priorityActions');
           rowEl.style.cursor = 'pointer';
           rowEl.setAttribute('role', 'button');
           rowEl.setAttribute('tabindex', '0');
@@ -2054,6 +2059,11 @@ export function renderMilestonesWidget(container, model) {
         // Click-to-editor: navigate to contact view
         const contactId = appt.contactId || (appt.contact && appt.contact.id);
         if (contactId) {
+          row.setAttribute('data-contact-id', contactId);
+          row.setAttribute('data-id', contactId);
+          row.setAttribute('data-widget', 'milestonesAhead');
+          row.setAttribute('data-dash-widget', 'milestonesAhead');
+          row.setAttribute('data-widget-id', 'milestonesAhead');
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
