@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { renderReferralLeadersWidget } from '../../crm-app/js/dashboard/widgets/referral_leaders.js';
 
 let handler;
 let setHooks;
@@ -73,6 +74,22 @@ function makeSyntheticRow({ contactId = '', partnerId = '', widget = '' } = {}) 
   return { row, child };
 }
 
+function buildRecordDataAttrs(ids = {}, widgetKey = '') {
+  const contactAttr = ids && ids.contactId ? String(ids.contactId) : '';
+  const partnerAttr = ids && ids.partnerId ? String(ids.partnerId) : '';
+  const attrs = [];
+  if (widgetKey) {
+    attrs.push(
+      `data-widget="${widgetKey}"`,
+      `data-dash-widget="${widgetKey}"`,
+      `data-widget-id="${widgetKey}"`
+    );
+  }
+  if (contactAttr) attrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
+  if (partnerAttr) attrs.push(`data-partner-id="${partnerAttr}"`);
+  return attrs.length ? ` ${attrs.join(' ')}` : '';
+}
+
 beforeAll(async () => {
   bootstrapGlobals();
   const mod = await import('../../crm-app/js/dashboard/index.js');
@@ -133,6 +150,42 @@ describe('dashboard drilldown widgets', () => {
     expect(openPartner).toHaveBeenCalledWith('partner-abc');
   });
 
+  it('opens contact editor from Favorites row', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const { child } = makeSyntheticRow({ contactId: 'fav-contact', widget: 'favorites' });
+    const evt = { target: child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('fav-contact');
+  });
+
+  it('opens partner editor from Favorites partner row', () => {
+    const openPartner = vi.fn();
+    setHooks({ openPartner });
+    const { child } = makeSyntheticRow({ partnerId: 'fav-partner', widget: 'favorites' });
+    const evt = { target: child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openPartner).toHaveBeenCalledWith('fav-partner');
+  });
+
+  it('opens contact editor from Closing Watchlist row', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const { child } = makeSyntheticRow({ contactId: 'closing-123', widget: 'closing-watch' });
+    const evt = { target: child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('closing-123');
+  });
+
   it('prevents propagation for entity rows so other click delegates do not double-handle', () => {
     const openContact = vi.fn();
     setHooks({ openContact });
@@ -144,5 +197,64 @@ describe('dashboard drilldown widgets', () => {
     expect(evt.preventDefault).toHaveBeenCalledTimes(1);
     expect(evt.stopPropagation).toHaveBeenCalledTimes(1);
     expect(openContact).toHaveBeenCalledWith('contact-stop');
+  });
+
+  describe('widget row markup includes drilldown attributes', () => {
+    it('favorites contact rows include widget marker and contact id', () => {
+      const attrs = buildRecordDataAttrs({ contactId: 'fav-1' }, 'favorites');
+      expect(attrs).toContain('data-dash-widget="favorites"');
+      expect(attrs).toContain('data-contact-id="fav-1"');
+    });
+
+    it('favorites partner rows include widget marker and partner id', () => {
+      const attrs = buildRecordDataAttrs({ partnerId: 'partner-99' }, 'favorites');
+      expect(attrs).toContain('data-dash-widget="favorites"');
+      expect(attrs).toContain('data-partner-id="partner-99"');
+    });
+
+    it('priority actions rows include widget marker and contact id', () => {
+      const attrs = buildRecordDataAttrs({ contactId: 'task-1' }, 'priorityActions');
+      expect(attrs).toContain('data-dash-widget="priorityActions"');
+      expect(attrs).toContain('data-contact-id="task-1"');
+    });
+
+    it('milestones ahead rows include widget marker and contact id', () => {
+      const attrs = buildRecordDataAttrs({ contactId: 'ms-1' }, 'milestonesAhead');
+      expect(attrs).toContain('data-dash-widget="milestonesAhead"');
+      expect(attrs).toContain('data-contact-id="ms-1"');
+    });
+
+    it('closing watchlist rows include widget marker and contact id', () => {
+      const attrs = buildRecordDataAttrs({ contactId: 'cw-1' }, 'closing-watch');
+      expect(attrs).toContain('data-dash-widget="closing-watch"');
+      expect(attrs).toContain('data-contact-id="cw-1"');
+    });
+
+    it('today rows include widget marker and contact id', () => {
+      const attrs = buildRecordDataAttrs({ contactId: 'today-1' }, 'today');
+      expect(attrs).toContain('data-dash-widget="today"');
+      expect(attrs).toContain('data-contact-id="today-1"');
+    });
+
+    it('referral leaderboard markup includes partner and widget attributes', () => {
+      const host = { dataset: {}, innerHTML: '' };
+      renderReferralLeadersWidget({
+        host,
+        contacts: [
+          { id: 'c1', buyerPartnerId: 'p1', loanAmount: 1000 },
+          { id: 'c2', listingPartnerId: 'p1', loanAmount: 1500 }
+        ],
+        partners: [{ id: 'p1', name: 'Partner One' }],
+        safe: (v) => String(v),
+        attr: (v) => String(v),
+        money: (v) => `$${v}`,
+        initials: (name) => String(name || '').slice(0, 2) || 'P',
+        normalizeStatus: (value) => value || '',
+        stageLabels: {}
+      });
+
+      expect(host.innerHTML).toContain('data-dash-widget="referral-leaderboard"');
+      expect(host.innerHTML).toContain('data-partner-id="p1"');
+    });
   });
 });

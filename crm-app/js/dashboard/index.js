@@ -2735,6 +2735,14 @@ function handleDashboardClick(evt, opts = {}) {
   // Find any ancestor row that declares an id for drilldown
   const row = target.closest('[data-contact-id],[data-partner-id]');
   if (!row) {
+    if (window && window.__DASH_DEBUG) {
+      const t = evt && evt.target;
+      console.debug('[DASH] no drilldown row', {
+        tag: t && t.tagName,
+        cls: t && t.className,
+        widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
+      });
+    }
     return false; // not a drilldown row
   }
 

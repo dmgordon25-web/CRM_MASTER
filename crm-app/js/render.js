@@ -1915,7 +1915,9 @@ export async function renderAll(request) {
             const when = item.date.toISOString().slice(0, 10);
             const amount = Number(c.loanAmount || 0) ? money(c.loanAmount) : 'TBD';
             const statusClass = item.stage === 'funded' ? 'good' : 'warn';
-            return `<li data-id="${attr(c.id || '')}" data-contact-id="${attr(c.id || '')}" data-widget="closing-watch" data-date="${attr(when)}">
+            const ids = normalizeRecordRefs(c.id, c.partnerId, c);
+            const widgetAttrs = buildRecordDataAttrs(ids, 'closing-watch');
+            return `<li${widgetAttrs} data-date="${attr(when)}">
           <div class="list-main">
             <span class="insight-avatar">${initials(name)}</span>
             <div>
@@ -2019,16 +2021,16 @@ export async function renderAll(request) {
           }
           const itemsHtml = favorites.slice(0, MAX_FAVORITE_WIDGET_ITEMS).map(item => {
             const idAttr = attr(item.id || '');
-            const attrs = [`data-id="${idAttr}"`, 'data-widget="favorites"', `data-kind="${item.type === 'partner' ? 'partner' : 'contact'}"`];
-            if (item.type === 'partner') {
-              attrs.push(`data-partner-id="${idAttr}"`);
-            } else {
-              attrs.push(`data-contact-id="${idAttr}"`);
-            }
+            const ids = item.type === 'partner'
+              ? normalizeRecordRefs('', idAttr, item.record)
+              : normalizeRecordRefs(idAttr, (item.record && item.record.partnerId) || '', item.record);
+            const widgetAttrs = buildRecordDataAttrs(ids, 'favorites');
+            const dataIdAttr = item.type === 'partner' ? ` data-id="${idAttr}"` : '';
+            const kindAttr = ` data-kind="${item.type === 'partner' ? 'partner' : 'contact'}"`;
             const avatar = initials(item.name);
             const subtitle = item.subtitle ? safe(item.subtitle) : '—';
             const metaLabel = item.meta ? safe(item.meta) : (item.type === 'partner' ? 'Partner' : 'Contact');
-            return `<li ${attrs.join(' ')}>
+            return `<li${widgetAttrs}${dataIdAttr}${kindAttr}>
         <div class="list-main">
           <span class="insight-avatar">${safe(avatar)}</span>
           <div>
