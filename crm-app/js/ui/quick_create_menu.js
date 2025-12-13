@@ -354,6 +354,9 @@ function ensureMenuElements() {
     wrapper.style.pointerEvents = 'none';
     wrapper.style.left = '0';
     wrapper.style.top = '0';
+    wrapper.style.width = 'auto';
+    wrapper.style.height = 'auto';
+    wrapper.style.inset = 'auto';
     document.body.appendChild(wrapper);
   }
 
@@ -524,6 +527,9 @@ function positionMenu(anchor) {
   wrapper.style.top = `${Math.round(top)}px`;
   wrapper.style.right = 'auto';
   wrapper.style.bottom = 'auto';
+  wrapper.style.width = 'max-content';
+  wrapper.style.height = 'auto';
+  wrapper.style.inset = 'auto';
   wrapper.style.visibility = previousVisibility || '';
   wrapper.style.pointerEvents = 'auto';
 }
@@ -623,6 +629,9 @@ export function closeQuickCreateMenu() {
   wrapper.style.top = '';
   wrapper.style.right = '';
   wrapper.style.bottom = '';
+  wrapper.style.inset = 'auto';
+  wrapper.style.width = 'auto';
+  wrapper.style.height = 'auto';
   wrapper.style.pointerEvents = 'none';
   state.open = false;
   state.source = null;
@@ -810,6 +819,13 @@ function resetHeaderQuickCreateBinding() {
 
 export function createBinding(host, options = {}) {
   console.log('[QC] createBinding called', host, options);
+  const hostEl = host instanceof HTMLElement ? host : null;
+  if (hostEl) {
+    const existing = hostEl[BIND_GUARD_KEY];
+    if (existing && existing.binding && typeof existing.binding.unbind === 'function') {
+      return existing.binding;
+    }
+  }
   const toggleSelector = typeof options.toggleSelector === 'string' && options.toggleSelector
     ? options.toggleSelector
     : HEADER_TOGGLE_SELECTOR;
@@ -937,12 +953,25 @@ export function createBinding(host, options = {}) {
     catch (_) { }
   }
 
-  return {
+  const bindingResult = {
     unbind: () => {
       runCleanup();
       resetHeaderQuickCreateBinding();
+      if (hostEl) {
+        try { hostEl.removeAttribute('data-qc-bound'); }
+        catch (_) { }
+        try { delete hostEl[BIND_GUARD_KEY]; }
+        catch (_) { }
+      }
     }
   };
+
+  if (hostEl) {
+    hostEl.dataset.qcBound = '1';
+    hostEl[BIND_GUARD_KEY] = { binding: bindingResult };
+  }
+
+  return bindingResult;
 }
 
 export function bindQuickCreateMenu(host, options) {

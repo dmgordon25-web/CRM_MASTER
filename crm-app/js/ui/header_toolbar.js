@@ -187,6 +187,10 @@ function ensureHostNode() {
       toggle.setAttribute('aria-label', 'Create new record');
     }
   }
+  host.style.display = 'inline-block';
+  host.style.pointerEvents = 'auto';
+  host.style.maxWidth = host.style.maxWidth || 'fit-content';
+  host.style.width = host.style.width || 'auto';
   headerState.host = host;
   headerState.toggle = toggle;
   return host;
