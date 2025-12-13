@@ -2735,13 +2735,35 @@ function handleDashboardClick(evt, opts = {}) {
   // Find any ancestor row that declares an id for drilldown
   const row = target.closest('[data-contact-id],[data-partner-id]');
   if (!row) {
-    if (window && window.__DASH_DEBUG) {
+    const debug = win && win.__DASH_DEBUG;
+    if (debug) {
       const t = evt && evt.target;
-      console.debug('[DASH] no drilldown row', {
-        tag: t && t.tagName,
-        cls: t && t.className,
-        widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
-      });
+      const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#referral-leaderboard');
+      const contactProbe = t && t.closest && t.closest('[data-contact-id]');
+      const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
+      const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
+        ? contactProbe.getAttribute('data-contact-id')
+        : null;
+      const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
+        ? partnerProbe.getAttribute('data-partner-id')
+        : null;
+      if (card) {
+        console.debug('[DASH] drilldown-miss', {
+          widgetCardId: card && card.id,
+          tag: t && t.tagName,
+          cls: t && t.className,
+          contactNode: contactProbe ? (contactProbe.tagName || 'node') : null,
+          contactAttr: contactAttr === null ? 'missing' : (contactAttr || 'empty'),
+          partnerNode: partnerProbe ? (partnerProbe.tagName || 'node') : null,
+          partnerAttr: partnerAttr === null ? 'missing' : (partnerAttr || 'empty')
+        });
+      } else {
+        console.debug('[DASH] no drilldown row', {
+          tag: t && t.tagName,
+          cls: t && t.className,
+          widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
+        });
+      }
     }
     return false; // not a drilldown row
   }

@@ -11,7 +11,10 @@ function bootstrapGlobals() {
     removeEventListener: vi.fn(),
     querySelector: () => null,
     querySelectorAll: () => [],
-    getElementById: () => null,
+    getElementById: (id) => {
+      if (id === 'view-dashboard') return doc.__dashRoot;
+      return null;
+    },
     createElement: () => ({
       style: {},
       setAttribute() {},
@@ -25,6 +28,18 @@ function bootstrapGlobals() {
     body: {
       appendChild() {},
       querySelector: () => null
+    },
+    __dashRoot: {
+      id: 'view-dashboard',
+      __isRoot: true,
+      contains(node) {
+        let cur = node;
+        while (cur) {
+          if (cur === this) return true;
+          cur = cur.parent || null;
+        }
+        return false;
+      }
     }
   };
 
@@ -41,7 +56,7 @@ function makeSyntheticRow({ contactId = '', partnerId = '', widget = '' } = {}) 
 
   const row = {
     attrs,
-    parent: null,
+    parent: globalThis.document.__dashRoot,
     closest(selector) {
       const hasId = Boolean(this.attrs['data-contact-id'] || this.attrs['data-partner-id']);
       const matchesDrilldown = selector === '[data-contact-id],[data-partner-id]' || selector.includes('[data-contact-id]') || selector.includes('[data-partner-id]');
@@ -148,6 +163,19 @@ describe('dashboard drilldown widgets', () => {
 
     expect(handled).toBe(true);
     expect(openPartner).toHaveBeenCalledWith('partner-abc');
+  });
+
+  it('prevents propagation for partner rows', () => {
+    const openPartner = vi.fn();
+    setHooks({ openPartner });
+    const evt = { target: makeSyntheticRow({ partnerId: 'partner-stop' }).child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(evt.preventDefault).toHaveBeenCalledTimes(1);
+    expect(evt.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(openPartner).toHaveBeenCalledWith('partner-stop');
   });
 
   it('opens contact editor from Favorites row', () => {
@@ -291,6 +319,26 @@ describe('dashboard drilldown widgets', () => {
 
       expect(host.innerHTML).toContain('data-dash-widget="referral-leaderboard"');
       expect(host.innerHTML).toContain('data-partner-id="p1"');
+    });
+
+    it('referral leaderboard normalizes partner ids before rendering rows', () => {
+      const host = { dataset: {}, innerHTML: '' };
+      renderReferralLeadersWidget({
+        host,
+        contacts: [
+          { id: 'c1', buyerPartnerId: '2', loanAmount: 1000 },
+          { id: 'c2', listingPartnerId: 'partner-002', loanAmount: 1500 }
+        ],
+        partners: [{ id: 'partner-002', name: 'Partner Two' }],
+        safe: (v) => String(v),
+        attr: (v) => String(v),
+        money: (v) => `$${v}`,
+        initials: (name) => String(name || '').slice(0, 2) || 'P',
+        normalizeStatus: (value) => value || '',
+        stageLabels: {}
+      });
+
+      expect(host.innerHTML).toContain('data-partner-id="partner-002"');
     });
   });
 });
