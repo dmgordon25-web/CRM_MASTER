@@ -2703,14 +2703,29 @@ function tryOpenPartnerModal(partnerId) {
   }
 }
 
-function handleDashboardClick(evt) {
+function handleDashboardClick(evt, opts = {}) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
 
   // ✅ CRITICAL: Dashboard drilldown must ONLY run inside the Dashboard view.
   // It is currently bound on document capture and is eating clicks across the app.
-  const dashRoot = doc ? doc.getElementById('view-dashboard') : null;
-  if (!dashRoot || !dashRoot.contains(target)) return false;
+  const dashRoot = opts.root || (doc ? doc.getElementById('view-dashboard') : null);
+  if (dashRoot) {
+    if (!dashRoot.contains(target)) return false;
+  } else {
+    // Unit-test / headless fallback: only handle clicks on dashboard widget entity rows
+    // (must have an entity id and ideally a widget marker)
+    const probe = target.closest('[data-contact-id],[data-partner-id]');
+    const hasEntityId = probe && (probe.getAttribute('data-contact-id') || probe.getAttribute('data-partner-id'));
+    if (!probe || !hasEntityId) return false;
+    const widgetHost = probe.closest('[data-dash-widget],[data-widget],[data-widget-id]');
+    const widgetKey =
+      (widgetHost && (widgetHost.getAttribute('data-dash-widget') || widgetHost.getAttribute('data-widget') || widgetHost.getAttribute('data-widget-id')))
+      || probe.getAttribute('data-dash-widget')
+      || probe.getAttribute('data-widget')
+      || probe.getAttribute('data-widget-id');
+    if (!widgetKey && widgetHost) return false;
+  }
 
   // Also ignore clicks inside any modal/dialog/editor so Close/Save buttons work.
   if (target.closest('dialog[open], [data-modal-key], [data-ui="contact-edit-modal"], .record-modal')) {
@@ -2727,9 +2742,12 @@ function handleDashboardClick(evt) {
   const partnerId = row.getAttribute('data-partner-id');
   const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
   const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
+  const widgetHost = row.closest && row.closest('[data-dash-widget],[data-widget],[data-widget-id]');
   const widgetKey =
     row.getAttribute('data-dash-widget') ||
+    row.getAttribute('data-widget') ||
     row.getAttribute('data-widget-id') ||
+    (widgetHost && (widgetHost.getAttribute('data-dash-widget') || widgetHost.getAttribute('data-widget') || widgetHost.getAttribute('data-widget-id'))) ||
     row.id ||
     '';
 
@@ -2759,7 +2777,7 @@ function bindDashboardGlobalClick() {
   const root = doc.getElementById('view-dashboard');
   if (!root || root.__crmDashboardClickBound) return;
   if (typeof root.addEventListener === 'function') {
-    root.addEventListener('click', handleDashboardClick, true);
+    root.addEventListener('click', evt => handleDashboardClick(evt, { root }), true);
     root.__crmDashboardClickBound = true;
   }
 }
