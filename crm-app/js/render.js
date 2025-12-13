@@ -1107,12 +1107,32 @@ function dispatchPartnerModal(partnerId, options) {
 }
 
 function normalizeRecordRefs(rawContactId, rawPartnerId, contact) {
-  const contactId = rawContactId != null && rawContactId !== ''
-    ? String(rawContactId)
-    : (contact && contact.id != null ? String(contact.id) : '');
-  const partnerId = rawPartnerId != null && rawPartnerId !== ''
-    ? String(rawPartnerId)
-    : (contact && contact.partnerId != null ? String(contact.partnerId) : '');
+  const contactObj = contact && typeof contact === 'object' ? contact : null;
+  const pickId = (value, fallbackObj) => {
+    if (value == null || value === '') return '';
+    if (typeof value === 'object') {
+      if (value.id != null && value.id !== '') return String(value.id);
+      if (value.contactId != null && value.contactId !== '') return String(value.contactId);
+      if (value.contact_id != null && value.contact_id !== '') return String(value.contact_id);
+    }
+    if (fallbackObj && typeof fallbackObj === 'object') {
+      if (fallbackObj.id != null && fallbackObj.id !== '') return String(fallbackObj.id);
+      if (fallbackObj.contactId != null && fallbackObj.contactId !== '') return String(fallbackObj.contactId);
+      if (fallbackObj.contact_id != null && fallbackObj.contact_id !== '') return String(fallbackObj.contact_id);
+    }
+    return String(value);
+  };
+
+  const contactId = pickId(rawContactId, contactObj);
+  const partnerId = (() => {
+    const picked = pickId(rawPartnerId, null);
+    if (picked) return picked;
+    if (contactObj && contactObj.partnerId != null && contactObj.partnerId !== '') return String(contactObj.partnerId);
+    if (contactObj && contactObj.partner_id != null && contactObj.partner_id !== '') return String(contactObj.partner_id);
+    if (contactObj && contactObj.partner && contactObj.partner.id != null && contactObj.partner.id !== '') return String(contactObj.partner.id);
+    return '';
+  })();
+
   return { contactId, partnerId };
 }
 

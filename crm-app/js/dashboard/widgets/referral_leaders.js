@@ -39,13 +39,31 @@ export function renderReferralLeadersWidget(options = {}){
   const normalizeStatus = ensureNormalize(options.normalizeStatus);
   const stageLabels = options.stageLabels && typeof options.stageLabels === 'object' ? options.stageLabels : {};
 
-  const partnerMap = new Map();
+  const partnerLookup = new Map();
+  const registerPartnerKey = (key, partner) => {
+    const normalized = String(key == null ? '' : key).trim();
+    if(!normalized) return;
+    if(!partnerLookup.has(normalized)) partnerLookup.set(normalized, partner);
+    const lower = normalized.toLowerCase();
+    if(!partnerLookup.has(lower)) partnerLookup.set(lower, partner);
+  };
+
   partners.forEach(partner => {
     if(!partner) return;
-    const id = partner.id == null ? null : String(partner.id);
+    const id = partner.id == null ? null : String(partner.id).trim();
     if(!id) return;
-    partnerMap.set(id, partner);
+    registerPartnerKey(id, partner);
+    const compact = id.replace(/^partner[-_]?/i, '');
+    if(compact && compact !== id) registerPartnerKey(compact, partner);
   });
+
+  const resolvePartner = (rawId) => {
+    const key = String(rawId == null ? '' : rawId).trim();
+    if(!key) return { id: '', record: null };
+    const hit = partnerLookup.get(key) || partnerLookup.get(key.toLowerCase());
+    if(hit) return { id: hit.id == null ? '' : String(hit.id), record: hit };
+    return { id: key, record: null };
+  };
 
   const referralStats = new Map();
   contacts.forEach(contact => {
@@ -54,11 +72,13 @@ export function renderReferralLeadersWidget(options = {}){
     const listingId = contact.listingPartnerId == null ? '' : String(contact.listingPartnerId);
     const partnerId = buyerId || listingId;
     if(!partnerId || partnerId === NONE_PARTNER_ID) return;
-    const entry = referralStats.get(partnerId) || { count: 0, volume: 0, contacts: [] };
+    const { id: resolvedPartnerId } = resolvePartner(partnerId);
+    if(!resolvedPartnerId) return;
+    const entry = referralStats.get(resolvedPartnerId) || { count: 0, volume: 0, contacts: [] };
     entry.count += 1;
     entry.volume += Number(contact.loanAmount || 0) || 0;
     entry.contacts.push(contact);
-    referralStats.set(partnerId, entry);
+    referralStats.set(resolvedPartnerId, entry);
   });
 
   const top3 = Array.from(referralStats.entries())
@@ -73,7 +93,8 @@ export function renderReferralLeadersWidget(options = {}){
   const totalRef = Array.from(referralStats.values()).reduce((sum, entry) => sum + (entry.count || 0), 0) || 0;
 
   const items = top3.map(([partnerId, stat]) => {
-    const partner = partnerMap.get(partnerId) || {};
+    const { id: resolvedPartnerId, record } = resolvePartner(partnerId);
+    const partner = record || {};
     const share = totalRef ? Math.round(((stat.count || 0) / totalRef) * 100) : 0;
     const tier = partner.tier ? `<span class="insight-tag light">${safe(partner.tier)}</span>` : '';
     const details = [partner.company, partner.phone, partner.email].filter(Boolean).map(value => safe(value)).join(' • ');
@@ -88,7 +109,7 @@ export function renderReferralLeadersWidget(options = {}){
     const focusLine = stageEntry ? `<div class="insight-sub">Focus: ${safe(focusLabel)} (${stageEntry[1]})</div>` : '';
     const volumeLine = stat.volume ? `<div class="insight-sub">Loan Volume: ${safe(money(stat.volume))}</div>` : '';
     const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
-    const partnerAttr = attr(partnerId);
+    const partnerAttr = attr(resolvedPartnerId);
     const widgetAttrs = [
       'data-widget="referral-leaderboard"',
       'data-dash-widget="referral-leaderboard"',
