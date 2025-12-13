@@ -2707,14 +2707,21 @@ function handleDashboardClick(evt) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
 
+  // ✅ CRITICAL: Dashboard drilldown must ONLY run inside the Dashboard view.
+  // It is currently bound on document capture and is eating clicks across the app.
+  const dashRoot = doc ? doc.getElementById('view-dashboard') : null;
+  if (!dashRoot || !dashRoot.contains(target)) return false;
+
+  // Also ignore clicks inside any modal/dialog/editor so Close/Save buttons work.
+  if (target.closest('dialog[open], [data-modal-key], [data-ui="contact-edit-modal"], .record-modal')) {
+    return false;
+  }
+
   // Find any ancestor row that declares an id for drilldown
   const row = target.closest('[data-contact-id],[data-partner-id]');
   if (!row) {
     return false; // not a drilldown row
   }
-
-  evt.preventDefault();
-  evt.stopPropagation();
 
   const contactId = row.getAttribute('data-contact-id');
   const partnerId = row.getAttribute('data-partner-id');
@@ -2730,6 +2737,11 @@ function handleDashboardClick(evt) {
     console.info('[DRILLDOWN] click', { widgetKey, contactId, partnerId });
   } catch (_) {}
 
+  if ((contactId || partnerId) && evt) {
+    if (typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+  }
+
   if (contactId && typeof openContact === 'function') {
     openContact(contactId);
     return true;
@@ -2743,10 +2755,12 @@ function handleDashboardClick(evt) {
 }
 
 function bindDashboardGlobalClick() {
-  if (!doc || doc.__crmDashboardClickBound) return;
-  if (typeof doc.addEventListener === 'function') {
-    doc.addEventListener('click', handleDashboardClick, true);
-    doc.__crmDashboardClickBound = true;
+  if (!doc) return;
+  const root = doc.getElementById('view-dashboard');
+  if (!root || root.__crmDashboardClickBound) return;
+  if (typeof root.addEventListener === 'function') {
+    root.addEventListener('click', handleDashboardClick, true);
+    root.__crmDashboardClickBound = true;
   }
 }
 
