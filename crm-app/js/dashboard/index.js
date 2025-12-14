@@ -2804,11 +2804,12 @@ function handleDashboardClick(evt, opts = {}) {
 
 function bindDashboardGlobalClick() {
   if (!doc) return;
-  const root = doc.getElementById('view-dashboard');
-  if (!root || root.__crmDashboardClickBound) return;
-  if (typeof root.addEventListener === 'function') {
-    root.addEventListener('click', evt => handleDashboardClick(evt, { root }), true);
-    root.__crmDashboardClickBound = true;
+  if (doc.__crmDashboardClickBound) return;
+  const dashRoot = doc.getElementById('view-dashboard');
+  const listener = (evt) => handleDashboardClick(evt, { root: dashRoot });
+  if (typeof doc.addEventListener === 'function') {
+    doc.addEventListener('click', listener, true);
+    doc.__crmDashboardClickBound = true;
   }
 }
 
