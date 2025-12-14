@@ -749,7 +749,7 @@ function hideContactModals(){
       catch(_err){}
     }
     node.classList?.add('hidden');
-    node.style.display = 'none';
+    node.style.display = '';
     node.setAttribute?.('aria-hidden', 'true');
     if(node.hasAttribute?.('open')){
       node.removeAttribute('open');
@@ -900,11 +900,11 @@ function ensurePartnerShell(){
   if(!host) return null;
   const wrapper = document.createElement('div');
   wrapper.id = 'partner-modal';
-  wrapper.className = 'modal partner-edit-modal';
+  wrapper.className = 'modal partner-edit-modal hidden';
   wrapper.innerHTML = '<div class="dlg" tabindex="-1"></div>';
   wrapper.setAttribute('data-ui', 'partner-edit-modal');
   wrapper.setAttribute('aria-hidden', 'true');
-  wrapper.style.display = 'none';
+  wrapper.style.display = '';
   if(wrapper.dataset){
     wrapper.dataset.ui = 'partner-edit-modal';
     wrapper.dataset.qa = 'partner-edit-modal';
@@ -950,7 +950,7 @@ export function closePartnerEditModal(){
     }
     node.setAttribute('aria-hidden', 'true');
     node.classList.add('hidden');
-    node.style.display = 'none';
+    node.style.display = '';
     if(node.hasAttribute('open')) node.removeAttribute('open');
     if(typeof node.removeAttribute === 'function'){
       try{ node.removeAttribute('data-source-hint'); }

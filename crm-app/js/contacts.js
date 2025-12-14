@@ -896,10 +896,6 @@ export function normalizeContactId(input) {
             event.preventDefault();
             try { dlg.close(); }
             catch (_err) { }
-            try { dlg.removeAttribute('open'); }
-            catch (_err) { }
-            try { dlg.style.display = 'none'; }
-            catch (_err) { }
             Promise.resolve().then(() => {
               try {
                 window.renderContactModal?.(null);
@@ -917,10 +913,6 @@ export function normalizeContactId(input) {
 
       closeDialog = () => {
         try { dlg.close(); }
-        catch (_) { }
-        try { dlg.removeAttribute('open'); }
-        catch (_) { }
-        try { dlg.style.display = 'none'; }
         catch (_) { }
         try { resetUiInteractivity('contact-close-dialog'); }
         catch (_) { }
@@ -2918,13 +2910,17 @@ export function ensureContactModalShell(options = {}) {
   }
 
   // DEBUG: Trace close calls
-  if (dlg && !dlg.__debugClose) {
+  const debugClose = typeof window !== 'undefined' && window.__CONTACTS_DEBUG;
+  if (dlg && debugClose && !dlg.__debugClose) {
     dlg.__debugClose = true;
     const originalClose = dlg.close;
     dlg.close = function () {
-      console.log('[CONTACTS_DEBUG] dlg.close() called programmatically');
-      console.log('[CONTACTS_DEBUG] close call stack', new Error().stack);
-      return originalClose.apply(this, arguments);
+      try { console.log('[CONTACTS_DEBUG] dlg.close() called programmatically'); }
+      catch (_) { }
+      try { console.log('[CONTACTS_DEBUG] close call stack', new Error().stack); }
+      catch (_) { }
+      try { return originalClose.apply(this, arguments); }
+      catch (_err) { return undefined; }
     };
   }
 
@@ -2950,16 +2946,17 @@ export function ensureContactModalShell(options = {}) {
     });
     // FIX: Do NOT automatically restore focus on close. It causes deadlocks.
     dlg.addEventListener('close', (e) => {
-      console.log('[CONTACTS_DEBUG] modal close event triggered');
-      console.log('[CONTACTS_DEBUG] close event stack', new Error().stack);
+      try { console.log('[CONTACTS_DEBUG] modal close event triggered'); }
+      catch (_) { }
+      try { console.log('[CONTACTS_DEBUG] close event stack', new Error().stack); }
+      catch (_) { }
       try {
         const el = document.activeElement;
         console.log('[CONTACTS_DEBUG] activeElement:', el ? el.tagName : 'null', el ? el.className : '', el ? el.id : '');
       } catch (_) { }
-      console.log('[CONTACTS_DEBUG] event.isTrusted:', e.isTrusted);
+      try { console.log('[CONTACTS_DEBUG] event.isTrusted:', e.isTrusted); }
+      catch (_) { }
       // Only clean up state, never touch focus
-      try { dlg.removeAttribute('open'); } catch (_) { }
-      try { dlg.style.display = 'none'; } catch (_) { }
       if (dlg.dataset) { dlg.dataset.open = '0'; dlg.dataset.opening = '0'; }
       dlg.__contactInvoker = null;
     });
@@ -3094,12 +3091,14 @@ export async function openContactModal(contactId, options) {
   const opener = window.renderContactModal;
   if (!opener) return null;
 
-  // 1. FORCE CLOSE any existing modal first
+  // 1. Close any existing modal first, but never leave it display:none
   const existing = document.querySelector(`[data-modal-key="${CONTACT_MODAL_KEY}"]`);
   if (existing) {
-    try { existing.close(); } catch (e) { }
-    existing.removeAttribute('open');
-    existing.style.display = 'none';
+    try {
+      if (existing.open) existing.close();
+    } catch (e) { }
+    try { existing.style.display = ''; }
+    catch (_) { }
   }
 
   // 2. Normalize Options
