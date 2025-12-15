@@ -116,8 +116,9 @@ export function renderReferralLeadersWidget(options = {}){
       'data-widget-id="referral-leaderboard"'
     ];
     if(partnerAttr) widgetAttrs.push(`data-partner-id="${partnerAttr}"`);
+    const entityAttrs = partnerAttr ? ` data-partner-id="${partnerAttr}"` : '';
     return `<li role="button" ${widgetAttrs.join(' ')}>
-      <div class="list-main">
+      <div class="list-main"${entityAttrs}>
         <span class="insight-avatar">${safe(initials(partner.name || ''))}</span>
         <div>
           <div class="insight-title">${safe(partner.name || '—')}</div>
@@ -127,7 +128,7 @@ export function renderReferralLeadersWidget(options = {}){
           ${detailLine}
         </div>
       </div>
-      <div class="insight-meta">${tier}</div>
+      <div class="insight-meta"${entityAttrs}>${tier}</div>
     </li>`;
   }).join('');
 
