@@ -469,6 +469,7 @@ function handleOutsideClick(event) {
   if (!wrapper || wrapper.hidden) return;
   const target = event.target;
   if (wrapper.contains(target)) return;
+  if (state.menu && state.menu.contains && state.menu.contains(target)) return;
   if (anchor && typeof anchor.contains === 'function' && anchor.contains(target)) return;
   const anchorHost = anchor && anchor.closest ? anchor.closest('[data-role="header-new-host"],.header-new-wrap') : null;
   if (anchorHost && anchorHost.contains(target)) return;
@@ -1021,4 +1022,19 @@ export function bindHeaderQuickCreateOnce(root, bus) {
     console.warn('[QC] bindHeaderQuickCreateOnce failed', err);
     return null;
   }
+}
+
+export function bindQuickCreate() {
+  if (typeof document === 'undefined') return false;
+  const btn = document.querySelector(HEADER_TOGGLE_SELECTOR);
+  if (!btn) return false;
+  if (btn.__qcBound) return true;
+  const handleClick = (event) => {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    toggleQuickCreateMenu({ anchor: btn, source: HEADER_SOURCE });
+  };
+  btn.addEventListener('click', handleClick);
+  btn.__qcBound = true;
+  return true;
 }
