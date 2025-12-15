@@ -625,7 +625,7 @@ function teardownRepositionListeners() {
 
 export function closeQuickCreateMenu() {
   teardownRepositionListeners();
-  const { wrapper, menu, restoreFocus } = state;
+  const { wrapper, menu, restoreFocus, anchor } = state;
   if (!wrapper || !menu) return;
   wrapper.hidden = true;
   menu.hidden = true;
@@ -645,7 +645,6 @@ export function closeQuickCreateMenu() {
   state.open = false;
   state.source = null;
   state.origin = null;
-  const anchor = state.anchor;
   if (state.outsideHandler) {
     document.removeEventListener('click', state.outsideHandler, true);
     state.outsideHandler = null;
@@ -653,6 +652,9 @@ export function closeQuickCreateMenu() {
   if (state.keyHandler) {
     document.removeEventListener('keydown', state.keyHandler, true);
     state.keyHandler = null;
+  }
+  if (anchor && typeof anchor.setAttribute === 'function') {
+    anchor.setAttribute('aria-expanded', 'false');
   }
   state.anchor = null;
   state.restoreFocus = null;
@@ -672,6 +674,11 @@ export function closeQuickCreateMenu() {
     }
   }
   emitState();
+  try {
+    if (typeof window !== 'undefined') {
+      window.__QC_OPEN = false;
+    }
+  } catch (_) { }
 }
 
 export function openQuickCreateMenu(options = {}) {
@@ -695,6 +702,9 @@ export function openQuickCreateMenu(options = {}) {
     menu.setAttribute('aria-hidden', 'false');
     menu.setAttribute('data-qa', 'qc-open');
   }
+  if (anchorNode && typeof anchorNode.setAttribute === 'function') {
+    anchorNode.setAttribute('aria-expanded', 'true');
+  }
   if (!state.outsideHandler) {
     state.outsideHandler = (event) => handleOutsideClick(event);
     document.addEventListener('click', state.outsideHandler, true);
@@ -708,6 +718,11 @@ export function openQuickCreateMenu(options = {}) {
   }
   focusFirstMenuItem();
   emitState();
+  try {
+    if (typeof window !== 'undefined') {
+      window.__QC_OPEN = true;
+    }
+  } catch (_) { }
 }
 
 export function toggleQuickCreateMenu(options = {}) {
@@ -782,7 +797,19 @@ function createAnchorBinding(anchor, source) {
     if (typeof event.stopPropagation === 'function') {
       event.stopPropagation();
     }
-    toggleQuickCreateMenu({ anchor, source: normalizedSource });
+    try {
+      if (typeof window !== 'undefined') {
+        window.__QC_CLICKED = (window.__QC_CLICKED || 0) + 1;
+      }
+    } catch (_) { }
+    const open = toggleQuickCreateMenu({ anchor, source: normalizedSource });
+    const isOpen = !!open;
+    anchor.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    try {
+      if (typeof window !== 'undefined') {
+        window.__QC_OPEN = isOpen;
+      }
+    } catch (_) { }
   };
   const handleState = (event) => {
     const detail = event && event.detail ? event.detail : {};
@@ -1024,17 +1051,37 @@ export function bindHeaderQuickCreateOnce(root, bus) {
   }
 }
 
-export function bindQuickCreate() {
+export function bindQuickCreate(attemptedRaf) {
   if (typeof document === 'undefined') return false;
   const btn = document.querySelector(HEADER_TOGGLE_SELECTOR);
-  if (!btn) return false;
+  if (!btn) {
+    if (!attemptedRaf && typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => bindQuickCreate(true));
+    }
+    return false;
+  }
   if (btn.__qcBound) return true;
   const handleClick = (event) => {
     if (event && typeof event.preventDefault === 'function') event.preventDefault();
     if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
-    toggleQuickCreateMenu({ anchor: btn, source: HEADER_SOURCE });
+    try {
+      if (typeof window !== 'undefined') {
+        window.__QC_CLICKED = (window.__QC_CLICKED || 0) + 1;
+      }
+    } catch (_) { }
+    const open = toggleQuickCreateMenu({ anchor: btn, source: HEADER_SOURCE });
+    const isOpen = !!open;
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    try {
+      if (typeof window !== 'undefined') {
+        window.__QC_OPEN = isOpen;
+      }
+    } catch (_) { }
   };
   btn.addEventListener('click', handleClick);
   btn.__qcBound = true;
+  if (btn.getAttribute('aria-expanded') !== 'true') {
+    btn.setAttribute('aria-expanded', 'false');
+  }
   return true;
 }
