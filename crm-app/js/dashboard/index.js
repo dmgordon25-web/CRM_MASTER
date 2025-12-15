@@ -2754,59 +2754,74 @@ function handleDashboardClick(evt, opts = {}) {
     return false;
   }
 
-  // Find any ancestor row that declares an id for drilldown
-  let row = target.closest('[data-contact-id],[data-partner-id]');
-  if (!row) {
-    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
-    if (cardProbe) {
-      row = target.closest('[data-role="open-contact"][data-contact-id],[data-role="open-partner"][data-partner-id]');
-      if (!row) {
-        const listRow = target.closest('li[data-contact-id],li[data-partner-id],.task-line[data-contact-id],.task-line[data-partner-id]');
-        if (listRow && (listRow.getAttribute('data-contact-id') || listRow.getAttribute('data-partner-id'))) {
-          row = listRow;
+    const findEntityRow = (node) => {
+      const visited = new Set();
+      let cur = node;
+      while (cur) {
+        const contactAttr = typeof cur.getAttribute === 'function'
+          ? cur.getAttribute('data-contact-id')
+          : (cur.dataset ? cur.dataset.contactId : (cur.attrs && cur.attrs['data-contact-id']));
+        const partnerAttr = typeof cur.getAttribute === 'function'
+          ? cur.getAttribute('data-partner-id')
+          : (cur.dataset ? cur.dataset.partnerId : (cur.attrs && cur.attrs['data-partner-id']));
+
+        if (contactAttr || partnerAttr) {
+          return { row: cur, contactId: contactAttr || '', partnerId: partnerAttr || '' };
+        }
+
+        if (typeof cur.closest === 'function') {
+          const probe = cur.closest('[data-contact-id],[data-partner-id]');
+          if (probe && !visited.has(probe)) {
+            visited.add(probe);
+            cur = probe;
+            continue;
+          }
+        }
+
+        cur = cur.parentNode || cur.parent || null;
+        if (dashRoot && cur === dashRoot.parentNode) break;
+      }
+      return { row: null, contactId: '', partnerId: '' };
+    };
+
+    const { row, contactId, partnerId } = findEntityRow(target);
+    if (!row) {
+      const debug = win && win.__DASH_DEBUG;
+      if (debug) {
+        const t = evt && evt.target;
+        const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+        const contactProbe = t && t.closest && t.closest('[data-contact-id]');
+        const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
+        const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
+          ? contactProbe.getAttribute('data-contact-id')
+          : null;
+        const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
+          ? partnerProbe.getAttribute('data-partner-id')
+          : null;
+        if (card) {
+          console.debug('[DASH] drilldown-miss', {
+            widgetCardId: card && card.id,
+            tag: t && t.tagName,
+            cls: t && t.className,
+            contactNode: contactProbe ? (contactProbe.tagName || 'node') : null,
+            contactAttr: contactAttr === null ? 'missing' : (contactAttr || 'empty'),
+            partnerNode: partnerProbe ? (partnerProbe.tagName || 'node') : null,
+            partnerAttr: partnerAttr === null ? 'missing' : (partnerAttr || 'empty')
+          });
+        } else {
+          console.debug('[DASH] no drilldown row', {
+            tag: t && t.tagName,
+            cls: t && t.className,
+            widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
+          });
         }
       }
+      return false; // not a drilldown row
     }
-  }
-  if (!row) {
-    const debug = win && win.__DASH_DEBUG;
-    if (debug) {
-      const t = evt && evt.target;
-      const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
-      const contactProbe = t && t.closest && t.closest('[data-contact-id]');
-      const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
-      const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
-        ? contactProbe.getAttribute('data-contact-id')
-        : null;
-      const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
-        ? partnerProbe.getAttribute('data-partner-id')
-        : null;
-      if (card) {
-        console.debug('[DASH] drilldown-miss', {
-          widgetCardId: card && card.id,
-          tag: t && t.tagName,
-          cls: t && t.className,
-          contactNode: contactProbe ? (contactProbe.tagName || 'node') : null,
-          contactAttr: contactAttr === null ? 'missing' : (contactAttr || 'empty'),
-          partnerNode: partnerProbe ? (partnerProbe.tagName || 'node') : null,
-          partnerAttr: partnerAttr === null ? 'missing' : (partnerAttr || 'empty')
-        });
-      } else {
-        console.debug('[DASH] no drilldown row', {
-          tag: t && t.tagName,
-          cls: t && t.className,
-          widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
-        });
-      }
-    }
-    return false; // not a drilldown row
-  }
 
-  const contactId = row.getAttribute('data-contact-id');
-  const partnerId = row.getAttribute('data-partner-id');
-  const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
-  const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
-  const widgetHost = row.closest && row.closest('[data-dash-widget],[data-widget],[data-widget-id]');
+    const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
+    const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
+    const widgetHost = row.closest && row.closest('[data-dash-widget],[data-widget],[data-widget-id]');
   const widgetKey =
     row.getAttribute('data-dash-widget') ||
     row.getAttribute('data-widget') ||
