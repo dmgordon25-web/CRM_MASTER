@@ -1539,15 +1539,21 @@ export async function renderAll(request) {
           // Priority Actions drilldown matches the Pipeline Calendar pattern:
           //   buildRecordDataAttrs → data-contact-id / data-partner-id on <li> → dashboard delegate opens the editor.
           const widgetAttrs = buildRecordDataAttrs(ids, 'priorityActions');
+          const entityAttrs = [];
+          const contactAttr = ids && ids.contactId ? attr(ids.contactId) : '';
+          const partnerAttr = ids && ids.partnerId ? attr(ids.partnerId) : '';
+          if (contactAttr) entityAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
+          if (partnerAttr) entityAttrs.push(`data-partner-id="${partnerAttr}"`);
+          const rowEntityAttrs = entityAttrs.length ? ` ${entityAttrs.join(' ')}` : '';
           return `<li class="${task.status}"${widgetAttrs}>
-        <div class="list-main">
+        <div class="list-main"${rowEntityAttrs}>
           <span class="status-dot ${task.status}"></span>
           <div>
             <div class="insight-title">${safe(task.title)}</div>
             <div class="insight-sub">${safe(task.name)}${task.stage ? ` • ${safe(task.stage)}` : ''}</div>
           </div>
         </div>
-        <div class="insight-meta ${cls}">${phr} · ${task.dueLabel}</div>
+        <div class="insight-meta ${cls}"${rowEntityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
         }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
 
@@ -1560,15 +1566,21 @@ export async function renderAll(request) {
           ids.taskId = taskId;
           // Milestones Ahead drilldown mirrors the pipeline calendar wiring with data-contact-id / data-partner-id on the row.
           const widgetAttrs = buildRecordDataAttrs(ids, 'milestonesAhead');
+          const entityAttrs = [];
+          const contactAttr = ids && ids.contactId ? attr(ids.contactId) : '';
+          const partnerAttr = ids && ids.partnerId ? attr(ids.partnerId) : '';
+          if (contactAttr) entityAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
+          if (partnerAttr) entityAttrs.push(`data-partner-id="${partnerAttr}"`);
+          const rowEntityAttrs = entityAttrs.length ? ` ${entityAttrs.join(' ')}` : '';
           return `<li${widgetAttrs}>
-        <div class="list-main">
+        <div class="list-main"${rowEntityAttrs}>
           <span class="status-dot ${task.status}"></span>
           <div>
             <div class="insight-title">${safe(task.title)}</div>
             <div class="insight-sub">${safe(task.name)}${task.stage ? ` • ${safe(task.stage)}` : ''}</div>
           </div>
         </div>
-        <div class="insight-meta ${cls}">${phr} · ${task.dueLabel}</div>
+        <div class="insight-meta ${cls}"${rowEntityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
         }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 

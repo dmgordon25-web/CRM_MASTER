@@ -2707,6 +2707,30 @@ function handleDashboardClick(evt, opts = {}) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
 
+  const dashDebug = win && win.__DASH_DEBUG === true;
+  if (dashDebug) {
+    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+    if (cardProbe) {
+      const entityNode = target.closest('[data-contact-id],[data-partner-id]');
+      let contactAttr = null;
+      let partnerAttr = null;
+      if (entityNode && typeof entityNode.getAttribute === 'function') {
+        contactAttr = entityNode.getAttribute('data-contact-id');
+        partnerAttr = entityNode.getAttribute('data-partner-id');
+      }
+      try {
+        console.debug('[DASH_DEBUG] click', {
+          widget: cardProbe.id,
+          tag: target.tagName,
+          cls: target.className,
+          entityNode: entityNode ? entityNode.tagName : null,
+          contactId: contactAttr,
+          partnerId: partnerAttr
+        });
+      } catch (_) { }
+    }
+  }
+
   // ✅ CRITICAL: Dashboard drilldown must ONLY run inside the Dashboard view.
   // It is currently bound on document capture and is eating clicks across the app.
   const dashRoot = opts.root || (doc ? doc.getElementById('view-dashboard') : null);
@@ -2804,12 +2828,11 @@ function handleDashboardClick(evt, opts = {}) {
 
 function bindDashboardGlobalClick() {
   if (!doc) return;
-  if (doc.__crmDashboardClickBound) return;
-  const dashRoot = doc.getElementById('view-dashboard');
-  const listener = (evt) => handleDashboardClick(evt, { root: dashRoot });
-  if (typeof doc.addEventListener === 'function') {
-    doc.addEventListener('click', listener, true);
-    doc.__crmDashboardClickBound = true;
+  const root = doc.getElementById('view-dashboard');
+  if (!root || root.__crmDashboardClickBound) return;
+  if (typeof root.addEventListener === 'function') {
+    root.addEventListener('click', evt => handleDashboardClick(evt, { root }), true);
+    root.__crmDashboardClickBound = true;
   }
 }
 
