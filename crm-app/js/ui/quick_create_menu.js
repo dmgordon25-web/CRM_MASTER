@@ -71,6 +71,9 @@ const HEADER_TOGGLE_SELECTOR = '#quick-add-unified';
 const BIND_GUARD_KEY = typeof Symbol === 'function'
   ? Symbol('quick-create-menu:binding')
   : '__quickCreateMenuBinding__';
+const ANCHOR_GUARD_KEY = typeof Symbol === 'function'
+  ? Symbol('quick-create-menu:anchor')
+  : '__quickCreateMenuAnchor__';
 
 async function defaultOpenContactEditor(prefill) {
   try {
@@ -819,7 +822,6 @@ function resetHeaderQuickCreateBinding() {
 }
 
 export function createBinding(host, options = {}) {
-  console.log('[QC] createBinding called', host, options);
   const hostEl = host instanceof HTMLElement ? host : null;
   if (hostEl && hostEl.dataset) {
     if (hostEl.dataset.qcBound === '1') {
@@ -955,10 +957,20 @@ export function createBinding(host, options = {}) {
   }
 
   headerQuickCreateState.button = button;
-  headerQuickCreateState.bound = true;
+  headerQuickCreateState.bound = !!button;
   if (button && typeof button.setAttribute === 'function') {
     try { button.setAttribute('data-bound', '1'); }
     catch (_) { }
+  }
+
+  if (button && !button[ANCHOR_GUARD_KEY]) {
+    const anchorCleanup = createAnchorBinding(button, HEADER_SOURCE);
+    button[ANCHOR_GUARD_KEY] = { cleanup: anchorCleanup };
+    addCleanup(() => {
+      if (anchorCleanup) anchorCleanup();
+      try { delete button[ANCHOR_GUARD_KEY]; }
+      catch (_) { button[ANCHOR_GUARD_KEY] = null; }
+    });
   }
 
   const bindingResult = {

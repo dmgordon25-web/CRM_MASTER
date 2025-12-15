@@ -1545,7 +1545,7 @@ export async function renderAll(request) {
           if (contactAttr) entityAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
           if (partnerAttr) entityAttrs.push(`data-partner-id="${partnerAttr}"`);
           const rowEntityAttrs = entityAttrs.length ? ` ${entityAttrs.join(' ')}` : '';
-          return `<li class="${task.status}"${widgetAttrs}>
+          return `<li class="${task.status}"${widgetAttrs}${rowEntityAttrs}>
         <div class="list-main"${rowEntityAttrs}>
           <span class="status-dot ${task.status}"></span>
           <div>
@@ -1572,7 +1572,7 @@ export async function renderAll(request) {
           if (contactAttr) entityAttrs.push(`data-contact-id="${contactAttr}"`, `data-id="${contactAttr}"`);
           if (partnerAttr) entityAttrs.push(`data-partner-id="${partnerAttr}"`);
           const rowEntityAttrs = entityAttrs.length ? ` ${entityAttrs.join(' ')}` : '';
-          return `<li${widgetAttrs}>
+          return `<li${widgetAttrs}${rowEntityAttrs}>
         <div class="list-main"${rowEntityAttrs}>
           <span class="status-dot ${task.status}"></span>
           <div>
