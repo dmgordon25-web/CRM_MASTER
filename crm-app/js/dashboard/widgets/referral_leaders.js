@@ -111,13 +111,13 @@ export function renderReferralLeadersWidget(options = {}){
     const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
     const partnerAttr = attr(resolvedPartnerId);
     const widgetAttrs = [
-      'data-widget="referral-leaderboard"',
-      'data-dash-widget="referral-leaderboard"',
-      'data-widget-id="referral-leaderboard"'
+      'data-widget="leaderboard"',
+      'data-dash-widget="leaderboard"',
+      'data-widget-id="leaderboard"'
     ];
     if(partnerAttr) widgetAttrs.push(`data-partner-id="${partnerAttr}"`);
     const entityAttrs = partnerAttr ? ` data-partner-id="${partnerAttr}"` : '';
-    const innerAttrs = [`data-widget="referral-leaderboard"`, `data-dash-widget="referral-leaderboard"`, `data-widget-id="referral-leaderboard"`];
+    const innerAttrs = [`data-widget="leaderboard"`, `data-dash-widget="leaderboard"`, `data-widget-id="leaderboard"`];
     if(partnerAttr) innerAttrs.push(`data-partner-id="${partnerAttr}"`);
     const innerAttrText = innerAttrs.length ? ` ${innerAttrs.join(' ')}` : '';
     return `<li role="button" ${widgetAttrs.join(' ')}>
