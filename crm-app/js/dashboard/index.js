@@ -146,7 +146,7 @@ const WIDGET_RESOLVERS = {
   kpis: () => doc ? doc.getElementById('dashboard-kpis') : null,
   pipeline: () => doc ? doc.getElementById('dashboard-pipeline-overview') : null,
   today: () => doc ? doc.getElementById('dashboard-today') : null,
-  leaderboard: () => doc ? doc.getElementById('referral-leaderboard') : null,
+  leaderboard: () => doc ? doc.getElementById('numbers-referrals-card') : null,
   stale: () => doc ? doc.getElementById('dashboard-stale') : null,
   favorites: () => doc ? doc.getElementById('favorites-card') : null,
   goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
@@ -192,7 +192,7 @@ const WIDGET_DOM_ID_MAP = {
   kpis: 'dashboard-kpis',
   pipeline: 'dashboard-pipeline-overview',
   today: 'dashboard-today',
-  leaderboard: 'referral-leaderboard',
+  leaderboard: 'numbers-referrals-card',
   stale: 'dashboard-stale',
   favorites: 'favorites-card',
   goalProgress: 'goal-progress-card',
@@ -360,7 +360,6 @@ const layoutResetState = {
   pending: false
 };
 
-let dashboardClickHandlersBound = false;
 
 function resolveDashboardDrilldownDispatcher() {
   const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
@@ -527,14 +526,12 @@ function cleanupPointerHandlersFor(container) {
   if (target && handlers) {
     if (target === doc && doc && doc.__crmDashboardClickBound) {
       dashDnDState.pointerHandlers = null;
-      dashboardClickHandlersBound = false;
       exposeDashboardDnDHandlers();
       return;
     }
     try { target.removeEventListener('click', handlers.onClick); } catch (_err) { }
   }
   dashDnDState.pointerHandlers = null;
-  dashboardClickHandlersBound = false;
   exposeDashboardDnDHandlers();
 }
 
@@ -2733,7 +2730,8 @@ function handleDashboardClick(evt, opts = {}) {
 
   // ✅ CRITICAL: Dashboard drilldown must ONLY run inside the Dashboard view.
   // It is currently bound on document capture and is eating clicks across the app.
-  const dashRoot = opts.root || (doc ? doc.getElementById('view-dashboard') : null);
+  const liveRoot = doc ? doc.getElementById('view-dashboard') : null;
+  const dashRoot = liveRoot || opts.root || null;
   if (dashRoot) {
     if (!dashRoot.contains(target)) return false;
   } else {
@@ -2759,7 +2757,7 @@ function handleDashboardClick(evt, opts = {}) {
   // Find any ancestor row that declares an id for drilldown
   let row = target.closest('[data-contact-id],[data-partner-id]');
   if (!row) {
-    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#referral-leaderboard');
+    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
     if (cardProbe) {
       row = target.closest('[data-role="open-contact"][data-contact-id],[data-role="open-partner"][data-partner-id]');
       if (!row) {
@@ -2774,7 +2772,7 @@ function handleDashboardClick(evt, opts = {}) {
     const debug = win && win.__DASH_DEBUG;
     if (debug) {
       const t = evt && evt.target;
-      const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#referral-leaderboard');
+      const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
       const contactProbe = t && t.closest && t.closest('[data-contact-id]');
       const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
       const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
@@ -2817,10 +2815,6 @@ function handleDashboardClick(evt, opts = {}) {
     row.id ||
     '';
 
-  try {
-    console.info('[DRILLDOWN] click', { widgetKey, contactId, partnerId });
-  } catch (_) {}
-
   if ((contactId || partnerId) && evt) {
     if (typeof evt.preventDefault === 'function') evt.preventDefault();
     if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
@@ -2840,11 +2834,11 @@ function handleDashboardClick(evt, opts = {}) {
 
 function bindDashboardGlobalClick() {
   if (!doc) return;
-  const root = doc.getElementById('view-dashboard');
-  if (!root || root.__crmDashboardClickBound) return;
-  if (typeof root.addEventListener === 'function') {
-    root.addEventListener('click', evt => handleDashboardClick(evt, { root }), true);
-    root.__crmDashboardClickBound = true;
+  if (doc.__crmDashboardClickBound) return;
+  if (typeof doc.addEventListener === 'function') {
+    const handler = evt => handleDashboardClick(evt);
+    doc.addEventListener('click', handler, true);
+    doc.__crmDashboardClickBound = { handler };
   }
 }
 
@@ -2929,11 +2923,10 @@ function handleDashboardTap(evt, target) {
 }
 
 function bindDashboardEvents(container = getDashboardContainerNode()) {
-  if (!container || dashboardClickHandlersBound) return;
+  if (!container) return;
   bindDashboardGlobalClick();
   bindNurtureListClickFallback();
   dashDnDState.pointerHandlers = { target: doc, onClick: handleDashboardClick };
-  dashboardClickHandlersBound = true;
   exposeDashboardDnDHandlers();
 }
 
