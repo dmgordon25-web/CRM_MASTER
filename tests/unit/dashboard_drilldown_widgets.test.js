@@ -4,6 +4,48 @@ import { renderReferralLeadersWidget } from '../../crm-app/js/dashboard/widgets/
 let handler;
 let setHooks;
 
+function buildNode({ id = '', tag = 'div', attrs = {}, classes = [], parent = null } = {}) {
+  const node = { id, tag, attrs, parent, className: classes.join(' ') };
+  node.getAttribute = (name) => (Object.prototype.hasOwnProperty.call(node.attrs, name) ? node.attrs[name] : null);
+  node.closest = (selector) => {
+    const selectors = String(selector || '').split(',').map((s) => s.trim()).filter(Boolean);
+    let cur = node;
+    const matches = (candidate, sel) => {
+      if (!candidate) return false;
+      if (sel.startsWith('#')) return candidate.id === sel.slice(1);
+      if (sel.startsWith('.')) {
+        const classes = typeof candidate.className === 'string' ? candidate.className : '';
+        return classes.split(/\s+/).includes(sel.slice(1));
+      }
+      if (sel.includes('[data-role="open-contact"]')) {
+        return candidate.attrs['data-role'] === 'open-contact' && !!candidate.attrs['data-contact-id'];
+      }
+      if (sel.includes('[data-role="open-partner"]')) {
+        return candidate.attrs['data-role'] === 'open-partner' && !!candidate.attrs['data-partner-id'];
+      }
+      if (sel.includes('.task-line') && sel.includes('[data-contact-id]')) {
+        return candidate.className.includes('task-line') && !!candidate.attrs['data-contact-id'];
+      }
+      if (sel.includes('.task-line') && sel.includes('[data-partner-id]')) {
+        return candidate.className.includes('task-line') && !!candidate.attrs['data-partner-id'];
+      }
+      if (sel === 'li[data-contact-id]') return candidate.tag === 'li' && !!candidate.attrs['data-contact-id'];
+      if (sel === 'li[data-partner-id]') return candidate.tag === 'li' && !!candidate.attrs['data-partner-id'];
+      if (sel.includes('[data-contact-id]')) return !!candidate.attrs['data-contact-id'];
+      if (sel.includes('[data-partner-id]')) return !!candidate.attrs['data-partner-id'];
+      return false;
+    };
+    while (cur) {
+      for (const sel of selectors) {
+        if (matches(cur, sel)) return cur;
+      }
+      cur = cur.parent || null;
+    }
+    return null;
+  };
+  return node;
+}
+
 function bootstrapGlobals() {
   const doc = {
     readyState: 'complete',
@@ -165,6 +207,63 @@ describe('dashboard drilldown widgets', () => {
     expect(openPartner).toHaveBeenCalledWith('partner-abc');
   });
 
+  it('opens contact editor when clicking nested Priority Actions content', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const card = buildNode({ id: 'priority-actions-card', parent: globalThis.document.__dashRoot });
+    const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'priorityActions', 'data-contact-id': 'pa-nested' }, parent: card });
+    const listMain = buildNode({ attrs: { 'data-role': 'open-contact', 'data-contact-id': 'pa-nested' }, parent: row });
+    const nested = buildNode({ parent: listMain });
+    nested.closest = (selector) => {
+      if (selector === '[data-contact-id],[data-partner-id]') return null;
+      return nested.parent && nested.parent.closest ? nested.parent.closest(selector) : null;
+    };
+    const evt = { target: nested, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('pa-nested');
+  });
+
+  it('opens contact editor from nested Milestones Ahead click', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const card = buildNode({ id: 'milestones-card', parent: globalThis.document.__dashRoot });
+    const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'milestonesAhead', 'data-contact-id': 'ms-nested' }, parent: card });
+    const listMain = buildNode({ attrs: { 'data-role': 'open-contact', 'data-contact-id': 'ms-nested' }, parent: row });
+    const nested = buildNode({ parent: listMain });
+    nested.closest = (selector) => {
+      if (selector === '[data-contact-id],[data-partner-id]') return null;
+      return nested.parent && nested.parent.closest ? nested.parent.closest(selector) : null;
+    };
+    const evt = { target: nested, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('ms-nested');
+  });
+
+  it('opens partner editor from nested Referral Leader click', () => {
+    const openPartner = vi.fn();
+    setHooks({ openPartner });
+    const card = buildNode({ id: 'referral-leaderboard', parent: globalThis.document.__dashRoot });
+    const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'referral-leaderboard', 'data-partner-id': 'partner-nested' }, parent: card });
+    const listMain = buildNode({ attrs: { 'data-role': 'open-partner', 'data-partner-id': 'partner-nested' }, parent: row });
+    const nested = buildNode({ parent: listMain });
+    nested.closest = (selector) => {
+      if (selector === '[data-contact-id],[data-partner-id]') return null;
+      return nested.parent && nested.parent.closest ? nested.parent.closest(selector) : null;
+    };
+    const evt = { target: nested, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    const handled = handler(evt);
+
+    expect(handled).toBe(true);
+    expect(openPartner).toHaveBeenCalledWith('partner-nested');
+  });
+
   it('prevents propagation for partner rows', () => {
     const openPartner = vi.fn();
     setHooks({ openPartner });
@@ -319,6 +418,7 @@ describe('dashboard drilldown widgets', () => {
 
       expect(host.innerHTML).toContain('data-dash-widget="referral-leaderboard"');
       expect(host.innerHTML).toContain('data-partner-id="p1"');
+      expect(host.innerHTML).toContain('class="list-main" data-widget="referral-leaderboard"');
     });
 
     it('referral leaderboard normalizes partner ids before rendering rows', () => {

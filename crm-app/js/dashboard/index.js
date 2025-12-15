@@ -2757,7 +2757,19 @@ function handleDashboardClick(evt, opts = {}) {
   }
 
   // Find any ancestor row that declares an id for drilldown
-  const row = target.closest('[data-contact-id],[data-partner-id]');
+  let row = target.closest('[data-contact-id],[data-partner-id]');
+  if (!row) {
+    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#referral-leaderboard');
+    if (cardProbe) {
+      row = target.closest('[data-role="open-contact"][data-contact-id],[data-role="open-partner"][data-partner-id]');
+      if (!row) {
+        const listRow = target.closest('li[data-contact-id],li[data-partner-id],.task-line[data-contact-id],.task-line[data-partner-id]');
+        if (listRow && (listRow.getAttribute('data-contact-id') || listRow.getAttribute('data-partner-id'))) {
+          row = listRow;
+        }
+      }
+    }
+  }
   if (!row) {
     const debug = win && win.__DASH_DEBUG;
     if (debug) {
