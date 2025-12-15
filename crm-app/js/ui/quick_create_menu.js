@@ -468,6 +468,8 @@ function handleOutsideClick(event) {
   const { wrapper, anchor } = state;
   if (!wrapper || wrapper.hidden) return;
   const target = event.target;
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
+  if (path && (path.includes(wrapper) || path.includes(state.menu) || path.includes(anchor))) return;
   if (wrapper.contains(target)) return;
   if (state.menu && state.menu.contains && state.menu.contains(target)) return;
   if (anchor && typeof anchor.contains === 'function' && anchor.contains(target)) return;
@@ -794,7 +796,9 @@ function createAnchorBinding(anchor, source) {
   }
   const handleClick = (event) => {
     event.preventDefault();
-    if (typeof event.stopPropagation === 'function') {
+    if (typeof event.stopImmediatePropagation === 'function') {
+      event.stopImmediatePropagation();
+    } else if (typeof event.stopPropagation === 'function') {
       event.stopPropagation();
     }
     try {
@@ -1085,3 +1089,16 @@ export function bindQuickCreate(attemptedRaf) {
   }
   return true;
 }
+
+function installVerifyBindings() {
+  if (typeof window === 'undefined' || window.__DBG !== true) return;
+  if (typeof window.__verifyBindings === 'function') return;
+  const doc = typeof document !== 'undefined' ? document : null;
+  window.__verifyBindings = () => ({
+    newPlusBound: !!(headerQuickCreateState.button && headerQuickCreateState.bound),
+    newPlusClicks: Number(window.__QC_CLICKED || 0),
+    dashboardClickDelegateBound: !!(doc && doc.__crmDashboardClickBound)
+  });
+}
+
+installVerifyBindings();
