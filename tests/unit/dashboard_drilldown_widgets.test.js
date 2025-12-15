@@ -198,7 +198,7 @@ describe('dashboard drilldown widgets', () => {
   it('opens partner editor from referral leaderboard row', () => {
     const openPartner = vi.fn();
     setHooks({ openPartner });
-    const { child } = makeSyntheticRow({ partnerId: 'partner-abc', widget: 'referral-leaderboard' });
+    const { child } = makeSyntheticRow({ partnerId: 'partner-abc', widget: 'leaderboard' });
     const evt = { target: child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
 
     const handled = handler(evt);
@@ -249,7 +249,7 @@ describe('dashboard drilldown widgets', () => {
     const openPartner = vi.fn();
     setHooks({ openPartner });
     const card = buildNode({ id: 'referral-leaderboard', parent: globalThis.document.__dashRoot });
-    const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'referral-leaderboard', 'data-partner-id': 'partner-nested' }, parent: card });
+    const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'leaderboard', 'data-partner-id': 'partner-nested' }, parent: card });
     const listMain = buildNode({ attrs: { 'data-role': 'open-partner', 'data-partner-id': 'partner-nested' }, parent: row });
     const nested = buildNode({ parent: listMain });
     nested.closest = (selector) => {
@@ -340,7 +340,7 @@ describe('dashboard drilldown widgets', () => {
   it('handles Referral Leader clicks when the button itself has the partner id', () => {
     const openPartner = vi.fn();
     setHooks({ openPartner });
-    const { row } = makeSyntheticRow({ partnerId: 'partner-self', widget: 'referral-leaderboard' });
+    const { row } = makeSyntheticRow({ partnerId: 'partner-self', widget: 'leaderboard' });
     const evt = { target: row, preventDefault: vi.fn(), stopPropagation: vi.fn() };
 
     const handled = handler(evt);
@@ -416,9 +416,9 @@ describe('dashboard drilldown widgets', () => {
         stageLabels: {}
       });
 
-      expect(host.innerHTML).toContain('data-dash-widget="referral-leaderboard"');
+      expect(host.innerHTML).toContain('data-dash-widget="leaderboard"');
       expect(host.innerHTML).toContain('data-partner-id="p1"');
-      expect(host.innerHTML).toContain('class="list-main" data-widget="referral-leaderboard"');
+      expect(host.innerHTML).toContain('class="list-main" data-widget="leaderboard"');
     });
 
     it('referral leaderboard normalizes partner ids before rendering rows', () => {

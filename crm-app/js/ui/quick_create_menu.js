@@ -468,6 +468,8 @@ function handleOutsideClick(event) {
   const target = event.target;
   if (wrapper.contains(target)) return;
   if (anchor && typeof anchor.contains === 'function' && anchor.contains(target)) return;
+  const anchorHost = anchor && anchor.closest ? anchor.closest('[data-role="header-new-host"],.header-new-wrap') : null;
+  if (anchorHost && anchorHost.contains(target)) return;
   closeQuickCreateMenu();
 }
 
@@ -774,6 +776,9 @@ function createAnchorBinding(anchor, source) {
   }
   const handleClick = (event) => {
     event.preventDefault();
+    if (typeof event.stopPropagation === 'function') {
+      event.stopPropagation();
+    }
     toggleQuickCreateMenu({ anchor, source: normalizedSource });
   };
   const handleState = (event) => {
