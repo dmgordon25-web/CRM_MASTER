@@ -171,6 +171,38 @@ describe('dashboard drilldown widgets', () => {
     expect(openContact).toHaveBeenCalledWith('contact-123');
   });
 
+  it('still handles drilldowns after the dashboard root is replaced', () => {
+    const openContact = vi.fn();
+    setHooks({ openContact });
+    const first = makeSyntheticRow({ contactId: 'first', widget: 'priorityActions' });
+    const firstEvt = { target: first.child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    expect(handler(firstEvt)).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('first');
+
+    const nextRoot = {
+      id: 'view-dashboard',
+      __isRoot: true,
+      contains(node) {
+        let cur = node;
+        while (cur) {
+          if (cur === this) return true;
+          cur = cur.parent || null;
+        }
+        return false;
+      }
+    };
+
+    globalThis.document.__dashRoot = nextRoot;
+    openContact.mockClear();
+
+    const second = makeSyntheticRow({ contactId: 'second', widget: 'priorityActions' });
+    const secondEvt = { target: second.child, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+
+    expect(handler(secondEvt)).toBe(true);
+    expect(openContact).toHaveBeenCalledWith('second');
+  });
+
   it('opens contact editor from Milestones Ahead row', () => {
     const openContact = vi.fn();
     setHooks({ openContact });
@@ -248,7 +280,7 @@ describe('dashboard drilldown widgets', () => {
   it('opens partner editor from nested Referral Leader click', () => {
     const openPartner = vi.fn();
     setHooks({ openPartner });
-    const card = buildNode({ id: 'referral-leaderboard', parent: globalThis.document.__dashRoot });
+    const card = buildNode({ id: 'numbers-referrals-card', parent: globalThis.document.__dashRoot });
     const row = buildNode({ tag: 'li', attrs: { 'data-dash-widget': 'leaderboard', 'data-partner-id': 'partner-nested' }, parent: card });
     const listMain = buildNode({ attrs: { 'data-role': 'open-partner', 'data-partner-id': 'partner-nested' }, parent: row });
     const nested = buildNode({ parent: listMain });

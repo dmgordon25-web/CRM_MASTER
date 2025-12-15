@@ -178,6 +178,8 @@ const TASK_VALIDATION_CONFIG = {
 
 const QUICK_ADD_INVALID_TOAST = 'Please fix highlighted fields';
 
+let singletonQuickCreateBinding = null;
+
 function focusElement(node) {
   if (!node || typeof node.focus !== 'function') return;
   try {
@@ -828,6 +830,9 @@ function resetHeaderQuickCreateBinding() {
 
 export function createBinding(host, options = {}) {
   const hostEl = host instanceof HTMLElement ? host : null;
+  if (!hostEl && singletonQuickCreateBinding) {
+    return singletonQuickCreateBinding;
+  }
   if (hostEl && hostEl.dataset) {
     if (hostEl.dataset.qcBound === '1') {
       const existingBinding = hostEl[BIND_GUARD_KEY];
@@ -988,6 +993,9 @@ export function createBinding(host, options = {}) {
         try { delete hostEl[BIND_GUARD_KEY]; }
         catch (_) { }
       }
+      if (singletonQuickCreateBinding === bindingResult) {
+        singletonQuickCreateBinding = null;
+      }
     }
   };
 
@@ -995,6 +1003,8 @@ export function createBinding(host, options = {}) {
     hostEl.dataset.qcBound = '1';
     hostEl[BIND_GUARD_KEY] = { binding: bindingResult };
   }
+
+  singletonQuickCreateBinding = bindingResult;
 
   return bindingResult;
 }
