@@ -537,32 +537,56 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function wireUnifiedNew() {
     try {
       const btn = document.getElementById('quick-add-unified');
-      if (!btn || btn.__quickAddWired) return;
-      btn.__quickAddWired = true;
-      btn.addEventListener('click', async (event) => {
-        const legacyMenu = document.getElementById('unified-new-menu');
-        if (legacyMenu) return; // legacy menu takes over when present
-        if (event) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        try {
-          const mod = await import('./ui/quick_create_menu.js');
-          if (mod && typeof mod.openQuickCreateMenu === 'function') {
-            mod.openQuickCreateMenu({ anchor: btn, source: 'header', origin: 'header' });
+      if (!btn) return;
+
+      if (btn.__quickAddUnifiedHandler) {
+        try { btn.removeEventListener('click', btn.__quickAddUnifiedHandler); }
+        catch (_) { }
+        btn.__quickAddUnifiedHandler = null;
+      }
+
+      const host = btn.closest('.header-new-wrap') || btn.parentElement || btn;
+
+      import('./ui/quick_create_menu.js')
+        .then((mod) => {
+          const { createBinding, openQuickCreateMenu } = mod || {};
+          if (typeof createBinding === 'function') {
+            createBinding(host, { toggleSelector: '#quick-add-unified', enableActionBar: true });
             return;
           }
-        } catch (err) {
-          try { console && console.warn && console.warn('[quick-add] menu unavailable', err); }
-          catch (warnErr) { logAppError('quick-add:warn', warnErr); }
-        }
-        try {
-          const mod = await import('./contacts.js');
-          if (mod && typeof mod.openContactEditor === 'function') {
-            mod.openContactEditor({}, { sourceHint: 'header:new' });
+
+          if (typeof openQuickCreateMenu === 'function') {
+            const handler = (event) => {
+              if (event && typeof event.preventDefault === 'function') event.preventDefault();
+              if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+              const opened = openQuickCreateMenu({ anchor: btn, source: 'header', origin: 'header' });
+              try {
+                if (typeof window !== 'undefined' && window.__QA_NEW_DEBUG === true && console && typeof console.debug === 'function') {
+                  const targetId = btn && typeof btn.getAttribute === 'function' ? btn.getAttribute('id') : null;
+                  const isOpen = mod && typeof mod.isQuickCreateMenuOpen === 'function'
+                    ? !!mod.isQuickCreateMenuOpen('header')
+                    : !!opened;
+                  console.debug('[NEW+] click handled', { targetId, opened: isOpen });
+                }
+              } catch (_) { }
+            };
+            btn.addEventListener('click', handler);
+            btn.__quickAddUnifiedHandler = handler;
+            return;
           }
-        } catch (err) { logAppError('quick-add:fallback-contact', err); }
-      });
+
+          btn.addEventListener('click', async (event) => {
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+            if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+            try {
+              const contactsMod = await import('./contacts.js');
+              if (contactsMod && typeof contactsMod.openContactEditor === 'function') {
+                contactsMod.openContactEditor({}, { sourceHint: 'header:new' });
+              }
+            } catch (err) { logAppError('quick-add:fallback-contact', err); }
+          });
+        })
+        .catch((err) => { logAppError('quick-add:wire', err); });
     } catch (err) { logAppError('quick-add:wire', err); }
   }
   try {
