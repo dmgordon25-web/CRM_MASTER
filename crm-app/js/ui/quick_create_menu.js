@@ -806,8 +806,16 @@ function createAnchorBinding(anchor, source) {
         window.__QC_CLICKED = (window.__QC_CLICKED || 0) + 1;
       }
     } catch (_) { }
-    const open = toggleQuickCreateMenu({ anchor, source: normalizedSource });
-    const isOpen = !!open;
+    const open = typeof openQuickCreateMenu === 'function'
+      ? openQuickCreateMenu({ anchor, source: normalizedSource, origin: source })
+      : toggleQuickCreateMenu({ anchor, source: normalizedSource });
+    const isOpen = isQuickCreateMenuOpen(normalizedSource);
+    try {
+      if (typeof window !== 'undefined' && window.__QA_NEW_DEBUG === true && console && typeof console.debug === 'function') {
+        const targetId = anchor && typeof anchor.getAttribute === 'function' ? anchor.getAttribute('id') : null;
+        console.debug('[NEW+] click handled', { targetId, opened: isOpen });
+      }
+    } catch (_) { }
     anchor.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     try {
       if (typeof window !== 'undefined') {

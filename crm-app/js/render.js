@@ -1121,7 +1121,7 @@ function bindDashboardWidgetDrilldowns() {
 
   cards.forEach(({ id }) => {
     const card = document.getElementById(id);
-    if (!card || card[DASH_WIDGET_DRILLDOWN_GUARD]) return;
+    if (!card) return;
 
     const onClick = (event) => {
       const target = event?.target || null;
@@ -1147,8 +1147,14 @@ function bindDashboardWidgetDrilldowns() {
       }
     };
 
+    const existing = card[DASH_WIDGET_DRILLDOWN_GUARD];
+    if (existing && typeof existing.onClick === 'function') {
+      try { card.removeEventListener('click', existing.onClick); }
+      catch (_) { }
+    }
+
     card.addEventListener('click', onClick);
-    card[DASH_WIDGET_DRILLDOWN_GUARD] = true;
+    card[DASH_WIDGET_DRILLDOWN_GUARD] = { onClick };
   });
 }
 
