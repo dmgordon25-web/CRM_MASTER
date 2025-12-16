@@ -540,7 +540,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (!btn || btn.__quickAddWired) return;
       btn.__quickAddWired = true;
       btn.addEventListener('click', async (event) => {
-        if (event) event.preventDefault();
+        const legacyMenu = document.getElementById('unified-new-menu');
+        if (!legacyMenu) return;
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
         try {
           const mod = await import('./ui/quick_create_menu.js');
           if (mod && typeof mod.openQuickCreateMenu === 'function') {
