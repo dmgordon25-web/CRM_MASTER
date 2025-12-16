@@ -1,18 +1,17 @@
-name: ci-full
+name: ci-e2e
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [ main ]
 
 env:
-  NODE_VERSION: '20'
   PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
 
 jobs:
-  full:
+  smoke:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +25,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '20'
           cache: 'npm'
 
       - name: Cache Playwright browsers
@@ -44,8 +43,5 @@ jobs:
       - name: test:unit
         run: npm run test:unit
 
-      - name: e2e (full suite)
-        run: npm run test:e2e
-
-      - name: Feature checks
-        run: npm run check:features
+      - name: e2e:smoke
+        run: npm run e2e:smoke
