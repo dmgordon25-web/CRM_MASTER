@@ -2746,7 +2746,8 @@ function handleDashboardClick(evt, opts = {}) {
       || probe.getAttribute('data-dash-widget')
       || probe.getAttribute('data-widget')
       || probe.getAttribute('data-widget-id');
-    if (!widgetKey && widgetHost) return false;
+    if (!widgetHost) return false;
+    if (!widgetKey) return false;
   }
 
   // Also ignore clicks inside any modal/dialog/editor so Close/Save buttons work.

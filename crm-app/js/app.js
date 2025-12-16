@@ -541,7 +541,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       btn.__quickAddWired = true;
       btn.addEventListener('click', async (event) => {
         const legacyMenu = document.getElementById('unified-new-menu');
-        if (!legacyMenu) return;
+        if (legacyMenu) return; // legacy menu takes over when present
         if (event) {
           event.preventDefault();
           event.stopPropagation();
