@@ -872,7 +872,25 @@ function resetHeaderQuickCreateBinding() {
 // [Modified] createBinding with self-heal logic
 export function createBinding(host, options = {}) {
   const hostEl = host instanceof HTMLElement ? host : null;
-  if (!hostEl && singletonQuickCreateBinding) {
+  if (singletonQuickCreateBinding) {
+    try {
+      const toggleSelector =
+        (typeof options.toggleSelector === 'string' && options.toggleSelector)
+          ? options.toggleSelector
+          : '#quick-add-unified';
+
+      // Find the CURRENT button even if DOM got replaced
+      let btn = null;
+      if (host && host.matches && host.matches(toggleSelector)) btn = host;
+      if (!btn && host && host.querySelector) btn = host.querySelector(toggleSelector);
+      if (!btn && typeof document !== 'undefined') btn = document.querySelector(toggleSelector);
+
+      // Re-attach anchor binding if missing
+      if (btn && !btn[ANCHOR_GUARD_KEY]) {
+        const cleanup = createAnchorBinding(btn, 'header');
+        if (cleanup) btn[ANCHOR_GUARD_KEY] = { cleanup };
+      }
+    } catch (_) {}
     return singletonQuickCreateBinding;
   }
   if (hostEl && hostEl.dataset) {
