@@ -259,4 +259,31 @@ describe('quick create menu click binding', () => {
     expect(menu.hidden).toBe(true);
     expect(menu.getAttribute('aria-hidden')).toBe('true');
   });
+  it('re-binds the button if replaced (DOM swap recovery)', () => {
+    // 1. Initial Bind
+    bindQuickCreate();
+    const host = document.querySelector('[data-role="header-new-host"]');
+    const originalBtn = document.getElementById('quick-add-unified');
+    expect(originalBtn.getAttribute('aria-expanded')).toBe('false');
+
+    // 2. Simulate DOM Swap (Framework replaces button)
+    // Create new button, NO events/attributes attached
+    const newBtn = new FakeElement('button');
+    newBtn.id = 'quick-add-unified';
+    newBtn.textContent = 'New+ (Replaced)';
+    // Replace old button in host
+    host.children = [newBtn];
+    newBtn.parentElement = host;
+
+    // 3. Re-run binding (should self-heal)
+    bindQuickCreate();
+
+    // 4. Verify new button is functional
+    newBtn.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
+
+    const menu = document.getElementById('header-new-menu');
+    // Expect menu to open (self-heal worked)
+    expect(window.__QC_OPEN).toBe(true);
+    expect(menu.hidden).toBe(false);
+  });
 });

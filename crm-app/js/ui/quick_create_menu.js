@@ -795,6 +795,7 @@ function createAnchorBinding(anchor, source) {
     anchor.setAttribute('aria-expanded', 'false');
   }
   const handleClick = (event) => {
+    // [TEMP] Verification Log removed
     event.preventDefault();
     if (typeof event.stopImmediatePropagation === 'function') {
       event.stopImmediatePropagation();
@@ -868,6 +869,7 @@ function resetHeaderQuickCreateBinding() {
   headerQuickCreateState.controller = null;
 }
 
+// [Modified] createBinding with self-heal logic
 export function createBinding(host, options = {}) {
   const hostEl = host instanceof HTMLElement ? host : null;
   if (!hostEl && singletonQuickCreateBinding) {
@@ -875,6 +877,17 @@ export function createBinding(host, options = {}) {
   }
   if (hostEl && hostEl.dataset) {
     if (hostEl.dataset.qcBound === '1') {
+      // [FIX] Self-heal: If host claims bound but button replaced (DOM swap), re-bind button.
+      const toggleSelector = options.toggleSelector || '#quick-add-unified';
+      const currentButton = hostEl.querySelector(toggleSelector);
+      if (currentButton && !currentButton[ANCHOR_GUARD_KEY]) {
+        // Button exists but lost its binding. Re-attach.
+        const newBinding = createAnchorBinding(currentButton, 'header');
+        if (newBinding) {
+          currentButton[ANCHOR_GUARD_KEY] = newBinding;
+        }
+      }
+
       const existingBinding = hostEl[BIND_GUARD_KEY];
       return existingBinding && existingBinding.binding ? existingBinding.binding : existingBinding;
     }
@@ -886,6 +899,11 @@ export function createBinding(host, options = {}) {
       return existing.binding;
     }
   }
+
+  // ... (Rest of createBinding typically follows, but we are replacing the specific function if we use ReplaceFileContent correctly. 
+  // WAIT. I should use strict target matching or MultiReplace if I can't match the whole function easily.
+  // The file is large. I should use MultiReplace for safety to target specific blocks.)
+
   const toggleSelector = typeof options.toggleSelector === 'string' && options.toggleSelector
     ? options.toggleSelector
     : HEADER_TOGGLE_SELECTOR;

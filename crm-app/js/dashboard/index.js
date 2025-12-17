@@ -49,7 +49,7 @@ const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
 const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
 const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
 const DASHBOARD_STYLE_ORIGIN = 'crm:dashboard:dnd';
-const DASHBOARD_DRILLDOWN_SELECTOR = '[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
+const DASHBOARD_DRILLDOWN_SELECTOR = '[data-id],[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
 const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
 const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
@@ -2755,74 +2755,74 @@ function handleDashboardClick(evt, opts = {}) {
     return false;
   }
 
-    const findEntityRow = (node) => {
-      const visited = new Set();
-      let cur = node;
-      while (cur) {
-        const contactAttr = typeof cur.getAttribute === 'function'
-          ? cur.getAttribute('data-contact-id')
-          : (cur.dataset ? cur.dataset.contactId : (cur.attrs && cur.attrs['data-contact-id']));
-        const partnerAttr = typeof cur.getAttribute === 'function'
-          ? cur.getAttribute('data-partner-id')
-          : (cur.dataset ? cur.dataset.partnerId : (cur.attrs && cur.attrs['data-partner-id']));
+  const findEntityRow = (node) => {
+    const visited = new Set();
+    let cur = node;
+    while (cur) {
+      const contactAttr = typeof cur.getAttribute === 'function'
+        ? cur.getAttribute('data-contact-id')
+        : (cur.dataset ? cur.dataset.contactId : (cur.attrs && cur.attrs['data-contact-id']));
+      const partnerAttr = typeof cur.getAttribute === 'function'
+        ? cur.getAttribute('data-partner-id')
+        : (cur.dataset ? cur.dataset.partnerId : (cur.attrs && cur.attrs['data-partner-id']));
 
-        if (contactAttr || partnerAttr) {
-          return { row: cur, contactId: contactAttr || '', partnerId: partnerAttr || '' };
-        }
-
-        if (typeof cur.closest === 'function') {
-          const probe = cur.closest('[data-contact-id],[data-partner-id]');
-          if (probe && !visited.has(probe)) {
-            visited.add(probe);
-            cur = probe;
-            continue;
-          }
-        }
-
-        cur = cur.parentNode || cur.parent || null;
-        if (dashRoot && cur === dashRoot.parentNode) break;
+      if (contactAttr || partnerAttr) {
+        return { row: cur, contactId: contactAttr || '', partnerId: partnerAttr || '' };
       }
-      return { row: null, contactId: '', partnerId: '' };
-    };
 
-    const { row, contactId, partnerId } = findEntityRow(target);
-    if (!row) {
-      const debug = win && win.__DASH_DEBUG;
-      if (debug) {
-        const t = evt && evt.target;
-        const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
-        const contactProbe = t && t.closest && t.closest('[data-contact-id]');
-        const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
-        const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
-          ? contactProbe.getAttribute('data-contact-id')
-          : null;
-        const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
-          ? partnerProbe.getAttribute('data-partner-id')
-          : null;
-        if (card) {
-          console.debug('[DASH] drilldown-miss', {
-            widgetCardId: card && card.id,
-            tag: t && t.tagName,
-            cls: t && t.className,
-            contactNode: contactProbe ? (contactProbe.tagName || 'node') : null,
-            contactAttr: contactAttr === null ? 'missing' : (contactAttr || 'empty'),
-            partnerNode: partnerProbe ? (partnerProbe.tagName || 'node') : null,
-            partnerAttr: partnerAttr === null ? 'missing' : (partnerAttr || 'empty')
-          });
-        } else {
-          console.debug('[DASH] no drilldown row', {
-            tag: t && t.tagName,
-            cls: t && t.className,
-            widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
-          });
+      if (typeof cur.closest === 'function') {
+        const probe = cur.closest('[data-contact-id],[data-partner-id]');
+        if (probe && !visited.has(probe)) {
+          visited.add(probe);
+          cur = probe;
+          continue;
         }
       }
-      return false; // not a drilldown row
+
+      cur = cur.parentNode || cur.parent || null;
+      if (dashRoot && cur === dashRoot.parentNode) break;
     }
+    return { row: null, contactId: '', partnerId: '' };
+  };
 
-    const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
-    const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
-    const widgetHost = row.closest && row.closest('[data-dash-widget],[data-widget],[data-widget-id]');
+  const { row, contactId, partnerId } = findEntityRow(target);
+  if (!row) {
+    const debug = win && win.__DASH_DEBUG;
+    if (debug) {
+      const t = evt && evt.target;
+      const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+      const contactProbe = t && t.closest && t.closest('[data-contact-id]');
+      const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
+      const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
+        ? contactProbe.getAttribute('data-contact-id')
+        : null;
+      const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
+        ? partnerProbe.getAttribute('data-partner-id')
+        : null;
+      if (card) {
+        console.debug('[DASH] drilldown-miss', {
+          widgetCardId: card && card.id,
+          tag: t && t.tagName,
+          cls: t && t.className,
+          contactNode: contactProbe ? (contactProbe.tagName || 'node') : null,
+          contactAttr: contactAttr === null ? 'missing' : (contactAttr || 'empty'),
+          partnerNode: partnerProbe ? (partnerProbe.tagName || 'node') : null,
+          partnerAttr: partnerAttr === null ? 'missing' : (partnerAttr || 'empty')
+        });
+      } else {
+        console.debug('[DASH] no drilldown row', {
+          tag: t && t.tagName,
+          cls: t && t.className,
+          widgetHost: t && t.closest && t.closest('[data-dash-widget],[data-widget],[data-widget-id]')?.getAttribute('data-dash-widget'),
+        });
+      }
+    }
+    return false; // not a drilldown row
+  }
+
+  const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
+  const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
+  const widgetHost = row.closest && row.closest('[data-dash-widget],[data-widget],[data-widget-id]');
   const widgetKey =
     row.getAttribute('data-dash-widget') ||
     row.getAttribute('data-widget') ||
@@ -2906,8 +2906,14 @@ function handleDashboardTap(evt, target) {
   if (!actionable || hasIcsSource) return false;
 
   const dataset = actionable.dataset || {};
-  const contactId = dataset.contactId || actionable.getAttribute('data-contact-id');
+  let contactId = dataset.contactId || actionable.getAttribute('data-contact-id');
   const partnerId = dataset.partnerId || actionable.getAttribute('data-partner-id');
+
+  // [FIX] Fallback to generic data-id if specific entity IDs are missing
+  if (!contactId && !partnerId) {
+    contactId = actionable.getAttribute('data-id');
+  }
+
   const openContact = drilldownTestHooks.openContact || tryOpenContactModal;
   const openPartner = drilldownTestHooks.openPartner || tryOpenPartnerModal;
 
