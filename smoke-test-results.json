@@ -1,0 +1,131 @@
+{
+  "total": 17,
+  "passed": 12,
+  "failed": 5,
+  "tests": [
+    {
+      "name": "T1.1: App loads without hanging on splash screen",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T1.2: Dashboard view renders by default",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T1.3: Click each nav tab and verify view switching",
+      "status": "FAIL",
+      "error": "View #view-calendar should be hidden when dashboard is active",
+      "screenshot": "C:\\Users\\dmgor\\Downloads\\Antigravity_MAIN\\CRM_MASTER-5\\screenshot-T1.3-dashboard-other-view-visible-2025-12-17T01-38-50-908Z.png"
+    },
+    {
+      "name": "T1.4: No console errors containing ReferenceError or circular",
+      "status": "FAIL",
+      "error": "Found 8 console errors",
+      "screenshot": "C:\\Users\\dmgor\\Downloads\\Antigravity_MAIN\\CRM_MASTER-5\\screenshot-T1.4-console-errors-2025-12-17T01-38-53-762Z.png",
+      "consoleErrors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        }
+      ]
+    },
+    {
+      "name": "T2.1: Navigate to Calendar and verify content",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T2.2: Navigate to Partners and verify Calendar is cleared",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T2.3: Navigate back to Calendar and verify re-render",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T3.1: Navigate to Contacts and select a row",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T3.2: Click Clear button and verify deselection",
+      "status": "FAIL",
+      "error": "Action bar should be hidden or show count=0, got count=1",
+      "screenshot": "C:\\Users\\dmgor\\Downloads\\Antigravity_MAIN\\CRM_MASTER-5\\screenshot-T3.2-action-bar-still-visible-2025-12-17T01-39-30-448Z.png",
+      "domState": "1 • ActionsSelect rows to activate actions\n    \n      \n        No records selected\n        Select rows to unlock pipeline actions.\n        \n      \n      \n      No contacts or partners in focus yet.\n      \n        \n          Edit\n        \n        \n          Merge (2)\n        Merge (Partners)\n        \n          Email Together\n        \n        \n          Email Mass (copy)\n        \n        Schedule Follow-Up for Selected\n        Log Call for Selected\n        Move to Pipeline\n          Clear\n        \n        \n          Delete\n        \n      \n      \n        \n        \n      \n    \n  "
+    },
+    {
+      "name": "T4.1: Click New+ button and verify dropdown",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T4.2: Click Add Contact and fill form",
+      "status": "FAIL",
+      "error": "elementHandle.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - element is outside of the viewport\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - element is outside of the viewport\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    57 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - element is outside of the viewport\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n"
+    },
+    {
+      "name": "T4.3: Verify new contact appears in list",
+      "status": "FAIL",
+      "error": "Test contact not found in contacts list",
+      "screenshot": "C:\\Users\\dmgor\\Downloads\\Antigravity_MAIN\\CRM_MASTER-5\\screenshot-T4.3-contact-not-found-2025-12-17T01-41-08-669Z.png"
+    },
+    {
+      "name": "T4.4: Verify New+ menu opens and closes repeatedly",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T5.1: Verify header exists with app title",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T5.2: Verify settings button is present and clickable",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T6.1: Verify body has no overflow:hidden",
+      "status": "PASS",
+      "attempt": 1
+    },
+    {
+      "name": "T6.2: Verify no modal-open or no-scroll class on body",
+      "status": "PASS",
+      "attempt": 1
+    }
+  ]
+}

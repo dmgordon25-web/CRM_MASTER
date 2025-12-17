@@ -878,29 +878,22 @@ export function createBinding(host, options = {}) {
   if (hostEl && hostEl.dataset) {
     if (hostEl.dataset.qcBound === '1') {
       const toggleSelector = options.toggleSelector || '#quick-add-unified';
-      // [FIX] Robust resolution: host itself, or child, or global fallback
-      let currentButton = hostEl.matches(toggleSelector) ? hostEl : hostEl.querySelector(toggleSelector);
-      if (!currentButton && typeof document !== 'undefined') {
-        currentButton = document.querySelector(toggleSelector);
-      }
+      let currentButton = (hostEl.matches && hostEl.matches(toggleSelector)) ? hostEl : null;
+      if (!currentButton) currentButton = hostEl.querySelector(toggleSelector);
+      if (!currentButton && typeof document !== 'undefined') currentButton = document.querySelector(toggleSelector);
 
       if (currentButton && !currentButton[ANCHOR_GUARD_KEY]) {
-        const newBinding = createAnchorBinding(currentButton, 'header');
-        if (newBinding) {
-          currentButton[ANCHOR_GUARD_KEY] = { cleanup: newBinding }; // Match structure used later
-        }
+        const cleanup = createAnchorBinding(currentButton, 'header');
+        if (cleanup) currentButton[ANCHOR_GUARD_KEY] = { cleanup };
       }
 
       const existingBinding = hostEl[BIND_GUARD_KEY];
       if (!existingBinding) {
-        // Stale bound state but no actual binding object? Clear and continue re-binding.
         delete hostEl.dataset.qcBound;
       } else {
         return existingBinding.binding ? existingBinding.binding : existingBinding;
       }
     }
-    // Only set if we didn't return above (either wasn't bound, or was stale)
-    hostEl.dataset.qcBound = '1';
   }
 
   // ... (Rest of createBinding typically follows, but we are replacing the specific function if we use ReplaceFileContent correctly. 
