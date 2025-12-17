@@ -832,6 +832,17 @@ function createAnchorBinding(anchor, source) {
       document.removeEventListener('quick-create-menu:state', handleState);
     }
   };
+  // Shield New+ from capture-phase interceptors
+  if (!anchor.__qcPointerShield) {
+    anchor.addEventListener(
+      'pointerdown',
+      (e) => {
+        e.stopPropagation();
+      },
+      { capture: true }
+    );
+    anchor.__qcPointerShield = true;
+  }
   anchor.addEventListener('click', handleClick);
   document.addEventListener('quick-create-menu:state', handleState);
   if (isQuickCreateMenuOpen(normalizedSource)) {
