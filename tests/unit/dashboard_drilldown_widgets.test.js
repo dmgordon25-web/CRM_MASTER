@@ -59,16 +59,16 @@ function bootstrapGlobals() {
     },
     createElement: () => ({
       style: {},
-      setAttribute() {},
-      appendChild() {},
+      setAttribute() { },
+      appendChild() { },
       innerHTML: '',
-      classList: { add() {}, remove() {}, contains() { return false; } },
+      classList: { add() { }, remove() { }, contains() { return false; } },
       dataset: {},
       querySelector: () => null,
       querySelectorAll: () => []
     }),
     body: {
-      appendChild() {},
+      appendChild() { },
       querySelector: () => null
     },
     __dashRoot: {
@@ -87,7 +87,9 @@ function bootstrapGlobals() {
 
   globalThis.window = globalThis.window || {};
   globalThis.document = doc;
-  globalThis.navigator = globalThis.navigator || { userAgent: 'vitest' };
+  if (!globalThis.navigator) {
+    globalThis.navigator = { userAgent: 'vitest' };
+  }
 }
 
 function makeSyntheticRow({ contactId = '', partnerId = '', widget = '' } = {}) {

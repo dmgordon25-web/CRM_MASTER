@@ -901,7 +901,7 @@ export function createBinding(host, options = {}) {
         const cleanup = createAnchorBinding(btn, 'header');
         if (cleanup) btn[ANCHOR_GUARD_KEY] = { cleanup };
       }
-    } catch (_) {}
+    } catch (_) { }
     return singletonQuickCreateBinding;
   }
   if (hostEl && hostEl.dataset) {
@@ -1067,6 +1067,7 @@ export function createBinding(host, options = {}) {
   }
 
   const bindingResult = {
+
     unbind: () => {
       runCleanup();
       resetHeaderQuickCreateBinding();

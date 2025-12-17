@@ -539,6 +539,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const btn = document.getElementById('quick-add-unified');
       if (!btn) return;
 
+
+
       if (btn.__quickAddUnifiedHandler) {
         try { btn.removeEventListener('click', btn.__quickAddUnifiedHandler); }
         catch (_) { }
