@@ -16,15 +16,16 @@ export function resetQuickCreateOverlay(reason = '') {
   } catch (_) { }
 
   try {
-    const wrapper = document.getElementById('global-new-menu');
+    const wrapper = document.getElementById('quick-create-menu-v4-center') || document.getElementById('global-new-menu');
     if (wrapper) {
       wrapper.hidden = true;
+      wrapper.style.display = 'none'; // Force hide
       wrapper.style.pointerEvents = 'none';
-      wrapper.style.inset = 'auto';
-      wrapper.style.left = 'auto';
-      wrapper.style.top = 'auto';
-      wrapper.style.right = 'auto';
-      wrapper.style.bottom = 'auto';
+      if (wrapper.style.position === 'fixed') {
+        // Reset potential old styles
+        wrapper.style.inset = 'auto';
+        wrapper.style.left = 'auto';
+      }
     }
 
     const menu = document.getElementById('header-new-menu');
@@ -60,7 +61,7 @@ if (typeof window !== 'undefined') {
   } catch (_) { }
 }
 
-const WRAPPER_ID = 'global-new-menu';
+const WRAPPER_ID = 'quick-create-menu-wrapper-nuclear';
 const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';
 const ACTION_BAR_ID = 'global-new';
@@ -335,9 +336,14 @@ function ensureButton(label, kind) {
   btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn ghost';
-  btn.textContent = label;
-  btn.dataset.role = role;
-  btn.setAttribute('role', 'menuitem');
+  btn.style.cssText = 'display:flex; align-items:center; width:100%; text-align:left; padding:12px; border-radius:10px; border:1px solid #eaecf0; background:#ffffff; gap:12px; margin-bottom:0; cursor:pointer; transition:all 0.15s ease; color:#344054; font-family:inherit;';
+  btn.innerHTML = `
+    <span style="font-size:20px;line-height:1;">${getIcon(kind)}</span>
+    <span style="flex:1;font-weight:600;color:#101828;">${label}</span>
+    <span style="color:#98a2b3;">→</span>
+  `;
+  btn.addEventListener('mouseenter', () => { btn.style.background = '#f9fafb'; btn.style.borderColor = '#d0d5dd'; });
+  btn.addEventListener('mouseleave', () => { btn.style.background = '#ffffff'; btn.style.borderColor = '#eaecf0'; });
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     handleSelection(kind);
@@ -346,69 +352,103 @@ function ensureButton(label, kind) {
   return btn;
 }
 
-function ensureMenuElements() {
-  if (typeof document === 'undefined') return null;
+function getIcon(kind) {
+  if (kind === 'contact') return '👤'; // User
+  if (kind === 'partner') return '🏢'; // Building
+  if (kind === 'task') return '✅';    // Check
+  return '🔹';
+}
 
+function ensureMenuElements() {
+  // [CENTER OVERLAY] Fresh DOM & Premium Modal
+  if (typeof document === 'undefined') return null;
+  const WRAPPER_ID = 'quick-create-menu-v4-center'; // New ID
+
+  // 1. Strict Cleanup of old ghosts
+  const old = document.getElementById(WRAPPER_ID);
+  if (old && !old.isConnected) {
+    old.remove();
+  }
+
+  // 2. Get or Create Wrapper (Backdrop)
   let wrapper = document.getElementById(WRAPPER_ID);
   if (!wrapper) {
     wrapper = document.createElement('div');
     wrapper.id = WRAPPER_ID;
-    wrapper.hidden = true;
-    wrapper.style.position = 'fixed';
-    wrapper.style.zIndex = '10050';
-    wrapper.style.display = 'block';
-    wrapper.style.pointerEvents = 'none';
-    wrapper.style.left = '0';
-    wrapper.style.top = '0';
-    wrapper.style.width = 'auto';
-    wrapper.style.height = 'auto';
-    wrapper.style.inset = 'auto';
+    // Full Screen Backdrop
+    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:none; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px);';
     document.body.appendChild(wrapper);
   }
 
+  // 3. Ensure Strict Body Attachment
+  if (wrapper.parentElement !== document.body) {
+    document.body.appendChild(wrapper);
+  }
+
+  // 4. Get or Create Menu (Card)
   let menu = document.getElementById(MENU_ID);
   if (!menu) {
     menu = document.createElement('div');
     menu.id = MENU_ID;
-    menu.className = 'card hidden';
-    menu.hidden = true;
-    menu.style.minWidth = '180px';
-    menu.style.padding = '8px';
-    menu.style.display = 'flex';
-    menu.style.flexDirection = 'column';
-    menu.style.gap = '4px';
-    menu.style.pointerEvents = 'auto';
+    // Premium Card Style
+    menu.style.cssText = 'background:white; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); padding:24px; display:flex; flex-direction:column; gap:12px; width:100%; max-width:360px; border:1px solid #eaecf0; animation:qc-pop 0.15s ease-out;';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('data-qa', MENU_DEFAULT_QA);
-    menu.setAttribute('aria-hidden', 'true');
-  } else {
-    if (!menu.hasAttribute('data-qa')) {
-      menu.setAttribute('data-qa', MENU_DEFAULT_QA);
-    }
-    if (!menu.hasAttribute('aria-hidden')) {
-      menu.setAttribute('aria-hidden', 'true');
-    }
-  }
 
-  if (menu.parentElement !== wrapper) {
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; width:100%;';
+    header.innerHTML = '<span style="font-size:18px; font-weight:700; color:#101828;">Create New</span>';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = 'background:transparent; border:none; font-size:24px; color:#667085; cursor:pointer; line-height:1; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:8px;';
+    closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = '#f2f4f7');
+    closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'transparent');
+    closeBtn.addEventListener('click', (e) => { e.preventDefault(); closeQuickCreateMenu(); });
+
+    header.appendChild(closeBtn);
+    menu.appendChild(header);
+
     wrapper.appendChild(menu);
-  }
-  if (!wrapper.parentElement) {
-    document.body.appendChild(wrapper);
+
+    // Inject Keyframes for pop animation
+    if (!document.getElementById('qc-styles')) {
+      const style = document.createElement('style');
+      style.id = 'qc-styles';
+      style.innerHTML = `@keyframes qc-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`;
+      document.head.appendChild(style);
+    }
+  } else if (menu.parentElement !== wrapper) {
+    wrapper.appendChild(menu);
   }
 
   state.wrapper = wrapper;
   state.menu = menu;
 
-  const contactBtn = ensureButton('Add Contact', 'contact');
-  const partnerBtn = ensureButton('Add Partner', 'partner');
-  const taskBtn = ensureButton('Add Task', 'task');
-  const ordered = [contactBtn, partnerBtn, taskBtn];
-  ordered.forEach((btn) => {
-    if (btn && btn.parentElement === menu) {
-      menu.appendChild(btn);
-    }
-  });
+  // [SAFE STATIC] Total Rebuild (No Duplicates ever)
+  menu.innerHTML = ''; // Wipe clean for fresh start
+
+  // Re-add Header
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; width:100%;';
+  header.innerHTML = '<span style="font-size:18px; font-weight:700; color:#101828;">Create New</span>';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.innerHTML = '×';
+  closeBtn.style.cssText = 'background:transparent; border:none; font-size:24px; color:#667085; cursor:pointer; line-height:1; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:8px;';
+  closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = '#f2f4f7');
+  closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'transparent');
+  closeBtn.addEventListener('click', (e) => { e.preventDefault(); closeQuickCreateMenu(); });
+
+  header.appendChild(closeBtn);
+  menu.appendChild(header);
+
+  // Re-add Buttons
+  ensureButton('Contact', 'contact');
+  ensureButton('Partner', 'partner');
+  ensureButton('Task', 'task');
 
   return { wrapper, menu };
 }
@@ -475,6 +515,7 @@ function handleOutsideClick(event) {
   if (anchor && typeof anchor.contains === 'function' && anchor.contains(target)) return;
   const anchorHost = anchor && anchor.closest ? anchor.closest('[data-role="header-new-host"],.header-new-wrap') : null;
   if (anchorHost && anchorHost.contains(target)) return;
+  if (state.anchor) state.anchor.setAttribute('aria-expanded', 'false');
   closeQuickCreateMenu();
 }
 
@@ -484,65 +525,22 @@ function handleKeyDown(event) {
   }
 }
 
+// [SAFE STATIC] Simple Display
 function positionMenu(anchor) {
-  const { wrapper, menu } = state;
-  if (!wrapper || !menu) return;
-  const anchorNode = anchor && anchor.isConnected !== false ? anchor : null;
-  const anchorRect = anchorNode && typeof anchorNode.getBoundingClientRect === 'function'
-    ? anchorNode.getBoundingClientRect()
-    : null;
+  const { wrapper } = state;
+  if (!wrapper) return;
 
-  wrapper.hidden = false;
-  menu.hidden = false;
-  menu.classList.remove('hidden');
-  menu.setAttribute('aria-hidden', 'false');
-  menu.setAttribute('data-qa', 'qc-open');
-  const previousVisibility = wrapper.style.visibility;
-  wrapper.style.visibility = 'hidden';
-  wrapper.style.pointerEvents = 'none';
-
-  const menuRect = menu.getBoundingClientRect();
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || document.documentElement.clientWidth || 0 : 0;
-  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight || document.documentElement.clientHeight || 0 : 0;
-
-  const margin = 8;
-  const anchorBottom = anchorRect ? anchorRect.bottom : 48;
-  let top = anchorBottom + margin;
-  if (!Number.isFinite(top)) {
-    top = 64;
-  }
-  if (viewportHeight && top + menuRect.height + margin > viewportHeight) {
-    const candidate = anchorRect ? anchorRect.top - menuRect.height - margin : viewportHeight - menuRect.height - margin;
-    if (Number.isFinite(candidate) && candidate >= margin) {
-      top = candidate;
-    } else {
-      top = Math.max(margin, viewportHeight - menuRect.height - margin);
-    }
+  // Re-verify attachment
+  if (!wrapper.isConnected && document.body) {
+    console.warn('[QC] wrapper detached, re-attaching');
+    document.body.appendChild(wrapper);
+  } else if (!wrapper.isConnected) {
+    console.error('[QC] wrapper detached and no body!');
   }
 
-  let left;
-  if (anchorRect) {
-    left = anchorRect.left + anchorRect.width - menuRect.width;
-  } else {
-    left = (viewportWidth - menuRect.width) / 2;
-  }
-  if (!Number.isFinite(left)) {
-    left = (viewportWidth - menuRect.width) / 2;
-  }
-  const minLeft = 8;
-  const maxLeft = Math.max(minLeft, viewportWidth - menuRect.width - 8);
-  if (left < minLeft) left = minLeft;
-  if (left > maxLeft) left = maxLeft;
-
-  wrapper.style.left = `${Math.round(left)}px`;
-  wrapper.style.top = `${Math.round(top)}px`;
-  wrapper.style.right = 'auto';
-  wrapper.style.bottom = 'auto';
-  wrapper.style.width = 'max-content';
-  wrapper.style.height = 'auto';
-  wrapper.style.inset = 'auto';
-  wrapper.style.visibility = previousVisibility || '';
-  wrapper.style.pointerEvents = 'auto';
+  // Just Show It
+  wrapper.style.display = 'flex';
+  wrapper.style.visibility = 'visible';
 }
 
 function cancelRepositionFrame() {
@@ -557,28 +555,9 @@ function cancelRepositionFrame() {
   reposition.inFlight = false;
 }
 
+// [CLEAN STATIC] No-op for repositioning
 function scheduleMenuReposition() {
-  const { reposition } = state;
-  if (!reposition || !reposition.active) return;
-  if (reposition.inFlight) return;
-  reposition.inFlight = true;
-  const win = getHostWindow();
-  const run = () => {
-    reposition.frame = null;
-    reposition.inFlight = false;
-    if (!state.open) return;
-    positionMenu(state.anchor);
-    incrementRafDebugCounter();
-  };
-  if (win && typeof win.requestAnimationFrame === 'function') {
-    reposition.frame = win.requestAnimationFrame(() => {
-      try { run(); }
-      catch (_) { }
-    });
-    return;
-  }
-  try { run(); }
-  catch (_) { }
+  return;
 }
 
 function ensureRepositionListeners() {
@@ -625,28 +604,19 @@ function teardownRepositionListeners() {
   cancelRepositionFrame();
 }
 
+// [CLEAN STATIC] Simple Close Logic
 export function closeQuickCreateMenu() {
-  teardownRepositionListeners();
   const { wrapper, menu, restoreFocus, anchor } = state;
-  if (!wrapper || !menu) return;
-  wrapper.hidden = true;
-  menu.hidden = true;
-  if (menu.classList && typeof menu.classList.add === 'function') {
-    menu.classList.add('hidden');
+  // Cleanup
+  if (wrapper) {
+    wrapper.style.display = 'none';
+    wrapper.hidden = true;
   }
-  menu.setAttribute('aria-hidden', 'true');
-  menu.setAttribute('data-qa', MENU_DEFAULT_QA);
-  wrapper.style.left = 'auto';
-  wrapper.style.top = 'auto';
-  wrapper.style.right = 'auto';
-  wrapper.style.bottom = 'auto';
-  wrapper.style.inset = 'auto';
-  wrapper.style.width = 'auto';
-  wrapper.style.height = 'auto';
-  wrapper.style.pointerEvents = 'none';
-  state.open = false;
-  state.source = null;
-  state.origin = null;
+  if (menu) {
+    menu.hidden = true;
+    menu.setAttribute('aria-hidden', 'true');
+  }
+
   if (state.outsideHandler) {
     document.removeEventListener('click', state.outsideHandler, true);
     state.outsideHandler = null;
@@ -658,65 +628,71 @@ export function closeQuickCreateMenu() {
   if (anchor && typeof anchor.setAttribute === 'function') {
     anchor.setAttribute('aria-expanded', 'false');
   }
+  state.open = false;
   state.anchor = null;
-  state.restoreFocus = null;
+  state.source = null;
+
   if (restoreFocus && typeof restoreFocus.focus === 'function') {
-    try {
-      restoreFocus.focus({ preventScroll: true });
-    } catch (_) {
-      try { restoreFocus.focus(); }
-      catch (_) { }
-    }
-  } else if (anchor && typeof anchor.focus === 'function') {
-    try {
-      anchor.focus({ preventScroll: true });
-    } catch (_) {
-      try { anchor.focus(); }
-      catch (_) { }
-    }
+    try { restoreFocus.focus({ preventScroll: true }); } catch (_) { }
   }
   emitState();
   try {
-    if (typeof window !== 'undefined') {
-      window.__QC_OPEN = false;
-    }
+    if (typeof window !== 'undefined') window.__QC_OPEN = false;
   } catch (_) { }
 }
 
+// [CLEAN STATIC] Simple Open Logic
 export function openQuickCreateMenu(options = {}) {
   const { anchor = null, source = HEADER_SOURCE, origin = source } = options;
   const normalizedSource = normalizeSource(source);
   const elements = ensureMenuElements();
   if (!elements) return;
+
   const wasOpen = state.open;
   const anchorNode = anchor && anchor.isConnected !== false ? anchor : null;
   state.anchor = anchorNode;
   state.source = normalizedSource;
   state.origin = typeof origin === 'string' && origin ? origin : normalizedSource;
   state.open = true;
-  resetRafDebugCounter();
-  cancelRepositionFrame();
   state.restoreFocus = anchorNode && typeof anchorNode.focus === 'function' ? anchorNode : null;
-  positionMenu(anchorNode);
-  ensureRepositionListeners();
-  const { menu } = elements;
-  if (menu) {
-    menu.setAttribute('aria-hidden', 'false');
-    menu.setAttribute('data-qa', 'qc-open');
+
+  // Ensure visibility (Center Overlay Mode)
+  const { wrapper, menu } = elements;
+  if (wrapper) {
+    if (document.body && wrapper.parentElement !== document.body) {
+      document.body.appendChild(wrapper);
+    }
+    // Hard Reset of Backdrop Styles
+    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px); visibility:visible;';
+    wrapper.hidden = false;
   }
+  if (menu) {
+    menu.style.display = 'flex';
+    menu.style.flexDirection = 'column'; // Force column layout
+    menu.style.visibility = 'visible';
+    menu.hidden = false;
+    menu.setAttribute('aria-hidden', 'false');
+    if (menu.classList && typeof menu.classList.remove === 'function') {
+      menu.classList.remove('hidden');
+    }
+  }
+
   if (anchorNode && typeof anchorNode.setAttribute === 'function') {
     anchorNode.setAttribute('aria-expanded', 'true');
   }
-  if (!state.outsideHandler) {
-    state.outsideHandler = (event) => handleOutsideClick(event);
-    document.addEventListener('click', state.outsideHandler, true);
+  // Robust Handler Check
+  if (state.outsideHandler) {
+    document.removeEventListener('click', state.outsideHandler, true);
   }
+  state.outsideHandler = (event) => handleOutsideClick(event);
+  // Use setTimeout to skip current event tick
+  setTimeout(() => {
+    document.addEventListener('click', state.outsideHandler, true);
+  }, 0);
+
   if (!state.keyHandler) {
     state.keyHandler = (event) => handleKeyDown(event);
     document.addEventListener('keydown', state.keyHandler, true);
-  }
-  if (!wasOpen) {
-    incrementDebugCounter('openCount');
   }
   focusFirstMenuItem();
   emitState();
@@ -730,16 +706,15 @@ export function openQuickCreateMenu(options = {}) {
 export function toggleQuickCreateMenu(options = {}) {
   const { anchor = null, source = HEADER_SOURCE } = options;
   const normalizedSource = normalizeSource(source);
+
+  // Strict Toggle Logic
   if (state.open) {
-    const sameAnchor = anchor && state.anchor === anchor;
-    const sameSource = state.source === normalizedSource;
-    if ((sameAnchor && sameSource) || (!anchor && sameSource)) {
-      closeQuickCreateMenu();
-      return state.open;
-    }
+    closeQuickCreateMenu();
+    return false; // Closed
   }
+
   openQuickCreateMenu({ anchor, source: normalizedSource, origin: source });
-  return state.open;
+  return true; // Opened
 }
 
 export function isQuickCreateMenuOpen(source) {
@@ -794,11 +769,11 @@ function createAnchorBinding(anchor, source) {
   if (anchor.getAttribute('aria-expanded') !== 'true') {
     anchor.setAttribute('aria-expanded', 'false');
   }
+
   const handleClick = (event) => {
-    // [TEMP] Verification Log removed
     event.preventDefault();
     if (typeof event.stopImmediatePropagation === 'function') {
-      event.stopImmediatePropagation();
+      event.stopPropagation();
     } else if (typeof event.stopPropagation === 'function') {
       event.stopPropagation();
     }
@@ -807,10 +782,12 @@ function createAnchorBinding(anchor, source) {
         window.__QC_CLICKED = (window.__QC_CLICKED || 0) + 1;
       }
     } catch (_) { }
+
     const open = typeof openQuickCreateMenu === 'function'
       ? openQuickCreateMenu({ anchor, source: normalizedSource, origin: source })
       : toggleQuickCreateMenu({ anchor, source: normalizedSource });
-    const isOpen = isQuickCreateMenuOpen(normalizedSource);
+    const isOpen = !!open;
+
     try {
       if (typeof window !== 'undefined' && window.__QA_NEW_DEBUG === true && console && typeof console.debug === 'function') {
         const targetId = anchor && typeof anchor.getAttribute === 'function' ? anchor.getAttribute('id') : null;
@@ -896,8 +873,11 @@ export function createBinding(host, options = {}) {
       if (!btn && host && host.querySelector) btn = host.querySelector(toggleSelector);
       if (!btn && typeof document !== 'undefined') btn = document.querySelector(toggleSelector);
 
-      // Re-attach anchor binding if missing
-      if (btn && !btn[ANCHOR_GUARD_KEY]) {
+      // Re-attach anchor binding if missing OR force refresh
+      if (btn) {
+        if (btn[ANCHOR_GUARD_KEY] && typeof btn[ANCHOR_GUARD_KEY].cleanup === 'function') {
+          try { btn[ANCHOR_GUARD_KEY].cleanup(); } catch (_) { }
+        }
         const cleanup = createAnchorBinding(btn, 'header');
         if (cleanup) btn[ANCHOR_GUARD_KEY] = { cleanup };
       }
