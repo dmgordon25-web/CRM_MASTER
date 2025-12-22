@@ -143,6 +143,7 @@ const state = {
   wrapper: null,
   menu: null,
   outsideHandler: null,
+  outsideHandlerAttached: false,
   keyHandler: null,
   openers: defaultOpeners,
   owner: null,
@@ -417,7 +418,10 @@ function ensureMenuElements() {
       const style = document.createElement('style');
       style.id = 'qc-styles';
       style.innerHTML = `@keyframes qc-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`;
-      document.head.appendChild(style);
+      const head = document.head
+        || (typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('head')[0] : null)
+        || document.documentElement;
+      if (head && typeof head.appendChild === 'function') head.appendChild(style);
     }
   } else if (menu.parentElement !== wrapper) {
     wrapper.appendChild(menu);
@@ -618,11 +622,18 @@ export function closeQuickCreateMenu() {
   }
 
   if (state.outsideHandler) {
-    document.removeEventListener('click', state.outsideHandler, true);
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('click', state.outsideHandler, true);
+    }
     state.outsideHandler = null;
+    state.outsideHandlerAttached = false;
   }
   if (state.keyHandler) {
-    document.removeEventListener('keydown', state.keyHandler, true);
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('keydown', state.keyHandler, true);
+    }
     state.keyHandler = null;
   }
   if (anchor && typeof anchor.setAttribute === 'function') {
@@ -682,17 +693,34 @@ export function openQuickCreateMenu(options = {}) {
   }
   // Robust Handler Check
   if (state.outsideHandler) {
-    document.removeEventListener('click', state.outsideHandler, true);
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('click', state.outsideHandler, true);
+    }
   }
   state.outsideHandler = (event) => handleOutsideClick(event);
-  // Use setTimeout to skip current event tick
+  state.outsideHandlerAttached = false;
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (doc && typeof doc.addEventListener === 'function') {
+    doc.addEventListener('click', state.outsideHandler, true);
+    state.outsideHandlerAttached = true;
+  }
+  // Use setTimeout to skip current event tick (while remaining resilient in test envs)
   setTimeout(() => {
-    document.addEventListener('click', state.outsideHandler, true);
+    const asyncDoc = typeof document !== 'undefined' ? document : null;
+    if (!state.outsideHandler || state.outsideHandlerAttached) return;
+    if (asyncDoc && typeof asyncDoc.addEventListener === 'function') {
+      asyncDoc.addEventListener('click', state.outsideHandler, true);
+      state.outsideHandlerAttached = true;
+    }
   }, 0);
 
   if (!state.keyHandler) {
     state.keyHandler = (event) => handleKeyDown(event);
-    document.addEventListener('keydown', state.keyHandler, true);
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (doc && typeof doc.addEventListener === 'function') {
+      doc.addEventListener('keydown', state.keyHandler, true);
+    }
   }
   focusFirstMenuItem();
   emitState();
