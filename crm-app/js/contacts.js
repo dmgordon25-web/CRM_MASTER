@@ -830,7 +830,7 @@ export function normalizeContactId(input) {
       dlg.__contactInvoker = nextInvoker;
 
       // ... continue with dlg.style.display='block' ...
-      dlg.style.display = 'block';
+      // dlg.style.display = 'block'; // FIXED: Removed to allow showModal() to work correctly
       console.log('[CONTACTS_DEBUG] showing modal', dlg);
       let opened = false;
       if (typeof dlg.showModal === 'function') {
@@ -3012,7 +3012,7 @@ function closeQuickAddOverlayIfOpen() {
       }
     }
   }
-  
+
   // Clean up *any* generic modal backdrops
   const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
   backdrops.forEach(node => {
@@ -3024,7 +3024,7 @@ function closeQuickAddOverlayIfOpen() {
       }
     }
   });
-  
+
   const body = document.body;
   if (body && body.style) {
     // Hard reset pointerEvents and scroll lock — this is local to contacts.
@@ -3630,7 +3630,7 @@ export function closeContactEditor(reason) {
       if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
         window.unfreezeCrmUi('contact-close');
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // Ensure any overlays/backdrops/pointer locks are released
     try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
