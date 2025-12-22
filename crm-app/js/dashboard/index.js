@@ -2703,6 +2703,7 @@ function tryOpenPartnerModal(partnerId) {
 function handleDashboardClick(evt, opts = {}) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
+  const allowSuppressedCardDrilldown = opts && opts.allowSuppressedCardDrilldown === true;
 
   const dashDebug = win && win.__DASH_DEBUG === true;
   if (dashDebug) {
@@ -2748,6 +2749,11 @@ function handleDashboardClick(evt, opts = {}) {
       || probe.getAttribute('data-widget-id');
     if (!widgetHost) return false;
     if (!widgetKey) return false;
+  }
+
+  const suppressedCard = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+  if (suppressedCard && !allowSuppressedCardDrilldown) {
+    return false;
   }
 
   // Also ignore clicks inside any modal/dialog/editor so Close/Save buttons work.
@@ -2883,7 +2889,7 @@ export function __setDashboardDrilldownTestHooks(hooks = {}) {
 }
 
 export function __getHandleDashboardClickForTest() {
-  return handleDashboardClick;
+  return evt => handleDashboardClick(evt, { allowSuppressedCardDrilldown: true });
 }
 
 export function __getHandleDashboardTapForTest() {
