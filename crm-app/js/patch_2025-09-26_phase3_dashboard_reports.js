@@ -1863,10 +1863,18 @@ function runPatch() {
     host.addEventListener('click', evt => {
       const row = evt.target && evt.target.closest('[data-contact-id], [data-partner-id], [data-task-id], li[data-id]');
       if (!row || !host.contains(row)) return;
+      const isEntityRow = row.hasAttribute('data-contact-id') || row.hasAttribute('data-partner-id');
+      const isFallbackCard = host.id === 'priority-actions-card'
+        || host.id === 'milestones-card'
+        || host.id === 'numbers-referrals-card';
       // Let the global dashboard drilldown delegate handle contact/partner rows
       // so we do not double-open editors. This handler only needs to cover
       // non-entity task rows inside the cards.
-      if (row.hasAttribute('data-contact-id') || row.hasAttribute('data-partner-id')) {
+      if (isEntityRow) {
+        if (isFallbackCard) {
+          evt.preventDefault();
+          openEntityForRow(row, context);
+        }
         return;
       }
       evt.preventDefault();
@@ -1948,6 +1956,7 @@ function runPatch() {
 
   wireWidgetCardClicks('priority-actions-card', 'priority-actions');
   wireWidgetCardClicks('milestones-card', 'milestones');
+  wireWidgetCardClicks('numbers-referrals-card', 'numbers-referrals');
 
   const watchedEvents = ['contact:updated', 'stage:changed', 'automation:executed', 'task:updated'];
   watchedEvents.forEach(evtName => {
@@ -2054,4 +2063,3 @@ export async function init(ctx) {
 ensureCRM();
 window.CRM.modules['patch_2025-09-26_phase3_dashboard_reports'] = window.CRM.modules['patch_2025-09-26_phase3_dashboard_reports'] || {};
 window.CRM.modules['patch_2025-09-26_phase3_dashboard_reports'].init = init;
-
