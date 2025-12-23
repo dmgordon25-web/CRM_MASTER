@@ -319,7 +319,11 @@ import dashboardState from './state/dashboard_state.js';
     html($('#needs-attn'), attention.length ? attention.map(task=>{
       const cls = task.status==='overdue' ? 'bad' : (task.status==='soon' ? 'warn' : 'good');
       const phr = task.status==='overdue' ? `${Math.abs(task.diffFromToday||0)}d overdue` : (task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
-      return `<li class="${task.status}" data-contact-id="${task.contactId||''}" data-task-id="${task.id||''}">
+      const cid = (task.contactId || '').toString().trim();
+      const tid = (task.id || '').toString().trim();
+      const cidAttr = cid ? ` data-contact-id="${cid}"` : '';
+      const tidAttr = tid ? ` data-task-id="${tid}"` : '';
+      return `<li class="${task.status}"${cidAttr}${tidAttr}>
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>

@@ -134,9 +134,127 @@ async function run() {
     await pageRef.waitForTimeout(50);
   }
 
+  async function hardCloseContactModal(pageRef) {
+    const modalOpen = pageRef.locator('dialog#contact-modal[open]');
+    if (!(await modalOpen.count())) return;
+
+    await pageRef.keyboard.press('Escape').catch(() => {});
+    await pageRef.waitForTimeout(100);
+
+    const modal = pageRef.locator('dialog#contact-modal').first();
+    const closeCandidates = [
+      '[data-close]',
+      '.modal-close',
+      'button:has-text("Close")',
+      'button:has-text("Done")',
+      'button[aria-label*="Close"]',
+      'button[aria-label*="close"]',
+      'button:has-text("Cancel")'
+    ];
+    for (const sel of closeCandidates) {
+      const btn = modal.locator(sel).first();
+      if (await btn.count()) {
+        await btn.click({ timeout: 1000, force: true }).catch(() => {});
+        await pageRef.waitForTimeout(100);
+        if (!(await modalOpen.count())) return;
+      }
+    }
+
+    await pageRef.evaluate(() => {
+      const dlg = document.querySelector('dialog#contact-modal');
+      if (!dlg) return;
+      try { dlg.close(); } catch (e) {}
+      try { dlg.removeAttribute('open'); } catch (e) {}
+      try { dlg.dataset.open = '0'; dlg.dataset.opening = '0'; } catch (e) {}
+    });
+    await pageRef.waitForTimeout(100);
+
+    await pageRef.waitForSelector('dialog#contact-modal[open]', { state: 'detached', timeout: 2000 }).catch(() => {});
+
+    const still = await modalOpen.count();
+    if (still) {
+      await pageRef.evaluate(() => {
+        const dlg = document.querySelector('dialog#contact-modal[open]');
+        if (dlg) try { dlg.remove(); } catch (e) {}
+      });
+    }
+
+    const stillAfter = await pageRef.locator('dialog#contact-modal[open]').count();
+    if (stillAfter) {
+      await pageRef.evaluate(() => {
+        const dlg = document.querySelector('dialog#contact-modal');
+        console.log('[boot-smoke] modal open attr=', dlg && dlg.hasAttribute('open'), 'data-open=', dlg && dlg.dataset && dlg.dataset.open);
+      });
+      throw new Error('contact-modal still open after hardCloseContactModal');
+    }
+  }
+
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
   await hardClearOverlays(page);
+  await seedPriorityActions(page);
+
+  async function seedPriorityActions(pageRef) {
+    await pageRef.evaluate(async () => {
+      const hasDb = (window.db && (typeof window.db.bulkPut === 'function' || typeof window.db.put === 'function')) ||
+        typeof window.dbBulkPut === 'function';
+      if (!hasDb) throw new Error('DB helpers unavailable for boot smoke seeding');
+      const putMany = async (store, records) => {
+        if (window.db && typeof window.db.bulkPut === 'function') {
+          return window.db.bulkPut(store, records);
+        }
+        if (typeof window.dbBulkPut === 'function') {
+          return window.dbBulkPut(store, records);
+        }
+        if (window.db && typeof window.db.put === 'function') {
+          for (const rec of records) { // eslint-disable-line no-restricted-syntax
+            // eslint-disable-next-line no-await-in-loop
+            await window.db.put(store, rec);
+          }
+        }
+      };
+
+      const contactId = 'boot-smoke-priority-contact';
+      const taskId = 'boot-smoke-priority-task';
+      const now = Date.now();
+      const yesterday = new Date(now - 24 * 60 * 60 * 1000);
+      const due = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+      const contact = {
+        id: contactId,
+        first: 'Smoke',
+        last: 'Priority',
+        name: 'Smoke Priority',
+        notes: 'Boot smoke seeded contact',
+        stage: 'new',
+        lane: 'pipeline',
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const task = {
+        id: taskId,
+        contactId,
+        title: 'Smoke overdue task',
+        due,
+        done: false,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      await putMany('contacts', [contact]);
+      await putMany('tasks', [task]);
+
+      if (typeof window.handleDashboardRefresh === 'function') {
+        await window.handleDashboardRefresh({ forceReload: true, includeReports: true });
+      } else if (typeof window.renderDashboard === 'function') {
+        await window.renderDashboard({ forceReload: true });
+        if (typeof window.renderReports === 'function') {
+          await window.renderReports();
+        }
+      }
+    });
+  }
 
   const dashActive = page.locator('#main-nav button[data-nav="dashboard"].active');
   if (await dashActive.count() === 0) {
@@ -146,11 +264,16 @@ async function run() {
   await page.evaluate(() => { window.scrollTo(0, 0); });
   await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
   await page.waitForTimeout(200);
+  await hardClearOverlays(page);
+  await hardCloseContactModal(page);
 
   const priorityRow = page
     .locator('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]')
     .first();
   await priorityRow.waitFor({ state: 'attached', timeout: 30000 });
+  const rowCount = await page.locator('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]').count();
+  const firstRowId = await priorityRow.evaluate((el) => el.getAttribute('data-contact-id') || el.getAttribute('data-id') || '');
+  console.log(`[boot-smoke] Priority Actions rows=${rowCount} firstRowContactId=${firstRowId}`);
   await page.evaluate(() => {
     const card = document.getElementById('priority-actions-card');
     if (card) {
@@ -164,27 +287,13 @@ async function run() {
 
   const contactModal = page.locator('dialog#contact-modal[open]');
   await contactModal.waitFor({ state: 'visible', timeout: 30000 });
-  await page.keyboard.press('Escape').catch(() => {});
-  const closeBtn = page
-    .locator(
-      'dialog#contact-modal[open] [data-close], dialog#contact-modal[open] button:has-text("Close"), dialog#contact-modal[open] button[aria-label*="Close"], dialog#contact-modal[open] .modal-close'
-    )
-    .first();
-  if (await closeBtn.count()) {
-    await closeBtn.click({ timeout: 2000, force: true }).catch(() => {});
-  }
-  await page
-    .locator('dialog#contact-modal[open]')
-    .waitFor({ state: 'detached', timeout: 5000 })
-    .catch(async () => {
-      const stillOpen = await page.locator('dialog#contact-modal[open]').count();
-      if (stillOpen) throw new Error('contact-modal still open after close attempts');
-    });
+  await hardCloseContactModal(page);
   await hardClearOverlays(page);
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
     await hardClearOverlays(page);
+    await hardCloseContactModal(page);
     const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
     if (await btn.count() > 0) {
       await btn.first().click();
