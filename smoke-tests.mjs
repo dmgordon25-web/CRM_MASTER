@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-import { writeFileSync } from 'fs';
+import fs, { writeFileSync } from 'fs';
 import { join } from 'path';
 
 const BASE_URL = 'http://localhost:8080';
@@ -88,8 +88,29 @@ async function runTest(testName, testFn, retries = MAX_RETRIES) {
 
 // Main test suite
 async function runAllTests() {
+  const candidateExecutables = [
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    process.env.CHROMIUM_PATH,
+    process.env.PW_CHROMIUM_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
+  ].filter(Boolean);
+
+  let executablePath = candidateExecutables.find((p) => fs.existsSync(p));
+  if (!executablePath) {
+    try {
+      const bundled = chromium.executablePath();
+      if (bundled && fs.existsSync(bundled)) {
+        executablePath = bundled;
+      }
+    } catch (_) { /* ignore */ }
+  }
+
   const browser = await chromium.launch({
     headless: true,
+    executablePath,
     args: [
       '--disable-dev-shm-usage',
       '--no-sandbox',
