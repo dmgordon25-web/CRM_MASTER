@@ -100,52 +100,48 @@ async function run() {
     if (msg.type() === 'error') errors.push(new Error(msg.text()));
   });
 
-  async function forceCloseContactModal(pageRef) {
-    for (let i = 0; i < 10; i++) {
-      const openCount = await pageRef.locator('dialog#contact-modal[open]').count();
-      if (!openCount) return;
-      await pageRef.evaluate(() => {
-        const dlg = document.querySelector('dialog#contact-modal[open]');
-        if (!dlg) return;
-        try { dlg.close(); } catch (e) {}
-        try { dlg.removeAttribute('open'); } catch (e) {}
-        try { dlg.dataset.open = '0'; } catch (e) {}
-        try { dlg.dataset.opening = '0'; } catch (e) {}
+  async function hardClearOverlays(pageRef) {
+    await pageRef.evaluate(() => {
+      document.querySelectorAll('dialog[open]').forEach(d => {
+        try { d.close(); } catch (e) {}
+        try { d.removeAttribute('open'); } catch (e) {}
+        try { d.remove(); } catch (e) {}
       });
-      await pageRef.keyboard.press('Escape').catch(() => {});
-      await pageRef.waitForTimeout(100);
-    }
-    const stillOpen = await pageRef.locator('dialog#contact-modal[open]').count();
-    if (stillOpen) throw new Error('contact-modal still open after forceCloseContactModal()');
+      document.querySelectorAll('.record-modal, .modal, .overlay, [data-ui*="modal"], [data-modal-key], [data-open="1"]').forEach(el => {
+        const isDialogish =
+          el.tagName === 'DIALOG' ||
+          el.classList.contains('record-modal') ||
+          el.getAttribute('data-open') === '1' ||
+          (el.getAttribute('role') === 'dialog');
+        if (isDialogish) {
+          try { el.remove(); } catch (e) {}
+        }
+      });
+      document.documentElement.classList.remove('modal-open');
+      if (document.body) document.body.classList.remove('modal-open');
+      document.documentElement.style.pointerEvents = '';
+      if (document.body) document.body.style.pointerEvents = '';
+      const styleId = '__boot_smoke_overlay_kill__';
+      if (!document.getElementById(styleId)) {
+        const s = document.createElement('style');
+        s.id = styleId;
+        s.textContent = `
+        dialog[open], .record-modal, .modal, .overlay { pointer-events: none !important; }
+      `;
+        (document.head || document.documentElement).appendChild(s);
+      }
+    });
+    await pageRef.waitForTimeout(50);
   }
 
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
-  await forceCloseContactModal(page);
+  await hardClearOverlays(page);
 
-  const closeContactModal = async () => {
-    const modal = page.locator('dialog#contact-modal[open]');
-    if (await modal.count() === 0) return;
-    await page.keyboard.press('Escape').catch(() => {});
-    const explicitClose = page
-      .locator('dialog#contact-modal')
-      .locator('[data-close], button:has-text("Close"), button[aria-label*="Close"], .modal-close')
-      .first();
-    if (await explicitClose.count()) {
-      await explicitClose.click({ timeout: 1000 }).catch(() => {});
-    }
-    await page
-      .locator('dialog#contact-modal[open]')
-      .waitFor({ state: 'detached', timeout: 5000 })
-      .catch(async () => {
-        const stillOpen = await page.locator('dialog#contact-modal[open]').count();
-        if (stillOpen) throw new Error('contact-modal still open after attempted close');
-      });
-  };
-
-  await closeContactModal();
-
-  await page.locator('#main-nav button[data-nav="dashboard"]').first().click({ timeout: 30000, force: true });
+  const dashActive = page.locator('#main-nav button[data-nav="dashboard"].active');
+  if (await dashActive.count() === 0) {
+    throw new Error('Dashboard nav is not active at boot');
+  }
   await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 15000 });
   await page.evaluate(() => { window.scrollTo(0, 0); });
   await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
@@ -184,11 +180,11 @@ async function run() {
       const stillOpen = await page.locator('dialog#contact-modal[open]').count();
       if (stillOpen) throw new Error('contact-modal still open after close attempts');
     });
-  await forceCloseContactModal(page);
+  await hardClearOverlays(page);
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
-    await forceCloseContactModal(page);
+    await hardClearOverlays(page);
     const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
     if (await btn.count() > 0) {
       await btn.first().click();
