@@ -100,8 +100,28 @@ async function run() {
     if (msg.type() === 'error') errors.push(new Error(msg.text()));
   });
 
+  async function forceCloseContactModal(pageRef) {
+    for (let i = 0; i < 10; i++) {
+      const openCount = await pageRef.locator('dialog#contact-modal[open]').count();
+      if (!openCount) return;
+      await pageRef.evaluate(() => {
+        const dlg = document.querySelector('dialog#contact-modal[open]');
+        if (!dlg) return;
+        try { dlg.close(); } catch (e) {}
+        try { dlg.removeAttribute('open'); } catch (e) {}
+        try { dlg.dataset.open = '0'; } catch (e) {}
+        try { dlg.dataset.opening = '0'; } catch (e) {}
+      });
+      await pageRef.keyboard.press('Escape').catch(() => {});
+      await pageRef.waitForTimeout(100);
+    }
+    const stillOpen = await pageRef.locator('dialog#contact-modal[open]').count();
+    if (stillOpen) throw new Error('contact-modal still open after forceCloseContactModal()');
+  }
+
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
+  await forceCloseContactModal(page);
 
   const closeContactModal = async () => {
     const modal = page.locator('dialog#contact-modal[open]');
@@ -164,11 +184,11 @@ async function run() {
       const stillOpen = await page.locator('dialog#contact-modal[open]').count();
       if (stillOpen) throw new Error('contact-modal still open after close attempts');
     });
-  await closeContactModal();
+  await forceCloseContactModal(page);
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
-    await closeContactModal();
+    await forceCloseContactModal(page);
     const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
     if (await btn.count() > 0) {
       await btn.first().click();
