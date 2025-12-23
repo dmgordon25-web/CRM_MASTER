@@ -333,9 +333,15 @@ function ensureButton(label, kind) {
   if (!menu) return null;
   const role = `${BUTTON_PREFIX}${kind}`;
   let btn = menu.querySelector(`button[data-role="${role}"]`);
-  if (btn) return btn;
+  if (btn) {
+    if (!btn.getAttribute('data-role')) {
+      btn.setAttribute('data-role', role);
+    }
+    return btn;
+  }
   btn = document.createElement('button');
   btn.type = 'button';
+  btn.setAttribute('data-role', role);
   btn.className = 'btn ghost';
   btn.style.cssText = 'display:flex; align-items:center; width:100%; text-align:left; padding:12px; border-radius:10px; border:1px solid #eaecf0; background:#ffffff; gap:12px; margin-bottom:0; cursor:pointer; transition:all 0.15s ease; color:#344054; font-family:inherit;';
   btn.innerHTML = `

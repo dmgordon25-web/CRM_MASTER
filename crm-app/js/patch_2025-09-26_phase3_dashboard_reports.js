@@ -1775,6 +1775,7 @@ function runPatch() {
       if (request && request.includeReports) {
         await renderReports();
       }
+      ensureSuppressedWidgetWiring();
     } finally {
       releaseLoading();
     }
@@ -1812,30 +1813,17 @@ function runPatch() {
   }
 
   function resolveRowEntity(row) {
-    if (!row) return { contactId: '', partnerId: '' };
+    if (!row) return { contactId: null, partnerId: null };
     const dataset = row.dataset || {};
-    const contactId = row.getAttribute('data-contact-id') || dataset.contactId || '';
-    const partnerId = row.getAttribute('data-partner-id') || dataset.partnerId || '';
-    return { contactId, partnerId };
+    const contactId = (row.getAttribute('data-contact-id') || dataset.contactId || '').trim();
+    const partnerId = (row.getAttribute('data-partner-id') || dataset.partnerId || '').trim();
+    return { contactId: contactId || null, partnerId: partnerId || null };
   }
 
   function openEntityForRow(row, context) {
     const { contactId, partnerId } = resolveRowEntity(row);
     const taskId = row.getAttribute('data-task-id');
     const sourceHint = `dashboard:widget:${context}`;
-
-    if (taskId && typeof openTaskEditor === 'function') {
-      // Unsupported: Editing existing tasks isn't fully implemented in the Quick Create menu yet.
-      // However, we call it here to at least trigger the "New Task" modal or whatever is bound,
-      // which satisfies the requirement of "interaction".
-      // Ideally: openTaskEditor({ id: taskId, mode: 'edit' });
-      try {
-        openTaskEditor(taskId);
-      } catch (err) {
-        console.warn('openTaskEditor failed', err);
-      }
-      return true;
-    }
 
     if (contactId && typeof openContactModal === 'function') {
       openContactModal(contactId, { sourceHint, trigger: row });
@@ -1850,6 +1838,18 @@ function runPatch() {
       }
       return true;
     }
+    if (!contactId && !partnerId && taskId && typeof openTaskEditor === 'function') {
+      try {
+        const result = openTaskEditor(taskId);
+        if (result) return true;
+      } catch (err) {
+        console.warn('openTaskEditor failed', err);
+      }
+      try {
+        console && console.warn && console.warn(`[dashboard] ${context} row task editor unavailable`, row);
+      } catch (_err) { }
+      return false;
+    }
     try {
       console && console.warn && console.warn(`[dashboard] ${context} row missing contactId/partnerId`, row);
     } catch (_err) { }
@@ -1861,9 +1861,11 @@ function runPatch() {
     if (!host || host.__clickWired) return;
     host.__clickWired = true;
     host.addEventListener('click', evt => {
-      const row = evt.target && evt.target.closest('[data-contact-id], [data-partner-id], [data-task-id], li[data-id]');
+      const row = evt.target && evt.target.closest('li[data-contact-id], li[data-partner-id], li[data-task-id], [data-contact-id], [data-partner-id], [data-task-id], li[data-id]');
       if (!row || !host.contains(row)) return;
-      const isEntityRow = row.hasAttribute('data-contact-id') || row.hasAttribute('data-partner-id');
+      const cid = (row.getAttribute('data-contact-id') || '').trim();
+      const pid = (row.getAttribute('data-partner-id') || '').trim();
+      const isEntityRow = !!(cid || pid);
       const isFallbackCard = host.id === 'priority-actions-card'
         || host.id === 'milestones-card'
         || host.id === 'numbers-referrals-card';
@@ -1880,6 +1882,12 @@ function runPatch() {
       evt.preventDefault();
       openEntityForRow(row, context);
     });
+  }
+
+  function ensureSuppressedWidgetWiring() {
+    wireWidgetCardClicks('priority-actions-card', 'priority-actions');
+    wireWidgetCardClicks('milestones-card', 'milestones');
+    wireWidgetCardClicks('numbers-referrals-card', 'numbers-referrals');
   }
 
   async function setDashboardMode(mode) {
@@ -1954,10 +1962,6 @@ function runPatch() {
     }
   });
 
-  wireWidgetCardClicks('priority-actions-card', 'priority-actions');
-  wireWidgetCardClicks('milestones-card', 'milestones');
-  wireWidgetCardClicks('numbers-referrals-card', 'numbers-referrals');
-
   const watchedEvents = ['contact:updated', 'stage:changed', 'automation:executed', 'task:updated'];
   watchedEvents.forEach(evtName => {
     document.addEventListener(evtName, evt => {
@@ -2026,11 +2030,13 @@ function runPatch() {
     window.registerRenderHook(async () => {
       await renderDashboard();
       await renderReports();
+      ensureSuppressedWidgetWiring();
     });
   } else {
     const boot = () => {
       renderDashboard();
       renderReports();
+      ensureSuppressedWidgetWiring();
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
     else boot();
