@@ -24,7 +24,9 @@ async function run() {
   const baseUrl = `http://127.0.0.1:${port}/index.html`;
   console.log(`[boot-smoke] serving ${rootDir} on ${baseUrl}`);
 
-  const browser = await chromium.launch({ headless: true });
+  const executablePath = process.env.PLAYWRIGHT_CHROME || '/usr/bin/google-chrome-stable';
+  const launchOptions = { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], executablePath };
+  const browser = await chromium.launch(launchOptions);
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (err) => errors.push(err));
@@ -34,6 +36,76 @@ async function run() {
 
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
+
+  const dashboardNav = page.locator('#main-nav button[data-nav="dashboard"]').first();
+  if (await dashboardNav.count() > 0) {
+    await dashboardNav.click();
+  }
+  await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 15000 });
+  await page.evaluate(() => {
+    const card = document.getElementById('priority-actions-card');
+    if (card) {
+      card.style.display = '';
+      card.removeAttribute('aria-hidden');
+    }
+  });
+  try {
+    await page.waitForFunction(() => {
+      const card = document.getElementById('priority-actions-card');
+      return card && getComputedStyle(card).display !== 'none';
+    }, { timeout: 30000 });
+  } catch (err) {
+    const cardState = await page.evaluate(() => {
+      const card = document.getElementById('priority-actions-card');
+      if (!card) return { found: false };
+      const style = getComputedStyle(card);
+      return {
+        found: true,
+        display: style.display,
+        visibility: style.visibility,
+        hidden: card.hidden,
+        ariaHidden: card.getAttribute('aria-hidden')
+      };
+    });
+    throw new Error(`Priority Actions card not visible: ${JSON.stringify(cardState)}`);
+  }
+
+  const priorityRow = page
+    .locator('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]')
+    .first();
+  try {
+    await priorityRow.waitFor({ state: 'visible', timeout: 30000 });
+  } catch (err) {
+    const rowState = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('#priority-actions-card #needs-attn li')).map((el) => {
+        const style = getComputedStyle(el);
+        return {
+          outer: el.outerHTML.slice(0, 200),
+          display: style.display,
+          visibility: style.visibility,
+          hidden: el.hidden
+        };
+      });
+      return { count: rows.length, rows };
+    });
+    throw new Error(`Priority Actions row not visible: ${JSON.stringify(rowState)}`);
+  }
+  await priorityRow.click();
+
+  const contactModal = page.locator('dialog#contact-modal');
+  await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  const closeButton = contactModal.locator('button[data-close]').first();
+  if (await closeButton.count() === 0) {
+    throw new Error('Contact modal close button not found');
+  }
+  await closeButton.click();
+  const openModal = page.locator('dialog#contact-modal[open]');
+  await openModal.waitFor({ state: 'detached', timeout: 30000 }).catch(async () => {
+    await page.waitForFunction(() => {
+      const modal = document.querySelector('dialog#contact-modal');
+      return modal && !modal.hasAttribute('open');
+    }, { timeout: 30000 });
+  });
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {

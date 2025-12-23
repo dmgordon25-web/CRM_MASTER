@@ -296,18 +296,6 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
       }
     }
 
-    try{
-      const drilled = await assertPriorityActionsDrilldown();
-      if(!drilled){
-        ok = false;
-        issues.push('Priority Actions drilldown did not open editor.');
-      }
-    }catch (err){
-      ok = false;
-      addDiagnostic('fail','Priority Actions drilldown selftest threw', err && err.message ? err.message : err);
-      issues.push('Priority Actions drilldown selftest error.');
-    }
-
     const loadLog = Array.isArray(window.__PATCH_LOAD_LOG__)
       ? window.__PATCH_LOAD_LOG__.slice()
       : [];
@@ -361,6 +349,7 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
 
   async function assertPriorityActionsDrilldown(){
     try{
+      if(!window.__RUN_DASH_DRILLDOWN_SELFTEST) return true;
       const card = document.getElementById('priority-actions-card');
       const row = card && card.querySelector('#needs-attn li[data-contact-id]');
       if(!row){
