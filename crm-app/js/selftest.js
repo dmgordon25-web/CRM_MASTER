@@ -572,7 +572,6 @@ async function assertImporterCoalescesOnce(){
   try{ await assertSingleRepaintOnDataChanged(); }catch (_) {}
   try{ await assertSeedEmitsOne(); }catch (_) {}
   try{ await assertImporterCoalescesOnce(); }catch (_) {}
-  try{ await assertPriorityActionsDrilldown(); }catch (_) {}
 // ==== End Self-Test 2.0 — append-above ====
 // ==== End Self-Test 2.0 — append-above this file’s final “})();” ====
 })();

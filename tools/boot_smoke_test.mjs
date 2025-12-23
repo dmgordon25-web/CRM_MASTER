@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { createRequire } from 'module';
 import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 
@@ -9,9 +11,9 @@ const { createStaticServer } = require('./static_server.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', 'crm-app');
-const port = Number(process.env.SMOKE_PORT || 8081);
+const preferredPort = Number(process.env.SMOKE_PORT || 8081);
 
-function startServer() {
+function listenOn(port) {
   return new Promise((resolve, reject) => {
     const server = createStaticServer(rootDir);
     server.once('error', reject);
@@ -19,14 +21,78 @@ function startServer() {
   });
 }
 
+async function startServer() {
+  try {
+    const server = await listenOn(preferredPort);
+    return { server, port: preferredPort };
+  } catch (err) {
+    if (err && err.code === 'EADDRINUSE') {
+      const fallback = await listenOn(0);
+      const actualPort = fallback.address().port;
+      return { server: fallback, port: actualPort };
+    }
+    throw err;
+  }
+}
+
 async function run() {
-  const server = await startServer();
+  const { server, port } = await startServer();
   const baseUrl = `http://127.0.0.1:${port}/index.html`;
   console.log(`[boot-smoke] serving ${rootDir} on ${baseUrl}`);
 
-  const executablePath = process.env.PLAYWRIGHT_CHROME || '/usr/bin/google-chrome-stable';
-  const launchOptions = { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], executablePath };
-  const browser = await chromium.launch(launchOptions);
+  const candidatePaths = [
+    process.env.PLAYWRIGHT_CHROME,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
+  ].filter(Boolean);
+  const resolvedPath = candidatePaths.find((p) => fs.existsSync(p));
+  const launchOptions = { headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] };
+  const attemptOptions = [];
+  if (resolvedPath) {
+    attemptOptions.push({ ...launchOptions, executablePath: resolvedPath });
+  }
+  try {
+    const bundled = chromium.executablePath();
+    if (bundled && fs.existsSync(bundled)) {
+      attemptOptions.push({ ...launchOptions, executablePath: bundled });
+    }
+  } catch (_err) {}
+  attemptOptions.push({ ...launchOptions, channel: 'chrome' });
+  attemptOptions.push({ ...launchOptions, channel: 'chromium' });
+
+  let browser;
+  let lastError;
+  for (const opts of attemptOptions) {
+    try {
+      browser = await chromium.launch(opts);
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!browser) {
+    const installChrome = () => {
+      try {
+        execSync('which google-chrome-stable', { stdio: 'ignore' });
+        return;
+      } catch (_) {}
+      execSync('wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb', { stdio: 'inherit' });
+      execSync('sudo dpkg -i /tmp/google-chrome.deb || sudo apt-get -fy install', { stdio: 'inherit' });
+      execSync('sudo apt-get install -y xdg-utils', { stdio: 'inherit' });
+    };
+    if (/executable doesn't exist/i.test(String(lastError || ''))) {
+      try {
+        installChrome();
+        browser = await chromium.launch({ ...launchOptions, executablePath: '/usr/bin/google-chrome-stable' });
+      } catch (err) {
+        throw err;
+      }
+    } else {
+      throw lastError;
+    }
+  }
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (err) => errors.push(err));
@@ -36,6 +102,29 @@ async function run() {
 
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
+
+  const closeContactModal = async () => {
+    const modal = page.locator('dialog#contact-modal');
+    if (await modal.count() === 0) return;
+    const openModal = page.locator('dialog#contact-modal[open]');
+    if (await openModal.count() === 0) return;
+    const closeButton = modal.locator('button[data-close], button:has-text("Close")').first();
+    if (await closeButton.count() > 0) {
+      await closeButton.click({ force: true });
+    } else {
+      await modal.evaluate((el) => {
+        el.removeAttribute('open');
+        el.setAttribute('data-open', '0');
+        if (typeof el.close === 'function') el.close();
+      });
+    }
+    await page.waitForFunction(() => {
+      const m = document.querySelector('dialog#contact-modal');
+      return !m || !m.hasAttribute('open');
+    }, { timeout: 30000 });
+  };
+
+  await closeContactModal();
 
   const dashboardNav = page.locator('#main-nav button[data-nav="dashboard"]').first();
   if (await dashboardNav.count() > 0) {
@@ -106,6 +195,7 @@ async function run() {
       return modal && !modal.hasAttribute('open');
     }, { timeout: 30000 });
   });
+  await closeContactModal();
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
