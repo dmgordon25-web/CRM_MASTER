@@ -125,40 +125,50 @@ async function run() {
 
   await closeContactModal();
 
-  const dashboardNav = page.locator('#main-nav button[data-nav="dashboard"]').first();
-  if (await dashboardNav.count() > 0) {
-    await dashboardNav.click();
-  }
+  await page.locator('#main-nav button[data-nav="dashboard"]').first().click({ timeout: 30000, force: true });
   await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 15000 });
-  const card = page.locator('#priority-actions-card');
-  await card.waitFor({ state: 'attached', timeout: 30000 });
-  await card.evaluate((el) => {
-    el.style.display = '';
-    el.removeAttribute('aria-hidden');
-  });
-  await card.waitFor({ state: 'visible', timeout: 30000 });
-  await card.scrollIntoViewIfNeeded();
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+  await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
+  await page.waitForTimeout(200);
 
-  const priorityRow = card
-    .locator('#needs-attn li[data-contact-id], #needs-attn li[data-id]')
+  const priorityRow = page
+    .locator('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]')
     .first();
   await priorityRow.waitFor({ state: 'attached', timeout: 30000 });
-  await priorityRow.evaluate((el) => {
-    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await page.evaluate(() => {
+    const card = document.getElementById('priority-actions-card');
+    if (card) {
+      card.style.display = '';
+      card.removeAttribute('aria-hidden');
+    }
   });
-  const clickTarget = priorityRow.locator('.insight-title, .list-main, .insight-sub, .insight-meta').first();
-  if (await clickTarget.count()) {
-    await clickTarget.click({ timeout: 30000 });
-  } else {
-    await priorityRow.click({ timeout: 30000, force: true });
-  }
+  await priorityRow.evaluate((el) => {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  });
 
   const contactModal = page.locator('dialog#contact-modal[open]');
   await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  await page.keyboard.press('Escape').catch(() => {});
+  const closeBtn = page
+    .locator(
+      'dialog#contact-modal[open] [data-close], dialog#contact-modal[open] button:has-text("Close"), dialog#contact-modal[open] button[aria-label*="Close"], dialog#contact-modal[open] .modal-close'
+    )
+    .first();
+  if (await closeBtn.count()) {
+    await closeBtn.click({ timeout: 2000, force: true }).catch(() => {});
+  }
+  await page
+    .locator('dialog#contact-modal[open]')
+    .waitFor({ state: 'detached', timeout: 5000 })
+    .catch(async () => {
+      const stillOpen = await page.locator('dialog#contact-modal[open]').count();
+      if (stillOpen) throw new Error('contact-modal still open after close attempts');
+    });
   await closeContactModal();
 
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
+    await closeContactModal();
     const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
     if (await btn.count() > 0) {
       await btn.first().click();
