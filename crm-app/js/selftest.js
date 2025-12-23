@@ -296,6 +296,18 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
       }
     }
 
+    try{
+      const drilled = await assertPriorityActionsDrilldown();
+      if(!drilled){
+        ok = false;
+        issues.push('Priority Actions drilldown did not open editor.');
+      }
+    }catch (err){
+      ok = false;
+      addDiagnostic('fail','Priority Actions drilldown selftest threw', err && err.message ? err.message : err);
+      issues.push('Priority Actions drilldown selftest error.');
+    }
+
     const loadLog = Array.isArray(window.__PATCH_LOAD_LOG__)
       ? window.__PATCH_LOAD_LOG__.slice()
       : [];
@@ -345,6 +357,39 @@ const logProdSkip = (...args) => (PROD_MODE ? loggers.info : loggers.warn)(...ar
       logSoftError('Selftest: execution failed', err);
       handleSelfTestIssues(['Self-test execution encountered an unexpected error.']);
     });
+  }
+
+  async function assertPriorityActionsDrilldown(){
+    try{
+      const card = document.getElementById('priority-actions-card');
+      const row = card && card.querySelector('#needs-attn li[data-contact-id]');
+      if(!row){
+        addDiagnostic('fail','Priority Actions rows missing data-contact-id');
+        return false;
+      }
+      row.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true, view: window }));
+      await new Promise(r => requestAnimationFrame(()=>requestAnimationFrame(r)));
+      await new Promise(r => setTimeout(r, 50));
+      const modal = document.querySelector('[data-ui=\"contact-edit-modal\"], [data-modal-key=\"contact-edit\"], [data-ui=\"contact-editor\"], .record-modal, dialog[open]');
+      const opened = modal && !(modal.getAttribute('aria-hidden')==='true') && !modal.hidden;
+      if(!opened){
+        const snippet = (input, max=200) => {
+          const str = String(input||'');
+          return str.length > max ? str.slice(0,max) + ' [truncated]' : str;
+        };
+        addDiagnostic('fail','Priority Actions click did not open editor', {
+          row: snippet(row.outerHTML),
+          card: snippet(card ? card.innerHTML : ''),
+          hasContactId: !!row.dataset.contactId
+        });
+        return false;
+      }
+      addDiagnostic('pass','dashboard:priority-actions:drilldown');
+      return true;
+    }catch (err){
+      addDiagnostic('fail','Priority Actions drilldown selftest error', err && err.message ? err.message : err);
+      return false;
+    }
   }
 
   if(document.readyState === 'loading'){
@@ -538,6 +583,7 @@ async function assertImporterCoalescesOnce(){
   try{ await assertSingleRepaintOnDataChanged(); }catch (_) {}
   try{ await assertSeedEmitsOne(); }catch (_) {}
   try{ await assertImporterCoalescesOnce(); }catch (_) {}
+  try{ await assertPriorityActionsDrilldown(); }catch (_) {}
 // ==== End Self-Test 2.0 — append-above ====
 // ==== End Self-Test 2.0 — append-above this file’s final “})();” ====
 })();

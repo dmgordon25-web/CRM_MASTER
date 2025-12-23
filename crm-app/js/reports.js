@@ -298,6 +298,8 @@ import dashboardState from './state/dashboard_state.js';
       const dueLabel = dueDate ? dueDate.toISOString().slice(0,10) : 'No date';
       return {
         raw: task,
+        contactId: task.contactId,
+        id: task.id,
         title: task.title || task.text || 'Follow up',
         dueDate,
         dueLabel,
@@ -317,7 +319,7 @@ import dashboardState from './state/dashboard_state.js';
     html($('#needs-attn'), attention.length ? attention.map(task=>{
       const cls = task.status==='overdue' ? 'bad' : (task.status==='soon' ? 'warn' : 'good');
       const phr = task.status==='overdue' ? `${Math.abs(task.diffFromToday||0)}d overdue` : (task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
-      return `<li class="${task.status}">
+      return `<li class="${task.status}" data-contact-id="${task.contactId||''}" data-task-id="${task.id||''}">
         <div class="list-main">
           <span class="status-dot ${task.status}"></span>
           <div>
