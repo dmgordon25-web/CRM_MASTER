@@ -290,6 +290,13 @@ async function run() {
   await hardCloseContactModal(page);
   await hardClearOverlays(page);
 
+  await priorityRow.evaluate((el) => {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  });
+  await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  await hardCloseContactModal(page);
+  await hardClearOverlays(page);
+
   const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
   for (const nav of navTargets) {
     await hardClearOverlays(page);

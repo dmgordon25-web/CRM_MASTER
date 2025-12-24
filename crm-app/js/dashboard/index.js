@@ -2716,6 +2716,30 @@ function handleDashboardClick(evt) {
   }
 
   const dashDebug = win && win.__DASH_DEBUG === true;
+  const clickTrace = win && win.__CLICK_TRACE === true;
+  if (clickTrace) {
+    const cardTrace = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+    if (cardTrace) {
+      let hitNode = null;
+      let path = null;
+      try {
+        path = typeof evt.composedPath === 'function' ? evt.composedPath() : null;
+      } catch (_) { }
+      try {
+        hitNode = doc && typeof doc.elementFromPoint === 'function'
+          ? doc.elementFromPoint(evt.clientX, evt.clientY)
+          : null;
+      } catch (_) { }
+      try {
+        console.debug('[CLICK_TRACE] dashboard-drilldown', {
+          widget: cardTrace.id || null,
+          target,
+          path,
+          hit: hitNode
+        });
+      } catch (_) { }
+    }
+  }
   if (dashDebug) {
     const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
     if (cardProbe) {

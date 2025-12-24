@@ -798,6 +798,15 @@ export function normalizeContactId(input) {
 
       const dlg = base;
 
+      if (dlg && dlg.style) {
+        dlg.style.pointerEvents = 'auto';
+        dlg.removeAttribute('aria-hidden');
+      }
+      const dlgShell = dlg ? dlg.querySelector('.dlg') : null;
+      if (dlgShell && dlgShell.style) {
+        dlgShell.style.pointerEvents = 'auto';
+      }
+
       // FIX: DISARM FOCUS TRAP
       // We capture the invoker but set the dialog property to NULL temporarily.
       // This prevents the 'close' event handler from trying to restore focus
@@ -3647,12 +3656,42 @@ export function closeContactEditor(reason) {
       } else {
         releaseContactScrollLock();
       }
+      try { m.setAttribute('aria-hidden', 'true'); } catch (_) { }
+      try { m.style.pointerEvents = 'none'; } catch (_) { }
+      try {
+        const modalShell = m.querySelector('.dlg');
+        if (modalShell && modalShell.style) {
+          modalShell.style.pointerEvents = 'none';
+        }
+      } catch (_) { }
     }
     try { resetUiInteractivity('contact-editor-close'); }
     catch (_) { }
     try {
       if (typeof window !== 'undefined' && typeof window.__resetQuickCreateOverlay === 'function') {
         window.__resetQuickCreateOverlay('editor-close');
+      }
+    } catch (_) { }
+    try {
+      const dashActive = document.querySelector('#main-nav button[data-nav="dashboard"].active');
+      if (dashActive) {
+        const dashView = document.getElementById('view-dashboard');
+        if (dashView) {
+          dashView.removeAttribute('aria-hidden');
+          dashView.removeAttribute('inert');
+          dashView.hidden = false;
+          if (dashView.style) dashView.style.pointerEvents = '';
+        }
+        ['priority-actions-card', 'milestones-card', 'numbers-referrals-card'].forEach((cardId) => {
+          const card = document.getElementById(cardId);
+          if (card) {
+            card.style.display = '';
+            card.style.visibility = '';
+            card.removeAttribute('aria-hidden');
+            card.removeAttribute('hidden');
+            card.style.pointerEvents = '';
+          }
+        });
       }
     } catch (_) { }
   } catch (_) { }
