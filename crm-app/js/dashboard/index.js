@@ -2704,6 +2704,17 @@ function handleDashboardClick(evt) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
 
+  const qcTrace = win && win.__QC_TRACE === true;
+  if (qcTrace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE:DASH] click:start', {
+      targetTag: target.tagName,
+      defaultPrevented: !!(evt && evt.defaultPrevented),
+      stopPropagation: !!(evt && evt.cancelBubble),
+      qcOpen: !!(win && win.__QC_OPEN),
+      dashEditing: isDashboardEditingEnabled()
+    });
+  }
+
   const dashDebug = win && win.__DASH_DEBUG === true;
   if (dashDebug) {
     const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
@@ -2817,6 +2828,12 @@ function handleDashboardClick(evt) {
         });
       }
     }
+    if (qcTrace && console && typeof console.debug === 'function') {
+      console.debug('[QC_TRACE:DASH] click:skip-row', {
+        targetTag: target && target.tagName,
+        defaultPrevented: !!(evt && evt.defaultPrevented)
+      });
+    }
     return false; // not a drilldown row
   }
 
@@ -2851,13 +2868,22 @@ function handleDashboardClick(evt) {
 
   if (contactId && typeof openContact === 'function') {
     openContact(contactId);
+    if (qcTrace && console && typeof console.debug === 'function') {
+      console.debug('[QC_TRACE:DASH] click:handled', { contactId, widgetKey });
+    }
     return true;
   }
   if (partnerId && typeof openPartner === 'function') {
     openPartner(partnerId);
+    if (qcTrace && console && typeof console.debug === 'function') {
+      console.debug('[QC_TRACE:DASH] click:handled', { partnerId, widgetKey });
+    }
     return true;
   }
 
+  if (qcTrace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE:DASH] click:ignored', { widgetKey });
+  }
   return false;
 }
 

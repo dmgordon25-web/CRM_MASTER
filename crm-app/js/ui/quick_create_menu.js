@@ -9,14 +9,31 @@ const MENU_DEFAULT_QA = 'fab-menu';
 const QC_DEBUG_KEY = '__QC_DEBUG__';
 
 export function resetQuickCreateOverlay(reason = '') {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined') return false;
+
+  const trace = typeof window !== 'undefined' && window.__QC_TRACE === true;
+  const wasOpen = state.open === true;
+  let handled = false;
+  let wrapper = null;
+  let menu = null;
+
+  if (trace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE] resetQuickCreateOverlay:enter', {
+      reason,
+      wasOpen,
+      outsideHandlerAttached: !!state.outsideHandlerAttached,
+      keyHandler: !!state.keyHandler,
+      inProgress: state.reposition ? state.reposition.inFlight === true : false
+    });
+  }
 
   try {
     closeQuickCreateMenu();
+    handled = handled || wasOpen;
   } catch (_) { }
 
   try {
-    const wrapper = document.getElementById('quick-create-menu-v4-center') || document.getElementById('global-new-menu');
+    wrapper = document.getElementById('quick-create-menu-v4-center') || document.getElementById('global-new-menu');
     if (wrapper) {
       wrapper.hidden = true;
       wrapper.style.display = 'none'; // Force hide
@@ -28,7 +45,7 @@ export function resetQuickCreateOverlay(reason = '') {
       }
     }
 
-    const menu = document.getElementById('header-new-menu');
+    menu = document.getElementById('header-new-menu');
     if (menu) {
       menu.hidden = true;
       menu.setAttribute('aria-hidden', 'true');
@@ -46,13 +63,30 @@ export function resetQuickCreateOverlay(reason = '') {
     }
   } catch (_) { }
 
+  if (!handled) {
+    const menuVisible = menu ? menu.hidden === false || menu.style.display === 'flex' || menu.style.visibility === 'visible' : false;
+    const wrapperVisible = wrapper ? wrapper.hidden === false || wrapper.style.display === 'flex' || wrapper.style.visibility === 'visible' : false;
+    handled = menuVisible || wrapperVisible;
+  }
+
   try {
     if (typeof window !== 'undefined') {
       window.__resetQuickCreateOverlay = resetQuickCreateOverlay;
     }
   } catch (_) { }
 
+  if (trace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE] resetQuickCreateOverlay:exit', {
+      reason,
+      handled,
+      open: state.open === true,
+      wrapperHidden: wrapper ? !!wrapper.hidden : null,
+      menuHidden: menu ? !!menu.hidden : null
+    });
+  }
+
   console.debug('[QC] overlay reset', reason);
+  return handled;
 }
 
 if (typeof window !== 'undefined') {
@@ -515,8 +549,20 @@ const handleTaskModalSubmit = async (event) => { if (event && typeof event.preve
 const openTaskQuickCreateModal = () => { const overlay = ensureTaskModalElements(); if (!overlay) { toastWarn('Task form unavailable'); return null; } const { typeSelect, dueInput, noteInput, validation } = taskModalState; overlay.hidden = false; overlay.style.visibility = 'visible'; overlay.style.pointerEvents = 'auto'; overlay.setAttribute('aria-hidden', 'false'); taskModalState.busy = false; if (dueInput) { const today = todayISODate(); if (today) dueInput.value = today; } if (noteInput) noteInput.value = ''; setTaskModalStatus(''); if (validation && typeof validation.reset === 'function') { validation.reset(); } refreshTaskEntityOptions(typeSelect ? typeSelect.value : 'contact'); if (noteInput) focusElement(noteInput); return overlay; };
 
 function handleOutsideClick(event) {
-  const { wrapper, anchor } = state;
-  if (!wrapper || wrapper.hidden) return;
+  const { wrapper, anchor, menu } = state;
+  const trace = typeof window !== 'undefined' && window.__QC_TRACE === true;
+  const overlayVisible = state.open === true || (wrapper && wrapper.hidden === false) || (menu && menu.hidden === false);
+
+  if (trace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE] outsideClick:enter', {
+      overlayVisible,
+      open: state.open === true,
+      defaultPrevented: !!(event && event.defaultPrevented),
+      stopPropagation: !!(event && event.cancelBubble)
+    });
+  }
+
+  if (!overlayVisible) return false;
   const target = event.target;
   const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
   if (path && (path.includes(wrapper) || path.includes(state.menu) || path.includes(anchor))) return;
@@ -527,6 +573,10 @@ function handleOutsideClick(event) {
   if (anchorHost && anchorHost.contains(target)) return;
   if (state.anchor) state.anchor.setAttribute('aria-expanded', 'false');
   closeQuickCreateMenu();
+  if (trace && console && typeof console.debug === 'function') {
+    console.debug('[QC_TRACE] outsideClick:closed', { handled: true });
+  }
+  return true;
 }
 
 function handleKeyDown(event) {
