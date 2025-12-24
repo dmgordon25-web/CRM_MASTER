@@ -1106,58 +1106,6 @@ function dispatchPartnerModal(partnerId, options) {
   return null;
 }
 
-const DASH_WIDGET_DRILLDOWN_GUARD = typeof Symbol === 'function'
-  ? Symbol('dashWidgetDrilldown')
-  : '__dashWidgetDrilldown__';
-
-function bindDashboardWidgetDrilldowns() {
-  if (typeof document === 'undefined') return;
-
-  const cards = [
-    { id: 'priority-actions-card' },
-    { id: 'milestones-card' },
-    { id: 'numbers-referrals-card' }
-  ];
-
-  cards.forEach(({ id }) => {
-    const card = document.getElementById(id);
-    if (!card) return;
-
-    const onClick = (event) => {
-      const target = event?.target || null;
-      if (!target) return;
-
-      const row = target.closest ? target.closest('[data-contact-id],[data-partner-id]') : null;
-      if (!row || !card.contains(row)) return;
-
-      const contactId = row.getAttribute('data-contact-id');
-      const partnerId = row.getAttribute('data-partner-id');
-
-      if (contactId) {
-        event.preventDefault();
-        event.stopPropagation();
-        dispatchContactModal(contactId, { context: 'dashboard:widget-click' });
-        return;
-      }
-
-      if (partnerId) {
-        event.preventDefault();
-        event.stopPropagation();
-        dispatchPartnerModal(partnerId, { context: 'dashboard:widget-click' });
-      }
-    };
-
-    const existing = card[DASH_WIDGET_DRILLDOWN_GUARD];
-    if (existing && typeof existing.onClick === 'function') {
-      try { card.removeEventListener('click', existing.onClick); }
-      catch (_) { }
-    }
-
-    card.addEventListener('click', onClick);
-    card[DASH_WIDGET_DRILLDOWN_GUARD] = { onClick };
-  });
-}
-
 function normalizeRecordRefs(rawContactId, rawPartnerId, contact) {
   const contactObj = contact && typeof contact === 'object' ? contact : null;
   const pickId = (value, fallbackObj) => {
@@ -1635,8 +1583,6 @@ export async function renderAll(request) {
         <div class="insight-meta ${cls}"${rowEntityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
         }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
-
-        bindDashboardWidgetDrilldowns();
 
         let todoHost = document.getElementById('dashboard-todo');
         const ensureTodoHost = () => {

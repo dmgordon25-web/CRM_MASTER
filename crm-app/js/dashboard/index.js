@@ -2831,6 +2831,19 @@ function handleDashboardClick(evt) {
     row.id ||
     '';
 
+  const dashTrace = win && win.__DASH_TRACE === true;
+  if (dashTrace && typeof console !== 'undefined' && typeof console.debug === 'function') {
+    const cardProbe = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+    const action = contactId ? 'openContactModal' : (partnerId ? 'openPartnerEditModal' : 'none');
+    console.debug('[DASH_TRACE] drilldown', {
+      widget: cardProbe && cardProbe.id ? cardProbe.id : (widgetHost && widgetHost.id) || widgetKey || null,
+      widgetKey: widgetKey || null,
+      contactId: contactId || null,
+      partnerId: partnerId || null,
+      action
+    });
+  }
+
   if ((contactId || partnerId) && evt) {
     if (typeof evt.preventDefault === 'function') evt.preventDefault();
     if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
