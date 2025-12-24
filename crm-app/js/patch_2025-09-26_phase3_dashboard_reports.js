@@ -1775,7 +1775,6 @@ function runPatch() {
       if (request && request.includeReports) {
         await renderReports();
       }
-      ensureSuppressedWidgetWiring();
     } finally {
       releaseLoading();
     }
@@ -1810,84 +1809,6 @@ function runPatch() {
       console && console.warn && console.warn('task done', err);
       if (typeof window.toast === 'function') window.toast('Unable to update task');
     }
-  }
-
-  function resolveRowEntity(row) {
-    if (!row) return { contactId: null, partnerId: null };
-    const dataset = row.dataset || {};
-    const contactId = (row.getAttribute('data-contact-id') || dataset.contactId || '').trim();
-    const partnerId = (row.getAttribute('data-partner-id') || dataset.partnerId || '').trim();
-    return { contactId: contactId || null, partnerId: partnerId || null };
-  }
-
-  function openEntityForRow(row, context) {
-    const { contactId, partnerId } = resolveRowEntity(row);
-    const taskId = row.getAttribute('data-task-id');
-    const sourceHint = `dashboard:widget:${context}`;
-
-    if (contactId && typeof openContactModal === 'function') {
-      openContactModal(contactId, { sourceHint, trigger: row });
-      return true;
-    }
-    if (partnerId && typeof openPartnerEditModal === 'function') {
-      try {
-        openPartnerEditModal(partnerId, { sourceHint, trigger: row });
-      } catch (err) {
-        try { console && console.warn && console.warn('openPartnerEditModal failed', err); }
-        catch (_warn) { }
-      }
-      return true;
-    }
-    if (!contactId && !partnerId && taskId && typeof openTaskEditor === 'function') {
-      try {
-        const result = openTaskEditor(taskId);
-        if (result) return true;
-      } catch (err) {
-        console.warn('openTaskEditor failed', err);
-      }
-      try {
-        console && console.warn && console.warn(`[dashboard] ${context} row task editor unavailable`, row);
-      } catch (_err) { }
-      return false;
-    }
-    try {
-      console && console.warn && console.warn(`[dashboard] ${context} row missing contactId/partnerId`, row);
-    } catch (_err) { }
-    return false;
-  }
-
-  function wireWidgetCardClicks(containerId, context) {
-    const host = document.getElementById(containerId);
-    if (!host || host.__clickWired) return;
-    host.__clickWired = true;
-    host.addEventListener('click', evt => {
-      const row = evt.target && evt.target.closest('li[data-contact-id], li[data-partner-id], li[data-task-id], [data-contact-id], [data-partner-id], [data-task-id], li[data-id]');
-      if (!row || !host.contains(row)) return;
-      const cid = (row.getAttribute('data-contact-id') || '').trim();
-      const pid = (row.getAttribute('data-partner-id') || '').trim();
-      const isEntityRow = !!(cid || pid);
-      const isFallbackCard = host.id === 'priority-actions-card'
-        || host.id === 'milestones-card'
-        || host.id === 'numbers-referrals-card';
-      // Let the global dashboard drilldown delegate handle contact/partner rows
-      // so we do not double-open editors. This handler only needs to cover
-      // non-entity task rows inside the cards.
-      if (isEntityRow) {
-        if (isFallbackCard) {
-          evt.preventDefault();
-          openEntityForRow(row, context);
-        }
-        return;
-      }
-      evt.preventDefault();
-      openEntityForRow(row, context);
-    });
-  }
-
-  function ensureSuppressedWidgetWiring() {
-    wireWidgetCardClicks('priority-actions-card', 'priority-actions');
-    wireWidgetCardClicks('milestones-card', 'milestones');
-    wireWidgetCardClicks('numbers-referrals-card', 'numbers-referrals');
   }
 
   async function setDashboardMode(mode) {
@@ -2030,13 +1951,11 @@ function runPatch() {
     window.registerRenderHook(async () => {
       await renderDashboard();
       await renderReports();
-      ensureSuppressedWidgetWiring();
     });
   } else {
     const boot = () => {
       renderDashboard();
       renderReports();
-      ensureSuppressedWidgetWiring();
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
     else boot();

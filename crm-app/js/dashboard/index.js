@@ -2700,10 +2700,9 @@ function tryOpenPartnerModal(partnerId) {
   }
 }
 
-function handleDashboardClick(evt, opts = {}) {
+function handleDashboardClick(evt) {
   const target = evt && evt.target ? evt.target : null;
   if (!target) return false;
-  const allowSuppressedCardDrilldown = opts && opts.allowSuppressedCardDrilldown === true;
 
   const dashDebug = win && win.__DASH_DEBUG === true;
   if (dashDebug) {
@@ -2732,7 +2731,7 @@ function handleDashboardClick(evt, opts = {}) {
   // ✅ CRITICAL: Dashboard drilldown must ONLY run inside the Dashboard view.
   // It is currently bound on document capture and is eating clicks across the app.
   const liveRoot = doc ? doc.getElementById('view-dashboard') : null;
-  const dashRoot = liveRoot || opts.root || null;
+  const dashRoot = liveRoot || null;
   if (dashRoot) {
     if (!dashRoot.contains(target)) return false;
   } else {
@@ -2749,11 +2748,6 @@ function handleDashboardClick(evt, opts = {}) {
       || probe.getAttribute('data-widget-id');
     if (!widgetHost) return false;
     if (!widgetKey) return false;
-  }
-
-  const suppressedCard = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
-  if (suppressedCard && !allowSuppressedCardDrilldown) {
-    return false;
   }
 
   // Also ignore clicks inside any modal/dialog/editor so Close/Save buttons work.
@@ -2889,7 +2883,7 @@ export function __setDashboardDrilldownTestHooks(hooks = {}) {
 }
 
 export function __getHandleDashboardClickForTest() {
-  return evt => handleDashboardClick(evt, { allowSuppressedCardDrilldown: true });
+  return evt => handleDashboardClick(evt);
 }
 
 export function __getHandleDashboardTapForTest() {
