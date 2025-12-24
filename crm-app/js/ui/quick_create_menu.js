@@ -33,11 +33,15 @@ export function resetQuickCreateOverlay(reason = '') {
   } catch (_) { }
 
   try {
-    wrapper = document.getElementById('quick-create-menu-v4-center') || document.getElementById('global-new-menu');
+    wrapper = WRAPPER_CANDIDATE_IDS
+      .map((id) => document.getElementById(id))
+      .find((node) => node);
     if (wrapper) {
       wrapper.hidden = true;
       wrapper.style.display = 'none'; // Force hide
+      wrapper.style.visibility = 'hidden';
       wrapper.style.pointerEvents = 'none';
+      wrapper.setAttribute('aria-hidden', 'true');
       if (wrapper.style.position === 'fixed') {
         // Reset potential old styles
         wrapper.style.inset = 'auto';
@@ -45,9 +49,12 @@ export function resetQuickCreateOverlay(reason = '') {
       }
     }
 
-    menu = document.getElementById('header-new-menu');
+    menu = document.getElementById(MENU_ID);
     if (menu) {
       menu.hidden = true;
+      menu.style.display = 'none';
+      menu.style.visibility = 'hidden';
+      menu.style.pointerEvents = 'none';
       menu.setAttribute('aria-hidden', 'true');
       if (menu.classList && typeof menu.classList.add === 'function') {
         menu.classList.add('hidden');
@@ -95,7 +102,9 @@ if (typeof window !== 'undefined') {
   } catch (_) { }
 }
 
-const WRAPPER_ID = 'quick-create-menu-wrapper-nuclear';
+const WRAPPER_ID = 'quick-create-menu-v4-center';
+const LEGACY_WRAPPER_IDS = ['quick-create-menu-wrapper-nuclear', 'global-new-menu'];
+const WRAPPER_CANDIDATE_IDS = [WRAPPER_ID, ...LEGACY_WRAPPER_IDS];
 const MENU_ID = 'header-new-menu';
 const BUTTON_PREFIX = 'header-new-';
 const ACTION_BAR_ID = 'global-new';
@@ -403,22 +412,29 @@ function getIcon(kind) {
 function ensureMenuElements() {
   // [CENTER OVERLAY] Fresh DOM & Premium Modal
   if (typeof document === 'undefined') return null;
-  const WRAPPER_ID = 'quick-create-menu-v4-center'; // New ID
 
   // 1. Strict Cleanup of old ghosts
-  const old = document.getElementById(WRAPPER_ID);
-  if (old && !old.isConnected) {
-    old.remove();
+  const existing = WRAPPER_CANDIDATE_IDS
+    .map((id) => document.getElementById(id))
+    .find((node) => node);
+  if (existing && !existing.isConnected) {
+    existing.remove();
   }
 
   // 2. Get or Create Wrapper (Backdrop)
-  let wrapper = document.getElementById(WRAPPER_ID);
+  let wrapper = WRAPPER_CANDIDATE_IDS
+    .map((id) => document.getElementById(id))
+    .find((node) => node);
   if (!wrapper) {
     wrapper = document.createElement('div');
     wrapper.id = WRAPPER_ID;
     // Full Screen Backdrop
-    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:none; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px);';
+    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:none; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px); pointer-events:none;';
+    wrapper.hidden = true;
+    wrapper.setAttribute('aria-hidden', 'true');
     document.body.appendChild(wrapper);
+  } else if (wrapper.id !== WRAPPER_ID) {
+    wrapper.id = WRAPPER_ID;
   }
 
   // 3. Ensure Strict Body Attachment
@@ -549,9 +565,14 @@ const handleTaskModalSubmit = async (event) => { if (event && typeof event.preve
 const openTaskQuickCreateModal = () => { const overlay = ensureTaskModalElements(); if (!overlay) { toastWarn('Task form unavailable'); return null; } const { typeSelect, dueInput, noteInput, validation } = taskModalState; overlay.hidden = false; overlay.style.visibility = 'visible'; overlay.style.pointerEvents = 'auto'; overlay.setAttribute('aria-hidden', 'false'); taskModalState.busy = false; if (dueInput) { const today = todayISODate(); if (today) dueInput.value = today; } if (noteInput) noteInput.value = ''; setTaskModalStatus(''); if (validation && typeof validation.reset === 'function') { validation.reset(); } refreshTaskEntityOptions(typeSelect ? typeSelect.value : 'contact'); if (noteInput) focusElement(noteInput); return overlay; };
 
 function handleOutsideClick(event) {
-  const { wrapper, anchor, menu } = state;
+  const anchor = state.anchor;
+  const doc = typeof document !== 'undefined' ? document : null;
+  const wrapper = state.wrapper || (doc ? WRAPPER_CANDIDATE_IDS.map((id) => doc.getElementById(id)).find((node) => node) : null);
+  const menu = state.menu || (doc ? doc.getElementById(MENU_ID) : null);
   const trace = typeof window !== 'undefined' && window.__QC_TRACE === true;
-  const overlayVisible = state.open === true || (wrapper && wrapper.hidden === false) || (menu && menu.hidden === false);
+  const overlayVisible = state.open === true
+    || (wrapper && wrapper.hidden === false && wrapper.style.display !== 'none')
+    || (menu && menu.hidden === false && menu.style.display !== 'none');
 
   if (trace && console && typeof console.debug === 'function') {
     console.debug('[QC_TRACE] outsideClick:enter', {
@@ -666,13 +687,23 @@ function teardownRepositionListeners() {
 
 // [CLEAN STATIC] Simple Close Logic
 export function closeQuickCreateMenu() {
-  const { wrapper, menu, restoreFocus, anchor } = state;
+  const { restoreFocus, anchor } = state;
+  const wrapper = state.wrapper || (typeof document !== 'undefined'
+    ? WRAPPER_CANDIDATE_IDS.map((id) => document.getElementById(id)).find((node) => node)
+    : null);
+  const menu = state.menu || (typeof document !== 'undefined' ? document.getElementById(MENU_ID) : null);
   // Cleanup
   if (wrapper) {
     wrapper.style.display = 'none';
+    wrapper.style.visibility = 'hidden';
+    wrapper.style.pointerEvents = 'none';
     wrapper.hidden = true;
+    wrapper.setAttribute('aria-hidden', 'true');
   }
   if (menu) {
+    menu.style.display = 'none';
+    menu.style.visibility = 'hidden';
+    menu.style.pointerEvents = 'none';
     menu.hidden = true;
     menu.setAttribute('aria-hidden', 'true');
   }
@@ -730,13 +761,15 @@ export function openQuickCreateMenu(options = {}) {
       document.body.appendChild(wrapper);
     }
     // Hard Reset of Backdrop Styles
-    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px); visibility:visible;';
+    wrapper.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center; background:rgba(15, 23, 42, 0.65); backdrop-filter:blur(2px); visibility:visible; pointer-events:auto;';
     wrapper.hidden = false;
+    wrapper.setAttribute('aria-hidden', 'false');
   }
   if (menu) {
     menu.style.display = 'flex';
     menu.style.flexDirection = 'column'; // Force column layout
     menu.style.visibility = 'visible';
+    menu.style.pointerEvents = 'auto';
     menu.hidden = false;
     menu.setAttribute('aria-hidden', 'false');
     if (menu.classList && typeof menu.classList.remove === 'function') {
