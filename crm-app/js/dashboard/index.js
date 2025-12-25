@@ -2717,6 +2717,28 @@ function handleDashboardClick(evt) {
 
   const dashDebug = win && win.__DASH_DEBUG === true;
   const clickTrace = win && win.__CLICK_TRACE === true;
+  const dashCard = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
+  let dashClickLogged = false;
+  const emitDashClick = (resolvedType, resolvedId) => {
+    if (!dashCard || dashClickLogged) return;
+    dashClickLogged = true;
+    let overlayLabel = 'none';
+    if (doc && typeof doc.elementFromPoint === 'function' && evt && typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
+      try {
+        const hit = doc.elementFromPoint(evt.clientX, evt.clientY);
+        if (hit) {
+          overlayLabel = hit.id || (typeof hit.className === 'string' && hit.className.trim()) || (hit.tagName || 'node');
+        }
+      } catch (_) { }
+    }
+    const prevented = !!(evt && evt.defaultPrevented);
+    const cardId = dashCard.id
+      || (dashCard.getAttribute && (dashCard.getAttribute('data-dash-widget') || dashCard.getAttribute('data-widget-id')))
+      || 'unknown';
+    try {
+      console.log(`[DASH_CLICK] card=${cardId} resolved=${resolvedType || 'none'} id=${resolvedId || 'none'} prevented=${prevented} overlayTop=${overlayLabel || 'none'}`);
+    } catch (_) { }
+  };
   if (clickTrace) {
     const cardTrace = target.closest && target.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
     if (cardTrace) {
@@ -2858,6 +2880,7 @@ function handleDashboardClick(evt) {
         defaultPrevented: !!(evt && evt.defaultPrevented)
       });
     }
+    emitDashClick('none', 'none');
     return false; // not a drilldown row
   }
 
@@ -2889,6 +2912,10 @@ function handleDashboardClick(evt) {
     if (typeof evt.preventDefault === 'function') evt.preventDefault();
     if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
   }
+
+  const resolvedType = contactId ? 'contact' : (partnerId ? 'partner' : 'none');
+  const resolvedId = contactId || partnerId || 'none';
+  emitDashClick(resolvedType, resolvedId);
 
   if (contactId && typeof openContact === 'function') {
     openContact(contactId);
