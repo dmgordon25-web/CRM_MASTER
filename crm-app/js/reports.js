@@ -26,6 +26,9 @@ import dashboardState from './state/dashboard_state.js';
   function safe(v){
     return String(v==null?'':v).replace(/[&<>]/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]));
   }
+  function attr(v){
+    return String(v==null?'':v).replace(/[&<>"']/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]||ch));
+  }
   function initials(name){
     const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
     if(!parts.length) return '—';
@@ -200,8 +203,12 @@ import dashboardState from './state/dashboard_state.js';
       const focusLine = focus ? `<div class="insight-sub">Focus: ${safe(focus)}</div>` : '';
       const detailLine = details ? `<div class="insight-sub">${details}</div>` : '';
       const volumeLine = stat.volume ? `<div class="insight-sub">Loan Volume: ${money(stat.volume)}</div>` : '';
-      return `<li>
-        <div class="list-main">
+      const partnerId = String(pid||'').trim();
+      const pidAttr = partnerId ? ` data-partner-id="${attr(partnerId)}"` : '';
+      const widgetAttrs = ' data-widget="leaderboard" data-dash-widget="leaderboard" data-widget-id="leaderboard"';
+      const entityAttrs = pidAttr ? ` ${pidAttr.trim()}` : '';
+      return `<li${widgetAttrs}${entityAttrs}>
+        <div class="list-main"${entityAttrs}>
           <span class="insight-avatar">${initials(partner.name||'')}</span>
           <div>
             <div class="insight-title">${safe(partner.name||'—')}</div>
@@ -211,7 +218,7 @@ import dashboardState from './state/dashboard_state.js';
             ${detailLine}
           </div>
         </div>
-        <div class="insight-meta">${tier || ''}</div>
+        <div class="insight-meta"${entityAttrs}>${tier || ''}</div>
       </li>`;
     }).join('') : '<li class="empty">Recruit or tag partners to surface leaders.</li>');
 
@@ -321,17 +328,20 @@ import dashboardState from './state/dashboard_state.js';
       const phr = task.status==='overdue' ? `${Math.abs(task.diffFromToday||0)}d overdue` : (task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
       const cid = (task.contactId || '').toString().trim();
       const tid = (task.id || '').toString().trim();
-      const cidAttr = cid ? ` data-contact-id="${cid}"` : '';
-      const tidAttr = tid ? ` data-task-id="${tid}"` : '';
-      return `<li class="${task.status}"${cidAttr}${tidAttr}>
-        <div class="list-main">
+      const cidAttr = cid ? ` data-contact-id="${attr(cid)}" data-id="${attr(cid)}"` : '';
+      const tidAttr = tid ? ` data-task-id="${attr(tid)}"` : '';
+      const widgetAttrs = ' data-widget="priorityActions" data-dash-widget="priorityActions" data-widget-id="priorityActions"';
+      const rowAttrs = `${widgetAttrs}${cidAttr}${tidAttr}`;
+      const entityAttrs = cidAttr ? ` ${cidAttr.trim()}` : '';
+      return `<li class="${task.status}"${rowAttrs}>
+        <div class="list-main"${entityAttrs}>
           <span class="status-dot ${task.status}"></span>
           <div>
             <div class="insight-title">${safe(task.title)}</div>
             <div class="insight-sub">${safe(task.name)}${task.stage?` • ${safe(task.stage)}`:''}</div>
           </div>
         </div>
-        <div class="insight-meta ${cls}">${phr} · ${task.dueLabel}</div>
+        <div class="insight-meta ${cls}"${entityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
     }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
 
@@ -339,15 +349,23 @@ import dashboardState from './state/dashboard_state.js';
     html($('#upcoming'), timeline.length ? timeline.map(task=>{
       const cls = task.status==='soon' ? 'warn' : 'good';
       const phr = task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
-      return `<li>
-        <div class="list-main">
+      const cid = (task.contactId || (task.contact && task.contact.id) || '').toString().trim();
+      const pid = (task.contact && (task.contact.partnerId || task.contact.partner_id)) ? String(task.contact.partnerId || task.contact.partner_id).trim() : '';
+      const cidAttr = cid ? ` data-contact-id="${attr(cid)}" data-id="${attr(cid)}"` : '';
+      const pidAttr = pid ? ` data-partner-id="${attr(pid)}"` : '';
+      const widgetAttrs = ' data-widget="milestonesAhead" data-dash-widget="milestonesAhead" data-widget-id="milestonesAhead"';
+      const rowAttrs = `${widgetAttrs}${cidAttr}${pidAttr}`;
+      const entityAttrs = [cidAttr, pidAttr].filter(Boolean).join(' ');
+      const entityText = entityAttrs ? ` ${entityAttrs}` : '';
+      return `<li${rowAttrs}>
+        <div class="list-main"${entityText}>
           <span class="status-dot ${task.status}"></span>
           <div>
             <div class="insight-title">${safe(task.title)}</div>
             <div class="insight-sub">${safe(task.name)}${task.stage?` • ${safe(task.stage)}`:''}</div>
           </div>
         </div>
-        <div class="insight-meta ${cls}">${phr} · ${task.dueLabel}</div>
+        <div class="insight-meta ${cls}"${entityText}>${phr} · ${task.dueLabel}</div>
       </li>`;
     }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
 
