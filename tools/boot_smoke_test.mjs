@@ -378,6 +378,16 @@ async function run() {
   };
 
   const clickPriorityRow = async () => {
+    const card = page.locator('#priority-actions-card');
+    await card.waitFor({ state: 'attached', timeout: 30000 });
+    await card.waitFor({ state: 'visible', timeout: 30000 });
+    await page.waitForFunction(() => {
+      const c = document.getElementById('priority-actions-card');
+      if (!c) return false;
+      const cs = getComputedStyle(c);
+      const box = c.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+    }, { timeout: 30000 });
     await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
     await page.evaluate(() => {
       const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
@@ -385,12 +395,12 @@ async function run() {
       el.style.display = 'list-item';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
-      const card = document.getElementById('priority-actions-card');
-      if (card) {
-        card.style.setProperty('display', 'block', 'important');
-        card.style.visibility = 'visible';
-        card.style.opacity = '1';
-        card.removeAttribute('aria-hidden');
+      const cardEl = document.getElementById('priority-actions-card');
+      if (cardEl) {
+        cardEl.style.setProperty('display', 'block', 'important');
+        cardEl.style.visibility = 'visible';
+        cardEl.style.opacity = '1';
+        cardEl.removeAttribute('aria-hidden');
       }
       const list = el.closest('#priority-actions-card #needs-attn');
       if (list) {
@@ -399,24 +409,41 @@ async function run() {
         list.style.opacity = '1';
       }
     });
-    const row = priorityRow();
-    const childTarget = () => row.locator('.insight-sub, .insight-title').first();
-    await row.waitFor({ state: 'attached', timeout: 30000 });
-    await childTarget().waitFor({ state: 'visible', timeout: 10000 });
+    await card.scrollIntoViewIfNeeded();
+    const cardBox = await card.boundingBox();
+    console.log('[boot-smoke] Priority card bbox', cardBox);
     await logPriorityRowContext('pre-click');
-    await childTarget().scrollIntoViewIfNeeded();
-    await expect(childTarget()).toBeVisible({ timeout: 10000 });
-    const rowBox = await row.boundingBox();
-    const childBox = await childTarget().boundingBox();
-    console.log('[boot-smoke] Priority row bbox', rowBox, 'child bbox', childBox);
-    if ((!rowBox || !rowBox.width || !rowBox.height) && childBox && childBox.width && childBox.height) {
-      console.log('[boot-smoke] Priority row bbox missing/zero while child is non-zero (expected child click)');
+
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const row = priorityRow();
+      const childTarget = () => row.locator('.insight-sub, .insight-title, .list-main, .insight-meta').first();
+      try {
+        await row.waitFor({ state: 'attached', timeout: 30000 });
+        await childTarget().waitFor({ state: 'visible', timeout: 10000 });
+        await expect(childTarget()).toBeVisible({ timeout: 10000 });
+        const rowBox = await row.boundingBox();
+        const childBox = await childTarget().boundingBox();
+        const cardBoxNow = await card.boundingBox();
+        console.log(`[boot-smoke] Attempt ${attempt} card bbox`, cardBoxNow, 'row bbox', rowBox, 'child bbox', childBox);
+        if ((!rowBox || !rowBox.width || !rowBox.height) && childBox && childBox.width && childBox.height) {
+          console.log('[boot-smoke] Priority row bbox missing/zero while child is non-zero (expected child click)');
+        }
+        if (!childBox || !childBox.width || !childBox.height) {
+          throw new Error('Priority child bounding box unavailable after style reset');
+        }
+        await childTarget().click();
+        await logModalDiagnostics('post-click presence');
+        return;
+      } catch (err) {
+        const msg = String(err.message || err || '');
+        if (attempt < maxAttempts && /detached from dom|not attached/i.test(msg)) {
+          await page.waitForTimeout(150);
+          continue;
+        }
+        throw err;
+      }
     }
-    if (!childBox || !childBox.width || !childBox.height) {
-      throw new Error('Priority child bounding box unavailable after style reset');
-    }
-    await childTarget().click();
-    await logModalDiagnostics('post-click presence');
   };
 
   await clickPriorityRow();
