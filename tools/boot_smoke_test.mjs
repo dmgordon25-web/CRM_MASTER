@@ -37,7 +37,7 @@ async function startServer() {
 
 async function run() {
   const { server, port } = await startServer();
-  const baseUrl = `http://127.0.0.1:${port}/index.html`;
+  const baseUrl = `http://127.0.0.1:${port}/index.html?e2e=1`;
   console.log(`[boot-smoke] serving ${rootDir} on ${baseUrl}`);
 
   const candidatePaths = [
@@ -281,19 +281,31 @@ async function run() {
       card.removeAttribute('aria-hidden');
     }
   });
-  await priorityRow.evaluate((el) => {
-    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  });
+  const contactModal = page.locator('dialog#contact-modal[open], [data-ui="contact-edit-modal"][open], [data-ui="contact-edit-modal"][data-open="1"]');
+  const waitForContactModal = async () => {
+    await page.waitForFunction(
+      (id) => window.__E2E__?.lastOpen?.type === 'contact' && window.__E2E__?.lastOpen?.id === id,
+      firstRowId,
+      { timeout: 30000 }
+    );
+    await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  };
 
-  const contactModal = page.locator('dialog#contact-modal[open]');
-  await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  const triggerPriorityRow = async () => {
+    await priorityRow.evaluate((el) => {
+      el.style.display = '';
+      el.style.visibility = 'visible';
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+  };
+
+  await triggerPriorityRow();
+  await waitForContactModal();
   await hardCloseContactModal(page);
   await hardClearOverlays(page);
 
-  await priorityRow.evaluate((el) => {
-    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  });
-  await contactModal.waitFor({ state: 'visible', timeout: 30000 });
+  await triggerPriorityRow();
+  await waitForContactModal();
   await hardCloseContactModal(page);
   await hardClearOverlays(page);
 
