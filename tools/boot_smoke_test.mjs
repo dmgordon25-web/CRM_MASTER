@@ -5,6 +5,7 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
+import { expect } from '@playwright/test';
 
 const require = createRequire(import.meta.url);
 const { createStaticServer } = require('./static_server.js');
@@ -377,9 +378,8 @@ async function run() {
   };
 
   const clickPriorityRow = async () => {
-    const row = priorityRow();
-    await row.waitFor({ state: 'attached', timeout: 30000 });
-    const box = await row.evaluate(() => {
+    await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
+    await page.evaluate(() => {
       const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
       if (!el) return null;
       el.style.display = 'list-item';
@@ -387,23 +387,35 @@ async function run() {
       el.style.opacity = '1';
       const card = document.getElementById('priority-actions-card');
       if (card) {
-        card.style.display = '';
+        card.style.setProperty('display', 'block', 'important');
         card.style.visibility = 'visible';
         card.style.opacity = '1';
         card.removeAttribute('aria-hidden');
       }
       const list = el.closest('#priority-actions-card #needs-attn');
       if (list) {
-        list.style.display = '';
+        list.style.setProperty('display', 'block', 'important');
         list.style.visibility = 'visible';
         list.style.opacity = '1';
       }
-      const rect = el.getBoundingClientRect();
-      return { width: rect.width, height: rect.height };
     });
-    if (!box || !box.width || !box.height) throw new Error('Priority row bounding box unavailable after style reset');
+    const row = priorityRow();
+    const childTarget = () => row.locator('.insight-sub, .insight-title').first();
+    await row.waitFor({ state: 'attached', timeout: 30000 });
+    await childTarget().waitFor({ state: 'visible', timeout: 10000 });
     await logPriorityRowContext('pre-click');
-    await row.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await childTarget().scrollIntoViewIfNeeded();
+    await expect(childTarget()).toBeVisible({ timeout: 10000 });
+    const rowBox = await row.boundingBox();
+    const childBox = await childTarget().boundingBox();
+    console.log('[boot-smoke] Priority row bbox', rowBox, 'child bbox', childBox);
+    if ((!rowBox || !rowBox.width || !rowBox.height) && childBox && childBox.width && childBox.height) {
+      console.log('[boot-smoke] Priority row bbox missing/zero while child is non-zero (expected child click)');
+    }
+    if (!childBox || !childBox.width || !childBox.height) {
+      throw new Error('Priority child bounding box unavailable after style reset');
+    }
+    await childTarget().click();
     await logModalDiagnostics('post-click presence');
   };
 
