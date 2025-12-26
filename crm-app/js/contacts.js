@@ -40,6 +40,33 @@ import { validateContact as validateContactSchema } from './validation/schema.js
 const MISSING_DOC_FALLBACK = ['Photo ID', 'Income verification', 'Asset statements', 'Authorization forms'];
 let missingDocsWarned = false;
 
+const E2E_CONTACT_HOOK_ENABLED = (() => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const search = typeof window.location?.search === 'string' ? window.location.search : '';
+    return new URLSearchParams(search).get('e2e') === '1';
+  } catch (_err) {
+    return false;
+  }
+})();
+
+function recordE2EContactLifecycle(event, contactId) {
+  if (!E2E_CONTACT_HOOK_ENABLED || typeof window === 'undefined') return;
+  const id = contactId == null ? '' : String(contactId);
+  const payload = { type: 'contact', id, ts: Date.now() };
+  window.__E2E__ = window.__E2E__ || {};
+  if (event === 'open') {
+    window.__E2E__.open = payload;
+    window.__E2E__.lastOpen = payload;
+  }
+  if (event === 'close') {
+    window.__E2E__.lastClose = payload;
+    if (window.__E2E__.open && window.__E2E__.open.type === 'contact') {
+      window.__E2E__.open = null;
+    }
+  }
+}
+
 function normalizeDocName(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -964,6 +991,7 @@ export function normalizeContactId(input) {
       if (dlg.dataset) {
         dlg.dataset.contactId = String(c.id || '');
       }
+      recordE2EContactLifecycle('open', c.id || requestedId);
       const partnerMap = new Map();
       const partnerIds = new Set();
       const partnerOptions = partners.map(p => {
@@ -3633,7 +3661,18 @@ const _localEditorState = { status: 'idle', activeId: null };
 export function getContactEditorState() { return { ..._localEditorState }; }
 export function resetContactEditorForRouteLeave() { closeContactEditor('nav'); }
 export function closeContactEditor(reason) {
+  let closingId = null;
   try {
+    try {
+      const modal = document.querySelector('[data-ui="contact-edit-modal"]');
+      if (modal && modal.dataset && modal.dataset.contactId) {
+        closingId = modal.dataset.contactId;
+      }
+    } catch (_err) { }
+    if (!closingId && typeof window !== 'undefined' && window.__E2E__ && window.__E2E__.open) {
+      closingId = window.__E2E__.open.id;
+    }
+
     // Global safety net: ensure UI is interactive again after closing.
     try {
       if (typeof window !== 'undefined' && typeof window.unfreezeCrmUi === 'function') {
@@ -3697,6 +3736,7 @@ export function closeContactEditor(reason) {
   } catch (_) { }
   _localEditorState.status = 'idle';
   _localEditorState.activeId = null;
+  recordE2EContactLifecycle('close', closingId || null);
 }
 
 // --- Quick Add Support ---
