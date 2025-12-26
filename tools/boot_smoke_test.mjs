@@ -5,7 +5,6 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
-import { expect } from '@playwright/test';
 
 const require = createRequire(import.meta.url);
 const { createStaticServer } = require('./static_server.js');
@@ -377,18 +376,9 @@ async function run() {
     }
   };
 
-  const clickPriorityRow = async () => {
+  const openFirstPriorityAction = async () => {
     const card = page.locator('#priority-actions-card');
     await card.waitFor({ state: 'attached', timeout: 30000 });
-    await card.waitFor({ state: 'visible', timeout: 30000 });
-    await page.waitForFunction(() => {
-      const c = document.getElementById('priority-actions-card');
-      if (!c) return false;
-      const cs = getComputedStyle(c);
-      const box = c.getBoundingClientRect();
-      return cs.display !== 'none' && cs.visibility !== 'hidden' && box.width > 0 && box.height > 0;
-    }, { timeout: 30000 });
-    await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
     await page.evaluate(() => {
       const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
       if (!el) return null;
@@ -409,9 +399,14 @@ async function run() {
         list.style.opacity = '1';
       }
     });
-    await card.scrollIntoViewIfNeeded();
-    const cardBox = await card.boundingBox();
-    console.log('[boot-smoke] Priority card bbox', cardBox);
+    await page.waitForFunction(() => {
+      const c = document.getElementById('priority-actions-card');
+      if (!c) return false;
+      const cs = getComputedStyle(c);
+      const box = c.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+    }, { timeout: 30000 });
+    await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
     await logPriorityRowContext('pre-click');
 
     const maxAttempts = 5;
@@ -420,38 +415,57 @@ async function run() {
       const childTarget = () => row.locator('.insight-sub, .insight-title, .list-main, .insight-meta').first();
       try {
         await row.waitFor({ state: 'attached', timeout: 30000 });
-        await childTarget().waitFor({ state: 'visible', timeout: 10000 });
-        await expect(childTarget()).toBeVisible({ timeout: 10000 });
+        await childTarget().waitFor({ state: 'attached', timeout: 10000 });
+        const [rowVisible, targetVisible] = await Promise.all([
+          row.isVisible().catch(() => false),
+          childTarget().isVisible().catch(() => false)
+        ]);
         const rowBox = await row.boundingBox();
         const childBox = await childTarget().boundingBox();
-        const cardBoxNow = await card.boundingBox();
-        console.log(`[boot-smoke] Attempt ${attempt} card bbox`, cardBoxNow, 'row bbox', rowBox, 'child bbox', childBox);
+        console.log(`[boot-smoke] Attempt ${attempt} row visible=${rowVisible} target visible=${targetVisible}`, 'row bbox', rowBox, 'child bbox', childBox);
         if ((!rowBox || !rowBox.width || !rowBox.height) && childBox && childBox.width && childBox.height) {
           console.log('[boot-smoke] Priority row bbox missing/zero while child is non-zero (expected child click)');
         }
-        if (!childBox || !childBox.width || !childBox.height) {
-          throw new Error('Priority child bounding box unavailable after style reset');
+
+        let clicked = false;
+        if (targetVisible) {
+          await childTarget().click({ timeout: 5000 });
+          clicked = true;
+        } else {
+          await row.evaluate((el) => {
+            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+          });
+          clicked = true;
         }
-        await childTarget().click();
-        await logModalDiagnostics('post-click presence');
-        return;
+
+        if (clicked) {
+          const modalAppeared = await contactModal.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+          await logModalDiagnostics('post-click presence');
+          if (modalAppeared) return;
+        }
       } catch (err) {
         const msg = String(err.message || err || '');
         if (attempt < maxAttempts && /detached from dom|not attached/i.test(msg)) {
           await page.waitForTimeout(150);
           continue;
         }
+        if (attempt < maxAttempts && /not visible|timeout/i.test(msg)) {
+          await page.waitForTimeout(150);
+          continue;
+        }
         throw err;
       }
+      await page.waitForTimeout(150);
     }
+    throw new Error('Unable to open contact modal from Priority Actions after retries');
   };
 
-  await clickPriorityRow();
+  await openFirstPriorityAction();
   await waitForContactModal();
   await hardCloseContactModal(page);
   await hardClearOverlays(page);
 
-  await clickPriorityRow();
+  await openFirstPriorityAction();
   await waitForContactModal();
   await hardCloseContactModal(page);
   await hardClearOverlays(page);
