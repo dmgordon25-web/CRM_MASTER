@@ -262,6 +262,8 @@ function updateSummary(root){
   const summaryFocus = root.querySelector('#p-summary-focus');
   const summaryCadence = root.querySelector('#p-summary-cadence');
   const note = root.querySelector('#p-summary-note');
+  const recordName = root.querySelector('[data-role="record-name-text"]');
+  const recordSubtext = root.querySelector('[data-role="record-name-subtext"]');
   const nameRaw = nameInput?.value?.trim() || '';
   const companyRaw = companyInput?.value?.trim() || '';
   const emailRaw = emailInput?.value?.trim() || '';
@@ -279,6 +281,8 @@ function updateSummary(root){
     else { summaryName.textContent = label; }
     applyAvatar(avatarEl, nameRaw, partnerAvatarSource({ name: nameRaw, company: companyRaw, email: emailRaw }));
   }
+  if(recordName){ recordName.textContent = company ? `${name} · ${company}` : name; }
+  if(recordSubtext){ recordSubtext.textContent = `${tier} • ${type}`; }
   if(summaryTier) summaryTier.textContent = `Tier — ${tier}`;
   if(summaryType) summaryType.textContent = type;
   if(summaryFocus) summaryFocus.textContent = focus;
@@ -510,12 +514,18 @@ async function renderPartnerEditor(root, partnerId){
     toastWarn('Partner not found');
     return null;
   }
-  const loaded = await loadPartnerRecord(partnerId);
-  if(partnerId && !loaded){
-    toastWarn('Partner not found');
-    return null;
-  }
   const base = basePartner(partnerId);
+  let loaded = await loadPartnerRecord(partnerId);
+  if(partnerId && !loaded){
+    const fallback = Object.assign({}, base, {
+      name: base.name || `Partner ${partnerId}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    try { await dbPut('partners', fallback); }
+    catch (_err) { }
+    loaded = fallback;
+  }
   const record = Object.assign(base, loaded || {});
   root.dataset.partnerId = String(record.id || '');
   root.__currentPartnerBase = Object.assign({}, record);
