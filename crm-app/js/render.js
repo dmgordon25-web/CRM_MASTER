@@ -2434,8 +2434,6 @@ export async function renderPartnersView(options) {
                     <button class="btn" data-export-table="partners" aria-label="Export to CSV"
                         title="Export to CSV">Export
                         CSV</button>
-                    <button class="btn outline" onclick="window.StabilityVerifier && window.StabilityVerifier.verifyExport()"
-                        title="Export changes captured during session">Export Changes</button>
                     <button class="btn" id="btn-filters-partners">
                         Filters
                     </button>
