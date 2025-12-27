@@ -454,6 +454,28 @@ import dashboardState from './state/dashboard_state.js';
 
   document.addEventListener('DOMContentLoaded', compute);
 
+  if (!window.__REPORTS_DATA_SYNC__) {
+    window.__REPORTS_DATA_SYNC__ = true;
+    document.addEventListener('app:data:changed', () => {
+      try {
+        const computePromise = typeof window.renderReports === 'function'
+          ? window.renderReports()
+          : compute();
+        if (computePromise && typeof computePromise.catch === 'function') {
+          computePromise.catch(() => {});
+        }
+      } catch (_err) { /* noop */ }
+      try {
+        const maybePromise = typeof window.renderReportsView === 'function'
+          ? window.renderReportsView()
+          : renderReportsView();
+        if (maybePromise && typeof maybePromise.catch === 'function') {
+          maybePromise.catch(() => {});
+        }
+      } catch (_err) { /* noop */ }
+    }, { passive: true });
+  }
+
   window.renderReports = compute;
 
   // === Reports view (tab) ===

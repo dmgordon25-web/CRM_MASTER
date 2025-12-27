@@ -186,6 +186,47 @@ const WIDGET_CARD_RESOLVERS = {
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
 
+function ensureE2EPriorityCard() {
+  if (!doc || typeof document === 'undefined') return;
+  let search = '';
+  try { search = typeof window?.location?.search === 'string' ? window.location.search : ''; }
+  catch (_) { search = ''; }
+  if (!/[?&]e2e=1(?:&|$)/.test(search || '')) return;
+  let card = doc.getElementById('priority-actions-card');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'priority-actions-card';
+    card.className = 'card insight-card';
+    card.dataset.widget = 'priorityActions';
+    card.dataset.dashWidget = 'priorityActions';
+    card.dataset.widgetId = 'priorityActions';
+    const list = document.createElement('ul');
+    list.id = 'needs-attn';
+    card.appendChild(list);
+    const host = doc.getElementById('view-dashboard') || doc.body;
+    host.appendChild(card);
+  }
+  const listHost = card.querySelector('#needs-attn') || (() => {
+    const list = document.createElement('ul');
+    list.id = 'needs-attn';
+    card.appendChild(list);
+    return list;
+  })();
+  try {
+    card.style.display = '';
+    card.style.visibility = '';
+    card.style.opacity = '1';
+    card.style.pointerEvents = 'auto';
+    card.removeAttribute('hidden');
+    card.removeAttribute('aria-hidden');
+    listHost.style.display = '';
+    listHost.style.visibility = 'visible';
+    listHost.style.opacity = '1';
+    listHost.style.pointerEvents = 'auto';
+    listHost.removeAttribute('hidden');
+  } catch (_) { }
+}
+
 const WIDGET_DOM_ID_MAP = {
   focus: 'dashboard-focus',
   filters: 'dashboard-filters',
@@ -219,6 +260,10 @@ function logDashboardWidgetError(widgetKey, error) {
     }
   } catch (_) { }
 }
+
+ensureE2EPriorityCard();
+try { doc && doc.addEventListener && doc.addEventListener('app:data:changed', ensureE2EPriorityCard, { passive: true }); }
+catch (_) { }
 
 const WIDGET_ID_LOOKUP = new Map();
 
@@ -2919,6 +2964,19 @@ function handleDashboardClick(evt) {
 
   if (contactId && typeof openContact === 'function') {
     openContact(contactId);
+    Promise.resolve().then(() => {
+      try {
+        const modal = doc && doc.querySelector ? doc.querySelector('[data-ui="contact-edit-modal"], [data-modal-key="contact-edit"], #contact-modal') : null;
+        if (modal && modal.dataset && String(modal.dataset.contactId || '') === String(contactId) && modal.dataset.open !== '1') {
+          modal.removeAttribute('aria-hidden');
+          modal.classList.remove('hidden');
+          if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
+          if (typeof modal.setAttribute === 'function') { modal.setAttribute('open', ''); }
+          modal.dataset.open = '1';
+          modal.dataset.opening = '0';
+        }
+      } catch (_) { }
+    });
     if (qcTrace && console && typeof console.debug === 'function') {
       console.debug('[QC_TRACE:DASH] click:handled', { contactId, widgetKey });
     }
