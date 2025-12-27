@@ -22,9 +22,14 @@ describe('theme preferences', () => {
   let originalDocument;
   let originalWindow;
   let originalLocalStorage;
-  let originalLocation;
+  let themeApi;
 
-  function createEnvironment(search = '') {
+  beforeEach(async () => {
+    vi.resetModules();
+    originalDocument = global.document;
+    originalWindow = global.window;
+    originalLocalStorage = global.localStorage;
+
     const storage = createMemoryStorage();
     const body = { dataset: {} };
     const stubDocument = {
@@ -36,32 +41,18 @@ describe('theme preferences', () => {
     global.document = stubDocument;
     global.localStorage = storage;
     global.window = { document: global.document, localStorage: storage };
-    global.location = { search };
-  }
 
-  async function loadThemeApi(search = '') {
-    vi.resetModules();
-    createEnvironment(search);
     await import('../../crm-app/js/settings_forms.js');
-    return global.window.__crmThemePrefs;
-  }
-
-  beforeEach(() => {
-    originalDocument = global.document;
-    originalWindow = global.window;
-    originalLocalStorage = global.localStorage;
-    originalLocation = global.location;
+    themeApi = global.window.__crmThemePrefs;
   });
 
   afterEach(() => {
     global.document = originalDocument;
     global.window = originalWindow;
     global.localStorage = originalLocalStorage;
-    global.location = originalLocation;
   });
 
-  it('applies and persists the selected theme immediately', async () => {
-    const themeApi = await loadThemeApi();
+  it('applies and persists the selected theme immediately', () => {
     const chosen = themeApi.setThemePreference('ocean');
     expect(chosen).toBe('ocean');
     expect(global.document.body.dataset.theme).toBe('ocean');
