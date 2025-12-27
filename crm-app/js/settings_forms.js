@@ -570,6 +570,17 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
     syncThemeSelect();
   }
 
+  applyTheme(getThemePreference());
+
+  if (typeof window !== 'undefined') {
+    window.__crmThemePrefs = {
+      applyTheme,
+      getThemePreference,
+      normalizeTheme,
+      setThemePreference
+    };
+  }
+
   function getSimpleModeToggleElements() {
     const map = {};
     Object.entries(SIMPLE_MODE_TOGGLES).forEach(([key, id]) => {
