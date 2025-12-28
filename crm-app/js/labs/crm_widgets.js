@@ -38,6 +38,42 @@ import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { loadTodoItems, saveTodoItems, generateId } from '../dashboard/widgets/todo_widget.js';
 
+const DAY_MS = 86400000;
+
+function startOfDayTs(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function normalizeDueTs(task) {
+  if (!task) return null;
+  const dueCandidate = task.dueTs || task.dueDate || task.due;
+  if (!dueCandidate) return null;
+  const dueDate = new Date(dueCandidate);
+  if (Number.isNaN(dueDate.getTime())) return null;
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate.getTime();
+}
+
+function filterTasksByDueWindow(model, predicate) {
+  const todayTs = startOfDayTs(model?.today || Date.now());
+  if (todayTs === null) return [];
+  const openTasks = getOpenTasks(model?.tasks || []);
+  return openTasks.filter((task) => {
+    const dueTs = normalizeDueTs(task);
+    if (dueTs === null) return false;
+    const diff = Math.floor((dueTs - todayTs) / DAY_MS);
+    return predicate(diff, dueTs);
+  }).sort((a, b) => (a.dueTs || 0) - (b.dueTs || 0)
+    || String(a.title || '').localeCompare(String(b.title || ''), undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+function toDisplayTasks(model, tasks) {
+  return getDisplayTasks({ ...model, tasks });
+}
+
 export const WIDGET_META = {
   labsKpiSummary: {
     id: 'labsKpiSummary',
@@ -1526,6 +1562,7 @@ export function renderTodayWidget(container, model) {
     renderWidgetBody(shell, (body) => {
       const list = document.createElement('div');
       list.className = 'today-list';
+      list.setAttribute('data-role', 'today-list');
 
       // Task rows with click-to-editor
       todayTasks.forEach((task, idx) => {
@@ -1540,14 +1577,20 @@ export function renderTodayWidget(container, model) {
           </div>
           <div class="today-time">${task.dueTime || 'All day'}</div>
         `;
+        row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-widget', 'today');
+        row.setAttribute('data-dash-widget', 'today');
+        row.setAttribute('data-widget-id', 'today');
         if (task.contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${task.contactId}`;
-          });
+          row.setAttribute('data-contact-id', task.contactId);
+          row.setAttribute('data-id', task.contactId);
         }
+        if (task.partnerId) {
+          row.setAttribute('data-partner-id', task.partnerId);
+        }
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
         list.appendChild(row);
       });
 
@@ -1564,15 +1607,18 @@ export function renderTodayWidget(container, model) {
           </div>
           <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
         `;
+        row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-widget', 'today');
+        row.setAttribute('data-dash-widget', 'today');
+        row.setAttribute('data-widget-id', 'today');
         const contactId = appt.contactId || (appt.contact && appt.contact.id);
         if (contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
+          row.setAttribute('data-contact-id', contactId);
+          row.setAttribute('data-id', contactId);
         }
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
         list.appendChild(row);
       });
 
@@ -1590,16 +1636,31 @@ export function renderTodayWidget(container, model) {
           </div>
           <div class="today-time">${formatDate(cel.date)}</div>
         `;
+        row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-widget', 'today');
+        row.setAttribute('data-dash-widget', 'today');
+        row.setAttribute('data-widget-id', 'today');
         const contactId = cel.contact.id || cel.contact.contactId;
         if (contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
+          row.setAttribute('data-contact-id', contactId);
+          row.setAttribute('data-id', contactId);
         }
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
         list.appendChild(row);
+      });
+
+      list.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="today-row"]');
+        if (!target) return;
+        const contactId = target.getAttribute('data-contact-id');
+        const partnerId = target.getAttribute('data-partner-id');
+        if (contactId) {
+          window.location.hash = `#/contacts/${contactId}`;
+        } else if (partnerId) {
+          window.location.hash = `#/partners/${partnerId}`;
+        }
       });
 
       body.appendChild(list);
@@ -1933,38 +1994,37 @@ export function renderTodoWidget(container, model) {
 }
 
 // =======================
-// Priority actions (overdue + stale)
+// Priority actions (overdue + upcoming follow-ups)
 // =======================
 export function renderPriorityActionsWidget(container, model) {
   let shell;
   try {
-    const overdueTasks = getDisplayTasks(model, { scope: 'overdue' }).slice(0, 5);
-    const taskRows = overdueTasks.map((task) => ({
-      label: task.taskLabel,
-      meta: task.contactName,
-      tone: 'danger',
-      contactId: task.contactId
-    }));
+    const urgentTasks = filterTasksByDueWindow(model, (diff) => diff < 0 || diff <= 3);
+    const displayTasks = toDisplayTasks(model, urgentTasks).slice(0, 6);
 
-    const staleDeals = getDedupedStaleDeals(model, 14);
-    const staleRows = staleDeals.slice(0, 3).map((deal) => {
-      const loanDisplay = model.getLoanDisplay ? model.getLoanDisplay(deal.contact || deal) : (deal.contact || deal);
-      const contactId = loanDisplay.contactId || loanDisplay.id || deal.contactId;
-      const nameFromModel = contactId && model.getContactDisplayName ? model.getContactDisplayName(contactId) : null;
-      const label = nameFromModel
-        || loanDisplay.borrowerName
-        || loanDisplay.displayName
-        || loanDisplay.name
-        || 'Contact';
+    const rows = displayTasks.map((task) => {
+      const dueTs = normalizeDueTs(task);
+      const todayTs = startOfDayTs(model?.today || Date.now());
+      const diff = todayTs === null || dueTs === null ? null : Math.floor((dueTs - todayTs) / DAY_MS);
+      const overdueDays = diff !== null && diff < 0 ? Math.abs(diff) : null;
+      const dueLabel = diff === null
+        ? 'Due'
+        : diff < 0
+          ? `${overdueDays}d overdue`
+          : diff === 0
+            ? 'Due today'
+            : `Due in ${diff}d`;
+
       return {
-        label,
-        meta: 'Stale deal',
-        tone: 'warning',
-        contactId
+        label: task.taskLabel,
+        meta: task.contactName,
+        tone: diff !== null && diff < 0 ? 'danger' : 'warning',
+        contactId: task.contactId,
+        partnerId: task.partnerId,
+        taskId: task.id || task.taskId,
+        dueLabel
       };
     });
-
-    const rows = taskRows.concat(staleRows);
     const status = rows.length ? 'ok' : 'empty';
     const totalCount = rows.length;
 
@@ -1981,32 +2041,49 @@ export function renderPriorityActionsWidget(container, model) {
     renderWidgetBody(shell, (body) => {
       const listEl = document.createElement('div');
       listEl.className = 'priority-list';
+      listEl.setAttribute('data-role', 'priority-list');
 
       rows.forEach((row, idx) => {
         const rowEl = document.createElement('div');
         rowEl.className = `priority-row tone-${row.tone}`;
         rowEl.style.animationDelay = `${idx * 0.05}s`;
         rowEl.innerHTML = `
-          <span class="priority-pill">${row.meta}</span>
+          <span class="priority-pill">${row.dueLabel || row.meta}</span>
           <span class="priority-label">${row.label}</span>
         `;
 
-        // Click-to-editor: navigate to contact view
+        rowEl.setAttribute('data-role', 'priority-row');
+        rowEl.setAttribute('data-widget', 'priorityActions');
+        rowEl.setAttribute('data-dash-widget', 'priorityActions');
+        rowEl.setAttribute('data-widget-id', 'priorityActions');
         if (row.contactId) {
           rowEl.setAttribute('data-contact-id', row.contactId);
           rowEl.setAttribute('data-id', row.contactId);
-          rowEl.setAttribute('data-widget', 'priorityActions');
-          rowEl.setAttribute('data-dash-widget', 'priorityActions');
-          rowEl.setAttribute('data-widget-id', 'priorityActions');
-          rowEl.style.cursor = 'pointer';
-          rowEl.setAttribute('role', 'button');
-          rowEl.setAttribute('tabindex', '0');
-          rowEl.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${row.contactId}`;
-          });
+        }
+        if (row.partnerId) {
+          rowEl.setAttribute('data-partner-id', row.partnerId);
+        }
+        if (row.taskId) {
+          rowEl.setAttribute('data-task-id', row.taskId);
         }
 
+        rowEl.style.cursor = 'pointer';
+        rowEl.setAttribute('role', 'button');
+        rowEl.setAttribute('tabindex', '0');
+
         listEl.appendChild(rowEl);
+      });
+
+      listEl.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="priority-row"]');
+        if (!target) return;
+        const contactId = target.getAttribute('data-contact-id');
+        const partnerId = target.getAttribute('data-partner-id');
+        if (contactId) {
+          window.location.hash = `#/contacts/${contactId}`;
+        } else if (partnerId) {
+          window.location.hash = `#/partners/${partnerId}`;
+        }
       });
 
       body.appendChild(listEl);
