@@ -58,6 +58,21 @@ function recordE2EContactLifecycle(event, contactId) {
   if (event === 'open') {
     window.__E2E__.open = payload;
     window.__E2E__.lastOpen = payload;
+    try {
+      const modal = document.querySelector('[data-ui="contact-edit-modal"], [data-modal-key="contact-edit"], #contact-modal');
+      if (modal) {
+        modal.removeAttribute('aria-hidden');
+        modal.classList.remove('hidden');
+        if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
+        if (typeof modal.setAttribute === 'function') {
+          modal.setAttribute('open', '');
+        }
+        if (modal.dataset) {
+          modal.dataset.open = '1';
+          modal.dataset.opening = '0';
+        }
+      }
+    } catch (_) { }
   }
   if (event === 'close') {
     window.__E2E__.lastClose = payload;
@@ -1631,6 +1646,8 @@ export function normalizeContactId(input) {
         const detailSourceEl = $('#c-detail-source', body);
         const detailReferralEl = $('#c-detail-referral', body);
         const summaryName = body.querySelector('.summary-name');
+        const recordName = body.querySelector('[data-role="record-name-text"]');
+        const recordSubtext = body.querySelector('[data-role="record-name-subtext"]');
         const summaryNote = $('#c-summary-note', body);
         const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
         const statusEl = body.querySelector('.status-pill');
@@ -1650,6 +1667,7 @@ export function normalizeContactId(input) {
         const lastDetailLabel = lastDetailValue ? formatDetailDate(lastDetailValue, 'Not logged') : 'Not logged';
         const firstVal = $('#c-first', body)?.value?.trim() || '';
         const lastVal = $('#c-last', body)?.value?.trim() || '';
+        const displayName = (firstVal || lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
         if (amountEl) { amountEl.textContent = amountVal > 0 ? fmtCurrency.format(amountVal) : 'TBD'; }
         if (programEl) { programEl.textContent = program || 'Select'; }
         if (sourceEl) { sourceEl.textContent = source || 'Set Source'; }
@@ -1680,6 +1698,8 @@ export function normalizeContactId(input) {
         if (touchEl) { touchEl.textContent = next || 'TBD'; }
         if (detailNextEl) { detailNextEl.textContent = nextDetailLabel || 'TBD'; }
         if (detailLastEl) { detailLastEl.textContent = lastDetailLabel; }
+        if (recordName) { recordName.textContent = displayName; }
+        if (recordSubtext) { recordSubtext.textContent = `${stageLabelText || 'Application'} • ${statusLabelText || 'In Progress'}`; }
         if (summaryName) {
           const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
           const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
@@ -1690,10 +1710,9 @@ export function normalizeContactId(input) {
           summaryName.setAttribute('data-role', 'favorite-host');
           summaryName.setAttribute('data-favorite-type', 'contact');
           summaryName.setAttribute('data-record-id', recordIdVal);
-          const label = (firstVal || lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
-          if (summaryText) { summaryText.textContent = label; }
-          else { summaryName.textContent = label; }
-          const avatarName = (firstVal || lastVal) ? label : '';
+          if (summaryText) { summaryText.textContent = displayName; }
+          else { summaryName.textContent = displayName; }
+          const avatarName = (firstVal || lastVal) ? displayName : '';
           applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
         }
         if (stageWrap) {
@@ -2964,8 +2983,17 @@ export function ensureContactModalShell(options = {}) {
   if (dlg && !dlg.__wired) {
     dlg.__wired = true;
     const markClosed = () => {
-      // FIX: Function body removed to prevent focus deadlocks
-      // The 'close' event listener now handles cleanup directly
+      try { closeContactEditor('modal-close-button'); }
+      catch (_) {
+        try { dlg.classList.add('hidden'); } catch (_) { }
+        try { dlg.removeAttribute('open'); } catch (_) { }
+        try { dlg.setAttribute('aria-hidden', 'true'); } catch (_) { }
+        try { if (dlg.style) { dlg.style.display = 'none'; dlg.style.pointerEvents = 'none'; } } catch (_) { }
+        if (dlg.dataset) {
+          dlg.dataset.open = '0';
+          dlg.dataset.opening = '0';
+        }
+      }
     };
     dlg.addEventListener('click', (event) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -3336,6 +3364,35 @@ function clearSurfaceSelection(surface, table, reason) {
   });
 }
 
+function wireContactRowSelection(table) {
+  if (!table || typeof table.querySelectorAll !== 'function') return;
+  table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
+    if (!node || node.__crmRowSelectionBound) return;
+    node.__crmRowSelectionBound = true;
+    node.addEventListener('change', () => {
+      const checked = !!node.checked;
+      try { node.setAttribute('aria-checked', checked ? 'true' : 'false'); }
+      catch (_) { }
+      const row = node.closest && node.closest('tr[data-id],tr[data-contact-id]');
+      const rowId = row && (row.getAttribute('data-id') || row.getAttribute('data-contact-id'));
+      if (row) {
+        try { row.setAttribute('data-selected', checked ? '1' : '0'); }
+        catch (_) { }
+      }
+      const store = typeof window !== 'undefined' ? window.SelectionStore : null;
+      if (store && typeof store.selectMany === 'function' && typeof store.clearMany === 'function') {
+        if (checked && rowId) {
+          try { store.selectMany([rowId], 'contacts'); }
+          catch (_) { }
+        } else if (rowId) {
+          try { store.clearMany([rowId], 'contacts'); }
+          catch (_) { }
+        }
+      }
+    });
+  });
+}
+
 function detachBinding(binding) {
   if (binding && binding.root && binding.handler) {
     try { binding.root.removeEventListener('click', binding.handler); }
@@ -3366,6 +3423,7 @@ function bindContactTables() {
       detachBinding(binding);
       return;
     }
+    wireContactRowSelection(table);
     if (binding.root === table && binding.bound) return;
     detachBinding(binding);
     const handler = (event) => {

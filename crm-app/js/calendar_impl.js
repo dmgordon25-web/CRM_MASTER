@@ -31,6 +31,7 @@ const EVENT_CATEGORIES = Object.freeze([
   { key: 'email', label: 'Email', icon: '✉️', type: 'task', accent: '--accent-task', tokens: ['email', 'mail'] },
   { key: 'sms', label: 'SMS', icon: '💬', type: 'task', accent: '--accent-task', tokens: ['sms', 'text', 'message'] },
   { key: 'meeting', label: 'Meeting', icon: '👥', type: 'contact', accent: '--accent-contact', tokens: ['meeting', 'appointment', 'birthday', 'anniversary', 'review'] },
+  { key: 'partner', label: 'Partner', icon: '🤝', type: 'partner', accent: '--accent-partner', tokens: ['partner', 'referral', 'lender', 'broker'] },
   { key: 'postal', label: 'Postal', icon: '📮', type: 'task', accent: '--accent-task', tokens: ['postal', 'mail', 'letter'] },
   { key: 'followup', label: 'Follow-up', icon: '🔔', type: 'task', accent: '--accent-task', tokens: ['follow-up', 'followup', 'follow', 'touch', 'reminder'] },
   { key: 'deadline', label: 'Deadline', icon: '⭐', type: 'milestone', accent: '--accent-milestone', tokens: ['milestone', 'deal', 'closing', 'deadline', 'funded', 'closing-watch'] },
@@ -286,6 +287,15 @@ function resolveEventTarget(event) {
   const hasTask = taskIds.size > 0;
   const hasContact = contactIds.size > 0;
   const hasPartner = partnerIds.size > 0;
+  const category = event && typeof event.category === 'string' ? event.category.toLowerCase() : '';
+
+  if (category === 'partner' && hasPartner) {
+    return { kind: 'partner', id: firstValue(partnerIds) };
+  }
+
+  if (category === 'contact' && hasContact && !hasPartner) {
+    return { kind: 'contact', id: firstValue(contactIds) };
+  }
 
   if (hasTask && (hints.task || (!hasContact && !hasPartner))) {
     return { kind: 'task', id: firstValue(taskIds) };
@@ -853,6 +863,8 @@ function metaForEvent(event) {
   const parts = [];
   const typeKey = eventTypeKey(event);
   if (typeKey) parts.push(typeKey);
+  if (event && event.partnerId) parts.push('partner');
+  if (event && event.contactId) parts.push('contact');
   const source = event && typeof event.source === 'object' ? event.source : null;
   if (source) {
     if (source.entity) parts.push(String(source.entity));

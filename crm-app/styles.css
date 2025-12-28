@@ -238,6 +238,7 @@ nav{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
 [data-qa="cal-legend"]{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-2) var(--space-3);border-radius:var(--radius-lg);background:var(--surface-subtle);border:1px solid var(--calendar-grid-line);box-shadow:0 6px 14px rgba(15,23,42,.06);}
 [data-qa="cal-legend"] [data-type]{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--font-size-sm);font-weight:600;letter-spacing:var(--letter-spacing-tight);color:var(--ink);--event-accent:var(--accent-other);}
 [data-qa="cal-legend"] [data-type="contact"],.event-chip[data-type="contact"]{--event-accent:var(--accent-contact);}
+[data-qa="cal-legend"] [data-type="partner"],.event-chip[data-type="partner"]{--event-accent:var(--accent-partner);}
 [data-qa="cal-legend"] [data-type="task"],.event-chip[data-type="task"]{--event-accent:var(--accent-task);}
 [data-qa="cal-legend"] [data-type="milestone"],.event-chip[data-type="milestone"]{--event-accent:var(--accent-milestone);}
 [data-qa="cal-legend"] [data-type="other"],.event-chip[data-type="other"]{--event-accent:var(--accent-other);}
@@ -1076,6 +1077,9 @@ table.list-table td[data-column="nextAction"] {
 .summary-metric .metric-label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#475569;margin-bottom:4px}
 .summary-metric .metric-value{font-size:16px;font-weight:700;color:var(--ink)}
 .modal-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,320px);gap:20px;align-items:start;min-width:0}
+.record-nameplate{display:flex;flex-direction:column;gap:4px;margin-bottom:4px}
+.record-nameplate .record-name{font-size:24px;font-weight:800;letter-spacing:.2px;color:var(--ink)}
+.record-nameplate .record-subtext{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b}
 .modal-main>.modal-core{display:flex;flex-direction:column;gap:16px;min-width:0}
 .modal-core .modal-content{display:flex;gap:32px;align-items:flex-start;min-width:0}
 .modal-main>[data-ui="contact-detail-pane"]{display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;position:relative}
