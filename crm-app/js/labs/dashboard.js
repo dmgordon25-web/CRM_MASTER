@@ -243,7 +243,30 @@ function runLabsParityDiagnostics(model) {
 
 const LABS_PRESETS = {
   overview: {
-    default: { label: 'Default layout' },
+    default: {
+      label: 'Default layout',
+      order: [
+        'focus', 'labsKpiSummary', 'labsPipelineSnapshot', 'goalProgress',
+        'labsTasks', 'today', 'todo', 'priorityActions', 'favorites',
+        'milestones',
+        'partnerPortfolio', 'referralLeaderboard', 'referralTrends', 'relationshipOpportunities',
+        'closingWatch', 'upcomingCelebrations'
+      ],
+      visibility: {
+        focus: true, labsKpiSummary: true, labsPipelineSnapshot: true, goalProgress: true,
+        labsTasks: true, today: true, todo: true, priorityActions: true, favorites: true,
+        milestones: true,
+        partnerPortfolio: true, referralLeaderboard: true, referralTrends: true, relationshipOpportunities: true,
+        closingWatch: true, upcomingCelebrations: true
+      },
+      widths: {
+        focus: 'w3', labsKpiSummary: 'w3', labsPipelineSnapshot: 'w3', goalProgress: 'w1',
+        labsTasks: 'w2', today: 'w2', todo: 'w2', priorityActions: 'w1', favorites: 'w1',
+        milestones: 'w2',
+        partnerPortfolio: 'w3', referralLeaderboard: 'w2', referralTrends: 'w2', relationshipOpportunities: 'w2',
+        closingWatch: 'w2', upcomingCelebrations: 'w2'
+      }
+    },
     kpiFocused: {
       label: 'KPI focus',
       order: ['labsKpiSummary', 'labsPipelineSnapshot', 'today', 'todo', 'favorites', 'labsTasks'],
@@ -491,6 +514,7 @@ const SECTIONS = [
       { id: 'todo', size: 'medium' },
       { id: 'priorityActions', size: 'medium' },
       { id: 'favorites', size: 'small' },
+      { id: 'milestones', size: 'medium' },
       // Partners & Referrals
       { id: 'partnerPortfolio', size: 'large' },
       { id: 'referralLeaderboard', size: 'medium' },
@@ -760,6 +784,9 @@ function createHeader() {
           <span class="labs-badge-beta">BETA</span>
         </h1>
         <p class="labs-subtitle">Canonical data • Alternate shell • Modern visuals</p>
+        <a href="#/dashboard" class="labs-link-legacy" style="display:inline-block; margin-top:4px; font-size:0.85rem; color:var(--text-muted); text-decoration:none; border-bottom:1px dashed currentColor;">
+          ← Return to Legacy Dashboard
+        </a>
       </div>
         <div class="labs-header-stats">
           <div class="header-stat">

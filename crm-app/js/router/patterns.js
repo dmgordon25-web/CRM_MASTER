@@ -3,50 +3,50 @@ const ROUTE_TABLE = [
   { segments: ['labs'], hash: '#/labs' },
   { segments: ['partners'], hash: '#/partners' },
   { segments: ['workbench'], hash: '#/workbench' },
-  { segments: [], hash: '#/dashboard', allowIndex: true }
+  { segments: [], hash: '#/labs', allowIndex: true }
 ];
 
 let warned = false;
 
-function toSegments(path){
-  if(typeof path !== 'string') return [];
+function toSegments(path) {
+  if (typeof path !== 'string') return [];
   return path
     .split('/')
     .map((segment) => segment.trim())
     .filter(Boolean);
 }
 
-function escapeRegex(value){
+function escapeRegex(value) {
   return String(value ?? '')
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function buildCanonicalPath(baseSegments, routeSegments){
+function buildCanonicalPath(baseSegments, routeSegments) {
   const combined = [...baseSegments, ...routeSegments]
     .map((segment) => String(segment || '').trim())
     .filter(Boolean);
-  if(combined.length === 0) return '/';
+  if (combined.length === 0) return '/';
   return `/${combined.join('/')}`;
 }
 
-function createFallbackTester(canonical, allowIndex){
+function createFallbackTester(canonical, allowIndex) {
   const normalized = canonical === '' ? '/' : canonical;
-  if(normalized === '/' || normalized === ''){
+  if (normalized === '/' || normalized === '') {
     return (path) => typeof path === 'string' && (path === '/' || path === '/index.html');
   }
   const trimmed = normalized.endsWith('/') ? normalized.replace(/\/+$/, '') : normalized;
   const trailing = `${trimmed}/`;
   return (path) => {
-    if(typeof path !== 'string' || !path) return false;
-    if(path === trimmed || path === trailing) return true;
-    if(allowIndex === true && path === `${trimmed}/index.html`){
+    if (typeof path !== 'string' || !path) return false;
+    if (path === trimmed || path === trailing) return true;
+    if (allowIndex === true && path === `${trimmed}/index.html`) {
       return true;
     }
     return path.startsWith(trailing);
   };
 }
 
-function compileRouteMatcher(baseSegments, definition){
+function compileRouteMatcher(baseSegments, definition) {
   const routeSegments = Array.isArray(definition.segments)
     ? definition.segments.map((segment) => String(segment || '').trim()).filter(Boolean)
     : [];
@@ -56,17 +56,17 @@ function compileRouteMatcher(baseSegments, definition){
   const pattern = canonical === '/'
     ? '^(?:/index\\.html)?/?$'
     : `^${escapeRegex(canonical)}${allowIndex ? '(?:/index\\.html)?' : ''}/?$`;
-  try{
+  try {
     const matcher = new RegExp(pattern);
     return {
       hash: definition.hash,
       preserveSearch,
-      test(path){
+      test(path) {
         return typeof path === 'string' && matcher.test(path);
       }
     };
-  }catch (err){
-    if(!warned && typeof console !== 'undefined' && console && typeof console.warn === 'function'){
+  } catch (err) {
+    if (!warned && typeof console !== 'undefined' && console && typeof console.warn === 'function') {
       warned = true;
       console.warn('[router] pattern compile failed; using fallback', {
         pattern,
@@ -81,61 +81,61 @@ function compileRouteMatcher(baseSegments, definition){
   }
 }
 
-export function compileRouteTable(basePath){
+export function compileRouteTable(basePath) {
   const segments = toSegments(basePath);
   return ROUTE_TABLE.map((definition) => compileRouteMatcher(segments, definition));
 }
 
-export function normalizePathname(pathname){
-  if(typeof pathname !== 'string' || pathname.length === 0) return '/';
+export function normalizePathname(pathname) {
+  if (typeof pathname !== 'string' || pathname.length === 0) return '/';
   let cleaned = pathname;
-  if(!cleaned.startsWith('/')) cleaned = `/${cleaned}`;
-  try{
+  if (!cleaned.startsWith('/')) cleaned = `/${cleaned}`;
+  try {
     cleaned = decodeURIComponent(cleaned);
-  }catch (_err){}
+  } catch (_err) { }
   cleaned = cleaned.replace(/\\/g, '/');
   cleaned = cleaned.replace(/\/+/g, '/');
-  if(cleaned.length > 1 && cleaned.endsWith('/')){
+  if (cleaned.length > 1 && cleaned.endsWith('/')) {
     cleaned = cleaned.replace(/\/+$/, '/');
   }
   return cleaned;
 }
 
-export function mergeMatchers(basePaths){
+export function mergeMatchers(basePaths) {
   const seen = new Set();
   const result = [];
   basePaths.forEach((base) => {
     const key = String(base || '/');
-    if(seen.has(key)) return;
+    if (seen.has(key)) return;
     seen.add(key);
     compileRouteTable(key).forEach((entry) => result.push(entry));
   });
   return result;
 }
 
-export function resolveRoute(pathname, matchers){
-  if(!Array.isArray(matchers) || matchers.length === 0) return null;
+export function resolveRoute(pathname, matchers) {
+  if (!Array.isArray(matchers) || matchers.length === 0) return null;
   const target = typeof pathname === 'string' ? pathname : '/';
-  for(const entry of matchers){
-    try{
-      if(entry && typeof entry.test === 'function' && entry.test(target)){
+  for (const entry of matchers) {
+    try {
+      if (entry && typeof entry.test === 'function' && entry.test(target)) {
         return {
           hash: entry.hash,
           preserveSearch: entry.preserveSearch === true
         };
       }
-    }catch (_err){}
+    } catch (_err) { }
   }
   return null;
 }
 
-export function normalizeBasePath(basePath){
-  if(typeof basePath !== 'string' || basePath.length === 0) return '/';
+export function normalizeBasePath(basePath) {
+  if (typeof basePath !== 'string' || basePath.length === 0) return '/';
   let normalized = basePath;
-  if(!normalized.startsWith('/')) normalized = `/${normalized}`;
+  if (!normalized.startsWith('/')) normalized = `/${normalized}`;
   normalized = normalized.replace(/\\/g, '/');
   normalized = normalized.replace(/\/+/g, '/');
-  if(!normalized.endsWith('/')) normalized = `${normalized}/`;
-  if(normalized === '//') return '/';
+  if (!normalized.endsWith('/')) normalized = `${normalized}/`;
+  if (normalized === '//') return '/';
   return normalized;
 }

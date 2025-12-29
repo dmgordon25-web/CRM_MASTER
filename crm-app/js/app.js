@@ -192,8 +192,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function preferredDefaultRoute() {
     if (isSimpleMode()) return SIMPLE_DEFAULT_ROUTE;
     const homeView = getHomeViewPreference();
-    return homeView === 'labs' ? 'labs' : DEFAULT_ROUTE;
+    console.log('[DEBUG] preferredDefaultRoute: homeView=', homeView);
+    // Phase 2C: Default to Labs unless user explicitly prefers legacy dashboard
+    return homeView === 'dashboard' ? 'dashboard' : 'labs';
   }
+
 
   function applyActionBarIdleVisibility(route) {
     const bar = getActionBarNode();
@@ -495,7 +498,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       } catch (err) { logAppError('route:reset-notifications-hash', err); }
       return;
     }
-    if (hash && hash !== '#') return;
+    if (hash && hash !== '#') {
+      return;
+    }
     const targetHash = `#/${defaultRoute}`;
     try {
       window.location.hash = targetHash;
@@ -509,7 +514,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (err) { logAppError('route:replace-default', err); }
   }
 
-  ensureDefaultRoute();
+  onDomReady(() => {
+    try {
+      console.error('[DEBUG] onDomReady: Calling ensureDefaultRoute');
+      ensureDefaultRoute();
+    } catch (err) {
+      console.error('[DEBUG] ensureDefaultRoute failed', err);
+    }
+  });
 
 
   try {

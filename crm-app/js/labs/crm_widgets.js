@@ -37,6 +37,10 @@ import {
 import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { loadTodoItems, saveTodoItems, generateId } from '../dashboard/widgets/todo_widget.js';
+// Drilldown Editors
+import { openTaskEditor } from '../ui/quick_create_menu.js';
+import { openContactEditor } from '../contacts.js';
+import { openPartnerEditor } from '../editors/partner_entry.js';
 
 const DAY_MS = 86400000;
 
@@ -652,18 +656,21 @@ export function renderLabsTasksWidget(container, model) {
           </div>
         `;
 
-        // Click-to-editor: navigate to contact view
-        const contactId = entry.task.contactId;
-        if (contactId) {
+        if (entry.task.id) {
+          row.dataset.taskId = entry.task.id;
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
         }
 
         list.appendChild(row);
+      });
+
+      // Delegated click handler for tasks
+      list.addEventListener('click', (e) => {
+        const row = e.target.closest('.labs-task-row');
+        if (!row || !row.dataset.taskId) return;
+        openTaskEditor({ id: row.dataset.taskId, sourceHint: 'labs-dashboard' });
       });
 
       el.appendChild(list);
@@ -1319,6 +1326,7 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
     renderWidgetBody(shell, (body) => {
       const list = document.createElement('div');
       list.className = 'labs-row-list';
+      list.setAttribute('data-role', 'referral-list');
 
       topPartners.forEach((partner, idx) => {
         const partnerDisplay = {
@@ -1339,20 +1347,26 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
           barAriaLabel: `Referral volume ${numericVolume || 0} of ${maxVolume || numericVolume || 1}`
         });
 
-        if (onPortfolioSegment && partnerDisplay.id) {
+        // Parity: Ensure clickable for Editor
+        if (partnerDisplay.id) {
           row.classList.add('labs-row--clickable');
-          row.addEventListener('click', () => {
-            const label = partnerDisplay.name || 'Referral partner';
-            onPortfolioSegment({
-              domain: 'loans',
-              type: 'referrals',
-              key: partnerDisplay.id,
-              label
-            });
-          });
+          row.setAttribute('data-role', 'referral-row');
+          row.setAttribute('data-partner-id', partnerDisplay.id);
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
         }
 
         list.appendChild(row);
+      });
+
+      // Delegated click handler
+      list.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="referral-row"]');
+        if (!target) return;
+        const partnerId = target.getAttribute('data-partner-id');
+        if (partnerId) {
+          openPartnerEditor(partnerId, { source: 'labs-referral' });
+        }
       });
 
       body.innerHTML = '';
@@ -1362,7 +1376,7 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
     console.error('[labs] referral leaderboard render failed', err);
     shell = renderWidgetShell(container, widgetSpec('referralLeaderboard', {
       status: 'error',
-      errorMessage: 'Unable to load referral leaders'
+      errorMessage: 'Unable to load leaderboard'
     }));
   }
 
@@ -1578,9 +1592,15 @@ export function renderTodayWidget(container, model) {
           <div class="today-time">${task.dueTime || 'All day'}</div>
         `;
         row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-type', 'task');
         row.setAttribute('data-widget', 'today');
         row.setAttribute('data-dash-widget', 'today');
         row.setAttribute('data-widget-id', 'today');
+
+        if (task.id) {
+          row.setAttribute('data-task-id', task.id);
+        }
+
         if (task.contactId) {
           row.setAttribute('data-contact-id', task.contactId);
           row.setAttribute('data-id', task.contactId);
@@ -1608,6 +1628,7 @@ export function renderTodayWidget(container, model) {
           <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
         `;
         row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-type', 'appointment');
         row.setAttribute('data-widget', 'today');
         row.setAttribute('data-dash-widget', 'today');
         row.setAttribute('data-widget-id', 'today');
@@ -1637,6 +1658,7 @@ export function renderTodayWidget(container, model) {
           <div class="today-time">${formatDate(cel.date)}</div>
         `;
         row.setAttribute('data-role', 'today-row');
+        row.setAttribute('data-type', 'celebration');
         row.setAttribute('data-widget', 'today');
         row.setAttribute('data-dash-widget', 'today');
         row.setAttribute('data-widget-id', 'today');
@@ -1654,12 +1676,33 @@ export function renderTodayWidget(container, model) {
       list.addEventListener('click', (event) => {
         const target = event.target.closest('[data-role="today-row"]');
         if (!target) return;
-        const contactId = target.getAttribute('data-contact-id');
-        const partnerId = target.getAttribute('data-partner-id');
-        if (contactId) {
-          window.location.hash = `#/contacts/${contactId}`;
-        } else if (partnerId) {
-          window.location.hash = `#/partners/${partnerId}`;
+
+        const type = target.getAttribute('data-type') || 'task'; // default to task for legacy rows
+
+        if (type === 'task') {
+          // Try to get task ID first
+          const taskId = target.getAttribute('data-task-id');
+          if (taskId) {
+            openTaskEditor({ id: taskId, sourceHint: 'labs-today' });
+            return;
+          }
+
+          // Fallback to contact/partner if no task ID (legacy data)
+          const contactId = target.getAttribute('data-contact-id');
+          const partnerId = target.getAttribute('data-partner-id');
+          if (contactId) {
+            openContactEditor(contactId, { source: 'labs-today' });
+          } else if (partnerId) {
+            openPartnerEditor(partnerId, { source: 'labs-today' });
+          }
+          return;
+        }
+
+        if (type === 'appointment' || type === 'celebration') {
+          const contactId = target.getAttribute('data-contact-id');
+          if (contactId) {
+            openContactEditor(contactId, { source: 'labs-today' });
+          }
         }
       });
 
@@ -2077,12 +2120,19 @@ export function renderPriorityActionsWidget(container, model) {
       listEl.addEventListener('click', (event) => {
         const target = event.target.closest('[data-role="priority-row"]');
         if (!target) return;
+
+        const taskId = target.getAttribute('data-task-id');
+        if (taskId) {
+          openTaskEditor({ id: taskId, sourceHint: 'labs-priority' });
+          return;
+        }
+
         const contactId = target.getAttribute('data-contact-id');
         const partnerId = target.getAttribute('data-partner-id');
         if (contactId) {
-          window.location.hash = `#/contacts/${contactId}`;
+          openContactEditor(contactId, { source: 'labs-priority' });
         } else if (partnerId) {
-          window.location.hash = `#/partners/${partnerId}`;
+          openPartnerEditor(partnerId, { source: 'labs-priority' });
         }
       });
 
@@ -2120,6 +2170,7 @@ export function renderMilestonesWidget(container, model) {
     renderWidgetBody(shell, (body) => {
       const list = document.createElement('div');
       list.className = 'milestone-list';
+      list.setAttribute('data-role', 'milestone-list');
 
       appointments.slice(0, 6).forEach((appt, idx) => {
         const row = document.createElement('div');
@@ -2133,23 +2184,27 @@ export function renderMilestonesWidget(container, model) {
           <div class="milestone-date">${formatDate(appt.due || appt.dueTs)}</div>
         `;
 
-        // Click-to-editor: navigate to contact view
+        // Data attributes for delegation
         const contactId = appt.contactId || (appt.contact && appt.contact.id);
         if (contactId) {
+          row.setAttribute('data-role', 'milestone-row');
           row.setAttribute('data-contact-id', contactId);
-          row.setAttribute('data-id', contactId);
-          row.setAttribute('data-widget', 'milestonesAhead');
-          row.setAttribute('data-dash-widget', 'milestonesAhead');
-          row.setAttribute('data-widget-id', 'milestonesAhead');
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
         }
 
         list.appendChild(row);
+      });
+
+      // Delegated click handler
+      list.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="milestone-row"]');
+        if (!target) return;
+        const contactId = target.getAttribute('data-contact-id');
+        if (contactId) {
+          openContactEditor(contactId, { source: 'labs-milestones' });
+        }
       });
 
       body.appendChild(list);
@@ -2212,18 +2267,27 @@ export function renderUpcomingCelebrationsWidget(container, model) {
           <div class="celebration-date">${formatDate(cel.date)}</div>
         `;
 
-        // Click-to-editor: navigate to contact view
+        // Data attributes for delegation
         const contactId = cel.contact?.id || cel.contact?.contactId || cel.contactId;
         if (contactId) {
+          row.setAttribute('data-role', 'celebration-row');
+          row.setAttribute('data-contact-id', contactId);
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
         }
 
         list.appendChild(row);
+      });
+
+      // Delegated click handler
+      list.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="celebration-row"]');
+        if (!target) return;
+        const contactId = target.getAttribute('data-contact-id');
+        if (contactId) {
+          openContactEditor(contactId, { source: 'labs-celebrations' });
+        }
       });
 
       body.appendChild(list);
@@ -2540,18 +2604,27 @@ export function renderPipelineCalendarWidget(container, model) {
           </div>
         `;
 
-        // Click-to-editor: navigate to contact view
+        // Data attributes for delegation
         const contactId = appt.contactId || (appt.contact && appt.contact.id);
         if (contactId) {
+          row.setAttribute('data-role', 'timeline-row');
+          row.setAttribute('data-contact-id', contactId);
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
         }
 
         list.appendChild(row);
+      });
+
+      // Delegated click handler
+      list.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="timeline-row"]');
+        if (!target) return;
+        const contactId = target.getAttribute('data-contact-id');
+        if (contactId) {
+          openContactEditor(contactId, { source: 'labs-pipeline-calendar' });
+        }
       });
 
       body.appendChild(list);
@@ -2609,18 +2682,39 @@ export function renderFavoritesWidget(container, model) {
           <div class="favorite-stage">${stageLabel}</div>
         `;
 
-        // Click-to-editor: navigate to contact view
+        // Data attributes for delegation
         const contactId = lead.id || lead.contactId;
+        const type = lead.type || (contactId && contactId.startsWith('p-') ? 'partner' : 'contact');
+
+        row.setAttribute('data-role', 'favorite-row');
         if (contactId) {
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
-          row.addEventListener('click', () => {
-            window.location.hash = `#/contacts/${contactId}`;
-          });
+          if (type === 'partner') {
+            row.setAttribute('data-partner-id', contactId);
+          } else {
+            row.setAttribute('data-contact-id', contactId);
+          }
         }
 
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+
         listEl.appendChild(row);
+      });
+
+      // Delegated click handler
+      listEl.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-role="favorite-row"]');
+        if (!target) return;
+
+        const contactId = target.getAttribute('data-contact-id');
+        const partnerId = target.getAttribute('data-partner-id');
+
+        if (contactId) {
+          openContactEditor(contactId, { source: 'labs-favorites' });
+        } else if (partnerId) {
+          openPartnerEditor(partnerId, { source: 'labs-favorites' });
+        }
       });
 
       body.appendChild(listEl);

@@ -126,7 +126,7 @@ function cloneSimpleModeDefaults() {
 
 function normalizeHomeView(value) {
   const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return text === 'labs' ? 'labs' : 'dashboard';
+  return text === 'dashboard' ? 'dashboard' : 'labs';
 }
 
 function writeHomeViewFallback(value) {

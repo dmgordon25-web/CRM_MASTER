@@ -9,7 +9,7 @@ let hydrating = false;
 
 function normalizeHomeView(value) {
   const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return text === HOME_VIEW_LABS ? HOME_VIEW_LABS : HOME_VIEW_DASHBOARD;
+  return text === HOME_VIEW_DASHBOARD ? HOME_VIEW_DASHBOARD : HOME_VIEW_LABS;
 }
 
 function readLocal() {
@@ -28,10 +28,10 @@ function writeLocal(value) {
 }
 
 async function hydrateFromSettings() {
-  if (hydrating) return cached || HOME_VIEW_DASHBOARD;
+  if (hydrating) return cached || HOME_VIEW_LABS;
   const settingsApi = getSettingsApi();
   if (!settingsApi || typeof settingsApi.get !== 'function') {
-    return cached || HOME_VIEW_DASHBOARD;
+    return cached || HOME_VIEW_LABS;
   }
   hydrating = true;
   try {
@@ -41,7 +41,7 @@ async function hydrateFromSettings() {
     writeLocal(preference);
     return preference;
   } catch (_err) {
-    return cached || HOME_VIEW_DASHBOARD;
+    return cached || HOME_VIEW_LABS;
   } finally {
     hydrating = false;
   }
@@ -50,7 +50,7 @@ async function hydrateFromSettings() {
 function ensureInitialized() {
   if (cached) return cached;
   const localValue = readLocal();
-  cached = localValue || HOME_VIEW_DASHBOARD;
+  cached = localValue || HOME_VIEW_LABS;
   hydrateFromSettings();
   return cached;
 }
