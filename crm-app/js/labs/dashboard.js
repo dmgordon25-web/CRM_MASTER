@@ -1227,8 +1227,8 @@ function registerResizeHandles(section, grid) {
 
   let active = null;
 
-  const onMouseMove = (evt) => {
-    if (!active) return;
+  const onPointerMove = (evt) => {
+    if (!active || evt.pointerId !== active.pointerId) return;
     const dx = evt.clientX - active.startX;
     const threshold = 50;
     let delta = 0;
@@ -1243,37 +1243,51 @@ function registerResizeHandles(section, grid) {
     applyWidthClass(active.item, nextToken);
     if (active.content) applyWidthClass(active.content, nextToken);
 
-    // We defer persistence to mouseup to avoid thrashing storage
+    // We defer persistence to pointerup to avoid thrashing storage
     if (resizable && typeof resizable.reflow === 'function') {
       resizable.reflow();
     }
   };
 
-  const stop = () => {
+  const stop = (evt) => {
     if (active) {
+      if (active.handle) {
+         try {
+           active.handle.releasePointerCapture(evt.pointerId);
+           active.handle.removeEventListener('pointermove', onPointerMove);
+           active.handle.removeEventListener('pointerup', stop);
+           active.handle.removeEventListener('pointercancel', stop);
+         } catch (_e) { }
+      }
       if (active.token) {
         setWidgetWidthToken(active.sectionId, active.widgetId, active.token);
       }
       active = null;
     }
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', stop);
   };
 
-  const onMouseDown = (evt) => {
+  const onPointerDown = (evt) => {
     if (!labsLayoutEditMode) return;
     const handle = evt.target.closest('[data-labs-resize-handle]');
     if (!handle) return;
     const item = handle.closest('.labs-grid-item');
     if (!item) return;
+    
+    // Only primary button
+    if (evt.button !== 0) return;
+
     evt.preventDefault();
     evt.stopPropagation();
+
     const widgetId = item.dataset.widgetId || '';
     if (!widgetId) return;
     const content = item.querySelector('.labs-widget-container');
     const initialToken = WIDTH_TOKENS.find((token) => item.classList.contains(`labs-${token}`))
       || getWidgetWidthToken(section.id, { id: widgetId });
+
     active = {
+      pointerId: evt.pointerId,
+      handle,
       widgetId,
       sectionId: section.id,
       item,
@@ -1281,16 +1295,20 @@ function registerResizeHandles(section, grid) {
       startX: evt.clientX,
       token: initialToken
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', stop);
+
+    handle.setPointerCapture(evt.pointerId);
+    handle.addEventListener('pointermove', onPointerMove);
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
   };
 
-  grid.addEventListener('mousedown', onMouseDown);
+  grid.addEventListener('pointerdown', onPointerDown);
 
   const teardown = () => {
-    grid.removeEventListener('mousedown', onMouseDown);
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', stop);
+    grid.removeEventListener('pointerdown', onPointerDown);
+    if (active && active.handle) {
+       try { active.handle.releasePointerCapture(active.pointerId); } catch(e){}
+    }
   };
 
   labsResizeControllers.set(section.id, teardown);
