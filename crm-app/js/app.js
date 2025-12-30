@@ -516,7 +516,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
   onDomReady(() => {
     try {
-      console.error('[DEBUG] onDomReady: Calling ensureDefaultRoute');
+      console.log('[DEBUG] onDomReady: Calling ensureDefaultRoute');
       ensureDefaultRoute();
     } catch (err) {
       console.error('[DEBUG] ensureDefaultRoute failed', err);

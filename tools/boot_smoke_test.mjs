@@ -192,7 +192,7 @@ async function run() {
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
   await hardClearOverlays(page);
-  await seedPriorityActions(page);
+  // await seedPriorityActions(page); // Moved after Dashboard nav check
 
   async function seedPriorityActions(pageRef) {
     await pageRef.evaluate(async () => {
@@ -256,22 +256,25 @@ async function run() {
     });
   }
 
-  /* Phase 8 Fix: App now defaults to Labs in some modes. Handle this */
-  const labsActive = page.locator('#main-nav button[data-nav="labs"].active');
-  if ((await labsActive.count()) > 0) {
-    console.log('[boot-smoke] Labs active at boot, switching to Dashboard...');
-    await page.click('#main-nav button[data-nav="dashboard"]');
-    await page.waitForTimeout(500);
+  // Explicitly ensure Dashboard is active
+  await page.waitForSelector('#main-nav', { state: 'visible', timeout: 15000 });
+  const dashboardBtn = page.locator('#main-nav button[data-nav="dashboard"]');
+  const isDashActive = await dashboardBtn.getAttribute('class').then(c => c && c.includes('active'));
+
+  if (!isDashActive) {
+    console.log('[boot-smoke] Switching to Dashboard...');
+    await dashboardBtn.click();
+    await page.waitForTimeout(200);
   }
 
-  const dashActive = page.locator('#main-nav button[data-nav="dashboard"].active');
-  if (await dashActive.count() === 0) {
-    throw new Error('Dashboard nav is not active at boot (even after attempted switch)');
-  }
   await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 15000 });
   await page.evaluate(() => { window.scrollTo(0, 0); });
   await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
   await page.waitForTimeout(200);
+
+  // Seed AFTER we are strictly on Dashboard
+  await seedPriorityActions(page);
+
   await hardClearOverlays(page);
   await hardCloseContactModal(page);
 
@@ -318,7 +321,7 @@ async function run() {
         overlays: overlays.map(describeEl)
       };
     }, label);
-    console.log('[boot-smoke][diag]', info);
+    // console.log('[boot-smoke][diag]', info);
   };
 
   const logModalDiagnostics = async (label) => {
@@ -343,7 +346,7 @@ async function run() {
       const dataUiModal = document.querySelector('[data-ui="contact-edit-modal"]');
       return { label: lbl, dialog: describeEl(dialogModal), dataUi: describeEl(dataUiModal) };
     }, label);
-    console.log('[boot-smoke][modal-diag]', info);
+    // console.log('[boot-smoke][modal-diag]', info);
   };
 
   const priorityRowSelector = '#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]';
@@ -386,7 +389,7 @@ async function run() {
 
   const openFirstPriorityAction = async () => {
     const card = page.locator('#priority-actions-card');
-    await card.waitFor({ state: 'attached', timeout: 30000 });
+    await card.waitFor({ state: 'visible', timeout: 30000 });
     await page.evaluate(() => {
       const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
       if (!el) return null;
@@ -468,25 +471,51 @@ async function run() {
     throw new Error('Unable to open contact modal from Priority Actions after retries');
   };
 
-  await openFirstPriorityAction();
-  await waitForContactModal();
-  await hardCloseContactModal(page);
-  await hardClearOverlays(page);
-
-  await openFirstPriorityAction();
-  await waitForContactModal();
-  await hardCloseContactModal(page);
-  await hardClearOverlays(page);
-
-  const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
-  for (const nav of navTargets) {
-    await hardClearOverlays(page);
+  try {
+    await openFirstPriorityAction();
+    await waitForContactModal();
     await hardCloseContactModal(page);
-    const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
-    if (await btn.count() > 0) {
-      await btn.first().click();
+    await hardClearOverlays(page);
+
+    await openFirstPriorityAction();
+    await waitForContactModal();
+    await hardCloseContactModal(page);
+    await hardClearOverlays(page);
+
+    const navTargets = ['dashboard', 'labs', 'pipeline', 'partners', 'contacts', 'calendar', 'settings'];
+    for (const nav of navTargets) {
+      await hardClearOverlays(page);
+      await hardCloseContactModal(page);
+      const btn = page.locator(`#main-nav button[data-nav="${nav}"]`);
+      if (await btn.count() > 0) {
+        await btn.first().click();
+      }
+      await page.waitForSelector(`#view-${nav}`, { state: 'visible', timeout: 10000 }).catch(() => { });
     }
-    await page.waitForSelector(`#view-${nav}`, { state: 'visible', timeout: 10000 }).catch(() => { });
+  } catch (err) {
+    const diag = await page.evaluate(() => {
+      const url = window.location.href;
+      const viewDashboard = document.getElementById('view-dashboard');
+      const viewLabs = document.getElementById('view-labs');
+      const isVisible = (el) => {
+        if (!el) return false;
+        const cs = getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && el.offsetParent !== null;
+      };
+      const activeRoot = isVisible(viewDashboard) ? 'dashboard/visible' : (isVisible(viewLabs) ? 'labs/visible' : 'unknown/hidden');
+
+      const targetSelector = '#priority-actions-card #needs-attn li[data-contact-id]';
+      const target = document.querySelector(targetSelector);
+      const targetStatus = target ? {
+        found: true,
+        visible: isVisible(target),
+        rect: target.getBoundingClientRect().toJSON(),
+      } : { found: false };
+
+      return { url, activeRoot, targetStatus };
+    });
+    console.log('[boot-smoke] FAILURE DIAGNOSTICS:\n', JSON.stringify(diag, null, 2));
+    throw err;
   }
 
   // Labs module sanity check
