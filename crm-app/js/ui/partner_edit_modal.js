@@ -274,7 +274,7 @@ function updateSummary(root) {
   const focus = focusSelect?.value || 'Purchase';
   const cadence = cadenceSelect?.value || 'Monthly';
   if (summaryName) {
-    const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+    const summaryText = summaryName.querySelector('[data-role="record-name-text"]');
     const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
     const label = company ? `${name} · ${company}` : name;
     if (summaryText) { summaryText.textContent = label; }

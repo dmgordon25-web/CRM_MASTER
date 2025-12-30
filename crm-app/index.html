@@ -1829,15 +1829,14 @@
               <aside class="modal-summary" id="partner-summary">
                 <div class="identity-header" id="p-summary-name" data-role="favorite-host" data-favorite-type="partner"
                   data-record-id="">
-                  <div class="identity-primary">
+                  <div class="identity-primary" data-role="record-nameplate" data-record-type="partner">
                     <span aria-hidden="true" class="summary-avatar is-empty" data-initials="?"
                       data-role="summary-avatar"></span>
-                    <span class="summary-name-text" data-role="summary-name-text">
-                      New Partner
-                    </span>
+                    <span class="summary-name-text" data-role="record-name-text">New Partner</span>
                     <span class="summary-actions" data-role="favorite-actions"></span>
                   </div>
                   <div class="identity-secondary">
+                    <span hidden data-role="record-name-subtext">Developing • Realtor Partner</span>
                     <span class="summary-chip" id="p-summary-tier">
                       Tier — Developing
                     </span>
@@ -2111,10 +2110,13 @@
     <div class="modal-form-layout">
       <aside class="modal-summary">
         <div class="" data-role="favorite-host" data-favorite-type="contact" data-record-id="">
-          <span class="summary-name-text" data-role="summary-name-text"></span>
-          <span class="summary-actions" data-role="favorite-actions"></span>
+          <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
+            <span class="summary-name-text" data-role="record-name-text">New Contact</span>
+            <span class="summary-actions" data-role="favorite-actions"></span>
+          </div>
         </div>
         <div class="summary-meta">
+          <span hidden data-role="record-name-subtext">Application • In Progress</span>
           <span data-role="stage-chip-wrapper" data-stage=""></span>
           <span class="status-pill" data-status=""></span>
         </div>

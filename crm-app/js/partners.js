@@ -287,6 +287,7 @@ async function openReferralRollupModal() {
 }
 
 function ensurePartnersBoot(ctx) {
+  if (typeof window === 'undefined') return false;
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if (window.__INIT_FLAGS__.partners_plus) return false;
   window.__INIT_FLAGS__.partners_plus = true;
@@ -1162,7 +1163,9 @@ function ensurePartnersBoot(ctx) {
   return true;
 }
 
-ensurePartnersBoot();
+if (typeof window !== 'undefined') {
+  ensurePartnersBoot();
+}
 
 function ensureFullPartnerButton() {
   if (typeof document === 'undefined') return;

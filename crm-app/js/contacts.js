@@ -135,8 +135,10 @@ async function computeMissingDocsGuarded(docs, loanType, options) {
   return { missing: missing.join(', '), missingList: missing, missingConfig };
 }
 
-if (typeof window.getRequiredDocsGuarded !== 'function') window.getRequiredDocsGuarded = getRequiredDocsGuarded;
-if (typeof window.computeMissingDocsGuarded !== 'function') window.computeMissingDocsGuarded = computeMissingDocsGuarded;
+if (typeof window !== 'undefined') {
+  if (typeof window.getRequiredDocsGuarded !== 'function') window.getRequiredDocsGuarded = getRequiredDocsGuarded;
+  if (typeof window.computeMissingDocsGuarded !== 'function') window.computeMissingDocsGuarded = computeMissingDocsGuarded;
+}
 
 // [PATCH] Fix ReferenceError causing crash on view transition
 const closeContactEntry = (reason) => {
@@ -247,6 +249,7 @@ export function normalizeContactId(input) {
 
 // contacts.js — modal guards + renderer (2025-09-17)
 (function () {
+  if (typeof window === 'undefined') return;
   if (!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if (window.__INIT_FLAGS__.contacts_modal_guards) return;
   window.__INIT_FLAGS__.contacts_modal_guards = true;
@@ -806,2109 +809,2112 @@ export function normalizeContactId(input) {
     }
   };
 
-  window.renderContactModal = async function (contactId, rawOptions) {
-    console.log('[CONTACTS_DEBUG] renderContactModal called', contactId);
-    const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
-    const normalizedPrefetch = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
-      ? normalizeNewContactPrefill(options.prefetchedRecord)
-      : null;
-    if (normalizedPrefetch) {
-      options.prefetchedRecord = normalizedPrefetch;
-    }
-    let closeDialog = () => { };
-    try {
-      const requestedId = normalizeContactId(options.contactId || contactId || (normalizedPrefetch ? normalizedPrefetch.id : ''));
-      const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
-      const invoker = options.invoker instanceof HTMLElement
-        ? options.invoker
-        : resolveContactModalInvoker(options);
-
-      let base = null;
-      if (options.host instanceof HTMLElement) {
-        base = tagContactModal(options.host);
-      } else {
-        base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
-        base = base instanceof Promise ? await base : base;
+  if (typeof window !== 'undefined') {
+    window.renderContactModal = async function (contactId, rawOptions) {
+      console.log('[CONTACTS_DEBUG] renderContactModal called', contactId);
+      const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
+      const normalizedPrefetch = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
+        ? normalizeNewContactPrefill(options.prefetchedRecord)
+        : null;
+      if (normalizedPrefetch) {
+        options.prefetchedRecord = normalizedPrefetch;
       }
-      console.log('[CONTACTS_DEBUG] base modal resolved', base);
-      if (!base) {
-        try { console && console.warn && console.warn('[contact-editor]', 'host missing'); }
-        catch (_warn) { }
-        toastWarn('Contact editor host missing');
-        return null;
-      }
+      let closeDialog = () => { };
+      try {
+        const requestedId = normalizeContactId(options.contactId || contactId || (normalizedPrefetch ? normalizedPrefetch.id : ''));
+        const sourceHint = typeof options.sourceHint === 'string' ? options.sourceHint.trim() : '';
+        const invoker = options.invoker instanceof HTMLElement
+          ? options.invoker
+          : resolveContactModalInvoker(options);
 
-      const dlg = base;
+        let base = null;
+        if (options.host instanceof HTMLElement) {
+          base = tagContactModal(options.host);
+        } else {
+          base = ensureSingletonModal(CONTACT_MODAL_KEY, () => ensureContactModalShell());
+          base = base instanceof Promise ? await base : base;
+        }
+        console.log('[CONTACTS_DEBUG] base modal resolved', base);
+        if (!base) {
+          try { console && console.warn && console.warn('[contact-editor]', 'host missing'); }
+          catch (_warn) { }
+          toastWarn('Contact editor host missing');
+          return null;
+        }
 
-      if (dlg && dlg.style) {
-        dlg.style.pointerEvents = 'auto';
-        dlg.removeAttribute('aria-hidden');
-      }
-      const dlgShell = dlg ? dlg.querySelector('.dlg') : null;
-      if (dlgShell && dlgShell.style) {
-        dlgShell.style.pointerEvents = 'auto';
-      }
+        const dlg = base;
 
-      // FIX: DISARM FOCUS TRAP
-      // We capture the invoker but set the dialog property to NULL temporarily.
-      // This prevents the 'close' event handler from trying to restore focus
-      // while we are simply resetting the modal for a new record.
-      const nextInvoker = invoker || dlg.__contactInvoker || null;
-      dlg.__contactInvoker = null;
+        if (dlg && dlg.style) {
+          dlg.style.pointerEvents = 'auto';
+          dlg.removeAttribute('aria-hidden');
+        }
+        const dlgShell = dlg ? dlg.querySelector('.dlg') : null;
+        if (dlgShell && dlgShell.style) {
+          dlgShell.style.pointerEvents = 'auto';
+        }
 
-      if (dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function') {
-        try { dlg.__contactScrollRestore(); } catch (_err) { }
-      }
-      dlg.__contactScrollRestore = acquireContactScrollLock();
-      if (!dlg.__contactScrollCleanupBound) {
-        dlg.addEventListener('close', () => {
-          try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
-          if (dlg.__contactScrollRestore) {
-            releaseContactScrollLock(dlg.__contactScrollRestore);
-            dlg.__contactScrollRestore = null;
-          } else {
-            releaseContactScrollLock();
-          }
-        });
-        dlg.__contactScrollCleanupBound = true;
-      }
+        // FIX: DISARM FOCUS TRAP
+        // We capture the invoker but set the dialog property to NULL temporarily.
+        // This prevents the 'close' event handler from trying to restore focus
+        // while we are simply resetting the modal for a new record.
+        const nextInvoker = invoker || dlg.__contactInvoker || null;
+        dlg.__contactInvoker = null;
 
-      // if (dlg.hasAttribute('open')) {
-      //   try { dlg.close(); } catch (_err) { }
-      // }
+        if (dlg.__contactScrollRestore && typeof dlg.__contactScrollRestore === 'function') {
+          try { dlg.__contactScrollRestore(); } catch (_err) { }
+        }
+        dlg.__contactScrollRestore = acquireContactScrollLock();
+        if (!dlg.__contactScrollCleanupBound) {
+          dlg.addEventListener('close', () => {
+            try { closeQuickAddOverlayIfOpen(); } catch (_err) { }
+            if (dlg.__contactScrollRestore) {
+              releaseContactScrollLock(dlg.__contactScrollRestore);
+              dlg.__contactScrollRestore = null;
+            } else {
+              releaseContactScrollLock();
+            }
+          });
+          dlg.__contactScrollCleanupBound = true;
+        }
 
-      // Restore invoker for the actual session
-      dlg.__contactInvoker = nextInvoker;
+        // if (dlg.hasAttribute('open')) {
+        //   try { dlg.close(); } catch (_err) { }
+        // }
 
-      // ... continue with dlg.style.display='block' ...
-      // dlg.style.display = 'block'; // FIXED: Removed to allow showModal() to work correctly
-      console.log('[CONTACTS_DEBUG] showing modal', dlg);
-      let opened = false;
-      if (typeof dlg.showModal === 'function') {
-        try { dlg.showModal(); opened = true; }
-        catch (err) { console.log('[CONTACTS_DEBUG] showModal failed', err); }
-      }
-      if (!opened) {
+        // Restore invoker for the actual session
+        dlg.__contactInvoker = nextInvoker;
+
+        // ... continue with dlg.style.display='block' ...
+        // dlg.style.display = 'block'; // FIXED: Removed to allow showModal() to work correctly
+        console.log('[CONTACTS_DEBUG] showing modal', dlg);
+        let opened = false;
+        if (typeof dlg.showModal === 'function') {
+          try { dlg.showModal(); opened = true; }
+          catch (err) { console.log('[CONTACTS_DEBUG] showModal failed', err); }
+        }
+        if (!opened) {
+          try { dlg.setAttribute('open', ''); }
+          catch (_) { }
+        }
         try { dlg.setAttribute('open', ''); }
         catch (_) { }
-      }
-      try { dlg.setAttribute('open', ''); }
-      catch (_) { }
 
-      if (dlg.dataset) {
-        dlg.dataset.open = '0';
-        dlg.dataset.opening = '1';
-        dlg.dataset.sourceHint = sourceHint || '';
-      }
-      if (sourceHint) {
-        dlg.setAttribute('data-source-hint', sourceHint);
-      } else {
-        try { dlg.removeAttribute('data-source-hint'); }
-        catch (_err) { }
-      }
+        if (dlg.dataset) {
+          dlg.dataset.open = '0';
+          dlg.dataset.opening = '1';
+          dlg.dataset.sourceHint = sourceHint || '';
+        }
+        if (sourceHint) {
+          dlg.setAttribute('data-source-hint', sourceHint);
+        } else {
+          try { dlg.removeAttribute('data-source-hint'); }
+          catch (_err) { }
+        }
 
-      const ensureModalAddButton = () => {
-        const bodyHost = dlg.querySelector('.modal-body');
-        if (!bodyHost) return;
-        let btn = bodyHost.querySelector('button[data-role="contact-modal-add-contact"]');
-        if (!btn) {
-          btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'btn brand';
-          btn.dataset.role = 'contact-modal-add-contact';
-          btn.setAttribute('aria-label', 'Add Contact');
-          btn.setAttribute('title', 'Add Contact');
-          btn.style.marginBottom = '12px';
-          bodyHost.insertBefore(btn, bodyHost.firstChild || null);
-        }
-        if (btn) {
-          const ensureContent = () => {
-            const icon = btn.querySelector('.btn-icon');
-            const label = btn.querySelector('.btn-label');
-            if (icon && label) {
-              label.textContent = 'Add Contact';
-              return;
-            }
-            btn.innerHTML = '';
-            const iconEl = document.createElement('span');
-            iconEl.className = 'btn-icon';
-            iconEl.setAttribute('aria-hidden', 'true');
-            iconEl.textContent = '+';
-            const labelEl = document.createElement('span');
-            labelEl.className = 'btn-label';
-            labelEl.textContent = 'Add Contact';
-            btn.append(iconEl, labelEl);
-          };
-          ensureContent();
-        }
-        if (!btn.__wired) {
-          btn.__wired = true;
-          btn.addEventListener('click', (event) => {
-            event.preventDefault();
-            try { dlg.close(); }
-            catch (_err) { }
-            Promise.resolve().then(() => {
-              try {
-                window.renderContactModal?.(null);
-              } catch (err) {
-                if (console && typeof console.warn === 'function') {
-                  console.warn('contact modal add contact reopen failed', err);
-                }
+        const ensureModalAddButton = () => {
+          const bodyHost = dlg.querySelector('.modal-body');
+          if (!bodyHost) return;
+          let btn = bodyHost.querySelector('button[data-role="contact-modal-add-contact"]');
+          if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn brand';
+            btn.dataset.role = 'contact-modal-add-contact';
+            btn.setAttribute('aria-label', 'Add Contact');
+            btn.setAttribute('title', 'Add Contact');
+            btn.style.marginBottom = '12px';
+            bodyHost.insertBefore(btn, bodyHost.firstChild || null);
+          }
+          if (btn) {
+            const ensureContent = () => {
+              const icon = btn.querySelector('.btn-icon');
+              const label = btn.querySelector('.btn-label');
+              if (icon && label) {
+                label.textContent = 'Add Contact';
+                return;
               }
+              btn.innerHTML = '';
+              const iconEl = document.createElement('span');
+              iconEl.className = 'btn-icon';
+              iconEl.setAttribute('aria-hidden', 'true');
+              iconEl.textContent = '+';
+              const labelEl = document.createElement('span');
+              labelEl.className = 'btn-label';
+              labelEl.textContent = 'Add Contact';
+              btn.append(iconEl, labelEl);
+            };
+            ensureContent();
+          }
+          if (!btn.__wired) {
+            btn.__wired = true;
+            btn.addEventListener('click', (event) => {
+              event.preventDefault();
+              try { dlg.close(); }
+              catch (_err) { }
+              Promise.resolve().then(() => {
+                try {
+                  window.renderContactModal?.(null);
+                } catch (err) {
+                  if (console && typeof console.warn === 'function') {
+                    console.warn('contact modal add contact reopen failed', err);
+                  }
+                }
+              });
             });
-          });
-        }
-      };
-
-      ensureModalAddButton();
-
-      closeDialog = () => {
-        try { dlg.close(); }
-        catch (_) { }
-        try { resetUiInteractivity('contact-close-dialog'); }
-        catch (_) { }
-      };
-
-      await openDB();
-      let contactRecord = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
-        ? options.prefetchedRecord
-        : null;
-      if (!contactRecord && requestedId) {
-        try {
-          contactRecord = await dbGet('contacts', requestedId);
-        } catch (err) {
-          try { console && console.warn && console.warn('contact load failed', err); }
-          catch (_warn) { }
-          contactRecord = null;
-        }
-      }
-      if (requestedId && !contactRecord && !String(requestedId).startsWith('tmp-')) {
-        toastWarn('Contact not found');
-        closeDialog();
-        return null;
-      }
-      let simpleModeSettings = SIMPLE_MODE_DEFAULTS;
-      if (window.Settings && typeof window.Settings.get === 'function') {
-        try {
-          const settingsData = await window.Settings.get();
-          simpleModeSettings = normalizeSimpleModeSettings(settingsData && settingsData.simpleMode);
-        } catch (err) {
-          try { console && console.warn && console.warn('[contact-editor] settings load failed', err); }
-          catch (_warn) { }
-        }
-      }
-      const [contacts, partners] = await Promise.all([dbGetAll('contacts'), dbGetAll('partners')]);
-      const draft = createContactDraft(contactRecord?.id || requestedId);
-      const c = Object.assign(draft, contactRecord || {});
-      if (!c.stageEnteredAt) {
-        c.stageEnteredAt = new Date().toISOString();
-      }
-      if (dlg.dataset) {
-        dlg.dataset.contactId = String(c.id || '');
-      }
-      recordE2EContactLifecycle('open', c.id || requestedId);
-      const partnerMap = new Map();
-      const partnerIds = new Set();
-      const partnerOptions = partners.map(p => {
-        const rawId = String(p.id);
-        const id = escape(rawId);
-        const name = escape(p.name || '—');
-        const company = p.company ? ` — ${escape(p.company)}` : '';
-        partnerMap.set(rawId, p);
-        partnerIds.add(rawId);
-        return `<option value="${id}">${name}${company}</option>`;
-      });
-      const ensurePartnerOption = (rawId, label) => {
-        const id = String(rawId || '').trim();
-        if (!id || partnerIds.has(id) || id === NONE_PARTNER_ID) return;
-        partnerOptions.push(`<option value="${escape(id)}">${escape(label || `Partner ${id}`)}</option>`);
-        partnerIds.add(id);
-      };
-      const normalizedReferralPartnerId = c.referralPartnerId ? String(c.referralPartnerId).trim() : '';
-      const referralPartnerId = normalizedReferralPartnerId && normalizedReferralPartnerId !== NONE_PARTNER_ID
-        ? normalizedReferralPartnerId
-        : '';
-      const referralPartnerName = String(c.referralPartnerName || '').trim();
-      if (referralPartnerId && !partnerIds.has(referralPartnerId)) {
-        ensurePartnerOption(referralPartnerId, referralPartnerName || `Partner ${referralPartnerId}`);
-      }
-      const opts = partnerOptions.join('');
-      const partnerLabelFor = (id) => {
-        const key = String(id || '').trim();
-        if (!key || key === NONE_PARTNER_ID) return '';
-        const record = partnerMap.get(key);
-        if (record) {
-          const preferred = String(record.name || '').trim();
-          if (preferred) return preferred;
-          const company = String(record.company || '').trim();
-          if (company) return company;
-          const email = String(record.email || '').trim();
-          if (email) return email;
-          const phone = String(record.phone || '').trim();
-          if (phone) return phone;
-        }
-        return '';
-      };
-      const referralPartnerLabel = partnerLabelFor(referralPartnerId) || referralPartnerName;
-      const body = dlg.querySelector('#contact-modal-body');
-      const stageLabel = findLabel(STAGES, c.stage) || 'Application';
-      const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
-      const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
-      const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
-      const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
-      const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
-      const statusToneKey = toneForStatus(c.status);
-      const statusToneClass = toneClassName(statusToneKey);
-      const statusToneAttr = statusToneKey ? ` data-tone="${statusToneKey}"` : '';
-      const statusPillHtml = `<span class="status-pill${statusToneClass ? ` ${statusToneClass}` : ''}" data-status="${escape(c.status || 'inprogress')}"${statusToneAttr}>${escape(statusLabel)}</span>`;
-      const fmtCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-      const loanMetric = Number(c.loanAmount || 0) > 0 ? fmtCurrency.format(Number(c.loanAmount || 0)) : 'TBD';
-      const nextTouch = (c.nextFollowUp || '').slice(0, 10) || (c.closingTimeline || 'TBD');
-      const lastTouchIso = String(c.lastContact || c.lastTouch || '').slice(0, 10);
-      const detailLastTouch = lastTouchIso ? formatDetailDate(lastTouchIso, 'Not logged') : 'Not logged';
-      const nextFollowUpIso = String(c.nextFollowUp || '').slice(0, 10);
-      const detailNextFollowUp = nextFollowUpIso
-        ? formatDetailDate(nextFollowUpIso, 'TBD')
-        : (c.closingTimeline ? String(c.closingTimeline) : 'TBD');
-      const detailReferralDisplay = referralPartnerLabel || 'Not linked';
-      const stageSliderMarks = STAGE_FLOW.map((stage, idx) => `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx + 1}</span>`).join('');
-      const stageSliderLabels = STAGE_FLOW.map(stage => `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
-      const firstName = String(c.first || '').trim();
-      const lastName = String(c.last || '').trim();
-      const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
-      const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
-      const favoriteState = ensureFavoriteState();
-      const isFavoriteContact = favoriteState.contacts.has(String(c.id || ''));
-      const favoriteToggleHtml = renderFavoriteToggle('contact', c.id, isFavoriteContact);
-      const summaryClasses = ['summary-name'];
-      if (isFavoriteContact) summaryClasses.push('is-favorite');
-      const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
-      const summaryIdAttr = escape(c.id || '');
-      const referralSummaryMarkup = `<button type="button" class="btn-link more" data-role="referral-partner-summary"${referralPartnerId ? ` data-partner-id="${escape(referralPartnerId)}"` : ''}>${escape(referralPartnerLabel || 'Assign Referral Partner')}</button>`;
-      const template = document.getElementById('contact-editor-template');
-      const usedTemplate = !!(template && template.content);
-      body.innerHTML = '';
-      if (usedTemplate) {
-        body.appendChild(template.content.cloneNode(true));
-      } else {
-        const fallbackNotice = document.createElement('div');
-        fallbackNotice.className = 'muted';
-        fallbackNotice.textContent = 'Contact editor template missing.';
-        body.appendChild(fallbackNotice);
-      }
-
-      if (usedTemplate) {
-        const setText = (selector, value) => {
-          const node = body.querySelector(selector);
-          if (node) node.textContent = value != null ? String(value) : '';
-        };
-        const setHTML = (selector, value) => {
-          const node = body.querySelector(selector);
-          if (node) node.innerHTML = value || '';
-        };
-        const setValue = (selector, value) => {
-          const node = body.querySelector(selector);
-          if (node) node.value = value != null ? value : '';
-        };
-        const setOptions = (selector, html, value) => {
-          const node = body.querySelector(selector);
-          if (!node) return;
-          node.innerHTML = html || '';
-          if (value != null) node.value = value;
+          }
         };
 
-        setValue('#c-id', c.id || '');
-        setValue('#c-lastname', c.last || '');
+        ensureModalAddButton();
 
-        const summaryHost = body.querySelector('[data-role="favorite-host"]');
-        if (summaryHost) {
-          // Phase 8: Identity Header Structure
-          summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
-          summaryHost.dataset.favoriteType = 'contact';
-          summaryHost.dataset.recordId = summaryIdAttr;
-          if (isFavoriteContact) summaryHost.dataset.favorite = '1';
-          else delete summaryHost.dataset.favorite;
-          summaryHost.innerHTML = `
-            <div class="identity-primary">
+        closeDialog = () => {
+          try { dlg.close(); }
+          catch (_) { }
+          try { resetUiInteractivity('contact-close-dialog'); }
+          catch (_) { }
+        };
+
+        await openDB();
+        let contactRecord = options.prefetchedRecord && typeof options.prefetchedRecord === 'object'
+          ? options.prefetchedRecord
+          : null;
+        if (!contactRecord && requestedId) {
+          try {
+            contactRecord = await dbGet('contacts', requestedId);
+          } catch (err) {
+            try { console && console.warn && console.warn('contact load failed', err); }
+            catch (_warn) { }
+            contactRecord = null;
+          }
+        }
+        if (requestedId && !contactRecord && !String(requestedId).startsWith('tmp-')) {
+          toastWarn('Contact not found');
+          closeDialog();
+          return null;
+        }
+        let simpleModeSettings = SIMPLE_MODE_DEFAULTS;
+        if (window.Settings && typeof window.Settings.get === 'function') {
+          try {
+            const settingsData = await window.Settings.get();
+            simpleModeSettings = normalizeSimpleModeSettings(settingsData && settingsData.simpleMode);
+          } catch (err) {
+            try { console && console.warn && console.warn('[contact-editor] settings load failed', err); }
+            catch (_warn) { }
+          }
+        }
+        const [contacts, partners] = await Promise.all([dbGetAll('contacts'), dbGetAll('partners')]);
+        const draft = createContactDraft(contactRecord?.id || requestedId);
+        const c = Object.assign(draft, contactRecord || {});
+        if (!c.stageEnteredAt) {
+          c.stageEnteredAt = new Date().toISOString();
+        }
+        if (dlg.dataset) {
+          dlg.dataset.contactId = String(c.id || '');
+        }
+        recordE2EContactLifecycle('open', c.id || requestedId);
+        const partnerMap = new Map();
+        const partnerIds = new Set();
+        const partnerOptions = partners.map(p => {
+          const rawId = String(p.id);
+          const id = escape(rawId);
+          const name = escape(p.name || '—');
+          const company = p.company ? ` — ${escape(p.company)}` : '';
+          partnerMap.set(rawId, p);
+          partnerIds.add(rawId);
+          return `<option value="${id}">${name}${company}</option>`;
+        });
+        const ensurePartnerOption = (rawId, label) => {
+          const id = String(rawId || '').trim();
+          if (!id || partnerIds.has(id) || id === NONE_PARTNER_ID) return;
+          partnerOptions.push(`<option value="${escape(id)}">${escape(label || `Partner ${id}`)}</option>`);
+          partnerIds.add(id);
+        };
+        const normalizedReferralPartnerId = c.referralPartnerId ? String(c.referralPartnerId).trim() : '';
+        const referralPartnerId = normalizedReferralPartnerId && normalizedReferralPartnerId !== NONE_PARTNER_ID
+          ? normalizedReferralPartnerId
+          : '';
+        const referralPartnerName = String(c.referralPartnerName || '').trim();
+        if (referralPartnerId && !partnerIds.has(referralPartnerId)) {
+          ensurePartnerOption(referralPartnerId, referralPartnerName || `Partner ${referralPartnerId}`);
+        }
+        const opts = partnerOptions.join('');
+        const partnerLabelFor = (id) => {
+          const key = String(id || '').trim();
+          if (!key || key === NONE_PARTNER_ID) return '';
+          const record = partnerMap.get(key);
+          if (record) {
+            const preferred = String(record.name || '').trim();
+            if (preferred) return preferred;
+            const company = String(record.company || '').trim();
+            if (company) return company;
+            const email = String(record.email || '').trim();
+            if (email) return email;
+            const phone = String(record.phone || '').trim();
+            if (phone) return phone;
+          }
+          return '';
+        };
+        const referralPartnerLabel = partnerLabelFor(referralPartnerId) || referralPartnerName;
+        const body = dlg.querySelector('#contact-modal-body');
+        const stageLabel = findLabel(STAGES, c.stage) || 'Application';
+        const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
+        const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
+        const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
+        const stageCanonicalAttr = stageCanonicalKey ? ` data-stage-canonical="${escape(stageCanonicalKey)}"` : '';
+        const statusLabel = findLabel(STATUSES, c.status) || 'In Progress';
+        const statusToneKey = toneForStatus(c.status);
+        const statusToneClass = toneClassName(statusToneKey);
+        const statusToneAttr = statusToneKey ? ` data-tone="${statusToneKey}"` : '';
+        const statusPillHtml = `<span class="status-pill${statusToneClass ? ` ${statusToneClass}` : ''}" data-status="${escape(c.status || 'inprogress')}"${statusToneAttr}>${escape(statusLabel)}</span>`;
+        const fmtCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+        const loanMetric = Number(c.loanAmount || 0) > 0 ? fmtCurrency.format(Number(c.loanAmount || 0)) : 'TBD';
+        const nextTouch = (c.nextFollowUp || '').slice(0, 10) || (c.closingTimeline || 'TBD');
+        const lastTouchIso = String(c.lastContact || c.lastTouch || '').slice(0, 10);
+        const detailLastTouch = lastTouchIso ? formatDetailDate(lastTouchIso, 'Not logged') : 'Not logged';
+        const nextFollowUpIso = String(c.nextFollowUp || '').slice(0, 10);
+        const detailNextFollowUp = nextFollowUpIso
+          ? formatDetailDate(nextFollowUpIso, 'TBD')
+          : (c.closingTimeline ? String(c.closingTimeline) : 'TBD');
+        const detailReferralDisplay = referralPartnerLabel || 'Not linked';
+        const stageSliderMarks = STAGE_FLOW.map((stage, idx) => `<span class="stage-slider-mark" data-index="${idx}" data-stage="${escape(stage)}">${idx + 1}</span>`).join('');
+        const stageSliderLabels = STAGE_FLOW.map(stage => `<span>${escape(findLabel(STAGES, stage) || stage)}</span>`).join('');
+        const firstName = String(c.first || '').trim();
+        const lastName = String(c.last || '').trim();
+        const summaryLabel = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'New Contact';
+        const summaryAvatarMarkup = renderAvatarSpan(contactAvatarSource(c), 'summary-avatar');
+        const favoriteState = ensureFavoriteState();
+        const isFavoriteContact = favoriteState.contacts.has(String(c.id || ''));
+        const favoriteToggleHtml = renderFavoriteToggle('contact', c.id, isFavoriteContact);
+        const summaryClasses = ['summary-name'];
+        if (isFavoriteContact) summaryClasses.push('is-favorite');
+        const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
+        const summaryIdAttr = escape(c.id || '');
+        const referralSummaryMarkup = `<button type="button" class="btn-link more" data-role="referral-partner-summary"${referralPartnerId ? ` data-partner-id="${escape(referralPartnerId)}"` : ''}>${escape(referralPartnerLabel || 'Assign Referral Partner')}</button>`;
+        const template = document.getElementById('contact-editor-template');
+        const usedTemplate = !!(template && template.content);
+        body.innerHTML = '';
+        if (usedTemplate) {
+          body.appendChild(template.content.cloneNode(true));
+        } else {
+          const fallbackNotice = document.createElement('div');
+          fallbackNotice.className = 'muted';
+          fallbackNotice.textContent = 'Contact editor template missing.';
+          body.appendChild(fallbackNotice);
+        }
+
+        if (usedTemplate) {
+          const setText = (selector, value) => {
+            const node = body.querySelector(selector);
+            if (node) node.textContent = value != null ? String(value) : '';
+          };
+          const setHTML = (selector, value) => {
+            const node = body.querySelector(selector);
+            if (node) node.innerHTML = value || '';
+          };
+          const setValue = (selector, value) => {
+            const node = body.querySelector(selector);
+            if (node) node.value = value != null ? value : '';
+          };
+          const setOptions = (selector, html, value) => {
+            const node = body.querySelector(selector);
+            if (!node) return;
+            node.innerHTML = html || '';
+            if (value != null) node.value = value;
+          };
+
+          setValue('#c-id', c.id || '');
+          setValue('#c-lastname', c.last || '');
+
+          const summaryHost = body.querySelector('[data-role="favorite-host"]');
+          if (summaryHost) {
+            // Phase 8: Identity Header Structure
+            summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
+            summaryHost.dataset.favoriteType = 'contact';
+            summaryHost.dataset.recordId = summaryIdAttr;
+            if (isFavoriteContact) summaryHost.dataset.favorite = '1';
+            else delete summaryHost.dataset.favorite;
+            summaryHost.innerHTML = `
+            <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
               ${summaryAvatarMarkup}
-              <span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span>
+              <span class="summary-name-text" data-role="record-name-text">${escape(summaryLabel)}</span>
               <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
             </div>
             <div class="identity-secondary">
+              <span hidden data-role="record-name-subtext">${escape(stageLabel)} • ${escape(statusLabel)}</span>
               <span data-role="stage-chip-wrapper"></span>
               <span class="sep">•</span>
               <span class="status-pill"></span>
             </div>
           `;
 
-          // Hide legacy meta container to avoid duplication
-          const oldSummaryMeta = body.querySelector('.summary-meta');
-          if (oldSummaryMeta) oldSummaryMeta.style.display = 'none';
-        }
+            // Hide legacy meta container to avoid duplication
+            const oldSummaryMeta = body.querySelector('.summary-meta');
+            if (oldSummaryMeta) oldSummaryMeta.style.display = 'none';
+          }
 
-        const summaryMeta = body.querySelector('.summary-meta');
-        let statusPill = body.querySelector('.status-pill');
-        if (!statusPill && summaryMeta) {
-          statusPill = document.createElement('span');
-          statusPill.className = 'status-pill';
-          summaryMeta.appendChild(statusPill);
-        }
+          const summaryMeta = body.querySelector('.summary-meta');
+          let statusPill = body.querySelector('.status-pill');
+          if (!statusPill && summaryMeta) {
+            statusPill = document.createElement('span');
+            statusPill.className = 'status-pill';
+            summaryMeta.appendChild(statusPill);
+          }
 
-        const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
-        if (stageWrap) {
-          stageWrap.innerHTML = stageChip;
-          stageWrap.dataset.stage = String(c.stage || 'application');
-          if (stageCanonicalKey) stageWrap.dataset.stageCanonical = stageCanonicalKey;
-          else stageWrap.removeAttribute('data-stage-canonical');
-        }
-        if (statusPill) {
-          statusPill.textContent = statusLabel;
-          statusPill.dataset.status = String(c.status || 'inprogress');
-          statusPill.className = `status-pill${statusToneClass ? ` ${statusToneClass}` : ''}`;
-          if (statusToneKey) statusPill.dataset.tone = statusToneKey;
-          else statusPill.removeAttribute('data-tone');
-        }
+          const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
+          if (stageWrap) {
+            stageWrap.innerHTML = stageChip;
+            stageWrap.dataset.stage = String(c.stage || 'application');
+            if (stageCanonicalKey) stageWrap.dataset.stageCanonical = stageCanonicalKey;
+            else stageWrap.removeAttribute('data-stage-canonical');
+          }
+          if (statusPill) {
+            statusPill.textContent = statusLabel;
+            statusPill.dataset.status = String(c.status || 'inprogress');
+            statusPill.className = `status-pill${statusToneClass ? ` ${statusToneClass}` : ''}`;
+            if (statusToneKey) statusPill.dataset.tone = statusToneKey;
+            else statusPill.removeAttribute('data-tone');
+          }
 
-        setText('#c-summary-program', c.loanType || c.loanProgram || 'Select');
-        setText('#c-summary-amount', loanMetric);
-        setText('#c-summary-touch', nextTouch || 'TBD');
-        setText('#c-summary-source', c.leadSource || 'Set Source');
-        setHTML('#c-summary-referral', referralSummaryMarkup);
-        setText('#c-summary-note', 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.');
+          setText('#c-summary-program', c.loanType || c.loanProgram || 'Select');
+          setText('#c-summary-amount', loanMetric);
+          setText('#c-summary-touch', nextTouch || 'TBD');
+          setText('#c-summary-source', c.leadSource || 'Set Source');
+          setHTML('#c-summary-referral', referralSummaryMarkup);
+          setText('#c-summary-note', 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.');
 
-        setText('#c-detail-stage', stageLabel);
-        setText('#c-detail-status', statusLabel);
-        setText('#c-detail-last', detailLastTouch);
-        setText('#c-detail-next', detailNextFollowUp);
-        setText('#c-detail-program', c.loanType || c.loanProgram || 'Select');
-        setText('#c-detail-amount', loanMetric);
-        setText('#c-detail-source', c.leadSource || 'Set Source');
-        setText('#c-detail-referral', detailReferralDisplay);
+          setText('#c-detail-stage', stageLabel);
+          setText('#c-detail-status', statusLabel);
+          setText('#c-detail-last', detailLastTouch);
+          setText('#c-detail-next', detailNextFollowUp);
+          setText('#c-detail-program', c.loanType || c.loanProgram || 'Select');
+          setText('#c-detail-amount', loanMetric);
+          setText('#c-detail-source', c.leadSource || 'Set Source');
+          setText('#c-detail-referral', detailReferralDisplay);
 
-        const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
-        if (milestoneBar) {
-          milestoneBar.setAttribute('aria-valuemax', String(PIPELINE_MILESTONES.length));
+          const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
+          if (milestoneBar) {
+            milestoneBar.setAttribute('aria-valuemax', String(PIPELINE_MILESTONES.length));
+          }
+          const milestoneBadgesHost = body.querySelector('.milestone-badges');
+          if (milestoneBadgesHost) {
+            milestoneBadgesHost.innerHTML = PIPELINE_MILESTONES.map((label, idx) => `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('');
+          }
+
+          setHTML('.stage-slider-marks', stageSliderMarks);
+          setHTML('.stage-slider-labels', stageSliderLabels);
+          const stageRangeInput = body.querySelector('#contact-stage-range');
+          if (stageRangeInput) {
+            stageRangeInput.setAttribute('max', String(Math.max(0, STAGE_FLOW.length - 1)));
+          }
+
+          setOptions('#c-type', optionList(CONTACT_TYPES, c.contactType || 'Borrower'), c.contactType || 'Borrower');
+          setOptions('#c-priority', optionList(PRIORITIES, c.priority || 'Warm'), c.priority || 'Warm');
+          setOptions('#c-source', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.leadSource || '')}`, c.leadSource || '');
+          setOptions('#c-pref', optionList(COMM_PREFS, c.communicationPreference || 'Phone'), c.communicationPreference || 'Phone');
+          setOptions('#c-stage', optionList(STAGES, c.stage || 'application'), c.stage || 'application');
+          setOptions('#c-status', optionList(STATUSES, c.status || 'inprogress'), c.status || 'inprogress');
+          setOptions('#c-timeline', optionList(TIMELINES, c.closingTimeline || ''), c.closingTimeline || '');
+          setOptions('#c-purpose', optionList(LOAN_PURPOSES, c.loanPurpose || 'Purchase'), c.loanPurpose || 'Purchase');
+          setOptions('#c-loanType', optionList(LOAN_PROGRAMS, c.loanType || c.loanProgram || 'Conventional'), c.loanType || c.loanProgram || 'Conventional');
+          setOptions('#c-property', optionList(PROPERTY_TYPES, c.propertyType || 'Single-Family'), c.propertyType || 'Single-Family');
+          setOptions('#c-occupancy', optionList(OCCUPANCY, c.occupancy || 'Primary Residence'), c.occupancy || 'Primary Residence');
+          setOptions('#c-employment', optionList(EMPLOYMENT, c.employmentType || 'W-2'), c.employmentType || 'W-2');
+          setOptions('#c-credit', optionList(CREDIT_BANDS, c.creditRange || 'Unknown'), c.creditRange || 'Unknown');
+          setOptions('#c-docstage', optionList(DOC_STAGES, c.docStage || 'application-started'), c.docStage || 'application-started');
+          setOptions('#c-milestone', optionList(PIPELINE_MILESTONES, c.pipelineMilestone || 'Intro Call'), c.pipelineMilestone || 'Intro Call');
+          setOptions('#c-buyer', `<option value="">Select partner</option>${opts}`, c.buyerPartnerId ? String(c.buyerPartnerId) : '');
+          setOptions('#c-listing', `<option value="">Select partner</option>${opts}`, c.listingPartnerId ? String(c.listingPartnerId) : '');
+          setOptions('#c-referral-partner', `<option value="">Select partner</option>${opts}`, referralPartnerId);
+          setOptions('#c-ref', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.referredBy || c.leadSource || '')}`, c.referredBy || c.leadSource || '');
+          setOptions('#c-state', optionList(STATES, (c.state || '').toUpperCase()), (c.state || '').toUpperCase());
+
+          setValue('#c-first', c.first || '');
+          setValue('#c-last', c.last || '');
+          setValue('#c-email', c.email || '');
+          setValue('#c-phone', c.phone || '');
+          setValue('#c-email2', c.secondaryEmail || '');
+          setValue('#c-phone2', c.secondaryPhone || '');
+          setValue('#c-amount', c.loanAmount || '');
+          setValue('#c-rate', c.rate || '');
+          setValue('#c-funded', (c.fundedDate || '').slice(0, 10));
+          setValue('#c-preexp', (c.preApprovalExpires || '').slice(0, 10));
+          setValue('#c-address', c.address || '');
+          setValue('#c-city', c.city || '');
+          setValue('#c-zip', c.zip || '');
+          setValue('#c-lastcontact', (c.lastContact || '').slice(0, 10));
+          setValue('#c-nexttouch', (c.nextFollowUp || '').slice(0, 10));
+          setValue('#c-notes', c.notes || '');
         }
-        const milestoneBadgesHost = body.querySelector('.milestone-badges');
-        if (milestoneBadgesHost) {
-          milestoneBadgesHost.innerHTML = PIPELINE_MILESTONES.map((label, idx) => `<button type="button" class="milestone-badge" data-role="milestone-badge" data-index="${idx}" data-milestone="${escape(label)}" data-qa="milestone-badge">${escape(label)}</button>`).join('');
-        }
-
-        setHTML('.stage-slider-marks', stageSliderMarks);
-        setHTML('.stage-slider-labels', stageSliderLabels);
-        const stageRangeInput = body.querySelector('#contact-stage-range');
-        if (stageRangeInput) {
-          stageRangeInput.setAttribute('max', String(Math.max(0, STAGE_FLOW.length - 1)));
-        }
-
-        setOptions('#c-type', optionList(CONTACT_TYPES, c.contactType || 'Borrower'), c.contactType || 'Borrower');
-        setOptions('#c-priority', optionList(PRIORITIES, c.priority || 'Warm'), c.priority || 'Warm');
-        setOptions('#c-source', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.leadSource || '')}`, c.leadSource || '');
-        setOptions('#c-pref', optionList(COMM_PREFS, c.communicationPreference || 'Phone'), c.communicationPreference || 'Phone');
-        setOptions('#c-stage', optionList(STAGES, c.stage || 'application'), c.stage || 'application');
-        setOptions('#c-status', optionList(STATUSES, c.status || 'inprogress'), c.status || 'inprogress');
-        setOptions('#c-timeline', optionList(TIMELINES, c.closingTimeline || ''), c.closingTimeline || '');
-        setOptions('#c-purpose', optionList(LOAN_PURPOSES, c.loanPurpose || 'Purchase'), c.loanPurpose || 'Purchase');
-        setOptions('#c-loanType', optionList(LOAN_PROGRAMS, c.loanType || c.loanProgram || 'Conventional'), c.loanType || c.loanProgram || 'Conventional');
-        setOptions('#c-property', optionList(PROPERTY_TYPES, c.propertyType || 'Single-Family'), c.propertyType || 'Single-Family');
-        setOptions('#c-occupancy', optionList(OCCUPANCY, c.occupancy || 'Primary Residence'), c.occupancy || 'Primary Residence');
-        setOptions('#c-employment', optionList(EMPLOYMENT, c.employmentType || 'W-2'), c.employmentType || 'W-2');
-        setOptions('#c-credit', optionList(CREDIT_BANDS, c.creditRange || 'Unknown'), c.creditRange || 'Unknown');
-        setOptions('#c-docstage', optionList(DOC_STAGES, c.docStage || 'application-started'), c.docStage || 'application-started');
-        setOptions('#c-milestone', optionList(PIPELINE_MILESTONES, c.pipelineMilestone || 'Intro Call'), c.pipelineMilestone || 'Intro Call');
-        setOptions('#c-buyer', `<option value="">Select partner</option>${opts}`, c.buyerPartnerId ? String(c.buyerPartnerId) : '');
-        setOptions('#c-listing', `<option value="">Select partner</option>${opts}`, c.listingPartnerId ? String(c.listingPartnerId) : '');
-        setOptions('#c-referral-partner', `<option value="">Select partner</option>${opts}`, referralPartnerId);
-        setOptions('#c-ref', `<option value="">Select source</option>${optionList(LEAD_SOURCES, c.referredBy || c.leadSource || '')}`, c.referredBy || c.leadSource || '');
-        setOptions('#c-state', optionList(STATES, (c.state || '').toUpperCase()), (c.state || '').toUpperCase());
-
-        setValue('#c-first', c.first || '');
-        setValue('#c-last', c.last || '');
-        setValue('#c-email', c.email || '');
-        setValue('#c-phone', c.phone || '');
-        setValue('#c-email2', c.secondaryEmail || '');
-        setValue('#c-phone2', c.secondaryPhone || '');
-        setValue('#c-amount', c.loanAmount || '');
-        setValue('#c-rate', c.rate || '');
-        setValue('#c-funded', (c.fundedDate || '').slice(0, 10));
-        setValue('#c-preexp', (c.preApprovalExpires || '').slice(0, 10));
-        setValue('#c-address', c.address || '');
-        setValue('#c-city', c.city || '');
-        setValue('#c-zip', c.zip || '');
-        setValue('#c-lastcontact', (c.lastContact || '').slice(0, 10));
-        setValue('#c-nexttouch', (c.nextFollowUp || '').slice(0, 10));
-        setValue('#c-notes', c.notes || '');
-      }
-      const toggleAdvancedSections
-        = (mode) => {
-          const simple = mode === 'simple';
-          Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
-            if (!node) return;
-            node.hidden = simple;
-            node.classList.toggle('is-hidden-simple', simple);
-          });
-        };
-      const applyFieldVisibility = (mode) => {
-        applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
-        toggleAdvancedSections(mode);
-      };
-      applyFieldVisibility(getUiMode());
-      if (dlg) {
-        if (dlg.__uiModeUnsub) {
-          try { dlg.__uiModeUnsub(); }
-          catch (_err) { }
-          dlg.__uiModeUnsub = null;
-        }
-        dlg.__uiModeUnsub = onUiModeChanged((mode) => applyFieldVisibility(mode));
-        if (!dlg.__uiModeCleanup) {
-          const cleanupMode = () => {
-            if (dlg.__uiModeUnsub) {
-              try { dlg.__uiModeUnsub(); }
-              catch (_err) { }
-              dlg.__uiModeUnsub = null;
-            }
+        const toggleAdvancedSections
+          = (mode) => {
+            const simple = mode === 'simple';
+            Array.from(body.querySelectorAll('[data-simple-advanced-only]')).forEach(node => {
+              if (!node) return;
+              node.hidden = simple;
+              node.classList.toggle('is-hidden-simple', simple);
+            });
           };
-          dlg.addEventListener('close', cleanupMode);
-          dlg.__uiModeCleanup = cleanupMode;
+        const applyFieldVisibility = (mode) => {
+          applyContactFieldVisibility(body, mode, { simpleMode: simpleModeSettings });
+          toggleAdvancedSections(mode);
+        };
+        applyFieldVisibility(getUiMode());
+        if (dlg) {
+          if (dlg.__uiModeUnsub) {
+            try { dlg.__uiModeUnsub(); }
+            catch (_err) { }
+            dlg.__uiModeUnsub = null;
+          }
+          dlg.__uiModeUnsub = onUiModeChanged((mode) => applyFieldVisibility(mode));
+          if (!dlg.__uiModeCleanup) {
+            const cleanupMode = () => {
+              if (dlg.__uiModeUnsub) {
+                try { dlg.__uiModeUnsub(); }
+                catch (_err) { }
+                dlg.__uiModeUnsub = null;
+              }
+            };
+            dlg.addEventListener('close', cleanupMode);
+            dlg.__uiModeCleanup = cleanupMode;
+          }
         }
-      }
-      const buyerSel = $('#c-buyer', body);
-      const listingSel = $('#c-listing', body);
-      const referralPartnerSel = $('#c-referral-partner', body);
-      if (buyerSel) buyerSel.value = c.buyerPartnerId ? String(c.buyerPartnerId) : '';
-      if (listingSel) listingSel.value = c.listingPartnerId ? String(c.listingPartnerId) : '';
-      if (referralPartnerSel) referralPartnerSel.value = referralPartnerId || '';
-      const referralSummaryBtn = body.querySelector('[data-role="referral-partner-summary"]');
-      if (referralSummaryBtn && !referralSummaryBtn.__wired) {
-        referralSummaryBtn.__wired = true;
-        referralSummaryBtn.addEventListener('click', (event) => {
-          event.preventDefault();
-          const partnerId = referralSummaryBtn.dataset.partnerId ? referralSummaryBtn.dataset.partnerId.trim() : '';
-          if (partnerId) {
-            try {
-              openPartnerEditModal(partnerId, { sourceHint: 'contact:referral-summary', trigger: referralSummaryBtn });
-            } catch (err) {
-              try { console && console.warn && console.warn('referral partner open failed', err); }
-              catch (_warn) { }
+        const buyerSel = $('#c-buyer', body);
+        const listingSel = $('#c-listing', body);
+        const referralPartnerSel = $('#c-referral-partner', body);
+        if (buyerSel) buyerSel.value = c.buyerPartnerId ? String(c.buyerPartnerId) : '';
+        if (listingSel) listingSel.value = c.listingPartnerId ? String(c.listingPartnerId) : '';
+        if (referralPartnerSel) referralPartnerSel.value = referralPartnerId || '';
+        const referralSummaryBtn = body.querySelector('[data-role="referral-partner-summary"]');
+        if (referralSummaryBtn && !referralSummaryBtn.__wired) {
+          referralSummaryBtn.__wired = true;
+          referralSummaryBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            const partnerId = referralSummaryBtn.dataset.partnerId ? referralSummaryBtn.dataset.partnerId.trim() : '';
+            if (partnerId) {
+              try {
+                openPartnerEditModal(partnerId, { sourceHint: 'contact:referral-summary', trigger: referralSummaryBtn });
+              } catch (err) {
+                try { console && console.warn && console.warn('referral partner open failed', err); }
+                catch (_warn) { }
+              }
+              return;
             }
-            return;
-          }
-          if (referralPartnerSel) {
-            try { referralPartnerSel.focus({ preventScroll: true }); }
-            catch (_err) { referralPartnerSel.focus?.(); }
-          }
-        });
-      }
+            if (referralPartnerSel) {
+              try { referralPartnerSel.focus({ preventScroll: true }); }
+              catch (_err) { referralPartnerSel.focus?.(); }
+            }
+          });
+        }
 
-      const summaryNote = $('#c-summary-note', body);
-      if (summaryNote && c.pipelineMilestone && /funded/i.test(String(c.pipelineMilestone))) {
-        summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.';
-      }
+        const summaryNote = $('#c-summary-note', body);
+        if (summaryNote && c.pipelineMilestone && /funded/i.test(String(c.pipelineMilestone))) {
+          summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.';
+        }
 
-      const milestoneSelect = $('#c-milestone', body);
-      const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
-      const milestoneFill = body.querySelector('[data-role="milestone-progress-fill"]');
-      const milestoneBadges = Array.from(body.querySelectorAll('[data-role="milestone-badge"]'));
-      const milestoneActionBtn = body.querySelector('[data-role="milestone-next"]');
-      let statusMilestoneHintEl = null;
-      function allowedMilestoneIndex(statusVal, idx) {
-        const allowedLabels = allowedMilestonesForStatus(statusVal || 'inprogress');
-        if (!Array.isArray(allowedLabels) || !allowedLabels.length) return true;
-        const allowedSet = new Set(allowedLabels
-          .map((label) => milestoneIndex(label))
-          .filter((value) => Number.isInteger(value) && value >= 0));
-        if (!allowedSet.size) return true;
-        return allowedSet.has(idx);
-      }
-      function ensureStatusMilestoneHint() {
-        if (statusMilestoneHintEl && statusMilestoneHintEl.isConnected) return statusMilestoneHintEl;
-        const host = (milestoneSelect && milestoneSelect.closest('label')) || (statusSelect && statusSelect.closest('label'));
-        if (!host) return null;
-        const note = document.createElement('p');
-        note.className = 'muted status-milestone-hint';
-        note.dataset.role = 'status-milestone-hint';
-        note.hidden = true;
-        note.style.margin = '4px 0 0';
-        const parent = host.parentElement;
-        if (parent) {
-          parent.insertBefore(note, host.nextSibling);
-          statusMilestoneHintEl = note;
-        }
-        return statusMilestoneHintEl;
-      }
-      function showStatusMilestoneHint(message) {
-        const el = ensureStatusMilestoneHint();
-        if (!el) return;
-        const text = String(message || '').trim();
-        if (!text) {
-          el.textContent = '';
-          el.hidden = true;
-          return;
-        }
-        el.textContent = text;
-        el.hidden = false;
-      }
-      function updateMilestoneUi(value, statusOverride) {
-        const statusValue = statusOverride || (statusSelect ? statusSelect.value : 'inprogress');
-        const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''), statusValue);
-        if (milestoneSelect && milestoneSelect.value !== meta.label) {
-          milestoneSelect.value = meta.label;
-        }
-        if (milestoneSelect) {
-          const allowedLabels = allowedMilestonesForStatus(statusValue);
+        const milestoneSelect = $('#c-milestone', body);
+        const milestoneBar = body.querySelector('[data-role="milestone-progress"]');
+        const milestoneFill = body.querySelector('[data-role="milestone-progress-fill"]');
+        const milestoneBadges = Array.from(body.querySelectorAll('[data-role="milestone-badge"]'));
+        const milestoneActionBtn = body.querySelector('[data-role="milestone-next"]');
+        let statusMilestoneHintEl = null;
+        function allowedMilestoneIndex(statusVal, idx) {
+          const allowedLabels = allowedMilestonesForStatus(statusVal || 'inprogress');
+          if (!Array.isArray(allowedLabels) || !allowedLabels.length) return true;
           const allowedSet = new Set(allowedLabels
             .map((label) => milestoneIndex(label))
-            .filter((idx) => Number.isInteger(idx) && idx >= 0));
-          const guard = allowedSet.size ? allowedSet : null;
-          Array.from(milestoneSelect.options).forEach((opt) => {
-            const idx = milestoneIndex(opt.value);
-            const permitted = guard ? guard.has(idx) : true;
-            opt.disabled = !permitted;
-            opt.classList.toggle('is-disabled', !permitted);
-            opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
-          });
+            .filter((value) => Number.isInteger(value) && value >= 0));
+          if (!allowedSet.size) return true;
+          return allowedSet.has(idx);
         }
-        if (milestoneBar && milestoneFill) {
-          const max = PIPELINE_MILESTONES.length;
-          const maxIndex = Math.max(max - 1, 1);
-          const pct = maxIndex ? Math.max(0, Math.min(100, (meta.index / maxIndex) * 100)) : 100;
-          milestoneFill.style.width = `${pct}%`;
-          milestoneBar.setAttribute('aria-valuenow', String(meta.index + 1));
-          milestoneBar.setAttribute('aria-valuetext', meta.label);
-        }
-        milestoneBadges.forEach((btn, idx) => {
-          const allowed = allowedMilestoneIndex(statusValue, idx);
-          btn.disabled = !allowed;
-          btn.classList.toggle('is-disabled', !allowed);
-          btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
-          const active = idx === meta.index;
-          btn.classList.toggle('is-active', active);
-          btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-        });
-        if (milestoneActionBtn) milestoneActionBtn.textContent = meta.action;
-        return meta;
-      }
-      function syncStatusMilestone(source) {
-        const stageVal = stageSelect ? stageSelect.value : 'application';
-        let statusVal = statusSelect ? statusSelect.value : 'inprogress';
-        let milestoneVal = milestoneSelect ? milestoneSelect.value : '';
-        let statusChanged = false;
-        let milestoneChanged = false;
-        for (let guard = 0; guard < 5; guard += 1) {
-          const normalizedStatus = normalizeStatusForStage(stageVal, statusVal);
-          if (normalizedStatus !== statusVal) {
-            statusVal = normalizedStatus;
-            statusChanged = true;
-            continue;
+        function ensureStatusMilestoneHint() {
+          if (statusMilestoneHintEl && statusMilestoneHintEl.isConnected) return statusMilestoneHintEl;
+          const host = (milestoneSelect && milestoneSelect.closest('label')) || (statusSelect && statusSelect.closest('label'));
+          if (!host) return null;
+          const note = document.createElement('p');
+          note.className = 'muted status-milestone-hint';
+          note.dataset.role = 'status-milestone-hint';
+          note.hidden = true;
+          note.style.margin = '4px 0 0';
+          const parent = host.parentElement;
+          if (parent) {
+            parent.insertBefore(note, host.nextSibling);
+            statusMilestoneHintEl = note;
           }
-          const normalizedMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
-          if (normalizedMilestone !== milestoneVal) {
-            milestoneVal = normalizedMilestone;
-            milestoneChanged = true;
-            continue;
+          return statusMilestoneHintEl;
+        }
+        function showStatusMilestoneHint(message) {
+          const el = ensureStatusMilestoneHint();
+          if (!el) return;
+          const text = String(message || '').trim();
+          if (!text) {
+            el.textContent = '';
+            el.hidden = true;
+            return;
           }
-          const statusForMilestone = normalizeStatusForMilestone(milestoneVal, statusVal, { stage: stageVal, preferredStatus: statusVal });
-          if (statusForMilestone && statusForMilestone !== statusVal) {
-            statusVal = statusForMilestone;
-            statusChanged = true;
-            continue;
+          el.textContent = text;
+          el.hidden = false;
+        }
+        function updateMilestoneUi(value, statusOverride) {
+          const statusValue = statusOverride || (statusSelect ? statusSelect.value : 'inprogress');
+          const meta = milestoneMeta(value || (milestoneSelect ? milestoneSelect.value : ''), statusValue);
+          if (milestoneSelect && milestoneSelect.value !== meta.label) {
+            milestoneSelect.value = meta.label;
           }
-          break;
-        }
-        const finalMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
-        if (finalMilestone !== milestoneVal) {
-          milestoneVal = finalMilestone;
-          milestoneChanged = true;
-        }
-        const stageNormalized = normalizeStatusForStage(stageVal, statusVal);
-        if (stageNormalized !== statusVal) {
-          statusVal = stageNormalized;
-          statusChanged = true;
-          const finalCheckMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
-          if (finalCheckMilestone !== milestoneVal) {
-            milestoneVal = finalCheckMilestone;
-            milestoneChanged = true;
-          }
-        }
-        if (statusSelect && statusSelect.value !== statusVal) {
-          statusSelect.value = statusVal;
-        }
-        if (milestoneSelect && milestoneSelect.value !== milestoneVal) {
-          milestoneSelect.value = milestoneVal;
-        }
-        return {
-          changedStatus: statusChanged,
-          changedMilestone: milestoneChanged,
-          finalStatus: statusVal,
-          finalMilestone: milestoneVal,
-          source
-        };
-      }
-      function handlePairingResult(result) {
-        if (!result) return;
-        if (result.source === 'stage' || result.source === 'init') {
-          showStatusMilestoneHint('');
-          return;
-        }
-        const statusLabel = findLabel(STATUSES, result.finalStatus) || result.finalStatus;
-        if (result.source === 'status' && result.changedMilestone) {
-          showStatusMilestoneHint(`Milestone adjusted to ${result.finalMilestone} for ${statusLabel} status.`);
-          return;
-        }
-        if (result.source === 'milestone' && result.changedStatus) {
-          showStatusMilestoneHint(`Status adjusted to ${statusLabel} to match ${result.finalMilestone} milestone.`);
-          return;
-        }
-        if (result.changedMilestone) {
-          showStatusMilestoneHint(`Milestone aligned to ${result.finalMilestone} for ${statusLabel} status.`);
-          return;
-        }
-        showStatusMilestoneHint('');
-      }
-      function applyStatusGuard(stageVal) {
-        const stageAllowed = new Set(allowedStatusesForStage(stageVal));
-        const milestoneAllowed = new Set(allowedStatusesForMilestone(milestoneSelect ? milestoneSelect.value : ''));
-        if (statusSelect) {
-          Array.from(statusSelect.options).forEach(opt => {
-            const key = canonicalStatusKey(opt.value);
-            let permitted = stageAllowed.has(key);
-            if (permitted && milestoneAllowed.size) permitted = milestoneAllowed.has(key);
-            opt.disabled = !permitted;
-            opt.classList.toggle('is-disabled', !permitted);
-            opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
-          });
-        }
-      }
-      if (milestoneSelect) milestoneSelect.addEventListener('change', () => {
-        const result = syncStatusMilestone('milestone');
-        applyStatusGuard(stageSelect ? stageSelect.value : 'application');
-        updateMilestoneUi(result.finalMilestone, result.finalStatus);
-        refreshFollowUpSuggestion();
-        handlePairingResult(result);
-      });
-      milestoneBadges.forEach((btn) => {
-        if (btn.__wired) return;
-        btn.__wired = true;
-        btn.addEventListener('click', () => {
-          if (btn.disabled) return;
-          const targetLabel = btn.getAttribute('data-milestone') || '';
           if (milestoneSelect) {
-            milestoneSelect.value = targetLabel;
-            milestoneSelect.dispatchEvent(new Event('change', { bubbles: true }));
-          } else {
-            updateMilestoneUi(targetLabel);
+            const allowedLabels = allowedMilestonesForStatus(statusValue);
+            const allowedSet = new Set(allowedLabels
+              .map((label) => milestoneIndex(label))
+              .filter((idx) => Number.isInteger(idx) && idx >= 0));
+            const guard = allowedSet.size ? allowedSet : null;
+            Array.from(milestoneSelect.options).forEach((opt) => {
+              const idx = milestoneIndex(opt.value);
+              const permitted = guard ? guard.has(idx) : true;
+              opt.disabled = !permitted;
+              opt.classList.toggle('is-disabled', !permitted);
+              opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
+            });
           }
-        });
-      });
-      if (milestoneActionBtn && !milestoneActionBtn.__wired) {
-        milestoneActionBtn.__wired = true;
-        milestoneActionBtn.addEventListener('click', async () => {
-          const contactId = String($('#c-id', body)?.value || '').trim();
-          if (!contactId) { notify('Save the contact before logging a milestone task.', 'warn'); return; }
-          const meta = updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', statusSelect ? statusSelect.value : '');
-          const note = `${meta.action} — ${meta.label}`;
-          const tagValue = `milestone:${meta.slug}`;
-          const payload = { linkedType: 'contact', linkedId: contactId, note, tags: [tagValue] };
-          milestoneActionBtn.disabled = true;
-          try {
-            const result = await createTaskViaService(payload);
-            if (result && result.status === 'error') {
-              throw new Error('Task API returned error');
-            }
-            let taskId = '';
-            if (result && typeof result === 'object') {
-              if (result.task && result.task.id) taskId = String(result.task.id);
-              else if (result.id) taskId = String(result.id);
-            }
-            if (taskId) {
-              try {
-                await openDB();
-                const record = await dbGet('tasks', taskId);
-                if (record) {
-                  const nextTags = Array.isArray(record.tags) ? record.tags.slice(0) : [];
-                  if (!nextTags.includes(tagValue)) nextTags.push(tagValue);
-                  record.tags = nextTags;
-                  if (!record.notes) record.notes = note;
-                  if (!record.title) record.title = note;
-                  record.updatedAt = Date.now();
-                  await dbPut('tasks', record);
-                }
-              } catch (err) { console?.warn?.('milestone task tag update failed', err); }
-            }
-            try { window.dispatchEvent(new CustomEvent('tasks:changed')); }
-            catch (_err) { }
-          } catch (err) {
-            console?.warn?.('milestone task create failed', err);
-            notify('Unable to add milestone task.', 'error');
-          } finally {
-            milestoneActionBtn.disabled = false;
+          if (milestoneBar && milestoneFill) {
+            const max = PIPELINE_MILESTONES.length;
+            const maxIndex = Math.max(max - 1, 1);
+            const pct = maxIndex ? Math.max(0, Math.min(100, (meta.index / maxIndex) * 100)) : 100;
+            milestoneFill.style.width = `${pct}%`;
+            milestoneBar.setAttribute('aria-valuenow', String(meta.index + 1));
+            milestoneBar.setAttribute('aria-valuetext', meta.label);
           }
-        });
-      }
-      if (typeof document !== 'undefined' && typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('MILESTONE_UI', {
-          hasBar: !!document.querySelector('[data-qa="milestone-bar"]'),
-          badges: document.querySelectorAll('[data-qa="milestone-badge"]').length,
-          nextCta: !!document.querySelector('[data-qa="milestone-next"]')
-        });
-      }
-
-      const mirrorLast = $('#c-lastname', body);
-      const lastInput = $('#c-last', body);
-      if (mirrorLast && lastInput) {
-        lastInput.addEventListener('input', () => mirrorLast.value = lastInput.value);
-      }
-
-      const tabNav = $('#contact-tabs', body);
-      if (tabNav) {
-        tabNav.addEventListener('click', (evt) => {
-          const btn = evt.target.closest('button[data-panel]');
-          if (!btn) return;
-          evt.preventDefault();
-          const target = btn.getAttribute('data-panel');
-          tabNav.querySelectorAll('button[data-panel]').forEach(b => b.classList.toggle('active', b === btn));
-          body.querySelectorAll('.modal-panel').forEach(panel => {
-            panel.classList.toggle('active', panel.getAttribute('data-panel') === target);
+          milestoneBadges.forEach((btn, idx) => {
+            const allowed = allowedMilestoneIndex(statusValue, idx);
+            btn.disabled = !allowed;
+            btn.classList.toggle('is-disabled', !allowed);
+            btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
+            const active = idx === meta.index;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
           });
-        });
-      }
-
-      const stageSelect = $('#c-stage', body);
-      const statusSelect = $('#c-status', body);
-      const stageRange = $('#contact-stage-range', body);
-      const stageProgress = $('#contact-stage-progress', body);
-      const stageMarks = Array.from(body.querySelectorAll('.stage-slider-mark'));
-      const stageHelpTitle = $('#contact-stage-help-title', body);
-      const stageHelpText = $('#contact-stage-helptext', body);
-      const stageIndexFor = (value) => {
-        const norm = String(value || '').toLowerCase();
-        const direct = STAGE_FLOW.indexOf(norm);
-        if (direct >= 0) return direct;
-        if (norm === 'preapproved') return 1;
-        if (norm === 'ctc' || norm === 'clear-to-close' || norm === 'cleared to close') {
-          const idx = STAGE_FLOW.indexOf('cleared-to-close');
-          return idx >= 0 ? idx : 0;
+          if (milestoneActionBtn) milestoneActionBtn.textContent = meta.action;
+          return meta;
         }
-        if (norm === 'post-close' || norm === 'nurture' || norm === 'lost' || norm === 'denied') return STAGE_FLOW.length - 1;
-        return 0;
-      };
-      const syncStageSlider = (stageVal) => {
-        if (!stageRange || !stageProgress) return;
-        const idx = stageIndexFor(stageVal);
-        const maxIndex = Math.max(STAGE_FLOW.length - 1, 1);
-        const pct = Math.min(100, Math.max(0, (idx / maxIndex) * 100));
-        stageRange.value = String(idx);
-        stageProgress.style.width = `${pct}%`;
-        stageMarks.forEach((mark, i) => mark.classList.toggle('active', i <= idx));
-        stageRange.setAttribute('aria-valuetext', findLabel(STAGES, STAGE_FLOW[idx] || STAGE_FLOW[0]) || '');
-        const stageKey = STAGE_FLOW[idx] || String(stageVal || '').toLowerCase();
-        const stageLabel = findLabel(STAGES, stageKey) || findLabel(STAGES, stageVal) || 'Pipeline Stage';
-        const helpMsg = STAGE_AUTOMATIONS[stageKey] || 'Stage updates keep doc checklists, partner notifications, and task cadences aligned.';
-        if (stageHelpTitle) stageHelpTitle.textContent = `${stageLabel} automations`;
-        if (stageHelpText) stageHelpText.textContent = helpMsg;
-      };
-      if (stageRange) {
-        const onStageDrag = () => {
-          const idx = Math.max(0, Math.min(STAGE_FLOW.length - 1, Number(stageRange.value || 0)));
-          const nextStage = STAGE_FLOW[idx] || STAGE_FLOW[0];
-          if (stageSelect) {
-            stageSelect.value = nextStage;
-            stageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        function syncStatusMilestone(source) {
+          const stageVal = stageSelect ? stageSelect.value : 'application';
+          let statusVal = statusSelect ? statusSelect.value : 'inprogress';
+          let milestoneVal = milestoneSelect ? milestoneSelect.value : '';
+          let statusChanged = false;
+          let milestoneChanged = false;
+          for (let guard = 0; guard < 5; guard += 1) {
+            const normalizedStatus = normalizeStatusForStage(stageVal, statusVal);
+            if (normalizedStatus !== statusVal) {
+              statusVal = normalizedStatus;
+              statusChanged = true;
+              continue;
+            }
+            const normalizedMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+            if (normalizedMilestone !== milestoneVal) {
+              milestoneVal = normalizedMilestone;
+              milestoneChanged = true;
+              continue;
+            }
+            const statusForMilestone = normalizeStatusForMilestone(milestoneVal, statusVal, { stage: stageVal, preferredStatus: statusVal });
+            if (statusForMilestone && statusForMilestone !== statusVal) {
+              statusVal = statusForMilestone;
+              statusChanged = true;
+              continue;
+            }
+            break;
           }
-        };
-        stageRange.addEventListener('input', onStageDrag);
-        stageRange.addEventListener('change', onStageDrag);
-      }
-      if (statusSelect) {
-        statusSelect.addEventListener('change', () => {
-          const result = syncStatusMilestone('status');
+          const finalMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+          if (finalMilestone !== milestoneVal) {
+            milestoneVal = finalMilestone;
+            milestoneChanged = true;
+          }
+          const stageNormalized = normalizeStatusForStage(stageVal, statusVal);
+          if (stageNormalized !== statusVal) {
+            statusVal = stageNormalized;
+            statusChanged = true;
+            const finalCheckMilestone = normalizeMilestoneForStatus(milestoneVal, statusVal);
+            if (finalCheckMilestone !== milestoneVal) {
+              milestoneVal = finalCheckMilestone;
+              milestoneChanged = true;
+            }
+          }
+          if (statusSelect && statusSelect.value !== statusVal) {
+            statusSelect.value = statusVal;
+          }
+          if (milestoneSelect && milestoneSelect.value !== milestoneVal) {
+            milestoneSelect.value = milestoneVal;
+          }
+          return {
+            changedStatus: statusChanged,
+            changedMilestone: milestoneChanged,
+            finalStatus: statusVal,
+            finalMilestone: milestoneVal,
+            source
+          };
+        }
+        function handlePairingResult(result) {
+          if (!result) return;
+          if (result.source === 'stage' || result.source === 'init') {
+            showStatusMilestoneHint('');
+            return;
+          }
+          const statusLabel = findLabel(STATUSES, result.finalStatus) || result.finalStatus;
+          if (result.source === 'status' && result.changedMilestone) {
+            showStatusMilestoneHint(`Milestone adjusted to ${result.finalMilestone} for ${statusLabel} status.`);
+            return;
+          }
+          if (result.source === 'milestone' && result.changedStatus) {
+            showStatusMilestoneHint(`Status adjusted to ${statusLabel} to match ${result.finalMilestone} milestone.`);
+            return;
+          }
+          if (result.changedMilestone) {
+            showStatusMilestoneHint(`Milestone aligned to ${result.finalMilestone} for ${statusLabel} status.`);
+            return;
+          }
+          showStatusMilestoneHint('');
+        }
+        function applyStatusGuard(stageVal) {
+          const stageAllowed = new Set(allowedStatusesForStage(stageVal));
+          const milestoneAllowed = new Set(allowedStatusesForMilestone(milestoneSelect ? milestoneSelect.value : ''));
+          if (statusSelect) {
+            Array.from(statusSelect.options).forEach(opt => {
+              const key = canonicalStatusKey(opt.value);
+              let permitted = stageAllowed.has(key);
+              if (permitted && milestoneAllowed.size) permitted = milestoneAllowed.has(key);
+              opt.disabled = !permitted;
+              opt.classList.toggle('is-disabled', !permitted);
+              opt.setAttribute('aria-disabled', permitted ? 'false' : 'true');
+            });
+          }
+        }
+        if (milestoneSelect) milestoneSelect.addEventListener('change', () => {
+          const result = syncStatusMilestone('milestone');
           applyStatusGuard(stageSelect ? stageSelect.value : 'application');
           updateMilestoneUi(result.finalMilestone, result.finalStatus);
           refreshFollowUpSuggestion();
           handlePairingResult(result);
         });
-      }
-      if (stageSelect) {
-        stageSelect.addEventListener('change', () => {
-          const nextStage = stageSelect.value;
-          syncStageSlider(nextStage);
-          const result = syncStatusMilestone('stage');
-          applyStatusGuard(nextStage);
-          updateMilestoneUi(result.finalMilestone, result.finalStatus);
-          refreshFollowUpSuggestion();
-          handlePairingResult(result);
+        milestoneBadges.forEach((btn) => {
+          if (btn.__wired) return;
+          btn.__wired = true;
+          btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            const targetLabel = btn.getAttribute('data-milestone') || '';
+            if (milestoneSelect) {
+              milestoneSelect.value = targetLabel;
+              milestoneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+              updateMilestoneUi(targetLabel);
+            }
+          });
         });
-      }
+        if (milestoneActionBtn && !milestoneActionBtn.__wired) {
+          milestoneActionBtn.__wired = true;
+          milestoneActionBtn.addEventListener('click', async () => {
+            const contactId = String($('#c-id', body)?.value || '').trim();
+            if (!contactId) { notify('Save the contact before logging a milestone task.', 'warn'); return; }
+            const meta = updateMilestoneUi(milestoneSelect ? milestoneSelect.value : '', statusSelect ? statusSelect.value : '');
+            const note = `${meta.action} — ${meta.label}`;
+            const tagValue = `milestone:${meta.slug}`;
+            const payload = { linkedType: 'contact', linkedId: contactId, note, tags: [tagValue] };
+            milestoneActionBtn.disabled = true;
+            try {
+              const result = await createTaskViaService(payload);
+              if (result && result.status === 'error') {
+                throw new Error('Task API returned error');
+              }
+              let taskId = '';
+              if (result && typeof result === 'object') {
+                if (result.task && result.task.id) taskId = String(result.task.id);
+                else if (result.id) taskId = String(result.id);
+              }
+              if (taskId) {
+                try {
+                  await openDB();
+                  const record = await dbGet('tasks', taskId);
+                  if (record) {
+                    const nextTags = Array.isArray(record.tags) ? record.tags.slice(0) : [];
+                    if (!nextTags.includes(tagValue)) nextTags.push(tagValue);
+                    record.tags = nextTags;
+                    if (!record.notes) record.notes = note;
+                    if (!record.title) record.title = note;
+                    record.updatedAt = Date.now();
+                    await dbPut('tasks', record);
+                  }
+                } catch (err) { console?.warn?.('milestone task tag update failed', err); }
+              }
+              try { window.dispatchEvent(new CustomEvent('tasks:changed')); }
+              catch (_err) { }
+            } catch (err) {
+              console?.warn?.('milestone task create failed', err);
+              notify('Unable to add milestone task.', 'error');
+            } finally {
+              milestoneActionBtn.disabled = false;
+            }
+          });
+        }
+        if (typeof document !== 'undefined' && typeof console !== 'undefined' && typeof console.log === 'function') {
+          console.log('MILESTONE_UI', {
+            hasBar: !!document.querySelector('[data-qa="milestone-bar"]'),
+            badges: document.querySelectorAll('[data-qa="milestone-badge"]').length,
+            nextCta: !!document.querySelector('[data-qa="milestone-next"]')
+          });
+        }
 
-      const updateSummary = () => {
-        const amountVal = Number($('#c-amount', body)?.value || 0);
-        const program = $('#c-loanType', body)?.value || '';
-        const source = $('#c-source', body)?.value || '';
-        const referralVal = $('#c-ref', body)?.value || '';
-        const referralPartnerSelect = $('#c-referral-partner', body);
-        const referralSummaryHost = $('#c-summary-referral', body);
-        const referralSummaryBtn = referralSummaryHost?.querySelector('[data-role="referral-partner-summary"]');
-        const next = $('#c-nexttouch', body)?.value || $('#c-timeline', body)?.value || 'TBD';
-        const amountEl = $('#c-summary-amount', body);
-        const programEl = $('#c-summary-program', body);
-        const sourceEl = $('#c-summary-source', body);
-        const touchEl = $('#c-summary-touch', body);
-        const detailStageEl = $('#c-detail-stage', body);
-        const detailStatusEl = $('#c-detail-status', body);
-        const detailLastEl = $('#c-detail-last', body);
-        const detailNextEl = $('#c-detail-next', body);
-        const detailProgramEl = $('#c-detail-program', body);
-        const detailAmountEl = $('#c-detail-amount', body);
-        const detailSourceEl = $('#c-detail-source', body);
-        const detailReferralEl = $('#c-detail-referral', body);
-        const summaryName = body.querySelector('.summary-name');
-        const recordName = body.querySelector('[data-role="record-name-text"]');
-        const recordSubtext = body.querySelector('[data-role="record-name-subtext"]');
-        const summaryNote = $('#c-summary-note', body);
-        const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
-        const statusEl = body.querySelector('.status-pill');
-        const stageVal = $('#c-stage', body)?.value || 'application';
-        const statusVal = $('#c-status', body)?.value || 'inprogress';
-        const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
-        const statusLabelText = findLabel(STATUSES, statusVal) || 'In Progress';
-        const lastContactField = $('#c-lastcontact', body);
-        const nextFollowUpField = $('#c-nexttouch', body);
-        const timelineField = $('#c-timeline', body);
-        const lastDetailValue = lastContactField && lastContactField.value ? String(lastContactField.value) : '';
-        const nextDetailValue = nextFollowUpField && nextFollowUpField.value ? String(nextFollowUpField.value) : '';
-        const timelineDetailValue = timelineField && timelineField.value ? String(timelineField.value) : '';
-        const nextDetailLabel = nextDetailValue
-          ? formatDetailDate(nextDetailValue, 'TBD')
-          : (timelineDetailValue || 'TBD');
-        const lastDetailLabel = lastDetailValue ? formatDetailDate(lastDetailValue, 'Not logged') : 'Not logged';
-        const firstVal = $('#c-first', body)?.value?.trim() || '';
-        const lastVal = $('#c-last', body)?.value?.trim() || '';
-        const displayName = (firstVal || lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
-        if (amountEl) { amountEl.textContent = amountVal > 0 ? fmtCurrency.format(amountVal) : 'TBD'; }
-        if (programEl) { programEl.textContent = program || 'Select'; }
-        if (sourceEl) { sourceEl.textContent = source || 'Set Source'; }
-        if (detailAmountEl) { detailAmountEl.textContent = amountVal > 0 ? fmtCurrency.format(amountVal) : 'TBD'; }
-        if (detailProgramEl) { detailProgramEl.textContent = program || 'Select'; }
-        if (detailSourceEl) { detailSourceEl.textContent = source || 'Set Source'; }
-        if (referralSummaryBtn) {
-          const selectedPartnerId = referralPartnerSelect ? String(referralPartnerSelect.value || '').trim() : '';
-          let partnerText = partnerLabelFor(selectedPartnerId);
-          if (!partnerText && selectedPartnerId && referralPartnerSelect && referralPartnerSelect.selectedOptions && referralPartnerSelect.selectedOptions[0]) {
-            partnerText = referralPartnerSelect.selectedOptions[0].textContent?.trim() || '';
+        const mirrorLast = $('#c-lastname', body);
+        const lastInput = $('#c-last', body);
+        if (mirrorLast && lastInput) {
+          lastInput.addEventListener('input', () => mirrorLast.value = lastInput.value);
+        }
+
+        const tabNav = $('#contact-tabs', body);
+        if (tabNav) {
+          tabNav.addEventListener('click', (evt) => {
+            const btn = evt.target.closest('button[data-panel]');
+            if (!btn) return;
+            evt.preventDefault();
+            const target = btn.getAttribute('data-panel');
+            tabNav.querySelectorAll('button[data-panel]').forEach(b => b.classList.toggle('active', b === btn));
+            body.querySelectorAll('.modal-panel').forEach(panel => {
+              panel.classList.toggle('active', panel.getAttribute('data-panel') === target);
+            });
+          });
+        }
+
+        const stageSelect = $('#c-stage', body);
+        const statusSelect = $('#c-status', body);
+        const stageRange = $('#contact-stage-range', body);
+        const stageProgress = $('#contact-stage-progress', body);
+        const stageMarks = Array.from(body.querySelectorAll('.stage-slider-mark'));
+        const stageHelpTitle = $('#contact-stage-help-title', body);
+        const stageHelpText = $('#contact-stage-helptext', body);
+        const stageIndexFor = (value) => {
+          const norm = String(value || '').toLowerCase();
+          const direct = STAGE_FLOW.indexOf(norm);
+          if (direct >= 0) return direct;
+          if (norm === 'preapproved') return 1;
+          if (norm === 'ctc' || norm === 'clear-to-close' || norm === 'cleared to close') {
+            const idx = STAGE_FLOW.indexOf('cleared-to-close');
+            return idx >= 0 ? idx : 0;
           }
-          if (!partnerText && selectedPartnerId) {
-            partnerText = referralPartnerName && selectedPartnerId === referralPartnerId ? referralPartnerName : '';
+          if (norm === 'post-close' || norm === 'nurture' || norm === 'lost' || norm === 'denied') return STAGE_FLOW.length - 1;
+          return 0;
+        };
+        const syncStageSlider = (stageVal) => {
+          if (!stageRange || !stageProgress) return;
+          const idx = stageIndexFor(stageVal);
+          const maxIndex = Math.max(STAGE_FLOW.length - 1, 1);
+          const pct = Math.min(100, Math.max(0, (idx / maxIndex) * 100));
+          stageRange.value = String(idx);
+          stageProgress.style.width = `${pct}%`;
+          stageMarks.forEach((mark, i) => mark.classList.toggle('active', i <= idx));
+          stageRange.setAttribute('aria-valuetext', findLabel(STAGES, STAGE_FLOW[idx] || STAGE_FLOW[0]) || '');
+          const stageKey = STAGE_FLOW[idx] || String(stageVal || '').toLowerCase();
+          const stageLabel = findLabel(STAGES, stageKey) || findLabel(STAGES, stageVal) || 'Pipeline Stage';
+          const helpMsg = STAGE_AUTOMATIONS[stageKey] || 'Stage updates keep doc checklists, partner notifications, and task cadences aligned.';
+          if (stageHelpTitle) stageHelpTitle.textContent = `${stageLabel} automations`;
+          if (stageHelpText) stageHelpText.textContent = helpMsg;
+        };
+        if (stageRange) {
+          const onStageDrag = () => {
+            const idx = Math.max(0, Math.min(STAGE_FLOW.length - 1, Number(stageRange.value || 0)));
+            const nextStage = STAGE_FLOW[idx] || STAGE_FLOW[0];
+            if (stageSelect) {
+              stageSelect.value = nextStage;
+              stageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          };
+          stageRange.addEventListener('input', onStageDrag);
+          stageRange.addEventListener('change', onStageDrag);
+        }
+        if (statusSelect) {
+          statusSelect.addEventListener('change', () => {
+            const result = syncStatusMilestone('status');
+            applyStatusGuard(stageSelect ? stageSelect.value : 'application');
+            updateMilestoneUi(result.finalMilestone, result.finalStatus);
+            refreshFollowUpSuggestion();
+            handlePairingResult(result);
+          });
+        }
+        if (stageSelect) {
+          stageSelect.addEventListener('change', () => {
+            const nextStage = stageSelect.value;
+            syncStageSlider(nextStage);
+            const result = syncStatusMilestone('stage');
+            applyStatusGuard(nextStage);
+            updateMilestoneUi(result.finalMilestone, result.finalStatus);
+            refreshFollowUpSuggestion();
+            handlePairingResult(result);
+          });
+        }
+
+        const updateSummary = () => {
+          const amountVal = Number($('#c-amount', body)?.value || 0);
+          const program = $('#c-loanType', body)?.value || '';
+          const source = $('#c-source', body)?.value || '';
+          const referralVal = $('#c-ref', body)?.value || '';
+          const referralPartnerSelect = $('#c-referral-partner', body);
+          const referralSummaryHost = $('#c-summary-referral', body);
+          const referralSummaryBtn = referralSummaryHost?.querySelector('[data-role="referral-partner-summary"]');
+          const next = $('#c-nexttouch', body)?.value || $('#c-timeline', body)?.value || 'TBD';
+          const amountEl = $('#c-summary-amount', body);
+          const programEl = $('#c-summary-program', body);
+          const sourceEl = $('#c-summary-source', body);
+          const touchEl = $('#c-summary-touch', body);
+          const detailStageEl = $('#c-detail-stage', body);
+          const detailStatusEl = $('#c-detail-status', body);
+          const detailLastEl = $('#c-detail-last', body);
+          const detailNextEl = $('#c-detail-next', body);
+          const detailProgramEl = $('#c-detail-program', body);
+          const detailAmountEl = $('#c-detail-amount', body);
+          const detailSourceEl = $('#c-detail-source', body);
+          const detailReferralEl = $('#c-detail-referral', body);
+          const summaryName = body.querySelector('.summary-name');
+          const recordName = body.querySelector('[data-role="record-name-text"]');
+          const recordSubtext = body.querySelector('[data-role="record-name-subtext"]');
+          const summaryNote = $('#c-summary-note', body);
+          const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
+          const statusEl = body.querySelector('.status-pill');
+          const stageVal = $('#c-stage', body)?.value || 'application';
+          const statusVal = $('#c-status', body)?.value || 'inprogress';
+          const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
+          const statusLabelText = findLabel(STATUSES, statusVal) || 'In Progress';
+          const lastContactField = $('#c-lastcontact', body);
+          const nextFollowUpField = $('#c-nexttouch', body);
+          const timelineField = $('#c-timeline', body);
+          const lastDetailValue = lastContactField && lastContactField.value ? String(lastContactField.value) : '';
+          const nextDetailValue = nextFollowUpField && nextFollowUpField.value ? String(nextFollowUpField.value) : '';
+          const timelineDetailValue = timelineField && timelineField.value ? String(timelineField.value) : '';
+          const nextDetailLabel = nextDetailValue
+            ? formatDetailDate(nextDetailValue, 'TBD')
+            : (timelineDetailValue || 'TBD');
+          const lastDetailLabel = lastDetailValue ? formatDetailDate(lastDetailValue, 'Not logged') : 'Not logged';
+          const firstVal = $('#c-first', body)?.value?.trim() || '';
+          const lastVal = $('#c-last', body)?.value?.trim() || '';
+          const displayName = (firstVal || lastVal) ? `${firstVal} ${lastVal}`.trim() : 'New Contact';
+          if (amountEl) { amountEl.textContent = amountVal > 0 ? fmtCurrency.format(amountVal) : 'TBD'; }
+          if (programEl) { programEl.textContent = program || 'Select'; }
+          if (sourceEl) { sourceEl.textContent = source || 'Set Source'; }
+          if (detailAmountEl) { detailAmountEl.textContent = amountVal > 0 ? fmtCurrency.format(amountVal) : 'TBD'; }
+          if (detailProgramEl) { detailProgramEl.textContent = program || 'Select'; }
+          if (detailSourceEl) { detailSourceEl.textContent = source || 'Set Source'; }
+          if (referralSummaryBtn) {
+            const selectedPartnerId = referralPartnerSelect ? String(referralPartnerSelect.value || '').trim() : '';
+            let partnerText = partnerLabelFor(selectedPartnerId);
+            if (!partnerText && selectedPartnerId && referralPartnerSelect && referralPartnerSelect.selectedOptions && referralPartnerSelect.selectedOptions[0]) {
+              partnerText = referralPartnerSelect.selectedOptions[0].textContent?.trim() || '';
+            }
+            if (!partnerText && selectedPartnerId) {
+              partnerText = referralPartnerName && selectedPartnerId === referralPartnerId ? referralPartnerName : '';
+            }
+            referralSummaryBtn.textContent = partnerText || 'Assign Referral Partner';
+            if (selectedPartnerId) {
+              referralSummaryBtn.dataset.partnerId = selectedPartnerId;
+            } else {
+              delete referralSummaryBtn.dataset.partnerId;
+            }
+            if (detailReferralEl) {
+              detailReferralEl.textContent = partnerText || 'Not linked';
+            }
+          } else if (detailReferralEl) {
+            detailReferralEl.textContent = detailReferralDisplay;
           }
-          referralSummaryBtn.textContent = partnerText || 'Assign Referral Partner';
-          if (selectedPartnerId) {
-            referralSummaryBtn.dataset.partnerId = selectedPartnerId;
-          } else {
-            delete referralSummaryBtn.dataset.partnerId;
+          if (touchEl) { touchEl.textContent = next || 'TBD'; }
+          if (detailNextEl) { detailNextEl.textContent = nextDetailLabel || 'TBD'; }
+          if (detailLastEl) { detailLastEl.textContent = lastDetailLabel; }
+          if (recordName) { recordName.textContent = displayName; }
+          if (recordSubtext) { recordSubtext.textContent = `${stageLabelText || 'Application'} • ${statusLabelText || 'In Progress'}`; }
+          if (summaryName) {
+            const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
+            const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+            const idInput = $('#c-id', body);
+            const recordIdVal = idInput ? String(idInput.value || '') : '';
+            summaryName.dataset.favoriteType = 'contact';
+            summaryName.dataset.recordId = recordIdVal;
+            summaryName.setAttribute('data-role', 'favorite-host');
+            summaryName.setAttribute('data-favorite-type', 'contact');
+            summaryName.setAttribute('data-record-id', recordIdVal);
+            if (summaryText) { summaryText.textContent = displayName; }
+            else { summaryName.textContent = displayName; }
+            const avatarName = (firstVal || lastVal) ? displayName : '';
+            applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
           }
-          if (detailReferralEl) {
-            detailReferralEl.textContent = partnerText || 'Not linked';
+          if (stageWrap) {
+            const canonicalKey = canonicalStage(stageVal) || canonicalStage(stageLabelText);
+            if (canonicalKey) { stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
+            stageWrap.dataset.stage = stageVal;
+            const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || stageLabelText) : stageLabelText;
+            const chip = renderStageChip(stageVal) || renderStageChip(stageLabelText) || buildStageFallback(canonicalLabel || stageLabelText, stageVal);
+            stageWrap.innerHTML = chip;
           }
-        } else if (detailReferralEl) {
-          detailReferralEl.textContent = detailReferralDisplay;
-        }
-        if (touchEl) { touchEl.textContent = next || 'TBD'; }
-        if (detailNextEl) { detailNextEl.textContent = nextDetailLabel || 'TBD'; }
-        if (detailLastEl) { detailLastEl.textContent = lastDetailLabel; }
-        if (recordName) { recordName.textContent = displayName; }
-        if (recordSubtext) { recordSubtext.textContent = `${stageLabelText || 'Application'} • ${statusLabelText || 'In Progress'}`; }
-        if (summaryName) {
-          const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
-          const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
-          const idInput = $('#c-id', body);
-          const recordIdVal = idInput ? String(idInput.value || '') : '';
-          summaryName.dataset.favoriteType = 'contact';
-          summaryName.dataset.recordId = recordIdVal;
-          summaryName.setAttribute('data-role', 'favorite-host');
-          summaryName.setAttribute('data-favorite-type', 'contact');
-          summaryName.setAttribute('data-record-id', recordIdVal);
-          if (summaryText) { summaryText.textContent = displayName; }
-          else { summaryName.textContent = displayName; }
-          const avatarName = (firstVal || lastVal) ? displayName : '';
-          applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
-        }
-        if (stageWrap) {
-          const canonicalKey = canonicalStage(stageVal) || canonicalStage(stageLabelText);
-          if (canonicalKey) { stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
-          stageWrap.dataset.stage = stageVal;
-          const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || stageLabelText) : stageLabelText;
-          const chip = renderStageChip(stageVal) || renderStageChip(stageLabelText) || buildStageFallback(canonicalLabel || stageLabelText, stageVal);
-          stageWrap.innerHTML = chip;
-        }
-        if (detailStageEl) { detailStageEl.textContent = stageLabelText; }
-        if (statusEl) {
-          statusEl.dataset.status = statusVal;
-          const toneKey = toneForStatus(statusVal);
-          const toneClass = toneClassName(toneKey);
-          removeToneClasses(statusEl);
-          if (toneClass) { statusEl.classList.add(toneClass); }
-          if (toneKey) { statusEl.setAttribute('data-tone', toneKey); }
-          else { statusEl.removeAttribute('data-tone'); }
-          statusEl.textContent = statusLabelText;
-        }
-        if (detailStatusEl) { detailStatusEl.textContent = statusLabelText; }
-        if (summaryNote) {
-          if (stageVal === 'post-close') { summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
-          else if (stageVal === 'long-shot') { summaryNote.textContent = 'Prioritize quick outreach, log lead intel, and enroll leads in nurture campaigns.'; }
-          else if (stageVal === 'funded') { summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }
-          else if (stageVal === 'nurture') { summaryNote.textContent = 'Set light-touch cadences, send value content, and track partner intel.'; }
-          else if (stageVal === 'lost' || stageVal === 'denied') { summaryNote.textContent = 'Capture the outcome, log lessons learned, and schedule a re-engagement plan.'; }
-          else if (stageVal === 'underwriting' || stageVal === 'processing') { summaryNote.textContent = 'Tighten doc flow, confirm conditions, and communicate expectations to all parties.'; }
-          else if (stageVal === 'approved' || stageVal === 'cleared-to-close') { summaryNote.textContent = 'Coordinate closing logistics, lock in insurance, and prep gifting / testimonials.'; }
-          else { summaryNote.textContent = 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.'; }
-        }
-      };
-      body.querySelectorAll('input,select').forEach(el => {
-        if (el.id === 'contact-stage-range') return;
-        el.addEventListener('change', updateSummary);
-        el.addEventListener('input', updateSummary);
-      });
-      const initialStage = c.stage || 'application';
-      syncStageSlider(initialStage);
-      const initialPairing = syncStatusMilestone('init');
-      applyStatusGuard(initialStage);
-      updateMilestoneUi(initialPairing.finalMilestone, initialPairing.finalStatus);
-      refreshFollowUpSuggestion();
-      handlePairingResult(initialPairing);
-      updateSummary();
+          if (detailStageEl) { detailStageEl.textContent = stageLabelText; }
+          if (statusEl) {
+            statusEl.dataset.status = statusVal;
+            const toneKey = toneForStatus(statusVal);
+            const toneClass = toneClassName(toneKey);
+            removeToneClasses(statusEl);
+            if (toneClass) { statusEl.classList.add(toneClass); }
+            if (toneKey) { statusEl.setAttribute('data-tone', toneKey); }
+            else { statusEl.removeAttribute('data-tone'); }
+            statusEl.textContent = statusLabelText;
+          }
+          if (detailStatusEl) { detailStatusEl.textContent = statusLabelText; }
+          if (summaryNote) {
+            if (stageVal === 'post-close') { summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }
+            else if (stageVal === 'long-shot') { summaryNote.textContent = 'Prioritize quick outreach, log lead intel, and enroll leads in nurture campaigns.'; }
+            else if (stageVal === 'funded') { summaryNote.textContent = 'Celebrate this win, deliver post-close touches, and prompt for partner reviews.'; }
+            else if (stageVal === 'nurture') { summaryNote.textContent = 'Set light-touch cadences, send value content, and track partner intel.'; }
+            else if (stageVal === 'lost' || stageVal === 'denied') { summaryNote.textContent = 'Capture the outcome, log lessons learned, and schedule a re-engagement plan.'; }
+            else if (stageVal === 'underwriting' || stageVal === 'processing') { summaryNote.textContent = 'Tighten doc flow, confirm conditions, and communicate expectations to all parties.'; }
+            else if (stageVal === 'approved' || stageVal === 'cleared-to-close') { summaryNote.textContent = 'Coordinate closing logistics, lock in insurance, and prep gifting / testimonials.'; }
+            else { summaryNote.textContent = 'Keep momentum with timely follow-up, clear milestones, and aligned partner updates.'; }
+          }
+        };
+        body.querySelectorAll('input,select').forEach(el => {
+          if (el.id === 'contact-stage-range') return;
+          el.addEventListener('change', updateSummary);
+          el.addEventListener('input', updateSummary);
+        });
+        const initialStage = c.stage || 'application';
+        syncStageSlider(initialStage);
+        const initialPairing = syncStatusMilestone('init');
+        applyStatusGuard(initialStage);
+        updateMilestoneUi(initialPairing.finalMilestone, initialPairing.finalStatus);
+        refreshFollowUpSuggestion();
+        handlePairingResult(initialPairing);
+        updateSummary();
 
-      const ensureReferredByButton = () => {
-        const select = body.querySelector('#c-ref');
-        if (!select) return;
-        const host = select.closest('label') || select.parentElement || body;
-        if (!host) return;
-        const affordance = host.querySelector('[data-qa="referred-by-quick-add"], [data-role="referred-by-quick-add"], .referred-by-quick-add');
-        if (affordance && affordance.tagName !== 'BUTTON') {
-          affordance.remove();
+        const ensureReferredByButton = () => {
+          const select = body.querySelector('#c-ref');
+          if (!select) return;
+          const host = select.closest('label') || select.parentElement || body;
+          if (!host) return;
+          const affordance = host.querySelector('[data-qa="referred-by-quick-add"], [data-role="referred-by-quick-add"], .referred-by-quick-add');
+          if (affordance && affordance.tagName !== 'BUTTON') {
+            affordance.remove();
+          }
+          const button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
+          if (!button) return;
+          button.dataset.qa = 'referred-by-quick-add';
+          button.dataset.role = 'referred-by-quick-add';
+          button.classList.add('btn', 'ghost', 'compact', 'btn-add-contact');
+          button.type = 'button';
+          button.setAttribute('aria-label', 'Add Contact');
+          button.title = 'Add Contact';
+          let icon = button.querySelector('.btn-icon');
+          if (!icon) {
+            icon = document.createElement('span');
+            icon.className = 'btn-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            button.insertBefore(icon, button.firstChild || null);
+          }
+          icon.textContent = '+';
+          const spanLabel = button.querySelector('span:last-child');
+          if (spanLabel) {
+            spanLabel.textContent = 'Add Contact';
+          }
+        };
+
+        ensureReferredByButton();
+
+        const docListEl = $('#c-doc-list', body);
+        const docSummaryEl = $('#c-doc-summary', body);
+        const docMissingEl = $('#c-doc-missing', body);
+        const docEmailBtn = $('#c-email-docs', body);
+        const docSyncBtn = $('#c-sync-docs', body);
+
+        const getLoanLabel = () => {
+          const loanSel = $('#c-loanType', body);
+          const opt = loanSel && loanSel.selectedOptions && loanSel.selectedOptions[0];
+          return (opt && opt.textContent && opt.textContent.trim()) || (loanSel && loanSel.value) || 'loan';
+        };
+
+        async function renderDocChecklist() {
+          if (!docListEl) return;
+          const contactId = $('#c-id', body)?.value;
+          const loanSel = $('#c-loanType', body);
+          const loanType = loanSel ? loanSel.value : '';
+          const loanLabel = getLoanLabel();
+          const guardResult = typeof window.getRequiredDocsGuarded === 'function'
+            ? await window.getRequiredDocsGuarded(loanType)
+            : { docs: [], missingConfig: true };
+          const required = Array.isArray(guardResult.docs) ? guardResult.docs : [];
+          const usingFallbackRules = !!(guardResult && guardResult.missingConfig);
+          let persisted = null;
+          let docs = [];
+          let missing = '';
+          if (contactId) {
+            try {
+              await openDB();
+              persisted = await dbGet('contacts', contactId);
+              if (persisted) {
+                const allDocs = await dbGetAll('documents');
+                docs = (allDocs || []).filter(d => String(d.contactId) === String(contactId));
+                missing = persisted.missingDocs || '';
+              }
+            } catch (err) { console.warn('doc checklist load', err); }
+          }
+
+          const chips = [];
+          let receivedCount = 0;
+          required.forEach(name => {
+            const key = String(name || '').toLowerCase();
+            const existing = docs.find(d => String(d.name || '').toLowerCase() === key);
+            const statusRaw = existing ? (existing.status || 'Requested') : (persisted ? 'Requested' : 'Pending');
+            const status = String(statusRaw).toLowerCase();
+            if (/^received|waived$/.test(status)) receivedCount++;
+            chips.push(`<li class="doc-chip" data-status="${escape(status)}"><span class="doc-chip-name">${escape(name)}</span><span class="doc-chip-status">${escape(statusRaw)}</span></li>`);
+          });
+          docListEl.innerHTML = chips.join('');
+          if (docSummaryEl) {
+            if (persisted) {
+              const outstanding = Math.max(required.length - receivedCount, 0);
+              docSummaryEl.textContent = `${required.length} required • ${receivedCount} received • ${outstanding} outstanding`;
+            } else {
+              docSummaryEl.textContent = `${required.length} documents will be requested once this contact is saved.`;
+            }
+          }
+          if (docMissingEl) {
+            if (persisted && missing) {
+              docMissingEl.textContent = `Still Needed: ${missing}`;
+              docMissingEl.classList.add('warn');
+            } else if (persisted) {
+              docMissingEl.textContent = 'All required documents accounted for.';
+              docMissingEl.classList.remove('warn');
+            } else {
+              docMissingEl.textContent = '';
+              docMissingEl.classList.remove('warn');
+            }
+          }
+          if (docEmailBtn) {
+            docEmailBtn.disabled = false;
+            docEmailBtn.dataset.docs = JSON.stringify(required);
+            docEmailBtn.dataset.loan = loanLabel;
+          }
+
+          if (usingFallbackRules) {
+            const warningText = 'Missing Docs rules are not configured yet. Using a default checklist until rules are set in Settings.';
+            if (docMissingEl) {
+              const base = docMissingEl.textContent ? `${docMissingEl.textContent} ` : '';
+              docMissingEl.textContent = `${base}${warningText}`;
+              docMissingEl.classList.add('warn');
+            } else if (docSummaryEl) {
+              docSummaryEl.textContent = warningText;
+            }
+          }
         }
-        const button = host.querySelector('button[data-qa="referred-by-quick-add"], button[data-role="referred-by-quick-add"], button.referred-by-quick-add');
-        if (!button) return;
-        button.dataset.qa = 'referred-by-quick-add';
-        button.dataset.role = 'referred-by-quick-add';
-        button.classList.add('btn', 'ghost', 'compact', 'btn-add-contact');
-        button.type = 'button';
-        button.setAttribute('aria-label', 'Add Contact');
-        button.title = 'Add Contact';
-        let icon = button.querySelector('.btn-icon');
-        if (!icon) {
-          icon = document.createElement('span');
-          icon.className = 'btn-icon';
-          icon.setAttribute('aria-hidden', 'true');
-          button.insertBefore(icon, button.firstChild || null);
-        }
-        icon.textContent = '+';
-        const spanLabel = button.querySelector('span:last-child');
-        if (spanLabel) {
-          spanLabel.textContent = 'Add Contact';
-        }
-      };
 
-      ensureReferredByButton();
-
-      const docListEl = $('#c-doc-list', body);
-      const docSummaryEl = $('#c-doc-summary', body);
-      const docMissingEl = $('#c-doc-missing', body);
-      const docEmailBtn = $('#c-email-docs', body);
-      const docSyncBtn = $('#c-sync-docs', body);
-
-      const getLoanLabel = () => {
-        const loanSel = $('#c-loanType', body);
-        const opt = loanSel && loanSel.selectedOptions && loanSel.selectedOptions[0];
-        return (opt && opt.textContent && opt.textContent.trim()) || (loanSel && loanSel.value) || 'loan';
-      };
-
-      async function renderDocChecklist() {
-        if (!docListEl) return;
-        const contactId = $('#c-id', body)?.value;
-        const loanSel = $('#c-loanType', body);
-        const loanType = loanSel ? loanSel.value : '';
-        const loanLabel = getLoanLabel();
-        const guardResult = typeof window.getRequiredDocsGuarded === 'function'
-          ? await window.getRequiredDocsGuarded(loanType)
-          : { docs: [], missingConfig: true };
-        const required = Array.isArray(guardResult.docs) ? guardResult.docs : [];
-        const usingFallbackRules = !!(guardResult && guardResult.missingConfig);
-        let persisted = null;
-        let docs = [];
-        let missing = '';
-        if (contactId) {
+        async function syncDocs(opts) {
+          const options = Object.assign({ silent: false }, opts || {});
+          const contactId = $('#c-id', body)?.value;
+          const loanSel = $('#c-loanType', body);
+          const loanType = loanSel ? loanSel.value : '';
+          if (!contactId) {
+            if (!options.silent) notify('Save this contact to generate the document checklist.');
+            await renderDocChecklist();
+            return;
+          }
           try {
             await openDB();
-            persisted = await dbGet('contacts', contactId);
-            if (persisted) {
-              const allDocs = await dbGetAll('documents');
-              docs = (allDocs || []).filter(d => String(d.contactId) === String(contactId));
-              missing = persisted.missingDocs || '';
+            const record = await dbGet('contacts', contactId);
+            if (record) {
+              record.loanType = loanType;
+              record.loanProgram = loanType || record.loanProgram;
+              record.updatedAt = Date.now();
+              await dbPut('contacts', record);
+              if (typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(record);
+              if (typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
+              if (!options.silent) toastSuccess('Required document checklist synced.');
+            } else if (!options.silent) {
+              notify('Save this contact to generate the document checklist.');
             }
-          } catch (err) { console.warn('doc checklist load', err); }
+          } catch (err) { console.warn('sync docs', err); }
+          await renderDocChecklist();
         }
 
-        const chips = [];
-        let receivedCount = 0;
-        required.forEach(name => {
-          const key = String(name || '').toLowerCase();
-          const existing = docs.find(d => String(d.name || '').toLowerCase() === key);
-          const statusRaw = existing ? (existing.status || 'Requested') : (persisted ? 'Requested' : 'Pending');
-          const status = String(statusRaw).toLowerCase();
-          if (/^received|waived$/.test(status)) receivedCount++;
-          chips.push(`<li class="doc-chip" data-status="${escape(status)}"><span class="doc-chip-name">${escape(name)}</span><span class="doc-chip-status">${escape(statusRaw)}</span></li>`);
-        });
-        docListEl.innerHTML = chips.join('');
-        if (docSummaryEl) {
-          if (persisted) {
-            const outstanding = Math.max(required.length - receivedCount, 0);
-            docSummaryEl.textContent = `${required.length} required • ${receivedCount} received • ${outstanding} outstanding`;
-          } else {
-            docSummaryEl.textContent = `${required.length} documents will be requested once this contact is saved.`;
-          }
+        if (docSyncBtn) {
+          docSyncBtn.addEventListener('click', () => { syncDocs({ silent: false }); });
         }
-        if (docMissingEl) {
-          if (persisted && missing) {
-            docMissingEl.textContent = `Still Needed: ${missing}`;
-            docMissingEl.classList.add('warn');
-          } else if (persisted) {
-            docMissingEl.textContent = 'All required documents accounted for.';
-            docMissingEl.classList.remove('warn');
-          } else {
-            docMissingEl.textContent = '';
-            docMissingEl.classList.remove('warn');
-          }
+        const loanSelect = $('#c-loanType', body);
+        if (loanSelect) {
+          loanSelect.addEventListener('change', () => { syncDocs({ silent: true }); });
         }
         if (docEmailBtn) {
-          docEmailBtn.disabled = false;
-          docEmailBtn.dataset.docs = JSON.stringify(required);
-          docEmailBtn.dataset.loan = loanLabel;
+          docEmailBtn.addEventListener('click', () => {
+            try {
+              const docs = JSON.parse(docEmailBtn.dataset.docs || '[]');
+              if (!docs.length) { notify('No required documents to email yet.'); return; }
+              const email = $('#c-email', body)?.value?.trim();
+              if (!email) { notify('Add a primary email before sending a request.', 'warn'); return; }
+              const first = $('#c-first', body)?.value?.trim();
+              const greeting = first ? `Hi ${first},` : 'Hi there,';
+              const loanLabel = docEmailBtn.dataset.loan || getLoanLabel();
+              const bullets = docs.map(name => `• ${name}`).join('\n');
+              const bodyText = `${greeting}\n\nTo keep your ${loanLabel} moving, please send the following documents:\n\n${bullets}\n\nYou can upload them to the secure portal or email them back to me.\n\nThank you!`;
+              const subject = `Document Request for your ${loanLabel}`;
+              const href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+              try { window.open(href, '_self'); } catch (_) { window.location.href = href; }
+            } catch (err) { console.warn('email docs', err); notify('Unable to build document request email.', 'error'); }
+          });
         }
 
-        if (usingFallbackRules) {
-          const warningText = 'Missing Docs rules are not configured yet. Using a default checklist until rules are set in Settings.';
-          if (docMissingEl) {
-            const base = docMissingEl.textContent ? `${docMissingEl.textContent} ` : '';
-            docMissingEl.textContent = `${base}${warningText}`;
-            docMissingEl.classList.add('warn');
-          } else if (docSummaryEl) {
-            docSummaryEl.textContent = warningText;
-          }
-        }
-      }
-
-      async function syncDocs(opts) {
-        const options = Object.assign({ silent: false }, opts || {});
-        const contactId = $('#c-id', body)?.value;
-        const loanSel = $('#c-loanType', body);
-        const loanType = loanSel ? loanSel.value : '';
-        if (!contactId) {
-          if (!options.silent) notify('Save this contact to generate the document checklist.');
-          await renderDocChecklist();
-          return;
-        }
-        try {
-          await openDB();
-          const record = await dbGet('contacts', contactId);
-          if (record) {
-            record.loanType = loanType;
-            record.loanProgram = loanType || record.loanProgram;
-            record.updatedAt = Date.now();
-            await dbPut('contacts', record);
-            if (typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(record);
-            if (typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
-            if (!options.silent) toastSuccess('Required document checklist synced.');
-          } else if (!options.silent) {
-            notify('Save this contact to generate the document checklist.');
-          }
-        } catch (err) { console.warn('sync docs', err); }
         await renderDocChecklist();
-      }
 
-      if (docSyncBtn) {
-        docSyncBtn.addEventListener('click', () => { syncDocs({ silent: false }); });
-      }
-      const loanSelect = $('#c-loanType', body);
-      if (loanSelect) {
-        loanSelect.addEventListener('change', () => { syncDocs({ silent: true }); });
-      }
-      if (docEmailBtn) {
-        docEmailBtn.addEventListener('click', () => {
-          try {
-            const docs = JSON.parse(docEmailBtn.dataset.docs || '[]');
-            if (!docs.length) { notify('No required documents to email yet.'); return; }
-            const email = $('#c-email', body)?.value?.trim();
-            if (!email) { notify('Add a primary email before sending a request.', 'warn'); return; }
-            const first = $('#c-first', body)?.value?.trim();
-            const greeting = first ? `Hi ${first},` : 'Hi there,';
-            const loanLabel = docEmailBtn.dataset.loan || getLoanLabel();
-            const bullets = docs.map(name => `• ${name}`).join('\n');
-            const bodyText = `${greeting}\n\nTo keep your ${loanLabel} moving, please send the following documents:\n\n${bullets}\n\nYou can upload them to the secure portal or email them back to me.\n\nThank you!`;
-            const subject = `Document Request for your ${loanLabel}`;
-            const href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
-            try { window.open(href, '_self'); } catch (_) { window.location.href = href; }
-          } catch (err) { console.warn('email docs', err); notify('Unable to build document request email.', 'error'); }
-        });
-      }
-
-      await renderDocChecklist();
-
-      const formShell = dlg.querySelector('form.modal-form-shell');
-      let footerHandle = dlg.__contactFooter;
-      if (formShell) {
-        const footerHost = formShell.querySelector('.modal-footer');
-        if (footerHost) {
-          if (!footerHandle) {
-            footerHandle = createFormFooter({
-              host: footerHost,
-              form: formShell,
-              saveLabel: 'Save Contact',
-              cancelLabel: 'Cancel',
-              saveId: 'btn-save-contact',
-              saveValue: 'default',
-              onCancel: event => {
-                if (event) event.preventDefault();
-                closeDialog();
-              }
-            });
-            footerHandle.cancelButton.setAttribute('data-close', '');
-            dlg.__contactFooter = footerHandle;
-          }
-          footerHandle.saveButton.textContent = 'Save Contact';
-          footerHandle.saveButton.value = 'default';
-          footerHandle.cancelButton.textContent = 'Cancel';
-        }
-      }
-
-      const saveBtn = dlg.querySelector('#btn-save-contact');
-      clearContactValidation(body);
-      wireContactValidationListeners(body);
-      const setBusy = (active) => {
-        if (active) {
-          try { dlg.setAttribute('data-loading', '1'); }
-          catch (_err) { }
-          if (saveBtn) {
-            saveBtn.dataset.loading = '1';
-            saveBtn.setAttribute('aria-busy', 'true');
-            saveBtn.disabled = true;
-          }
-        } else {
-          try { dlg.removeAttribute('data-loading'); }
-          catch (_err) { }
-          if (saveBtn) {
-            delete saveBtn.dataset.loading;
-            saveBtn.removeAttribute('aria-busy');
-            saveBtn.disabled = false;
+        const formShell = dlg.querySelector('form.modal-form-shell');
+        let footerHandle = dlg.__contactFooter;
+        if (formShell) {
+          const footerHost = formShell.querySelector('.modal-footer');
+          if (footerHost) {
+            if (!footerHandle) {
+              footerHandle = createFormFooter({
+                host: footerHost,
+                form: formShell,
+                saveLabel: 'Save Contact',
+                cancelLabel: 'Cancel',
+                saveId: 'btn-save-contact',
+                saveValue: 'default',
+                onCancel: event => {
+                  if (event) event.preventDefault();
+                  closeDialog();
+                }
+              });
+              footerHandle.cancelButton.setAttribute('data-close', '');
+              dlg.__contactFooter = footerHandle;
+            }
+            footerHandle.saveButton.textContent = 'Save Contact';
+            footerHandle.saveButton.value = 'default';
+            footerHandle.cancelButton.textContent = 'Cancel';
           }
         }
-      };
-      const normalizeTouchDate = (value, fallbackDate = new Date()) => {
-        if (value instanceof Date) {
-          return formatTouchDate(value);
-        }
-        if (typeof value === 'string' && value.trim()) {
-          const parsed = new Date(value);
-          if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
-            return formatTouchDate(parsed);
+
+        const saveBtn = dlg.querySelector('#btn-save-contact');
+        clearContactValidation(body);
+        wireContactValidationListeners(body);
+        const setBusy = (active) => {
+          if (active) {
+            try { dlg.setAttribute('data-loading', '1'); }
+            catch (_err) { }
+            if (saveBtn) {
+              saveBtn.dataset.loading = '1';
+              saveBtn.setAttribute('aria-busy', 'true');
+              saveBtn.disabled = true;
+            }
+          } else {
+            try { dlg.removeAttribute('data-loading'); }
+            catch (_err) { }
+            if (saveBtn) {
+              delete saveBtn.dataset.loading;
+              saveBtn.removeAttribute('aria-busy');
+              saveBtn.disabled = false;
+            }
           }
-        }
-        if (fallbackDate instanceof Date && !Number.isNaN(fallbackDate.getTime())) {
-          return formatTouchDate(fallbackDate);
-        }
-        return '';
-      };
-      const appendTouchTimeline = (record, meta = {}, fallbackDate) => {
-        if (!record || typeof record !== 'object') return;
-        const extras = record.extras && typeof record.extras === 'object' ? record.extras : {};
-        const timeline = Array.isArray(extras.timeline) ? extras.timeline.slice() : [];
-        const dateOnly = normalizeTouchDate(meta.date || record.lastContact || fallbackDate);
-        const whenDate = dateOnly ? new Date(dateOnly) : new Date();
-        const whenIso = (whenDate instanceof Date && !Number.isNaN(whenDate.getTime()))
-          ? whenDate.toISOString()
-          : new Date().toISOString();
-        const entry = {
-          when: whenIso,
-          text: String(meta.text || meta.entry || meta.note || '').trim(),
-          tag: String(meta.key || meta.tag || 'touch'),
-          by: meta.by || 'contact-editor'
         };
-        timeline.push(entry);
-        extras.timeline = timeline;
-        record.extras = extras;
-        if (dateOnly) {
-          record.lastContact = dateOnly;
-          record.lastTouch = dateOnly;
-        }
-      };
-      const recentTouchEntries = (record) => {
-        if (!record || typeof record !== 'object') return [];
-        const timeline = Array.isArray(record.extras?.timeline) ? record.extras.timeline.slice() : [];
-        const entries = timeline.map(entry => {
-          const whenSource = entry?.when || entry?.date || entry?.at || '';
-          const when = whenSource ? new Date(whenSource) : null;
-          const iso = when && !Number.isNaN(when.getTime()) ? formatTouchDate(when) : (record.lastTouch || record.lastContact || '');
-          const whenLabel = iso ? formatDetailDate(String(iso).slice(0, 10), 'Not logged') : 'Not logged';
-          const tag = String(entry?.tag || entry?.key || '').trim();
-          const tagLabel = TOUCH_LABEL_MAP.get(tag) || tag || '';
-          const note = String(entry?.text || entry?.entry || entry?.note || '').trim();
-          const whenMs = when && !Number.isNaN(when.getTime()) ? when.getTime() : (iso ? new Date(iso).getTime() || 0 : 0);
-          return { whenMs, whenIso: iso, whenLabel, tag, tagLabel, note };
-        }).filter(item => item.whenLabel || item.note || item.tagLabel);
-        if (!entries.length && (record.lastTouch || record.lastContact)) {
-          const iso = String(record.lastTouch || record.lastContact);
-          entries.push({
-            whenMs: new Date(iso).getTime() || 0,
-            whenIso: iso,
-            whenLabel: formatDetailDate(String(iso).slice(0, 10), 'Not logged'),
-            tag: '',
-            tagLabel: '',
-            note: ''
-          });
-        }
-        entries.sort((a, b) => (b.whenMs || 0) - (a.whenMs || 0));
-        return entries.slice(0, 3);
-      };
-      const renderTouchSummary = (host, record) => {
-        if (!host) return;
-        const entries = recentTouchEntries(record);
-        const last = entries[0] || null;
-        const container = host;
-        container.innerHTML = '';
-        container.classList.add('touch-summary');
-
-        const lastLabel = last ? (last.whenLabel || 'Not logged') : 'Not logged';
-        const lastType = last && last.tagLabel ? ` – ${last.tagLabel}` : '';
-        const lastLine = document.createElement('div');
-        lastLine.className = 'touch-last';
-        lastLine.textContent = `Last touch: ${lastLabel}${lastType}`;
-        container.appendChild(lastLine);
-
-        if (entries.length > 1) {
-          const list = document.createElement('ul');
-          list.className = 'touch-recent';
-          entries.slice(0, 3).forEach((entry, idx) => {
-            if (idx === 0) return;
-            const row = document.createElement('li');
-            const tagPart = entry.tagLabel ? ` – ${entry.tagLabel}` : '';
-            const notePart = entry.note ? ` — ${entry.note}` : '';
-            row.textContent = `${entry.whenLabel}${tagPart}${notePart}`;
-            list.appendChild(row);
-          });
-          container.appendChild(list);
-        }
-      };
-      const handleSave = async (options) => {
-        const opts = options && typeof options === 'object' ? options : {};
-        const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
-        const prevStage = c.stage;
-        const prevStatusKey = canonicalStatusKey(c.status || '');
-        const prevMilestoneNormalized = normalizeMilestoneForStatus(c.pipelineMilestone, prevStatusKey || c.status || 'inprogress');
-        const firstNameValue = $('#c-first', body)?.value?.trim() || '';
-        const lastNameValue = $('#c-last', body)?.value?.trim() || '';
-        const emailValue = $('#c-email', body)?.value?.trim() || '';
-        const phoneValue = $('#c-phone', body)?.value?.trim() || '';
-        const stageValue = $('#c-stage', body)?.value || '';
-        const statusValue = $('#c-status', body)?.value || '';
-        const milestoneValue = $('#c-milestone', body)?.value || '';
-        const validationResult = validateContact({
-          firstName: firstNameValue,
-          lastName: lastNameValue,
-          email: emailValue,
-          phone: phoneValue,
-          name: `${firstNameValue} ${lastNameValue}`.trim(),
-          stage: stageValue,
-          status: statusValue,
-          pipelineMilestone: milestoneValue,
-        }) || { ok: true, errors: {}, normalized: {} };
-        const validationOutcome = applyContactValidation(body, validationResult.errors || {});
-        if (!validationResult.ok) {
-          if (validationOutcome.firstInvalid) {
-            focusContactField(validationOutcome.firstInvalid);
+        const normalizeTouchDate = (value, fallbackDate = new Date()) => {
+          if (value instanceof Date) {
+            return formatTouchDate(value);
           }
-          toastWarn(CONTACT_INVALID_TOAST);
-          return null;
-        }
-        const normalizedModel = validationResult.normalized || {};
-        const normalizedFirst = (normalizedModel.firstName ?? normalizedModel.first ?? '').trim() || firstNameValue;
-        const normalizedLast = (normalizedModel.lastName ?? normalizedModel.last ?? '').trim() || lastNameValue;
-        const normalizedEmail = (normalizedModel.email ?? '').trim() || emailValue;
-        const normalizedPhone = (normalizedModel.phone ?? '').trim() || phoneValue;
-        const normalizedStage = normalizedModel.stage || $('#c-stage', body).value;
-        const normalizedStatus = normalizedModel.status || $('#c-status', body).value;
-        const normalizedMilestone = normalizedModel.pipelineMilestone || $('#c-milestone', body).value;
-        renderContactValidationSummary(body, '');
-        setBusy(true);
-        try {
-          const referralPartnerSelectSave = $('#c-referral-partner', body);
-          const rawReferralPartnerIdSave = referralPartnerSelectSave ? String(referralPartnerSelectSave.value || '').trim() : '';
-          const cleanReferralPartnerId = rawReferralPartnerIdSave && rawReferralPartnerIdSave !== NONE_PARTNER_ID ? rawReferralPartnerIdSave : '';
-          const referralPartnerOption = referralPartnerSelectSave && referralPartnerSelectSave.selectedOptions && referralPartnerSelectSave.selectedOptions[0]
-            ? referralPartnerSelectSave.selectedOptions[0]
-            : null;
-          const computedReferralPartnerName = cleanReferralPartnerId
-            ? (partnerLabelFor(cleanReferralPartnerId)
-              || (referralPartnerOption && referralPartnerOption.textContent ? referralPartnerOption.textContent.trim() : '')
-              || (cleanReferralPartnerId === referralPartnerId ? referralPartnerName : ''))
-            : '';
-          const baseExtras = (c.extras && typeof c.extras === 'object') ? { ...c.extras } : {};
-          if (Array.isArray(baseExtras.timeline)) { baseExtras.timeline = baseExtras.timeline.slice(); }
-          const lastContactValue = $('#c-lastcontact', body).value || '';
-          const u = Object.assign({}, c, {
-            first: normalizedFirst,
-            last: normalizedLast,
-            email: normalizedEmail,
-            phone: normalizedPhone,
-            address: $('#c-address', body).value.trim(), city: $('#c-city', body).value.trim(),
-            state: ($('#c-state', body).value || '').toUpperCase(), zip: $('#c-zip', body).value.trim(),
-            stage: normalizedStage, status: normalizedStatus,
-            loanAmount: Number($('#c-amount', body).value || 0), rate: Number($('#c-rate', body).value || 0),
-            fundedDate: $('#c-funded', body).value || '', buyerPartnerId: $('#c-buyer', body).value || null,
-            listingPartnerId: $('#c-listing', body).value || null, lastContact: lastContactValue,
-            referralPartnerId: cleanReferralPartnerId || null,
-            referralPartnerName: cleanReferralPartnerId ? computedReferralPartnerName : '',
-            referredBy: $('#c-ref', body).value || '', notes: $('#c-notes', body).value || '', updatedAt: Date.now(),
-            contactType: $('#c-type', body).value,
-            priority: $('#c-priority', body).value,
-            leadSource: $('#c-source', body).value,
-            communicationPreference: $('#c-pref', body).value,
-            closingTimeline: $('#c-timeline', body).value,
-            loanPurpose: $('#c-purpose', body).value,
-            loanProgram: $('#c-loanType', body).value,
-            loanType: $('#c-loanType', body).value,
-            propertyType: $('#c-property', body).value,
-            occupancy: $('#c-occupancy', body).value,
-            employmentType: $('#c-employment', body).value,
-            creditRange: $('#c-credit', body).value,
-            docStage: $('#c-docstage', body).value,
-            pipelineMilestone: normalizedMilestone,
-            preApprovalExpires: $('#c-preexp', body).value || '',
-            nextFollowUp: $('#c-nexttouch', body).value || '',
-            secondaryEmail: $('#c-email2', body).value.trim(),
-            secondaryPhone: $('#c-phone2', body).value.trim(),
-            extras: baseExtras
-          });
-          u.status = normalizeStatusForStage(u.stage, u.status);
-          u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
-          const schemaValidation = validateContactSchema(u) || { ok: true, errors: [], normalized: u };
-          const schemaValidationErrors = mapSchemaErrors(schemaValidation.errors || []);
-          const schemaOutcome = applyContactValidation(body, schemaValidationErrors);
-          if (!schemaValidation.ok || Object.keys(schemaValidationErrors).length) {
-            setBusy(false);
-            if (schemaOutcome.firstInvalid) {
-              focusContactField(schemaOutcome.firstInvalid);
+          if (typeof value === 'string' && value.trim()) {
+            const parsed = new Date(value);
+            if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
+              return formatTouchDate(parsed);
+            }
+          }
+          if (fallbackDate instanceof Date && !Number.isNaN(fallbackDate.getTime())) {
+            return formatTouchDate(fallbackDate);
+          }
+          return '';
+        };
+        const appendTouchTimeline = (record, meta = {}, fallbackDate) => {
+          if (!record || typeof record !== 'object') return;
+          const extras = record.extras && typeof record.extras === 'object' ? record.extras : {};
+          const timeline = Array.isArray(extras.timeline) ? extras.timeline.slice() : [];
+          const dateOnly = normalizeTouchDate(meta.date || record.lastContact || fallbackDate);
+          const whenDate = dateOnly ? new Date(dateOnly) : new Date();
+          const whenIso = (whenDate instanceof Date && !Number.isNaN(whenDate.getTime()))
+            ? whenDate.toISOString()
+            : new Date().toISOString();
+          const entry = {
+            when: whenIso,
+            text: String(meta.text || meta.entry || meta.note || '').trim(),
+            tag: String(meta.key || meta.tag || 'touch'),
+            by: meta.by || 'contact-editor'
+          };
+          timeline.push(entry);
+          extras.timeline = timeline;
+          record.extras = extras;
+          if (dateOnly) {
+            record.lastContact = dateOnly;
+            record.lastTouch = dateOnly;
+          }
+        };
+        const recentTouchEntries = (record) => {
+          if (!record || typeof record !== 'object') return [];
+          const timeline = Array.isArray(record.extras?.timeline) ? record.extras.timeline.slice() : [];
+          const entries = timeline.map(entry => {
+            const whenSource = entry?.when || entry?.date || entry?.at || '';
+            const when = whenSource ? new Date(whenSource) : null;
+            const iso = when && !Number.isNaN(when.getTime()) ? formatTouchDate(when) : (record.lastTouch || record.lastContact || '');
+            const whenLabel = iso ? formatDetailDate(String(iso).slice(0, 10), 'Not logged') : 'Not logged';
+            const tag = String(entry?.tag || entry?.key || '').trim();
+            const tagLabel = TOUCH_LABEL_MAP.get(tag) || tag || '';
+            const note = String(entry?.text || entry?.entry || entry?.note || '').trim();
+            const whenMs = when && !Number.isNaN(when.getTime()) ? when.getTime() : (iso ? new Date(iso).getTime() || 0 : 0);
+            return { whenMs, whenIso: iso, whenLabel, tag, tagLabel, note };
+          }).filter(item => item.whenLabel || item.note || item.tagLabel);
+          if (!entries.length && (record.lastTouch || record.lastContact)) {
+            const iso = String(record.lastTouch || record.lastContact);
+            entries.push({
+              whenMs: new Date(iso).getTime() || 0,
+              whenIso: iso,
+              whenLabel: formatDetailDate(String(iso).slice(0, 10), 'Not logged'),
+              tag: '',
+              tagLabel: '',
+              note: ''
+            });
+          }
+          entries.sort((a, b) => (b.whenMs || 0) - (a.whenMs || 0));
+          return entries.slice(0, 3);
+        };
+        const renderTouchSummary = (host, record) => {
+          if (!host) return;
+          const entries = recentTouchEntries(record);
+          const last = entries[0] || null;
+          const container = host;
+          container.innerHTML = '';
+          container.classList.add('touch-summary');
+
+          const lastLabel = last ? (last.whenLabel || 'Not logged') : 'Not logged';
+          const lastType = last && last.tagLabel ? ` – ${last.tagLabel}` : '';
+          const lastLine = document.createElement('div');
+          lastLine.className = 'touch-last';
+          lastLine.textContent = `Last touch: ${lastLabel}${lastType}`;
+          container.appendChild(lastLine);
+
+          if (entries.length > 1) {
+            const list = document.createElement('ul');
+            list.className = 'touch-recent';
+            entries.slice(0, 3).forEach((entry, idx) => {
+              if (idx === 0) return;
+              const row = document.createElement('li');
+              const tagPart = entry.tagLabel ? ` – ${entry.tagLabel}` : '';
+              const notePart = entry.note ? ` — ${entry.note}` : '';
+              row.textContent = `${entry.whenLabel}${tagPart}${notePart}`;
+              list.appendChild(row);
+            });
+            container.appendChild(list);
+          }
+        };
+        const handleSave = async (options) => {
+          const opts = options && typeof options === 'object' ? options : {};
+          const existed = Array.isArray(contacts) && contacts.some(x => String(x && x.id) === String(c.id));
+          const prevStage = c.stage;
+          const prevStatusKey = canonicalStatusKey(c.status || '');
+          const prevMilestoneNormalized = normalizeMilestoneForStatus(c.pipelineMilestone, prevStatusKey || c.status || 'inprogress');
+          const firstNameValue = $('#c-first', body)?.value?.trim() || '';
+          const lastNameValue = $('#c-last', body)?.value?.trim() || '';
+          const emailValue = $('#c-email', body)?.value?.trim() || '';
+          const phoneValue = $('#c-phone', body)?.value?.trim() || '';
+          const stageValue = $('#c-stage', body)?.value || '';
+          const statusValue = $('#c-status', body)?.value || '';
+          const milestoneValue = $('#c-milestone', body)?.value || '';
+          const validationResult = validateContact({
+            firstName: firstNameValue,
+            lastName: lastNameValue,
+            email: emailValue,
+            phone: phoneValue,
+            name: `${firstNameValue} ${lastNameValue}`.trim(),
+            stage: stageValue,
+            status: statusValue,
+            pipelineMilestone: milestoneValue,
+          }) || { ok: true, errors: {}, normalized: {} };
+          const validationOutcome = applyContactValidation(body, validationResult.errors || {});
+          if (!validationResult.ok) {
+            if (validationOutcome.firstInvalid) {
+              focusContactField(validationOutcome.firstInvalid);
             }
             toastWarn(CONTACT_INVALID_TOAST);
             return null;
           }
-          const normalizedFromSchema = schemaValidation.normalized || {};
-          u.first = normalizedFromSchema.first ?? normalizedFromSchema.firstName ?? u.first;
-          u.last = normalizedFromSchema.last ?? normalizedFromSchema.lastName ?? u.last;
-          u.email = normalizedFromSchema.email ?? u.email;
-          u.phone = normalizedFromSchema.phone ?? u.phone;
-          u.stage = normalizedFromSchema.stage ?? u.stage;
-          u.status = normalizedFromSchema.status ?? u.status;
-          u.pipelineMilestone = normalizedFromSchema.pipelineMilestone ?? u.pipelineMilestone;
-          if (opts.touchLog) {
-            appendTouchTimeline(u, opts.touchLog, lastContactValue || new Date());
-          }
-          if (u.lastContact && !u.lastTouch) {
-            u.lastTouch = u.lastContact;
-          }
-          const nextStatusKey = canonicalStatusKey(u.status || '');
-          const statusChanged = prevStatusKey !== nextStatusKey;
-          const milestoneChanged = prevMilestoneNormalized !== u.pipelineMilestone;
-          const prevCanon = canonicalStage(prevStage);
-          if (typeof window.updateContactStage === 'function') {
-            const maybeResult = window.updateContactStage(u, u.stage, prevStage);
-            if (maybeResult && typeof maybeResult.then === 'function') {
-              await maybeResult;
-            }
-          } else {
-            const canonFn = typeof window.canonicalizeStage === 'function'
-              ? window.canonicalizeStage
-              : (val) => String(val || '').toLowerCase();
-            const prevFallback = canonFn(prevStage);
-            const nextCanon = canonFn(u.stage);
-            u.stage = nextCanon;
-            if (!u.stageEnteredAt || prevFallback !== nextCanon) {
-              u.stageEnteredAt = new Date().toISOString();
-            }
-          }
-          if (!u.stageEnteredAt) {
-            u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
-          }
-          const nextCanon = canonicalStage(u.stage);
-          if (nextCanon !== prevCanon) {
-            try {
-              console && console.info && console.info('[contacts] stage transition persisted', {
-                id: u.id,
-                from: prevCanon || null,
-                to: nextCanon || null,
-                status: u.status,
-                milestone: u.pipelineMilestone
-              });
-            } catch (_err) { }
-          }
-          await openDB();
-          await dbPut('contacts', u);
-          if (Array.isArray(contacts)) {
-            const idx = contacts.findIndex(item => item && String(item.id) === String(u.id));
-            if (idx >= 0) {
-              contacts[idx] = Object.assign({}, contacts[idx], u);
-            } else {
-              contacts.push(Object.assign({}, u));
-            }
-          }
-          Object.assign(c, u);
-          if ((statusChanged || milestoneChanged) && u.id != null) {
-            const statusDetail = {
-              scope: 'contacts',
-              source: 'contact:modal',
-              action: 'status',
-              contactId: String(u.id || ''),
-              id: String(u.id || ''),
-              status: nextStatusKey,
-              to: nextStatusKey,
-              milestone: u.pipelineMilestone
-            };
-            if (prevStatusKey) {
-              statusDetail.statusBefore = prevStatusKey;
-              if (statusChanged) statusDetail.from = prevStatusKey;
-            }
-            statusDetail.partial = { scope: 'contacts', ids: [String(u.id || '')], reason: 'status-change' };
-            if (typeof window.dispatchAppDataChanged === 'function') {
-              window.dispatchAppDataChanged(statusDetail);
-            } else {
-              document.dispatchEvent(new CustomEvent('app:data:changed', { detail: statusDetail }));
-            }
-          }
+          const normalizedModel = validationResult.normalized || {};
+          const normalizedFirst = (normalizedModel.firstName ?? normalizedModel.first ?? '').trim() || firstNameValue;
+          const normalizedLast = (normalizedModel.lastName ?? normalizedModel.last ?? '').trim() || lastNameValue;
+          const normalizedEmail = (normalizedModel.email ?? '').trim() || emailValue;
+          const normalizedPhone = (normalizedModel.phone ?? '').trim() || phoneValue;
+          const normalizedStage = normalizedModel.stage || $('#c-stage', body).value;
+          const normalizedStatus = normalizedModel.status || $('#c-status', body).value;
+          const normalizedMilestone = normalizedModel.pipelineMilestone || $('#c-milestone', body).value;
+          renderContactValidationSummary(body, '');
+          setBusy(true);
           try {
-            if (typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
-            if (typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
-          } catch (err) { console.warn('post-save doc sync', err); }
-          const detail = {
-            scope: 'contacts',
-            contactId: String(u.id || ''),
-            action: existed ? 'update' : 'create',
-            source: 'contact:modal',
-            partial: { scope: 'contacts', ids: [String(u.id || '')], reason: 'modal-save' }
-          };
-          if (typeof window.dispatchAppDataChanged === 'function') {
-            window.dispatchAppDataChanged(detail);
-          } else if (console && typeof console.warn === 'function') {
-            console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
-          }
-          const successMessage = opts.successMessage || (existed ? 'Contact updated' : 'Contact created');
-          if (successMessage) {
-            toastSuccess(successMessage);
-          }
-          if (!opts.keepOpen) {
-            closeDialog();
-          }
-          return u;
-        } catch (err) {
-          logError('contacts:save', err);
-          notifyError('Contact save failed', err);
-          return null;
-        } finally {
-          setBusy(false);
-        }
-      };
-      const installFollowUpScheduler = () => {
-        const footer = dlg.querySelector('[data-component="form-footer"]') || dlg.querySelector('.modal-footer');
-        if (!footer) return;
-        const start = footer.querySelector('.form-footer__start') || footer.querySelector('.modal-footer__start') || footer;
-        if (!start) return;
-
-        if (dlg.__contactFollowUpAbort && typeof dlg.__contactFollowUpAbort.abort === 'function' && !dlg.__contactFollowUpAbort.signal?.aborted) {
-          dlg.__contactFollowUpAbort.abort();
-        }
-
-        const controller = new AbortController();
-        const { signal } = controller;
-        dlg.__contactFollowUpAbort = controller;
-
-        const host = document.createElement('div');
-        host.dataset.role = 'contact-followup-host';
-        host.className = 'followup-scheduler';
-        host.style.display = 'flex';
-        host.style.flexDirection = 'column';
-        host.style.gap = '6px';
-        host.style.maxWidth = '240px';
-
-        const actionBtn = document.createElement('button');
-        actionBtn.type = 'button';
-        actionBtn.className = 'btn ghost';
-        actionBtn.textContent = 'Schedule Follow-up';
-        actionBtn.setAttribute('aria-haspopup', 'true');
-        actionBtn.setAttribute('aria-expanded', 'false');
-
-        const suggestWrap = document.createElement('div');
-        suggestWrap.className = 'followup-suggestion';
-        suggestWrap.style.display = 'flex';
-        suggestWrap.style.flexDirection = 'column';
-        suggestWrap.style.gap = '4px';
-        const suggestMeta = document.createElement('div');
-        suggestMeta.dataset.role = 'followup-suggestion-meta';
-        suggestMeta.className = 'muted';
-        suggestMeta.style.fontSize = '12px';
-        suggestMeta.style.lineHeight = '1.4';
-        const suggestBtn = document.createElement('button');
-        suggestBtn.type = 'button';
-        suggestBtn.className = 'btn brand';
-        suggestBtn.textContent = 'Schedule Next Follow-up';
-        suggestWrap.appendChild(suggestMeta);
-        suggestWrap.appendChild(suggestBtn);
-
-        const prompt = document.createElement('div');
-        prompt.dataset.role = 'contact-followup-prompt';
-        prompt.hidden = true;
-        prompt.style.display = 'none';
-        prompt.style.flexDirection = 'column';
-        prompt.style.gap = '6px';
-        prompt.style.padding = '8px';
-        prompt.style.border = '1px solid var(--border-subtle, #d0d7de)';
-        prompt.style.borderRadius = '6px';
-        prompt.style.background = 'var(--surface-subtle, #f6f8fa)';
-
-        const dateLabel = document.createElement('label');
-        dateLabel.textContent = 'Follow-up date';
-        dateLabel.style.display = 'flex';
-        dateLabel.style.flexDirection = 'column';
-        dateLabel.style.gap = '4px';
-
-        const dateInput = document.createElement('input');
-        dateInput.type = 'date';
-        dateInput.required = true;
-        dateInput.dataset.role = 'followup-date';
-
-        dateLabel.appendChild(dateInput);
-
-        const noteLabel = document.createElement('label');
-        noteLabel.textContent = 'Note (optional)';
-        noteLabel.style.display = 'flex';
-        noteLabel.style.flexDirection = 'column';
-        noteLabel.style.gap = '4px';
-
-        const noteInput = document.createElement('input');
-        noteInput.type = 'text';
-        noteInput.placeholder = 'Reminder note';
-        noteInput.dataset.role = 'followup-note';
-
-        noteLabel.appendChild(noteInput);
-
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '6px';
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.type = 'button';
-        confirmBtn.className = 'btn brand';
-        confirmBtn.textContent = 'Create';
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'btn ghost';
-        cancelBtn.textContent = 'Cancel';
-
-        actions.append(confirmBtn, cancelBtn);
-
-        prompt.append(dateLabel, noteLabel, actions);
-
-        const status = document.createElement('div');
-        status.dataset.role = 'followup-status';
-        status.setAttribute('aria-live', 'polite');
-        status.style.fontSize = '12px';
-        status.style.minHeight = '16px';
-
-        const setStatus = (message, tone) => {
-          status.textContent = message || '';
-          status.dataset.state = tone || '';
-          if (tone === 'error') {
-            status.style.color = 'var(--danger-text, #b42318)';
-          } else if (tone === 'success') {
-            status.style.color = 'var(--success-text, #067647)';
-          } else {
-            status.style.color = 'inherit';
-          }
-        };
-
-        let currentSuggestion = null;
-        let lastAppliedSuggestionDue = '';
-        function computeFollowUpSuggestion() {
-          const stageVal = stageSelect ? stageSelect.value : (c.stage || 'application');
-          const statusVal = statusSelect ? statusSelect.value : (c.status || 'inprogress');
-          const rule = FOLLOW_UP_RULES[stageVal] || FOLLOW_UP_RULES[statusVal] || FOLLOW_UP_RULES.default;
-          const fallbackDays = Number.isFinite(rule?.days) ? rule.days : FOLLOW_UP_RULES.default.days;
-          const stageLabel = findLabel(STAGES, stageVal) || stageVal;
-          const lastField = $('#c-lastcontact', body);
-          const nextField = $('#c-nexttouch', body);
-          const rawLast = String(lastField?.value || c.lastContact || c.updatedAt || c.createdAt || '').trim();
-          const rawNext = String(nextField?.value || '').trim();
-          const suggestion = suggestFollowUpSchedule({
-            stage: stageVal,
-            lastActivity: rawLast,
-            existingDue: rawNext,
-            fallbackDays
-          });
-          if (!suggestion || !suggestion.isoDue) {
-            return null;
-          }
-          const cadenceSummary = describeFollowUpCadence({ stageLabel, suggestion });
-          const summary = cadenceSummary
-            ? `${cadenceSummary} → ${suggestion.isoDue}`
-            : `${stageLabel} → ${suggestion.isoDue}`;
-          const noteDetail = rule?.note || `${stageLabel} follow-up`;
-          const taskNote = `${stageLabel} follow-up — ${noteDetail}`;
-          return {
-            due: suggestion.isoDue,
-            summary,
-            description: noteDetail,
-            note: taskNote,
-            stage: stageVal,
-            status: statusVal,
-            offsetDays: suggestion.offsetDays,
-            daysSince: suggestion.daysSinceLastActivity
-          };
-        }
-        function applySuggestedDate(force = false) {
-          if (!dateInput || !currentSuggestion || !currentSuggestion.due) return;
-          const desired = currentSuggestion.due;
-          if (force) {
-            dateInput.value = desired;
-            lastAppliedSuggestionDue = desired;
-            return;
-          }
-          const currentValue = String(dateInput.value || '').trim();
-          if (!currentValue || currentValue === lastAppliedSuggestionDue) {
-            dateInput.value = desired;
-            lastAppliedSuggestionDue = desired;
-          }
-        }
-        function refreshSuggestion() {
-          currentSuggestion = computeFollowUpSuggestion();
-          if (suggestBtn) {
-            const ready = !!(currentSuggestion && currentSuggestion.due);
-            suggestBtn.disabled = !ready;
-          }
-          if (currentSuggestion && currentSuggestion.due) {
-            applySuggestedDate();
-          } else {
-            lastAppliedSuggestionDue = '';
-          }
-          if (!suggestMeta) return;
-          if (currentSuggestion && currentSuggestion.due) {
-            const message = currentSuggestion.description
-              ? `${currentSuggestion.summary} (${currentSuggestion.description})`
-              : currentSuggestion.summary;
-            suggestMeta.textContent = message;
-          } else {
-            suggestMeta.textContent = 'Set stage and touchpoints to generate the next follow-up.';
-          }
-        }
-
-        refreshFollowUpSuggestion = refreshSuggestion;
-
-        const closePrompt = () => {
-          prompt.hidden = true;
-          prompt.style.display = 'none';
-          actionBtn.setAttribute('aria-expanded', 'false');
-        };
-        const openPrompt = () => {
-          prompt.hidden = false;
-          prompt.style.display = 'flex';
-          actionBtn.setAttribute('aria-expanded', 'true');
-          applySuggestedDate(true);
-          try { dateInput.focus({ preventScroll: true }); }
-          catch (_err) { dateInput.focus?.(); }
-        };
-
-        let submitting = false;
-        const handleSubmit = () => {
-          if (submitting) return;
-          const linkedId = String($('#c-id', body)?.value || c.id || '').trim();
-          if (!linkedId) {
-            setStatus('Save the contact before scheduling a follow-up.', 'error');
-            return;
-          }
-          const due = String(dateInput.value || '').trim();
-          if (!due) {
-            setStatus('Choose a follow-up date.', 'error');
-            try { dateInput.focus({ preventScroll: true }); }
-            catch (_err) { dateInput.focus?.(); }
-            return;
-          }
-          submitting = true;
-          confirmBtn.disabled = true;
-          cancelBtn.disabled = true;
-          actionBtn.disabled = true;
-          setStatus('Scheduling follow-up…');
-          const note = String(noteInput.value || '').trim();
-          Promise.resolve().then(async () => {
-            const payload = { linkedType: 'contact', linkedId, due, note };
-            if (!note) { delete payload.note; }
-            await createTaskViaService(payload);
-          }).then(() => {
-            setTimeout(() => {
-              try {
-                window.dispatchEvent(new CustomEvent('tasks:changed'));
-              } catch (_err) { }
-            }, 0);
-            const nextField = $('#c-nexttouch', body);
-            if (nextField) {
-              nextField.value = due;
-              nextField.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            refreshSuggestion();
-            setStatus('Follow-up scheduled.', 'success');
-            noteInput.value = '';
-            submitting = false;
-            confirmBtn.disabled = false;
-            cancelBtn.disabled = false;
-            actionBtn.disabled = false;
-            closePrompt();
-          }).catch(err => {
-            console.warn?.('[followup]', err);
-            submitting = false;
-            confirmBtn.disabled = false;
-            cancelBtn.disabled = false;
-            actionBtn.disabled = false;
-            setStatus('Unable to schedule follow-up. Try again.', 'error');
-          });
-        };
-
-        const handleQuickSchedule = () => {
-          if (submitting) return;
-          const linkedId = String($('#c-id', body)?.value || c.id || '').trim();
-          if (!linkedId) { setStatus('Save the contact before scheduling a follow-up.', 'error'); return; }
-          if (!currentSuggestion || !currentSuggestion.due) { setStatus('Unable to compute next follow-up suggestion.', 'error'); return; }
-          submitting = true;
-          confirmBtn.disabled = true;
-          cancelBtn.disabled = true;
-          actionBtn.disabled = true;
-          suggestBtn.disabled = true;
-          setStatus('Scheduling next follow-up…');
-          const payload = { linkedType: 'contact', linkedId, due: currentSuggestion.due, note: currentSuggestion.note };
-          Promise.resolve().then(async () => {
-            await createTaskViaService(payload);
-          }).then(() => {
-            const nextField = $('#c-nexttouch', body);
-            if (nextField) {
-              nextField.value = currentSuggestion.due;
-              nextField.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            setStatus(`Scheduled for ${currentSuggestion.due}.`, 'success');
-            submitting = false;
-            confirmBtn.disabled = false;
-            cancelBtn.disabled = false;
-            actionBtn.disabled = false;
-            suggestBtn.disabled = false;
-            refreshSuggestion();
-            setTimeout(() => {
-              try { window.dispatchEvent(new CustomEvent('tasks:changed')); }
-              catch (_err) { }
-            }, 0);
-          }).catch(err => {
-            console.warn?.('[followup]', err);
-            submitting = false;
-            confirmBtn.disabled = false;
-            cancelBtn.disabled = false;
-            actionBtn.disabled = false;
-            suggestBtn.disabled = false;
-            setStatus('Unable to schedule follow-up. Try again.', 'error');
-          });
-        };
-
-        actionBtn.addEventListener('click', (event) => {
-          event.preventDefault();
-          setStatus('');
-          if (prompt.hidden) { openPrompt(); }
-          else { closePrompt(); }
-        }, { signal });
-        suggestBtn.addEventListener('click', (event) => {
-          event.preventDefault();
-          setStatus('');
-          handleQuickSchedule();
-        }, { signal });
-
-        confirmBtn.addEventListener('click', (event) => {
-          event.preventDefault();
-          handleSubmit();
-        }, { signal });
-
-        cancelBtn.addEventListener('click', (event) => {
-          event.preventDefault();
-          closePrompt();
-        }, { signal });
-
-        prompt.addEventListener('keydown', (event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            closePrompt();
-            actionBtn.focus?.({ preventScroll: true });
-          }
-        }, { signal });
-
-        const lastTouchField = $('#c-lastcontact', body);
-        const nextTouchField = $('#c-nexttouch', body);
-        [lastTouchField, nextTouchField].forEach(field => {
-          if (!field || typeof field.addEventListener !== 'function') return;
-          const update = () => refreshSuggestion();
-          field.addEventListener('input', update, { signal });
-          field.addEventListener('change', update, { signal });
-        });
-
-        signal.addEventListener('abort', () => {
-          if (host.parentElement) { host.remove(); }
-          if (dlg.__contactFollowUpAbort === controller) {
-            dlg.__contactFollowUpAbort = null;
-          }
-          if (refreshFollowUpSuggestion === refreshSuggestion) {
-            refreshFollowUpSuggestion = noop;
-          }
-        });
-
-        try { dlg.addEventListener('close', () => controller.abort(), { once: true }); }
-        catch (_err) { dlg.addEventListener('close', () => controller.abort(), { once: true }); }
-
-        host.append(suggestWrap, actionBtn, prompt, status);
-        if (start.firstChild) {
-          start.insertBefore(host, start.firstChild);
-        } else {
-          start.appendChild(host);
-        }
-        refreshSuggestion();
-      };
-
-      const installTouchLogging = (onTouchSaved) => {
-        if (typeof createTouchLogEntry !== 'function' || typeof touchSuccessMessage !== 'function') {
-          toastWarn('Touch logging unavailable');
-          return null;
-        }
-        const footer = dlg.querySelector('[data-component="form-footer"]');
-        if (!footer) return null;
-        const start = footer.querySelector('.form-footer__start');
-        if (!start) return null;
-
-        let controls = dlg.__contactTouchControls || null;
-        if (!controls) {
-          const logButton = document.createElement('button');
-          logButton.type = 'button';
-          logButton.className = 'btn';
-          logButton.dataset.role = 'log-touch';
-          logButton.textContent = 'Log a Touch';
-          logButton.setAttribute('aria-haspopup', 'true');
-          logButton.setAttribute('aria-expanded', 'false');
-
-          const menu = document.createElement('div');
-          menu.dataset.role = 'touch-menu';
-          menu.setAttribute('role', 'menu');
-          menu.hidden = true;
-          menu.style.display = 'none';
-          menu.style.marginLeft = '8px';
-          menu.style.gap = '4px';
-          menu.style.flexWrap = 'wrap';
-
-          start.appendChild(logButton);
-          start.appendChild(menu);
-          controls = { button: logButton, menu };
-          dlg.__contactTouchControls = controls;
-        } else {
-          controls.button.textContent = 'Log a Touch';
-        }
-
-        const { button: logButton, menu } = controls;
-        if (!logButton || !menu) return null;
-
-        TOUCH_OPTIONS.forEach(option => {
-          let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
-          if (!optBtn) {
-            optBtn = document.createElement('button');
-            optBtn.type = 'button';
-            optBtn.className = 'btn ghost';
-            optBtn.dataset.touchKey = option.key;
-            optBtn.textContent = option.label;
-            optBtn.setAttribute('role', 'menuitem');
-            menu.appendChild(optBtn);
-          } else {
-            optBtn.textContent = option.label;
-          }
-        });
-        Array.from(menu.querySelectorAll('button[data-touch-key]')).forEach(btn => {
-          if (!TOUCH_OPTIONS.some(option => option.key === btn.dataset.touchKey)) {
-            btn.remove();
-          }
-        });
-
-        const hideMenu = () => {
-          if (menu.hidden) return;
-          menu.hidden = true;
-          menu.style.display = 'none';
-          logButton.setAttribute('aria-expanded', 'false');
-        };
-        const showMenu = () => {
-          if (!menu.hidden) return;
-          menu.hidden = false;
-          menu.style.display = 'flex';
-          logButton.setAttribute('aria-expanded', 'true');
-          const first = menu.querySelector('button[data-touch-key]');
-          if (first && typeof first.focus === 'function') {
-            first.focus({ preventScroll: true });
-          }
-        };
-
-        let logging = false;
-        const logTouch = async (key) => {
-          if (logging) return null;
-          logging = true;
-          try {
-            const notesField = $('#c-notes', body);
-            const lastInput = $('#c-lastcontact', body);
-            if (!notesField || !lastInput) {
+            const referralPartnerSelectSave = $('#c-referral-partner', body);
+            const rawReferralPartnerIdSave = referralPartnerSelectSave ? String(referralPartnerSelectSave.value || '').trim() : '';
+            const cleanReferralPartnerId = rawReferralPartnerIdSave && rawReferralPartnerIdSave !== NONE_PARTNER_ID ? rawReferralPartnerIdSave : '';
+            const referralPartnerOption = referralPartnerSelectSave && referralPartnerSelectSave.selectedOptions && referralPartnerSelectSave.selectedOptions[0]
+              ? referralPartnerSelectSave.selectedOptions[0]
+              : null;
+            const computedReferralPartnerName = cleanReferralPartnerId
+              ? (partnerLabelFor(cleanReferralPartnerId)
+                || (referralPartnerOption && referralPartnerOption.textContent ? referralPartnerOption.textContent.trim() : '')
+                || (cleanReferralPartnerId === referralPartnerId ? referralPartnerName : ''))
+              : '';
+            const baseExtras = (c.extras && typeof c.extras === 'object') ? { ...c.extras } : {};
+            if (Array.isArray(baseExtras.timeline)) { baseExtras.timeline = baseExtras.timeline.slice(); }
+            const lastContactValue = $('#c-lastcontact', body).value || '';
+            const u = Object.assign({}, c, {
+              first: normalizedFirst,
+              last: normalizedLast,
+              email: normalizedEmail,
+              phone: normalizedPhone,
+              address: $('#c-address', body).value.trim(), city: $('#c-city', body).value.trim(),
+              state: ($('#c-state', body).value || '').toUpperCase(), zip: $('#c-zip', body).value.trim(),
+              stage: normalizedStage, status: normalizedStatus,
+              loanAmount: Number($('#c-amount', body).value || 0), rate: Number($('#c-rate', body).value || 0),
+              fundedDate: $('#c-funded', body).value || '', buyerPartnerId: $('#c-buyer', body).value || null,
+              listingPartnerId: $('#c-listing', body).value || null, lastContact: lastContactValue,
+              referralPartnerId: cleanReferralPartnerId || null,
+              referralPartnerName: cleanReferralPartnerId ? computedReferralPartnerName : '',
+              referredBy: $('#c-ref', body).value || '', notes: $('#c-notes', body).value || '', updatedAt: Date.now(),
+              contactType: $('#c-type', body).value,
+              priority: $('#c-priority', body).value,
+              leadSource: $('#c-source', body).value,
+              communicationPreference: $('#c-pref', body).value,
+              closingTimeline: $('#c-timeline', body).value,
+              loanPurpose: $('#c-purpose', body).value,
+              loanProgram: $('#c-loanType', body).value,
+              loanType: $('#c-loanType', body).value,
+              propertyType: $('#c-property', body).value,
+              occupancy: $('#c-occupancy', body).value,
+              employmentType: $('#c-employment', body).value,
+              creditRange: $('#c-credit', body).value,
+              docStage: $('#c-docstage', body).value,
+              pipelineMilestone: normalizedMilestone,
+              preApprovalExpires: $('#c-preexp', body).value || '',
+              nextFollowUp: $('#c-nexttouch', body).value || '',
+              secondaryEmail: $('#c-email2', body).value.trim(),
+              secondaryPhone: $('#c-phone2', body).value.trim(),
+              extras: baseExtras
+            });
+            u.status = normalizeStatusForStage(u.stage, u.status);
+            u.pipelineMilestone = normalizeMilestoneForStatus(u.pipelineMilestone, u.status);
+            const schemaValidation = validateContactSchema(u) || { ok: true, errors: [], normalized: u };
+            const schemaValidationErrors = mapSchemaErrors(schemaValidation.errors || []);
+            const schemaOutcome = applyContactValidation(body, schemaValidationErrors);
+            if (!schemaValidation.ok || Object.keys(schemaValidationErrors).length) {
+              setBusy(false);
+              if (schemaOutcome.firstInvalid) {
+                focusContactField(schemaOutcome.firstInvalid);
+              }
+              toastWarn(CONTACT_INVALID_TOAST);
               return null;
             }
-            const entry = createTouchLogEntry(key);
-            const existing = notesField.value || '';
-            const remainderRaw = existing.replace(/^\s+/, '');
-            const remainder = remainderRaw ? `\n${remainderRaw}` : '';
-            const nextValue = `${entry}${remainder}`;
-            notesField.value = nextValue;
-            notesField.dispatchEvent(new Event('input', { bubbles: true }));
-            if (typeof notesField.focus === 'function') {
-              notesField.focus({ preventScroll: true });
+            const normalizedFromSchema = schemaValidation.normalized || {};
+            u.first = normalizedFromSchema.first ?? normalizedFromSchema.firstName ?? u.first;
+            u.last = normalizedFromSchema.last ?? normalizedFromSchema.lastName ?? u.last;
+            u.email = normalizedFromSchema.email ?? u.email;
+            u.phone = normalizedFromSchema.phone ?? u.phone;
+            u.stage = normalizedFromSchema.stage ?? u.stage;
+            u.status = normalizedFromSchema.status ?? u.status;
+            u.pipelineMilestone = normalizedFromSchema.pipelineMilestone ?? u.pipelineMilestone;
+            if (opts.touchLog) {
+              appendTouchTimeline(u, opts.touchLog, lastContactValue || new Date());
             }
-            if (typeof notesField.setSelectionRange === 'function') {
-              const caretIndex = entry.length;
-              try { notesField.setSelectionRange(caretIndex, caretIndex); }
-              catch (_err) { }
+            if (u.lastContact && !u.lastTouch) {
+              u.lastTouch = u.lastContact;
             }
-            const today = formatTouchDate(new Date());
-            if (today) {
-              lastInput.value = today;
-              lastInput.dispatchEvent(new Event('input', { bubbles: true }));
-              lastInput.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            const result = await handleSave({
-              keepOpen: true,
-              successMessage: touchSuccessMessage(key),
-              touchLog: { key, date: today, entry, by: 'contact-editor:touch-menu' }
-            });
-            if (result && typeof onTouchSaved === 'function') {
-              onTouchSaved(result);
-            }
-            return result;
-          } catch (err) {
-            try { console && console.warn && console.warn('[contacts] touch log failed', err); }
-            catch (_err) { }
-            return null;
-          } finally {
-            logging = false;
-          }
-        };
-
-        dlg.__contactTouchHandler = logTouch;
-
-        if (!logButton.__touchToggle) {
-          logButton.__touchToggle = true;
-          logButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            if (menu.hidden) { showMenu(); }
-            else { hideMenu(); }
-          });
-          logButton.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && !menu.hidden) {
-              event.preventDefault();
-              hideMenu();
-              logButton.blur?.();
-              return;
-            }
-            if ((event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') && menu.hidden) {
-              event.preventDefault();
-              showMenu();
-            }
-          });
-        }
-
-        if (!menu.__touchHandlers) {
-          menu.__touchHandlers = true;
-          menu.addEventListener('click', (event) => {
-            const target = event.target && event.target.closest('button[data-touch-key]');
-            if (!target) return;
-            event.preventDefault();
-            hideMenu();
-            logTouch(target.dataset.touchKey);
-          });
-          menu.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              hideMenu();
-              if (typeof logButton.focus === 'function') {
-                logButton.focus({ preventScroll: true });
+            const nextStatusKey = canonicalStatusKey(u.status || '');
+            const statusChanged = prevStatusKey !== nextStatusKey;
+            const milestoneChanged = prevMilestoneNormalized !== u.pipelineMilestone;
+            const prevCanon = canonicalStage(prevStage);
+            if (typeof window.updateContactStage === 'function') {
+              const maybeResult = window.updateContactStage(u, u.stage, prevStage);
+              if (maybeResult && typeof maybeResult.then === 'function') {
+                await maybeResult;
+              }
+            } else {
+              const canonFn = typeof window.canonicalizeStage === 'function'
+                ? window.canonicalizeStage
+                : (val) => String(val || '').toLowerCase();
+              const prevFallback = canonFn(prevStage);
+              const nextCanon = canonFn(u.stage);
+              u.stage = nextCanon;
+              if (!u.stageEnteredAt || prevFallback !== nextCanon) {
+                u.stageEnteredAt = new Date().toISOString();
               }
             }
-          });
-        }
+            if (!u.stageEnteredAt) {
+              u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
+            }
+            const nextCanon = canonicalStage(u.stage);
+            if (nextCanon !== prevCanon) {
+              try {
+                console && console.info && console.info('[contacts] stage transition persisted', {
+                  id: u.id,
+                  from: prevCanon || null,
+                  to: nextCanon || null,
+                  status: u.status,
+                  milestone: u.pipelineMilestone
+                });
+              } catch (_err) { }
+            }
+            await openDB();
+            await dbPut('contacts', u);
+            if (Array.isArray(contacts)) {
+              const idx = contacts.findIndex(item => item && String(item.id) === String(u.id));
+              if (idx >= 0) {
+                contacts[idx] = Object.assign({}, contacts[idx], u);
+              } else {
+                contacts.push(Object.assign({}, u));
+              }
+            }
+            Object.assign(c, u);
+            if ((statusChanged || milestoneChanged) && u.id != null) {
+              const statusDetail = {
+                scope: 'contacts',
+                source: 'contact:modal',
+                action: 'status',
+                contactId: String(u.id || ''),
+                id: String(u.id || ''),
+                status: nextStatusKey,
+                to: nextStatusKey,
+                milestone: u.pipelineMilestone
+              };
+              if (prevStatusKey) {
+                statusDetail.statusBefore = prevStatusKey;
+                if (statusChanged) statusDetail.from = prevStatusKey;
+              }
+              statusDetail.partial = { scope: 'contacts', ids: [String(u.id || '')], reason: 'status-change' };
+              if (typeof window.dispatchAppDataChanged === 'function') {
+                window.dispatchAppDataChanged(statusDetail);
+              } else {
+                document.dispatchEvent(new CustomEvent('app:data:changed', { detail: statusDetail }));
+              }
+            }
+            try {
+              if (typeof ensureRequiredDocs === 'function') await ensureRequiredDocs(u);
+              if (typeof computeMissingDocsForAll === 'function') await computeMissingDocsForAll();
+            } catch (err) { console.warn('post-save doc sync', err); }
+            const detail = {
+              scope: 'contacts',
+              contactId: String(u.id || ''),
+              action: existed ? 'update' : 'create',
+              source: 'contact:modal',
+              partial: { scope: 'contacts', ids: [String(u.id || '')], reason: 'modal-save' }
+            };
+            if (typeof window.dispatchAppDataChanged === 'function') {
+              window.dispatchAppDataChanged(detail);
+            } else if (console && typeof console.warn === 'function') {
+              console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+            }
+            const successMessage = opts.successMessage || (existed ? 'Contact updated' : 'Contact created');
+            if (successMessage) {
+              toastSuccess(successMessage);
+            }
+            if (!opts.keepOpen) {
+              closeDialog();
+            }
+            return u;
+          } catch (err) {
+            logError('contacts:save', err);
+            notifyError('Contact save failed', err);
+            return null;
+          } finally {
+            setBusy(false);
+          }
+        };
+        const installFollowUpScheduler = () => {
+          const footer = dlg.querySelector('[data-component="form-footer"]') || dlg.querySelector('.modal-footer');
+          if (!footer) return;
+          const start = footer.querySelector('.form-footer__start') || footer.querySelector('.modal-footer__start') || footer;
+          if (!start) return;
 
-        if (!dlg.__touchMenuOutsideHandler) {
-          const outsideHandler = (event) => {
-            if (menu.hidden) return;
-            if (event && (event.target === logButton || logButton.contains(event.target))) return;
-            if (event && menu.contains(event.target)) return;
-            hideMenu();
-          };
-          dlg.addEventListener('click', outsideHandler);
-          dlg.__touchMenuOutsideHandler = outsideHandler;
-        }
+          if (dlg.__contactFollowUpAbort && typeof dlg.__contactFollowUpAbort.abort === 'function' && !dlg.__contactFollowUpAbort.signal?.aborted) {
+            dlg.__contactFollowUpAbort.abort();
+          }
 
-        if (!menu.__touchCloseHook) {
-          const closeHandler = () => hideMenu();
-          try { dlg.addEventListener('close', closeHandler); }
-          catch (_err) { dlg.addEventListener('close', closeHandler); }
-          menu.__touchCloseHook = closeHandler;
-        }
-        return logTouch;
-      };
+          const controller = new AbortController();
+          const { signal } = controller;
+          dlg.__contactFollowUpAbort = controller;
 
-      installFollowUpScheduler();
-      const touchSummaryUpdater = (() => {
-        const host = dlg.querySelector('[data-role="contact-header-actions"]');
-        if (!host) return null;
-        const update = (record) => renderTouchSummary(host, record || c);
-        update(c);
-        return update;
-      })();
-      const logTouchHandler = installTouchLogging(touchSummaryUpdater);
+          const host = document.createElement('div');
+          host.dataset.role = 'contact-followup-host';
+          host.className = 'followup-scheduler';
+          host.style.display = 'flex';
+          host.style.flexDirection = 'column';
+          host.style.gap = '6px';
+          host.style.maxWidth = '240px';
 
-      if (saveBtn) {
-        if (typeof window.saveForm === 'function') {
-          window.saveForm(saveBtn, handleSave, { successMessage: null });
-        } else {
-          saveBtn.onclick = async (e) => {
-            e.preventDefault();
-            const result = await handleSave();
-            if (result) {
-              try { closeDialog(); } catch (_) { }
+          const actionBtn = document.createElement('button');
+          actionBtn.type = 'button';
+          actionBtn.className = 'btn ghost';
+          actionBtn.textContent = 'Schedule Follow-up';
+          actionBtn.setAttribute('aria-haspopup', 'true');
+          actionBtn.setAttribute('aria-expanded', 'false');
+
+          const suggestWrap = document.createElement('div');
+          suggestWrap.className = 'followup-suggestion';
+          suggestWrap.style.display = 'flex';
+          suggestWrap.style.flexDirection = 'column';
+          suggestWrap.style.gap = '4px';
+          const suggestMeta = document.createElement('div');
+          suggestMeta.dataset.role = 'followup-suggestion-meta';
+          suggestMeta.className = 'muted';
+          suggestMeta.style.fontSize = '12px';
+          suggestMeta.style.lineHeight = '1.4';
+          const suggestBtn = document.createElement('button');
+          suggestBtn.type = 'button';
+          suggestBtn.className = 'btn brand';
+          suggestBtn.textContent = 'Schedule Next Follow-up';
+          suggestWrap.appendChild(suggestMeta);
+          suggestWrap.appendChild(suggestBtn);
+
+          const prompt = document.createElement('div');
+          prompt.dataset.role = 'contact-followup-prompt';
+          prompt.hidden = true;
+          prompt.style.display = 'none';
+          prompt.style.flexDirection = 'column';
+          prompt.style.gap = '6px';
+          prompt.style.padding = '8px';
+          prompt.style.border = '1px solid var(--border-subtle, #d0d7de)';
+          prompt.style.borderRadius = '6px';
+          prompt.style.background = 'var(--surface-subtle, #f6f8fa)';
+
+          const dateLabel = document.createElement('label');
+          dateLabel.textContent = 'Follow-up date';
+          dateLabel.style.display = 'flex';
+          dateLabel.style.flexDirection = 'column';
+          dateLabel.style.gap = '4px';
+
+          const dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.required = true;
+          dateInput.dataset.role = 'followup-date';
+
+          dateLabel.appendChild(dateInput);
+
+          const noteLabel = document.createElement('label');
+          noteLabel.textContent = 'Note (optional)';
+          noteLabel.style.display = 'flex';
+          noteLabel.style.flexDirection = 'column';
+          noteLabel.style.gap = '4px';
+
+          const noteInput = document.createElement('input');
+          noteInput.type = 'text';
+          noteInput.placeholder = 'Reminder note';
+          noteInput.dataset.role = 'followup-note';
+
+          noteLabel.appendChild(noteInput);
+
+          const actions = document.createElement('div');
+          actions.style.display = 'flex';
+          actions.style.gap = '6px';
+
+          const confirmBtn = document.createElement('button');
+          confirmBtn.type = 'button';
+          confirmBtn.className = 'btn brand';
+          confirmBtn.textContent = 'Create';
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.className = 'btn ghost';
+          cancelBtn.textContent = 'Cancel';
+
+          actions.append(confirmBtn, cancelBtn);
+
+          prompt.append(dateLabel, noteLabel, actions);
+
+          const status = document.createElement('div');
+          status.dataset.role = 'followup-status';
+          status.setAttribute('aria-live', 'polite');
+          status.style.fontSize = '12px';
+          status.style.minHeight = '16px';
+
+          const setStatus = (message, tone) => {
+            status.textContent = message || '';
+            status.dataset.state = tone || '';
+            if (tone === 'error') {
+              status.style.color = 'var(--danger-text, #b42318)';
+            } else if (tone === 'success') {
+              status.style.color = 'var(--success-text, #067647)';
+            } else {
+              status.style.color = 'inherit';
             }
           };
+
+          let currentSuggestion = null;
+          let lastAppliedSuggestionDue = '';
+          function computeFollowUpSuggestion() {
+            const stageVal = stageSelect ? stageSelect.value : (c.stage || 'application');
+            const statusVal = statusSelect ? statusSelect.value : (c.status || 'inprogress');
+            const rule = FOLLOW_UP_RULES[stageVal] || FOLLOW_UP_RULES[statusVal] || FOLLOW_UP_RULES.default;
+            const fallbackDays = Number.isFinite(rule?.days) ? rule.days : FOLLOW_UP_RULES.default.days;
+            const stageLabel = findLabel(STAGES, stageVal) || stageVal;
+            const lastField = $('#c-lastcontact', body);
+            const nextField = $('#c-nexttouch', body);
+            const rawLast = String(lastField?.value || c.lastContact || c.updatedAt || c.createdAt || '').trim();
+            const rawNext = String(nextField?.value || '').trim();
+            const suggestion = suggestFollowUpSchedule({
+              stage: stageVal,
+              lastActivity: rawLast,
+              existingDue: rawNext,
+              fallbackDays
+            });
+            if (!suggestion || !suggestion.isoDue) {
+              return null;
+            }
+            const cadenceSummary = describeFollowUpCadence({ stageLabel, suggestion });
+            const summary = cadenceSummary
+              ? `${cadenceSummary} → ${suggestion.isoDue}`
+              : `${stageLabel} → ${suggestion.isoDue}`;
+            const noteDetail = rule?.note || `${stageLabel} follow-up`;
+            const taskNote = `${stageLabel} follow-up — ${noteDetail}`;
+            return {
+              due: suggestion.isoDue,
+              summary,
+              description: noteDetail,
+              note: taskNote,
+              stage: stageVal,
+              status: statusVal,
+              offsetDays: suggestion.offsetDays,
+              daysSince: suggestion.daysSinceLastActivity
+            };
+          }
+          function applySuggestedDate(force = false) {
+            if (!dateInput || !currentSuggestion || !currentSuggestion.due) return;
+            const desired = currentSuggestion.due;
+            if (force) {
+              dateInput.value = desired;
+              lastAppliedSuggestionDue = desired;
+              return;
+            }
+            const currentValue = String(dateInput.value || '').trim();
+            if (!currentValue || currentValue === lastAppliedSuggestionDue) {
+              dateInput.value = desired;
+              lastAppliedSuggestionDue = desired;
+            }
+          }
+          function refreshSuggestion() {
+            currentSuggestion = computeFollowUpSuggestion();
+            if (suggestBtn) {
+              const ready = !!(currentSuggestion && currentSuggestion.due);
+              suggestBtn.disabled = !ready;
+            }
+            if (currentSuggestion && currentSuggestion.due) {
+              applySuggestedDate();
+            } else {
+              lastAppliedSuggestionDue = '';
+            }
+            if (!suggestMeta) return;
+            if (currentSuggestion && currentSuggestion.due) {
+              const message = currentSuggestion.description
+                ? `${currentSuggestion.summary} (${currentSuggestion.description})`
+                : currentSuggestion.summary;
+              suggestMeta.textContent = message;
+            } else {
+              suggestMeta.textContent = 'Set stage and touchpoints to generate the next follow-up.';
+            }
+          }
+
+          refreshFollowUpSuggestion = refreshSuggestion;
+
+          const closePrompt = () => {
+            prompt.hidden = true;
+            prompt.style.display = 'none';
+            actionBtn.setAttribute('aria-expanded', 'false');
+          };
+          const openPrompt = () => {
+            prompt.hidden = false;
+            prompt.style.display = 'flex';
+            actionBtn.setAttribute('aria-expanded', 'true');
+            applySuggestedDate(true);
+            try { dateInput.focus({ preventScroll: true }); }
+            catch (_err) { dateInput.focus?.(); }
+          };
+
+          let submitting = false;
+          const handleSubmit = () => {
+            if (submitting) return;
+            const linkedId = String($('#c-id', body)?.value || c.id || '').trim();
+            if (!linkedId) {
+              setStatus('Save the contact before scheduling a follow-up.', 'error');
+              return;
+            }
+            const due = String(dateInput.value || '').trim();
+            if (!due) {
+              setStatus('Choose a follow-up date.', 'error');
+              try { dateInput.focus({ preventScroll: true }); }
+              catch (_err) { dateInput.focus?.(); }
+              return;
+            }
+            submitting = true;
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
+            actionBtn.disabled = true;
+            setStatus('Scheduling follow-up…');
+            const note = String(noteInput.value || '').trim();
+            Promise.resolve().then(async () => {
+              const payload = { linkedType: 'contact', linkedId, due, note };
+              if (!note) { delete payload.note; }
+              await createTaskViaService(payload);
+            }).then(() => {
+              setTimeout(() => {
+                try {
+                  window.dispatchEvent(new CustomEvent('tasks:changed'));
+                } catch (_err) { }
+              }, 0);
+              const nextField = $('#c-nexttouch', body);
+              if (nextField) {
+                nextField.value = due;
+                nextField.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              refreshSuggestion();
+              setStatus('Follow-up scheduled.', 'success');
+              noteInput.value = '';
+              submitting = false;
+              confirmBtn.disabled = false;
+              cancelBtn.disabled = false;
+              actionBtn.disabled = false;
+              closePrompt();
+            }).catch(err => {
+              console.warn?.('[followup]', err);
+              submitting = false;
+              confirmBtn.disabled = false;
+              cancelBtn.disabled = false;
+              actionBtn.disabled = false;
+              setStatus('Unable to schedule follow-up. Try again.', 'error');
+            });
+          };
+
+          const handleQuickSchedule = () => {
+            if (submitting) return;
+            const linkedId = String($('#c-id', body)?.value || c.id || '').trim();
+            if (!linkedId) { setStatus('Save the contact before scheduling a follow-up.', 'error'); return; }
+            if (!currentSuggestion || !currentSuggestion.due) { setStatus('Unable to compute next follow-up suggestion.', 'error'); return; }
+            submitting = true;
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
+            actionBtn.disabled = true;
+            suggestBtn.disabled = true;
+            setStatus('Scheduling next follow-up…');
+            const payload = { linkedType: 'contact', linkedId, due: currentSuggestion.due, note: currentSuggestion.note };
+            Promise.resolve().then(async () => {
+              await createTaskViaService(payload);
+            }).then(() => {
+              const nextField = $('#c-nexttouch', body);
+              if (nextField) {
+                nextField.value = currentSuggestion.due;
+                nextField.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              setStatus(`Scheduled for ${currentSuggestion.due}.`, 'success');
+              submitting = false;
+              confirmBtn.disabled = false;
+              cancelBtn.disabled = false;
+              actionBtn.disabled = false;
+              suggestBtn.disabled = false;
+              refreshSuggestion();
+              setTimeout(() => {
+                try { window.dispatchEvent(new CustomEvent('tasks:changed')); }
+                catch (_err) { }
+              }, 0);
+            }).catch(err => {
+              console.warn?.('[followup]', err);
+              submitting = false;
+              confirmBtn.disabled = false;
+              cancelBtn.disabled = false;
+              actionBtn.disabled = false;
+              suggestBtn.disabled = false;
+              setStatus('Unable to schedule follow-up. Try again.', 'error');
+            });
+          };
+
+          actionBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            setStatus('');
+            if (prompt.hidden) { openPrompt(); }
+            else { closePrompt(); }
+          }, { signal });
+          suggestBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            setStatus('');
+            handleQuickSchedule();
+          }, { signal });
+
+          confirmBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleSubmit();
+          }, { signal });
+
+          cancelBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            closePrompt();
+          }, { signal });
+
+          prompt.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              closePrompt();
+              actionBtn.focus?.({ preventScroll: true });
+            }
+          }, { signal });
+
+          const lastTouchField = $('#c-lastcontact', body);
+          const nextTouchField = $('#c-nexttouch', body);
+          [lastTouchField, nextTouchField].forEach(field => {
+            if (!field || typeof field.addEventListener !== 'function') return;
+            const update = () => refreshSuggestion();
+            field.addEventListener('input', update, { signal });
+            field.addEventListener('change', update, { signal });
+          });
+
+          signal.addEventListener('abort', () => {
+            if (host.parentElement) { host.remove(); }
+            if (dlg.__contactFollowUpAbort === controller) {
+              dlg.__contactFollowUpAbort = null;
+            }
+            if (refreshFollowUpSuggestion === refreshSuggestion) {
+              refreshFollowUpSuggestion = noop;
+            }
+          });
+
+          try { dlg.addEventListener('close', () => controller.abort(), { once: true }); }
+          catch (_err) { dlg.addEventListener('close', () => controller.abort(), { once: true }); }
+
+          host.append(suggestWrap, actionBtn, prompt, status);
+          if (start.firstChild) {
+            start.insertBefore(host, start.firstChild);
+          } else {
+            start.appendChild(host);
+          }
+          refreshSuggestion();
+        };
+
+        const installTouchLogging = (onTouchSaved) => {
+          if (typeof createTouchLogEntry !== 'function' || typeof touchSuccessMessage !== 'function') {
+            toastWarn('Touch logging unavailable');
+            return null;
+          }
+          const footer = dlg.querySelector('[data-component="form-footer"]');
+          if (!footer) return null;
+          const start = footer.querySelector('.form-footer__start');
+          if (!start) return null;
+
+          let controls = dlg.__contactTouchControls || null;
+          if (!controls) {
+            const logButton = document.createElement('button');
+            logButton.type = 'button';
+            logButton.className = 'btn';
+            logButton.dataset.role = 'log-touch';
+            logButton.textContent = 'Log a Touch';
+            logButton.setAttribute('aria-haspopup', 'true');
+            logButton.setAttribute('aria-expanded', 'false');
+
+            const menu = document.createElement('div');
+            menu.dataset.role = 'touch-menu';
+            menu.setAttribute('role', 'menu');
+            menu.hidden = true;
+            menu.style.display = 'none';
+            menu.style.marginLeft = '8px';
+            menu.style.gap = '4px';
+            menu.style.flexWrap = 'wrap';
+
+            start.appendChild(logButton);
+            start.appendChild(menu);
+            controls = { button: logButton, menu };
+            dlg.__contactTouchControls = controls;
+          } else {
+            controls.button.textContent = 'Log a Touch';
+          }
+
+          const { button: logButton, menu } = controls;
+          if (!logButton || !menu) return null;
+
+          TOUCH_OPTIONS.forEach(option => {
+            let optBtn = menu.querySelector(`button[data-touch-key="${option.key}"]`);
+            if (!optBtn) {
+              optBtn = document.createElement('button');
+              optBtn.type = 'button';
+              optBtn.className = 'btn ghost';
+              optBtn.dataset.touchKey = option.key;
+              optBtn.textContent = option.label;
+              optBtn.setAttribute('role', 'menuitem');
+              menu.appendChild(optBtn);
+            } else {
+              optBtn.textContent = option.label;
+            }
+          });
+          Array.from(menu.querySelectorAll('button[data-touch-key]')).forEach(btn => {
+            if (!TOUCH_OPTIONS.some(option => option.key === btn.dataset.touchKey)) {
+              btn.remove();
+            }
+          });
+
+          const hideMenu = () => {
+            if (menu.hidden) return;
+            menu.hidden = true;
+            menu.style.display = 'none';
+            logButton.setAttribute('aria-expanded', 'false');
+          };
+          const showMenu = () => {
+            if (!menu.hidden) return;
+            menu.hidden = false;
+            menu.style.display = 'flex';
+            logButton.setAttribute('aria-expanded', 'true');
+            const first = menu.querySelector('button[data-touch-key]');
+            if (first && typeof first.focus === 'function') {
+              first.focus({ preventScroll: true });
+            }
+          };
+
+          let logging = false;
+          const logTouch = async (key) => {
+            if (logging) return null;
+            logging = true;
+            try {
+              const notesField = $('#c-notes', body);
+              const lastInput = $('#c-lastcontact', body);
+              if (!notesField || !lastInput) {
+                return null;
+              }
+              const entry = createTouchLogEntry(key);
+              const existing = notesField.value || '';
+              const remainderRaw = existing.replace(/^\s+/, '');
+              const remainder = remainderRaw ? `\n${remainderRaw}` : '';
+              const nextValue = `${entry}${remainder}`;
+              notesField.value = nextValue;
+              notesField.dispatchEvent(new Event('input', { bubbles: true }));
+              if (typeof notesField.focus === 'function') {
+                notesField.focus({ preventScroll: true });
+              }
+              if (typeof notesField.setSelectionRange === 'function') {
+                const caretIndex = entry.length;
+                try { notesField.setSelectionRange(caretIndex, caretIndex); }
+                catch (_err) { }
+              }
+              const today = formatTouchDate(new Date());
+              if (today) {
+                lastInput.value = today;
+                lastInput.dispatchEvent(new Event('input', { bubbles: true }));
+                lastInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              const result = await handleSave({
+                keepOpen: true,
+                successMessage: touchSuccessMessage(key),
+                touchLog: { key, date: today, entry, by: 'contact-editor:touch-menu' }
+              });
+              if (result && typeof onTouchSaved === 'function') {
+                onTouchSaved(result);
+              }
+              return result;
+            } catch (err) {
+              try { console && console.warn && console.warn('[contacts] touch log failed', err); }
+              catch (_err) { }
+              return null;
+            } finally {
+              logging = false;
+            }
+          };
+
+          dlg.__contactTouchHandler = logTouch;
+
+          if (!logButton.__touchToggle) {
+            logButton.__touchToggle = true;
+            logButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              if (menu.hidden) { showMenu(); }
+              else { hideMenu(); }
+            });
+            logButton.addEventListener('keydown', (event) => {
+              if (event.key === 'Escape' && !menu.hidden) {
+                event.preventDefault();
+                hideMenu();
+                logButton.blur?.();
+                return;
+              }
+              if ((event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') && menu.hidden) {
+                event.preventDefault();
+                showMenu();
+              }
+            });
+          }
+
+          if (!menu.__touchHandlers) {
+            menu.__touchHandlers = true;
+            menu.addEventListener('click', (event) => {
+              const target = event.target && event.target.closest('button[data-touch-key]');
+              if (!target) return;
+              event.preventDefault();
+              hideMenu();
+              logTouch(target.dataset.touchKey);
+            });
+            menu.addEventListener('keydown', (event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                hideMenu();
+                if (typeof logButton.focus === 'function') {
+                  logButton.focus({ preventScroll: true });
+                }
+              }
+            });
+          }
+
+          if (!dlg.__touchMenuOutsideHandler) {
+            const outsideHandler = (event) => {
+              if (menu.hidden) return;
+              if (event && (event.target === logButton || logButton.contains(event.target))) return;
+              if (event && menu.contains(event.target)) return;
+              hideMenu();
+            };
+            dlg.addEventListener('click', outsideHandler);
+            dlg.__touchMenuOutsideHandler = outsideHandler;
+          }
+
+          if (!menu.__touchCloseHook) {
+            const closeHandler = () => hideMenu();
+            try { dlg.addEventListener('close', closeHandler); }
+            catch (_err) { dlg.addEventListener('close', closeHandler); }
+            menu.__touchCloseHook = closeHandler;
+          }
+          return logTouch;
+        };
+
+        installFollowUpScheduler();
+        const touchSummaryUpdater = (() => {
+          const host = dlg.querySelector('[data-role="contact-header-actions"]');
+          if (!host) return null;
+          const update = (record) => renderTouchSummary(host, record || c);
+          update(c);
+          return update;
+        })();
+        const logTouchHandler = installTouchLogging(touchSummaryUpdater);
+
+        if (saveBtn) {
+          if (typeof window.saveForm === 'function') {
+            window.saveForm(saveBtn, handleSave, { successMessage: null });
+          } else {
+            saveBtn.onclick = async (e) => {
+              e.preventDefault();
+              const result = await handleSave();
+              if (result) {
+                try { closeDialog(); } catch (_) { }
+              }
+            };
+          }
         }
+        document.dispatchEvent(new CustomEvent('contact:modal:ready', { detail: { dialog: dlg, body } }));
+        if (dlg.dataset) {
+          dlg.dataset.open = '1';
+          dlg.dataset.opening = '0';
+        }
+        try { dlg.showModal(); }
+        catch (_) { dlg.setAttribute('open', ''); }
+        return dlg;
+      } catch (err) {
+        if (isRecoverableContactError(err)) {
+          notify('Unable to open contact editor. Please try again.', 'error');
+          try { closeDialog(); }
+          catch (_cleanupErr) { }
+          return null;
+        }
+        throw err;
       }
-      document.dispatchEvent(new CustomEvent('contact:modal:ready', { detail: { dialog: dlg, body } }));
-      if (dlg.dataset) {
-        dlg.dataset.open = '1';
-        dlg.dataset.opening = '0';
-      }
-      try { dlg.showModal(); }
-      catch (_) { dlg.setAttribute('open', ''); }
-      return dlg;
-    } catch (err) {
-      if (isRecoverableContactError(err)) {
-        notify('Unable to open contact editor. Please try again.', 'error');
-        try { closeDialog(); }
-        catch (_cleanupErr) { }
-        return null;
-      }
-      throw err;
-    }
-  };
+    };
+  }
 
   if (typeof window !== 'undefined' && typeof window.renderContactModal === 'function') {
     try {
