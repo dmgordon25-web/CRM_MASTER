@@ -29,6 +29,7 @@ import {
   setSelectionStore as setContextSelectionStore
 } from './app_context.js';
 import { createBinding } from './ui/quick_create_menu.js';
+import { runFullWorkflowSeed } from './seed_full.js';
 
 
 
@@ -3330,6 +3331,23 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       } finally {
         seedForm.classList.remove('is-seeding');
         if (seedRunBtn) seedRunBtn.disabled = false;
+      }
+    });
+  }
+
+  const seedFullBtn = $('#btn-seed-full-workflow');
+  if (seedFullBtn && !seedFullBtn.__wired) {
+    seedFullBtn.__wired = true;
+    seedFullBtn.addEventListener('click', async () => {
+      seedFullBtn.disabled = true;
+      try {
+        await runFullWorkflowSeed();
+        if (typeof window.toast === 'function') window.toast('Full workflow seeded successfully');
+      } catch (err) {
+        console.error('Full seed failed', err);
+        if (typeof window.toast === 'function') window.toast('Seeding failed: ' + err.message);
+      } finally {
+        seedFullBtn.disabled = false;
       }
     });
   }

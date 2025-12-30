@@ -6313,3 +6313,50 @@ main:not(#view-calendar) .calendar-grid {
   font-size: 14px;
   color: #0f172a;
 }
+/* Calendar Legend */
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 16px;
+  margin-bottom: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink, #1e293b);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background-color: var(--surface-offset, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+/* Color indicator swatch effect */
+.legend-chip::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--legend-color);
+}
+
+.legend-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .legend-chip {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+

@@ -1,5 +1,6 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
+import { renderLegend } from './calendar/legend.js';
 import { openContactEditor } from './contacts.js';
 import { openTaskEditor } from './ui/quick_create_menu.js';
 import { openPartnerEditor } from './editors/partner_entry.js';
@@ -1912,8 +1913,20 @@ function renderSurface(mount, state, handlers) {
 }
 
 export function initCalendar({ openDB, bus, services, mount }) {
+
   if (!DOC || !mount) {
     throw new Error('calendar mount unavailable');
+  }
+
+  // Inject legend if safe
+  if (mount.parentNode) {
+    let legendContainer = mount.parentNode.querySelector('#calendar-legend-container');
+    if (!legendContainer) {
+      legendContainer = DOC.createElement('div');
+      legendContainer.id = 'calendar-legend-container';
+      mount.parentNode.insertBefore(legendContainer, mount);
+    }
+    renderLegend(legendContainer);
   }
 
   const state = {
