@@ -1,6 +1,8 @@
 @import url("./css/tokens.css");
 @import url("./css/relationships.css");
 @import url("./css/editor_identity.css");
+@import url("./css/calendar_legend.css");
+
 
 :root {
   --bg: var(--surface-background);
@@ -6313,6 +6315,7 @@ main:not(#view-calendar) .calendar-grid {
   font-size: 14px;
   color: #0f172a;
 }
+
 /* Calendar Legend */
 .calendar-legend {
   display: flex;
@@ -6359,4 +6362,3 @@ main:not(#view-calendar) .calendar-grid {
     border-color: rgba(255, 255, 255, 0.1);
   }
 }
-

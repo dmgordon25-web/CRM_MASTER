@@ -1,0 +1,68 @@
+/* Calendar Legend Component */
+
+#calendar-legend-container {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0 0 12px 0;
+    margin-bottom: 0;
+}
+
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--bg, #fff);
+    border: 1px solid var(--border-color, rgba(148, 163, 184, 0.25));
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink, #1e293b);
+    user-select: none;
+    cursor: default;
+    transition: opacity 0.2s ease;
+}
+
+.legend-chip:hover {
+    opacity: 1;
+}
+
+.legend-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Color markers (small dot or border) */
+.legend-chip::before {
+    content: "";
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--legend-color, #94a3b8);
+    flex-shrink: 0;
+}
+
+.legend-label {
+    line-height: 1.2;
+}
+
+/* Dark mode adjustments would ideally hook into global theme classes, 
+   but using CSS variables largely handles it if --bg and --ink are set correctly.
+   For specific overrides: */
+[data-theme="dark"] .legend-chip {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(148, 163, 184, 0.15);
+}

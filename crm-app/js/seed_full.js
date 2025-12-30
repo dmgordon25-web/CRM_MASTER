@@ -147,18 +147,29 @@ export async function runFullWorkflowSeed() {
     // 4. Calendar Events (15+)
     // 5+ in current week
     // Visually distinct types
-    const eventTypes = ['meeting', 'call', 'reminder', 'closing', 'birthday'];
+    const eventTypes = ['meeting', 'call', 'followup', 'deadline', 'nurture'];
     const eventOffsets = [0, 0, 1, 1, 2, 3, 4, 5, 7, 10, 12, 14, 15, 20, 25]; // Many in first week
 
     for (let i = 0; i < 15; i++) {
         const id = getId('event', i + 1);
-        const type = eventTypes[i % eventTypes.length];
+        const typeKey = eventTypes[i % eventTypes.length]; // cyclical
+        let type = typeKey;
+        let titlePrefix = 'Seed Event';
+
+        // Map specific keys to display values or logic if needed
+        if (typeKey === 'nurture') {
+            titlePrefix = 'Nurture Check-in';
+            // type is already 'nurture' which matches our new category
+        } else if (typeKey === 'deadline') {
+            titlePrefix = 'Contract Deadline';
+        }
+
         const date = getDate(eventOffsets[i]);
         const isContact = i % 2 !== 0; // Alternate
         const linkId = isContact ? getId('contact', (i % 12) + 1) : getId('partner', (i % 8) + 1);
 
         await upsert('events', id, {
-            title: `Seed Event ${i + 1}: ${type}`,
+            title: `${titlePrefix} ${i + 1}`,
             type: type,
             start: `${date}T10:00:00`,
             end: `${date}T11:00:00`,

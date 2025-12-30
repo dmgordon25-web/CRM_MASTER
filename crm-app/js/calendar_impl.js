@@ -35,6 +35,7 @@ const EVENT_CATEGORIES = Object.freeze([
   { key: 'partner', label: 'Partner', icon: '🤝', type: 'partner', accent: '--accent-partner', tokens: ['partner', 'referral', 'lender', 'broker'] },
   { key: 'postal', label: 'Postal', icon: '📮', type: 'task', accent: '--accent-task', tokens: ['postal', 'mail', 'letter'] },
   { key: 'followup', label: 'Follow-up', icon: '🔔', type: 'task', accent: '--accent-task', tokens: ['follow-up', 'followup', 'follow', 'touch', 'reminder'] },
+  { key: 'nurture', label: 'Nurture', icon: '📌', type: 'task', accent: '--accent-nurture', tokens: ['nurture', 'check-in', 'touch'] },
   { key: 'deadline', label: 'Deadline', icon: '⭐', type: 'milestone', accent: '--accent-milestone', tokens: ['milestone', 'deal', 'closing', 'deadline', 'funded', 'closing-watch'] },
   { key: 'other', label: 'Other', icon: '📌', type: 'other', accent: '--accent-other', tokens: [] },
 ]);
@@ -1801,7 +1802,6 @@ function renderSurface(mount, state, handlers) {
   const range = rangeForView(state.anchor, state.view);
   updateCalendarLabel(range, state.view);
   markActiveView(state.view);
-  const legend = renderLegend();
   const viewResult = renderView(range, state.events, state.view, handlers);
   const wrapper = DOC.createElement('div');
   wrapper.className = 'calendar-surface';
@@ -1843,7 +1843,6 @@ function renderSurface(mount, state, handlers) {
   }
   wrapper.appendChild(statusHost);
 
-  wrapper.appendChild(legend.node);
 
   wrapper.appendChild(viewResult.node);
 
@@ -1857,7 +1856,6 @@ function renderSurface(mount, state, handlers) {
 
   const debug = ensureDebug();
   debug.renderCount = state.renderCount;
-  debug.legendItems = legend.count;
   debug.visible = visible;
   debug.month = viewResult.metrics.month;
   debug.week = viewResult.metrics.week;
@@ -1872,7 +1870,6 @@ function renderSurface(mount, state, handlers) {
       anchor: range.anchor instanceof Date ? new Date(range.anchor.getTime()) : null,
     },
     metrics: {
-      legendItems: legend.count,
       visibleEvents: state.visibleEvents.length,
       month: viewResult.metrics.month,
       week: viewResult.metrics.week,
