@@ -1032,6 +1032,7 @@ function renderSection(sectionId, options = {}) {
   if (!host) return;
   const section = SECTIONS.find((s) => s.id === sectionId) || SECTIONS[0];
 
+
   const previousSection = activeSection;
   if (previousSection && previousSection !== section.id) {
     destroySectionController(previousSection);
@@ -1076,6 +1077,7 @@ function renderSection(sectionId, options = {}) {
 
   if (isVNextEnabled()) {
     try {
+
       enableVNextGrid(grid, section.id);
     } catch (err) {
       console.error('[labs] vNext failed to initialize, falling back to Classic', err);
@@ -1115,10 +1117,6 @@ function renderWidgets(grid, widgetList = []) {
     celebrations: [],
     laneOrder: [],
     activeLanes: []
-  };
-  const onAnalyticsSegment = (segment) => {
-    if (!segment) return;
-    openAnalyticsDrilldown(model, segment);
   };
   const onPortfolioSegment = (segment) => {
     if (!segment) return;
@@ -1252,12 +1250,12 @@ function registerResizeHandles(section, grid) {
   const stop = (evt) => {
     if (active) {
       if (active.handle) {
-         try {
-           active.handle.releasePointerCapture(evt.pointerId);
-           active.handle.removeEventListener('pointermove', onPointerMove);
-           active.handle.removeEventListener('pointerup', stop);
-           active.handle.removeEventListener('pointercancel', stop);
-         } catch (_e) { }
+        try {
+          active.handle.releasePointerCapture(evt.pointerId);
+          active.handle.removeEventListener('pointermove', onPointerMove);
+          active.handle.removeEventListener('pointerup', stop);
+          active.handle.removeEventListener('pointercancel', stop);
+        } catch (_e) { }
       }
       if (active.token) {
         setWidgetWidthToken(active.sectionId, active.widgetId, active.token);
@@ -1272,7 +1270,7 @@ function registerResizeHandles(section, grid) {
     if (!handle) return;
     const item = handle.closest('.labs-grid-item');
     if (!item) return;
-    
+
     // Only primary button
     if (evt.button !== 0) return;
 
@@ -1307,7 +1305,7 @@ function registerResizeHandles(section, grid) {
   const teardown = () => {
     grid.removeEventListener('pointerdown', onPointerDown);
     if (active && active.handle) {
-       try { active.handle.releasePointerCapture(active.pointerId); } catch(e){}
+      try { active.handle.releasePointerCapture(active.pointerId); } catch (e) { }
     }
   };
 

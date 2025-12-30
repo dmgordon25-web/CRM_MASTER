@@ -19,6 +19,7 @@ export function enableVNextGrid(container, sectionId) {
     if (!container || !sectionId) return;
 
     console.log(`[vNext] Initializing grid for ${sectionId}`);
+    console.log('[ZNEXT] enableVNextGrid entered');
 
     // 1. Destroy existing instance if any
     if (activeGrids.has(sectionId)) {
@@ -58,8 +59,8 @@ export function enableVNextGrid(container, sectionId) {
         let h = 4; // default height units
 
         if (saved) {
-            w = saved.w;
-            h = saved.h;
+            w = saved.width || saved.w || 4;
+            h = saved.height || saved.h || 4;
         } else {
             if (el.classList.contains('w2')) w = 8;
             if (el.classList.contains('w3')) w = 12;
@@ -70,13 +71,25 @@ export function enableVNextGrid(container, sectionId) {
         // Wrap
         const wrapper = document.createElement('div');
         wrapper.className = 'grid-stack-item';
+        // Compatibility: Set both dataset and manual attributes for different GS versions
         wrapper.setAttribute('data-gs-id', widgetId);
-        wrapper.setAttribute('data-gs-w', w);
-        wrapper.setAttribute('data-gs-h', h);
+        wrapper.setAttribute('data-gs-width', w);
+        wrapper.setAttribute('data-gs-height', h);
+        wrapper.setAttribute('gs-w', w);
+        wrapper.setAttribute('gs-h', h);
+
         if (saved) {
             wrapper.setAttribute('data-gs-x', saved.x);
             wrapper.setAttribute('data-gs-y', saved.y);
+            wrapper.setAttribute('gs-x', saved.x);
+            wrapper.setAttribute('gs-y', saved.y);
         }
+
+        // Fix: Manually set CSS variables to bridge JS/CSS version mismatch
+        // The CSS expects --gs-column-width but old JS might not set it.
+        const pct = (w / 12) * 100;
+        wrapper.style.setProperty('--gs-column-width', `${pct}%`);
+        wrapper.style.setProperty('--gs-cell-height', `${h * 120}px`);
 
         const content = document.createElement('div');
         content.className = 'grid-stack-item-content';
@@ -95,6 +108,7 @@ export function enableVNextGrid(container, sectionId) {
     // We expect 'GridStack' to be on window from the import above (UMD).
     // If not, we might need to rely on the side-effect or window property.
     const GS = window.GridStack;
+    console.debug('[ZNEXT] Checking GridStack', !!GS);
     if (!GS) {
         console.warn('[vNext] GridStack library not found on window. Ensure it is loaded.');
         return;
@@ -145,8 +159,8 @@ function saveVNextLayout(sectionId, grid) {
         id: node.id,
         x: node.x,
         y: node.y,
-        w: node.w,
-        h: node.h
+        width: node.width,
+        height: node.height
     }));
     localStorage.setItem(VNEXT_STORAGE_PREFIX + sectionId, JSON.stringify(layout));
 }

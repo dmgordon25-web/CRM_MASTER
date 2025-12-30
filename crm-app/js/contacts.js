@@ -1146,9 +1146,7 @@ export function normalizeContactId(input) {
             </div>
           `;
 
-            // Hide legacy meta container to avoid duplication
-            const oldSummaryMeta = body.querySelector('.summary-meta');
-            if (oldSummaryMeta) oldSummaryMeta.style.display = 'none';
+
           }
 
           const summaryMeta = body.querySelector('.summary-meta');
