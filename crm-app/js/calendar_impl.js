@@ -1482,28 +1482,7 @@ function ensureTestHooks() {
 
 ensureTestHooks();
 
-function renderLegend() {
-  const container = DOC.createElement('div');
-  container.dataset.qa = 'cal-legend';
-  container.setAttribute('data-qa', 'cal-legend');
-  EVENT_CATEGORIES.forEach((item) => {
-    const entry = DOC.createElement('span');
-    entry.dataset.qa = 'cal-legend-item';
-    entry.dataset.type = item.type;
-    entry.dataset.category = item.key;
-    const icon = DOC.createElement('span');
-    icon.className = 'cal-legend-icon';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = item.icon;
-    const label = DOC.createElement('span');
-    label.className = 'cal-legend-label';
-    label.textContent = item.label;
-    entry.appendChild(icon);
-    entry.appendChild(label);
-    container.appendChild(entry);
-  });
-  return { node: container, count: EVENT_CATEGORIES.length };
-}
+
 
 function renderMonthView(range, events, handlers) {
   const grid = DOC.createElement('div');

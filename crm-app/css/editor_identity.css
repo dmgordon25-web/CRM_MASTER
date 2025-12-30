@@ -1,4 +1,3 @@
-
 /* Identity Header (Phase 8.3) */
 .identity-header {
   display: flex;
@@ -20,7 +19,8 @@
   gap: 8px;
   color: var(--muted);
   font-size: 13px;
-  margin-left: 60px; /* Align with text start (avatar width + gap) */
+  margin-left: 60px;
+  /* Align with text start (avatar width + gap) */
 }
 
 /* Avatar in identity header */
@@ -34,10 +34,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--brand); /* Fallback */
+  background: var(--brand);
+  /* Fallback */
   color: #fff;
   flex-shrink: 0;
 }
+
 .identity-primary .summary-avatar.is-empty {
   background: #e2e8f0;
   color: #64748b;
@@ -45,13 +47,12 @@
 
 /* Primary Name Text */
 .identity-primary .summary-name-text {
-  font-size: 1.25rem; /* ~20px */
+  font-size: 1.25rem;
+  /* ~20px */
   font-weight: 700;
   color: var(--ink);
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Removed truncation for wrapping */
   max-width: 400px;
 }
 
@@ -67,7 +68,8 @@
 .identity-secondary .status-pill::before {
   content: "•";
   margin-right: 6px;
-  color: var(--metric-trend-down, #f59e0b); /* Default/fallback color */
+  color: var(--metric-trend-down, #f59e0b);
+  /* Default/fallback color */
 }
 
 /* Clean up redundant nameplates */
