@@ -177,7 +177,8 @@
       <section class="card" id="dashboard-todo" data-widget-id="todo">
         <div class="muted">Stay on top of quick tasks and notes.</div>
       </section>
-      <section class="card" id="referral-leaderboard" data-widget="leaderboard" data-dash-widget="leaderboard" data-widget-id="leaderboard"></section>
+      <section class="card" id="referral-leaderboard" data-widget="leaderboard" data-dash-widget="leaderboard"
+        data-widget-id="leaderboard"></section>
       <section class="card" id="dashboard-stale" data-widget-id="stale"></section>
       <section class="grid insights-grid" id="dashboard-insights">
         <div class="card insight-card span-2" id="goal-progress-card" data-widget-id="goalProgress">
@@ -229,7 +230,7 @@
           <div class="insight-head numbers-card-head">
             <div class="insight-icon numbers-referrals-icon">🏆</div>
             <div>
-              <h4>Referral Leaders</h4>
+              <h4>Referral Leaders <span class="help-icon" data-help-id="referral-leaders">?</span></h4>
               <p class="muted">Top partners feeding your funnel</p>
             </div>
           </div>
@@ -242,7 +243,7 @@
           <div class="insight-head numbers-card-head">
             <div class="insight-icon numbers-momentum-icon">📈</div>
             <div>
-              <h4>Pipeline Momentum</h4>
+              <h4>Pipeline Momentum <span class="help-icon" data-help-id="pipeline-momentum">?</span></h4>
               <p class="muted">Stage distribution at a glance</p>
             </div>
             <span class="count-badge" id="pipeline-momentum-count">0</span>
@@ -268,11 +269,12 @@
             <div class="empty muted">Upcoming milestones will appear here once scheduled.</div>
           </div>
         </div>
-        <div class="card insight-card" id="priority-actions-card" data-widget="priorityActions" data-dash-widget="priorityActions" data-widget-id="priorityActions">
+        <div class="card insight-card" id="priority-actions-card" data-widget="priorityActions"
+          data-dash-widget="priorityActions" data-widget-id="priorityActions">
           <div class="insight-head">
             <div class="insight-icon tasks">⚡</div>
             <div>
-              <h4>Priority Actions</h4>
+              <h4>Priority Actions <span class="help-icon" data-help-id="priority-actions">?</span></h4>
               <p class="muted">Overdue & high-impact follow-ups</p>
             </div>
             <div class="insight-actions">
@@ -282,11 +284,12 @@
           <ul class="insight-list actionable" id="needs-attn">
           </ul>
         </div>
-        <div class="card insight-card" id="milestones-card" data-widget="milestonesAhead" data-dash-widget="milestonesAhead" data-widget-id="milestones">
+        <div class="card insight-card" id="milestones-card" data-widget="milestonesAhead"
+          data-dash-widget="milestonesAhead" data-widget-id="milestones">
           <div class="insight-head">
             <div class="insight-icon timeline">📌</div>
             <div>
-              <h4>Milestones Ahead</h4>
+              <h4>Milestones Ahead <span class="help-icon" data-help-id="milestones">?</span></h4>
               <p class="muted">Upcoming events & touchpoints</p>
             </div>
             <div class="insight-actions">
@@ -300,7 +303,7 @@
           <div class="insight-head">
             <div class="insight-icon docs">📂</div>
             <div>
-              <h4>Document Pulse</h4>
+              <h4>Document Pulse <span class="help-icon" data-help-id="doc-pulse">?</span></h4>
               <p class="muted">Outstanding requests across clients</p>
             </div>
           </div>
@@ -1827,22 +1830,25 @@
           <div class="modal-body">
             <div class="modal-form-layout">
               <aside class="modal-summary" id="partner-summary">
-                <div class="summary-name" id="p-summary-name" data-role="favorite-host" data-favorite-type="partner"
+                <div class="identity-header" id="p-summary-name" data-role="favorite-host" data-favorite-type="partner"
                   data-record-id="">
-                  <span aria-hidden="true" class="initials-avatar is-empty" data-initials="?"
-                    data-role="summary-avatar"></span>
-                  <span class="summary-name-text" data-role="summary-name-text">
-                    New Partner
-                  </span>
-                  <span class="summary-actions" data-role="favorite-actions"></span>
-                </div>
-                <div class="summary-meta">
-                  <span class="summary-chip" id="p-summary-tier">
-                    Tier — Developing
-                  </span>
-                  <span class="summary-chip" id="p-summary-type">
-                    Realtor Partner
-                  </span>
+                  <div class="identity-primary">
+                    <span aria-hidden="true" class="summary-avatar is-empty" data-initials="?"
+                      data-role="summary-avatar"></span>
+                    <span class="summary-name-text" data-role="summary-name-text">
+                      New Partner
+                    </span>
+                    <span class="summary-actions" data-role="favorite-actions"></span>
+                  </div>
+                  <div class="identity-secondary">
+                    <span class="summary-chip" id="p-summary-tier">
+                      Tier — Developing
+                    </span>
+                    <span class="sep">•</span>
+                    <span class="summary-chip" id="p-summary-type">
+                      Realtor Partner
+                    </span>
+                  </div>
                 </div>
                 <div class="summary-metrics">
                   <div class="summary-metric">
@@ -2144,7 +2150,7 @@
           Keep momentum with timely follow-up, clear milestones, and aligned partner updates.
         </div>
       </aside>
-              <div class="modal-main">
+      <div class="modal-main">
         <div class="modal-core">
           <div class="record-nameplate" data-record-type="contact" data-role="record-nameplate">
             <div class="record-name" data-role="record-name-text">New Contact</div>

@@ -1122,12 +1122,28 @@ export function normalizeContactId(input) {
 
         const summaryHost = body.querySelector('[data-role="favorite-host"]');
         if (summaryHost) {
-          summaryHost.className = summaryClasses.join(' ');
+          // Phase 8: Identity Header Structure
+          summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
           summaryHost.dataset.favoriteType = 'contact';
           summaryHost.dataset.recordId = summaryIdAttr;
           if (isFavoriteContact) summaryHost.dataset.favorite = '1';
           else delete summaryHost.dataset.favorite;
-          summaryHost.innerHTML = `${summaryAvatarMarkup}<span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span><span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>`;
+          summaryHost.innerHTML = `
+            <div class="identity-primary">
+              ${summaryAvatarMarkup}
+              <span class="summary-name-text" data-role="summary-name-text">${escape(summaryLabel)}</span>
+              <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
+            </div>
+            <div class="identity-secondary">
+              <span data-role="stage-chip-wrapper"></span>
+              <span class="sep">•</span>
+              <span class="status-pill"></span>
+            </div>
+          `;
+
+          // Hide legacy meta container to avoid duplication
+          const oldSummaryMeta = body.querySelector('.summary-meta');
+          if (oldSummaryMeta) oldSummaryMeta.style.display = 'none';
         }
 
         const summaryMeta = body.querySelector('.summary-meta');

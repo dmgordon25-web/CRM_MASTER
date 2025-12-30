@@ -16,6 +16,7 @@ import {
   writeDashboardConfig,
   isTodayWidget
 } from './config.js';
+import { helpSystem } from '../utils/help_system.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
@@ -4120,6 +4121,29 @@ export function initDashboard(options = {}) {
     scheduleApply();
     ensureWidgetDnD();
     refreshTodayHighlightWiring();
+
+    // Phase 8: Help System Registration
+    helpSystem.register('priority-actions', {
+      title: 'Priority Actions',
+      content: 'Critical tasks due today or overdue. Focus here first to keep deals moving.'
+    });
+    helpSystem.register('milestones', {
+      title: 'Milestones Ahead',
+      content: 'Upcoming birthdays, loan anniversaries, and key dates for the next 30 days.'
+    });
+    helpSystem.register('referral-leaders', {
+      title: 'Referral Leaders',
+      content: 'Top partners by referral volume. Click a partner to view their full performance card.'
+    });
+    helpSystem.register('pipeline-momentum', {
+      title: 'Pipeline Momentum',
+      content: 'Snapshot of active deals by stage. Shows where your volume is concentrated.'
+    });
+    helpSystem.register('doc-pulse', {
+      title: 'Document Pulse',
+      content: 'Outstanding document requests across all files. Click to manage specific docs.'
+    });
+    helpSystem.init(); // Auto-attaches to data-help-id elements
     if (doc) {
       try {
         const readyEvent = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
