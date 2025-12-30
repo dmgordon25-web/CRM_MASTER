@@ -1,5 +1,6 @@
 @import url("./css/tokens.css");
 @import url("./css/relationships.css");
+@import url("./css/editor_identity.css");
 
 :root {
   --bg: var(--surface-background);

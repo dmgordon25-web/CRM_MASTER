@@ -1,0 +1,76 @@
+
+/* Identity Header (Phase 8.3) */
+.identity-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.identity-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.identity-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-left: 60px; /* Align with text start (avatar width + gap) */
+}
+
+/* Avatar in identity header */
+.identity-primary .initials-avatar,
+.identity-primary .summary-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand); /* Fallback */
+  color: #fff;
+  flex-shrink: 0;
+}
+.identity-primary .summary-avatar.is-empty {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+/* Primary Name Text */
+.identity-primary .summary-name-text {
+  font-size: 1.25rem; /* ~20px */
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+/* Chips in secondary row */
+.identity-secondary .summary-chip {
+  background: rgba(148, 163, 184, 0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.identity-secondary .status-pill::before {
+  content: "•";
+  margin-right: 6px;
+  color: var(--metric-trend-down, #f59e0b); /* Default/fallback color */
+}
+
+/* Clean up redundant nameplates */
+.record-nameplate {
+  display: none !important;
+}
