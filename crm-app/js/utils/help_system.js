@@ -12,7 +12,7 @@ export class HelpSystem {
     }
 
     attach(element, helpId) {
-        if (!element) return;
+        if (!element || element.dataset.helpAttached === '1') return;
 
         // title-based tooltip fallback (Phase 8 requirement)
         const data = this.registry.get(helpId);
@@ -29,12 +29,18 @@ export class HelpSystem {
         });
         element.addEventListener('focus', (e) => this._show(e, helpId));
         element.addEventListener('blur', () => this._scheduleHide());
+
+        element.dataset.helpAttached = '1';
     }
 
     init() {
         document.querySelectorAll('[data-help-id]').forEach(el => {
             this.attach(el, el.dataset.helpId);
         });
+    }
+
+    refresh() {
+        this.init();
     }
 
     _show(event, helpId, persist = false) {
@@ -129,3 +135,59 @@ export class HelpSystem {
 }
 
 export const helpSystem = new HelpSystem();
+
+// Dashboard Content
+helpSystem.register('priority-actions', {
+    title: 'Priority Actions',
+    content: 'Urgent tasks and contacts needing attention. Click any row to take action immediately.'
+});
+helpSystem.register('today-work', {
+    title: "Today's Work",
+    content: 'Your scheduled tasks and follow-ups for today. Keep this list clear to stay on top of your game.'
+});
+helpSystem.register('milestones', {
+    title: 'Milestones Ahead',
+    content: 'Upcoming key dates for your active deals. Ensure you are prepared for closing and contingencies.'
+});
+helpSystem.register('referral-leaders', {
+    title: 'Referral Leaders',
+    content: 'Top partners sending you business. Recognize and reward your best referral sources.'
+});
+helpSystem.register('pipeline-momentum', {
+    title: 'Pipeline Momentum',
+    content: 'Visual snapshot of your active deal flow. Identify bottlenecks and track volume.'
+});
+helpSystem.register('doc-pulse', {
+    title: 'Document Pulse',
+    content: 'Track outstanding document requests. Ensure clients are providing necessary files on time.'
+});
+
+// View Content
+helpSystem.register('contacts-view', {
+    title: 'Contacts',
+    content: 'Central hub for all borrowers and leads. Use filters to segment your list, or click any row to edit details.'
+});
+helpSystem.register('partners-view', {
+    title: 'Partners',
+    content: 'Manage your referral partners. Track tiers, volume, and notes to strengthen your relationships.'
+});
+helpSystem.register('pipeline-view', {
+    title: 'Pipeline Board',
+    content: 'Kanban view of active loans. Drag cards to move them between stages (Application → Processing → Underwriting).'
+});
+helpSystem.register('calendar-view', {
+    title: 'Calendar',
+    content: 'Monthly and weekly view of tasks, appointments, and loan milestones.'
+});
+helpSystem.register('reports-view', {
+    title: 'Reports & Analytics',
+    content: 'Deep dive into your business metrics. Analyze conversion rates, source performance, and production volume.'
+});
+helpSystem.register('labs-view', {
+    title: 'Labs',
+    content: 'Experimental features and new views. Test upcoming functionality before it goes mainstream.'
+});
+helpSystem.register('notifications-view', {
+    title: 'Notifications',
+    content: 'Stay updated on system alerts, task reminders, and record updates.'
+});

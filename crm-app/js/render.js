@@ -2043,7 +2043,7 @@ export async function renderAll(request) {
           const emptyEl = card.querySelector('[data-role="favorites-empty"]');
           const countEl = card.querySelector('[data-role="favorites-count"]');
           const favorites = computeFavoriteRecords();
-          if (countEl) countEl.textContent = String(favorites.length);
+          if (countEl) countEl.textContent = favorites.length === 1 ? '1 favorite' : `${favorites.length} favorites`;
           if (!favorites.length) {
             listEl.innerHTML = '';
             listEl.hidden = true;

@@ -58,7 +58,7 @@ async function run() {
     if (bundled && fs.existsSync(bundled)) {
       attemptOptions.push({ ...launchOptions, executablePath: bundled });
     }
-  } catch (_err) {}
+  } catch (_err) { }
   attemptOptions.push({ ...launchOptions, channel: 'chrome' });
   attemptOptions.push({ ...launchOptions, channel: 'chromium' });
 
@@ -77,7 +77,7 @@ async function run() {
       try {
         execSync('which google-chrome-stable', { stdio: 'ignore' });
         return;
-      } catch (_) {}
+      } catch (_) { }
       execSync('wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb', { stdio: 'inherit' });
       execSync('sudo dpkg -i /tmp/google-chrome.deb || sudo apt-get -fy install', { stdio: 'inherit' });
       execSync('sudo apt-get install -y xdg-utils', { stdio: 'inherit' });
@@ -103,9 +103,9 @@ async function run() {
   async function hardClearOverlays(pageRef) {
     await pageRef.evaluate(() => {
       document.querySelectorAll('dialog[open]').forEach(d => {
-        try { d.close(); } catch (e) {}
-        try { d.removeAttribute('open'); } catch (e) {}
-        try { d.remove(); } catch (e) {}
+        try { d.close(); } catch (e) { }
+        try { d.removeAttribute('open'); } catch (e) { }
+        try { d.remove(); } catch (e) { }
       });
       document.querySelectorAll('.record-modal, .modal, .overlay, [data-ui*="modal"], [data-modal-key], [data-open="1"]').forEach(el => {
         const isDialogish =
@@ -114,7 +114,7 @@ async function run() {
           el.getAttribute('data-open') === '1' ||
           (el.getAttribute('role') === 'dialog');
         if (isDialogish) {
-          try { el.remove(); } catch (e) {}
+          try { el.remove(); } catch (e) { }
         }
       });
       document.documentElement.classList.remove('modal-open');
@@ -138,7 +138,7 @@ async function run() {
     const modalOpen = pageRef.locator('dialog#contact-modal[open]');
     if (!(await modalOpen.count())) return;
 
-    await pageRef.keyboard.press('Escape').catch(() => {});
+    await pageRef.keyboard.press('Escape').catch(() => { });
     await pageRef.waitForTimeout(100);
 
     const modal = pageRef.locator('dialog#contact-modal').first();
@@ -154,7 +154,7 @@ async function run() {
     for (const sel of closeCandidates) {
       const btn = modal.locator(sel).first();
       if (await btn.count()) {
-        await btn.click({ timeout: 1000, force: true }).catch(() => {});
+        await btn.click({ timeout: 1000, force: true }).catch(() => { });
         await pageRef.waitForTimeout(100);
         if (!(await modalOpen.count())) return;
       }
@@ -163,19 +163,19 @@ async function run() {
     await pageRef.evaluate(() => {
       const dlg = document.querySelector('dialog#contact-modal');
       if (!dlg) return;
-      try { dlg.close(); } catch (e) {}
-      try { dlg.removeAttribute('open'); } catch (e) {}
-      try { dlg.dataset.open = '0'; dlg.dataset.opening = '0'; } catch (e) {}
+      try { dlg.close(); } catch (e) { }
+      try { dlg.removeAttribute('open'); } catch (e) { }
+      try { dlg.dataset.open = '0'; dlg.dataset.opening = '0'; } catch (e) { }
     });
     await pageRef.waitForTimeout(100);
 
-    await pageRef.waitForSelector('dialog#contact-modal[open]', { state: 'detached', timeout: 2000 }).catch(() => {});
+    await pageRef.waitForSelector('dialog#contact-modal[open]', { state: 'detached', timeout: 2000 }).catch(() => { });
 
     const still = await modalOpen.count();
     if (still) {
       await pageRef.evaluate(() => {
         const dlg = document.querySelector('dialog#contact-modal[open]');
-        if (dlg) try { dlg.remove(); } catch (e) {}
+        if (dlg) try { dlg.remove(); } catch (e) { }
       });
     }
 
@@ -256,9 +256,17 @@ async function run() {
     });
   }
 
+  /* Phase 8 Fix: App now defaults to Labs in some modes. Handle this */
+  const labsActive = page.locator('#main-nav button[data-nav="labs"].active');
+  if ((await labsActive.count()) > 0) {
+    console.log('[boot-smoke] Labs active at boot, switching to Dashboard...');
+    await page.click('#main-nav button[data-nav="dashboard"]');
+    await page.waitForTimeout(500);
+  }
+
   const dashActive = page.locator('#main-nav button[data-nav="dashboard"].active');
   if (await dashActive.count() === 0) {
-    throw new Error('Dashboard nav is not active at boot');
+    throw new Error('Dashboard nav is not active at boot (even after attempted switch)');
   }
   await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 15000 });
   await page.evaluate(() => { window.scrollTo(0, 0); });

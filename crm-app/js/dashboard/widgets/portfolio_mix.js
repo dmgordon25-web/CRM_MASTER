@@ -1,26 +1,26 @@
 const FALLBACK_SAFE = (value) => String(value == null ? '' : value).replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] || ch));
 
-function ensureSafe(fn){
-  if(typeof fn === 'function') return fn;
+function ensureSafe(fn) {
+  if (typeof fn === 'function') return fn;
   return FALLBACK_SAFE;
 }
 
-function ensureColorResolver(fn){
-  if(typeof fn === 'function') return fn;
+function ensureColorResolver(fn) {
+  if (typeof fn === 'function') return fn;
   return () => null;
 }
 
-export function renderPortfolioMixWidget(options = {}){
+export function renderPortfolioMixWidget(options = {}) {
   const host = options.host || null;
   const countEl = options.countEl || null;
-  if(!host) return;
-  if(host.dataset && host.dataset.dashHidden === 'true') return;
+  if (!host) return;
+  if (host.dataset && host.dataset.dashHidden === 'true') return;
   const partners = Array.isArray(options.partners) ? options.partners : [];
   const safe = ensureSafe(options.safe);
   const colorForTier = ensureColorResolver(options.colorForTier);
 
   const totals = partners.reduce((memo, partner) => {
-    if(!partner) return memo;
+    if (!partner) return memo;
     const tier = partner.tier || 'Developing';
     memo[tier] = (memo[tier] || 0) + 1;
     return memo;
@@ -28,9 +28,9 @@ export function renderPortfolioMixWidget(options = {}){
   const entries = Object.entries(totals).sort((a, b) => (b[1] || 0) - (a[1] || 0));
   const totalCount = entries.reduce((sum, [, count]) => sum + (count || 0), 0);
 
-  if(!entries.length){
+  if (!entries.length) {
     host.innerHTML = '<div class="mini-bar-chart portfolio-chart"><div class="mini-bar-row empty">No partners added yet. Click "+ Add Partner" to get started!</div></div>';
-  }else{
+  } else {
     const rows = entries.map(([tier, count]) => {
       const pct = totalCount ? Math.round((count / totalCount) * 100) : 0;
       const color = colorForTier(tier) || '#4f46e5';
@@ -40,7 +40,7 @@ export function renderPortfolioMixWidget(options = {}){
     host.innerHTML = `<div class="mini-bar-chart portfolio-chart">${rows}</div>`;
   }
 
-  if(countEl){
-    countEl.textContent = totalCount || 0;
+  if (countEl) {
+    countEl.textContent = totalCount === 1 ? '1 total partner' : `${totalCount || 0} total partners`;
   }
 }
