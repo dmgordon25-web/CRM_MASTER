@@ -890,79 +890,96 @@ async function animateTabCycle({ instant = false, decision: explicitDecision } =
   }
 }
 
+
+let bootSequencePromise = null;
+
 export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED = [] } = {}) {
-  const state = { core: [], patches: [], safe: false };
-  const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
-    try {
-      return normalizeModuleId(value);
-    } catch (_) {
-      return value;
-    }
-  }));
-  try {
-    overlay && overlay.show && overlay.show('Loading…');
-  } catch (_) { }
+  if (bootSequencePromise) return bootSequencePromise;
 
-  try {
-    const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
-    state.core = coreRecords.map(({ path }) => path);
-
-    await waitForDomReady();
-    await evaluatePrereqs(coreRecords, 'hard');
-    overlay.hide();
-    const readyPromise = scheduleReadyFinalization();
-
-    const safe = isSafeMode();
-    state.safe = safe;
-    if (typeof window !== 'undefined') {
+  bootSequencePromise = (async () => {
+    const state = { core: [], patches: [], safe: false };
+    const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
       try {
-        const expected = safe
-          ? []
-          : (PATCHES || []).map((spec) => {
-            try { return normalizeModuleId(spec); }
-            catch (_) { return spec; }
-          });
-        window.__EXPECTED_PATCHES__ = expected;
-        window.__SAFE_MODE__ = safe ? 1 : 0;
-      } catch (_) { }
+        return normalizeModuleId(value);
+      } catch (_) {
+        return value;
+      }
+    }));
+    try {
+      overlay && overlay.show && overlay.show('Loading…');
+    } catch (_) { }
+
+    try {
+      const coreRecords = await loadModules(CORE, { fatalOnFailure: true });
+      state.core = coreRecords.map(({ path }) => path);
+
+      await waitForDomReady();
+      await evaluatePrereqs(coreRecords, 'hard');
+      overlay.hide();
+      const readyPromise = scheduleReadyFinalization();
+
+      const safe = isSafeMode();
+      state.safe = safe;
+      if (typeof window !== 'undefined') {
+        try {
+          const expected = safe
+            ? []
+            : (PATCHES || []).map((spec) => {
+              try { return normalizeModuleId(spec); }
+              catch (_) { return spec; }
+            });
+          window.__EXPECTED_PATCHES__ = expected;
+          window.__SAFE_MODE__ = safe ? 1 : 0;
+        } catch (_) { }
+      }
+
+      const patchRecords = safe
+        ? []
+        : await loadModules(PATCHES, { fatalOnFailure: false });
+
+      if (safe && PATCHES.length) {
+        console.warn('[BOOT] SAFE MODE active — skipping patches');
+        postLog('boot.safe_mode', {});
+      }
+      state.patches = patchRecords.map(({ path }) => path);
+
+      maybeRenderAll();
+
+      const waiters = gatherServiceWaiters(coreRecords);
+      if (waiters.length) {
+        await Promise.all(waiters.map((fn) => fn()));
+      }
+
+      await evaluatePrereqs(coreRecords, 'soft');
+
+      await readyPromise;
+
+      // [FIX] Delegation: If loader.js is present (phases mode), yield control
+      // to it and skip the legacy hardener animation/success logic.
+      const hasLoader = state.patches.some(p => p.includes('/patches/loader.js') || p.includes('loader.js'));
+      if (hasLoader) {
+        console.info('[BOOT] loader.js detected - delegating orchestration');
+        return { reason: 'ok' };
+      }
+
+      const animationDecision = getBootAnimationDecision({ safeOverride: safe });
+      const animationPromise = animateTabCycle({ decision: animationDecision });
+
+      recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+
+      await animationPromise;
+      finalizeSplashAndHeader();
+      return { reason: 'ok' };
+    } catch (err) {
+      const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
+        ? 'required_import'
+        : 'boot_failure';
+      recordFatal(reason, String(err?.stack || err), err);
+      throw err;
     }
+  })();
 
-    const patchRecords = safe
-      ? []
-      : await loadModules(PATCHES, { fatalOnFailure: false });
-
-    if (safe && PATCHES.length) {
-      console.warn('[BOOT] SAFE MODE active — skipping patches');
-      postLog('boot.safe_mode', {});
-    }
-    state.patches = patchRecords.map(({ path }) => path);
-
-    maybeRenderAll();
-
-    const waiters = gatherServiceWaiters(coreRecords);
-    if (waiters.length) {
-      await Promise.all(waiters.map((fn) => fn()));
-    }
-
-    await evaluatePrereqs(coreRecords, 'soft');
-
-    await readyPromise;
-
-    const animationDecision = getBootAnimationDecision({ safeOverride: safe });
-    const animationPromise = animateTabCycle({ decision: animationDecision });
-
-    recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
-
-    await animationPromise;
-    finalizeSplashAndHeader();
-    return { reason: 'ok' };
-  } catch (err) {
-    const reason = (err && typeof err === 'object' && err.path && requiredSet.has(err.path))
-      ? 'required_import'
-      : 'boot_failure';
-    recordFatal(reason, String(err?.stack || err), err);
-    throw err;
-  }
+  return bootSequencePromise;
 }
 
 export const __private = { normalize: normalizeModuleId, dynImport, isSafeMode };

@@ -16,7 +16,7 @@ window.CRM.ctx = window.CRM.ctx || {
   featureFlags: window.__FEATURES__ || {}
 };
 
-(async function boot(){
+(async function boot() {
   const coreOut = await ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   const ctx = window.CRM.ctx;
 
@@ -26,7 +26,7 @@ window.CRM.ctx = window.CRM.ctx || {
   // Run SHELL (sequential)
   const shellRes = await runPhase('SHELL', PHASES.SHELL, ctx, (e) => ctx.logger.log(e));
   const shellContract = checkContract('SHELL', CONTRACTS.SHELL);
-  if (!shellContract.ok){
+  if (!shellContract.ok) {
     ctx.logger.error('SHELL contract failed', shellContract.fails);
     const splash = document.getElementById('diagnostics-splash');
     if (splash) splash.style.display = 'block';
@@ -36,7 +36,7 @@ window.CRM.ctx = window.CRM.ctx || {
   // Run SERVICES (sequential to guarantee handlers exist before features)
   const svcRes = await runPhase('SERVICES', PHASES.SERVICES, ctx, (e) => ctx.logger.log(e));
   const svcContract = checkContract('SERVICES', CONTRACTS.SERVICES);
-  if (!svcContract.ok){
+  if (!svcContract.ok) {
     ctx.logger.error('SERVICES contract failed', svcContract.fails);
     const splash = document.getElementById('diagnostics-splash');
     if (splash) splash.style.display = 'block';
@@ -51,13 +51,13 @@ window.CRM.ctx = window.CRM.ctx || {
   // Run FEATURES (parallel for speed)
   const featureRes = await runPhaseParallel('FEATURES', PHASES.FEATURES, ctx, (e) => ctx.logger.log(e));
   const featContract = checkContract('FEATURES', CONTRACTS.FEATURES);
-  if (!featContract.ok){
+  if (!featContract.ok) {
     ctx.logger.warn('FEATURES contract issues', featContract.fails);
   }
   try {
     window.__BOOT_LOGS__ = window.__BOOT_LOGS__ || [];
     window.__BOOT_LOGS__.push({ t: Date.now(), kind: 'contracts', SHELL: shellContract, SERVICES: svcContract, FEATURES: featContract });
-  } catch (_) {}
+  } catch (_) { }
   // DO NOT hide splash here - let splash_sequence.js handle it after proper initialization
   // if (shellContract.ok && (svcContract?.ok ?? true) && featContract.ok) {
   //   const splash = document.getElementById('diagnostics-splash');
@@ -74,22 +74,36 @@ window.CRM.ctx = window.CRM.ctx || {
   ctx.logger.log('[phase] FEATURES complete', { count: featureRes.length, errors: featureRes.filter(r => !r.ok).length });
 
   // Optional: final render tick
-  if (typeof window.renderAll === 'function'){
+  if (typeof window.renderAll === 'function') {
     requestAnimationFrame(() => requestAnimationFrame(() => window.renderAll()));
   }
-  
+
   // Import and initialize splash sequence after boot completes
   try {
     import('../boot/splash_sequence.js').then(module => {
       if (module && typeof module.runSplashSequence === 'function') {
         // Give dashboard time to render before starting sequence
-        setTimeout(() => module.runSplashSequence(), 500);
+        setTimeout(() => {
+          module.runSplashSequence();
+
+          // Signal boot/phases completion (delayed to match splash/dashboard ready)
+          // This delay effectively replaces the explicit waitForDashboardReady() from boot_hardener
+          const bootSuccess = { fatal: false, at: Date.now(), phases: true };
+          try {
+            window.__BOOT_DONE__ = bootSuccess;
+            document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
+          } catch (_) { }
+        }, 500);
       }
     }).catch(err => {
       console.warn('[loader] Failed to load splash sequence', err);
       // Fallback: hide splash if sequence fails to load
       const splash = document.getElementById('diagnostics-splash');
       if (splash) splash.style.display = 'none';
+
+      const bootSuccess = { fatal: false, at: Date.now(), phases: true, fallback: true };
+      window.__BOOT_DONE__ = bootSuccess;
+      document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
     });
   } catch (err) {
     console.warn('[loader] Failed to import splash sequence', err);
