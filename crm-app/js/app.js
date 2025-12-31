@@ -1568,10 +1568,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
 
-    const allSelected = ids.length > 0 && ids.every(id => next.has(id));
+    // FIX: Rely on the checkbox state (set by the browser event) to determine intent.
+    // If checked -> Select All Visible. If unchecked -> Clear All Visible.
+    // This avoids "toggle" ambiguities and bugs where hidden/missed rows cause a full deselect.
+    const shouldSelect = checkbox.checked;
 
-    if (allSelected) {
+    if (!shouldSelect) {
       ids.forEach(id => next.delete(id));
+      // DOM update for consistency (redundant if triggered by click, but safe)
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
@@ -1591,7 +1595,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       checkbox.checked = true;
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err) { }
-      // Update DOM checkboxes BEFORE calling store.set() so the action bar sees the checked state immediately
       targets.forEach(entry => {
         if (entry.checkbox && entry.id) {
           entry.checkbox.checked = true;
