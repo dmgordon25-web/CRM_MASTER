@@ -69,16 +69,23 @@ function applySelectAllToStore(checkbox, store, entries) {
         ? new Set(base)
         : new Set(Array.from(base || [], value => String(value)));
 
-    // MODIFIED LOGIC: State-based
-    const shouldSelect = checkbox.checked;
+    // MODIFIED LOGIC: State-based (matches app.js)
+    // 1. If ALL visible rows are selected -> Clear selection.
+    // 2. If NOT all visible rows are selected (partial or none) -> Select all visible.
 
-    if (!shouldSelect) {
+    // Check if we currently have all visible targets selected
+    // Note: 'entries' corresponds to targets in app.js
+    const allVisibleAreSelected = targets.length > 0 && targets.every(entry => next.has(entry.id));
+
+    if (allVisibleAreSelected) {
+        // CLEAR OPERATION
         ids.forEach(id => next.delete(id));
         checkbox.checked = false;
         targets.forEach(entry => {
             if (entry.checkbox) entry.checkbox.checked = false;
         });
     } else {
+        // SELECT ALL OPERATION
         ids.forEach(id => next.add(id));
         checkbox.checked = true;
         targets.forEach(entry => {
@@ -103,8 +110,8 @@ describe('Select All Logic', () => {
         ];
     });
 
-    it('should select all when checked is true (browser clicked)', () => {
-        // Browser sets checked = true
+    it('should select all when currently empty (regardless of checkbox input state)', () => {
+        // Browser might say checked=true or false, logic should infer "Select All"
         checkbox.checked = true;
 
         applySelectAllToStore(checkbox, store, entries);
@@ -115,12 +122,14 @@ describe('Select All Logic', () => {
         expect(store.get('contacts').has('3')).toBe(true);
     });
 
-    it('should clear all when checked is false (browser clicked)', () => {
+    it('should clear all when all are already selected', () => {
         // Setup: All selected
         store.set(new Set(['1', '2', '3']), 'contacts');
         entries.forEach(e => e.checkbox.checked = true);
 
-        // Browser sets checked = false
+        // Even if browser says checked=true (weird edge case), seeing all selected means we should toggle to clear?
+        // Wait, if I click a checked box, it becomes unchecked.
+        // But logic says: If ALL visible selected -> Clear.
         checkbox.checked = false;
 
         applySelectAllToStore(checkbox, store, entries);
@@ -128,32 +137,19 @@ describe('Select All Logic', () => {
         expect(store.get('contacts').size).toBe(0);
     });
 
-    it('should select all when partially selected and checked becomes true', () => {
+    it('should select all when partially selected (Regression Proof)', () => {
         // Setup: 1 selected
         store.set(new Set(['1']), 'contacts');
         entries[0].checkbox.checked = true;
 
-        // Browser sets checked = true
-        checkbox.checked = true;
+        // CRITICAL: Even if the checkbox comes in as unchecked (e.g. browser confused by indeterminate toggle),
+        // we must UPGRADE to full selection because not all are selected.
+        checkbox.checked = false;
 
         applySelectAllToStore(checkbox, store, entries);
 
         expect(store.get('contacts').size).toBe(3);
         expect(store.get('contacts').has('2')).toBe(true);
-    });
-
-    it('should clear selection when partially selected (via toggling off explicitly)', () => {
-        // Scenario: User had partial selection. Indeterminate state.
-        // User clicks. Browser usually sets Indeterminate -> Checked.
-        // BUT if user explicitly unchecks (e.g. they clicked twice or browser behavior differs),
-        // we should respect the Uncheck. (Clear).
-
-        store.set(new Set(['1']), 'contacts');
-        checkbox.checked = false; // User forced unchecked
-
-        applySelectAllToStore(checkbox, store, entries);
-
-        expect(store.get('contacts').size).toBe(0); // Should clear '1'
     });
 
     it('should NOT clear hidden rows when unchecking', () => {

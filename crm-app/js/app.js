@@ -1568,17 +1568,26 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
 
-    // FIX: Rely on the checkbox state (set by the browser event) to determine intent.
-    // If checked -> Select All Visible. If unchecked -> Clear All Visible.
-    // This avoids "toggle" ambiguities and bugs where hidden/missed rows cause a full deselect.
-    const shouldSelect = checkbox.checked;
+    // FIX: Use state-based determination instead of purely relying on the checkbox change event.
+    // Invariant:
+    // 1. If ALL visible rows are selected -> Clear selection.
+    // 2. If NOT all visible rows are selected (partial or none) -> Select all visible.
+    // This allows "Select All" to function as a "Complete Selection" action when partially selected.
 
-    if (!shouldSelect) {
+    // Check if we currently have all visible targets selected
+    const allVisibleAreSelected = targets.length > 0 && targets.every(entry => next.has(entry.id));
+
+
+
+    if (allVisibleAreSelected) {
+      // CLEAR OPERATION
       ids.forEach(id => next.delete(id));
-      // DOM update for consistency (redundant if triggered by click, but safe)
+
+      // Update UI to unchecked
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
+
       targets.forEach(entry => {
         if (entry.checkbox && entry.id) {
           entry.checkbox.checked = false;
@@ -1591,10 +1600,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       });
     } else {
+      // SELECT ALL OPERATION
       ids.forEach(id => next.add(id));
+
+      // Update UI to checked
       checkbox.checked = true;
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err) { }
+
       targets.forEach(entry => {
         if (entry.checkbox && entry.id) {
           entry.checkbox.checked = true;
