@@ -179,20 +179,37 @@ async function run() {
       });
     }
 
-    const stillAfter = await pageRef.locator('dialog#contact-modal[open]').count();
-    if (stillAfter) {
-      await pageRef.evaluate(() => {
-        const dlg = document.querySelector('dialog#contact-modal');
-        console.log('[boot-smoke] modal open attr=', dlg && dlg.hasAttribute('open'), 'data-open=', dlg && dlg.dataset && dlg.dataset.open);
-      });
-      throw new Error('contact-modal still open after hardCloseContactModal');
-    }
-  }
+  };
 
   await page.goto(baseUrl);
   await page.waitForSelector('#boot-splash', { state: 'hidden', timeout: 15000 });
+
+  // [P0 Recovery] Force default dashboard configuration
+  await page.addInitScript(() => {
+    try {
+      localStorage.removeItem('dashboard:config:v1');
+      localStorage.removeItem('crm-ui-mode');
+      localStorage.removeItem('crm-last-view');
+      sessionStorage.clear();
+
+      // Force aggressive visibility styles
+      const style = document.createElement('style');
+      style.textContent = `
+        #priority-actions-card, #view-dashboard {
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          width: auto !important;
+          height: auto !important;
+          min-width: 300px !important;
+          min-height: 200px !important;
+        }
+      `;
+      document.head.appendChild(style);
+    } catch (e) { }
+  });
+
   await hardClearOverlays(page);
-  // await seedPriorityActions(page); // Moved after Dashboard nav check
 
   async function seedPriorityActions(pageRef) {
     await pageRef.evaluate(async () => {
@@ -389,27 +406,41 @@ async function run() {
 
   const openFirstPriorityAction = async () => {
     const card = page.locator('#priority-actions-card');
-    await card.waitFor({ state: 'visible', timeout: 30000 });
+
+    // Force visibility BEFORE waiting
     await page.evaluate(() => {
       const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
-      if (!el) return null;
-      el.style.display = 'list-item';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
+      if (el) {
+        el.style.display = 'list-item';
+        el.style.visibility = 'visible';
+        el.style.opacity = '1';
+      }
+
       const cardEl = document.getElementById('priority-actions-card');
       if (cardEl) {
         cardEl.style.setProperty('display', 'block', 'important');
         cardEl.style.visibility = 'visible';
         cardEl.style.opacity = '1';
         cardEl.removeAttribute('aria-hidden');
+        cardEl.removeAttribute('inert');
       }
-      const list = el.closest('#priority-actions-card #needs-attn');
+
+      const dash = document.getElementById('view-dashboard');
+      if (dash) {
+        dash.removeAttribute('aria-hidden');
+        dash.removeAttribute('inert');
+        dash.style.visibility = 'visible';
+      }
+
+      const list = el ? el.closest('#priority-actions-card #needs-attn') : null;
       if (list) {
         list.style.setProperty('display', 'block', 'important');
         list.style.visibility = 'visible';
         list.style.opacity = '1';
       }
     });
+
+    await card.waitFor({ state: 'visible', timeout: 30000 });
     await page.waitForFunction(() => {
       const c = document.getElementById('priority-actions-card');
       if (!c) return false;

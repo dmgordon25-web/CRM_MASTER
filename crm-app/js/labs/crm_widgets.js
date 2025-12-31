@@ -2080,7 +2080,8 @@ export function renderPriorityActionsWidget(container, model) {
     if (status !== 'ok') {
       // Compliance: Explicitly ensure the empty state DOM contract is met
       if (status === 'empty') {
-        const body = shell.querySelector('.labs-widget__body');
+        // Try both class naming conventions to be safe, or just target the body container
+        const body = shell.querySelector('.labs-widget-body, .labs-widget__body');
         if (body) {
           body.innerHTML = '<div class="labs-widget__state labs-widget__state--empty">No priority items found</div>';
         }
