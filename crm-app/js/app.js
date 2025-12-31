@@ -1,4 +1,5 @@
 console.log('[APP] Module evaluating...');
+if (typeof window !== 'undefined' && typeof window.onAnalyticsSegment !== 'function') { window.onAnalyticsSegment = () => { }; }
 import './boot/splash_sequence.js';
 import { SelectionStore } from './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';

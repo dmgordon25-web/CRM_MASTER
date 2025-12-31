@@ -620,7 +620,9 @@ async function loadModules(paths, { fatalOnFailure = true } = {}) {
       normalized = normalizeModuleId(spec);
       // Cache buster for dev environment
       // Cache buster removed to prevent 405 errors / double loading
-      const module = await import(normalized);
+      const url = new URL(normalized);
+      url.searchParams.set('t', Date.now());
+      const module = await import(url.href);
       records.push({ path: normalized, original: spec, module });
     } catch (err) {
       const detail = String(err?.stack || err);

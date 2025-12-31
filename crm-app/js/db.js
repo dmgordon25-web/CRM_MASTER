@@ -8,7 +8,7 @@
   let core = globalScope && globalScope.__DB_CORE__ ? globalScope.__DB_CORE__ : null;
   if (!core) {
     const DB_NAME_FALLBACK = 'crm';
-    const DB_VERSION_FALLBACK = 3;
+    const DB_VERSION_FALLBACK = 4;
     let promise = null;
     const ensureStores = (db, tx) => {
       const ensure = (name, opts) => {
@@ -188,7 +188,7 @@
         const result = fn(os);
         tx.oncomplete = () => resolve(result);
         tx.onerror = e => reject(e.target && e.target.error || e);
-      } catch (e) { reject(e); }
+      } catch (e) { console.error('[DB_DEBUG] withStore error:', e); reject(e); }
     }));
   }
 
@@ -281,7 +281,11 @@
           logChange(store, oldRecord, obj);
           res();
         };
-        putReq.onerror = e => rej(e.target && e.target.error || e);
+        putReq.onerror = e => {
+          const err = e.target && e.target.error || e;
+          console.error('[DB_DEBUG] putReq failed', err);
+          rej(err);
+        };
       };
       getReq.onerror = () => {
         // If get fails, just try put
@@ -290,7 +294,11 @@
           logChange(store, null, obj);
           res();
         }
-        putReq.onerror = e => rej(e.target && e.target.error || e);
+        putReq.onerror = e => {
+          const err = e.target && e.target.error || e;
+          console.error('[DB_DEBUG] putReq(fallback) failed', err);
+          rej(err);
+        };
       };
     }));
   }

@@ -36,11 +36,12 @@ const EVENT_CATEGORIES = Object.freeze([
   { key: 'postal', label: 'Postal', icon: '📮', type: 'task', accent: '--accent-task', tokens: ['postal', 'mail', 'letter'] },
   { key: 'followup', label: 'Follow-up', icon: '🔔', type: 'task', accent: '--accent-task', tokens: ['follow-up', 'followup', 'follow', 'touch', 'reminder'] },
   { key: 'nurture', label: 'Nurture', icon: '📌', type: 'task', accent: '--accent-nurture', tokens: ['nurture', 'check-in', 'touch'] },
+  { key: 'task', label: 'Task', icon: '✅', type: 'task', accent: '--accent-task', tokens: ['task', 'todo', 'to-do', 'check'] },
   { key: 'deadline', label: 'Deadline', icon: '⭐', type: 'milestone', accent: '--accent-milestone', tokens: ['milestone', 'deal', 'closing', 'deadline', 'funded', 'closing-watch'] },
   { key: 'other', label: 'Other', icon: '📌', type: 'other', accent: '--accent-other', tokens: [] },
 ]);
 
-const DEFAULT_EVENT_CATEGORY = EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1];
+const DEFAULT_EVENT_CATEGORY = EVENT_CATEGORIES.find(c => c.key === 'other') || EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1];
 
 const LOAN_PALETTE = Object.freeze([
   { key: 'fha', label: 'FHA', css: 'loan-purchase' },
