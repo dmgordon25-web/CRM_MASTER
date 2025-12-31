@@ -53,13 +53,23 @@ function uuid() {
 }
 
 function toISODate(date) {
-  const d = date instanceof Date ? new Date(date) : new Date();
+  let d;
+  if (date instanceof Date) {
+    d = new Date(date);
+  } else if (typeof date === 'string' && date.trim()) {
+    d = new Date(date);
+  } else if (typeof date === 'number' && Number.isFinite(date)) {
+    d = new Date(date);
+  } else {
+    d = new Date();
+  }
+
   if (Number.isNaN(d.getTime())) {
     const now = new Date();
-    now.setHours(0, 0, 0, 0);
+    // Safety: don't shift hours to avoid timezone jumps for "now"
     return now.toISOString().slice(0, 10);
   }
-  d.setHours(0, 0, 0, 0);
+  // Strip time part without shifting timezone if possible, or just ISO slice
   return d.toISOString().slice(0, 10);
 }
 
@@ -244,6 +254,15 @@ function buildTaskRecord(payload) {
 }
 
 async function persistTask(record) {
+  // Use global scope accessor safely
+  const scope = typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : {});
+  const openDB = scope.openDB || scope.getDB;
+  const dbPut = scope.dbPut || (scope.db && scope.db.put);
+
+  if (typeof openDB !== 'function' || typeof dbPut !== 'function') {
+    throw new Error('Database (openDB/dbPut) not available in current scope');
+  }
+
   await openDB();
   await dbPut('tasks', record);
   try {
