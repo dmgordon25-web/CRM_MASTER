@@ -20,9 +20,11 @@ export function renderLegend(container) {
   const items = [
     { label: 'Contact', icon: '👥', cssVar: '--accent-contact' },
     { label: 'Partner', icon: '🤝', cssVar: '--accent-partner' },
+    { label: 'Task', icon: '✅', cssVar: '--accent-task' }, // Matched 'calendar_impl.js' icon
     { label: 'Nurture', icon: '📌', cssVar: '--accent-nurture' },
-    { label: 'Task', icon: '🔔', cssVar: '--accent-task' },
-    { label: 'Milestone', icon: '⭐', cssVar: '--accent-milestone' }
+    { label: 'Milestone', icon: '⭐', cssVar: '--accent-milestone' },
+    // Optional: If 'Follow-up' needs to be distinct in legend
+    // { label: 'Follow-up', icon: '🔔', cssVar: '--accent-task' },
   ];
 
   items.forEach(item => {

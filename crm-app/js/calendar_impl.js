@@ -607,19 +607,23 @@ function collectTaskEvents(tasks, contactMap, range) {
       ? String(task.partnerId)
       : '';
     const taskId = task.id != null ? String(task.id) : '';
+    const originalType = task.type || 'task';
+    const originalCategory = task.category || '';
+
     const rawTask = {
       ...(task && typeof task === 'object' ? task : {}),
       id: taskId,
       contactId,
       partnerId,
-      type: 'task',
+      type: originalType, // Preserve
+      category: originalCategory, // Preserve
       taskId,
       userEvent: true,
     };
     rawTask.onReschedule = createTaskRescheduleHandler(rawTask);
     list.push({
       id: taskId ? `task:${taskId}` : `task:${dueDate.getTime()}:${index}`,
-      type: 'task',
+      type: originalType, // Use original type
       title: task.title ? String(task.title) : 'Task',
       subtitle: contactName || '',
       status: task.status ? String(task.status) : '',
