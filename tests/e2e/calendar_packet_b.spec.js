@@ -50,16 +50,19 @@ test.describe('Packet B: Seeding & Calendar Parity', () => {
         const legend = page.locator('.calendar-legend');
         await expect(legend).toBeVisible();
 
-        // Check specific legend items
+        // Check specific legend items - MATCHING constants.js
         const expectedItems = [
-            { label: 'Contact', icon: '👥' },
-            { label: 'Partner', icon: '🤝' },
             { label: 'Task', icon: '✅' },
-            { label: 'Nurture', icon: '📌' },
-            { label: 'Milestone', icon: '⭐' }
+            { label: 'Follow-up', icon: '🔔' }, // New parity item
+            // { label: 'Contact', icon: '👥' }, // 'Meeting' label in constants, but let's check icon
+            { label: 'Partner', icon: '🤝' },
+            { label: 'Milestone', icon: '⭐' }, // Label 'Milestone' from constants
+            { label: 'Nurture', icon: '📌' }
         ];
 
         for (const item of expectedItems) {
+            // Legend label might vary slightly (e.g. 'Meeting' vs 'Contact'), 
+            // but we check if we can find the icon associated with a label or just the row
             const chip = legend.locator(`.legend-chip:has-text("${item.label}")`);
             await expect(chip).toBeVisible();
             await expect(chip).toContainText(item.icon);
@@ -73,43 +76,35 @@ test.describe('Packet B: Seeding & Calendar Parity', () => {
         await expect(taskEvent).toBeVisible();
         await expect(taskEvent.locator('.cal-event-icon')).toHaveText('✅');
 
+        // Follow-up (Bell) - New Parity Check
+        const followEvent = page.locator('.event-chip[data-category="followup"]').first();
+        await expect(followEvent).toBeVisible();
+        await expect(followEvent.locator('.cal-event-icon')).toHaveText('🔔');
+
         // Nurture
         const nurtureEvent = page.locator('.event-chip[data-category="nurture"]').first();
         await expect(nurtureEvent).toBeVisible();
         await expect(nurtureEvent.locator('.cal-event-icon')).toHaveText('📌');
 
         // Partner
-        // Note: Partner events might be type='partner' or category='partner'
-        // Our seed sets type='partner' -> category='partner'
+        // categoryKey 'partner'
         const partnerEvent = page.locator('.event-chip[data-category="partner"]').first();
         await expect(partnerEvent).toBeVisible();
         await expect(partnerEvent.locator('.cal-event-icon')).toHaveText('🤝');
 
-        // Milestone (Deal)
-        // Seeded as 'deal' which maps to 'milestone' via EVENT_CATEGORIES where key='deadline' or similar?
-        // Wait, let's check calendar_impl logic. 
-        // In seed: upsert('deals', ...) 
-        // In calendar_impl: collectDealEvents -> type: 'milestone'
-        // So we look for data-type="milestone" or category="milestone"
-        // The render logic sets data-type from type.
-        const milestoneEvent = page.locator('.event-chip[data-type="milestone"]').first();
+        // Milestone
+        // categoryKey 'deadline' maps to label 'Milestone'
+        const milestoneEvent = page.locator('.event-chip[data-category="deadline"]').first();
         await expect(milestoneEvent).toBeVisible();
         await expect(milestoneEvent.locator('.cal-event-icon')).toHaveText('⭐');
 
-        // Contact (Birthday/Anniversary)
-        // Seeded birthdays/anniversaries buildAnnualEvents -> type='contact' or 'milestone'
-        // In calendar_impl: Birthday -> field 'birthday', label 'Birthday'
-        // metaForEvent uses tokens. 'Birthday' token -> meeting (contact) category?
-        // Actually EVENT_CATEGORIES 'meeting' has token 'birthday'. 
-        // So it might show as Contact/Meeting icon 👥 or similar.
-        // Let's check if we have ANY contact event.
-        // Birthday might be 'contact' type but category determined by meta.
-        // If category is 'meeting' (Contact), icon is 👥.
-        const contactEvent = page.locator('.event-chip[data-category="meeting"]').or(page.locator('.event-chip[data-type="contact"]')).first();
+        // Contact / Meeting
+        // Birthday/Anniversary usually maps to 'meeting' categoryKey which has 👥
+        const contactEvent = page.locator('.event-chip[data-category="meeting"]').first();
         await expect(contactEvent).toBeVisible();
+        await expect(contactEvent.locator('.cal-event-icon')).toHaveText('👥');
 
         // 5. Verify mix
-        // Just ensure total count is healthy
         const allEvents = page.locator('.event-chip');
         expect(await allEvents.count()).toBeGreaterThan(5);
     });

@@ -128,6 +128,7 @@ export async function runFullWorkflowSeed() {
         { type: 'call', title: 'Call Client', offset: 2 },
         { type: 'email', title: 'Send Email', offset: 3 },
         { type: 'nurture', title: 'Nurture Touch', offset: 4 }, // Distinct Nurture
+        { type: 'followup', title: 'Follow Up', offset: 5 },    // Bell / Reminder
         { type: 'task', title: 'General Task', offset: 6 },     // Generic Task
         { type: 'deadline', title: 'Doc Deadline', offset: 7 },
         { type: 'meeting', title: 'Review Meeting', offset: 8 }
