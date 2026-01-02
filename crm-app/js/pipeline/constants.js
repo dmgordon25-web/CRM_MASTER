@@ -24,7 +24,7 @@ export const STAGES = {
   new: { label: 'New', tone: 'progress' },
   qualified: { label: 'Qualified', tone: 'progress' },
   negotiating: { label: 'Negotiating', tone: 'warning' },
-  clear_to_close: { label: 'Clear to Close', tone: 'success' },
+  'cleared-to-close': { label: 'CTC', tone: 'success' },
   won: { label: 'Won', tone: 'success' },
   lost: { label: 'Lost', tone: 'danger' }
 };
@@ -39,22 +39,23 @@ export const STAGE_ALIASES = Object.assign(
   Object.create(null),
   STATUS_ALIASES,
   {
-    CTC: 'clear_to_close',
-    'Clear to Close': 'clear_to_close',
-    'Clear-to-Close': 'clear_to_close'
+    CTC: 'cleared-to-close',
+    'Clear to Close': 'cleared-to-close',
+    'Clear-to-Close': 'cleared-to-close'
   },
   {
-    'Clear To Close': 'clear_to_close',
-    'Clear 2 Close': 'clear_to_close',
-    'Clear2Close': 'clear_to_close',
-    'clear to close': 'clear_to_close',
-    'clear-to-close': 'clear_to_close',
-    'Cleared to Close': 'clear_to_close',
-    'Cleared-To-Close': 'clear_to_close',
-    'cleared-to-close': 'clear_to_close',
-    'cleared to close': 'clear_to_close',
-    clear_to_close: 'clear_to_close',
-    ctc: 'clear_to_close'
+    'Clear To Close': 'cleared-to-close',
+    'Clear 2 Close': 'cleared-to-close',
+    'Clear2Close': 'cleared-to-close',
+    'clear to close': 'cleared-to-close',
+    'clear-to-close': 'cleared-to-close',
+    'Cleared to Close': 'cleared-to-close',
+    'Cleared-To-Close': 'cleared-to-close',
+    'cleared-to-close': 'cleared-to-close',
+    'cleared to close': 'cleared-to-close',
+    clear_to_close: 'cleared-to-close',
+    'clear_to_close': 'cleared-to-close',
+    ctc: 'cleared-to-close'
   },
   {
     // Legacy pipeline labels mapped to canonical buckets
@@ -136,7 +137,7 @@ export const DEFAULT_STAGE_FOLLOW_UP_DAYS = 3;
 export const STAGE_FOLLOW_UP_CADENCE_DAYS = Object.freeze({
   qualified: 3, // Application
   negotiating: 2, // Docs Gathering / Processing / Underwriting
-  clear_to_close: 1, // Cleared to Close
+  'cleared-to-close': 1, // Cleared to Close
   won: 14 // Post-Funded / Funded
 });
 

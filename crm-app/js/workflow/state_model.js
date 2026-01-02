@@ -69,6 +69,7 @@ const PIPELINE_STAGE_TO_CANONICAL_STAGE = Object.freeze({
   qualified: 'application',
   negotiating: 'processing',
   clear_to_close: 'cleared-to-close',
+  'cleared-to-close': 'cleared-to-close',
   won: 'funded',
   lost: 'lost'
 });

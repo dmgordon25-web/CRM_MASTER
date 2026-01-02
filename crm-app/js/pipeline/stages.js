@@ -59,6 +59,12 @@ function stageKeyFromNormalizedLabel(label) {
   const lowered = raw.toLowerCase();
   if (lowered === "pre-approved" || lowered === "pre approved") return "preapproved";
   if (lowered === "ctc") return "cleared-to-close";
+  if (lowered === "clear_to_close" || lowered === "clear-to-close" || lowered === "clear to close") {
+    return "cleared-to-close";
+  }
+  if (lowered === "cleared-to-close" || lowered === "cleared to close" || lowered === "cleared_to_close") {
+    return "cleared-to-close";
+  }
   return lowered
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/-+/g, "-")
@@ -67,6 +73,12 @@ function stageKeyFromNormalizedLabel(label) {
 
 const KEY_TO_LABEL = new Map();
 PIPELINE_STAGES.forEach((label) => {
+  const stageKey = stageKeyFromLabel(label);
+  const dashed = stageKey.replace(/_/g, "-");
+  const underscored = stageKey.replace(/-/g, "_");
+  KEY_TO_LABEL.set(stageKey, label);
+  KEY_TO_LABEL.set(dashed, label);
+  KEY_TO_LABEL.set(underscored, label);
   KEY_TO_LABEL.set(stageKeyFromNormalizedLabel(label), label);
 });
 
@@ -103,6 +115,14 @@ export const NORMALIZE_STAGE = (function () {
   const map = new Map();
   PIPELINE_STAGES.forEach((stage) => register(map, stage, stage));
   SYNONYMS.forEach(([input, output]) => register(map, String(input ?? ""), output));
+  PIPELINE_STAGES.forEach((stage) => {
+    const key = stageKeyFromLabel(stage);
+    // Allow canonical keys to normalize back to display labels for DnD lanes
+    register(map, key, stage);
+    register(map, key.replace(/-/g, "_"), stage);
+  });
+  register(map, 'clear_to_close', 'CTC');
+  register(map, 'clear-to-close', 'CTC');
 
   return function normalize(value) {
     if (!value) return FALLBACK_STAGE;

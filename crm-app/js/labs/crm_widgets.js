@@ -377,6 +377,23 @@ function renderCard(container, { title, body, badge } = {}) {
   return card;
 }
 
+function normalizeLaneOrder(lanes = []) {
+  const normalized = [];
+  const seen = new Set();
+  const candidates = Array.isArray(lanes) ? lanes.slice() : [];
+  Object.keys(STAGE_CONFIG).forEach((stage) => candidates.push(stage));
+
+  candidates.forEach((lane) => {
+    const key = normalizeStagesForDisplay(lane);
+    if (!key || !STAGE_CONFIG[key]) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push(key);
+  });
+
+  return normalized;
+}
+
 function getStableId(item) {
   return item?.id || item?._id || item?.contactId || null;
 }
@@ -1724,7 +1741,7 @@ export function renderTodayWidget(container, model) {
 // =======================
 export function renderPipelineOverviewWidget(container, model) {
   const groups = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
-  const funnelStages = model.laneOrder || Object.keys(STAGE_CONFIG);
+  const funnelStages = normalizeLaneOrder(model.laneOrder);
 
   const total = model.contacts.length;
   if (!total) {
@@ -1802,7 +1819,7 @@ export function renderActivePipelineWidget(container, model) {
 // =======================
 export function renderStatusStackWidget(container, model) {
   const counts = model.snapshot?.pipelineCounts || groupByStage(model.contacts);
-  const lanes = model.laneOrder || Object.keys(counts || {});
+  const lanes = normalizeLaneOrder(model.laneOrder || Object.keys(counts || {}));
   const cards = lanes.map((lane, idx) => {
     const config = STAGE_CONFIG[lane] || {};
     const count = counts?.[lane] || 0;
