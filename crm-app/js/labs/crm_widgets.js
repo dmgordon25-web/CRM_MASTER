@@ -2198,13 +2198,66 @@ export function renderPriorityActionsWidget(container, model) {
 export function renderMilestonesWidget(container, model) {
   let shell;
   try {
-    const appointments = getDedupedAppointments(model);
-    const status = appointments.length ? 'ok' : 'empty';
+    const contacts = Array.isArray(model?.contacts) ? model.contacts : [];
+    const contactById = new Map(contacts.map((contact) => [String(contact.id), contact]));
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    const openTasks = (Array.isArray(model?.tasks) ? model.tasks : [])
+      .filter((task) => task && task.due && !task.done)
+      .map((task) => {
+        const dueDate = new Date(task.due);
+        if (Number.isNaN(dueDate.getTime())) return null;
+
+        const contactId = task.contactId != null ? String(task.contactId) : '';
+        const partnerId = task.partnerId != null ? String(task.partnerId) : '';
+        const contact = contactById.get(contactId) || task.contact || null;
+        const diffFromToday = Math.floor((dueDate.getTime() - todayStart.getTime()) / DAY_MS);
+        let status = 'ready';
+        if (Number.isFinite(diffFromToday)) {
+          if (diffFromToday < 0) status = 'overdue';
+          else if (diffFromToday <= 3) status = 'soon';
+        }
+        const name = contact ? getContactDisplayName(contact) : (task.contactName || 'General Task');
+        const stage = contact ? normalizeStagesForDisplay(contact.stage) : '';
+        const taskId = task.id || task.taskId || (task.raw && task.raw.id) || null;
+        const dueLabel = formatDate(dueDate) || 'No date';
+
+        return {
+          taskId,
+          title: task.title || task.text || 'Follow up',
+          dueDate,
+          dueLabel,
+          status,
+          diffFromToday,
+          contactId,
+          partnerId,
+          contact,
+          name,
+          stage
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const ad = a.dueDate ? a.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
+        const bd = b.dueDate ? b.dueDate.getTime() : Number.MAX_SAFE_INTEGER;
+        return ad - bd;
+      });
+
+    const upcoming = openTasks.filter((task) => task.status !== 'overdue');
+    const displayed = upcoming.slice(0, 6);
+    const status = displayed.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('milestones', {
       status,
-      emptyMessage: 'No milestones scheduled.'
+      emptyMessage: 'No events scheduled. Add tasks to stay proactive.',
+      helpId: 'milestones-ahead'
     }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) {
+      header.setAttribute('data-help', 'milestones-ahead');
+    }
 
     if (status !== 'ok') {
       return shell;
@@ -2215,38 +2268,63 @@ export function renderMilestonesWidget(container, model) {
       list.className = 'milestone-list';
       list.setAttribute('data-role', 'milestone-list');
 
-      appointments.slice(0, 6).forEach((appt, idx) => {
+      displayed.forEach((task, idx) => {
         const row = document.createElement('div');
-        row.className = 'milestone-row';
+        row.className = `milestone-row ${task.status}`;
         row.style.animationDelay = `${idx * 0.05}s`;
-        row.innerHTML = `
-          <div>
-            <div class="milestone-title">${appt.title || 'Appointment'}</div>
-            <div class="milestone-sub">${appt.contactName || ''}</div>
-          </div>
-          <div class="milestone-date">${formatDate(appt.due || appt.dueTs)}</div>
-        `;
-
-        // Data attributes for delegation
-        const contactId = appt.contactId || (appt.contact && appt.contact.id);
-        if (contactId) {
-          row.setAttribute('data-role', 'milestone-row');
-          row.setAttribute('data-contact-id', contactId);
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
+        row.setAttribute('data-role', 'milestone-row');
+        row.setAttribute('data-widget', 'milestonesAhead');
+        row.setAttribute('data-dash-widget', 'milestonesAhead');
+        row.setAttribute('data-widget-id', 'milestonesAhead');
+        if (task.contactId) {
+          row.setAttribute('data-contact-id', task.contactId);
+          row.setAttribute('data-id', task.contactId);
         }
+        if (task.partnerId) {
+          row.setAttribute('data-partner-id', task.partnerId);
+        }
+        if (task.taskId) {
+          row.setAttribute('data-task-id', task.taskId);
+        }
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+
+        const cls = task.status === 'soon' ? 'warn' : 'good';
+        const phr = task.status === 'soon' && task.diffFromToday != null
+          ? `Due in ${task.diffFromToday}d`
+          : 'Scheduled';
+
+        row.innerHTML = `
+          <div class="list-main">
+            <span class="status-dot ${task.status}"></span>
+            <div>
+              <div class="milestone-title">${task.title || 'Appointment'}</div>
+              <div class="milestone-sub">${task.name || ''}${task.stage ? ` • ${task.stage}` : ''}</div>
+            </div>
+          </div>
+          <div class="milestone-date ${cls}">${phr} · ${task.dueLabel}</div>
+        `;
 
         list.appendChild(row);
       });
 
-      // Delegated click handler
       list.addEventListener('click', (event) => {
         const target = event.target.closest('[data-role="milestone-row"]');
         if (!target) return;
         const contactId = target.getAttribute('data-contact-id');
+        const partnerId = target.getAttribute('data-partner-id');
+        const taskId = target.getAttribute('data-task-id');
         if (contactId) {
           openContactEditor(contactId, { source: 'labs-milestones' });
+          return;
+        }
+        if (partnerId) {
+          openPartnerEditor(partnerId, { source: 'labs-milestones' });
+          return;
+        }
+        if (taskId) {
+          openTaskEditor({ id: taskId, sourceHint: 'labs-milestones' });
         }
       });
 

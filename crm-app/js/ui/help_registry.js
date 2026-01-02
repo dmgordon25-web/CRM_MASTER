@@ -14,6 +14,11 @@ export const HELP_CONTENT = {
     short: 'Upcoming closing and contingency dates pulled from active loans.',
     detailsHtml: '<ul><li>Dates are sourced from contact loan timeline fields (closing timeline, contingencies, and reminders).</li><li>Counts reflect visible rows only and update when you edit stage/status inside the contact editor.</li><li>Calendar exports reuse the same milestones so there is no double-entry.</li></ul>'
   },
+  'milestones-ahead': {
+    title: 'Milestones Ahead',
+    short: 'Upcoming tasks and appointments due today or later.',
+    detailsHtml: '<ul><li>Shows open tasks with a due date that are not overdue; soonest due items appear first.</li><li>Limited to the next six upcoming rows to mirror the dashboard list.</li><li>Clicking a row opens the linked contact or partner editor using the same drilldown wiring as the dashboard.</li></ul>'
+  },
   'referral-leaders': {
     title: 'Referral Leaders',
     short: 'Top partners sending you borrowers.',
