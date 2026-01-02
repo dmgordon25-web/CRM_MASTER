@@ -4,7 +4,6 @@ import {
   calculateKPIsFromSnapshot,
   groupByStage,
   groupPartnersByTier,
-  getTopReferralPartners,
   getStaleDeals,
   getUpcomingCelebrations,
   countTodayTasks,
@@ -26,6 +25,7 @@ import {
   normalizeStagesForDisplay,
   getContactDisplayName
 } from './data.js';
+import { computeReferralLeaders } from './helpers/referral_leaders_logic.js';
 import { PIPELINE_MILESTONES } from '../pipeline/constants.js';
 import { getDeltaInsight, getThresholdInsight, getTopDriverInsight } from './insight_callouts.js';
 import {
@@ -1325,22 +1325,29 @@ export function renderPartnerPortfolioWidget(container, model, opts = {}) {
 export function renderReferralLeaderboardWidget(container, model, opts = {}) {
   let shell;
   try {
-    const onPortfolioSegment = opts?.onPortfolioSegment;
-    // PARITY: Use live compute if available, else static snapshot, else raw calc
-    const topPartners = (typeof model.computeReferralStats === 'function')
-      ? model.computeReferralStats().slice(0, 5) // Live Compute (Prod Match)
-      : (model.snapshot?.leaderboard?.slice(0, 5) || getTopReferralPartners(model.partners, 5));
+    const { leaders, totalReferrals } = computeReferralLeaders({
+      contacts: model?.contacts,
+      partners: model?.partners,
+      limit: 3
+    });
 
-    const maxVolume = topPartners.reduce((max, partner) => {
-      const volume = Number(partner.referralVolume || partner.volume || 0);
-      return volume > max ? volume : max;
+    const maxCount = leaders.reduce((max, entry) => {
+      const count = entry?.count || 0;
+      return count > max ? count : max;
     }, 0);
-    const status = topPartners.length ? 'ok' : 'empty';
+    const status = leaders.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('referralLeaderboard', {
       status,
-      emptyMessage: 'No referral data yet.'
+      emptyMessage: 'Recruit or tag partners to surface leaders.',
+      helpId: 'referral-leaders',
+      count: totalReferrals
     }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) {
+      header.setAttribute('data-help', 'referral-leaders');
+    }
 
     if (status !== 'ok') {
       return shell;
@@ -1351,23 +1358,25 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
       list.className = 'labs-row-list';
       list.setAttribute('data-role', 'referral-list');
 
-      topPartners.forEach((partner, idx) => {
+      leaders.forEach((entry, idx) => {
+        const partner = entry.partner || {};
         const partnerDisplay = {
-          id: partner.id,
-          name: partner.name || partner.company,
+          id: entry.partnerId,
+          name: partner.name || partner.company || entry.partnerId,
           tier: partner.tier,
-          volume: partner.volume ? formatCurrency(partner.volume) : (partner.referralVolume || 0)
+          company: partner.company
         };
-        const numericVolume = Number(partner.referralVolume || partner.volume || 0);
+        const share = totalReferrals ? Math.round(((entry.count || 0) / totalReferrals) * 100) : 0;
+        const numericCount = entry.count || 0;
         const row = createRowContainer('partner');
         renderPartnerRow(row, partnerDisplay, {
           badgeText: ['🥇', '🥈', '🥉'][idx] || '🏅',
-          secondaryText: partnerDisplay.tier || 'Referral partner',
-          metaText: partnerDisplay.volume,
+          secondaryText: partnerDisplay.tier || partnerDisplay.company || 'Referral partner',
+          metaText: `${numericCount} referral${numericCount === 1 ? '' : 's'}${share ? ` • ${share}% share` : ''}`,
           metaClass: idx === 0 ? 'is-positive' : undefined,
-          currentCount: numericVolume,
-          maxCount: maxVolume || numericVolume || 1,
-          barAriaLabel: `Referral volume ${numericVolume || 0} of ${maxVolume || numericVolume || 1}`
+          currentCount: numericCount,
+          maxCount: maxCount || numericCount || 1,
+          barAriaLabel: `Referral count ${numericCount || 0} of ${maxCount || numericCount || 1}`
         });
 
         // Parity: Ensure clickable for Editor
@@ -1378,6 +1387,8 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
         }
+
+        row.onclick = null;
 
         list.appendChild(row);
       });
