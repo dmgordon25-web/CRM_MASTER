@@ -5939,14 +5939,21 @@ main:not(#view-calendar) .calendar-grid {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: #fff;
-  border: 1px solid rgba(148, 163, 184, .25);
+  --legend-color: var(--accent-other);
+  background: color-mix(in srgb, var(--legend-color) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--legend-color) 32%, rgba(148, 163, 184, .25));
   color: #1f2937;
   box-shadow: 0 8px 20px rgba(15, 23, 42, .1)
 }
 
 .legend-chip[data-empty="true"] {
   opacity: .45
+}
+
+.legend-chip.is-muted,
+.legend-chip[data-enabled="0"] {
+  opacity: .55;
+  text-decoration: line-through;
 }
 
 .legend-chip .icon {
@@ -5956,8 +5963,8 @@ main:not(#view-calendar) .calendar-grid {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, .18);
-  color: #1f2937
+  background: color-mix(in srgb, var(--legend-color) 18%, #fff);
+  color: var(--legend-color)
 }
 
 .legend-chip .icon svg {

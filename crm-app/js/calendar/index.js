@@ -94,11 +94,56 @@ export function rangeForView(anchorInput, viewInput) {
   return { view: normalizedView, anchor, start, end, days };
 }
 
+function buildCalendarSeedEvents() {
+  const today = toLocalMidnight(new Date()) || new Date();
+  const anchor = new Date(today.getFullYear(), today.getMonth(), 1);
+  const asIso = (offset, hour = 10) => {
+    const d = new Date(anchor.getTime());
+    d.setDate(anchor.getDate() + offset);
+    d.setHours(hour, 0, 0, 0);
+    return d.toISOString();
+  };
+  const seeds = [
+    { type: 'meeting', title: 'Contact Review', contactId: 'seed-contact-1', contactName: 'Alex Contact', status: 'review', date: asIso(2, 9) },
+    { type: 'partner', title: 'Partner Strategy', partnerId: 'seed-partner-1', status: 'dormant', subtitle: 'Quarterly check-in', date: asIso(4, 11) },
+    { type: 'followup', title: 'Reminder Touch', contactId: 'seed-contact-2', status: 'reminder', subtitle: '7 day follow-up', date: asIso(6, 8) },
+    { type: 'nurture', title: 'Nurture Coffee', contactId: 'seed-contact-3', status: 'long-shot', subtitle: 'Light touch', date: asIso(8, 15) },
+    { type: 'deadline', title: 'Milestone: CTC', contactId: 'seed-contact-4', hasLoan: true, loanLabel: 'CTC', status: 'cleared-to-close', date: asIso(10, 13) },
+    { type: 'task', title: 'Prep Disclosures', contactId: 'seed-contact-5', status: 'task', subtitle: 'Docs to send', date: asIso(12, 10) },
+    { type: 'call', title: 'Loan Update Call', contactId: 'seed-contact-6', status: 'processing', subtitle: 'Pipeline', date: asIso(14, 16) },
+    { type: 'partner', title: 'Referral Handoff', partnerId: 'seed-partner-2', status: 'new', subtitle: 'New lead', date: asIso(16, 14) },
+    { type: 'meeting', title: 'Onsite Walkthrough', contactId: 'seed-contact-7', status: 'ctc', subtitle: 'Home tour', date: asIso(18, 9) },
+    { type: 'deadline', title: 'Funding Watch', contactId: 'seed-contact-8', hasLoan: true, status: 'funded', subtitle: 'Milestone', date: asIso(20, 11) },
+    { type: 'followup', title: 'Dormant Reactivation', contactId: 'seed-contact-9', status: 'dormant', subtitle: 'Reach out', date: asIso(22, 13) },
+    { type: 'partner', title: 'Broker Lunch', partnerId: 'seed-partner-3', status: 'long-shot', subtitle: 'Relationship build', date: asIso(24, 12) },
+    { type: 'task', title: 'Send Reminder SMS', contactId: 'seed-contact-10', status: 'reminder', subtitle: 'Due today', date: asIso(26, 9) },
+    { type: 'meeting', title: 'Annual Review', contactId: 'seed-contact-11', status: 'nurture', subtitle: 'Birthday month', date: asIso(28, 10) },
+  ];
+  return seeds.map((item, index) => ({
+    id: `seed-event-${index + 1}`,
+    type: item.type,
+    category: item.type,
+    title: item.title,
+    date: item.date,
+    contactId: item.contactId || '',
+    contactName: item.contactName || '',
+    partnerId: item.partnerId || '',
+    subtitle: item.subtitle || '',
+    status: item.status || '',
+    hasLoan: !!item.hasLoan,
+    loanLabel: item.loanLabel || '',
+  }));
+}
+
 function seedFallback(store) {
   const dataset = GLOBAL_SCOPE && GLOBAL_SCOPE.__SEED_DATA__;
   if (!dataset || typeof dataset !== 'object') return [];
   const list = dataset[store];
-  return cloneList(Array.isArray(list) ? list : []);
+  const seededList = cloneList(Array.isArray(list) ? list : []);
+  if (!seededList.length && store === 'events') {
+    return buildCalendarSeedEvents();
+  }
+  return seededList;
 }
 
 async function getAll(store) {

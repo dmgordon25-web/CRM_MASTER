@@ -1,62 +1,73 @@
+import { EVENT_CATEGORIES, categoryForKey } from './constants.js';
 
-import { EVENT_CATEGORIES } from './constants.js';
+const PREFERRED_ORDER = ['meeting', 'partner', 'followup', 'task', 'deadline', 'nurture', 'call', 'email', 'sms', 'postal'];
+
+function resolveLegendItems() {
+  const order = new Set(PREFERRED_ORDER);
+  const items = [];
+  order.forEach((key) => {
+    const meta = categoryForKey(key);
+    if (meta && !items.some((item) => item.key === meta.key)) items.push(meta);
+  });
+  EVENT_CATEGORIES.forEach((meta) => {
+    if (!items.some((item) => item.key === meta.key)) items.push(meta);
+  });
+  return items;
+}
+
+function isEnabled(key, visibility) {
+  if (!visibility || typeof visibility !== 'object') return true;
+  return visibility[key] !== false;
+}
 
 /**
  * Renders the calendar legend into the target container.
  * @param {HTMLElement} container - The element to append the legend to.
+ * @param {object} options - Visibility + toggle handler for live filtering.
  */
-export function renderLegend(container) {
-  // If container is provided, clean up existing legend
+export function renderLegend(container, options = {}) {
+  const { visibility = {}, onToggle } = options;
+
   if (container) {
     const existing = container.querySelector('.calendar-legend');
-    if (existing) {
-      existing.remove();
-    }
+    if (existing) existing.remove();
   }
 
   const legend = document.createElement('div');
   legend.className = 'calendar-legend';
+  legend.dataset.qa = 'cal-legend';
 
-  // Define precedence or specific items we want to show in the legend
-  // We want to show distinct kinds. Multimapped icons (like phone/email/sms -> task color) 
-  // might be grouped? 
-  // Request says: "Legend icon must exactly match what appears in month cells."
-  // So we should iterate the CATEGORIES, but maybe filter out some redundant ones if they map to same visual?
-  // Actually, the user wants "Parity". If "Call" shows a phone 📞, then legend should probably have "Call"?
-  // Or does "Call" show as "Task" ✅? 
-  // Looking at constants:
-  // Call -> 📞
-  // Task -> ✅
-  // Follow-up -> 🔔
-  // So they ARE distinct icons. We should probably show them all, or at least the major ones used in the app.
-  // The 'seed' data uses: 'task' (✅), 'nurture' (📌), 'partner' (🤝), 'milestone' (⭐), 'follow-up' (🔔).
-  // Also 'contact'/'meeting' (👥).
-  // Let's filter to the ones that are semantically top-level or common.
+  const items = resolveLegendItems();
 
-  const WANTED_KEYS = new Set(['task', 'nurture', 'partner', 'deadline', 'meeting', 'followup']);
-
-  // Map 'deadline' to 'Milestone' label if needed, or rely on constant label
-
-  const items = EVENT_CATEGORIES.filter(c => WANTED_KEYS.has(c.key));
-
-  items.forEach(item => {
-    const chip = document.createElement('div');
+  items.forEach((item) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'legend-chip';
-    // Apply color hint via CSS variable for the ::before pseudo-element
+    chip.dataset.key = item.key;
+    chip.dataset.type = item.type || 'other';
     chip.style.setProperty('--legend-color', `var(${item.accent}, #64748b)`);
+    const enabled = isEnabled(item.key, visibility);
+    chip.dataset.enabled = enabled ? '1' : '0';
+    chip.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    if (!enabled) chip.classList.add('is-muted');
 
-    // Icon
     const icon = document.createElement('span');
-    icon.className = 'legend-icon';
+    icon.className = 'legend-icon icon';
     icon.textContent = item.icon;
 
-    // Label
     const label = document.createElement('span');
     label.className = 'legend-label';
     label.textContent = item.label;
 
     chip.appendChild(icon);
     chip.appendChild(label);
+
+    chip.addEventListener('click', () => {
+      if (typeof onToggle === 'function') {
+        onToggle(item.key, !isEnabled(item.key, visibility));
+      }
+    });
+
     legend.appendChild(chip);
   });
 
@@ -64,6 +75,5 @@ export function renderLegend(container) {
     container.appendChild(legend);
   }
 
-  // Return info for debug/testing
   return { node: legend, count: items.length };
 }
