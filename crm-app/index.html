@@ -156,8 +156,7 @@
           <span data-mode="view">Edit layout</span>
           <span data-mode="edit" hidden>Done editing</span>
         </button>
-        <span class="help-hint"
-          data-hint="Drag widgets to reorder, resize using corner handles. Toggle between Today view for priority items and All view for full dashboard.">?</span>
+        <span class="help-icon" data-help="dashboard-page">?</span>
         <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
           title="Restore default dashboard layout">
           <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
@@ -372,9 +371,11 @@
         </div>
       </section>
       <section class="card" id="doc-center-card" data-widget-id="docCenter">
-        <p class="widget-summary muted">Manage document checklists and outstanding requests.</p>
-        <div class="doc-center" id="doc-center">
+        <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+          <p class="widget-summary muted" style="margin:0">Manage document checklists and outstanding requests.</p>
+          <span class="help-icon" data-help="doc-center-widget">?</span>
         </div>
+        <div class="doc-center" id="doc-center"></div>
       </section>
     </main>
     <!-- LABS -->
@@ -1053,8 +1054,7 @@
           <div class="portfolio-card-header">
             <h3 class="portfolio-card-title" title="Referral Partner Performance">
               Referral Partner Performance
-              <span class="help-hint"
-                data-hint="Conversion % = (Funded / Leads Sent) — Your key partner performance metric. Shows which partners send quality leads.">?</span>
+              <span class="help-icon" data-help="portfolio-referrals">?</span>
             </h3>
             <div class="table-search">
               <input aria-label="Search partners" data-table-search="#tbl-referral-performance"
@@ -1088,6 +1088,7 @@
           <div class="portfolio-card-header">
             <h3 class="portfolio-card-title" title="Funded Deals in Range">
               Funded Deals in Range
+              <span class="help-icon" data-help="portfolio-funded">?</span>
             </h3>
             <div class="table-search">
               <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals"
@@ -1295,9 +1296,7 @@
       <section class="card" id="notifications-shell">
         <div class="row" style="align-items:center;gap:12px;margin-bottom:8px">
           <strong>Notifications Center</strong>
-          <span class="help-hint" id="notifications-help" role="button" tabindex="0"
-            aria-label="How notifications behave"
-            title="Unread notifications stay in your bell until you mark them read or archive them. Sent items are tracked automatically.">?</span>
+          <span class="help-icon" data-help="notifications-view" aria-label="How notifications behave" role="button" tabindex="0">?</span>
           <span class="badge-pill" id="notifications-count-pill" style="display:none"></span>
           <div class="grow"></div>
           <button class="btn" id="notifications-export" aria-label="Export notifications to CSV"
@@ -1390,6 +1389,10 @@
 
     <!-- SETTINGS -->
     <main class="hidden" id="view-settings">
+      <div class="row" style="align-items:center;gap:8px;margin-bottom:10px">
+        <h2 style="margin:0">Settings <span class="help-icon" data-help="settings-view">?</span></h2>
+        <span class="muted" style="font-size:12px">Changes save locally as you go.</span>
+      </div>
       <div class="settings-shell">
         <nav aria-label="Settings sections" class="settings-nav" id="settings-nav">
           <button class="btn active" data-panel="general">General</button>
@@ -1817,10 +1820,19 @@
     aria-hidden="true" role="dialog" style="display:none">
     <div class="dlg" tabindex="-1">
       <form class="modal-form-shell" id="partner-form">
-        <div class="modal-header">
-          <h3 class="grow modal-title" id="partner-title">
-            Add / Edit Partner
-          </h3>
+        <div class="modal-header partner-header">
+          <div class="modal-title-stack grow">
+            <div class="modal-title-row">
+              <h3 class="modal-title" id="partner-title" data-role="record-name-text">
+                Add / Edit Partner
+              </h3>
+              <div class="modal-header-actions" data-role="partner-header-actions"></div>
+            </div>
+            <div class="modal-title-sub">
+              <span class="summary-chip" id="p-title-tier"></span>
+              <span class="summary-chip" id="p-title-type"></span>
+            </div>
+          </div>
           <button class="btn ghost" data-close-partner="" type="button">
             Close
           </button>
@@ -1834,7 +1846,7 @@
                   <div class="identity-primary" data-role="record-nameplate" data-record-type="partner">
                     <span aria-hidden="true" class="summary-avatar is-empty" data-initials="?"
                       data-role="summary-avatar"></span>
-                    <span class="summary-name-text" data-role="record-name-text">New Partner</span>
+                    <span data-role="record-name-text">New Partner</span>
                     <span class="summary-actions" data-role="favorite-actions"></span>
                   </div>
                   <div class="identity-secondary">
@@ -2081,11 +2093,18 @@
   <dialog class="record-modal" id="contact-modal" style="display:none">
     <div class="dlg" tabindex="-1">
       <form class="modal-form-shell" id="contact-form" method="dialog">
-        <div class="modal-header">
-          <h3 class="grow modal-title">
-            Add / Edit Contact
-          </h3>
-          <div class="modal-header-actions" data-role="contact-header-actions">
+        <div class="modal-header contact-header">
+          <div class="modal-title-stack grow">
+            <div class="modal-title-row">
+              <h3 class="modal-title" data-role="record-name-text">
+                Add / Edit Contact
+              </h3>
+              <div class="modal-header-actions" data-role="contact-header-actions"></div>
+            </div>
+            <div class="modal-title-sub">
+              <span data-role="stage-chip-wrapper"></span>
+              <span class="status-pill" data-role="status-pill"></span>
+            </div>
           </div>
           <button class="btn ghost" data-close="" type="button">
             Close
@@ -2111,13 +2130,15 @@
     <input type="hidden" id="c-lastname" value="">
     <div class="modal-form-layout">
       <aside class="modal-summary">
-        <div class="" data-role="favorite-host" data-favorite-type="contact" data-record-id="">
+        <div class="summary-meta" data-role="favorite-host" data-favorite-type="contact" data-record-id="">
           <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
-            <span class="summary-name-text" data-role="record-name-text">New Contact</span>
+            <span data-role="record-name-text">New Contact</span>
             <span class="summary-actions" data-role="favorite-actions"></span>
           </div>
           <div class="identity-secondary">
             <span hidden data-role="record-name-subtext">Application • In Progress</span>
+            <span class="summary-chip" data-role="stage-chip-wrapper" hidden></span>
+            <span class="status-pill" data-role="status-pill" hidden></span>
           </div>
         </div>
 
