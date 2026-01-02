@@ -172,6 +172,77 @@ export class HelpSystem {
 
 export const helpSystem = new HelpSystem();
 
+// Dashboard Content
+helpSystem.register('priority-actions', {
+    title: 'Priority Actions',
+    content: 'Urgent tasks and contacts needing attention. Click any row to take action immediately.'
+});
+helpSystem.register('today-work', {
+    title: "Today's Work",
+    content: 'Your scheduled tasks and follow-ups for today. Keep this list clear to stay on top of your game.'
+});
+helpSystem.register('milestones', {
+    title: 'Milestones Ahead',
+    content: 'Upcoming key dates for your active deals. Ensure you are prepared for closing and contingencies.'
+});
+helpSystem.register('referral-leaders', {
+    title: 'Referral Leaders',
+    content: 'Top partners sending you business. Recognize and reward your best referral sources.'
+});
+helpSystem.register('pipeline-momentum', {
+    title: 'Pipeline Momentum',
+    content: 'Visual snapshot of your active deal flow. Identify bottlenecks and track volume.'
+});
+helpSystem.register('doc-pulse', {
+    title: 'Document Pulse',
+    content: 'Track outstanding document requests. Ensure clients are providing necessary files on time.'
+});
+helpSystem.register('pipeline-snapshot', {
+    title: 'Pipeline Snapshot',
+    content: 'Counts by pipeline stage. Totals should match the classic dashboard pipeline summary.'
+});
+helpSystem.register('todo-widget', {
+    title: 'To-Do',
+    content: 'Lightweight personal checklist stored locally. Ideal for quick reminders that are not full tasks.'
+});
+helpSystem.register('celebrations', {
+    title: 'Birthdays & Anniversaries',
+    content: 'Upcoming birthdays and work anniversaries within the next week. Click a name to open the contact.'
+});
+helpSystem.register('favorites-widget', {
+    title: 'Favorites',
+    content: 'Pinned contacts and partners. Star a record to keep it at the top of your workspace.'
+});
+
+// View Content
+helpSystem.register('contacts-view', {
+    title: 'Contacts',
+    content: 'Central hub for all borrowers and leads. Use filters to segment your list, or click any row to edit details.'
+});
+helpSystem.register('partners-view', {
+    title: 'Partners',
+    content: 'Manage your referral partners. Track tiers, volume, and notes to strengthen your relationships.'
+});
+helpSystem.register('pipeline-view', {
+    title: 'Pipeline Board',
+    content: 'Kanban view of active loans. Drag cards to move them between stages (Application → Processing → Underwriting).'
+});
+helpSystem.register('calendar-view', {
+    title: 'Calendar',
+    content: 'Monthly and weekly view of tasks, appointments, and loan milestones.'
+});
+helpSystem.register('reports-view', {
+    title: 'Reports & Analytics',
+    content: 'Deep dive into your business metrics. Analyze conversion rates, source performance, and production volume.'
+});
+helpSystem.register('labs-view', {
+    title: 'Labs',
+    content: 'Experimental features and new views. Test upcoming functionality before it goes mainstream.'
+});
+helpSystem.register('notifications-view', {
+    title: 'Notifications',
+    content: 'Stay updated on system alerts, task reminders, and record updates.'
+});
 if (typeof document !== 'undefined') {
   const ready = () => helpSystem.init();
   if (document.readyState === 'loading') {
