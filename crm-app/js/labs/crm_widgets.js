@@ -734,28 +734,40 @@ export function renderKPIsWidget(container, model) {
     return;
   }
   const kpis = snapshotKPIs || {};
+  const formatKpiNumber = (value) => {
+    const num = Number(value || 0);
+    return Number.isFinite(num) ? num.toLocaleString() : '0';
+  };
+  const formatAvgCycle = (value) => {
+    const num = Number(value || 0);
+    if (!num) return '—';
+    const rounded = Math.round(num);
+    return `${rounded.toLocaleString()} days`;
+  };
   const tiles = [
-    { label: 'New Leads (7d)', value: kpis.kpiNewLeads7d || 0, tone: 'info' },
-    { label: 'Active Pipeline', value: kpis.kpiActivePipeline || 0, tone: 'primary' },
-    { label: 'Funded YTD', value: kpis.kpiFundedYTD || 0, tone: 'success' },
+    { label: 'New Leads (7d)', value: formatKpiNumber(kpis.kpiNewLeads7d), tone: 'info' },
+    { label: 'Active Pipeline', value: formatKpiNumber(kpis.kpiActivePipeline), tone: 'primary' },
+    { label: 'Funded YTD', value: formatKpiNumber(kpis.kpiFundedYTD), tone: 'success' },
     { label: 'Funded Volume YTD', value: formatCurrency(kpis.kpiFundedVolumeYTD || 0), tone: 'success' },
-    { label: 'Avg Cycle (days)', value: (kpis.kpiAvgCycleLeadToFunded || 0).toFixed(1), tone: 'muted' },
-    { label: 'Referrals YTD', value: kpis.kpiReferralsYTD || 0, tone: 'accent' },
-    { label: 'Tasks Today', value: kpis.kpiTasksToday || 0, tone: 'warning' },
-    { label: 'Overdue Tasks', value: kpis.kpiTasksOverdue || 0, tone: 'danger' }
+    { label: 'Avg Days Lead → Funded', value: formatAvgCycle(kpis.kpiAvgCycleLeadToFunded), tone: 'muted' },
+    { label: 'Tasks Due Today', value: formatKpiNumber(kpis.kpiTasksToday), tone: 'warning' },
+    { label: 'Tasks Overdue', value: formatKpiNumber(kpis.kpiTasksOverdue), tone: 'danger' },
+    { label: 'Referrals YTD', value: formatKpiNumber(kpis.kpiReferralsYTD), tone: 'accent' }
   ];
 
   const tilesHtml = tiles.map((tile, idx) => `
     <div class="kpi-card tone-${tile.tone}" style="animation-delay:${idx * 0.04}s">
-      <div class="kpi-value">${formatNumber(tile.value)}</div>
+      <div class="kpi-value">${tile.value}</div>
       <div class="kpi-label">${tile.label}</div>
     </div>
   `).join('');
 
-  renderCard(container, {
+  const card = renderCard(container, {
     title: '📊 Pipeline KPIs',
     body: `<div class="kpis-grid">${tilesHtml}</div>`
   });
+  const header = card && card.querySelector && card.querySelector('.labs-widget-header');
+  if (header && !header.getAttribute('data-help')) header.setAttribute('data-help', 'kpi-counts');
 }
 
 // =======================
