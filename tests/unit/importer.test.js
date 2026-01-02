@@ -68,7 +68,7 @@ describe('Importer Hardening', () => {
 
         expect(data).toHaveLength(1);
         expect(data[0].status).toBe('active'); // Should be normalized!
-        expect(data[0].stage).toBe('clear_to_close'); // Should be normalized!
+        expect(data[0].stage).toBe('cleared-to-close'); // Should be normalized!
     });
 
     it('should normalize "Lead" status to "nurture" for Contacts', async () => {

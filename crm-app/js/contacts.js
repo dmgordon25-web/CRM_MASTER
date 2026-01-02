@@ -1588,7 +1588,7 @@ export function normalizeContactId(input) {
           const direct = STAGE_FLOW.indexOf(norm);
           if (direct >= 0) return direct;
           if (norm === 'preapproved') return 1;
-          if (norm === 'ctc' || norm === 'clear-to-close' || norm === 'cleared to close') {
+          if (norm === 'ctc' || norm === 'clear-to-close' || norm === 'cleared-to-close' || norm === 'cleared to close') {
             const idx = STAGE_FLOW.indexOf('cleared-to-close');
             return idx >= 0 ? idx : 0;
           }

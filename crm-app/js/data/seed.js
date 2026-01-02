@@ -1,4 +1,5 @@
-import { normalizeStatus } from '../pipeline/constants.js';
+import { canonicalStage } from '../pipeline/constants.js';
+import { stageKeyFromLabel } from '../pipeline/stages.js';
 
 const PIPELINE_STAGE_KEYS = Object.freeze(['application', 'processing', 'underwriting']);
 
@@ -9,7 +10,7 @@ function getGlobalScope(){
 }
 
 function normalizeStageValue(stage){
-  const canonical = normalizeStatus(stage);
+  const canonical = canonicalStage(stage) || stageKeyFromLabel(stage);
   if (canonical) return canonical;
   return null;
 }
@@ -79,7 +80,7 @@ function synthesizeCtcContact(dataset, contacts, seenIds){
     last: 'CTC',
     email: 'sample.ctc@example.com',
     phone: '555-1010',
-    stage: 'clear_to_close',
+    stage: 'cleared-to-close',
     status: 'inprogress',
     loanType: 'conv',
     loanAmount: 345000,

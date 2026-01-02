@@ -59,6 +59,12 @@ function stageKeyFromNormalizedLabel(label) {
   const lowered = raw.toLowerCase();
   if (lowered === "pre-approved" || lowered === "pre approved") return "preapproved";
   if (lowered === "ctc") return "cleared-to-close";
+  if (lowered === "clear_to_close" || lowered === "clear-to-close" || lowered === "clear to close") {
+    return "cleared-to-close";
+  }
+  if (lowered === "cleared-to-close" || lowered === "cleared to close" || lowered === "cleared_to_close") {
+    return "cleared-to-close";
+  }
   return lowered
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/-+/g, "-")
@@ -67,10 +73,23 @@ function stageKeyFromNormalizedLabel(label) {
 
 const KEY_TO_LABEL = new Map();
 PIPELINE_STAGES.forEach((label) => {
+  const stageKey = stageKeyFromNormalizedLabel(label);
+  const dashed = stageKey.replace(/_/g, "-");
+  const underscored = stageKey.replace(/-/g, "_");
+  KEY_TO_LABEL.set(stageKey, label);
+  KEY_TO_LABEL.set(dashed, label);
+  KEY_TO_LABEL.set(underscored, label);
   KEY_TO_LABEL.set(stageKeyFromNormalizedLabel(label), label);
 });
 
-const STAGE_KEY_ALIASES = new Map();
+let STAGE_KEY_ALIASES;
+// Lazily allocate the alias map to avoid TDZ/circular-init faults when helpers
+// call into it during module load. The getter ensures the map exists before use
+// without moving call sites or changing behavior.
+function getStageAliases() {
+  if (!STAGE_KEY_ALIASES) STAGE_KEY_ALIASES = new Map();
+  return STAGE_KEY_ALIASES;
+}
 
 function register(map, key, value) {
   if (!key) return;
@@ -94,8 +113,9 @@ function registerKeyAlias(input, key) {
   const lowered = raw.toLowerCase();
   const dashed = lowered.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
   const squished = lowered.replace(/[^a-z0-9]+/g, "");
+  const aliases = getStageAliases();
   [lowered, dashed, squished].forEach((token) => {
-    if (token) STAGE_KEY_ALIASES.set(token, key);
+    if (token) aliases.set(token, key);
   });
 }
 
@@ -103,6 +123,14 @@ export const NORMALIZE_STAGE = (function () {
   const map = new Map();
   PIPELINE_STAGES.forEach((stage) => register(map, stage, stage));
   SYNONYMS.forEach(([input, output]) => register(map, String(input ?? ""), output));
+  PIPELINE_STAGES.forEach((stage) => {
+    const key = stageKeyFromNormalizedLabel(stage);
+    // Allow canonical keys to normalize back to display labels for DnD lanes
+    register(map, key, stage);
+    register(map, key.replace(/-/g, "_"), stage);
+  });
+  register(map, 'clear_to_close', 'CTC');
+  register(map, 'clear-to-close', 'CTC');
 
   return function normalize(value) {
     if (!value) return FALLBACK_STAGE;
@@ -137,9 +165,10 @@ export function stageKeyFromLabel(label) {
   const lowered = raw.toLowerCase();
   const dashed = lowered.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
   const squished = lowered.replace(/[^a-z0-9]+/g, "");
-  if (STAGE_KEY_ALIASES.has(lowered)) return STAGE_KEY_ALIASES.get(lowered);
-  if (STAGE_KEY_ALIASES.has(dashed)) return STAGE_KEY_ALIASES.get(dashed);
-  if (STAGE_KEY_ALIASES.has(squished)) return STAGE_KEY_ALIASES.get(squished);
+  const aliases = getStageAliases();
+  if (aliases.has(lowered)) return aliases.get(lowered);
+  if (aliases.has(dashed)) return aliases.get(dashed);
+  if (aliases.has(squished)) return aliases.get(squished);
   if (lowered === "lost" || lowered === "denied") return lowered;
   const normalized = NORMALIZE_STAGE(raw);
   return stageKeyFromNormalizedLabel(normalized);
