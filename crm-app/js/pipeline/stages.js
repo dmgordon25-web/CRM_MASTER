@@ -73,7 +73,7 @@ function stageKeyFromNormalizedLabel(label) {
 
 const KEY_TO_LABEL = new Map();
 PIPELINE_STAGES.forEach((label) => {
-  const stageKey = stageKeyFromLabel(label);
+  const stageKey = stageKeyFromNormalizedLabel(label);
   const dashed = stageKey.replace(/_/g, "-");
   const underscored = stageKey.replace(/-/g, "_");
   KEY_TO_LABEL.set(stageKey, label);
@@ -82,7 +82,14 @@ PIPELINE_STAGES.forEach((label) => {
   KEY_TO_LABEL.set(stageKeyFromNormalizedLabel(label), label);
 });
 
-const STAGE_KEY_ALIASES = new Map();
+let STAGE_KEY_ALIASES;
+// Lazily allocate the alias map to avoid TDZ/circular-init faults when helpers
+// call into it during module load. The getter ensures the map exists before use
+// without moving call sites or changing behavior.
+function getStageAliases() {
+  if (!STAGE_KEY_ALIASES) STAGE_KEY_ALIASES = new Map();
+  return STAGE_KEY_ALIASES;
+}
 
 function register(map, key, value) {
   if (!key) return;
@@ -106,8 +113,9 @@ function registerKeyAlias(input, key) {
   const lowered = raw.toLowerCase();
   const dashed = lowered.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
   const squished = lowered.replace(/[^a-z0-9]+/g, "");
+  const aliases = getStageAliases();
   [lowered, dashed, squished].forEach((token) => {
-    if (token) STAGE_KEY_ALIASES.set(token, key);
+    if (token) aliases.set(token, key);
   });
 }
 
@@ -116,7 +124,7 @@ export const NORMALIZE_STAGE = (function () {
   PIPELINE_STAGES.forEach((stage) => register(map, stage, stage));
   SYNONYMS.forEach(([input, output]) => register(map, String(input ?? ""), output));
   PIPELINE_STAGES.forEach((stage) => {
-    const key = stageKeyFromLabel(stage);
+    const key = stageKeyFromNormalizedLabel(stage);
     // Allow canonical keys to normalize back to display labels for DnD lanes
     register(map, key, stage);
     register(map, key.replace(/-/g, "_"), stage);
@@ -157,9 +165,10 @@ export function stageKeyFromLabel(label) {
   const lowered = raw.toLowerCase();
   const dashed = lowered.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
   const squished = lowered.replace(/[^a-z0-9]+/g, "");
-  if (STAGE_KEY_ALIASES.has(lowered)) return STAGE_KEY_ALIASES.get(lowered);
-  if (STAGE_KEY_ALIASES.has(dashed)) return STAGE_KEY_ALIASES.get(dashed);
-  if (STAGE_KEY_ALIASES.has(squished)) return STAGE_KEY_ALIASES.get(squished);
+  const aliases = getStageAliases();
+  if (aliases.has(lowered)) return aliases.get(lowered);
+  if (aliases.has(dashed)) return aliases.get(dashed);
+  if (aliases.has(squished)) return aliases.get(squished);
   if (lowered === "lost" || lowered === "denied") return lowered;
   const normalized = NORMALIZE_STAGE(raw);
   return stageKeyFromNormalizedLabel(normalized);
