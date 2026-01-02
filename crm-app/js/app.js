@@ -3189,12 +3189,55 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const id = e.detail?.id; if (id) ensureSortable(id);
   });
 
+  const LOCAL_STORAGE_EXPORT_KEYS = [
+    'dashboard:config:v1',
+    'dash:layoutMode:v1',
+    'crm:homeView'
+  ];
+  function captureLocalStorageSnapshot() {
+    if (typeof localStorage === 'undefined') return null;
+    const snapshot = {};
+    LOCAL_STORAGE_EXPORT_KEYS.forEach((key) => {
+      try {
+        const value = localStorage.getItem(key);
+        if (value !== null && value !== undefined) snapshot[key] = value;
+      } catch (_err) { /* noop */ }
+    });
+    return Object.keys(snapshot).length ? snapshot : null;
+  }
+  function restoreLocalStorageSnapshot(data) {
+    if (!data || typeof data !== 'object' || typeof localStorage === 'undefined') return;
+    LOCAL_STORAGE_EXPORT_KEYS.forEach((key) => {
+      if (!Object.prototype.hasOwnProperty.call(data, key)) return;
+      try { localStorage.setItem(key, data[key]); }
+      catch (_err) { /* noop */ }
+    });
+  }
+
+  let pendingImportFile = null;
+  async function handleWorkspaceImport(mode) {
+    if (!pendingImportFile) throw new Error('No file selected for import');
+    const text = await pendingImportFile.text();
+    const snapshot = JSON.parse(text);
+    const importMode = mode === 'replace' ? 'replace' : 'merge';
+    await dbRestoreAll(snapshot, importMode);
+    restoreLocalStorageSnapshot(snapshot.__localStorage || snapshot.localStorage);
+    try { window.dispatchAppDataChanged?.({ source: 'import', action: 'restore', mode: importMode }); }
+    catch (_err) { /* noop */ }
+    try { scheduleAppRender(); }
+    catch (_err) { /* noop */ }
+    pendingImportFile = null;
+  }
+  window.handleWorkspaceImport = handleWorkspaceImport;
+
   const exportBtn = $('#btn-export-json');
   if (exportBtn && !exportBtn.__wired) {
     exportBtn.__wired = true;
     exportBtn.addEventListener('click', async () => {
       try {
         const snapshot = await dbExportAll();
+        const ls = captureLocalStorageSnapshot();
+        if (ls) snapshot.__localStorage = ls;
         const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
