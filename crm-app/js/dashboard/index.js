@@ -14,7 +14,8 @@ import {
   normalizeDashboardConfig,
   readDashboardConfig,
   writeDashboardConfig,
-  isTodayWidget
+  isTodayWidget,
+  DOC_CENTER_WIDGET_ENABLED
 } from './config.js';
 import { helpSystem } from '../utils/help_system.js';
 
@@ -162,9 +163,11 @@ const WIDGET_RESOLVERS = {
   relationshipOpportunities: () => doc ? doc.getElementById('rel-opps-card') : null,
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
-  upcomingCelebrations: resolveCelebrationsWidget,
-  docCenter: () => doc ? doc.getElementById('doc-center-card') : null
+  upcomingCelebrations: resolveCelebrationsWidget
 };
+if (DOC_CENTER_WIDGET_ENABLED) {
+  WIDGET_RESOLVERS.docCenter = () => doc ? doc.getElementById('doc-center-card') : null;
+}
 
 const WIDGET_CARD_RESOLVERS = {
   priorityActions: () => {
@@ -186,6 +189,13 @@ const WIDGET_CARD_RESOLVERS = {
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
+if (DOC_CENTER_WIDGET_ENABLED) {
+  WIDGET_CARD_RESOLVERS.docCenter = () => {
+    if (!doc) return null;
+    const node = doc.getElementById('doc-center-card');
+    return node ? node.closest('.card') : null;
+  };
+}
 
 function ensureE2EPriorityCard() {
   if (!doc || typeof document === 'undefined') return;
@@ -249,9 +259,20 @@ const WIDGET_DOM_ID_MAP = {
   relationshipOpportunities: 'rel-opps-card',
   clientCareRadar: 'nurture-card',
   closingWatch: 'closing-watch-card',
-  upcomingCelebrations: CELEBRATIONS_WIDGET_ID,
-  docCenter: 'doc-center-card'
+  upcomingCelebrations: CELEBRATIONS_WIDGET_ID
 };
+if (DOC_CENTER_WIDGET_ENABLED) {
+  WIDGET_DOM_ID_MAP.docCenter = 'doc-center-card';
+}
+
+if (!DOC_CENTER_WIDGET_ENABLED && doc) {
+  const docCenterNode = doc.getElementById('doc-center-card');
+  if (docCenterNode) {
+    docCenterNode.setAttribute('hidden', 'hidden');
+    docCenterNode.style.display = 'none';
+    docCenterNode.style.visibility = 'hidden';
+  }
+}
 
 function logDashboardWidgetError(widgetKey, error) {
   if (!error) return;
