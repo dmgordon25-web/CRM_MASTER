@@ -26,6 +26,7 @@ import { getUiMode } from '../ui/ui_mode.js';
 import { enableVNextGrid } from './vnext.js';
 import { initActionBarDrag, teardownActionBarWiring } from '../ui/action_bar.js';
 import { DEFAULT_VNEXT_LAYOUTS } from './vnext_defaults.js';
+import { safeRenderWidget } from './helpers/widget_safety.js';
 
 const USE_VNEXT_KEY = 'labs.vnext.enabled';
 const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
@@ -1168,21 +1169,20 @@ function renderWidgets(grid, widgetList = []) {
     resizeHandle.dataset.labsResizeHandle = 'true';
     resizeHandle.setAttribute('aria-label', 'Resize widget');
 
-    try {
+    safeRenderWidget(widget.id, () => {
       const rendered = renderer(content, model, { onAnalyticsSegment, onPortfolioSegment });
       if (typeof rendered === 'string') {
         content.innerHTML = rendered;
       } else if (rendered instanceof HTMLElement) {
         content.appendChild(rendered);
       }
-      item.appendChild(handle);
-      item.appendChild(content);
-      item.appendChild(resizeHandle);
-      grid.appendChild(item);
-      console.debug(`[LABS] rendered widget ${widget.id}`);
-    } catch (err) {
-      console.error(`[labs] Error rendering widget ${widget.id}:`, err);
-    }
+    }, content, { onAnalyticsSegment, onPortfolioSegment, model });
+
+    item.appendChild(handle);
+    item.appendChild(content);
+    item.appendChild(resizeHandle);
+    grid.appendChild(item);
+    console.debug(`[LABS] rendered widget ${widget.id}`);
   });
 }
 

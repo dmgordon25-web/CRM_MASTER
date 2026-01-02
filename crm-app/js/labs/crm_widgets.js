@@ -43,6 +43,7 @@ import { getNotificationsSnapshot, markNotificationsRead, subscribeNotifications
 import { openTaskEditor } from '../ui/quick_create_menu.js';
 import { openContactModal, openContactEditor } from '../contacts.js';
 import { openPartnerEditor } from '../editors/partner_entry.js';
+import { safeBindClick } from './helpers/widget_safety.js';
 
 const DAY_MS = 86400000;
 
@@ -908,7 +909,7 @@ export function renderPipelineFunnelWidget(container, model, options = {}) {
         row.style.animationDelay = `${idx * 0.05}s`;
         if (onSegmentClick) {
           row.classList.add('segment-clickable');
-          row.addEventListener('click', () => onSegmentClick({
+          safeBindClick('pipelineFunnel', row, () => onSegmentClick({
             type: ANALYTICS_SEGMENT_TYPES.STAGE,
             key: stage.stageId,
             label: stage.label
@@ -1027,7 +1028,7 @@ export function renderPipelineVelocityWidget(container, model, options = {}) {
         row.style.animationDelay = `${idx * 0.05}s`;
         if (onSegmentClick) {
           row.classList.add('segment-clickable');
-          row.addEventListener('click', () => onSegmentClick({
+          safeBindClick('pipelineVelocity', row, () => onSegmentClick({
             type: ANALYTICS_SEGMENT_TYPES.VELOCITY,
             key: bucket.id,
             label: bucket.label
@@ -1144,7 +1145,7 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
       header.appendChild(text);
       if (onSegmentClick) {
         header.classList.add('segment-clickable');
-        header.addEventListener('click', () => onSegmentClick({
+        safeBindClick('pipelineRisk', header, () => onSegmentClick({
           type: ANALYTICS_SEGMENT_TYPES.RISK,
           key: 'all',
           label: 'Stale deals (14d+)'
@@ -1172,7 +1173,7 @@ export function renderPipelineRiskWidget(container, model, options = {}) {
 
         if (onSegmentClick) {
           row.classList.add('segment-clickable', 'labs-row--clickable');
-          row.addEventListener('click', () => onSegmentClick({
+          safeBindClick('pipelineRisk', row, () => onSegmentClick({
             type: ANALYTICS_SEGMENT_TYPES.RISK,
             key: stage,
             label
