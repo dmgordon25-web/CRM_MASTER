@@ -209,6 +209,10 @@ helpSystem.register('celebrations', {
     title: 'Birthdays & Anniversaries',
     content: 'Upcoming birthdays and work anniversaries within the next week. Click a name to open the contact.'
 });
+helpSystem.register('birthdays-anniversaries', {
+    title: 'Birthdays & Anniversaries',
+    content: 'Upcoming birthdays and anniversaries within the next week. Click a row to open the related contact or partner.'
+});
 helpSystem.register('favorites-widget', {
     title: 'Favorites',
     content: 'Pinned contacts and partners. Star a record to keep it at the top of your workspace.'

@@ -2267,24 +2267,181 @@ export function renderMilestonesWidget(container, model) {
 // Celebrations (birthdays / anniversaries)
 // =======================
 export function renderUpcomingCelebrationsWidget(container, model) {
+  const CELEBRATION_WINDOW_DAYS = 7;
+
+  function parseMonthDay(value) {
+    if (value == null) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return { month: value.getMonth() + 1, day: value.getDate() };
+    }
+    const str = String(value).trim();
+    if (!str) return null;
+    const iso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (iso) {
+      const month = Number.parseInt(iso[2], 10);
+      const day = Number.parseInt(iso[3], 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+    }
+    const dash = str.match(/^(\d{1,2})-(\d{1,2})$/);
+    if (dash) {
+      const month = Number.parseInt(dash[1], 10);
+      const day = Number.parseInt(dash[2], 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+    }
+    const slash = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (slash) {
+      const month = Number.parseInt(slash[1], 10);
+      const day = Number.parseInt(slash[2], 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+    }
+    const parsed = new Date(str);
+    if (!Number.isNaN(parsed.getTime())) {
+      return { month: parsed.getMonth() + 1, day: parsed.getDate() };
+    }
+    return null;
+  }
+
+  function nextOccurrence(md, baseDate) {
+    if (!md) return null;
+    const year = baseDate.getFullYear();
+    let next = new Date(year, md.month - 1, md.day);
+    const base = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+    if (next < base) {
+      next = new Date(year + 1, md.month - 1, md.day);
+    }
+    return next;
+  }
+
+  function daysBetween(baseDate, futureDate) {
+    const baseUtc = Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+    const futureUtc = Date.UTC(futureDate.getFullYear(), futureDate.getMonth(), futureDate.getDate());
+    return Math.round((futureUtc - baseUtc) / 86400000);
+  }
+
+  function formatContactName(contact) {
+    if (!contact || typeof contact !== 'object') return 'Contact';
+    const preferred = contact.preferredName || contact.nickname;
+    const first = contact.first;
+    const last = contact.last;
+    let name = '';
+    if (preferred) {
+      name = `${preferred}${last ? ` ${last}` : ''}`.trim();
+    }
+    if (!name) {
+      const parts = [];
+      if (first) parts.push(first);
+      if (last) parts.push(last);
+      name = parts.join(' ').trim();
+    }
+    if (!name) {
+      const company = contact.company || contact.organization || contact.businessName;
+      if (company) name = String(company).trim();
+    }
+    if (!name && contact.displayName) {
+      name = String(contact.displayName).trim();
+    }
+    if (!name && contact.email) {
+      name = String(contact.email).trim();
+    }
+    if (!name && contact.phone) {
+      name = String(contact.phone).trim();
+    }
+    if (!name && contact.id != null) {
+      name = `Contact ${contact.id}`;
+    }
+    return name || 'Contact';
+  }
+
+  function appendCelebrationsForContact(items, contact, baseDate) {
+    if (!contact || typeof contact !== 'object') return;
+    const contactId = contact.id == null ? '' : String(contact.id).trim();
+    const partnerId = contact.partnerId == null ? '' : String(contact.partnerId).trim();
+    if (!contactId && !partnerId) return;
+    const name = model.getContactDisplayName?.(contact.id) || formatContactName(contact);
+    const birthday = contact.birthday || contact.extras?.birthday;
+    const anniversary = contact.anniversary || contact.extras?.anniversary;
+    const events = [];
+    if (birthday) events.push({ raw: birthday, type: 'birthday', label: 'Birthday', icon: '🎂' });
+    if (anniversary) events.push({ raw: anniversary, type: 'anniversary', label: 'Anniversary', icon: '💍' });
+    events.forEach(event => {
+      const md = parseMonthDay(event.raw);
+      if (!md) return;
+      const next = nextOccurrence(md, baseDate);
+      if (!next) return;
+      const days = daysBetween(baseDate, next);
+      if (days < 0 || days > CELEBRATION_WINDOW_DAYS) return;
+      items.push({
+        contactId,
+        partnerId,
+        name,
+        type: event.type,
+        label: event.label,
+        icon: event.icon,
+        date: next,
+        daysUntil: days,
+        sortName: name.toLowerCase()
+      });
+    });
+  }
+
+  function formatCelebrationDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    try {
+      const formatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', weekday: 'short' });
+      return formatter.format(date);
+    } catch (_err) {
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
+  }
+
+  function formatCelebrationCountdown(days) {
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
+    return `In ${days} days`;
+  }
+
+  const contacts = Array.isArray(model?.contacts) ? model.contacts : [];
+  const today = new Date();
+  const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const celebrations = [];
+  contacts.forEach(contact => appendCelebrationsForContact(celebrations, contact, baseDate));
+
+  const deduped = [];
+  const seen = new Set();
+  celebrations.forEach(item => {
+    const key = `${item.contactId || item.partnerId}:${item.type}:${item.date.getTime()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(item);
+  });
+
+  deduped.sort((a, b) => {
+    const timeDiff = a.date.getTime() - b.date.getTime();
+    if (timeDiff !== 0) return timeDiff;
+    if (a.sortName && b.sortName) {
+      const nameDiff = a.sortName.localeCompare(b.sortName);
+      if (nameDiff !== 0) return nameDiff;
+    }
+    return a.type.localeCompare(b.type);
+  });
+
+  const displayedCelebrations = deduped.slice(0, 8);
+  const status = deduped.length ? 'ok' : 'empty';
+
   let shell;
   try {
-    const celebrationsSource = getUpcomingCelebrations(model.contacts || [], 7);
-    const celebrations = uniqByKey(celebrationsSource, (cel) => {
-      const contactId = getStableId(cel?.contact) || cel?.contactId || 'unknown';
-      const date = cel?.date || cel?.due || '';
-      const type = cel?.type || 'unknown';
-      return `${contactId}:${type}:${date}`;
-    });
-    const displayedCelebrations = celebrations.slice(0, 8);
-    const status = celebrations.length ? 'ok' : 'empty';
-
     shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
       status,
-      count: celebrations.length,
+      count: deduped.length,
       shown: displayedCelebrations.length,
+      helpId: 'celebrations',
       emptyMessage: 'No upcoming celebrations in the next 7 days.'
     }));
+
+    if (shell) {
+      shell.setAttribute('data-help', 'birthdays-anniversaries');
+    }
 
     if (status !== 'ok') {
       return shell;
@@ -2298,24 +2455,38 @@ export function renderUpcomingCelebrationsWidget(container, model) {
         const row = document.createElement('div');
         row.className = 'celebration-row';
         row.style.animationDelay = `${idx * 0.05}s`;
-        const contactName = (model.getContactDisplayName ? model.getContactDisplayName(cel.contact?.id) : null)
-          || cel.contact?.displayName
-          || cel.contact?.name
-          || 'Contact';
-        row.innerHTML = `
-          <span class="celebration-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</span>
-          <div class="celebration-info">
-            <div class="celebration-name">${contactName}</div>
-            <div class="celebration-type">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
-          </div>
-          <div class="celebration-date">${formatDate(cel.date)}</div>
-        `;
+        const info = document.createElement('div');
+        info.className = 'celebration-info';
+        const icon = document.createElement('span');
+        icon.className = 'celebration-icon';
+        icon.textContent = cel.icon || (cel.type === 'birthday' ? '🎂' : '💍');
+        const nameEl = document.createElement('div');
+        nameEl.className = 'celebration-name';
+        nameEl.textContent = cel.name || 'Contact';
+        const subtitle = document.createElement('div');
+        subtitle.className = 'celebration-type';
+        const dateLabel = formatCelebrationDate(cel.date);
+        subtitle.textContent = cel.label && dateLabel ? `${cel.label} • ${dateLabel}` : (cel.label || dateLabel || '');
+        const meta = document.createElement('div');
+        meta.className = 'celebration-date';
+        meta.textContent = formatCelebrationCountdown(cel.daysUntil || 0);
+        info.appendChild(nameEl);
+        info.appendChild(subtitle);
+        row.appendChild(icon);
+        row.appendChild(info);
+        row.appendChild(meta);
 
         // Data attributes for delegation
-        const contactId = cel.contact?.id || cel.contact?.contactId || cel.contactId;
-        if (contactId) {
+        const contactId = cel.contactId || cel.contact?.id || cel.contact?.contactId;
+        const partnerId = cel.partnerId;
+        if (contactId || partnerId) {
           row.setAttribute('data-role', 'celebration-row');
-          row.setAttribute('data-contact-id', contactId);
+          if (contactId) {
+            row.setAttribute('data-contact-id', contactId);
+          }
+          if (partnerId) {
+            row.setAttribute('data-partner-id', partnerId);
+          }
           row.style.cursor = 'pointer';
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
@@ -2329,7 +2500,10 @@ export function renderUpcomingCelebrationsWidget(container, model) {
         const target = event.target.closest('[data-role="celebration-row"]');
         if (!target) return;
         const contactId = target.getAttribute('data-contact-id');
-        if (contactId) {
+        const partnerId = target.getAttribute('data-partner-id');
+        if (partnerId) {
+          openPartnerEditor(partnerId, { source: 'labs-celebrations' });
+        } else if (contactId) {
           openContactEditor(contactId, { source: 'labs-celebrations' });
         }
       });
