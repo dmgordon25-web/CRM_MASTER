@@ -2698,54 +2698,156 @@ export function renderDocPulseWidget(container, model) {
 export function renderPipelineCalendarWidget(container, model) {
   let shell;
   try {
-    const appointments = getDedupedAppointments(model);
-    const status = appointments.length ? 'ok' : 'empty';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const horizon = new Date(today);
+    horizon.setDate(horizon.getDate() + 30);
+    const rangeStart = today.getTime();
+    const rangeEnd = horizon.getTime();
+
+    const contacts = Array.isArray(model.contacts) ? model.contacts : [];
+    const contactById = new Map(contacts.map((contact) => {
+      const key = String(contact.id || contact.contactId || contact._id || '');
+      return [key, contact];
+    }));
+
+    const pipelineTypeLabels = { task: 'Task', deal: 'Closing', followup: 'Follow-Up', expiring: 'Expiring' };
+    const displayNameForContact = (contact) => {
+      if (!contact) return '';
+      const id = contact.id || contact.contactId;
+      const resolved = id && typeof getContactDisplayName === 'function'
+        ? getContactDisplayName(id)
+        : null;
+      return resolved
+        || contact.displayName
+        || contact.name
+        || contact.fullName
+        || contact.borrowerName
+        || '';
+    };
+    const stageLabelFor = (contact) => {
+      const stageKey = normalizeStagesForDisplay(contact?.stage);
+      return STAGE_CONFIG[stageKey]?.label || contact?.stage || '';
+    };
+    const buildMeta = (parts) => parts.filter(Boolean).join(' • ');
+    const normalizeIds = (contactId, partnerId, contact) => ({
+      contactId: contactId || contact?.contactId || contact?.id || null,
+      partnerId: partnerId || contact?.partnerId || null
+    });
+
+    const pipelineEvents = [];
+    const addEvent = (rawDate, label, meta, type, ids = {}) => {
+      const when = rawDate instanceof Date ? rawDate : new Date(rawDate);
+      const stamp = when.getTime();
+      if (!label || Number.isNaN(stamp) || stamp < rangeStart || stamp > rangeEnd) return;
+      const typeKey = pipelineTypeLabels[type] ? type : 'task';
+      const metaLabel = typeof meta === 'string' ? meta : buildMeta(meta || []);
+      pipelineEvents.push({
+        date: when,
+        label,
+        meta: metaLabel,
+        type: typeKey,
+        contactId: ids.contactId || null,
+        partnerId: ids.partnerId || null
+      });
+    };
+
+    const openTasks = getOpenTasks(model?.tasks || []);
+    openTasks.forEach((task) => {
+      const due = task.dueTs || task.dueDate || task.due;
+      const ids = normalizeIds(task.contactId, task.partnerId, task.contact);
+      const contact = ids.contactId ? contactById.get(String(ids.contactId)) : (task.contact || null);
+      const metaParts = [];
+      const contactName = contact ? displayNameForContact(contact) : '';
+      if (contactName) metaParts.push(contactName);
+      const stageLabel = stageLabelFor(contact);
+      if (stageLabel) metaParts.push(stageLabel);
+      addEvent(due, task.title || task.text || 'Follow up', metaParts, 'task', ids);
+    });
+
+    contacts.forEach((contact) => {
+      const ids = normalizeIds(contact.id, contact.partnerId, contact);
+      const name = displayNameForContact(contact);
+      const stageLabel = stageLabelFor(contact);
+      if (contact.nextFollowUp) {
+        addEvent(contact.nextFollowUp, `${name} — Next Touch`, stageLabel, 'followup', ids);
+      }
+      if (contact.preApprovalExpires) {
+        addEvent(contact.preApprovalExpires, `${name} — Pre-Approval`, 'Expires', 'expiring', ids);
+      }
+      const closeDate = contact.expectedCloseDate || contact.expectedClosing || contact.closingDate || contact.fundedDate;
+      if (closeDate) {
+        const metaParts = [];
+        if (stageLabel) metaParts.push(stageLabel);
+        if (Number(contact.loanAmount || 0)) metaParts.push(formatCurrency(contact.loanAmount));
+        addEvent(closeDate, `${name} — Closing`, metaParts, 'deal', ids);
+      }
+    });
+
+    pipelineEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const status = pipelineEvents.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('pipelineCalendar', {
       status,
-      emptyMessage: 'No upcoming events.'
+      count: pipelineEvents.length,
+      shown: Math.min(pipelineEvents.length, 8),
+      emptyMessage: 'No upcoming milestones in the next 30 days.',
+      actions: [
+        {
+          id: 'view-calendar',
+          label: 'View Calendar',
+          onClick: () => { window.location.hash = '#/calendar'; }
+        }
+      ],
+      helpId: 'pipeline-calendar'
     }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) {
+      header.setAttribute('data-help', 'pipeline-calendar');
+    }
 
     if (status !== 'ok') {
       return shell;
     }
 
     renderWidgetBody(shell, (body) => {
-      const list = document.createElement('div');
-      list.className = 'timeline-list';
+      const list = document.createElement('ul');
+      list.className = 'pipeline-timeline';
 
-      appointments.slice(0, 6).forEach((appt, idx) => {
-        const row = document.createElement('div');
-        row.className = 'timeline-row';
+      pipelineEvents.slice(0, 8).forEach((event, idx) => {
+        const row = document.createElement('li');
         row.style.animationDelay = `${idx * 0.05}s`;
-        row.innerHTML = `
-          <div class="timeline-date">${formatDate(appt.due || appt.dueTs)}</div>
-          <div class="timeline-body">
-            <div class="timeline-title">${appt.title || 'Appointment'}</div>
-            <div class="timeline-meta">${appt.contactName || ''}</div>
-          </div>
-        `;
-
-        // Data attributes for delegation
-        const contactId = appt.contactId || (appt.contact && appt.contact.id);
-        if (contactId) {
-          row.setAttribute('data-role', 'timeline-row');
-          row.setAttribute('data-contact-id', contactId);
-          row.style.cursor = 'pointer';
-          row.setAttribute('role', 'button');
-          row.setAttribute('tabindex', '0');
+        row.setAttribute('data-role', 'pipeline-timeline-row');
+        if (event.contactId) {
+          row.setAttribute('data-contact-id', event.contactId);
         }
-
+        if (event.partnerId) {
+          row.setAttribute('data-partner-id', event.partnerId);
+        }
+        row.innerHTML = `
+          <div class="pipeline-date">${formatDate(event.date)}</div>
+          <div class="pipeline-detail">
+            <div class="pipeline-label">${event.label}</div>
+            ${event.meta ? `<div class="pipeline-meta">${event.meta}</div>` : ''}
+          </div>
+          <span class="pipeline-type ${event.type}">${pipelineTypeLabels[event.type] || event.type}</span>
+        `;
         list.appendChild(row);
       });
 
-      // Delegated click handler
-      list.addEventListener('click', (event) => {
-        const target = event.target.closest('[data-role="timeline-row"]');
+      list.addEventListener('click', (evt) => {
+        const target = evt.target.closest('[data-role="pipeline-timeline-row"]');
         if (!target) return;
         const contactId = target.getAttribute('data-contact-id');
+        const partnerId = target.getAttribute('data-partner-id');
         if (contactId) {
           openContactEditor(contactId, { source: 'labs-pipeline-calendar' });
+          return;
+        }
+        if (partnerId) {
+          openPartnerEditor(partnerId, { source: 'labs-pipeline-calendar' });
         }
       });
 
