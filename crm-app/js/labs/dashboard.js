@@ -25,8 +25,10 @@ import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
 import { getUiMode } from '../ui/ui_mode.js';
 import { enableVNextGrid } from './vnext.js';
 import { initActionBarDrag, teardownActionBarWiring } from '../ui/action_bar.js';
+import { DEFAULT_VNEXT_LAYOUTS } from './vnext_defaults.js';
 
 const USE_VNEXT_KEY = 'labs.vnext.enabled';
+const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
 const isVNextEnabled = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
@@ -610,6 +612,19 @@ function getWidgetLabel(widgetId) {
   return WIDGET_LABELS[widgetId] || widgetId;
 }
 
+function applyDefaultVNextLayout(sectionId) {
+  if (!sectionId || typeof localStorage === 'undefined') return;
+  const defaults = DEFAULT_VNEXT_LAYOUTS[sectionId];
+  if (!defaults) return;
+  const storageKey = `${VNEXT_STORAGE_PREFIX}${sectionId}`;
+  if (localStorage.getItem(storageKey)) return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(defaults));
+  } catch (err) {
+    console.warn('[labs] Unable to seed vNext defaults', err);
+  }
+}
+
 function buildSectionRenderData(section) {
   const layoutState = loadSectionLayout(section.id, section.widgets);
   cacheSectionLayout(section.id, layoutState);
@@ -1082,6 +1097,7 @@ function renderSection(sectionId, options = {}) {
 
   if (isVNextEnabled()) {
     try {
+      applyDefaultVNextLayout(section.id);
 
       enableVNextGrid(grid, section.id);
     } catch (err) {
