@@ -253,6 +253,22 @@ export const WIDGET_META = {
     category: 'system',
     status: 'stable'
   },
+  reportsShortcut: {
+    id: 'reportsShortcut',
+    icon: '📈',
+    title: 'Reports',
+    description: 'Ready-made snapshots with exportable CSVs.',
+    category: 'system',
+    status: 'stable'
+  },
+  commissionsShortcut: {
+    id: 'commissionsShortcut',
+    icon: '💵',
+    title: 'Commissions',
+    description: 'Track projected and received payouts.',
+    category: 'system',
+    status: 'stable'
+  },
   activePipeline: {
     id: 'activePipeline',
     icon: '📂',
@@ -3209,6 +3225,94 @@ export function renderTemplatesShortcutWidget(container, _model) {
   return shell;
 }
 
+/**
+ * Reports shortcut widget - navigates to #/reports
+ */
+export function renderReportsShortcutWidget(container, _model) {
+  let shell;
+  try {
+    shell = renderWidgetShell(container, widgetSpec('reportsShortcut', {
+      status: 'ok'
+    }));
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `
+        <div class="shortcut-widget">
+          <div class="shortcut-head" style="display:flex;align-items:center;gap:8px;">
+            <div aria-hidden="true" style="font-size:20px">📈</div>
+            <div>
+              <div class="shortcut-title" data-help="reports" style="font-weight:700">Reports</div>
+              <div class="fine-print">Ready-made snapshots with exportable CSVs.</div>
+            </div>
+          </div>
+          <div class="muted" style="margin:8px 0 12px">
+            <div><strong>No items yet</strong></div>
+            <div class="fine-print" style="margin-top:4px">Run activity in this report to unlock insights.</div>
+          </div>
+          <button class="labs-btn labs-btn-primary" data-action="open-reports">Open Reports</button>
+        </div>
+      `;
+
+      const btn = body.querySelector('[data-action="open-reports"]');
+      if (btn) {
+        btn.addEventListener('click', () => navigateToRoute('#/reports'));
+      }
+    });
+  } catch (err) {
+    console.error('[labs] reports shortcut render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('reportsShortcut', {
+      status: 'error',
+      errorMessage: 'Unable to load reports shortcut'
+    }));
+  }
+
+  return shell;
+}
+
+/**
+ * Commissions shortcut widget - navigates to #/commissions
+ */
+export function renderCommissionsShortcutWidget(container, _model) {
+  let shell;
+  try {
+    shell = renderWidgetShell(container, widgetSpec('commissionsShortcut', {
+      status: 'ok'
+    }));
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = `
+        <div class="shortcut-widget">
+          <div class="shortcut-head" style="display:flex;align-items:center;gap:8px;">
+            <div aria-hidden="true" style="font-size:20px">💵</div>
+            <div>
+              <div class="shortcut-title" data-help="commissions" style="font-weight:700">Commissions</div>
+              <div class="fine-print">Track projected and received payouts.</div>
+            </div>
+          </div>
+          <div class="muted" style="margin:8px 0 12px">
+            <div><strong>No commission payouts yet</strong></div>
+            <div class="fine-print" style="margin-top:4px">Mark funded deals as paid to track received commissions.</div>
+          </div>
+          <button class="labs-btn labs-btn-primary" data-action="open-commissions">Open Commissions</button>
+        </div>
+      `;
+
+      const btn = body.querySelector('[data-action="open-commissions"]');
+      if (btn) {
+        btn.addEventListener('click', () => navigateToRoute('#/commissions'));
+      }
+    });
+  } catch (err) {
+    console.error('[labs] commissions shortcut render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('commissionsShortcut', {
+      status: 'error',
+      errorMessage: 'Unable to load commissions shortcut'
+    }));
+  }
+
+  return shell;
+}
+
 // Map of widget renderers aligned to dashboard catalog
 export const CRM_WIDGET_RENDERERS = {
   labsKpiSummary: renderLabsKpiSummaryWidget,
@@ -3249,7 +3353,9 @@ export const CRM_WIDGET_RENDERERS = {
   favorites: renderFavoritesWidget,
   // Hidden feature shortcuts (Advanced-only, experimental)
   printSuiteShortcut: renderPrintSuiteShortcutWidget,
-  templatesShortcut: renderTemplatesShortcutWidget
+  templatesShortcut: renderTemplatesShortcutWidget,
+  reportsShortcut: renderReportsShortcutWidget,
+  commissionsShortcut: renderCommissionsShortcutWidget
 };
 
 export default CRM_WIDGET_RENDERERS;
