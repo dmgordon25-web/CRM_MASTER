@@ -30,12 +30,17 @@ const USE_VNEXT_KEY = 'labs.vnext.enabled';
 const isVNextEnabled = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('engine') === 'vnext') return true;
+    const engine = params.get('engine');
+    if (engine === 'vnext') return true;
+    if (engine === 'classic' || engine === 'legacy') return false;
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem(USE_VNEXT_KEY) === 'true';
+      const stored = localStorage.getItem(USE_VNEXT_KEY);
+      if (stored === 'false') return false;
+      if (stored === 'true') return true;
+      if (stored === null) return true;
     }
   }
-  return false;
+  return true;
 };
 
 const LABS_DEBUG = typeof window !== 'undefined'
