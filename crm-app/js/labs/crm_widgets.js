@@ -2008,6 +2008,8 @@ export function renderTodoWidget(container, model) {
 export function renderPriorityActionsWidget(container, model) {
   let shell;
   try {
+    const contacts = Array.isArray(model?.contacts) ? model.contacts : [];
+    const contactsById = new Map(contacts.map((contact) => [String(contact.id), contact]));
     const urgentTasks = filterTasksByDueWindow(model, (diff) => diff < 0 || diff <= 3);
     const displayTasks = toDisplayTasks(model, urgentTasks);
     const rows = displayTasks.slice(0, 6).map((task) => {
@@ -2023,12 +2025,22 @@ export function renderPriorityActionsWidget(container, model) {
             ? 'Due today'
             : `Due in ${diff}d`;
 
+      const contact = task.contactId ? contactsById.get(String(task.contactId)) : null;
+      const contactId = task.contactId || (contact && contact.id) || null;
+      const partnerId = task.partnerId || (contact && contact.partnerId) || null;
+      const stageKey = contact ? normalizeStagesForDisplay(contact.stage || contact.lane) : '';
+      const stageLabel = stageKey && STAGE_CONFIG[stageKey] ? STAGE_CONFIG[stageKey].label : '';
+      const contactName = contact ? getContactDisplayName(contact) : task.contactName;
+      const metaParts = [];
+      if (contactName) metaParts.push(contactName);
+      if (stageLabel) metaParts.push(stageLabel);
+
       return {
         label: task.taskLabel,
-        meta: task.contactName,
+        meta: metaParts.join(' • '),
         tone: diff !== null && diff < 0 ? 'danger' : 'warning',
-        contactId: task.contactId,
-        partnerId: task.partnerId,
+        contactId: contactId ? String(contactId) : '',
+        partnerId: partnerId ? String(partnerId) : '',
         taskId: task.id || task.taskId,
         dueLabel
       };
@@ -2042,6 +2054,12 @@ export function renderPriorityActionsWidget(container, model) {
       shown: rows.length,
       emptyMessage: 'No urgent follow-ups — nice work!'
     }));
+
+    if (shell) {
+      shell.setAttribute('aria-hidden', 'false');
+      const header = shell.querySelector('.labs-widget__header');
+      if (header && !header.getAttribute('data-help')) header.setAttribute('data-help', 'priority-actions');
+    }
 
     if (status !== 'ok') {
       // Compliance: Explicitly ensure the empty state DOM contract is met
