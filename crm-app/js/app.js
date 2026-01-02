@@ -1413,6 +1413,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       sync(snapshot.ids, snapshot.count);
     });
 
+    // Initial sync for this table
+    const current = store.get(scope);
+    if (current && current.size > 0) {
+      sync(current, current.size);
+    }
+
     const refresh = () => {
       if (cleaned || refreshing) return;
       refreshing = true;
@@ -1529,8 +1535,18 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       seen.add(row);
       const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
       if (!id) return null;
-      const checkbox = row.querySelector('[data-ui="row-check"]');
+      const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
+      let checkbox = null;
+      for (let i = 0; i < checkboxes.length; i++) {
+        const cb = checkboxes[i];
+        // Check standard hidden, aria-hidden, OR data-auto-hidden
+        if (!cb.hidden && cb.getAttribute('aria-hidden') !== 'true' && cb.getAttribute('data-auto-hidden') !== '1') {
+          checkbox = cb;
+          break;
+        }
+      }
       if (!checkbox) return null;
+
       const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
@@ -1952,6 +1968,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (!store) return;
     initSelectionBindings.__wired = true;
     store.subscribe(handleSelectionSnapshot);
+
     const handleChange = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
