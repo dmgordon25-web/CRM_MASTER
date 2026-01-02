@@ -3044,19 +3044,68 @@ export function renderPipelineCalendarWidget(container, model) {
 export function renderFavoritesWidget(container, model) {
   let shell;
   try {
-    // PARITY: Favorites should come from 'favorites' collection if available, or fallback to known good lists.
-    // Dashboard typically uses a Favorites store. Labs model should have it.
-    // Fallback to recentLeads only if favorites missing.
-    const favoritesSource = Array.isArray(model.favorites) ? model.favorites : (model.snapshot?.focus?.recentLeads || []);
-    const displayedFavorites = favoritesSource.slice(0, 8);
-    const status = favoritesSource.length ? 'ok' : 'empty';
+    const contactsById = model?.contactsById || {};
+    const partnersById = model?.partnersById || {};
+    const favoritesSource = Array.isArray(model.favorites) ? model.favorites : [];
+    const favoriteRecords = [];
+
+    favoritesSource.forEach((favorite) => {
+      if (!favorite) return;
+      const kind = favorite.type === 'partner' ? 'partner' : 'contact';
+      const rawId = kind === 'partner'
+        ? (favorite.partnerId || favorite.id)
+        : (favorite.contactId || favorite.id);
+      const id = rawId == null ? '' : String(rawId);
+      if (!id) return;
+      const record = kind === 'partner' ? (partnersById[id] || favorite) : (contactsById[id] || favorite);
+      if (!record) return;
+
+      const name = kind === 'partner'
+        ? (record.name || record.company || record.displayName || '—')
+        : (record.displayName || record.name || record.fullName || record.borrowerName || '—');
+
+      const subtitleParts = [];
+      if (kind === 'partner') {
+        if (record.company) subtitleParts.push(record.company);
+        if (record.cadence) subtitleParts.push(record.cadence);
+      } else {
+        const next = record.nextFollowUp || record.fundedDate || record.lastContact || '';
+        if (next) {
+          const nextDate = new Date(next);
+          if (!Number.isNaN(nextDate.getTime())) subtitleParts.push(`Next ${nextDate.toISOString().slice(0, 10)}`);
+        }
+        if (Number(record.loanAmount || 0)) subtitleParts.push(`$${Number(record.loanAmount || 0).toLocaleString()}`);
+      }
+
+      const subtitle = subtitleParts.filter(Boolean).join(' • ') || '—';
+      const metaLabel = kind === 'partner' ? (record.tier || 'Partner') : (record.stage || 'Stage');
+
+      favoriteRecords.push({
+        kind,
+        id,
+        name,
+        subtitle,
+        metaLabel,
+        record
+      });
+    });
+
+    favoriteRecords.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    const displayedFavorites = favoriteRecords.slice(0, 8);
+    const status = favoriteRecords.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('favorites', {
       status,
-      count: favoritesSource.length,
+      count: favoriteRecords.length,
       shown: displayedFavorites.length,
       emptyMessage: 'No favorites yet — star leads to pin them here.'
     }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) {
+      header.setAttribute('data-help', 'favorites');
+    }
 
     if (status !== 'ok') {
       return shell;
@@ -3066,33 +3115,35 @@ export function renderFavoritesWidget(container, model) {
       const listEl = document.createElement('div');
       listEl.className = 'favorite-list';
 
-      displayedFavorites.forEach((lead, idx) => {
+      displayedFavorites.forEach((favorite, idx) => {
         const row = document.createElement('div');
         row.className = 'favorite-row';
         row.style.animationDelay = `${idx * 0.05}s`;
 
-        // Ensure we have a display name. Favorites might have raw DB fields.
-        const displayName = lead.displayName || lead.name
-          || (model.getContactDisplayName ? model.getContactDisplayName(lead.id || lead.contactId) : 'Favorite');
+        const nameEl = document.createElement('div');
+        nameEl.className = 'favorite-name';
+        nameEl.textContent = favorite.name;
 
-        const stageLabel = lead.stageLabel || STAGE_CONFIG[normalizeStagesForDisplay(lead.stage)]?.label || lead.stage || '';
+        const subtitleEl = document.createElement('div');
+        subtitleEl.className = 'favorite-stage';
+        subtitleEl.textContent = favorite.subtitle;
 
-        row.innerHTML = `
-          <div class="favorite-name">${displayName}</div>
-          <div class="favorite-stage">${stageLabel}</div>
-        `;
+        const metaEl = document.createElement('div');
+        metaEl.className = 'favorite-stage';
+        metaEl.textContent = favorite.metaLabel;
+
+        row.appendChild(nameEl);
+        row.appendChild(subtitleEl);
+        row.appendChild(metaEl);
 
         // Data attributes for delegation
-        const contactId = lead.id || lead.contactId;
-        const type = lead.type || (contactId && contactId.startsWith('p-') ? 'partner' : 'contact');
+        const type = favorite.kind;
 
         row.setAttribute('data-role', 'favorite-row');
-        if (contactId) {
-          if (type === 'partner') {
-            row.setAttribute('data-partner-id', contactId);
-          } else {
-            row.setAttribute('data-contact-id', contactId);
-          }
+        if (type === 'partner') {
+          row.setAttribute('data-partner-id', favorite.id);
+        } else {
+          row.setAttribute('data-contact-id', favorite.id);
         }
 
         row.style.cursor = 'pointer';

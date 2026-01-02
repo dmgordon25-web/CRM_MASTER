@@ -217,6 +217,10 @@ helpSystem.register('favorites-widget', {
     title: 'Favorites',
     content: 'Pinned contacts and partners. Star a record to keep it at the top of your workspace.'
 });
+helpSystem.register('favorites', {
+    title: 'Favorites',
+    content: 'Pinned contacts and partners. Star a record to keep it at the top of your workspace.'
+});
 
 // View Content
 helpSystem.register('contacts-view', {
