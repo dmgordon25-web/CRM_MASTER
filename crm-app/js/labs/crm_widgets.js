@@ -38,6 +38,7 @@ import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widgets/todo_widget.js';
 import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
 import { computePipelineSnapshot } from './helpers/pipeline_snapshot_logic.js';
+import { getNotificationsSnapshot, markNotificationsRead, subscribeNotifications } from './helpers/notifications_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
 import { openContactModal, openContactEditor } from '../contacts.js';
@@ -309,6 +310,15 @@ export const WIDGET_META = {
     description: 'Year-to-date production progress versus goals.',
     category: 'pipeline',
     status: 'stable'
+  },
+  notifications: {
+    id: 'notifications',
+    icon: '🔔',
+    title: 'Notifications',
+    description: 'Workflow alerts and reminders from your queue.',
+    category: 'system',
+    status: 'stable',
+    helpId: 'notifications'
   },
   // ---------------------------------------------------------------------------
   // Hidden Feature Shortcut Widgets (Advanced-only)
@@ -3139,6 +3149,115 @@ export function renderFavoritesWidget(container, model) {
   return shell;
 }
 
+export function renderNotificationsWidget(container, _model) {
+  let shell;
+  let unsubscribe = null;
+
+  function describe(item) {
+    if (!item || typeof item !== 'object') return '(notification)';
+    if (item.title) return String(item.title);
+    if (item.meta && typeof item.meta.title === 'string') return item.meta.title;
+    return '(notification)';
+  }
+
+  function updateCount(shellEl, count) {
+    const pill = shellEl?.querySelector?.('.labs-widget__count-pill');
+    if (!pill) return;
+    const value = Number.isFinite(count) ? count : 0;
+    pill.textContent = String(value);
+    pill.style.display = value > 0 ? '' : 'none';
+  }
+
+  function renderList(shellEl, snapshot) {
+    const body = shellEl?._labsBody || shellEl?.querySelector?.('.labs-widget__body');
+    if (!body) return;
+    const list = body.querySelector('[data-role="notifications-list"]');
+    if (!list) return;
+
+    if (!snapshot.items.length) {
+      list.innerHTML = '<li class="muted" data-qa="notif-empty">No notifications</li>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    const seen = new Set();
+    for (let i = 0; i < snapshot.items.length; i += 1) {
+      const entry = snapshot.items[i];
+      if (!entry || !entry.id || !entry.item || seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      const li = document.createElement('li');
+      li.dataset.id = entry.id;
+      li.dataset.notificationId = entry.id;
+      li.textContent = describe(entry.item);
+      if (entry.item.state !== 'read') li.classList.add('unread');
+      frag.appendChild(li);
+    }
+
+    list.replaceChildren(frag);
+  }
+
+  function refresh(shellEl) {
+    const snapshot = getNotificationsSnapshot();
+    updateCount(shellEl, snapshot.unread);
+    renderList(shellEl, snapshot);
+  }
+
+  try {
+    shell = renderWidgetShell(container, widgetSpec('notifications', {
+      status: 'ok',
+      emptyMessage: 'No notifications',
+      count: 0
+    }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) header.setAttribute('data-help', 'notifications');
+
+    renderWidgetBody(shell, (body) => {
+      body.innerHTML = '';
+      const list = document.createElement('ul');
+      list.dataset.role = 'notifications-list';
+      list.className = 'labs-list';
+      body.appendChild(list);
+      return body;
+    });
+
+    const body = shell?._labsBody || shell?.querySelector?.('.labs-widget__body');
+    const list = body?.querySelector?.('[data-role="notifications-list"]');
+    if (list && !list.__notifClick) {
+      list.__notifClick = true;
+      list.addEventListener('click', (evt) => {
+        const target = evt.target?.closest?.('[data-notification-id]');
+        if (!target) return;
+        const id = target.dataset.notificationId || target.dataset.id;
+        if (id) markNotificationsRead([id]);
+        navigateToRoute('#/notifications');
+      });
+    }
+
+    refresh(shell);
+    unsubscribe = subscribeNotifications(() => refresh(shell));
+  } catch (err) {
+    console.error('[labs] notifications render failed', err);
+    shell = renderWidgetShell(container, widgetSpec('notifications', {
+      status: 'error',
+      errorMessage: 'Unable to load notifications'
+    }));
+  }
+
+  if (unsubscribe && shell) {
+    const observer = new MutationObserver(() => {
+      if (shell.isConnected) return;
+      try { observer.disconnect(); }
+      catch (_) {}
+      try { unsubscribe(); }
+      catch (_) {}
+    });
+    observer.observe(shell, { childList: true, subtree: true });
+  }
+
+  return shell;
+}
+
 // =======================
 // Hidden Feature Shortcut Widgets (Advanced-only)
 // =======================
@@ -3358,6 +3477,7 @@ export const CRM_WIDGET_RENDERERS = {
   closingWatch: renderClosingWatchWidget,
   upcomingCelebrations: renderUpcomingCelebrationsWidget,
   docCenter: renderDocPulseWidget,
+  notifications: renderNotificationsWidget,
   favorites: renderFavoritesWidget,
   // Hidden feature shortcuts (Advanced-only, experimental)
   printSuiteShortcut: renderPrintSuiteShortcutWidget,
