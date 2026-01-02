@@ -4191,6 +4191,34 @@ dialog::backdrop {
   color: var(--ink)
 }
 
+.modal-title-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-title-row .modal-title {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.modal-title-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .modal-header .btn {
   min-width: auto
 }
@@ -5273,6 +5301,18 @@ table.list-table td[data-column="nextAction"] {
   gap: 6px
 }
 
+.contact-header .status-pill,
+.partner-header .status-pill {
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.contact-header [data-role="stage-chip-wrapper"] .stage-chip,
+.partner-header [data-role="stage-chip-wrapper"] .stage-chip {
+  font-size: 12px;
+}
+
 .summary-actions {
   display: inline-flex;
   align-items: center;
@@ -6321,6 +6361,32 @@ main:not(#view-calendar) .calendar-grid {
   margin: 0 0 4px;
   font-size: 14px;
   color: #0f172a;
+}
+
+.help-popover-short {
+  margin: 0 0 6px;
+  color: #475569;
+}
+
+.help-details {
+  margin: 0;
+}
+
+.help-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.help-details-body {
+  color: #475569;
+  font-size: 12px;
+}
+
+.help-details-body ul {
+  padding-left: 18px;
+  margin: 0;
 }
 
 /* Calendar Legend */

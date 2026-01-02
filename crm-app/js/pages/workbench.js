@@ -6,6 +6,7 @@ import { attachStatusBanner } from '../ui/status_banners.js';
 import { ensureActionBarPostPaintRefresh } from '../ui/action_bar.js';
 import { getColumnsForView } from '../tables/column_config.js';
 import { getUiMode, onUiModeChanged } from '../ui/ui_mode.js';
+import { createHelpIcon } from '../ui/help.js';
 
 const CONTACT_PIPELINE_STAGES = ['application', 'processing', 'underwriting', 'negotiating'];
 const CONTACT_CLIENT_STAGES = ['approved', 'cleared-to-close', 'funded', 'post-close', 'post close', 'won'];
@@ -2874,6 +2875,12 @@ function buildWindow(lensState){
   title.textContent = config.label;
   title.className = 'workbench-window__title';
   header.appendChild(title);
+
+  const helpIcon = createHelpIcon('workbench-window', `${config.label} help`);
+  if (helpIcon) {
+    helpIcon.classList.add('workbench-help');
+    header.appendChild(helpIcon);
+  }
 
   const count = document.createElement('span');
   count.className = 'workbench-window__count muted';
