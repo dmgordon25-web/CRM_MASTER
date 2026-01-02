@@ -12,6 +12,7 @@ async function bootToContacts(page) {
 
 test.describe('Select All Regression Proof', () => {
     test('Select All behaves correctly with partial selection', async ({ page }) => {
+        page.on('console', msg => console.log('PAGE LOG:', msg.text()));
         await bootToContacts(page);
 
         // Wait for table to be populated
@@ -75,5 +76,35 @@ test.describe('Select All Regression Proof', () => {
         for (let i = 0; i < count; i++) {
             await expect(rows.nth(i).locator('input[data-ui="row-check"]')).not.toBeChecked();
         }
+
+        // 5. REGRESSION TEST: Navigate away and back
+        console.log('Navigating to Dashboard and back to check re-render binding');
+        await page.click('#main-nav button[data-nav="dashboard"]');
+        await page.waitForSelector('#view-dashboard', { state: 'visible' });
+        await page.click('#main-nav button[data-nav="contacts"]');
+        await page.waitForSelector('#view-contacts', { state: 'visible' });
+        await page.waitForFunction(() => document.querySelectorAll('#view-contacts tbody tr').length > 0);
+
+        // 6. Select All again -> Should work (expect N selected)
+
+        // Handle persistence: If already selected, we expect Clear first
+        const initCount = await actionBar.getAttribute('data-count');
+        const persisted = initCount === String(count);
+
+        const newSelectAll = page.locator('#view-contacts input[data-role="select-all"]');
+        await expect(newSelectAll).toBeVisible();
+
+        if (persisted) {
+            await newSelectAll.click(); // Clear
+            await expect(actionBar).not.toBeVisible({ timeout: 5000 });
+            await newSelectAll.click(); // Select All
+        } else {
+            await newSelectAll.click();
+        }
+
+        // Verify all selected again
+        await expect(actionBar).toHaveAttribute('data-count', String(count), { timeout: 20000 });
+        await expect(actionBar).toHaveAttribute('data-count', String(count), { timeout: 20000 });
     });
 });
+

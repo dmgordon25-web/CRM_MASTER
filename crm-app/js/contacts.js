@@ -3340,6 +3340,7 @@ export async function openCalendarEntityEditor(eventLike, options) {
 }
 
 const CONTACT_ROW_TARGETS = [
+  { key: 'contacts:main', tableId: 'tbl-contacts', surface: 'contacts', sourceHint: 'contacts:list-row', selectionReason: 'contacts:row-open' },
   { key: 'contacts:list', tableId: 'tbl-longshots', surface: 'pipeline', sourceHint: 'longshots:list-row', selectionReason: 'pipeline:row-open' },
   { key: 'pipeline:table', tableId: 'tbl-pipeline', surface: 'pipeline', sourceHint: 'pipeline:list-row', selectionReason: 'pipeline:row-open' },
   { key: 'pipeline:clients', tableId: 'tbl-clients', surface: 'pipeline', sourceHint: 'pipeline:clients-row', selectionReason: 'pipeline:row-open' }
@@ -3444,14 +3445,20 @@ function bindContactTables() {
       return;
     }
     wireContactRowSelection(table);
+    if (typeof window.ensureRowCheckHeaderForTable === 'function') {
+      window.ensureRowCheckHeaderForTable(table);
+    }
     if (binding.root === table && binding.bound) return;
     detachBinding(binding);
     const handler = (event) => {
+      // console.log('[DEBUG] contacts.js table click', event.target);
       if (!event || event.__crmRowEditorHandled) return;
       const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
       if (skip) return;
       const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
-      if (control) return;
+      if (control) {
+        return;
+      }
       const anchor = event.target?.closest?.('a');
       if (anchor && !anchor.closest('[data-role="contact-name"],.contact-name')) return;
       const row = event.target?.closest?.('tr[data-contact-id],tr[data-id]');

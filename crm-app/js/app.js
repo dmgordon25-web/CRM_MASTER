@@ -1354,6 +1354,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         removalObserver = null;
       }
       TABLE_SELECT_ALL_BINDINGS.delete(table);
+      if (table.__crmRowCheckBound === binding) {
+        table.__crmRowCheckBound = null;
+      }
     };
 
     const sync = (ids, count) => {
@@ -1371,17 +1374,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     };
 
     const handleTableChange = (event) => {
-      const target = event && event.target;
-      if (cleaned) return;
-      const nextHeader = ensureHeader();
-      if (!nextHeader) return;
-      if (target !== nextHeader) return;
-      if (!table.isConnected) {
-        cleanup();
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+
+      const role = target.dataset ? target.dataset.role : null;
+      if (role === 'select-all') {
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        applySelectAllToStore(target, store);
         return;
       }
-      nextHeader.indeterminate = false;
-      applyHeaderSelectAll(nextHeader);
     };
 
     try {
@@ -1525,15 +1527,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const id = row.getAttribute('data-id');
+      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
       if (!id) return null;
-      const checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
+      const checkbox = row.querySelector('[data-ui="row-check"]');
       if (!checkbox) return null;
       const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
-    scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
+    scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id]').forEach(row => {
       const entry = addRow(row);
       if (entry) rows.push(entry);
     });
@@ -1576,8 +1578,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     // Check if we currently have all visible targets selected
     const allVisibleAreSelected = targets.length > 0 && targets.every(entry => next.has(entry.id));
-
-
 
     if (allVisibleAreSelected) {
       // CLEAR OPERATION
@@ -2008,6 +2008,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (err) { logAppError('selection:wire-select-all', err); }
     if (typeof window !== 'undefined') {
       window.syncSelectionScope = syncSelectionScope;
+      window.ensureRowCheckHeaderForTable = ensureRowCheckHeaderForTable;
+      window.wireSelectAllForTable = wireSelectAllForTable;
     }
   }
 
