@@ -21,11 +21,12 @@ export function enableVNextGrid(container, sectionId) {
     console.log(`[vNext] Initializing grid for ${sectionId}`);
     console.log('[ZNEXT] enableVNextGrid entered');
 
-    // 1. Destroy existing instance if any
     if (activeGrids.has(sectionId)) {
-        const old = activeGrids.get(sectionId);
-        old.destroy(false); // don't remove elements
-        activeGrids.delete(sectionId);
+        const existing = activeGrids.get(sectionId);
+        if (existing.container === container && existing.grid) {
+            return existing.grid;
+        }
+        disableVNextGrid(sectionId);
     }
 
     // 2. Prepare DOM structure for Gridstack
@@ -42,21 +43,16 @@ export function enableVNextGrid(container, sectionId) {
     // - Apply saved layout.
 
     const savedLayout = loadVNextLayout(sectionId);
-    const elements = Array.from(container.children).filter(el => el.hasAttribute('data-widget-id'));
+    unwrapGridContainer(container);
 
-    // Clear container to rebuild structure safely
-    // (We detach elements, wrap them, re-append)
+    const elements = Array.from(container.children).filter(el => el.hasAttribute('data-widget-id'));
     const fragment = document.createDocumentFragment();
 
     elements.forEach(el => {
-        // Determine props
         const widgetId = el.getAttribute('data-widget-id');
         const saved = savedLayout ? savedLayout.find(item => item.id === widgetId) : null;
-
-        // Default size mapping
-        // If saved exists, use it. Else infer from class.
-        let w = 4; // default small
-        let h = 4; // default height units
+        let w = 4;
+        let h = 4;
 
         if (saved) {
             w = saved.width || saved.w || 4;
@@ -64,36 +60,27 @@ export function enableVNextGrid(container, sectionId) {
         } else {
             if (el.classList.contains('w2')) w = 8;
             if (el.classList.contains('w3')) w = 12;
-            // Infer height approx from content? 
-            // Gridstack handles auto-height somewhat, but better to set a default.
         }
 
-        // Wrap
         const wrapper = document.createElement('div');
         wrapper.className = 'grid-stack-item';
-        // Compatibility: Set both dataset and manual attributes for different GS versions
         wrapper.setAttribute('data-gs-id', widgetId);
+        wrapper.setAttribute('gs-id', widgetId);
         wrapper.setAttribute('data-gs-width', w);
         wrapper.setAttribute('data-gs-height', h);
+        wrapper.setAttribute('data-gs-x', saved ? saved.x : 0);
+        wrapper.setAttribute('data-gs-y', saved ? saved.y : 0);
         wrapper.setAttribute('gs-w', w);
         wrapper.setAttribute('gs-h', h);
+        wrapper.setAttribute('gs-x', saved ? saved.x : 0);
+        wrapper.setAttribute('gs-y', saved ? saved.y : 0);
 
-        if (saved) {
-            wrapper.setAttribute('data-gs-x', saved.x);
-            wrapper.setAttribute('data-gs-y', saved.y);
-            wrapper.setAttribute('gs-x', saved.x);
-            wrapper.setAttribute('gs-y', saved.y);
-        }
-
-        // Fix: Manually set CSS variables to bridge JS/CSS version mismatch
-        // The CSS expects --gs-column-width but old JS might not set it.
         const pct = (w / 12) * 100;
         wrapper.style.setProperty('--gs-column-width', `${pct}%`);
         wrapper.style.setProperty('--gs-cell-height', `${h * 120}px`);
 
         const content = document.createElement('div');
         content.className = 'grid-stack-item-content';
-        // Move element into content
         content.appendChild(el);
 
         wrapper.appendChild(content);
@@ -136,12 +123,15 @@ export function enableVNextGrid(container, sectionId) {
         }
     }, container);
 
-    // 4. Persistence
-    grid.on('change', (event, items) => {
-        saveVNextLayout(sectionId, grid);
-    });
+    const handleChange = () => scheduleSave(sectionId, grid);
+    grid.on('change', handleChange);
 
-    activeGrids.set(sectionId, grid);
+    activeGrids.set(sectionId, {
+        grid,
+        container,
+        changeHandler: handleChange,
+        saveTimer: null
+    });
 }
 
 function loadVNextLayout(sectionId) {
@@ -162,5 +152,61 @@ function saveVNextLayout(sectionId, grid) {
         width: node.width,
         height: node.height
     }));
-    localStorage.setItem(VNEXT_STORAGE_PREFIX + sectionId, JSON.stringify(layout));
+    try {
+        localStorage.setItem(VNEXT_STORAGE_PREFIX + sectionId, JSON.stringify(layout));
+    } catch (e) {
+        console.warn('[vNext] Unable to persist layout', e);
+    }
+}
+
+function scheduleSave(sectionId, grid) {
+    const entry = activeGrids.get(sectionId);
+    if (!entry) return;
+    if (entry.saveTimer) {
+        clearTimeout(entry.saveTimer);
+    }
+    entry.saveTimer = setTimeout(() => {
+        saveVNextLayout(sectionId, grid);
+        entry.saveTimer = null;
+    }, 300);
+}
+
+export function disableVNextGrid(sectionId) {
+    const entry = activeGrids.get(sectionId);
+    if (!entry) return;
+    if (entry.saveTimer) {
+        clearTimeout(entry.saveTimer);
+        entry.saveTimer = null;
+    }
+    if (entry.grid && entry.changeHandler && entry.grid.off) {
+        entry.grid.off('change', entry.changeHandler);
+    }
+    if (entry.grid && entry.grid.destroy) {
+        entry.grid.destroy(false);
+    }
+    if (entry.container) {
+        unwrapGridContainer(entry.container);
+        entry.container.classList.remove('grid-stack');
+    }
+    activeGrids.delete(sectionId);
+}
+
+function unwrapGridContainer(container) {
+    const items = Array.from(container.querySelectorAll(':scope > .grid-stack-item'));
+    if (!items.length) return;
+    const fragment = document.createDocumentFragment();
+    items.forEach(item => {
+        const content = item.querySelector('.grid-stack-item-content');
+        if (content) {
+            while (content.firstChild) {
+                fragment.appendChild(content.firstChild);
+            }
+        } else {
+            while (item.firstChild) {
+                fragment.appendChild(item.firstChild);
+            }
+        }
+    });
+    container.innerHTML = '';
+    container.appendChild(fragment);
 }
