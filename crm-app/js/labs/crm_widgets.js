@@ -1372,6 +1372,11 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
       count: totalReferrals
     }));
 
+    if (shell) {
+      shell.setAttribute('data-gs-w', '6');
+      shell.setAttribute('data-gs-h', '4');
+    }
+
     const header = shell?.querySelector?.('.labs-widget__header');
     if (header) {
       header.setAttribute('data-help', 'referral-leaders');
@@ -1413,8 +1418,8 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
           row.setAttribute('data-role', 'referral-row');
           row.setAttribute('data-partner-id', partnerDisplay.id);
           row.setAttribute('data-dash-widget', 'leaderboard');
-          row.setAttribute('data-widget', 'leaderboard');
-          row.setAttribute('data-widget-id', 'leaderboard');
+          row.setAttribute('data-widget', 'referralLeaderboard');
+          row.setAttribute('data-widget-id', 'referralLeaderboard');
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
         }
@@ -1639,6 +1644,11 @@ export function renderTodayWidget(container, model) {
       shown: totalItems,
       emptyMessage: 'Nothing due today.'
     }));
+
+    if (shell) {
+      shell.setAttribute('data-gs-w', '6');
+      shell.setAttribute('data-gs-h', '5');
+    }
 
     const header = shell?.querySelector?.('.labs-widget__header');
     if (header) header.setAttribute('data-help', 'todays-work');
@@ -2078,7 +2088,8 @@ export function renderPriorityActionsWidget(container, model) {
     }));
 
     if (shell) {
-      shell.setAttribute('aria-hidden', 'false');
+      shell.setAttribute('data-gs-w', '6');
+      shell.setAttribute('data-gs-h', '4');
       const header = shell.querySelector('.labs-widget__header');
       if (header && !header.getAttribute('data-help')) header.setAttribute('data-help', 'priority-actions');
     }
@@ -2498,6 +2509,8 @@ export function renderUpcomingCelebrationsWidget(container, model) {
     }));
 
     if (shell) {
+      shell.setAttribute('data-gs-w', '4');
+      shell.setAttribute('data-gs-h', '3');
       shell.setAttribute('data-help', 'birthdays-anniversaries');
     }
 
@@ -3081,6 +3094,11 @@ export function renderFavoritesWidget(container, model) {
       shown: displayedFavorites.length,
       emptyMessage: 'No favorites yet — star leads to pin them here.'
     }));
+
+    if (shell) {
+      shell.setAttribute('data-gs-w', '4');
+      shell.setAttribute('data-gs-h', '3');
+    }
 
     const header = shell?.querySelector?.('.labs-widget__header');
     if (header) {

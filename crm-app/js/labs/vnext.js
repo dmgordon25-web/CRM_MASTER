@@ -6,6 +6,7 @@
 // Import bundled Gridstack
 // Since we used curl to vendor it, we reference it relative to this file
 import '../../vendor/gridstack/gridstack.all.js';
+import { VNEXT_WIDGET_DEFAULTS } from './vnext_widget_meta.js';
 
 const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
 let activeGrids = new Map();
@@ -51,6 +52,7 @@ export function enableVNextGrid(container, sectionId) {
     elements.forEach(el => {
         const widgetId = el.getAttribute('data-widget-id');
         const saved = savedLayout ? savedLayout.find(item => item.id === widgetId) : null;
+        const defaults = VNEXT_WIDGET_DEFAULTS[widgetId] || {};
         let w = 4;
         let h = 4;
 
@@ -58,8 +60,16 @@ export function enableVNextGrid(container, sectionId) {
             w = saved.width || saved.w || 4;
             h = saved.height || saved.h || 4;
         } else {
-            if (el.classList.contains('w2')) w = 8;
-            if (el.classList.contains('w3')) w = 12;
+            const attrW = el.getAttribute('data-gs-w') || el.getAttribute('data-gs-width');
+            const attrH = el.getAttribute('data-gs-h') || el.getAttribute('data-gs-height');
+            if (attrW) w = Number.parseInt(attrW, 10) || w;
+            if (attrH) h = Number.parseInt(attrH, 10) || h;
+            if (!attrW && defaults.w) w = defaults.w;
+            if (!attrH && defaults.h) h = defaults.h;
+            if (!attrW && !defaults.w) {
+                if (el.classList.contains('w2')) w = 8;
+                if (el.classList.contains('w3')) w = 12;
+            }
         }
 
         const wrapper = document.createElement('div');
