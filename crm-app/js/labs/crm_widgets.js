@@ -39,7 +39,7 @@ import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widg
 import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
-import { openContactEditor } from '../contacts.js';
+import { openContactModal, openContactEditor } from '../contacts.js';
 import { openPartnerEditor } from '../editors/partner_entry.js';
 
 const DAY_MS = 86400000;
@@ -1779,8 +1779,8 @@ export function renderTodayWidget(container, model) {
         if (contactBtn) {
           event.preventDefault();
           const id = contactBtn.getAttribute('data-contact-id');
-          if (id) {
-            openContactEditor(id, { source: 'labs-today' });
+          if (id && typeof openContactModal === 'function') {
+            openContactModal(id, { sourceHint: 'labs-today', trigger: contactBtn });
           }
         }
       };
