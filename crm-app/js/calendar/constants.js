@@ -1,4 +1,3 @@
-
 export const EVENT_CATEGORIES = Object.freeze([
     { key: 'call', label: 'Call', icon: '📞', type: 'task', accent: '--accent-task', tokens: ['call', 'phone'] },
     { key: 'email', label: 'Email', icon: '✉️', type: 'task', accent: '--accent-task', tokens: ['email', 'mail'] },
@@ -13,4 +12,14 @@ export const EVENT_CATEGORIES = Object.freeze([
     { key: 'other', label: 'Other', icon: '📌', type: 'other', accent: '--accent-other', tokens: [] },
 ]);
 
-export const DEFAULT_EVENT_CATEGORY = EVENT_CATEGORIES.find(c => c.key === 'other') || EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1];
+export const EVENT_CATEGORY_MAP = EVENT_CATEGORIES.reduce((acc, meta) => {
+    acc[meta.key] = meta;
+    return acc;
+}, {});
+
+export const DEFAULT_EVENT_CATEGORY = EVENT_CATEGORY_MAP.other || EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1];
+
+export function categoryForKey(key) {
+    if (!key) return DEFAULT_EVENT_CATEGORY;
+    return EVENT_CATEGORY_MAP[key] || DEFAULT_EVENT_CATEGORY;
+}

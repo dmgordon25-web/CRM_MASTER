@@ -1,7 +1,7 @@
 
 import { rangeForView, addDays, ymd, loadEventsBetween, parseDateInput, toLocalMidnight, isWithinRange } from './calendar/index.js';
 import { renderLegend } from './calendar/legend.js';
-import { EVENT_CATEGORIES, DEFAULT_EVENT_CATEGORY } from './calendar/constants.js';
+import { EVENT_CATEGORIES, DEFAULT_EVENT_CATEGORY, categoryForKey } from './calendar/constants.js';
 import { openContactEditor } from './contacts.js';
 import { openTaskEditor } from './ui/quick_create_menu.js';
 import { openPartnerEditor } from './editors/partner_entry.js';
@@ -46,6 +46,60 @@ const DAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'l
 const TASK_HINT_TOKENS = new Set(['task', 'todo', 'followup', 'follow-up', 'call', 'reminder']);
 const PARTNER_HINT_TOKENS = new Set(['partner', 'referral', 'lender', 'broker']);
 const CONTACT_HINT_TOKENS = new Set(['contact', 'client', 'meeting', 'appointment', 'birthday', 'anniversary', 'lead']);
+const LEGEND_STORAGE_KEY = 'calendar:legend:visibility';
+
+function buildLegendDefaults() {
+  const visibility = {};
+  EVENT_CATEGORIES.forEach((meta) => {
+    visibility[meta.key] = true;
+  });
+  return visibility;
+}
+
+function normalizeLegendVisibility(input) {
+  const base = buildLegendDefaults();
+  if (!input || typeof input !== 'object') return base;
+  Object.keys(base).forEach((key) => {
+    if (input[key] === false) base[key] = false;
+  });
+  return base;
+}
+
+function loadLegendVisibility() {
+  if (typeof localStorage === 'undefined') return buildLegendDefaults();
+  try {
+    const raw = localStorage.getItem(LEGEND_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return normalizeLegendVisibility(parsed);
+    }
+  } catch (_err) { }
+  return buildLegendDefaults();
+}
+
+function persistLegendVisibility(next) {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(LEGEND_STORAGE_KEY, JSON.stringify(normalizeLegendVisibility(next))); }
+  catch (_err) { }
+}
+
+function filterEventsByLegend(events, visibility) {
+  const vis = visibility || {};
+  return (Array.isArray(events) ? events : []).filter((event) => {
+    if (!event || !event.categoryKey) return true;
+    return vis[event.categoryKey] !== false;
+  });
+}
+
+function hasLegendTogglesDisabled(visibility) {
+  const vis = visibility || {};
+  return EVENT_CATEGORIES.some((meta) => vis[meta.key] === false);
+}
+
+function legendFullyDisabled(visibility) {
+  const vis = visibility || {};
+  return EVENT_CATEGORIES.every((meta) => vis[meta.key] === false);
+}
 
 function formatISODate(value) {
   const date = value instanceof Date ? new Date(value.getTime()) : parseDateInput(value);
@@ -876,7 +930,7 @@ function metaForEvent(event) {
       return meta;
     }
   }
-  return EVENT_CATEGORIES.find((meta) => meta.tokens.length === 0) || DEFAULT_EVENT_CATEGORY;
+  return categoryForKey('other');
 }
 
 function colorForEvent(event) {
@@ -1304,6 +1358,9 @@ function createEventNode(event, handlers) {
   if (event.categoryKey) node.dataset.category = event.categoryKey;
   node.dataset.label = event.label || '';
   node.tabIndex = 0;
+  if (event.color || event.accentToken) {
+    node.style.setProperty('--event-accent', event.color || `var(${event.accentToken})`);
+  }
 
   const meta = event.categoryLabel ? { label: event.categoryLabel, icon: event.icon } : metaForEvent(event);
   const header = DOC.createElement('div');
@@ -1794,7 +1851,9 @@ function renderSurface(mount, state, handlers) {
   const range = rangeForView(state.anchor, state.view);
   updateCalendarLabel(range, state.view);
   markActiveView(state.view);
-  const viewResult = renderView(range, state.events, state.view, handlers);
+  // Legend visibility is applied here so data remains intact while the UI hides filtered types.
+  const renderEvents = filterEventsByLegend(state.events, state.legendVisibility);
+  const viewResult = renderView(range, renderEvents, state.view, handlers);
   const wrapper = DOC.createElement('div');
   wrapper.className = 'calendar-surface';
   wrapper.style.display = 'grid';
@@ -1816,7 +1875,10 @@ function renderSurface(mount, state, handlers) {
       detachLoadingBlock(cardHost);
     }
   }
-  const emptyCopy = state.view === 'month' ? 'No events this month.' : 'No events scheduled for this period.';
+  const legendDisabled = legendFullyDisabled(state.legendVisibility);
+  const legendFilteredEmpty = !renderEvents.length && state.events.length > 0 && hasLegendTogglesDisabled(state.legendVisibility);
+  const defaultEmpty = state.view === 'month' ? 'No events this month.' : 'No events scheduled for this period.';
+  const emptyCopy = legendDisabled || legendFilteredEmpty ? 'No event types enabled.' : defaultEmpty;
   if (state.loading) {
     statusBanner.showLoading('Loading…');
   } else if (state.errorMessage) {
@@ -1886,17 +1948,6 @@ export function initCalendar({ openDB, bus, services, mount }) {
     throw new Error('calendar mount unavailable');
   }
 
-  // Inject legend if safe
-  if (mount.parentNode) {
-    let legendContainer = mount.parentNode.querySelector('#calendar-legend-container');
-    if (!legendContainer) {
-      legendContainer = DOC.createElement('div');
-      legendContainer.id = 'calendar-legend-container';
-      mount.parentNode.insertBefore(legendContainer, mount);
-    }
-    renderLegend(legendContainer);
-  }
-
   const state = {
     view: 'month',
     anchor: toLocalMidnight(new Date()),
@@ -1909,12 +1960,37 @@ export function initCalendar({ openDB, bus, services, mount }) {
     retryRender: null,
     safeMode: isSafeModeActive(),
     primed: false,
+    legendVisibility: loadLegendVisibility(),
   };
 
   const debug = ensureDebug();
 
   let controlsBound = false;
   let rendering = Promise.resolve();
+  let legendContainer = null;
+
+  function renderLegendUI() {
+    if (!DOC || !mount.parentNode) return;
+    if (!legendContainer) {
+      legendContainer = mount.parentNode.querySelector('#calendar-legend-container');
+      if (!legendContainer) {
+        legendContainer = DOC.createElement('div');
+        legendContainer.id = 'calendar-legend-container';
+        mount.parentNode.insertBefore(legendContainer, mount);
+      }
+    }
+    renderLegend(legendContainer, { visibility: state.legendVisibility, onToggle: handleLegendToggle });
+  }
+
+  function handleLegendToggle(categoryKey, enabled) {
+    if (!categoryKey) return;
+    state.legendVisibility = normalizeLegendVisibility({ ...state.legendVisibility, [categoryKey]: enabled !== false });
+    persistLegendVisibility(state.legendVisibility);
+    renderLegendUI();
+    state.renderCount += 1;
+    state.loading = false;
+    renderSurface(mount, state, handlers);
+  }
 
   const dragState = {
     pointerId: null,
@@ -2215,6 +2291,8 @@ export function initCalendar({ openDB, bus, services, mount }) {
       bindDrag(node, event);
     },
   };
+
+  renderLegendUI();
 
   function ensureControls() {
     if (controlsBound) return;
