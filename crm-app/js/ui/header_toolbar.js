@@ -469,7 +469,7 @@ function unmountHeaderToolbarLifecycle(context) {
   }
 }
 
-const HEADER_ROUTES = ['dashboard', 'pipeline', 'partners', 'longshots', 'notifications', 'calendar', 'reports', 'workbench', 'settings', 'templates', 'print'];
+const HEADER_ROUTES = ['dashboard', 'pipeline', 'partners', 'longshots', 'notifications', 'calendar', 'reports', 'workbench', 'settings', 'templates', 'print', 'labs'];
 HEADER_ROUTES.forEach((route) => {
   onEnter(route, mountHeaderToolbarLifecycle);
   onLeave(route, unmountHeaderToolbarLifecycle);
