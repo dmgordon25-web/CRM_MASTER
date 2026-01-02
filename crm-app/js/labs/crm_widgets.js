@@ -1384,6 +1384,9 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
           row.classList.add('labs-row--clickable');
           row.setAttribute('data-role', 'referral-row');
           row.setAttribute('data-partner-id', partnerDisplay.id);
+          row.setAttribute('data-dash-widget', 'leaderboard');
+          row.setAttribute('data-widget', 'leaderboard');
+          row.setAttribute('data-widget-id', 'leaderboard');
           row.setAttribute('role', 'button');
           row.setAttribute('tabindex', '0');
         }
@@ -1399,7 +1402,9 @@ export function renderReferralLeaderboardWidget(container, model, opts = {}) {
         if (!target) return;
         const partnerId = target.getAttribute('data-partner-id');
         if (partnerId) {
-          openPartnerEditor(partnerId, { source: 'labs-referral' });
+          if (typeof event.preventDefault === 'function') event.preventDefault();
+          if (typeof event.stopPropagation === 'function') event.stopPropagation();
+          openPartnerEditor(partnerId, { source: 'dashboard', context: 'widget-click' });
         }
       });
 
