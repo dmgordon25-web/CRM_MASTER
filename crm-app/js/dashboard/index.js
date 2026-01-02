@@ -80,6 +80,7 @@ const TODAY_WIDGET_KEYS = new Set([
   'today',
   'todo',
   'favorites',
+  'priorityActions', // Default-visible in today mode; missing pref should not hide it.
   CELEBRATIONS_WIDGET_KEY
 ]);
 
