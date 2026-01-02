@@ -37,6 +37,7 @@ import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widgets/todo_widget.js';
 import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
+import { computePipelineSnapshot } from './helpers/pipeline_snapshot_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
 import { openContactModal, openContactEditor } from '../contacts.js';
@@ -533,32 +534,21 @@ export function renderLabsKpiSummaryWidget(container, model) {
 export function renderLabsPipelineSnapshotWidget(container, model) {
   let shell;
   try {
-    const stages = Object.keys(STAGE_CONFIG);
-    const normalizedCounts = stages.reduce((acc, stage) => {
-      acc[stage] = 0;
-      return acc;
-    }, {});
-
-    const contactCounts = groupByStage(model.contacts || []);
-    const snapshotCounts = model.snapshot?.pipelineCounts || {};
-    const sourceCounts = Object.keys(snapshotCounts).length ? snapshotCounts : contactCounts;
-
-    Object.entries(sourceCounts).forEach(([stage, count]) => {
-      const normalized = normalizeStagesForDisplay(stage);
-      if (normalized && normalizedCounts.hasOwnProperty(normalized)) {
-        normalizedCounts[normalized] += count;
-      }
-    });
-
-    const total = Object.values(normalizedCounts).reduce((sum, value) => sum + value, 0);
+    const { stages, total } = computePipelineSnapshot(model);
     const status = total ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, {
       id: 'labsPipelineSnapshot',
       title: '🧭 Pipeline Snapshot',
+      helpId: 'pipeline-snapshot',
       status,
       emptyMessage: 'No pipeline data yet'
     });
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) {
+      header.dataset.help = 'pipeline-snapshot';
+    }
 
     if (status !== 'ok') {
       return shell;
@@ -572,14 +562,14 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
     `;
 
     const rowsHtml = stages.map((stage, idx) => {
-      const count = normalizedCounts?.[stage] || 0;
+      const count = stage.count || 0;
       const percent = total ? Math.round((count / total) * 100) : 0;
-      const config = STAGE_CONFIG[stage] || {};
+      const config = STAGE_CONFIG[stage.key] || {};
       return `
         <div class="momentum-bar-row" style="animation-delay:${idx * 0.05}s">
           <div class="momentum-label">
             <span class="stage-icon">${config.icon || '●'}</span>
-            <span class="stage-name">${config.label || stage}</span>
+            <span class="stage-name">${config.label || stage.label || stage.key}</span>
           </div>
           <div class="momentum-bar-container">
             <div class="momentum-bar" style="--bar-width:${percent}%; --bar-color:${config.color || '#6366f1'}">
