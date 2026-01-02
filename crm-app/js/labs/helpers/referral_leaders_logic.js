@@ -32,10 +32,12 @@ function buildPartnerResolver(partners = []) {
 }
 
 export function computeReferralLeaders({ contacts = [], partners = [], limit = 3 } = {}) {
-  const { resolve } = buildPartnerResolver(partners);
+  const safeContacts = Array.isArray(contacts) ? contacts : [];
+  const safePartners = Array.isArray(partners) ? partners : [];
+  const { resolve } = buildPartnerResolver(safePartners);
   const referralStats = new Map();
 
-  contacts.forEach((contact) => {
+  safeContacts.forEach((contact) => {
     if (!contact) return;
     const buyerId = contact.buyerPartnerId == null ? '' : String(contact.buyerPartnerId);
     const listingId = contact.listingPartnerId == null ? '' : String(contact.listingPartnerId);
