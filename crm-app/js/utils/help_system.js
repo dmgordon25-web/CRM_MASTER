@@ -161,6 +161,22 @@ helpSystem.register('doc-pulse', {
     title: 'Document Pulse',
     content: 'Track outstanding document requests. Ensure clients are providing necessary files on time.'
 });
+helpSystem.register('pipeline-snapshot', {
+    title: 'Pipeline Snapshot',
+    content: 'Counts by pipeline stage. Totals should match the classic dashboard pipeline summary.'
+});
+helpSystem.register('todo-widget', {
+    title: 'To-Do',
+    content: 'Lightweight personal checklist stored locally. Ideal for quick reminders that are not full tasks.'
+});
+helpSystem.register('celebrations', {
+    title: 'Birthdays & Anniversaries',
+    content: 'Upcoming birthdays and work anniversaries within the next week. Click a name to open the contact.'
+});
+helpSystem.register('favorites-widget', {
+    title: 'Favorites',
+    content: 'Pinned contacts and partners. Star a record to keep it at the top of your workspace.'
+});
 
 // View Content
 helpSystem.register('contacts-view', {

@@ -28,6 +28,9 @@ export function renderWidgetShell(container, spec = {}) {
   if (id) {
     shell.setAttribute('data-widget-id', id);
   }
+  if (spec.helpId) {
+    shell.setAttribute('data-help-id', spec.helpId);
+  }
   if (size) {
     shell.classList.add(`labs-widget--${size}`);
   }

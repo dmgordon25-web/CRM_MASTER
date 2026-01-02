@@ -93,6 +93,7 @@ export const WIDGET_META = {
     title: 'Pipeline Snapshot',
     description: 'Stage distribution across active deals.',
     category: 'pipeline',
+    helpId: 'pipeline-snapshot',
     status: 'stable'
   },
   labsTasks: {
@@ -109,6 +110,7 @@ export const WIDGET_META = {
     title: "Today's Work",
     description: 'Tasks, appointments, and celebrations happening now.',
     category: 'tasks',
+    helpId: 'today-work',
     status: 'stable'
   },
   todo: {
@@ -117,6 +119,7 @@ export const WIDGET_META = {
     title: 'To-Do',
     description: 'Your due and overdue tasks with quick links.',
     category: 'tasks',
+    helpId: 'todo-widget',
     status: 'stable'
   },
   favorites: {
@@ -125,6 +128,7 @@ export const WIDGET_META = {
     title: 'New Favorites',
     description: 'Recently favorited leads for quick access.',
     category: 'people',
+    helpId: 'favorites-widget',
     status: 'stable'
   },
   priorityActions: {
@@ -133,6 +137,7 @@ export const WIDGET_META = {
     title: 'Priority Actions',
     description: 'Overdue tasks and stale deals that need attention.',
     category: 'tasks',
+    helpId: 'priority-actions',
     status: 'stable'
   },
   partnerPortfolio: {
@@ -229,6 +234,7 @@ export const WIDGET_META = {
     title: 'Upcoming Celebrations',
     description: 'Birthdays and anniversaries for your contacts.',
     category: 'people',
+    helpId: 'celebrations',
     status: 'stable'
   },
   pipelineCalendar: {
@@ -1578,11 +1584,14 @@ export function renderTodayWidget(container, model) {
     const celebrations = getUpcomingCelebrations(model.contacts || [], 7).slice(0, 4);
     const appointments = getDedupedAppointments(model).slice(0, 5);
 
-    const hasItems = todayTasks.length || celebrations.length || appointments.length;
-    const status = hasItems ? 'ok' : 'empty';
+    const totalItems = todayTasks.length + celebrations.length + appointments.length;
+    const visibleCount = Math.min(todayTasks.length, 5) + Math.min(appointments.length, 3) + celebrations.length;
+    const status = totalItems ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('today', {
       status,
+      count: totalItems,
+      shown: visibleCount,
       emptyMessage: 'No tasks or events scheduled.'
     }));
 
@@ -2060,9 +2069,8 @@ export function renderPriorityActionsWidget(container, model) {
   let shell;
   try {
     const urgentTasks = filterTasksByDueWindow(model, (diff) => diff < 0 || diff <= 3);
-    const displayTasks = toDisplayTasks(model, urgentTasks).slice(0, 6);
-
-    const rows = displayTasks.map((task) => {
+    const displayTasks = toDisplayTasks(model, urgentTasks);
+    const rows = displayTasks.slice(0, 6).map((task) => {
       const dueTs = normalizeDueTs(task);
       const todayTs = startOfDayTs(model?.today || Date.now());
       const diff = todayTs === null || dueTs === null ? null : Math.floor((dueTs - todayTs) / DAY_MS);
@@ -2086,12 +2094,13 @@ export function renderPriorityActionsWidget(container, model) {
       };
     });
     const status = rows.length ? 'ok' : 'empty';
-    const totalCount = rows.length;
+    const totalCount = displayTasks.length;
 
     shell = renderWidgetShell(container, widgetSpec('priorityActions', {
       status,
       count: totalCount,
-      emptyMessage: 'No priority items found'
+      shown: rows.length,
+      emptyMessage: 'No urgent follow-ups — nice work!'
     }));
 
     if (status !== 'ok') {
@@ -2154,11 +2163,6 @@ export function renderPriorityActionsWidget(container, model) {
         const contactId = target.getAttribute('data-contact-id');
         if (contactId) {
           openContactEditor(contactId, { source: 'labs-priority' });
-          // Test parity: Ensure modal has expected class for verification
-          setTimeout(() => {
-            const m = document.querySelector('[data-ui="contact-edit-modal"]');
-            if (m) m.classList.add('editor-panel');
-          }, 50);
           return;
         }
 
@@ -2265,7 +2269,8 @@ export function renderMilestonesWidget(container, model) {
 export function renderUpcomingCelebrationsWidget(container, model) {
   let shell;
   try {
-    const celebrations = uniqByKey(model.celebrations || [], (cel) => {
+    const celebrationsSource = getUpcomingCelebrations(model.contacts || [], 7);
+    const celebrations = uniqByKey(celebrationsSource, (cel) => {
       const contactId = getStableId(cel?.contact) || cel?.contactId || 'unknown';
       const date = cel?.date || cel?.due || '';
       const type = cel?.type || 'unknown';
@@ -2278,7 +2283,7 @@ export function renderUpcomingCelebrationsWidget(container, model) {
       status,
       count: celebrations.length,
       shown: displayedCelebrations.length,
-      emptyMessage: 'No upcoming celebrations'
+      emptyMessage: 'No upcoming celebrations in the next 7 days.'
     }));
 
     if (status !== 'ok') {
@@ -2289,7 +2294,7 @@ export function renderUpcomingCelebrationsWidget(container, model) {
       const list = document.createElement('div');
       list.className = 'celebration-list';
 
-      celebrations.forEach((cel, idx) => {
+      displayedCelebrations.forEach((cel, idx) => {
         const row = document.createElement('div');
         row.className = 'celebration-row';
         row.style.animationDelay = `${idx * 0.05}s`;
@@ -2689,11 +2694,13 @@ export function renderFavoritesWidget(container, model) {
     // Dashboard typically uses a Favorites store. Labs model should have it.
     // Fallback to recentLeads only if favorites missing.
     const favoritesSource = Array.isArray(model.favorites) ? model.favorites : (model.snapshot?.focus?.recentLeads || []);
+    const displayedFavorites = favoritesSource.slice(0, 8);
     const status = favoritesSource.length ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('favorites', {
       status,
       count: favoritesSource.length,
+      shown: displayedFavorites.length,
       emptyMessage: 'No favorites yet — star leads to pin them here.'
     }));
 
@@ -2705,7 +2712,7 @@ export function renderFavoritesWidget(container, model) {
       const listEl = document.createElement('div');
       listEl.className = 'favorite-list';
 
-      favoritesSource.forEach((lead, idx) => {
+      displayedFavorites.forEach((lead, idx) => {
         const row = document.createElement('div');
         row.className = 'favorite-row';
         row.style.animationDelay = `${idx * 0.05}s`;
