@@ -1084,9 +1084,6 @@ export function normalizeContactId(input) {
         const favoriteState = ensureFavoriteState();
         const isFavoriteContact = favoriteState.contacts.has(String(c.id || ''));
         const favoriteToggleHtml = renderFavoriteToggle('contact', c.id, isFavoriteContact);
-        const summaryClasses = ['summary-name'];
-        if (isFavoriteContact) summaryClasses.push('is-favorite');
-        const summaryFavoriteAttr = isFavoriteContact ? ' data-favorite="1"' : '';
         const summaryIdAttr = escape(c.id || '');
         const referralSummaryMarkup = `<button type="button" class="btn-link more" data-role="referral-partner-summary"${referralPartnerId ? ` data-partner-id="${escape(referralPartnerId)}"` : ''}>${escape(referralPartnerLabel || 'Assign Referral Partner')}</button>`;
         const template = document.getElementById('contact-editor-template');
@@ -1127,22 +1124,20 @@ export function normalizeContactId(input) {
           const summaryHost = body.querySelector('[data-role="favorite-host"]');
           if (summaryHost) {
             // Phase 8: Identity Header Structure
-            summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
-            summaryHost.dataset.favoriteType = 'contact';
-            summaryHost.dataset.recordId = summaryIdAttr;
-            if (isFavoriteContact) summaryHost.dataset.favorite = '1';
-            else delete summaryHost.dataset.favorite;
-            summaryHost.innerHTML = `
+          summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
+          summaryHost.dataset.favoriteType = 'contact';
+          summaryHost.dataset.recordId = summaryIdAttr;
+          if (isFavoriteContact) summaryHost.dataset.favorite = '1';
+          else delete summaryHost.dataset.favorite;
+          summaryHost.innerHTML = `
             <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
               ${summaryAvatarMarkup}
-              <span class="summary-name-text" data-role="record-name-text">${escape(summaryLabel)}</span>
               <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
             </div>
             <div class="identity-secondary">
               <span hidden data-role="record-name-subtext">${escape(stageLabel)} • ${escape(statusLabel)}</span>
-              <span data-role="stage-chip-wrapper"></span>
-              <span class="sep">•</span>
-              <span class="status-pill"></span>
+              <span class="summary-chip" data-role="stage-chip-wrapper"></span>
+              <span class="status-pill" data-role="status-pill"></span>
             </div>
           `;
 
@@ -1664,12 +1659,13 @@ export function normalizeContactId(input) {
           const detailAmountEl = $('#c-detail-amount', body);
           const detailSourceEl = $('#c-detail-source', body);
           const detailReferralEl = $('#c-detail-referral', body);
-          const summaryName = body.querySelector('.summary-name');
-          const recordName = body.querySelector('[data-role="record-name-text"]');
-          const recordSubtext = body.querySelector('[data-role="record-name-subtext"]');
+          const dialogRoot = dlg || document;
+          const summaryHost = body.querySelector('[data-role="favorite-host"]');
+          const recordNameEls = dialogRoot.querySelectorAll('[data-role="record-name-text"]');
+          const recordSubtextEls = dialogRoot.querySelectorAll('[data-role="record-name-subtext"]');
           const summaryNote = $('#c-summary-note', body);
-          const stageWrap = body.querySelector('[data-role="stage-chip-wrapper"]');
-          const statusEl = body.querySelector('.status-pill');
+          const stageWraps = dialogRoot.querySelectorAll('[data-role="stage-chip-wrapper"]');
+          const statusEls = dialogRoot.querySelectorAll('[data-role="status-pill"], .status-pill[data-role]');
           const stageVal = $('#c-stage', body)?.value || 'application';
           const statusVal = $('#c-status', body)?.value || 'inprogress';
           const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
@@ -1717,42 +1713,41 @@ export function normalizeContactId(input) {
           if (touchEl) { touchEl.textContent = next || 'TBD'; }
           if (detailNextEl) { detailNextEl.textContent = nextDetailLabel || 'TBD'; }
           if (detailLastEl) { detailLastEl.textContent = lastDetailLabel; }
-          if (recordName) { recordName.textContent = displayName; }
-          if (recordSubtext) { recordSubtext.textContent = `${stageLabelText || 'Application'} • ${statusLabelText || 'In Progress'}`; }
-          if (summaryName) {
-            const summaryText = summaryName.querySelector('[data-role="summary-name-text"]');
-            const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
+          recordNameEls.forEach((el) => { el.textContent = displayName; });
+          recordSubtextEls.forEach((el) => { el.textContent = `${stageLabelText || 'Application'} • ${statusLabelText || 'In Progress'}`; });
+          if (summaryHost) {
+            const avatarEl = summaryHost.querySelector('[data-role="summary-avatar"]');
             const idInput = $('#c-id', body);
             const recordIdVal = idInput ? String(idInput.value || '') : '';
-            summaryName.dataset.favoriteType = 'contact';
-            summaryName.dataset.recordId = recordIdVal;
-            summaryName.setAttribute('data-role', 'favorite-host');
-            summaryName.setAttribute('data-favorite-type', 'contact');
-            summaryName.setAttribute('data-record-id', recordIdVal);
-            if (summaryText) { summaryText.textContent = displayName; }
-            else { summaryName.textContent = displayName; }
+            summaryHost.dataset.favoriteType = 'contact';
+            summaryHost.dataset.recordId = recordIdVal;
+            summaryHost.setAttribute('data-role', 'favorite-host');
+            summaryHost.setAttribute('data-favorite-type', 'contact');
+            summaryHost.setAttribute('data-record-id', recordIdVal);
             const avatarName = (firstVal || lastVal) ? displayName : '';
             applyAvatar(avatarEl, avatarName, contactAvatarSource(c));
           }
-          if (stageWrap) {
-            const canonicalKey = canonicalStage(stageVal) || canonicalStage(stageLabelText);
+          const canonicalKey = canonicalStage(stageVal) || canonicalStage(stageLabelText);
+          const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || stageLabelText) : stageLabelText;
+          const chip = renderStageChip(stageVal) || renderStageChip(stageLabelText) || buildStageFallback(canonicalLabel || stageLabelText, stageVal);
+          stageWraps.forEach((stageWrap) => {
             if (canonicalKey) { stageWrap.dataset.stageCanonical = canonicalKey; } else { delete stageWrap.dataset.stageCanonical; }
             stageWrap.dataset.stage = stageVal;
-            const canonicalLabel = canonicalKey ? (CANONICAL_STAGE_META[canonicalKey]?.label || stageLabelText) : stageLabelText;
-            const chip = renderStageChip(stageVal) || renderStageChip(stageLabelText) || buildStageFallback(canonicalLabel || stageLabelText, stageVal);
             stageWrap.innerHTML = chip;
-          }
+            stageWrap.hidden = false;
+          });
           if (detailStageEl) { detailStageEl.textContent = stageLabelText; }
-          if (statusEl) {
+          const toneKey = toneForStatus(statusVal);
+          const toneClass = toneClassName(toneKey);
+          statusEls.forEach((statusEl) => {
             statusEl.dataset.status = statusVal;
-            const toneKey = toneForStatus(statusVal);
-            const toneClass = toneClassName(toneKey);
             removeToneClasses(statusEl);
             if (toneClass) { statusEl.classList.add(toneClass); }
             if (toneKey) { statusEl.setAttribute('data-tone', toneKey); }
             else { statusEl.removeAttribute('data-tone'); }
             statusEl.textContent = statusLabelText;
-          }
+            statusEl.hidden = false;
+          });
           if (detailStatusEl) { detailStatusEl.textContent = statusLabelText; }
           if (summaryNote) {
             if (stageVal === 'post-close') { summaryNote.textContent = 'Keep clients engaged with annual reviews, gifting, and partner introductions.'; }

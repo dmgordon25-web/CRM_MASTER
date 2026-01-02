@@ -256,14 +256,16 @@ function updateSummary(root) {
   const focusSelect = root.querySelector('#p-focus');
   const cadenceSelect = root.querySelector('#p-cadence');
   const emailInput = root.querySelector('#p-email');
-  const summaryName = root.querySelector('#p-summary-name');
+  const summaryHost = root.querySelector('#p-summary-name');
   const summaryTier = root.querySelector('#p-summary-tier');
   const summaryType = root.querySelector('#p-summary-type');
   const summaryFocus = root.querySelector('#p-summary-focus');
   const summaryCadence = root.querySelector('#p-summary-cadence');
   const note = root.querySelector('#p-summary-note');
-  const recordName = root.querySelector('[data-role="record-name-text"]');
-  const recordSubtext = root.querySelector('[data-role="record-name-subtext"]');
+  const recordNameEls = root.querySelectorAll('[data-role="record-name-text"]');
+  const recordSubtextEls = root.querySelectorAll('[data-role="record-name-subtext"]');
+  const titleTier = root.querySelector('#p-title-tier');
+  const titleType = root.querySelector('#p-title-type');
   const nameRaw = nameInput?.value?.trim() || '';
   const companyRaw = companyInput?.value?.trim() || '';
   const emailRaw = emailInput?.value?.trim() || '';
@@ -273,16 +275,15 @@ function updateSummary(root) {
   const type = typeSelect?.value || 'Realtor Partner';
   const focus = focusSelect?.value || 'Purchase';
   const cadence = cadenceSelect?.value || 'Monthly';
-  if (summaryName) {
-    const summaryText = summaryName.querySelector('[data-role="record-name-text"]');
-    const avatarEl = summaryName.querySelector('[data-role="summary-avatar"]');
-    const label = company ? `${name} · ${company}` : name;
-    if (summaryText) { summaryText.textContent = label; }
-    else { summaryName.textContent = label; }
+  const headerLabel = company ? `${name} · ${company}` : name;
+  if (summaryHost) {
+    const avatarEl = summaryHost.querySelector('[data-role="summary-avatar"]');
     applyAvatar(avatarEl, name, partnerAvatarSource({ name: name, company: companyRaw, email: emailRaw }));
   }
-  if (recordName) { recordName.textContent = company ? `${name} · ${company}` : name; }
-  if (recordSubtext) { recordSubtext.textContent = `${tier} • ${type}`; }
+  recordNameEls.forEach((el) => { el.textContent = headerLabel; });
+  recordSubtextEls.forEach((el) => { el.textContent = `${tier} • ${type}`; });
+  if (titleTier) { titleTier.textContent = `Tier — ${tier}`; }
+  if (titleType) { titleType.textContent = type; }
   if (summaryTier) summaryTier.textContent = `Tier — ${tier}`;
   if (summaryType) summaryType.textContent = type;
   if (summaryFocus) summaryFocus.textContent = focus;
