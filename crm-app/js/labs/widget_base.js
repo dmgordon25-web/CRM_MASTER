@@ -1,3 +1,5 @@
+import { safeBindClick } from './helpers/widget_safety.js';
+
 export function renderWidgetShell(container, spec = {}) {
   const {
     id,
@@ -120,7 +122,7 @@ export function renderWidgetShell(container, spec = {}) {
         btn.classList.add('labs-action--subtle');
       }
       btn.textContent = action.label || 'Action';
-      btn.addEventListener('click', (evt) => {
+      safeBindClick(id, btn, (evt) => {
         evt.stopPropagation();
         action.onClick(evt);
       });
