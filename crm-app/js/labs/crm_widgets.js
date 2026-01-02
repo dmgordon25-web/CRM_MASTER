@@ -5,7 +5,6 @@ import {
   groupByStage,
   groupPartnersByTier,
   getStaleDeals,
-  getUpcomingCelebrations,
   countTodayTasks,
   countOverdueTasks,
   getTodayTasks,
@@ -36,7 +35,8 @@ import {
 } from './row_renderers.js';
 import { createInlineBar } from './micro_charts.js';
 import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
-import { loadTodoItems, saveTodoItems, generateId } from '../dashboard/widgets/todo_widget.js';
+import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widgets/todo_widget.js';
+import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
 import { openContactEditor } from '../contacts.js';
@@ -1589,161 +1589,200 @@ export function renderStaleDealsWidget(container, model) {
 export function renderTodayWidget(container, model) {
   let shell;
   try {
-    // Use getDisplayTasks for enriched task data with contact names
-    // PARITY: Use getDedupedAppointments to ensure we don't show double entries
-    const todayTasks = getDisplayTasks(model, { scope: 'today' }).slice(0, 5);
-    const celebrations = getUpcomingCelebrations(model.contacts || [], 7).slice(0, 4);
-    const appointments = getDedupedAppointments(model).slice(0, 5);
+    const snapshot = computeTodaySnapshotFromModel(model);
+    const dueGroups = snapshot?.dueGroups || {};
+    const todayGroups = Array.isArray(dueGroups.today) ? dueGroups.today : [];
+    const overdueGroups = Array.isArray(dueGroups.overdue) ? dueGroups.overdue : [];
 
-    const totalItems = todayTasks.length + celebrations.length + appointments.length;
-    const visibleCount = Math.min(todayTasks.length, 5) + Math.min(appointments.length, 3) + celebrations.length;
+    const countTasks = (groups) => groups.reduce((sum, group) => sum + (Array.isArray(group.tasks) ? group.tasks.length : 0), 0);
+    const totalToday = countTasks(todayGroups);
+    const totalOverdue = countTasks(overdueGroups);
+    const totalItems = totalToday + totalOverdue;
     const status = totalItems ? 'ok' : 'empty';
 
     shell = renderWidgetShell(container, widgetSpec('today', {
       status,
       count: totalItems,
-      shown: visibleCount,
-      emptyMessage: 'No tasks or events scheduled.'
+      shown: totalItems,
+      emptyMessage: 'Nothing due today.'
     }));
+
+    const header = shell?.querySelector?.('.labs-widget__header');
+    if (header) header.setAttribute('data-help', 'todays-work');
 
     if (status !== 'ok') {
       return shell;
     }
 
+    const applyTodayAttrs = (node, ids) => {
+      if (!node) return;
+      node.setAttribute('data-widget', 'today');
+      node.setAttribute('data-dash-widget', 'today');
+      node.setAttribute('data-widget-id', 'today');
+      if (ids.contactId) {
+        node.setAttribute('data-contact-id', ids.contactId);
+        node.setAttribute('data-id', ids.contactId);
+      }
+      if (ids.partnerId) {
+        node.setAttribute('data-partner-id', ids.partnerId);
+      }
+    };
+
     renderWidgetBody(shell, (body) => {
-      const list = document.createElement('div');
-      list.className = 'today-list';
-      list.setAttribute('data-role', 'today-list');
+      body.innerHTML = '';
 
-      // Task rows with click-to-editor
-      todayTasks.forEach((task, idx) => {
-        const row = document.createElement('div');
-        row.className = 'today-item task-item';
-        row.style.animationDelay = `${idx * 0.05}s`;
-        row.innerHTML = `
-          <div class="today-icon">✓</div>
-          <div class="today-content">
-            <div class="today-title">${task.taskLabel}</div>
-            <div class="today-meta">${task.contactName}</div>
-          </div>
-          <div class="today-time">${task.dueTime || 'All day'}</div>
-        `;
-        row.setAttribute('data-role', 'today-row');
-        row.setAttribute('data-type', 'task');
-        row.setAttribute('data-widget', 'today');
-        row.setAttribute('data-dash-widget', 'today');
-        row.setAttribute('data-widget-id', 'today');
+      const grid = document.createElement('div');
+      grid.className = 'today-grid';
 
-        if (task.id) {
-          row.setAttribute('data-task-id', task.id);
+      const sections = [
+        { title: 'Due Today', groups: todayGroups, empty: 'Nothing due today.' },
+        { title: 'Overdue', groups: overdueGroups, empty: 'All caught up.' }
+      ];
+
+      sections.forEach((section) => {
+        const column = document.createElement('div');
+        const heading = document.createElement('h4');
+        heading.textContent = section.title;
+        column.appendChild(heading);
+
+        if (!section.groups.length) {
+          const empty = document.createElement('p');
+          empty.className = 'muted';
+          empty.textContent = section.empty;
+          column.appendChild(empty);
+          grid.appendChild(column);
+          return;
         }
 
-        if (task.contactId) {
-          row.setAttribute('data-contact-id', task.contactId);
-          row.setAttribute('data-id', task.contactId);
-        }
-        if (task.partnerId) {
-          row.setAttribute('data-partner-id', task.partnerId);
-        }
-        row.style.cursor = 'pointer';
-        row.setAttribute('role', 'button');
-        row.setAttribute('tabindex', '0');
-        list.appendChild(row);
+        const list = document.createElement('ul');
+        list.className = 'insight-list';
+
+        section.groups.forEach((group) => {
+          const name = (group.contact && (group.contact.displayName || group.contact.name))
+            || getContactDisplayName(group.contact && group.contact.id, model?.contactsById)
+            || 'Contact';
+          const contactId = group.contact ? group.contact.id : '';
+          const partnerId = group.contact ? group.contact.partnerId : '';
+
+          const card = document.createElement('li');
+          card.className = 'card';
+          card.style.padding = '8px';
+
+          const headerRow = document.createElement('div');
+          headerRow.className = 'row';
+          headerRow.style.alignItems = 'center';
+          headerRow.style.gap = '8px';
+          headerRow.style.marginBottom = '4px';
+
+          const strong = document.createElement('strong');
+          strong.textContent = name;
+          headerRow.appendChild(strong);
+          card.appendChild(headerRow);
+
+          const taskList = document.createElement('ul');
+          taskList.className = 'insight-list';
+
+          (group.tasks || []).forEach((task) => {
+            const row = document.createElement('li');
+            row.setAttribute('data-role', 'today-row');
+            row.setAttribute('data-type', 'task');
+            applyTodayAttrs(row, { contactId, partnerId });
+            if (task.id) row.setAttribute('data-task-id', task.id);
+
+            const rowWrap = document.createElement('div');
+            rowWrap.className = 'row';
+            rowWrap.style.alignItems = 'center';
+            rowWrap.style.gap = '8px';
+
+            const grow = document.createElement('div');
+            grow.className = 'grow';
+            const title = document.createElement('div');
+            const strongTitle = document.createElement('strong');
+            strongTitle.textContent = task.title || 'Task';
+            title.appendChild(strongTitle);
+            const dueDate = task.due instanceof Date ? task.due : (task.dueTs ? new Date(task.dueTs) : (task.due ? new Date(task.due) : null));
+            const dueLabel = dueDate && !Number.isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString() : '—';
+            const meta = document.createElement('div');
+            meta.className = 'muted';
+            meta.style.fontSize = '12px';
+            meta.textContent = `Due ${dueLabel}`;
+            grow.appendChild(title);
+            grow.appendChild(meta);
+
+            const openBtn = document.createElement('button');
+            openBtn.className = 'btn';
+            openBtn.setAttribute('data-role', 'open-contact');
+            if (contactId) openBtn.setAttribute('data-contact-id', contactId);
+            openBtn.textContent = 'Open';
+
+            const doneBtn = document.createElement('button');
+            doneBtn.className = 'btn brand';
+            doneBtn.setAttribute('data-act', 'task-done');
+            if (task.id) doneBtn.setAttribute('data-task-id', task.id);
+            doneBtn.textContent = 'Mark done';
+
+            rowWrap.appendChild(grow);
+            rowWrap.appendChild(openBtn);
+            rowWrap.appendChild(doneBtn);
+
+            row.appendChild(rowWrap);
+            taskList.appendChild(row);
+          });
+
+          card.appendChild(taskList);
+          list.appendChild(card);
+        });
+
+        column.appendChild(list);
+        grid.appendChild(column);
       });
 
-      // Appointment rows with click-to-editor
-      appointments.slice(0, 3).forEach((appt, idx) => {
-        const row = document.createElement('div');
-        row.className = 'today-item appointment-item';
-        row.style.animationDelay = `${idx * 0.06 + 0.2}s`;
-        row.innerHTML = `
-          <div class="today-icon">📅</div>
-          <div class="today-content">
-            <div class="today-title">${appt.title || 'Appointment'}</div>
-            <div class="today-meta">${appt.contactName || ''}</div>
-          </div>
-          <div class="today-time">${formatDate(appt.due || appt.dueTs)}</div>
-        `;
-        row.setAttribute('data-role', 'today-row');
-        row.setAttribute('data-type', 'appointment');
-        row.setAttribute('data-widget', 'today');
-        row.setAttribute('data-dash-widget', 'today');
-        row.setAttribute('data-widget-id', 'today');
-        const contactId = appt.contactId || (appt.contact && appt.contact.id);
-        if (contactId) {
-          row.setAttribute('data-contact-id', contactId);
-          row.setAttribute('data-id', contactId);
-        }
-        row.style.cursor = 'pointer';
-        row.setAttribute('role', 'button');
-        row.setAttribute('tabindex', '0');
-        list.appendChild(row);
-      });
+      body.appendChild(grid);
 
-      // Celebration rows with click-to-editor
-      celebrations.forEach((cel, idx) => {
-        const row = document.createElement('div');
-        row.className = 'today-item celebration-item';
-        row.style.animationDelay = `${idx * 0.05 + 0.2}s`;
-        const celContactName = (model.getContactDisplayName ? model.getContactDisplayName(cel.contact.id) : null) || cel.contact.name || cel.contact.displayName || 'Contact';
-        row.innerHTML = `
-          <div class="today-icon">${cel.type === 'birthday' ? '🎂' : '💍'}</div>
-          <div class="today-content">
-            <div class="today-title">${celContactName}</div>
-            <div class="today-meta">${cel.type === 'birthday' ? 'Birthday' : 'Anniversary'}</div>
-          </div>
-          <div class="today-time">${formatDate(cel.date)}</div>
-        `;
-        row.setAttribute('data-role', 'today-row');
-        row.setAttribute('data-type', 'celebration');
-        row.setAttribute('data-widget', 'today');
-        row.setAttribute('data-dash-widget', 'today');
-        row.setAttribute('data-widget-id', 'today');
-        const contactId = cel.contact.id || cel.contact.contactId;
-        if (contactId) {
-          row.setAttribute('data-contact-id', contactId);
-          row.setAttribute('data-id', contactId);
-        }
-        row.style.cursor = 'pointer';
-        row.setAttribute('role', 'button');
-        row.setAttribute('tabindex', '0');
-        list.appendChild(row);
-      });
-
-      list.addEventListener('click', (event) => {
-        const target = event.target.closest('[data-role="today-row"]');
-        if (!target) return;
-
-        const type = target.getAttribute('data-type') || 'task'; // default to task for legacy rows
-
-        if (type === 'task') {
-          // Try to get task ID first
-          const taskId = target.getAttribute('data-task-id');
+      const clickHandler = async (event) => {
+        const doneBtn = event.target.closest('[data-act="task-done"]');
+        if (doneBtn) {
+          event.preventDefault();
+          const taskId = doneBtn.getAttribute('data-task-id');
           if (taskId) {
-            openTaskEditor({ id: taskId, sourceHint: 'labs-today' });
-            return;
-          }
-
-          // Fallback to contact/partner if no task ID (legacy data)
-          const contactId = target.getAttribute('data-contact-id');
-          const partnerId = target.getAttribute('data-partner-id');
-          if (contactId) {
-            openContactEditor(contactId, { source: 'labs-today' });
-          } else if (partnerId) {
-            openPartnerEditor(partnerId, { source: 'labs-today' });
+            const now = Date.now();
+            const sourceTasks = Array.isArray(model.tasks) ? model.tasks : [];
+            const task = sourceTasks.find((entry) => String(entry.id) === String(taskId));
+            const payload = task && task.raw
+              ? Object.assign({}, task.raw, { id: task.id, contactId: task.contactId })
+              : Object.assign({}, task || {}, { id: taskId });
+            payload.done = true;
+            payload.completedAt = now;
+            payload.updatedAt = now;
+            const put = typeof dbPut === 'function'
+              ? dbPut
+              : (typeof window !== 'undefined' && typeof window.dbPut === 'function' ? window.dbPut : null);
+            if (typeof put === 'function') {
+              try { await put('tasks', payload); }
+              catch (_err) { /* ignore */ }
+            }
+            if (task) task.done = true;
+            renderTodayWidget(container, model);
+            try {
+              document.dispatchEvent(new CustomEvent('task:updated', { detail: { id: taskId, status: 'done', source: 'labs-today' } }));
+            } catch (_err) { /* ignore */ }
           }
           return;
         }
 
-        if (type === 'appointment' || type === 'celebration') {
-          const contactId = target.getAttribute('data-contact-id');
-          if (contactId) {
-            openContactEditor(contactId, { source: 'labs-today' });
+        const contactBtn = event.target.closest('[data-role="open-contact"]');
+        if (contactBtn) {
+          event.preventDefault();
+          const id = contactBtn.getAttribute('data-contact-id');
+          if (id) {
+            openContactEditor(id, { source: 'labs-today' });
           }
         }
-      });
+      };
 
-      body.appendChild(list);
+      if (body.__todayClickHandler) body.removeEventListener('click', body.__todayClickHandler);
+      body.addEventListener('click', clickHandler);
+      body.__todayClickHandler = clickHandler;
     });
   } catch (err) {
     console.error('[labs] today widget render failed', err);
@@ -1935,142 +1974,21 @@ export function renderGoalProgressWidget(container, model) {
 // To-Do Widget (Production Parity)
 // =======================
 export function renderTodoWidget(container, model) {
-  let shell;
   try {
-    const items = loadTodoItems();
-    const status = items.length ? 'ok' : 'empty';
-
-    shell = renderWidgetShell(container, {
-      id: 'todo',
-      title: '✅ To-Do',
-      status,
-      count: items.length,
-      emptyMessage: 'No active tasks'
-    });
-
-    renderWidgetBody(shell, (body) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'labs-todo-wrapper';
-      wrapper.style.display = 'flex';
-      wrapper.style.flexDirection = 'column';
-      wrapper.style.gap = '12px';
-
-      // 1. Render List
-      const list = document.createElement('ul');
-      list.className = 'labs-list';
-      list.style.margin = '0';
-      list.style.padding = '0';
-      list.style.listStyle = 'none';
-      list.style.display = 'flex';
-      list.style.flexDirection = 'column';
-      list.style.gap = '8px';
-
-      if (items.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'labs-empty-text';
-        empty.style.color = 'var(--text-muted, #64748b)';
-        empty.style.fontSize = '0.9rem';
-        empty.style.padding = '1rem 0';
-        empty.style.textAlign = 'center';
-        empty.textContent = 'No to-dos yet — add a quick note.';
-        wrapper.appendChild(empty);
-      } else {
-        items.forEach((item) => {
-          const row = document.createElement('li');
-          row.className = 'labs-list-row';
-          row.style.display = 'flex';
-          row.style.alignItems = 'center';
-          row.style.gap = '10px';
-          row.style.padding = '8px 10px';
-          row.style.background = 'var(--bg-card-hover, rgba(255,255,255,0.5))';
-          row.style.borderRadius = '8px';
-          row.style.border = '1px solid var(--border-color, #e2e8f0)';
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.style.cursor = 'pointer';
-          checkbox.style.width = '16px';
-          checkbox.style.height = '16px';
-          checkbox.addEventListener('change', () => {
-            const next = items.filter((i) => i.id !== item.id);
-            saveTodoItems(next);
-            // Refresh widget
-            if (container) {
-              container.innerHTML = '';
-              renderTodoWidget(container, model);
-            }
-          });
-
-          const text = document.createElement('span');
-          text.textContent = item.text;
-          text.style.flex = '1';
-          text.style.fontSize = '0.95rem';
-          text.style.color = 'var(--text-primary, #0f172a)';
-          text.style.wordBreak = 'break-word';
-
-          row.appendChild(checkbox);
-          row.appendChild(text);
-          list.appendChild(row);
-        });
-        wrapper.appendChild(list);
-      }
-
-      // 2. Render Add Form
-      const addForm = document.createElement('form');
-      addForm.style.display = 'flex';
-      addForm.style.gap = '8px';
-      addForm.style.marginTop = '4px';
-
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'labs-input'; // Assumes labs.css has this or generic input styles
-      input.placeholder = 'Add Item...';
-      input.style.flex = '1';
-      input.style.padding = '8px 10px';
-      input.style.borderRadius = '6px';
-      input.style.border = '1px solid var(--border-color, #cbd5e1)';
-      input.style.fontSize = '0.9rem';
-
-      const btn = document.createElement('button');
-      btn.type = 'submit';
-      btn.textContent = '+';
-      btn.className = 'labs-btn-primary'; // Assumes labs.css
-      btn.style.padding = '0 12px';
-      btn.style.borderRadius = '6px';
-      btn.style.background = 'var(--primary-color, #3b82f6)';
-      btn.style.color = 'white';
-      btn.style.border = 'none';
-      btn.style.cursor = 'pointer';
-
-      addForm.appendChild(input);
-      addForm.appendChild(btn);
-
-      addForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const val = input.value.trim();
-        if (!val) return;
-        const next = items.concat([{ id: generateId(), text: val, createdAt: new Date().toISOString() }]);
-        saveTodoItems(next);
-        if (container) {
-          container.innerHTML = '';
-          renderTodoWidget(container, model);
-        }
-      });
-
-      wrapper.appendChild(addForm);
-      body.appendChild(wrapper);
-    });
+    if (container) {
+      container.innerHTML = '';
+      renderDashboardTodoWidget({ root: container });
+    }
+    return null;
   } catch (err) {
     console.error('[labs] todo widget render failed', err);
-    shell = renderWidgetShell(container, {
+    return renderWidgetShell(container, {
       id: 'todo',
       title: '✅ To-Do',
       status: 'error',
       errorMessage: 'Unable to load to-do list'
     });
   }
-
-  return shell;
 }
 
 // =======================
