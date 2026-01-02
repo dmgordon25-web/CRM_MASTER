@@ -38,6 +38,7 @@ import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widgets/todo_widget.js';
 import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
 import { computePipelineSnapshot } from './helpers/pipeline_snapshot_logic.js';
+import { renderWidgetChrome } from './helpers/widget_chrome.js';
 import { getNotificationsSnapshot, markNotificationsRead, subscribeNotifications } from './helpers/notifications_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
@@ -563,20 +564,26 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
     const { stages, total } = computePipelineSnapshot(model);
     const status = total ? 'ok' : 'empty';
 
-    shell = renderWidgetShell(container, {
-      id: 'labsPipelineSnapshot',
+    shell = renderWidgetChrome({
+      widgetId: 'labsPipelineSnapshot',
       title: '🧭 Pipeline Snapshot',
-      helpId: 'pipeline-snapshot',
-      status,
-      emptyMessage: 'No pipeline data yet'
+      countText: (total || total === 0) ? formatNumber(total) : '',
+      bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">No pipeline data yet</div>' : '',
+      helpId: 'pipeline-snapshot'
     });
 
-    const header = shell?.querySelector?.('.labs-widget__header');
+    if (status) {
+      shell.classList.add(`labs-widget--${status}`);
+    }
+
+    const header = shell?.querySelector?.('.labs-widget-chrome__header');
     if (header) {
       header.dataset.help = 'pipeline-snapshot';
     }
 
     if (status !== 'ok') {
+      const body = shell.querySelector('.labs-widget__body');
+      if (body) body.dataset.state = status;
       return shell;
     }
 
@@ -615,12 +622,13 @@ export function renderLabsPipelineSnapshotWidget(container, model) {
     });
   } catch (err) {
     console.error('[labs] pipeline snapshot render failed', err);
-    shell = renderWidgetShell(container, {
-      id: 'labsPipelineSnapshot',
+    shell = renderWidgetChrome({
+      widgetId: 'labsPipelineSnapshot',
       title: '🧭 Pipeline Snapshot',
-      status: 'error',
-      errorMessage: 'Unable to load pipeline snapshot'
+      bodyHtml: '<div class="labs-widget__state labs-widget__state--error">Unable to load pipeline snapshot</div>',
+      helpId: 'pipeline-snapshot'
     });
+    shell.classList.add('labs-widget--error');
   }
 
   return shell;
@@ -1638,22 +1646,26 @@ export function renderTodayWidget(container, model) {
     const totalItems = totalToday + totalOverdue;
     const status = totalItems ? 'ok' : 'empty';
 
-    shell = renderWidgetShell(container, widgetSpec('today', {
-      status,
-      count: totalItems,
-      shown: totalItems,
-      emptyMessage: 'Nothing due today.'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'today',
+      title: "Today's Work",
+      countText: (totalItems || totalItems === 0) ? String(totalItems) : '',
+      bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">Nothing due today.</div>' : '',
+      helpId: 'todays-work'
+    });
 
     if (shell) {
+      shell.classList.add(`labs-widget--${status}`);
       shell.setAttribute('data-gs-w', '6');
       shell.setAttribute('data-gs-h', '5');
     }
 
-    const header = shell?.querySelector?.('.labs-widget__header');
+    const header = shell?.querySelector?.('.labs-widget-chrome__header');
     if (header) header.setAttribute('data-help', 'todays-work');
 
     if (status !== 'ok') {
+      const body = shell.querySelector('.labs-widget__body');
+      if (body) body.dataset.state = status;
       return shell;
     }
 
@@ -1829,10 +1841,13 @@ export function renderTodayWidget(container, model) {
     });
   } catch (err) {
     console.error('[labs] today widget render failed', err);
-    shell = renderWidgetShell(container, widgetSpec('today', {
-      status: 'error',
-      errorMessage: 'Unable to load today\'s work'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'today',
+      title: "Today's Work",
+      bodyHtml: '<div class="labs-widget__state labs-widget__state--error">Unable to load today\'s work</div>',
+      helpId: 'todays-work'
+    });
+    shell.classList.add('labs-widget--error');
   }
 
   return shell;
@@ -2080,29 +2095,25 @@ export function renderPriorityActionsWidget(container, model) {
     const status = rows.length ? 'ok' : 'empty';
     const totalCount = displayTasks.length;
 
-    shell = renderWidgetShell(container, widgetSpec('priorityActions', {
-      status,
-      count: totalCount,
-      shown: rows.length,
-      emptyMessage: 'No urgent follow-ups — nice work!'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'priorityActions',
+      title: 'Priority Actions',
+      countText: (totalCount || totalCount === 0) ? String(totalCount) : '',
+      bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">No priority items found</div>' : '',
+      helpId: 'priority-actions'
+    });
 
     if (shell) {
+      shell.classList.add(`labs-widget--${status}`);
       shell.setAttribute('data-gs-w', '6');
       shell.setAttribute('data-gs-h', '4');
-      const header = shell.querySelector('.labs-widget__header');
+      const header = shell.querySelector('.labs-widget-chrome__header');
       if (header && !header.getAttribute('data-help')) header.setAttribute('data-help', 'priority-actions');
     }
 
     if (status !== 'ok') {
-      // Compliance: Explicitly ensure the empty state DOM contract is met
-      if (status === 'empty') {
-        // Try both class naming conventions to be safe, or just target the body container
-        const body = shell.querySelector('.labs-widget-body, .labs-widget__body');
-        if (body) {
-          body.innerHTML = '<div class="labs-widget__state labs-widget__state--empty">No priority items found</div>';
-        }
-      }
+      const body = shell.querySelector('.labs-widget__body');
+      if (body) body.dataset.state = status;
       return shell;
     }
 
@@ -2174,10 +2185,13 @@ export function renderPriorityActionsWidget(container, model) {
     });
   } catch (err) {
     console.error('[labs] priority actions render failed', err);
-    shell = renderWidgetShell(container, widgetSpec('priorityActions', {
-      status: 'error',
-      errorMessage: 'Unable to load priority actions'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'priorityActions',
+      title: 'Priority Actions',
+      bodyHtml: '<div class="labs-widget__state labs-widget__state--error">Unable to load priority actions</div>',
+      helpId: 'priority-actions'
+    });
+    shell.classList.add('labs-widget--error');
   }
 
   return shell;
@@ -2500,21 +2514,26 @@ export function renderUpcomingCelebrationsWidget(container, model) {
 
   let shell;
   try {
-    shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
-      status,
-      count: deduped.length,
-      shown: displayedCelebrations.length,
-      helpId: 'celebrations',
-      emptyMessage: 'No upcoming celebrations in the next 7 days.'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'upcomingCelebrations',
+      title: 'Birthdays & Anniversaries',
+      countText: (deduped.length || deduped.length === 0) ? String(deduped.length) : '',
+      bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">No upcoming celebrations in the next 7 days.</div>' : '',
+      helpId: 'celebrations'
+    });
 
     if (shell) {
+      shell.classList.add(`labs-widget--${status}`);
       shell.setAttribute('data-gs-w', '4');
       shell.setAttribute('data-gs-h', '3');
       shell.setAttribute('data-help', 'birthdays-anniversaries');
+      const header = shell.querySelector('.labs-widget-chrome__header');
+      if (header) header.setAttribute('data-help', 'celebrations');
     }
 
     if (status !== 'ok') {
+      const body = shell.querySelector('.labs-widget__body');
+      if (body) body.dataset.state = status;
       return shell;
     }
 
@@ -2583,10 +2602,13 @@ export function renderUpcomingCelebrationsWidget(container, model) {
     });
   } catch (err) {
     console.error('[labs] celebrations render failed', err);
-    shell = renderWidgetShell(container, widgetSpec('upcomingCelebrations', {
-      status: 'error',
-      errorMessage: 'Unable to load celebrations'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'upcomingCelebrations',
+      title: 'Birthdays & Anniversaries',
+      bodyHtml: '<div class="labs-widget__state labs-widget__state--error">Unable to load celebrations</div>',
+      helpId: 'celebrations'
+    });
+    shell.classList.add('labs-widget--error');
   }
 
   return shell;
@@ -3088,24 +3110,27 @@ export function renderFavoritesWidget(container, model) {
     const displayedFavorites = favoriteRecords.slice(0, 8);
     const status = favoriteRecords.length ? 'ok' : 'empty';
 
-    shell = renderWidgetShell(container, widgetSpec('favorites', {
-      status,
-      count: favoriteRecords.length,
-      shown: displayedFavorites.length,
-      emptyMessage: 'No favorites yet — star leads to pin them here.'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'favorites',
+      title: 'Favorites',
+      countText: (favoriteRecords.length || favoriteRecords.length === 0) ? String(favoriteRecords.length) : '',
+      bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">No favorites yet — star leads to pin them here.</div>' : '',
+      helpId: 'favorites'
+    });
 
     if (shell) {
+      shell.classList.add(`labs-widget--${status}`);
       shell.setAttribute('data-gs-w', '4');
       shell.setAttribute('data-gs-h', '3');
-    }
-
-    const header = shell?.querySelector?.('.labs-widget__header');
-    if (header) {
-      header.setAttribute('data-help', 'favorites');
+      const header = shell.querySelector('.labs-widget-chrome__header');
+      if (header) {
+        header.setAttribute('data-help', 'favorites');
+      }
     }
 
     if (status !== 'ok') {
+      const body = shell.querySelector('.labs-widget__body');
+      if (body) body.dataset.state = status;
       return shell;
     }
 
@@ -3170,10 +3195,13 @@ export function renderFavoritesWidget(container, model) {
     });
   } catch (err) {
     console.error('[labs] favorites render failed', err);
-    shell = renderWidgetShell(container, widgetSpec('favorites', {
-      status: 'error',
-      errorMessage: 'Unable to load favorites'
-    }));
+    shell = renderWidgetChrome({
+      widgetId: 'favorites',
+      title: 'Favorites',
+      bodyHtml: '<div class="labs-widget__state labs-widget__state--error">Unable to load favorites</div>',
+      helpId: 'favorites'
+    });
+    shell.classList.add('labs-widget--error');
   }
 
   return shell;
