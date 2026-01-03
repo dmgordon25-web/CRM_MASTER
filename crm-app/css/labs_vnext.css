@@ -1,22 +1,44 @@
+main[data-ui="labs-root"] {
+  --labs-card-padding: 24px;
+  --labs-card-gap: 12px;
+  --labs-header-height: 48px;
+  --labs-header-padding-y: 12px;
+  --labs-header-padding-x: 24px;
+  --labs-header-font-size: 1rem;
+  --labs-header-line-height: 1.35;
+  --labs-header-weight: 700;
+  --labs-body-padding-y: 12px;
+  --labs-body-padding-x: 24px;
+  --labs-body-gap: 12px;
+  --labs-footer-padding-top: 8px;
+  --labs-footer-padding-bottom: 12px;
+  --labs-row-line-height: 1.5;
+  --labs-pill-min-height: 28px;
+  --labs-pill-line-height: 1.25;
+  --labs-empty-padding: 24px;
+}
+
 .labs-widget--chrome {
   padding: 0;
   gap: 0;
+  line-height: var(--labs-row-line-height, 1.5);
 }
 
 .labs-widget-chrome__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 12px 14px 10px 14px;
+  padding: var(--labs-header-padding-y, 12px) var(--labs-header-padding-x, 24px);
   border-bottom: 1px solid var(--labs-border);
   gap: 8px;
+  min-height: var(--labs-header-height, 48px);
 }
 
 .labs-widget-chrome__title {
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: var(--labs-header-weight, 700);
+  font-size: var(--labs-header-font-size, 1rem);
   color: var(--labs-text-primary);
-  line-height: 1.4;
+  line-height: var(--labs-header-line-height, 1.35);
 }
 
 .labs-widget-chrome__meta {
@@ -31,13 +53,14 @@
   align-items: center;
   justify-content: center;
   padding: 2px 10px;
+  min-height: var(--labs-pill-min-height, 28px);
   border-radius: 999px;
   border: 1px solid var(--labs-border);
   background: #f8fafc;
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--labs-text-primary);
-  line-height: 1.2;
+  line-height: var(--labs-pill-line-height, 1.25);
 }
 
 .labs-widget-chrome__help {
@@ -53,17 +76,18 @@
 }
 
 .labs-widget-chrome__body {
-  padding: 12px 14px 14px 14px;
-  gap: 0.75rem;
+  padding: var(--labs-body-padding-y, 12px) var(--labs-body-padding-x, 24px);
+  gap: var(--labs-body-gap, 12px);
 }
 
 .labs-widget-chrome__body .labs-widget__state {
   width: 100%;
-  margin: 6px 0;
+  margin: 0;
+  padding: var(--labs-empty-padding, 24px);
 }
 
 .labs-widget-chrome__footer {
-  padding: 10px 14px 12px 14px;
+  padding: var(--labs-footer-padding-top, 8px) var(--labs-body-padding-x, 24px) var(--labs-footer-padding-bottom, 12px);
   border-top: 1px solid var(--labs-border);
   color: var(--labs-text-secondary);
   font-size: 0.9rem;
