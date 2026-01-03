@@ -207,17 +207,21 @@
 
 .labs-grid-shell {
   width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 1.5rem 1.75rem 2.5rem;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 1.5rem clamp(1.25rem, 3vw, 2rem) 2.5rem;
   box-sizing: border-box;
 }
 
 main[data-ui="labs-root"],
-main[data-ui="labs-root"] .labs-crm-dashboard,
-main[data-ui="labs-root"] .labs-grid-shell {
+main[data-ui="labs-root"] .labs-crm-dashboard {
   width: 100%;
   max-width: none;
+}
+
+main[data-ui="labs-root"] .labs-grid-shell {
+  width: 100%;
+  max-width: 1800px;
 }
 
 .labs-crm-grid.labs-static-grid {
