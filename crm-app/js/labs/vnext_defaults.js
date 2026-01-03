@@ -1,41 +1,98 @@
-export const DEFAULT_VNEXT_LAYOUTS = {
+const SIZE_TO_TOKEN = {
+  small: 'w1',
+  medium: 'w2',
+  large: 'w3'
+};
+
+const TOKEN_TO_GRID = {
+  w1: 4,
+  w2: 8,
+  w3: 12
+};
+
+function normalizeSizeToToken(size) {
+  const key = typeof size === 'string' ? size.toLowerCase() : '';
+  return SIZE_TO_TOKEN[key] || 'w2';
+}
+
+function gridWidthForSize(size) {
+  const token = normalizeSizeToToken(size);
+  return TOKEN_TO_GRID[token] || 8;
+}
+
+function buildLayout(sectionWidgets = []) {
+  let x = 0;
+  let y = 0;
+  let rowHeight = 0;
+
+  return (sectionWidgets || []).map((widget) => {
+    const width = gridWidthForSize(widget.size);
+    const height = widget.h || 4;
+
+    if (x + width > 12) {
+      y += rowHeight;
+      x = 0;
+      rowHeight = 0;
+    }
+
+    const position = { id: widget.id, x, y, w: width, h: height };
+    x += width;
+    rowHeight = Math.max(rowHeight, height);
+    return position;
+  });
+}
+
+export const DEFAULT_WIDGETS_BY_SECTION = {
   overview: [
-    { id: 'labsKpiSummary', x: 0, y: 0, w: 12, h: 4 },
-    { id: 'labsPipelineSnapshot', x: 0, y: 4, w: 8, h: 4 },
-    { id: 'goalProgress', x: 8, y: 4, w: 4, h: 4 },
-    { id: 'labsTasks', x: 0, y: 8, w: 8, h: 4 },
-    { id: 'priorityActions', x: 8, y: 8, w: 4, h: 4 },
-    { id: 'today', x: 0, y: 12, w: 4, h: 4 },
-    { id: 'todo', x: 4, y: 12, w: 4, h: 4 },
-    { id: 'favorites', x: 8, y: 12, w: 4, h: 3 },
-    { id: 'milestones', x: 0, y: 16, w: 8, h: 4 },
-    { id: 'closingWatch', x: 8, y: 16, w: 4, h: 4 },
-    { id: 'partnerPortfolio', x: 0, y: 20, w: 8, h: 4 },
-    { id: 'relationshipOpportunities', x: 8, y: 20, w: 4, h: 4 },
-    { id: 'referralLeaderboard', x: 0, y: 24, w: 6, h: 4 },
-    { id: 'referralTrends', x: 6, y: 24, w: 6, h: 4 },
-    { id: 'upcomingCelebrations', x: 0, y: 28, w: 6, h: 4 },
-    { id: 'focus', x: 6, y: 28, w: 6, h: 4 }
+    // Focus & KPI (classic Home parity)
+    { id: 'focus', size: 'medium' },
+    { id: 'labsKpiSummary', size: 'large' },
+    { id: 'labsPipelineSnapshot', size: 'large' },
+    { id: 'goalProgress', size: 'medium' },
+    // Tasks & Today
+    { id: 'labsTasks', size: 'medium' },
+    { id: 'today', size: 'medium' },
+    { id: 'todo', size: 'medium' },
+    { id: 'priorityActions', size: 'medium' },
+    { id: 'favorites', size: 'small', h: 3 },
+    { id: 'milestones', size: 'medium' },
+    // Partners & Referrals
+    { id: 'partnerPortfolio', size: 'large' },
+    { id: 'referralLeaderboard', size: 'medium' },
+    { id: 'referralTrends', size: 'medium' },
+    { id: 'relationshipOpportunities', size: 'medium' },
+    // Graduated from experimental (2025-12)
+    { id: 'closingWatch', size: 'medium' },
+    { id: 'upcomingCelebrations', size: 'medium' }
   ],
   tasks: [
-    { id: 'labsTasks', x: 0, y: 0, w: 8, h: 4 },
-    { id: 'priorityActions', x: 8, y: 0, w: 4, h: 4 },
-    { id: 'pipelineCalendar', x: 0, y: 4, w: 12, h: 4 },
-    { id: 'today', x: 0, y: 8, w: 6, h: 4 },
-    { id: 'todo', x: 6, y: 8, w: 6, h: 4 }
+    { id: 'labsTasks', size: 'large' },
+    { id: 'pipelineCalendar', size: 'large' }, // Graduated
+    { id: 'priorityActions', size: 'medium' },
+    { id: 'today', size: 'medium' },
+    { id: 'todo', size: 'medium' }
   ],
   portfolio: [
-    { id: 'partnerPortfolio', x: 0, y: 0, w: 12, h: 4 },
-    { id: 'referralLeaderboard', x: 0, y: 4, w: 6, h: 4 },
-    { id: 'referralTrends', x: 6, y: 4, w: 6, h: 4 },
-    { id: 'relationshipOpportunities', x: 0, y: 8, w: 6, h: 4 }
+    { id: 'partnerPortfolio', size: 'large' },
+    { id: 'referralTrends', size: 'medium' },
+    { id: 'referralLeaderboard', size: 'medium' },
+    { id: 'relationshipOpportunities', size: 'medium' }
   ],
   analytics: [
-    { id: 'pipelineFunnel', x: 0, y: 0, w: 6, h: 4 },
-    { id: 'pipelineVelocity', x: 6, y: 0, w: 6, h: 4 },
-    { id: 'pipelineRisk', x: 0, y: 4, w: 6, h: 4 },
-    { id: 'staleDeals', x: 6, y: 4, w: 6, h: 4 },
-    { id: 'activePipeline', x: 0, y: 8, w: 12, h: 4 },
-    { id: 'statusStack', x: 0, y: 12, w: 12, h: 4 }
-  ]
+    { id: 'pipelineFunnel', size: 'medium' },
+    { id: 'pipelineVelocity', size: 'medium' },
+    { id: 'pipelineRisk', size: 'medium' },
+    { id: 'staleDeals', size: 'medium' },
+    // Graduated 2025-12
+    { id: 'statusStack', size: 'medium' },
+    { id: 'activePipeline', size: 'large' }
+  ],
+  experimental: []
 };
+
+export const DEFAULT_VNEXT_LAYOUTS = Object.fromEntries(
+  Object.entries(DEFAULT_WIDGETS_BY_SECTION).map(([sectionId, widgets]) => [
+    sectionId,
+    buildLayout(widgets)
+  ])
+);
