@@ -1,16 +1,18 @@
-import { PIPELINE_STAGE_KEYS, stageLabelFromKey } from '../../pipeline/stages.js';
-import { CANONICAL_STAGE_ORDER, canonicalStageKey } from '../../workflow/state_model.js';
+import { PIPELINE_STAGE_KEYS, stageKeyFromLabel, stageLabelFromKey } from '../../pipeline/stages.js';
 
-const PIPELINE_SNAPSHOT_STAGE_KEYS = CANONICAL_STAGE_ORDER.slice();
-const ACTIVE_PIPELINE_STAGE_SET = new Set(
-  PIPELINE_SNAPSHOT_STAGE_KEYS.filter((key) => !['funded', 'post-close', 'past-client', 'returning'].includes(key))
-);
-const SNAPSHOT_STAGE_SET = new Set(PIPELINE_SNAPSHOT_STAGE_KEYS);
+const PIPELINE_SNAPSHOT_STAGE_KEYS = PIPELINE_STAGE_KEYS.slice();
+const PIPELINE_STAGE_KEY_SET = new Set(PIPELINE_SNAPSHOT_STAGE_KEYS);
+const ACTIVE_PIPELINE_STAGE_SET = new Set(PIPELINE_SNAPSHOT_STAGE_KEYS.filter((key) => key !== 'funded'));
+
+let warnedUnknownStage = false;
 
 function normalizePipelineStage(value) {
-  const key = canonicalStageKey(value);
-  if (SNAPSHOT_STAGE_SET.has(key)) return key;
-  if (PIPELINE_STAGE_KEYS.includes(key)) return canonicalStageKey(key);
+  const key = stageKeyFromLabel(value);
+  if (PIPELINE_STAGE_KEY_SET.has(key)) return key;
+  if (!warnedUnknownStage && typeof console !== 'undefined' && console && console.warn) {
+    warnedUnknownStage = true;
+    console.warn('[labs] Ignoring non-canonical pipeline stage', value);
+  }
   return '';
 }
 
