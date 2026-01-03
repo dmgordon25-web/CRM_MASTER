@@ -1613,6 +1613,9 @@ async function mountLabsDashboard(root) {
     }
   }
   dashboardRoot = root;
+  if (dashboardRoot?.dataset) {
+    dashboardRoot.dataset.dashboardCompat = 'true';
+  }
   showLoading();
 
   const dbReady = await ensureDatabase();
