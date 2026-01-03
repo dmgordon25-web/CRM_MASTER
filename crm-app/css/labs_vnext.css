@@ -26,10 +26,9 @@ main[data-ui="labs-root"] {
   --dash-row-gap: var(--dash-compat-row-gap, 8px);
   --dash-line-height: var(--labs-row-line-height, 1.5);
 
-  width: 100vw;
-  max-width: none;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 main[data-ui="labs-root"] .labs-crm-dashboard,
