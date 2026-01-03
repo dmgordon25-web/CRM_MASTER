@@ -1,4 +1,4 @@
-export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, footerHtml, helpId } = {}) {
+export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, footerHtml, helpId, bodyViewport } = {}) {
   const shell = document.createElement('div');
   shell.className = 'labs-widget labs-widget--chrome';
   if (widgetId) {
@@ -6,6 +6,9 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   }
   if (helpId) {
     shell.setAttribute('data-help', helpId);
+  }
+  if (bodyViewport) {
+    shell.setAttribute('data-body-viewport', bodyViewport);
   }
 
   const header = document.createElement('div');
@@ -44,6 +47,9 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   const body = document.createElement('div');
   body.className = 'labs-widget__body labs-widget-chrome__body labs-widget-body';
   body.setAttribute('data-role', 'widget-body');
+  if (bodyViewport) {
+    body.setAttribute('data-body-viewport', bodyViewport);
+  }
   if (bodyHtml == null) {
     body.innerHTML = '<div class="labs-widget__state labs-widget__state--empty">No data available</div>';
     body.dataset.state = 'empty';

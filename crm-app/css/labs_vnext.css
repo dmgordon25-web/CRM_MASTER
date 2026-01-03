@@ -220,21 +220,10 @@ main[data-ui="labs-root"] .grid-stack-item-content {
 }
 
 #priority-actions-card .labs-widget-body,
-#todays-work-card .labs-widget-body {
-  max-height: 360px;
+#todays-work-card .labs-widget-body,
+[data-body-viewport="list"] .labs-widget-body,
+.labs-widget-body[data-body-viewport="list"] {
+  max-height: min(420px, 55vh);
   overflow: auto;
-}
-
-@media (max-height: 900px) {
-  #priority-actions-card .labs-widget-body,
-  #todays-work-card .labs-widget-body {
-    max-height: 320px;
-  }
-}
-
-@media (max-height: 760px) {
-  #priority-actions-card .labs-widget-body,
-  #todays-work-card .labs-widget-body {
-    max-height: 280px;
-  }
+  overscroll-behavior: contain;
 }
