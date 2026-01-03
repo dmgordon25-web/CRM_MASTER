@@ -25,7 +25,7 @@ import { DASH_TO_LABS_WIDGET_MAP } from './widget_parity_map.js';
 import { getUiMode } from '../ui/ui_mode.js';
 import { enableVNextGrid } from './vnext.js';
 import { initActionBarDrag, teardownActionBarWiring } from '../ui/action_bar.js';
-import { DEFAULT_VNEXT_LAYOUTS } from './vnext_defaults.js';
+import { DEFAULT_VNEXT_LAYOUTS, DEFAULT_WIDGETS_BY_SECTION } from './vnext_defaults.js';
 import { safeRenderWidget } from './helpers/widget_safety.js';
 
 const USE_VNEXT_KEY = 'labs.vnext.enabled';
@@ -510,65 +510,25 @@ const SECTIONS = [
     id: 'overview',
     label: 'Overview',
     description: 'Pipeline health and today\'s work',
-    widgets: [
-      // Focus & KPI (classic Home parity)
-      { id: 'focus', size: 'medium' },
-      { id: 'labsKpiSummary', size: 'large' },
-      { id: 'labsPipelineSnapshot', size: 'large' },
-      { id: 'goalProgress', size: 'medium' },
-      // Tasks & Today
-      { id: 'labsTasks', size: 'medium' },
-      { id: 'today', size: 'medium' },
-      { id: 'todo', size: 'medium' },
-      { id: 'priorityActions', size: 'medium' },
-      { id: 'favorites', size: 'small' },
-      { id: 'milestones', size: 'medium' },
-      // Partners & Referrals
-      { id: 'partnerPortfolio', size: 'large' },
-      { id: 'referralLeaderboard', size: 'medium' },
-      { id: 'referralTrends', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' },
-      // Graduated from experimental (2025-12)
-      { id: 'closingWatch', size: 'medium' },
-      { id: 'upcomingCelebrations', size: 'medium' }
-    ]
+    widgets: DEFAULT_WIDGETS_BY_SECTION.overview
   },
   {
     id: 'tasks',
     label: 'Tasks',
     description: 'Today\'s work and follow-ups',
-    widgets: [
-      { id: 'labsTasks', size: 'large' },
-      { id: 'pipelineCalendar', size: 'large' }, // Graduated
-      { id: 'priorityActions', size: 'medium' },
-      { id: 'today', size: 'medium' },
-      { id: 'todo', size: 'medium' }
-    ]
+    widgets: DEFAULT_WIDGETS_BY_SECTION.tasks
   },
   {
     id: 'portfolio',
     label: 'Portfolio',
     description: 'Clients, partners, and referrals',
-    widgets: [
-      { id: 'partnerPortfolio', size: 'large' },
-      { id: 'referralTrends', size: 'medium' },
-      { id: 'referralLeaderboard', size: 'medium' },
-      { id: 'relationshipOpportunities', size: 'medium' }
-    ]
+    widgets: DEFAULT_WIDGETS_BY_SECTION.portfolio
   },
   {
     id: 'analytics',
     label: 'Analytics',
     description: 'Funnels, velocity, and pipeline risk',
-    widgets: [
-      { id: 'pipelineFunnel', size: 'medium' },
-      { id: 'pipelineVelocity', size: 'medium' },
-      { id: 'pipelineRisk', size: 'medium' },
-      { id: 'staleDeals', size: 'medium' },
-      // Graduated 2025-12
-      { id: 'statusStack', size: 'medium' },
-      { id: 'activePipeline', size: 'large' }
-    ]
+    widgets: DEFAULT_WIDGETS_BY_SECTION.analytics
   },
   {
     id: 'experimental',
