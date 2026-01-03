@@ -41,6 +41,7 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
 
   const body = document.createElement('div');
   body.className = 'labs-widget__body labs-widget-chrome__body';
+  body.setAttribute('data-role', 'widget-body');
   if (bodyHtml == null) {
     body.innerHTML = '<div class="labs-widget__state labs-widget__state--empty">No data available</div>';
     body.dataset.state = 'empty';
@@ -58,4 +59,15 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   }
 
   return shell;
+}
+
+export function mountWidgetChrome(container, opts) {
+  if (!container) return { shell: null, body: null };
+  const shell = renderWidgetChrome(opts);
+  container.innerHTML = '';
+  if (shell) {
+    container.appendChild(shell);
+    return { shell, body: shell.querySelector('[data-role="widget-body"]') };
+  }
+  return { shell: null, body: null };
 }

@@ -38,7 +38,7 @@ import { renderWidgetBody, renderWidgetShell } from './widget_base.js';
 import { renderTodoWidget as renderDashboardTodoWidget } from '../dashboard/widgets/todo_widget.js';
 import { computeTodaySnapshotFromModel } from './helpers/todays_work_logic.js';
 import { computePipelineSnapshot } from './helpers/pipeline_snapshot_logic.js';
-import { renderWidgetChrome } from './helpers/widget_chrome.js';
+import { renderWidgetChrome, mountWidgetChrome } from './helpers/widget_chrome.js';
 import { getNotificationsSnapshot, markNotificationsRead, subscribeNotifications } from './helpers/notifications_logic.js';
 // Drilldown Editors
 import { openTaskEditor } from '../ui/quick_create_menu.js';
@@ -1646,13 +1646,15 @@ export function renderTodayWidget(container, model) {
     const totalItems = totalToday + totalOverdue;
     const status = totalItems ? 'ok' : 'empty';
 
-    shell = renderWidgetChrome({
+    const { shell: mountedShell, body } = mountWidgetChrome(container, {
       widgetId: 'today',
       title: "Today's Work",
       countText: (totalItems || totalItems === 0) ? String(totalItems) : '',
       bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">Nothing due today.</div>' : '',
       helpId: 'todays-work'
     });
+
+    shell = mountedShell;
 
     if (shell) {
       shell.classList.add(`labs-widget--${status}`);
@@ -1664,7 +1666,6 @@ export function renderTodayWidget(container, model) {
     if (header) header.setAttribute('data-help', 'todays-work');
 
     if (status !== 'ok') {
-      const body = shell.querySelector('.labs-widget__body');
       if (body) body.dataset.state = status;
       return shell;
     }
@@ -2095,13 +2096,15 @@ export function renderPriorityActionsWidget(container, model) {
     const status = rows.length ? 'ok' : 'empty';
     const totalCount = displayTasks.length;
 
-    shell = renderWidgetChrome({
+    const { shell: mountedShell, body } = mountWidgetChrome(container, {
       widgetId: 'priorityActions',
       title: 'Priority Actions',
       countText: (totalCount || totalCount === 0) ? String(totalCount) : '',
       bodyHtml: status === 'empty' ? '<div class="labs-widget__state labs-widget__state--empty">No priority items found</div>' : '',
       helpId: 'priority-actions'
     });
+
+    shell = mountedShell;
 
     if (shell) {
       shell.classList.add(`labs-widget--${status}`);
@@ -2112,7 +2115,6 @@ export function renderPriorityActionsWidget(container, model) {
     }
 
     if (status !== 'ok') {
-      const body = shell.querySelector('.labs-widget__body');
       if (body) body.dataset.state = status;
       return shell;
     }
