@@ -780,7 +780,11 @@ function renderShell() {
   sectionHost.className = 'labs-section-host';
   sectionHost.dataset.qa = 'labs-section-host';
 
-  dashboardRoot.replaceChildren(header, nav, sectionHost);
+  const contentShell = document.createElement('div');
+  contentShell.className = 'labs-content-shell';
+  contentShell.append(header, nav, sectionHost);
+
+  dashboardRoot.replaceChildren(contentShell);
 
   renderSection(activeSection);
 }

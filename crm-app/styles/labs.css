@@ -213,6 +213,14 @@
   box-sizing: border-box;
 }
 
+.labs-content-shell {
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: var(--space-5, 20px);
+  box-sizing: border-box;
+}
+
 main[data-ui="labs-root"],
 main[data-ui="labs-root"] .labs-crm-dashboard {
   width: 100%;
