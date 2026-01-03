@@ -67,8 +67,9 @@ export function enableVNextGrid(container, sectionId) {
             if (!attrW && defaults.w) w = defaults.w;
             if (!attrH && defaults.h) h = defaults.h;
             if (!attrW && !defaults.w) {
-                if (el.classList.contains('w2')) w = 8;
-                if (el.classList.contains('w3')) w = 12;
+                if (el.classList.contains('labs-w2')) w = 8;
+                if (el.classList.contains('labs-w3')) w = 12;
+                if (el.classList.contains('labs-w1')) w = 4;
             }
         }
 
@@ -124,8 +125,10 @@ export function enableVNextGrid(container, sectionId) {
         float: false,   // gravity based
         animate: true,
         disableOneColumnMode: true, // Force 12 col or similar?
+        disableDrag: false,
+        disableResize: false,
         draggable: {
-            handle: '.widget-header', // Standard labs widget header class
+            handle: '.labs-widget-drag-handle, .labs-widget-chrome__header',
             appendTo: 'body'
         },
         resizable: {
@@ -159,8 +162,8 @@ function saveVNextLayout(sectionId, grid) {
         id: node.id,
         x: node.x,
         y: node.y,
-        width: node.width,
-        height: node.height
+        width: node.width ?? node.w,
+        height: node.height ?? node.h
     }));
     try {
         localStorage.setItem(VNEXT_STORAGE_PREFIX + sectionId, JSON.stringify(layout));
