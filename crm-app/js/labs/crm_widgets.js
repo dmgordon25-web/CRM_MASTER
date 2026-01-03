@@ -26,6 +26,7 @@ import {
 } from './data.js';
 import { computeReferralLeaders } from './helpers/referral_leaders_logic.js';
 import { PIPELINE_MILESTONES } from '../pipeline/constants.js';
+import { PIPELINE_STAGE_KEYS } from '../pipeline/stages.js';
 import { getDeltaInsight, getThresholdInsight, getTopDriverInsight } from './insight_callouts.js';
 import {
   createRowContainer,
@@ -466,7 +467,7 @@ function normalizeLaneOrder(lanes = []) {
   const normalized = [];
   const seen = new Set();
   const candidates = Array.isArray(lanes) ? lanes.slice() : [];
-  Object.keys(STAGE_CONFIG).forEach((stage) => candidates.push(stage));
+  PIPELINE_STAGE_KEYS.forEach((stage) => candidates.push(stage));
 
   candidates.forEach((lane) => {
     const key = normalizeStagesForDisplay(lane);
@@ -859,7 +860,7 @@ export function renderPipelineMomentumWidget(container, model) {
       return shell;
     }
 
-    const stages = Object.keys(STAGE_CONFIG);
+    const stages = PIPELINE_STAGE_KEYS;
     renderWidgetBody(shell, (body) => {
       const barsHTML = stages.map((stage, idx) => {
         const count = groups?.[stage] || 0;

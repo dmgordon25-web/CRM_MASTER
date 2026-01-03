@@ -2,8 +2,8 @@
 // Connects to actual CRM database and provides data for Labs dashboard
 
 import { deriveBaselineSnapshot } from '../dashboard/baseline_snapshot.js';
-import { normalizeWorkflow, CANONICAL_STAGE_ORDER, canonicalStageKey, classifyLane } from '../workflow/state_model.js';
-import { stageLabelFromKey } from '../pipeline/stages.js';
+import { normalizeWorkflow, canonicalStageKey } from '../workflow/state_model.js';
+import { PIPELINE_STAGE_KEYS, stageKeyFromLabel, stageLabelFromKey } from '../pipeline/stages.js';
 import { normalizeLabsModel, validateLabsModel } from './model_contract.js';
 import { getTodayTasks, getOverdueTasks, getDueTaskGroups } from '../tasks/task_scopes.js';
 import { countTodayTasks, countOverdueTasks, countOpenTasks, getOpenTasks } from '../tasks/task_counts.js';
@@ -283,18 +283,14 @@ export function calculateKPIsFromSnapshot(snapshot) {
 }
 
 // Group contacts by stage for pipeline visualization using canonical model
+const PIPELINE_STAGE_KEY_SET = new Set(PIPELINE_STAGE_KEYS);
+
 export function groupByStage(contacts = []) {
-  const groups = {};
-  const order = CANONICAL_STAGE_ORDER.concat(['lost']);
-  order.forEach((stage) => { groups[stage] = []; });
+  const groups = Object.fromEntries(PIPELINE_STAGE_KEYS.map((stage) => [stage, []]));
   contacts.forEach((contact) => {
-    const stage = canonicalStageKey(contact.stage || contact.lane);
-    if (groups[stage]) {
-      groups[stage].push(contact);
-    } else {
-      groups.other = groups.other || [];
-      groups.other.push(contact);
-    }
+    const stage = stageKeyFromLabel(contact.stage || contact.lane);
+    if (!PIPELINE_STAGE_KEY_SET.has(stage)) return;
+    groups[stage].push(contact);
   });
   return groups;
 }
@@ -330,7 +326,7 @@ export function computeStageFunnel(contacts = []) {
   const funnel = [];
   const groups = groupByStage(contacts);
 
-  CANONICAL_STAGE_ORDER.forEach((stage) => {
+  PIPELINE_STAGE_KEYS.forEach((stage) => {
     const stageContacts = groups[stage] || [];
     const count = stageContacts.length;
     const totalAmount = stageContacts.reduce((sum, contact) => sum + (Number(contact.loanAmount) || 0), 0);
@@ -732,19 +728,18 @@ export function getUpcomingCelebrations(contacts, days = 7) {
 
 // Stage display configuration derived from canonical workflow
 const STAGE_PALETTE = ['#94a3b8', '#06b6d4', '#8b5cf6', '#3b82f6', '#6366f1', '#10b981', '#059669', '#22c55e', '#84cc16', '#0ea5e9'];
-const STAGE_ICONS = ['👋', '📝', '✅', '⚙️', '🔍', '👍', '🎯', '💰', '🎉', '🔁'];
-export const STAGE_CONFIG = CANONICAL_STAGE_ORDER.reduce((acc, stage, index) => {
-  const lane = classifyLane(stage);
+const STAGE_ICONS = ['👋', '📝', '✅', '⚙️', '🔍', '👍', '🎯', '💰'];
+export const STAGE_CONFIG = PIPELINE_STAGE_KEYS.reduce((acc, stage, index) => {
   acc[stage] = {
-    label: lane.label || stageLabelFromKey(stage),
+    label: stageLabelFromKey(stage),
     color: STAGE_PALETTE[index % STAGE_PALETTE.length],
     icon: STAGE_ICONS[index % STAGE_ICONS.length]
   };
   return acc;
-}, { lost: { label: 'Lost', color: '#ef4444', icon: '✗' } });
+}, {});
 
 export function normalizeStagesForDisplay(stageKey) {
-  return canonicalStageKey(stageKey);
+  return stageKeyFromLabel(stageKey);
 }
 
 export {
@@ -847,8 +842,8 @@ export async function buildLabsModel() {
 
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
   const partnerMap = new Map(partners.map((p) => [p.id, p]));
-  const laneOrder = CANONICAL_STAGE_ORDER.concat(['lost']);
-  const activeLanes = laneOrder.filter((lane) => !['funded', 'post-close', 'past-client', 'returning', 'lost'].includes(lane));
+  const laneOrder = PIPELINE_STAGE_KEYS.slice();
+  const activeLanes = laneOrder.filter((lane) => lane !== 'funded');
 
   const snapshot = deriveBaselineSnapshot({
     contacts,
