@@ -42,7 +42,7 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   shell.appendChild(header);
 
   const body = document.createElement('div');
-  body.className = 'labs-widget__body labs-widget-chrome__body';
+  body.className = 'labs-widget__body labs-widget-chrome__body labs-widget-body';
   body.setAttribute('data-role', 'widget-body');
   if (bodyHtml == null) {
     body.innerHTML = '<div class="labs-widget__state labs-widget__state--empty">No data available</div>';
