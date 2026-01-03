@@ -16,6 +16,35 @@ main[data-ui="labs-root"] {
   --labs-pill-min-height: 28px;
   --labs-pill-line-height: 1.25;
   --labs-empty-padding: 24px;
+
+  width: 100vw;
+  max-width: none;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+main[data-ui="labs-root"] .labs-crm-dashboard,
+main[data-ui="labs-root"] .labs-section-host,
+main[data-ui="labs-root"] .labs-grid-shell,
+main[data-ui="labs-root"] .labs-crm-grid,
+main[data-ui="labs-root"] .grid-stack {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+main[data-ui="labs-root"] .labs-crm-grid.grid-stack {
+  display: block;
+  position: relative;
+  grid-template-columns: none;
+}
+
+main[data-ui="labs-root"] .grid-stack > .grid-stack-item {
+  min-width: 0;
+}
+
+main[data-ui="labs-root"] .grid-stack-item-content {
+  overflow: visible;
 }
 
 .labs-widget--chrome {
