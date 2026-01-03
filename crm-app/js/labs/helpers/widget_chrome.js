@@ -16,8 +16,15 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   titleEl.textContent = title || '';
   header.appendChild(titleEl);
 
-  const meta = document.createElement('div');
-  meta.className = 'labs-widget-chrome__meta';
+  const controls = document.createElement('div');
+  controls.className = 'labs-widget-chrome__controls';
+
+  if (countText !== undefined && countText !== null && countText !== '') {
+    const count = document.createElement('span');
+    count.className = 'labs-widget-chrome__count';
+    count.textContent = countText;
+    controls.appendChild(count);
+  }
 
   if (helpId) {
     const help = document.createElement('button');
@@ -26,17 +33,12 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
     help.setAttribute('data-help', helpId);
     help.setAttribute('aria-label', 'Help');
     help.textContent = '?';
-    meta.appendChild(help);
+    controls.appendChild(help);
   }
 
-  if (countText !== undefined && countText !== null && countText !== '') {
-    const count = document.createElement('span');
-    count.className = 'labs-widget-chrome__count';
-    count.textContent = countText;
-    meta.appendChild(count);
+  if (controls.childElementCount) {
+    header.appendChild(controls);
   }
-
-  header.appendChild(meta);
   shell.appendChild(header);
 
   const body = document.createElement('div');
