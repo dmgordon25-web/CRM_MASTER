@@ -82,6 +82,56 @@ function toDisplayTasks(model, tasks) {
   return getDisplayTasks({ ...model, tasks });
 }
 
+function applyRecordDataAttrs(node, ids = {}, widgetKey, mirrorTargets = []) {
+  if (!node) return;
+  const contactId = ids.contactId ? String(ids.contactId) : '';
+  const partnerId = ids.partnerId ? String(ids.partnerId) : '';
+  const taskId = ids.taskId ? String(ids.taskId) : '';
+
+  const targets = [node].concat(Array.isArray(mirrorTargets) ? mirrorTargets.filter(Boolean) : []);
+
+  targets.forEach((target) => {
+    if (!target || typeof target.setAttribute !== 'function') return;
+    if (widgetKey) {
+      target.setAttribute('data-widget', widgetKey);
+      target.setAttribute('data-dash-widget', widgetKey);
+      target.setAttribute('data-widget-id', widgetKey);
+    }
+    if (contactId) {
+      target.setAttribute('data-contact-id', contactId);
+      target.setAttribute('data-id', contactId);
+    }
+    if (partnerId) target.setAttribute('data-partner-id', partnerId);
+    if (taskId) target.setAttribute('data-task-id', taskId);
+  });
+}
+
+function openContactFromWidget(contactId, source) {
+  const id = contactId ? String(contactId) : '';
+  if (!id) return false;
+  let contactModal = null;
+  let contactEditor = null;
+  try { contactModal = typeof openContactModal === 'function' ? openContactModal : null; }
+  catch (_err) { contactModal = null; }
+  try { contactEditor = typeof openContactEditor === 'function' ? openContactEditor : null; }
+  catch (_err) { contactEditor = null; }
+  if (!contactModal && typeof window !== 'undefined' && typeof window.openContactModal === 'function') {
+    contactModal = window.openContactModal;
+  }
+  if (!contactEditor && typeof window !== 'undefined' && typeof window.openContactEditor === 'function') {
+    contactEditor = window.openContactEditor;
+  }
+  if (contactModal) {
+    contactModal(id, { sourceHint: source });
+    return true;
+  }
+  if (contactEditor) {
+    contactEditor(id, { source });
+    return true;
+  }
+  return false;
+}
+
 export const WIDGET_META = {
   labsKpiSummary: {
     id: 'labsKpiSummary',
@@ -1671,19 +1721,12 @@ export function renderTodayWidget(container, model) {
       return shell;
     }
 
-    const applyTodayAttrs = (node, ids) => {
-      if (!node) return;
-      node.setAttribute('data-widget', 'today');
-      node.setAttribute('data-dash-widget', 'today');
-      node.setAttribute('data-widget-id', 'today');
-      if (ids.contactId) {
-        node.setAttribute('data-contact-id', ids.contactId);
-        node.setAttribute('data-id', ids.contactId);
-      }
-      if (ids.partnerId) {
-        node.setAttribute('data-partner-id', ids.partnerId);
-      }
-    };
+    const applyTodayAttrs = (node, ids, mirrorTargets = []) => applyRecordDataAttrs(
+      node,
+      ids,
+      'today',
+      mirrorTargets
+    );
 
     renderWidgetBody(shell, (body) => {
       body.innerHTML = '';
@@ -1743,13 +1786,13 @@ export function renderTodayWidget(container, model) {
             const row = document.createElement('li');
             row.setAttribute('data-role', 'today-row');
             row.setAttribute('data-type', 'task');
-            applyTodayAttrs(row, { contactId, partnerId });
-            if (task.id) row.setAttribute('data-task-id', task.id);
-
             const rowWrap = document.createElement('div');
             rowWrap.className = 'row';
             rowWrap.style.alignItems = 'center';
             rowWrap.style.gap = '8px';
+
+            const taskId = task.id || task.taskId;
+            applyTodayAttrs(row, { contactId, partnerId, taskId }, [rowWrap]);
 
             const grow = document.createElement('div');
             grow.className = 'grow';
@@ -1775,7 +1818,7 @@ export function renderTodayWidget(container, model) {
             const doneBtn = document.createElement('button');
             doneBtn.className = 'btn brand';
             doneBtn.setAttribute('data-act', 'task-done');
-            if (task.id) doneBtn.setAttribute('data-task-id', task.id);
+            if (taskId) doneBtn.setAttribute('data-task-id', taskId);
             doneBtn.textContent = 'Mark done';
 
             rowWrap.appendChild(grow);
@@ -1784,6 +1827,7 @@ export function renderTodayWidget(container, model) {
 
             row.appendChild(rowWrap);
             taskList.appendChild(row);
+            applyTodayAttrs(rowWrap, { contactId, partnerId, taskId }, [grow, title, meta]);
           });
 
           card.appendChild(taskList);
@@ -1834,12 +1878,27 @@ export function renderTodayWidget(container, model) {
           if (id && typeof openContactModal === 'function') {
             openContactModal(id, { sourceHint: 'labs-today', trigger: contactBtn });
           }
+          return;
+        }
+
+        const row = event.target.closest('[data-role="today-row"]');
+        if (row) {
+          const contactId = row.getAttribute('data-contact-id');
+          const partnerId = row.getAttribute('data-partner-id');
+          const taskId = row.getAttribute('data-task-id');
+          if (openContactFromWidget(contactId, 'labs-today')) return;
+          if (partnerId) {
+            openPartnerEditor(partnerId, { source: 'labs-today' });
+            return;
+          }
+          if (taskId) {
+            openTaskEditor({ id: taskId, sourceHint: 'labs-today' });
+          }
         }
       };
 
       if (body.__todayClickHandler) body.removeEventListener('click', body.__todayClickHandler);
-      body.addEventListener('click', clickHandler);
-      body.__todayClickHandler = clickHandler;
+      body.__todayClickHandler = safeBindClick('today', body, clickHandler);
     });
   } catch (err) {
     console.error('[labs] today widget render failed', err);
@@ -2138,19 +2197,10 @@ export function renderPriorityActionsWidget(container, model) {
         `;
 
         rowEl.setAttribute('data-role', 'priority-row');
-        rowEl.setAttribute('data-widget', 'priorityActions');
-        rowEl.setAttribute('data-dash-widget', 'priorityActions');
-        rowEl.setAttribute('data-widget-id', 'priorityActions');
-        if (row.contactId) {
-          rowEl.setAttribute('data-contact-id', row.contactId);
-          rowEl.setAttribute('data-id', row.contactId);
-        }
-        if (row.partnerId) {
-          rowEl.setAttribute('data-partner-id', row.partnerId);
-        }
-        if (row.taskId) {
-          rowEl.setAttribute('data-task-id', row.taskId);
-        }
+        applyRecordDataAttrs(rowEl, row, 'priorityActions', [
+          rowEl.querySelector('.priority-pill'),
+          rowEl.querySelector('.priority-label')
+        ]);
 
         rowEl.style.cursor = 'pointer';
         rowEl.setAttribute('role', 'button');
@@ -2159,30 +2209,25 @@ export function renderPriorityActionsWidget(container, model) {
         listEl.appendChild(rowEl);
       });
 
-      listEl.addEventListener('click', (event) => {
+      const clickHandler = (event) => {
         const target = event.target.closest('[data-role="priority-row"]');
         if (!target) return;
 
-        // Parity: Prioritize Contact Editor for context (satisfies 'opens editor reliably')
-        // since task editor might be creation-only or missing.
         const contactId = target.getAttribute('data-contact-id');
-        if (contactId) {
-          openContactEditor(contactId, { source: 'labs-priority' });
-          return;
-        }
-
         const partnerId = target.getAttribute('data-partner-id');
+        const taskId = target.getAttribute('data-task-id');
+
+        if (openContactFromWidget(contactId, 'labs-priority')) return;
         if (partnerId) {
           openPartnerEditor(partnerId, { source: 'labs-priority' });
           return;
         }
-
-        const taskId = target.getAttribute('data-task-id');
         if (taskId) {
           openTaskEditor({ id: taskId, sourceHint: 'labs-priority' });
-          return;
         }
-      });
+      };
+
+      safeBindClick('priorityActions', listEl, clickHandler);
 
       body.appendChild(listEl);
     });
@@ -2281,19 +2326,6 @@ export function renderMilestonesWidget(container, model) {
         row.className = `milestone-row ${task.status}`;
         row.style.animationDelay = `${idx * 0.05}s`;
         row.setAttribute('data-role', 'milestone-row');
-        row.setAttribute('data-widget', 'milestonesAhead');
-        row.setAttribute('data-dash-widget', 'milestonesAhead');
-        row.setAttribute('data-widget-id', 'milestonesAhead');
-        if (task.contactId) {
-          row.setAttribute('data-contact-id', task.contactId);
-          row.setAttribute('data-id', task.contactId);
-        }
-        if (task.partnerId) {
-          row.setAttribute('data-partner-id', task.partnerId);
-        }
-        if (task.taskId) {
-          row.setAttribute('data-task-id', task.taskId);
-        }
         row.style.cursor = 'pointer';
         row.setAttribute('role', 'button');
         row.setAttribute('tabindex', '0');
@@ -2314,19 +2346,23 @@ export function renderMilestonesWidget(container, model) {
           <div class="milestone-date ${cls}">${phr} · ${task.dueLabel}</div>
         `;
 
+        applyRecordDataAttrs(row, task, 'milestonesAhead', [
+          row.querySelector('.list-main'),
+          row.querySelector('.milestone-date'),
+          row.querySelector('.milestone-title'),
+          row.querySelector('.milestone-sub')
+        ]);
+
         list.appendChild(row);
       });
 
-      list.addEventListener('click', (event) => {
+      const clickHandler = (event) => {
         const target = event.target.closest('[data-role="milestone-row"]');
         if (!target) return;
         const contactId = target.getAttribute('data-contact-id');
         const partnerId = target.getAttribute('data-partner-id');
         const taskId = target.getAttribute('data-task-id');
-        if (contactId) {
-          openContactEditor(contactId, { source: 'labs-milestones' });
-          return;
-        }
+        if (openContactFromWidget(contactId, 'labs-milestones')) return;
         if (partnerId) {
           openPartnerEditor(partnerId, { source: 'labs-milestones' });
           return;
@@ -2334,7 +2370,9 @@ export function renderMilestonesWidget(container, model) {
         if (taskId) {
           openTaskEditor({ id: taskId, sourceHint: 'labs-milestones' });
         }
-      });
+      };
+
+      safeBindClick('milestonesAhead', list, clickHandler);
 
       body.appendChild(list);
     });
@@ -3285,8 +3323,7 @@ export function renderNotificationsWidget(container, _model) {
     const body = shell?._labsBody || shell?.querySelector?.('.labs-widget__body');
     const list = body?.querySelector?.('[data-role="notifications-list"]');
     if (list && !list.__notifClick) {
-      list.__notifClick = true;
-      list.addEventListener('click', (evt) => {
+      list.__notifClick = safeBindClick('notifications', list, (evt) => {
         const target = evt.target?.closest?.('[data-notification-id]');
         if (!target) return;
         const id = target.dataset.notificationId || target.dataset.id;
