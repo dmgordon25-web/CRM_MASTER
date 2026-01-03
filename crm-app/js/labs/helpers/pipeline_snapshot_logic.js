@@ -1,10 +1,16 @@
-import { PIPELINE_STAGE_KEYS, stageKeyFromLabel, stageLabelFromKey } from '../../pipeline/stages.js';
+import { PIPELINE_STAGE_KEYS, stageLabelFromKey } from '../../pipeline/stages.js';
+import { CANONICAL_STAGE_ORDER, canonicalStageKey } from '../../workflow/state_model.js';
 
-const PIPELINE_SNAPSHOT_STAGE_KEYS = PIPELINE_STAGE_KEYS.filter((key) => key !== 'funded');
+const PIPELINE_SNAPSHOT_STAGE_KEYS = CANONICAL_STAGE_ORDER.slice();
+const ACTIVE_PIPELINE_STAGE_SET = new Set(
+  PIPELINE_SNAPSHOT_STAGE_KEYS.filter((key) => !['funded', 'post-close', 'past-client', 'returning'].includes(key))
+);
+const SNAPSHOT_STAGE_SET = new Set(PIPELINE_SNAPSHOT_STAGE_KEYS);
 
 function normalizePipelineStage(value) {
-  const key = stageKeyFromLabel(value);
-  if (PIPELINE_SNAPSHOT_STAGE_KEYS.includes(key)) return key;
+  const key = canonicalStageKey(value);
+  if (SNAPSHOT_STAGE_SET.has(key)) return key;
+  if (PIPELINE_STAGE_KEYS.includes(key)) return canonicalStageKey(key);
   return '';
 }
 
@@ -37,7 +43,10 @@ export function computePipelineSnapshot(model = {}) {
     label: stageLabelFromKey(key),
     count: counts[key] || 0
   }));
-  const total = stages.reduce((sum, stage) => sum + stage.count, 0);
+  const total = stages.reduce((sum, stage) => {
+    if (!ACTIVE_PIPELINE_STAGE_SET.has(stage.key)) return sum;
+    return sum + stage.count;
+  }, 0);
 
   return { stages, counts, total };
 }
