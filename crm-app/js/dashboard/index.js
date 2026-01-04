@@ -439,6 +439,7 @@ const layoutToggleState = {
 
 const layoutResetState = {
   button: null,
+  emptyButton: null,
   pending: false
 };
 
@@ -836,6 +837,29 @@ function resolveLayoutResetButton() {
   return button || null;
 }
 
+function resolveEmptyLayoutResetButton() {
+  if (!doc) return null;
+  const button = doc.querySelector('[data-dashboard-action="layout-empty-reset"]');
+  return button || null;
+}
+
+function updateLayoutResetButtons() {
+  const buttons = [layoutResetState.button, layoutResetState.emptyButton].filter(btn => btn && btn.isConnected);
+  buttons.forEach(button => {
+    if (layoutResetState.pending) {
+      button.disabled = true;
+      button.dataset.loading = 'true';
+    } else {
+      button.disabled = false;
+      if (button.dataset && Object.prototype.hasOwnProperty.call(button.dataset, 'loading')) {
+        delete button.dataset.loading;
+      } else {
+        button.removeAttribute('data-loading');
+      }
+    }
+  });
+}
+
 function ensureLayoutResetButton() {
   const button = resolveLayoutResetButton();
   layoutResetState.button = button;
@@ -844,17 +868,19 @@ function ensureLayoutResetButton() {
     button.__wired = true;
     button.addEventListener('click', handleLayoutResetClick);
   }
-  if (layoutResetState.pending) {
-    button.disabled = true;
-    button.dataset.loading = 'true';
-  } else {
-    button.disabled = false;
-    if (button.dataset && Object.prototype.hasOwnProperty.call(button.dataset, 'loading')) {
-      delete button.dataset.loading;
-    } else {
-      button.removeAttribute('data-loading');
-    }
+  updateLayoutResetButtons();
+  return button;
+}
+
+function ensureEmptyResetButton() {
+  const button = resolveEmptyLayoutResetButton();
+  layoutResetState.emptyButton = button;
+  if (!button) return null;
+  if (!button.__wired) {
+    button.__wired = true;
+    button.addEventListener('click', handleLayoutResetClick);
   }
+  updateLayoutResetButtons();
   return button;
 }
 
@@ -1079,27 +1105,40 @@ function handleLayoutToggleClick(evt) {
   applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
 }
 
+async function performDashboardLayoutReset(reason) {
+  const resetReason = reason || 'toolbar-reset:recommended';
+  clearDashboardConfigStorage();
+  setDashboardMode('today', { force: true });
+  await resetLayout({ reason: resetReason });
+}
+
 async function handleLayoutResetClick(evt) {
   if (evt) {
     evt.preventDefault();
     evt.stopPropagation();
   }
-  const allowReset = !win || typeof win.confirm !== 'function' ? true : win.confirm('Reset layout?');
+  ensureLayoutResetButton();
+  ensureEmptyResetButton();
+  const trigger = evt && evt.currentTarget ? evt.currentTarget : null;
+  const reason = trigger && trigger.getAttribute('data-dashboard-action') === 'layout-empty-reset'
+    ? 'empty-state-reset'
+    : 'toolbar-reset:recommended';
+  const allowReset = !win || typeof win.confirm !== 'function'
+    ? true
+    : win.confirm('Restore the recommended layout? Your widgets will return to the Today defaults.');
   if (!allowReset) return;
   if (layoutResetState.pending) return;
   layoutResetState.pending = true;
-  ensureLayoutResetButton();
+  updateLayoutResetButtons();
   try {
-    clearDashboardConfigStorage();
-    setDashboardMode('today', { force: true });
-    await resetLayout({ reason: 'toolbar-reset:recommended' });
+    await performDashboardLayoutReset(reason);
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[dashboard] layout reset failed', err);
     } catch (_warnErr) { }
   } finally {
     layoutResetState.pending = false;
-    ensureLayoutResetButton();
+    updateLayoutResetButtons();
     ensureLayoutToggle();
   }
 }
@@ -4372,6 +4411,8 @@ export function initDashboard(options = {}) {
     if (typeof ensureLayoutToggle === 'function') {
       ensureLayoutToggle();
     }
+    ensureLayoutResetButton();
+    ensureEmptyResetButton();
     syncDashboardMode({ force: true });
     try {
       await getSettingsPrefs();
