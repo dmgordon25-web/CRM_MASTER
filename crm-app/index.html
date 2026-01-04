@@ -151,17 +151,21 @@
       <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0;font-size:18px">Dashboard</h2>
         <span class="muted" id="dashboard-mode-caption">Focus on today&#39;s priorities.</span>
-        <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button"
-          aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
-          <span data-mode="view">Edit layout</span>
-          <span data-mode="edit" hidden>Done editing</span>
-        </button>
-        <span class="help-icon" data-help="dashboard-page">?</span>
-        <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
-          title="Restore default dashboard layout">
-          <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
-          <span>Reset layout</span>
-        </button>
+        <button class="btn subtle dash-layout-customize" data-dashboard-action="layout-customize" type="button"
+          aria-pressed="false" aria-label="Customize dashboard layout">Customize</button>
+        <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools">
+          <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button"
+            aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
+            <span data-mode="view">Edit layout</span>
+            <span data-mode="edit" hidden>Done editing</span>
+          </button>
+          <span class="help-icon" data-help="dashboard-page">?</span>
+          <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
+            title="Restore default dashboard layout">
+            <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
+            <span>Reset layout</span>
+          </button>
+        </div>
         <span class="grow"></span>
         <div class="row" role="group" aria-label="Dashboard scope">
           <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
