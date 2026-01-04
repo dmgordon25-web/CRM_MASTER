@@ -11,6 +11,18 @@
   gap: var(--space-2, 8px);
 }
 
+#dashboard-header[data-dashboard-mode="default"] .dash-layout-customize,
+#dashboard-header[data-dashboard-mode="preview"] .dash-layout-customize,
+#dashboard-header[data-dashboard-mode="default"] .dash-layout-advanced,
+#dashboard-header[data-dashboard-mode="preview"] .dash-layout-advanced {
+  display: none;
+}
+
+#dashboard-header[data-dashboard-mode="customized"] .dash-layout-customize,
+#dashboard-header[data-dashboard-mode="customized"] .dash-layout-advanced {
+  display: inline-flex;
+}
+
 [data-dash-layout-mode="off"] .dash-layout-advanced {
   display: none;
 }
@@ -33,6 +45,28 @@
 
 .dash-layout-reset[data-loading] {
   pointer-events: none;
+}
+
+.dash-preview-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.08);
+  color: rgba(30, 64, 175, 0.95);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.dash-preview-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.85);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
 }
 
 main[data-ui="dashboard-root"] {
