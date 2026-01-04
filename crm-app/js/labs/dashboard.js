@@ -757,7 +757,7 @@ function createHeader() {
   const partnerCount = formatNumber(labsModel?.partners?.length || 0);
   const taskCount = formatNumber(labsModel?.tasks?.length || 0);
   const warningBadge = LABS_DEBUG && labsModel?.validationWarnings?.length
-    ? `<div class="labs-debug-indicator" title="Labs model warnings">${labsModel.validationWarnings.length} warning${labsModel.validationWarnings.length === 1 ? '' : 's'}</div>`
+    ? `<div class="labs-debug-indicator" title="Dashboard (Preview) model warnings">${labsModel.validationWarnings.length} warning${labsModel.validationWarnings.length === 1 ? '' : 's'}</div>`
     : '';
 
   header.innerHTML = `
@@ -765,12 +765,12 @@ function createHeader() {
       <div class="labs-branding">
         <h1 class="labs-title">
           <span class="labs-icon-main">🚀</span>
-          CRM Labs
+          Dashboard (Preview)
           <span class="labs-badge-beta">BETA</span>
         </h1>
-        <p class="labs-subtitle">Canonical data • Alternate shell • Modern visuals</p>
+        <p class="labs-subtitle">Preview of the next-generation dashboard powered by your live data.</p>
         <a href="#/dashboard" class="labs-link-legacy" style="display:inline-block; margin-top:4px; font-size:0.85rem; color:var(--text-muted); text-decoration:none; border-bottom:1px dashed currentColor;">
-          ← Return to Legacy Dashboard
+          ← Return to Dashboard
         </a>
       </div>
         <div class="labs-header-stats">
@@ -1377,7 +1377,7 @@ function attachEventListeners() {
       await refreshDashboard();
     }
     if (action === 'settings') {
-      showNotification('Labs experiments are enabled — this mirrors the main dashboard.', 'info');
+      showNotification('Dashboard (Preview) experiments are enabled — this mirrors the main dashboard.', 'info');
     }
     if (action === 'toggle-customize') {
       const sectionId = event.target.closest('[data-section-id]')?.dataset.sectionId || activeSection;
@@ -1593,10 +1593,10 @@ async function mountLabsDashboard(root) {
     renderShell();
     runLabsParityDiagnostics(labsModel);
     attachEventListeners();
-    console.info('[labs] CRM Labs dashboard rendered');
+    console.info('[labs] CRM Dashboard (Preview) rendered');
   } catch (err) {
     console.error('[labs] Failed to initialize:', err);
-    showError(err.message || 'Unable to render Labs dashboard');
+    showError(err.message || 'Unable to render the Dashboard (Preview)');
   }
 }
 

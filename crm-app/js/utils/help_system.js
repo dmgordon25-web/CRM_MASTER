@@ -244,8 +244,8 @@ helpSystem.register('reports-view', {
     content: 'Deep dive into your business metrics. Analyze conversion rates, source performance, and production volume.'
 });
 helpSystem.register('labs-view', {
-    title: 'Labs',
-    content: 'Experimental features and new views. Test upcoming functionality before it goes mainstream.'
+    title: 'Dashboard (Preview)',
+    content: 'Preview of the next-generation dashboard. Test upcoming functionality before it goes mainstream.'
 });
 helpSystem.register('notifications-view', {
     title: 'Notifications',
