@@ -52,6 +52,8 @@
   font-weight: 700;
   color: var(--ink);
   line-height: 1.2;
+  flex: 1;
+  min-width: 0;
   /* Removed truncation for wrapping */
   max-width: 400px;
 }
