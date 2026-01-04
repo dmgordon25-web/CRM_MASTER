@@ -349,6 +349,15 @@ function resetDashboardConfigState(mode) {
   return getDashboardConfigState(mode);
 }
 
+function clearDashboardConfigStorage() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('dashboard:config:v1');
+    }
+  } catch (_err) { }
+  try { readDashboardConfig('default'); } catch (_err2) { }
+}
+
 function resolveWidgetKeyFromId(rawId) {
   if (rawId == null) return '';
   const normalized = String(rawId).trim();
@@ -948,6 +957,16 @@ function updateLayoutChromeVisibility(enabled, dashboardModeOverride) {
       customize.removeAttribute('aria-hidden');
     }
   }
+  const reset = layoutResetState.button || resolveLayoutResetButton();
+  if (reset) {
+    const showReset = showChrome && !!layoutToggleState.mode;
+    reset.hidden = !showReset;
+    if (showReset) {
+      reset.removeAttribute('aria-hidden');
+    } else {
+      reset.setAttribute('aria-hidden', 'true');
+    }
+  }
 }
 
 function updateDashboardEditingState(enabled, options = {}) {
@@ -1065,11 +1084,15 @@ async function handleLayoutResetClick(evt) {
     evt.preventDefault();
     evt.stopPropagation();
   }
+  const allowReset = !win || typeof win.confirm !== 'function' ? true : win.confirm('Reset layout?');
+  if (!allowReset) return;
   if (layoutResetState.pending) return;
   layoutResetState.pending = true;
   ensureLayoutResetButton();
   try {
-    await resetLayout({ reason: 'toolbar-reset' });
+    clearDashboardConfigStorage();
+    setDashboardMode('today', { force: true });
+    await resetLayout({ reason: 'toolbar-reset:recommended' });
   } catch (err) {
     try {
       if (console && console.warn) console.warn('[dashboard] layout reset failed', err);
