@@ -113,10 +113,11 @@
         </div>
       </header>
       <nav class="row" id="main-nav" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-nav="labs">
-          Labs
+        <button class="btn" data-nav="labs" title="Preview of the next-generation dashboard">
+          Dashboard (Preview)
+          <span aria-hidden="true" style="margin-left:6px;padding:2px 6px;border-radius:10px;background:var(--bg-subtle, #f0f2f5);color:var(--text-muted, #5f6368);font-size:11px;line-height:1;">Preview</span>
         </button>
-        <button class="btn active" data-nav="dashboard">
+        <button class="btn active" data-nav="dashboard" title="Your daily overview">
           Dashboard
         </button>
         <button class="btn" data-nav="pipeline">
@@ -150,7 +151,7 @@
     <main data-ui="dashboard-root" id="view-dashboard">
       <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0;font-size:18px">Dashboard</h2>
-        <span class="muted" id="dashboard-mode-caption">Focus on today&#39;s priorities.</span>
+        <span class="muted" id="dashboard-mode-caption">Your daily overview</span>
         <button class="btn subtle dash-layout-customize" data-dashboard-action="layout-customize" type="button"
           aria-pressed="false" aria-label="Customize dashboard layout">Customize</button>
         <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools">
@@ -386,10 +387,10 @@
     <main class="hidden" data-ui="labs-root" id="view-labs">
       <section class="card" data-qa="labs-shell-placeholder">
         <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
-          <h3 style="margin:0">Labs Dashboard <span class="help-icon" data-help-id="labs-view">?</span></h3>
-          <span class="muted">Experimental dashboard powered by your live data.</span>
+          <h3 style="margin:0">Dashboard (Preview) <span class="help-icon" data-help-id="labs-view">?</span></h3>
+          <span class="muted">Preview of the next-generation dashboard.</span>
         </div>
-        <p class="muted">Loading Labs dashboard…</p>
+        <p class="muted">Loading Dashboard (Preview)…</p>
       </section>
     </main>
     <!-- PARTNERS -->
@@ -1444,11 +1445,11 @@
                     </label>
                     <label>
                       <input id="home-view-labs" name="home-view" type="radio" value="labs" />
-                      Labs
+                      Dashboard (Preview)
                     </label>
                   </div>
                   <p class="muted fine-print" id="home-view-note" style="margin-top:6px;">Applies only to Advanced mode.
-                    Simple mode always opens Labs.</p>
+                    Simple mode always opens Dashboard (Preview).</p>
                 </div>
                 <p class="muted fine-print" style="margin-top:8px;">
                   Simple mode hides rarely-used fields and advanced features for a cleaner interface.

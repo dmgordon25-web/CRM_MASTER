@@ -106,7 +106,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const loadingCard = document.createElement('section');
     loadingCard.className = 'card';
     loadingCard.dataset.qa = 'labs-loading';
-    loadingCard.innerHTML = '<strong>Loading Labs...</strong><p class="muted">Fetching experimental widgets.</p>';
+    loadingCard.innerHTML = '<strong>Loading Dashboard (Preview)...</strong><p class="muted">Fetching preview widgets.</p>';
     root.appendChild(loadingCard);
     root.setAttribute('aria-busy', 'true');
 
@@ -118,7 +118,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             ? mod.default
             : null;
         if (!init) {
-          throw new Error('Labs module missing initLabs export');
+          throw new Error('Dashboard (Preview) module missing initLabs export');
         }
         return init(root);
       })
@@ -131,7 +131,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const errorCard = document.createElement('section');
         errorCard.className = 'card';
         errorCard.dataset.qa = 'labs-error';
-        errorCard.innerHTML = '<h2>Labs unavailable</h2><p class="muted">Labs are not available in this build. This does <strong>not</strong> affect your main CRM data.</p>';
+        errorCard.innerHTML = '<h2>Dashboard (Preview) unavailable</h2><p class="muted">Dashboard (Preview) is not available in this build. This does <strong>not</strong> affect your main CRM data.</p>';
         const retryRow = document.createElement('div');
         retryRow.className = 'row';
         retryRow.style.gap = '8px';

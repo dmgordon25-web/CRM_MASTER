@@ -62,7 +62,7 @@ function buildContent(container) {
       'Navigation tabs',
       'Use the top bar to move between work modes.',
       [
-        'Dashboard is the default view for quick priorities; Labs is the next-gen dashboard; zNext is the draggable/resizable version.',
+        'Dashboard is your daily overview; Dashboard (Preview) lets you try the next-generation dashboard; Customized Dashboard is the draggable/resizable version.',
         'Switch views without losing context — the header always stays available.'
       ]
     ),
@@ -79,7 +79,7 @@ function buildContent(container) {
       'Create new items from anywhere.',
       [
         'Opens shortcuts for new contacts, partners, leads, and tasks.',
-        'Stays consistent across Dashboard, Labs, and zNext so you never hunt for “add new.”'
+        'Stays consistent across Dashboard, Dashboard (Preview), and the Customized Dashboard so you never hunt for “add new.”'
       ]
     ),
     createSection(
@@ -99,11 +99,11 @@ function buildContent(container) {
       ]
     ),
     createSection(
-      'Edit layout / drag / resize (zNext)',
-      'zNext lets you rearrange tiles when you need a custom view.',
+      'Edit layout / drag / resize (Customized Dashboard)',
+      'The Customized Dashboard lets you rearrange tiles when you need a bespoke view.',
       [
-        'Use “Edit layout” in zNext to drag cards, resize panels, and then click done to lock the layout.',
-        'Labs shares the same data but experiments with dashboards — switch back to Dashboard anytime.'
+        'Use “Edit layout” in the Customized Dashboard to drag cards, resize panels, and then click done to lock the layout.',
+        'Dashboard (Preview) shares the same data but experiments with dashboards — switch back to Dashboard anytime.'
       ]
     )
   ];
