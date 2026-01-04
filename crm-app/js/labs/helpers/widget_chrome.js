@@ -1,4 +1,4 @@
-export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, footerHtml, helpId, bodyViewport } = {}) {
+export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, footerHtml, helpId, bodyViewport, iconHtml } = {}) {
   const shell = document.createElement('div');
   shell.className = 'labs-widget labs-widget--chrome';
   if (widgetId) {
@@ -16,7 +16,17 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
 
   const titleEl = document.createElement('div');
   titleEl.className = 'labs-widget-chrome__title';
-  titleEl.textContent = title || '';
+  if (iconHtml) {
+    const iconEl = document.createElement('span');
+    iconEl.className = 'labs-widget-chrome__icon';
+    iconEl.innerHTML = iconHtml;
+    titleEl.appendChild(iconEl);
+  }
+
+  const titleText = document.createElement('span');
+  titleText.className = 'labs-widget-chrome__label';
+  titleText.textContent = title || '';
+  titleEl.appendChild(titleText);
   header.appendChild(titleEl);
 
   const controls = document.createElement('div');
