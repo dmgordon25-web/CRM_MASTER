@@ -7,6 +7,7 @@
 // Since we used curl to vendor it, we reference it relative to this file
 import '../../vendor/gridstack/gridstack.all.js';
 import { VNEXT_WIDGET_DEFAULTS } from './vnext_widget_meta.js';
+import { DEFAULT_VNEXT_LAYOUTS } from './vnext_defaults.js';
 
 const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
 let activeGrids = new Map();
@@ -52,18 +53,30 @@ export function enableVNextGrid(container, sectionId) {
     elements.forEach(el => {
         const widgetId = el.getAttribute('data-widget-id');
         const saved = savedLayout ? savedLayout.find(item => item.id === widgetId) : null;
+        const defaultsLayout = DEFAULT_VNEXT_LAYOUTS[sectionId] || [];
+        const defaultPosition = defaultsLayout.find(item => item.id === widgetId);
         const defaults = VNEXT_WIDGET_DEFAULTS[widgetId] || {};
         let w = 4;
         let h = 4;
+        let x = 0;
+        let y = 0;
 
         if (saved) {
             w = saved.width || saved.w || 4;
             h = saved.height || saved.h || 4;
+            x = saved.x || 0;
+            y = saved.y || 0;
         } else {
             const attrW = el.getAttribute('data-gs-w') || el.getAttribute('data-gs-width');
             const attrH = el.getAttribute('data-gs-h') || el.getAttribute('data-gs-height');
             if (attrW) w = Number.parseInt(attrW, 10) || w;
             if (attrH) h = Number.parseInt(attrH, 10) || h;
+            if (defaultPosition) {
+                w = defaultPosition.w || w;
+                h = defaultPosition.h || h;
+                x = defaultPosition.x || 0;
+                y = defaultPosition.y || 0;
+            }
             if (!attrW && defaults.w) w = defaults.w;
             if (!attrH && defaults.h) h = defaults.h;
             if (!attrW && !defaults.w) {
@@ -79,12 +92,12 @@ export function enableVNextGrid(container, sectionId) {
         wrapper.setAttribute('gs-id', widgetId);
         wrapper.setAttribute('data-gs-width', w);
         wrapper.setAttribute('data-gs-height', h);
-        wrapper.setAttribute('data-gs-x', saved ? saved.x : 0);
-        wrapper.setAttribute('data-gs-y', saved ? saved.y : 0);
+        wrapper.setAttribute('data-gs-x', x);
+        wrapper.setAttribute('data-gs-y', y);
         wrapper.setAttribute('gs-w', w);
         wrapper.setAttribute('gs-h', h);
-        wrapper.setAttribute('gs-x', saved ? saved.x : 0);
-        wrapper.setAttribute('gs-y', saved ? saved.y : 0);
+        wrapper.setAttribute('gs-x', x);
+        wrapper.setAttribute('gs-y', y);
 
         const pct = (w / 12) * 100;
         wrapper.style.setProperty('--gs-column-width', `${pct}%`);
@@ -122,14 +135,13 @@ export function enableVNextGrid(container, sectionId) {
         column: 12,
         cellHeight: 120, // Tweak height to match widget scale
         margin: 16,     // Match labs gap
-        float: false,   // gravity based
+        float: true,    // allow horizontal packing
         animate: true,
         disableOneColumnMode: true, // Force 12 col or similar?
         disableDrag: false,
         disableResize: false,
         draggable: {
-            handle: '.labs-widget-drag-handle, .labs-widget-chrome__header',
-            appendTo: 'body'
+            handle: '.widget-header, .labs-widget-header, [data-role="widget-header"], .labs-widget-drag-handle, .labs-widget-chrome__header'
         },
         resizable: {
             handles: 'e, se, s, sw, w'
