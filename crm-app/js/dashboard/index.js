@@ -27,7 +27,7 @@ const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
 let releaseDashboardRouteToken = null;
 
 // Labs-only: edit mode and drag/drop are disabled in normal runtime
-const DASHBOARD_EDITING_LABS_ENABLED = false;
+const DASHBOARD_EDITING_LABS_ENABLED = true;
 
 function setDebugWidths(values) {
   if (!win || typeof win !== 'object') return;
@@ -549,6 +549,8 @@ function ensurePreviewBadge(header) {
 }
 
 function deriveDashboardMode() {
+  const userMode = getDashboardMode();
+  if (userMode === 'all') return 'customized';
   if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
   if (isSimpleDashboardMode()) return 'preview';
   const config = getDashboardConfigState('customized');
@@ -3969,12 +3971,30 @@ function setDashboardMode(mode, options = {}) {
   if (!skipPersist) {
     persistDashboardMode(normalized);
   }
+  syncLayoutModeForDashboard(normalized);
   if (!skipBus && dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
       dashboardStateApi.setMode(normalized, { reason: 'dashboard:index:set-mode' });
     } catch (_err) { }
   }
   return normalized;
+}
+
+function syncLayoutModeForDashboard(mode) {
+  const normalized = mode === 'all' ? 'all' : 'today';
+  const inCustomize = normalized === 'all';
+  setDashboardLayoutProfile(inCustomize ? 'customized' : 'default');
+  if (inCustomize) {
+    if (!layoutToggleState.mode) {
+      applyLayoutToggleMode(true, { commit: true, persist: true });
+    }
+  } else {
+    if (layoutToggleState.mode) {
+      applyLayoutToggleMode(false, { commit: true, persist: false });
+    }
+    setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
+  }
+  syncDashboardMode({ force: true, allowLayoutReset: false });
 }
 
 function syncModeFromButtons() {
@@ -4336,6 +4356,7 @@ export function initDashboard(options = {}) {
       renderDashboardInitError(container, err);
       throw err;
     }
+    setDashboardMode(getDashboardMode(), { force: true, skipPersist: true, skipBus: true });
     scheduleApply();
     ensureWidgetDnD();
     refreshTodayHighlightWiring();
