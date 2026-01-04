@@ -1,5 +1,6 @@
 import { makeDraggableGrid, applyOrder as applyGridOrder, attachOnce, listenerCount as dragListenerCount } from './drag_core.js';
 import { getSettingsApi } from '../app_context.js';
+import { DEFAULT_WIDGET_SET, PREVIEW_WIDGET_SET } from '../dashboard/config.js';
 
 const ORDER_STORAGE_KEY = 'dash:layout:order:v1';
 const HIDDEN_STORAGE_KEY = 'dash:layout:hidden:v1';
@@ -95,25 +96,25 @@ const DASHBOARD_WIDGETS = [
   { id: 'dashboard-focus', key: 'focus', label: 'Focus Summary' },
   { id: 'dashboard-filters', key: 'filters', label: 'Filters' },
   { id: 'dashboard-kpis', key: 'kpis', label: 'KPIs' },
-  { id: 'dashboard-pipeline-overview', key: 'pipeline', label: 'Pipeline Overview', defaultEnabled: false },
+  { id: 'dashboard-pipeline-overview', key: 'pipeline', label: 'Pipeline Overview' },
   { id: 'dashboard-today', key: 'today', label: "Today's Work" },
   { id: 'dashboard-todo', key: 'todo', label: 'To-Do' },
-  { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard', defaultEnabled: false },
-  { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals', defaultEnabled: false },
-  { id: 'favorites-card', key: 'favorites', label: 'Favorites' },
-  { id: 'goal-progress-card', key: 'goalProgress', label: 'Production Goals' },
-  { id: 'numbers-portfolio-card', key: 'numbersPortfolio', label: 'Partner Portfolio' },
-  { id: 'numbers-referrals-card', key: 'numbersReferrals', label: 'Referral Leaders' },
-  { id: 'numbers-momentum-card', key: 'numbersMomentum', label: 'Pipeline Momentum' },
-  { id: 'pipeline-calendar-card', key: 'pipelineCalendar', label: 'Pipeline Calendar' },
   { id: 'priority-actions-card', key: 'priorityActions', label: 'Priority Actions' },
-  { id: 'milestones-card', key: 'milestones', label: 'Milestones Ahead' },
-  { id: 'doc-pulse-card', key: 'docPulse', label: 'Document Pulse' },
-  { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities' },
-  { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar' },
-  { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist' },
-  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)' },
-  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center' }
+  { id: 'dashboard-stale', key: 'stale', label: 'Stale Deals' },
+  { id: 'referral-leaderboard', key: 'leaderboard', label: 'Referral Leaderboard', defaultEnabled: false },
+  { id: 'favorites-card', key: 'favorites', label: 'Favorites', defaultEnabled: false },
+  { id: 'goal-progress-card', key: 'goalProgress', label: 'Production Goals', defaultEnabled: false },
+  { id: 'numbers-portfolio-card', key: 'numbersPortfolio', label: 'Partner Portfolio', defaultEnabled: false },
+  { id: 'numbers-referrals-card', key: 'numbersReferrals', label: 'Referral Leaders', defaultEnabled: false },
+  { id: 'numbers-momentum-card', key: 'numbersMomentum', label: 'Pipeline Momentum', defaultEnabled: false },
+  { id: 'pipeline-calendar-card', key: 'pipelineCalendar', label: 'Pipeline Calendar', defaultEnabled: false },
+  { id: 'milestones-card', key: 'milestones', label: 'Milestones Ahead', defaultEnabled: false },
+  { id: 'doc-pulse-card', key: 'docPulse', label: 'Document Pulse', defaultEnabled: false },
+  { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities', defaultEnabled: false },
+  { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar', defaultEnabled: false },
+  { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist', defaultEnabled: false },
+  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)', defaultEnabled: false },
+  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center', defaultEnabled: false }
 ];
 
 const LEGACY_WIDGET_REDIRECT = (() => {
@@ -154,13 +155,18 @@ DASHBOARD_WIDGETS.forEach(widget => {
 
 const DEFAULT_LAYOUT_COLUMNS = 3;
 const DEFAULT_LAYOUT_MODE = 'today';
-const CANONICAL_WIDGET_IDS = DASHBOARD_WIDGETS
-  .map(widget => normalizeId(widget.id))
-  .filter(Boolean);
-const CANONICAL_HIDDEN_IDS = DASHBOARD_WIDGETS
-  .filter(widget => widget && widget.defaultEnabled === false)
-  .map(widget => normalizeId(widget.id))
-  .filter(Boolean);
+const DEFAULT_ALLOWED_SET = new Set(DEFAULT_WIDGET_SET);
+const PREVIEW_ALLOWED_SET = new Set(PREVIEW_WIDGET_SET);
+const CANONICAL_WIDGET_IDS = {
+  default: buildCanonicalIds(DEFAULT_ALLOWED_SET),
+  preview: buildCanonicalIds(PREVIEW_ALLOWED_SET),
+  customized: buildCanonicalIds(DEFAULT_ALLOWED_SET)
+};
+const CANONICAL_HIDDEN_IDS = {
+  default: buildCanonicalHiddenIds(DEFAULT_ALLOWED_SET),
+  preview: buildCanonicalHiddenIds(PREVIEW_ALLOWED_SET),
+  customized: buildCanonicalHiddenIds(DEFAULT_ALLOWED_SET)
+};
 
 const state = {
   wired: false,
@@ -176,8 +182,44 @@ const state = {
   hiddenSignature: null,
   orderSignature: null,
   suppressOrderPersist: false,
-  settingsListenerWired: false
+  settingsListenerWired: false,
+  layoutProfile: 'default'
 };
+
+function normalizeLayoutProfile(mode){
+  if(mode === 'customized') return 'customized';
+  if(mode === 'preview') return 'preview';
+  return 'default';
+}
+
+function buildCanonicalIds(allowedSet){
+  const prioritized = [];
+  const trailing = [];
+  DASHBOARD_WIDGETS.forEach(widget => {
+    if(!widget || !widget.id) return;
+    const bucket = allowedSet.has(widget.key) ? prioritized : trailing;
+    bucket.push(normalizeId(widget.id));
+  });
+  return prioritized.concat(trailing).filter(Boolean);
+}
+
+function buildCanonicalHiddenIds(allowedSet){
+  const hidden = [];
+  DASHBOARD_WIDGETS.forEach(widget => {
+    const id = normalizeId(widget && widget.id);
+    if(!id || !widget || !widget.key) return;
+    if(!allowedSet.has(widget.key)) hidden.push(id);
+  });
+  return hidden;
+}
+
+function getCanonicalIds(profile){
+  return CANONICAL_WIDGET_IDS[normalizeLayoutProfile(profile)] || CANONICAL_WIDGET_IDS.default;
+}
+
+function getCanonicalHidden(profile){
+  return CANONICAL_HIDDEN_IDS[normalizeLayoutProfile(profile)] || CANONICAL_HIDDEN_IDS.default;
+}
 
 function getSettingsService(){
   return getSettingsApi();
@@ -263,6 +305,7 @@ function readOrderIds(){
 }
 
 function writeOrderIds(orderIds){
+  if(state.layoutProfile !== 'customized') return;
   const normalized = Array.isArray(orderIds) ? orderIds.map(normalizeId).filter(Boolean) : [];
   if(typeof localStorage === 'undefined') return;
   try{
@@ -298,6 +341,7 @@ function readHiddenIds(){
 }
 
 function writeHiddenIds(ids){
+  if(state.layoutProfile !== 'customized') return;
   const normalized = Array.isArray(ids) ? ids.map(normalizeId).filter(Boolean) : [];
   if(typeof localStorage === 'undefined') return;
   try{
@@ -662,9 +706,12 @@ function applyVisibility(container){
 function applyLayoutFromStorage(reason){
   const container = ensureContainer();
   if(!container) return false;
-  state.hidden = expandHiddenIds(readHiddenIds());
+  const profile = normalizeLayoutProfile(state.layoutProfile);
+  const useStoredLayout = profile === 'customized';
+  const hiddenSource = useStoredLayout ? readHiddenIds() : getCanonicalHidden(profile);
+  state.hidden = expandHiddenIds(hiddenSource);
   prepareWidgets(container);
-  const order = readOrderIds();
+  const order = useStoredLayout ? readOrderIds() : getCanonicalIds(profile);
   if(order.length){
     applyGridOrder(container, order, ITEM_SELECTOR, getWidgetId);
   }
@@ -897,6 +944,14 @@ export function applyDashboardHidden(input, options = {}){
   }
 }
 
+export function setDashboardLayoutProfile(mode){
+  const normalized = normalizeLayoutProfile(mode);
+  if(state.layoutProfile === normalized) return normalized;
+  state.layoutProfile = normalized;
+  requestDashboardLayoutPass({ reason: 'profile-change' });
+  return normalized;
+}
+
 export function readStoredLayoutMode(){
   return readLayoutModeFlag();
 }
@@ -929,11 +984,13 @@ export function requestDashboardLayoutPass(input){
 export function resetDashboardLayoutState(options = {}){
   const removedKeys = clearDashLayoutStorage();
   setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
-  state.hidden = new Set();
+  const profile = normalizeLayoutProfile(state.layoutProfile);
+  const hiddenDefaults = profile === 'customized' ? [] : getCanonicalHidden(profile);
+  state.hidden = new Set(hiddenDefaults);
   state.hiddenSignature = null;
   state.orderSignature = null;
   state.suppressOrderPersist = false;
-  applyDashboardHidden([], { persist: false, skipSettings: true });
+  applyDashboardHidden(hiddenDefaults, { persist: false, skipSettings: true });
   if(options.skipLayoutPass !== true){
     const reason = options.reason || 'layout-reset';
     requestDashboardLayoutPass({ reason });
@@ -945,17 +1002,20 @@ export async function resetLayout(options = {}){
   const reason = options.reason || 'layout-reset';
   const wasEditing = !!state.layoutMode;
   const removedKeys = clearDashLayoutStorage();
-  const hiddenSet = new Set(CANONICAL_HIDDEN_IDS);
+  const profile = normalizeLayoutProfile(state.layoutProfile);
+  const hiddenSet = new Set(getCanonicalHidden(profile));
   applyDashboardHidden(hiddenSet, { persist: false, skipSettings: true });
   const container = ensureContainer();
   if(container){
     prepareWidgets(container);
-    if(CANONICAL_WIDGET_IDS.length){
-      applyGridOrder(container, CANONICAL_WIDGET_IDS, ITEM_SELECTOR, getWidgetId);
+    const canonicalOrder = getCanonicalIds(profile);
+    if(canonicalOrder.length){
+      applyGridOrder(container, canonicalOrder, ITEM_SELECTOR, getWidgetId);
     }
     applyVisibility(container);
   }
-  state.orderSignature = computeOrderSignature(CANONICAL_WIDGET_IDS);
+  const canonicalOrder = getCanonicalIds(profile);
+  state.orderSignature = computeOrderSignature(canonicalOrder);
   updateLayoutModeAttr();
   ensureDrag();
   if(state.drag && typeof state.drag.refresh === 'function'){
@@ -974,7 +1034,7 @@ export async function resetLayout(options = {}){
         widgets: widgetPrefs,
         layout: { columns: DEFAULT_LAYOUT_COLUMNS, widths: {} }
       },
-      dashboardOrder: convertIdsToKeys(CANONICAL_WIDGET_IDS)
+      dashboardOrder: convertIdsToKeys(canonicalOrder)
     };
     try{
       settingsResult = await settingsApi.save(payload, { silent: true });
@@ -991,6 +1051,7 @@ export async function resetLayout(options = {}){
 }
 
 async function syncDashboardPrefsFromSettings(reason){
+  if(normalizeLayoutProfile(state.layoutProfile) !== 'customized') return;
   const settingsApi = getSettingsService();
   if(!settingsApi || typeof settingsApi.get !== 'function') return;
   try{
