@@ -1676,8 +1676,9 @@ main[data-ui="labs-root"] .labs-grid-shell {
   background: var(--labs-bg-card);
   border: 1px solid var(--labs-border);
   border-radius: 14px;
-  padding: 1.1rem;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  padding: 1.25rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  outline: 1px solid rgba(148, 163, 184, 0.3);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1689,7 +1690,9 @@ main[data-ui="labs-root"] .labs-grid-shell {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.45);
 }
 
 .labs-widget__title-row {
@@ -1700,8 +1703,9 @@ main[data-ui="labs-root"] .labs-grid-shell {
 
 .labs-widget__title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 800;
+  letter-spacing: 0.01em;
   color: var(--labs-text-primary);
 }
 
