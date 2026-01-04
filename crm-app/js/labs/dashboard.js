@@ -268,8 +268,8 @@ const LABS_PRESETS = {
         closingWatch: true, upcomingCelebrations: true
       },
       widths: {
-        focus: 'w3', labsKpiSummary: 'w3', labsPipelineSnapshot: 'w3', goalProgress: 'w1',
-        labsTasks: 'w2', today: 'w2', todo: 'w2', priorityActions: 'w1', favorites: 'w1',
+        focus: 'w3', labsKpiSummary: 'w3', labsPipelineSnapshot: 'w3', goalProgress: 'w2',
+        labsTasks: 'w2', today: 'w2', todo: 'w2', priorityActions: 'w2', favorites: 'w2',
         milestones: 'w2',
         partnerPortfolio: 'w3', referralLeaderboard: 'w2', referralTrends: 'w2', relationshipOpportunities: 'w2',
         closingWatch: 'w2', upcomingCelebrations: 'w2'
@@ -289,7 +289,7 @@ const LABS_PRESETS = {
       widths: {
         labsKpiSummary: 'w3',
         labsPipelineSnapshot: 'w3',
-        favorites: 'w1'
+        favorites: 'w2'
       }
     },
     weeklyReview: {
@@ -334,7 +334,7 @@ const LABS_PRESETS = {
         relationshipOpportunities: 'w2',
         priorityActions: 'w2',
         todo: 'w2',
-        favorites: 'w1'
+        favorites: 'w2'
       },
       description: 'A 10-minute weekly planning layout'
     },
@@ -385,11 +385,11 @@ const LABS_PRESETS = {
         referralLeaderboard: 'w2',
         relationshipOpportunities: 'w2',
         closingWatch: 'w2',
-        priorityActions: 'w1',
-        todo: 'w1',
-        favorites: 'w1',
-        labsTasks: 'w1',
-        today: 'w1'
+        priorityActions: 'w2',
+        todo: 'w2',
+        favorites: 'w2',
+        labsTasks: 'w2',
+        today: 'w2'
       },
       description: 'Strategic month-in-review with velocity, partner momentum, and relationship risk'
     },
