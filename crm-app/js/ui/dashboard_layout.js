@@ -556,11 +556,17 @@ function ensureContainer(){
   return state.container;
 }
 
+function shouldSkipWidget(node){
+  if(!node || node.nodeType !== 1) return true;
+  if(node.dataset && node.dataset.role === 'dash-empty-state') return true;
+  return false;
+}
+
 function collectWidgets(container){
   if(!container) return [];
   try{
     return Array.from(container.querySelectorAll(ITEM_SELECTOR))
-      .filter(node => node && node.nodeType === 1);
+      .filter(node => node && node.nodeType === 1 && !shouldSkipWidget(node));
   }catch (_err){
     return [];
   }
@@ -570,7 +576,7 @@ function collectGroupWidgets(container){
   if(!container) return [];
   try{
     return Array.from(container.querySelectorAll(GROUP_WIDGET_SELECTOR))
-      .filter(node => node && node.nodeType === 1);
+      .filter(node => node && node.nodeType === 1 && !shouldSkipWidget(node));
   }catch (_err){
     return [];
   }
@@ -674,11 +680,31 @@ function getWidgetId(node){
   return normalizeId(value);
 }
 
+function updateEmptyStateVisibility(target, visibleCount){
+  if(!target || typeof target.querySelector !== 'function') return;
+  const emptyState = target.querySelector('[data-role="dash-empty-state"]');
+  const isEmpty = visibleCount === 0;
+  if(isEmpty){
+    if(target.setAttribute) target.setAttribute('data-dash-empty', 'true');
+    if(emptyState){
+      emptyState.hidden = false;
+      emptyState.removeAttribute('aria-hidden');
+    }
+  }else{
+    if(target.removeAttribute) target.removeAttribute('data-dash-empty');
+    if(emptyState){
+      emptyState.hidden = true;
+      emptyState.setAttribute('aria-hidden', 'true');
+    }
+  }
+}
+
 function applyVisibility(container){
   const target = container || ensureContainer();
   if(!target) return;
   const items = collectAllWidgets(target);
   if(!items.length) return;
+  let visibleCount = 0;
   const seen = new Set();
   items.forEach(item => {
     const widgetId = ensureWidgetId(item, seen);
@@ -699,8 +725,10 @@ function applyVisibility(container){
       }
       item.removeAttribute('aria-hidden');
       if(item.dataset.dashHidden) delete item.dataset.dashHidden;
+      visibleCount += 1;
     }
   });
+  updateEmptyStateVisibility(target, visibleCount);
 }
 
 function applyLayoutFromStorage(reason){

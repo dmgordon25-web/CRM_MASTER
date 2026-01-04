@@ -79,6 +79,42 @@
   pointer-events: none;
 }
 
+.dash-customize-hint {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+[data-dash-layout-mode="on"] .dash-customize-hint {
+  display: inline-flex;
+}
+
+.dash-empty-state {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed var(--border-medium, #94a3b8);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(226, 232, 240, 0.55) 0%, rgba(226, 232, 240, 0.3) 100%);
+}
+
+.dash-empty-content {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.dash-empty-heading {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+[data-dash-empty="true"] .dash-empty-state {
+  display: block;
+}
+
 .dash-preview-indicator {
   display: inline-flex;
   align-items: center;

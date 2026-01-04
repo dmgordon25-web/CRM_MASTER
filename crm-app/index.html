@@ -177,7 +177,18 @@
             </button>
           </div>
         </div>
+        <div class="dash-customize-hint muted" data-dashboard-customize-hint aria-live="polite">
+          <span aria-hidden="true">⬑</span>
+          <span>Drag and resize widgets. You can always reset.</span>
+        </div>
       </div>
+      <section class="card dash-empty-state" data-role="dash-empty-state" hidden aria-hidden="true">
+        <div class="dash-empty-content">
+          <div class="dash-empty-heading">No widgets visible</div>
+          <p class="muted">You hid every widget. Restore the recommended layout to start fresh.</p>
+          <button class="btn" type="button" data-dashboard-action="layout-empty-reset">Restore recommended layout</button>
+        </div>
+      </section>
       <section class="card" id="dashboard-focus" data-widget-id="focus"></section>
       <section class="card" id="dashboard-filters" data-widget-id="filters"></section>
       <section class="card" id="dashboard-kpis" data-widget-id="kpis"></section>
