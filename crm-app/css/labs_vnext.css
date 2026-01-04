@@ -76,7 +76,28 @@ main[data-ui="labs-root"] .grid-stack-item-content {
   font-size: var(--dash-title-size, 1rem);
   color: var(--labs-text-primary);
   line-height: var(--dash-line-height, 1.5);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   flex: 1 1 auto;
+}
+
+.labs-widget-chrome__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8fafc;
+  font-size: 1rem;
+  color: inherit;
+}
+
+.labs-widget-chrome__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .labs-widget-chrome__controls {
@@ -137,6 +158,12 @@ main[data-ui="labs-root"] .grid-stack-item-content {
   border-top: 1px solid var(--labs-border);
   color: var(--labs-text-secondary);
   font-size: 0.9rem;
+}
+
+.focus-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 /* Labs list row normalization */

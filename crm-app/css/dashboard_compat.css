@@ -110,6 +110,23 @@
   min-height: var(--dash-compat-header-height);
 }
 
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8fafc;
+  font-size: 1rem;
+}
+
 .labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__body {
   gap: var(--dash-compat-body-gap);
   padding-top: var(--space-3, 12px);
@@ -119,4 +136,10 @@
 .labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__footer {
   padding-top: var(--space-2, 8px);
   padding-bottom: var(--space-3, 12px);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .focus-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
 }

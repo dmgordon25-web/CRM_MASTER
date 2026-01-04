@@ -2029,25 +2029,108 @@ export function renderFocusWidget(container, model) {
   const appointments = getDedupedAppointments(model);
   const leads = focus.recentLeads || [];
 
-  const block = (title, items) => `
-    <div class="focus-block">
-      <div class="focus-title">${title}</div>
-      <ul class="focus-list">
-        ${items.map((item) => `<li>${item}</li>`).join('') || '<li class="muted">Nothing queued</li>'}
-      </ul>
-    </div>
-  `;
+  const rows = {
+    tasks: tasks.map((task) => {
+      const contactName = task.contactName || task.name || '';
+      const due = formatDate(task.due || task.dueTs);
+      const meta = [contactName, due].filter(Boolean).join(' • ');
+      return {
+        primary: task.title || 'Task',
+        secondary: meta
+      };
+    }),
+    appointments: appointments.map((appt) => {
+      const contactName = appt.contactName || appt.name || '';
+      const when = formatDate(appt.due || appt.dueTs);
+      const meta = [when, contactName].filter(Boolean).join(' • ');
+      return {
+        primary: appt.title || 'Appointment',
+        secondary: meta
+      };
+    }),
+    leads: leads.map((lead) => {
+      const display = (model.getContactDisplayName ? model.getContactDisplayName(lead.id) : null)
+        || lead.displayName
+        || lead.name
+        || 'Lead';
+      const stage = normalizeStagesForDisplay(lead.stage || lead.lane) || '';
+      const created = lead.createdTs ? formatDate(lead.createdTs) : '';
+      const meta = [stage, created ? `Added ${created}` : ''].filter(Boolean).join(' • ');
+      return {
+        primary: display,
+        secondary: meta
+      };
+    })
+  };
 
-  renderCard(container, {
-    title: '🎯 Focus',
-    body: `
-      <div class="focus-grid">
-        ${block('Tasks Today', tasks.map((t) => t.title || 'Task'))}
-        ${block('Next Appointments', appointments.map((a) => `${formatDate(a.due || a.dueTs)} · ${a.title || 'Appointment'}`))}
-        ${block('Recent Leads', leads.map((l) => (model.getContactDisplayName ? model.getContactDisplayName(l.id) : null) || l.displayName || l.name || 'Lead'))}
-      </div>
-    `
+  const { shell, body } = mountWidgetChrome(container, {
+    widgetId: 'focus',
+    title: 'Focus',
+    iconHtml: '🎯',
+    helpId: 'focus-summary',
+    bodyHtml: '<div class="focus-card-grid" data-role="focus-grid"></div>'
   });
+
+  const buildList = (items, emptyMessage) => {
+    const list = document.createElement('ul');
+    list.className = 'insight-list actionable';
+    if (!items.length) {
+      const empty = document.createElement('li');
+      empty.className = 'empty muted';
+      empty.textContent = emptyMessage;
+      list.appendChild(empty);
+      return list;
+    }
+
+    items.forEach((item) => {
+      const row = document.createElement('li');
+      row.className = 'labs-row';
+
+      const primary = document.createElement('div');
+      primary.className = 'labs-row__primary';
+      primary.textContent = item.primary || '';
+      row.appendChild(primary);
+
+      if (item.secondary) {
+        const secondary = document.createElement('div');
+        secondary.className = 'labs-row__secondary muted';
+        secondary.textContent = item.secondary;
+        row.appendChild(secondary);
+      }
+
+      list.appendChild(row);
+    });
+
+    return list;
+  };
+
+  const grid = body?.querySelector?.('[data-role="focus-grid"]');
+  const sections = [
+    { widgetId: 'tasksToday', title: 'Tasks Today', icon: '✅', items: rows.tasks, empty: 'Nothing queued' },
+    { widgetId: 'nextAppointments', title: 'Next Appointments', icon: '📅', items: rows.appointments, empty: 'No upcoming appointments' },
+    { widgetId: 'recentLeads', title: 'Recent Leads', icon: '🧲', items: rows.leads, empty: 'No recent leads added' }
+  ];
+
+  if (grid) {
+    sections.forEach((section) => {
+      const card = renderWidgetChrome({
+        widgetId: section.widgetId,
+        title: section.title,
+        iconHtml: section.icon,
+        bodyHtml: '<div data-role="section-body"></div>'
+      });
+
+      const cardBody = card?._labsBody || card.querySelector?.('[data-role="widget-body"]');
+      if (cardBody) {
+        cardBody.innerHTML = '';
+        cardBody.appendChild(buildList(section.items, section.empty));
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  return shell;
 }
 
 // =======================
