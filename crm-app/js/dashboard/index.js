@@ -428,6 +428,11 @@ const layoutResetState = {
   pending: false
 };
 
+const layoutChromeState = {
+  customizeButton: null,
+  advancedHost: null
+};
+
 
 function resolveDashboardDrilldownDispatcher() {
   const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
@@ -454,6 +459,12 @@ function detachLayoutToggleButton(target) {
   catch (_err) { }
 }
 
+function detachLayoutCustomizeButton(target) {
+  if (!target) return;
+  try { target.removeEventListener('click', handleLayoutCustomizeClick); }
+  catch (_err) { }
+}
+
 function releaseLayoutToggleGlobals() {
   if (layoutToggleState.modeListenerBound && doc && typeof doc.removeEventListener === 'function') {
     try { doc.removeEventListener('dashboard:layout-mode', handleExternalLayoutMode); }
@@ -467,14 +478,29 @@ function releaseLayoutToggleGlobals() {
   }
 }
 
+function resolveLayoutCustomizeButton() {
+  if (!doc) return null;
+  const button = doc.querySelector('[data-dashboard-action="layout-customize"]');
+  return button || null;
+}
+
+function resolveLayoutAdvancedHost() {
+  if (!doc) return null;
+  const host = doc.querySelector('[data-dashboard-advanced]');
+  return host || null;
+}
+
 function teardownLayoutControls() {
   if (layoutToggleState.button && layoutToggleState.wired) {
     detachLayoutToggleButton(layoutToggleState.button);
   }
+  detachLayoutCustomizeButton(layoutChromeState.customizeButton);
   layoutToggleState.button = null;
   layoutToggleState.viewLabel = null;
   layoutToggleState.editLabel = null;
   layoutToggleState.wired = false;
+  layoutChromeState.customizeButton = null;
+  layoutChromeState.advancedHost = null;
   releaseLayoutToggleGlobals();
 }
 
@@ -745,6 +771,27 @@ function ensureLayoutResetButton() {
   return button;
 }
 
+function ensureLayoutChrome() {
+  const customize = resolveLayoutCustomizeButton();
+  const advancedHost = resolveLayoutAdvancedHost();
+  layoutChromeState.customizeButton = customize;
+  layoutChromeState.advancedHost = advancedHost;
+  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    if (customize && customize.__wired) {
+      detachLayoutCustomizeButton(customize);
+      customize.__wired = false;
+    }
+    updateLayoutChromeVisibility(false);
+    return null;
+  }
+  if (customize && !customize.__wired) {
+    customize.__wired = true;
+    customize.addEventListener('click', handleLayoutCustomizeClick);
+  }
+  updateLayoutChromeVisibility(layoutToggleState.mode);
+  return customize;
+}
+
 function dispatchLayoutModeEvent(enabled) {
   if (!doc || typeof doc.dispatchEvent !== 'function') return;
   const CustomEventCtor = typeof CustomEvent === 'function'
@@ -789,6 +836,36 @@ function updateLayoutToggleButton(enabled) {
     layoutToggleState.editLabel = editLabel;
   }
   button.dataset.layoutMode = next ? 'edit' : 'view';
+}
+
+function updateLayoutChromeVisibility(enabled) {
+  const advancedHost = layoutChromeState.advancedHost || resolveLayoutAdvancedHost();
+  if (advancedHost) {
+    const show = DASHBOARD_EDITING_LABS_ENABLED && !!enabled;
+    advancedHost.hidden = !show;
+    if (show) {
+      advancedHost.removeAttribute('aria-hidden');
+    } else {
+      advancedHost.setAttribute('aria-hidden', 'true');
+    }
+  }
+  const customize = layoutChromeState.customizeButton || resolveLayoutCustomizeButton();
+  if (customize) {
+    if (!DASHBOARD_EDITING_LABS_ENABLED) {
+      customize.hidden = true;
+      customize.setAttribute('aria-hidden', 'true');
+      customize.setAttribute('aria-pressed', 'false');
+      return;
+    }
+    const hideCustomize = !!enabled;
+    customize.hidden = hideCustomize;
+    if (hideCustomize) {
+      customize.setAttribute('aria-pressed', 'true');
+    } else {
+      customize.setAttribute('aria-pressed', 'false');
+      customize.removeAttribute('aria-hidden');
+    }
+  }
 }
 
 function updateDashboardEditingState(enabled, options = {}) {
@@ -850,6 +927,7 @@ function applyLayoutToggleMode(enabled, options = {}) {
   if (!DASHBOARD_EDITING_LABS_ENABLED) {
     layoutToggleState.mode = false;
     updateLayoutToggleButton(false);
+    updateLayoutChromeVisibility(false);
     updateDashboardEditingState(false, { commit: false, persist: false });
     if (options.commit !== false) {
       setDashboardLayoutMode(false, { persist: false });
@@ -862,6 +940,7 @@ function applyLayoutToggleMode(enabled, options = {}) {
   const next = !!enabled;
   layoutToggleState.mode = next;
   updateLayoutToggleButton(next);
+  updateLayoutChromeVisibility(next);
   updateDashboardEditingState(next, { commit: options.commit !== false, persist: options.persist !== false });
   if (options.commit !== false) {
     const setOptions = {};
@@ -872,6 +951,19 @@ function applyLayoutToggleMode(enabled, options = {}) {
   }
   if (options.dispatch !== false && options.commit !== false) {
     dispatchLayoutModeEvent(next);
+  }
+}
+
+function handleLayoutCustomizeClick(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+  if (!DASHBOARD_EDITING_LABS_ENABLED) return;
+  applyLayoutToggleMode(true, { commit: true });
+  const toggle = resolveLayoutToggleButton();
+  if (toggle && typeof toggle.focus === 'function') {
+    try { toggle.focus({ preventScroll: true }); } catch (_err) { }
   }
 }
 
@@ -936,6 +1028,7 @@ function ensureLayoutToggle() {
       button.hidden = true;
       button.setAttribute('aria-hidden', 'true');
     }
+    ensureLayoutChrome();
     layoutToggleState.button = button || null;
     layoutToggleState.viewLabel = null;
     layoutToggleState.editLabel = null;
@@ -946,6 +1039,7 @@ function ensureLayoutToggle() {
     return null;
   }
   const button = resolveLayoutToggleButton();
+  ensureLayoutChrome();
   if (!button) {
     if (layoutToggleState.button && layoutToggleState.wired) {
       detachLayoutToggleButton(layoutToggleState.button);
@@ -963,6 +1057,7 @@ function ensureLayoutToggle() {
   }
   layoutToggleState.button = button;
   ensureLayoutResetButton();
+  ensureLayoutChrome();
   if (!layoutToggleState.bootstrapped) {
     applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: true, persist: false, force: true, dispatch: false });
     layoutToggleState.bootstrapped = true;
