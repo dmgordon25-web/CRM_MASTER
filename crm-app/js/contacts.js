@@ -1132,6 +1132,7 @@ export function normalizeContactId(input) {
           summaryHost.innerHTML = `
             <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
               ${summaryAvatarMarkup}
+              <span class="summary-name-text" data-role="record-name-text">${escape(summaryLabel)}</span>
               <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
             </div>
             <div class="identity-secondary">
