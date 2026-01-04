@@ -444,7 +444,8 @@ const layoutResetState = {
 
 const layoutChromeState = {
   customizeButton: null,
-  advancedHost: null
+  advancedHost: null,
+  customizeBanner: null
 };
 
 const dashboardChromeState = {
@@ -510,6 +511,12 @@ function resolveLayoutAdvancedHost() {
   return host || null;
 }
 
+function resolveCustomizeBannerHost() {
+  if (!doc) return null;
+  const host = doc.querySelector('[data-dashboard-customize-banner]');
+  return host || null;
+}
+
 function teardownLayoutControls() {
   if (layoutToggleState.button && layoutToggleState.wired) {
     detachLayoutToggleButton(layoutToggleState.button);
@@ -521,6 +528,7 @@ function teardownLayoutControls() {
   layoutToggleState.wired = false;
   layoutChromeState.customizeButton = null;
   layoutChromeState.advancedHost = null;
+  layoutChromeState.customizeBanner = null;
   releaseLayoutToggleGlobals();
 }
 
@@ -861,8 +869,10 @@ function ensureLayoutResetButton() {
 function ensureLayoutChrome() {
   const customize = resolveLayoutCustomizeButton();
   const advancedHost = resolveLayoutAdvancedHost();
+  const customizeBanner = resolveCustomizeBannerHost();
   layoutChromeState.customizeButton = customize;
   layoutChromeState.advancedHost = advancedHost;
+  layoutChromeState.customizeBanner = customizeBanner;
   if (!DASHBOARD_EDITING_LABS_ENABLED) {
     if (customize && customize.__wired) {
       detachLayoutCustomizeButton(customize);
@@ -931,6 +941,15 @@ function updateLayoutToggleButton(enabled, dashboardModeOverride) {
 function updateLayoutChromeVisibility(enabled, dashboardModeOverride) {
   const dashboardMode = dashboardModeOverride || dashboardChromeState.mode || deriveDashboardMode();
   const showChrome = DASHBOARD_EDITING_LABS_ENABLED && dashboardMode === 'customized';
+  const customizeBanner = layoutChromeState.customizeBanner || resolveCustomizeBannerHost();
+  if (customizeBanner) {
+    customizeBanner.hidden = !showChrome;
+    if (showChrome) {
+      customizeBanner.removeAttribute('aria-hidden');
+    } else {
+      customizeBanner.setAttribute('aria-hidden', 'true');
+    }
+  }
   const advancedHost = layoutChromeState.advancedHost || resolveLayoutAdvancedHost();
   if (advancedHost) {
     advancedHost.hidden = !showChrome;
