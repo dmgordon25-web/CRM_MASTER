@@ -433,6 +433,12 @@ const layoutChromeState = {
   advancedHost: null
 };
 
+const dashboardChromeState = {
+  header: null,
+  mode: 'default',
+  previewBadge: null
+};
+
 
 function resolveDashboardDrilldownDispatcher() {
   const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
@@ -502,6 +508,66 @@ function teardownLayoutControls() {
   layoutChromeState.customizeButton = null;
   layoutChromeState.advancedHost = null;
   releaseLayoutToggleGlobals();
+}
+
+function resolveDashboardHeader() {
+  const existing = dashboardChromeState.header;
+  if (existing && existing.isConnected) return existing;
+  if (!doc) return null;
+  const header = doc.getElementById('dashboard-header');
+  dashboardChromeState.header = header || null;
+  return dashboardChromeState.header;
+}
+
+function ensurePreviewBadge(header) {
+  if (!doc) return null;
+  const host = header || resolveDashboardHeader();
+  if (!host) return null;
+  let badge = dashboardChromeState.previewBadge && dashboardChromeState.previewBadge.isConnected
+    ? dashboardChromeState.previewBadge
+    : host.querySelector('[data-dashboard-preview]');
+  if (!badge) {
+    badge = doc.createElement('span');
+    badge.className = 'dash-preview-indicator';
+    badge.setAttribute('data-dashboard-preview', 'true');
+    badge.setAttribute('aria-label', 'Preview mode');
+    badge.textContent = 'Preview';
+    const grow = typeof host.querySelector === 'function' ? host.querySelector('.grow') : null;
+    if (grow && typeof host.insertBefore === 'function') {
+      host.insertBefore(badge, grow);
+    } else {
+      host.appendChild(badge);
+    }
+  }
+  dashboardChromeState.previewBadge = badge;
+  return badge;
+}
+
+function deriveDashboardMode() {
+  if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
+  if (isSimpleDashboardMode()) return 'preview';
+  const config = getDashboardConfigState();
+  return isDashboardConfigCustomized(config) ? 'customized' : 'default';
+}
+
+function syncDashboardMode(options = {}) {
+  const header = resolveDashboardHeader();
+  if (!header) return 'default';
+  const nextMode = deriveDashboardMode();
+  const prevMode = dashboardChromeState.mode || 'default';
+  if (!options.force && prevMode === nextMode) return nextMode;
+  dashboardChromeState.mode = nextMode;
+  try { header.dataset.dashboardMode = nextMode; } catch (_err) { }
+  const badge = ensurePreviewBadge(header);
+  if (badge) {
+    badge.hidden = nextMode !== 'preview';
+  }
+  updateLayoutChromeVisibility(layoutToggleState.mode, nextMode);
+  updateLayoutToggleButton(layoutToggleState.mode, nextMode);
+  if (options.allowLayoutReset !== false && prevMode === 'customized' && nextMode !== 'customized' && layoutToggleState.mode) {
+    applyLayoutToggleMode(false, { commit: true, dispatch: true });
+  }
+  return nextMode;
 }
 
 function resolveDashboardRouteTarget(node) {
@@ -707,6 +773,10 @@ function handleDashboardAppNavigate(evt) {
     ensureWidgetDnD();
     return;
   }
+  if (layoutToggleState.mode) {
+    applyLayoutToggleMode(false, { commit: true });
+  }
+  syncDashboardMode({ force: true });
   teardownLayoutControls();
   if (!dashDnDState.container && !dashDnDState.pointerHandlers && !dashDnDState.controller) return;
   teardownWidgetDnD('app:navigate');
@@ -781,14 +851,14 @@ function ensureLayoutChrome() {
       detachLayoutCustomizeButton(customize);
       customize.__wired = false;
     }
-    updateLayoutChromeVisibility(false);
+    updateLayoutChromeVisibility(false, dashboardChromeState.mode || deriveDashboardMode());
     return null;
   }
   if (customize && !customize.__wired) {
     customize.__wired = true;
     customize.addEventListener('click', handleLayoutCustomizeClick);
   }
-  updateLayoutChromeVisibility(layoutToggleState.mode);
+  updateLayoutChromeVisibility(layoutToggleState.mode, dashboardChromeState.mode || deriveDashboardMode());
   return customize;
 }
 
@@ -803,15 +873,18 @@ function dispatchLayoutModeEvent(enabled) {
   } catch (_err) { }
 }
 
-function updateLayoutToggleButton(enabled) {
+function updateLayoutToggleButton(enabled, dashboardModeOverride) {
   const button = layoutToggleState.button || resolveLayoutToggleButton();
   if (!button) return;
-  if (!DASHBOARD_EDITING_LABS_ENABLED) {
+  const dashboardMode = dashboardModeOverride || dashboardChromeState.mode || deriveDashboardMode();
+  if (!DASHBOARD_EDITING_LABS_ENABLED || dashboardMode !== 'customized') {
     button.hidden = true;
     button.setAttribute('aria-hidden', 'true');
     button.dataset.layoutMode = 'view';
     return;
   }
+  button.hidden = false;
+  button.removeAttribute('aria-hidden');
   const next = !!enabled;
   button.setAttribute('aria-pressed', next ? 'true' : 'false');
   if (button.classList) {
@@ -838,12 +911,13 @@ function updateLayoutToggleButton(enabled) {
   button.dataset.layoutMode = next ? 'edit' : 'view';
 }
 
-function updateLayoutChromeVisibility(enabled) {
+function updateLayoutChromeVisibility(enabled, dashboardModeOverride) {
+  const dashboardMode = dashboardModeOverride || dashboardChromeState.mode || deriveDashboardMode();
+  const showChrome = DASHBOARD_EDITING_LABS_ENABLED && dashboardMode === 'customized';
   const advancedHost = layoutChromeState.advancedHost || resolveLayoutAdvancedHost();
   if (advancedHost) {
-    const show = DASHBOARD_EDITING_LABS_ENABLED && !!enabled;
-    advancedHost.hidden = !show;
-    if (show) {
+    advancedHost.hidden = !showChrome;
+    if (showChrome) {
       advancedHost.removeAttribute('aria-hidden');
     } else {
       advancedHost.setAttribute('aria-hidden', 'true');
@@ -851,7 +925,7 @@ function updateLayoutChromeVisibility(enabled) {
   }
   const customize = layoutChromeState.customizeButton || resolveLayoutCustomizeButton();
   if (customize) {
-    if (!DASHBOARD_EDITING_LABS_ENABLED) {
+    if (!DASHBOARD_EDITING_LABS_ENABLED || dashboardMode !== 'customized') {
       customize.hidden = true;
       customize.setAttribute('aria-hidden', 'true');
       customize.setAttribute('aria-pressed', 'false');
@@ -926,8 +1000,9 @@ function updateDashboardEditingState(enabled, options = {}) {
 function applyLayoutToggleMode(enabled, options = {}) {
   if (!DASHBOARD_EDITING_LABS_ENABLED) {
     layoutToggleState.mode = false;
-    updateLayoutToggleButton(false);
-    updateLayoutChromeVisibility(false);
+    const dashboardMode = dashboardChromeState.mode || deriveDashboardMode();
+    updateLayoutToggleButton(false, dashboardMode);
+    updateLayoutChromeVisibility(false, dashboardMode);
     updateDashboardEditingState(false, { commit: false, persist: false });
     if (options.commit !== false) {
       setDashboardLayoutMode(false, { persist: false });
@@ -939,8 +1014,9 @@ function applyLayoutToggleMode(enabled, options = {}) {
   }
   const next = !!enabled;
   layoutToggleState.mode = next;
-  updateLayoutToggleButton(next);
-  updateLayoutChromeVisibility(next);
+  const dashboardMode = dashboardChromeState.mode || deriveDashboardMode();
+  updateLayoutToggleButton(next, dashboardMode);
+  updateLayoutChromeVisibility(next, dashboardMode);
   updateDashboardEditingState(next, { commit: options.commit !== false, persist: options.persist !== false });
   if (options.commit !== false) {
     const setOptions = {};
@@ -952,6 +1028,7 @@ function applyLayoutToggleMode(enabled, options = {}) {
   if (options.dispatch !== false && options.commit !== false) {
     dispatchLayoutModeEvent(next);
   }
+  syncDashboardMode({ allowLayoutReset: false, force: true });
 }
 
 function handleLayoutCustomizeClick(evt) {
@@ -1021,6 +1098,7 @@ function handleLayoutToggleStorage(evt) {
 }
 
 function ensureLayoutToggle() {
+  const dashboardMode = dashboardChromeState.mode || deriveDashboardMode();
   if (!DASHBOARD_EDITING_LABS_ENABLED) {
     const button = resolveLayoutToggleButton();
     if (button) {
@@ -1036,6 +1114,7 @@ function ensureLayoutToggle() {
     layoutToggleState.bootstrapped = true;
     layoutToggleState.mode = false;
     releaseLayoutToggleGlobals();
+    syncDashboardMode({ force: true, allowLayoutReset: false });
     return null;
   }
   const button = resolveLayoutToggleButton();
@@ -1049,6 +1128,7 @@ function ensureLayoutToggle() {
     layoutToggleState.editLabel = null;
     layoutToggleState.wired = false;
     releaseLayoutToggleGlobals();
+    syncDashboardMode({ force: true, allowLayoutReset: false });
     return null;
   }
   if (layoutToggleState.button && layoutToggleState.button !== button && layoutToggleState.wired) {
@@ -1062,7 +1142,7 @@ function ensureLayoutToggle() {
     applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: true, persist: false, force: true, dispatch: false });
     layoutToggleState.bootstrapped = true;
   } else {
-    updateLayoutToggleButton(layoutToggleState.mode);
+    updateLayoutToggleButton(layoutToggleState.mode, dashboardMode);
   }
   if (!layoutToggleState.wired) {
     button.addEventListener('click', handleLayoutToggleClick);
@@ -1077,6 +1157,7 @@ function ensureLayoutToggle() {
     win.addEventListener('storage', handleLayoutToggleStorage);
     layoutToggleState.storageBound = true;
   }
+  syncDashboardMode({ force: true, allowLayoutReset: false });
   return button;
 }
 
@@ -4096,6 +4177,7 @@ function scheduleApply() {
       applyLayoutColumns(fallbackPrefs.layout && fallbackPrefs.layout.columns);
       maybeHydrateCelebrations(fallbackPrefs);
     }
+    syncDashboardMode({ force: true });
     refreshTodayHighlightWiring();
     ensureWidgetDnD();
   });
@@ -4202,6 +4284,7 @@ function ensureDashboardUiModeListener() {
   dashboardUiModeUnsub = onUiModeChanged(() => {
     teardownWidgetDnD('ui-mode-change');
     scheduleApply();
+    syncDashboardMode({ force: true });
     ensureWidgetDnD();
   });
 }
@@ -4229,6 +4312,7 @@ export function initDashboard(options = {}) {
     if (typeof ensureLayoutToggle === 'function') {
       ensureLayoutToggle();
     }
+    syncDashboardMode({ force: true });
     try {
       await getSettingsPrefs();
     } catch (err) {

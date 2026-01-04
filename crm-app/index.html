@@ -149,9 +149,16 @@
     </div>
     <!-- DASHBOARD -->
     <main data-ui="dashboard-root" id="view-dashboard">
-      <div class="row" id="dashboard-header" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="row" id="dashboard-header" data-dashboard-mode="default" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0;font-size:18px">Dashboard</h2>
         <span class="muted" id="dashboard-mode-caption">Your daily overview</span>
+        <span class="dash-preview-indicator" data-dashboard-preview hidden aria-label="Preview mode">Preview</span>
+        <span class="grow"></span>
+        <div class="row" role="group" aria-label="Dashboard scope">
+          <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
+          <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
+        </div>
+        <span class="help-icon" data-help="dashboard-page" aria-label="Dashboard help">?</span>
         <button class="btn subtle dash-layout-customize" data-dashboard-action="layout-customize" type="button"
           aria-pressed="false" aria-label="Customize dashboard layout">Customize</button>
         <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools">
@@ -160,17 +167,11 @@
             <span data-mode="view">Edit layout</span>
             <span data-mode="edit" hidden>Done editing</span>
           </button>
-          <span class="help-icon" data-help="dashboard-page">?</span>
           <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
             title="Restore default dashboard layout">
             <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
             <span>Reset layout</span>
           </button>
-        </div>
-        <span class="grow"></span>
-        <div class="row" role="group" aria-label="Dashboard scope">
-          <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
-          <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
         </div>
       </div>
       <section class="card" id="dashboard-focus" data-widget-id="focus"></section>
