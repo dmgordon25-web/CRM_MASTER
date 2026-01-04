@@ -1,6 +1,6 @@
 import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
 import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
-import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout } from '../ui/dashboard_layout.js';
+import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout, setDashboardLayoutProfile } from '../ui/dashboard_layout.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditor } from '../editors/partner_entry.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -15,6 +15,8 @@ import {
   readDashboardConfig,
   writeDashboardConfig,
   isTodayWidget,
+  DEFAULT_WIDGET_SET,
+  PREVIEW_WIDGET_SET,
   DOC_CENTER_WIDGET_ENABLED
 } from './config.js';
 import { helpSystem } from '../utils/help_system.js';
@@ -84,6 +86,9 @@ const TODAY_WIDGET_KEYS = new Set([
   'priorityActions', // Default-visible in today mode; missing pref should not hide it.
   CELEBRATIONS_WIDGET_KEY
 ]);
+
+const DEFAULT_WIDGET_KEY_SET = new Set(DEFAULT_WIDGET_SET);
+const PREVIEW_WIDGET_KEY_SET = new Set(PREVIEW_WIDGET_SET);
 
 const todayHighlightState = {
   modeObserver: null,
@@ -326,20 +331,22 @@ function refreshWidgetIdLookup() {
   });
 }
 
-function getDashboardConfigState() {
-  if (dashboardConfigState) return dashboardConfigState;
-  dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
-  return dashboardConfigState;
+function normalizeDashboardModeKey(mode) {
+  if (mode === 'customized') return 'customized';
+  if (mode === 'preview') return 'preview';
+  return 'default';
 }
 
-function persistDashboardConfigState(next) {
-  dashboardConfigState = writeDashboardConfig(next || getDashboardConfigState());
-  return dashboardConfigState;
+function getDashboardConfigState(mode) {
+  const normalizedMode = normalizeDashboardModeKey(mode);
+  if (normalizedMode === 'customized') {
+    return normalizeDashboardConfig(readDashboardConfig('default'), { mode: 'default' });
+  }
+  return normalizeDashboardConfig(buildDefaultConfig(normalizedMode), { mode: normalizedMode });
 }
 
-function resetDashboardConfigState() {
-  dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
-  return dashboardConfigState;
+function resetDashboardConfigState(mode) {
+  return getDashboardConfigState(mode);
 }
 
 function resolveWidgetKeyFromId(rawId) {
@@ -358,8 +365,6 @@ const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
 const prefCache = { value: null, loading: null };
 let lastPersistedLayoutColumns = null;
 let pendingLayoutPersist = null;
-let dashboardConfigState = null;
-
 const DASHBOARD_WIDGET_EDITING_CLASS = 'dash-widget-editing';
 
 const dashDnDState = {
@@ -546,7 +551,7 @@ function ensurePreviewBadge(header) {
 function deriveDashboardMode() {
   if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
   if (isSimpleDashboardMode()) return 'preview';
-  const config = getDashboardConfigState();
+  const config = getDashboardConfigState('customized');
   return isDashboardConfigCustomized(config) ? 'customized' : 'default';
 }
 
@@ -562,6 +567,7 @@ function syncDashboardMode(options = {}) {
   if (badge) {
     badge.hidden = nextMode !== 'preview';
   }
+  setDashboardLayoutProfile(nextMode);
   updateLayoutChromeVisibility(layoutToggleState.mode, nextMode);
   updateLayoutToggleButton(layoutToggleState.mode, nextMode);
   if (options.allowLayoutReset !== false && prevMode === 'customized' && nextMode !== 'customized' && layoutToggleState.mode) {
@@ -3513,10 +3519,10 @@ function ensureWidgetDnD() {
   }
 }
 
-function buildDefaultMap(keys) {
+function buildDefaultMap(keys, defaultValue = true) {
   const map = {};
   keys.forEach(key => {
-    map[key] = true;
+    map[key] = defaultValue;
   });
   return map;
 }
@@ -3547,17 +3553,24 @@ function readDashboardBusMode() {
 }
 
 function defaultPrefs() {
-  const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS));
-  const config = getDashboardConfigState();
-  if (config && Array.isArray(config.widgets)) {
+  const dashboardMode = normalizeDashboardModeKey(dashboardChromeState.mode || deriveDashboardMode());
+  const configMode = dashboardMode === 'preview' ? 'preview' : (dashboardMode === 'customized' ? 'customized' : 'default');
+  const config = getDashboardConfigState(configMode);
+  const allowedSet = dashboardMode === 'preview' ? PREVIEW_WIDGET_KEY_SET : DEFAULT_WIDGET_KEY_SET;
+  const widgets = buildDefaultMap(Object.keys(WIDGET_RESOLVERS), false);
+  if (dashboardMode === 'customized' && config && Array.isArray(config.widgets)) {
     config.widgets.forEach(entry => {
       if (!entry || !entry.id) return;
       if (Object.prototype.hasOwnProperty.call(widgets, entry.id)) {
         widgets[entry.id] = entry.visible !== false;
       }
     });
+  } else {
+    Object.keys(widgets).forEach(key => {
+      widgets[key] = allowedSet.has(key);
+    });
   }
-  const preferredMode = config && config.defaultToAll ? 'all' : readDashboardBusMode();
+  const preferredMode = dashboardMode === 'customized' && config && config.defaultToAll ? 'all' : readDashboardBusMode();
   return {
     mode: preferredMode,
     widgets,
@@ -3565,7 +3578,7 @@ function defaultPrefs() {
     graphs: buildDefaultMap(Object.keys(GRAPH_RESOLVERS)),
     widgetCards: buildDefaultMap(Object.keys(WIDGET_CARD_RESOLVERS)),
     layout: { columns: DASHBOARD_MIN_COLUMNS, widths: {} },
-    configFlags: { includeTodayInAll: !config || config.includeTodayInAll !== false }
+    configFlags: { includeTodayInAll: dashboardMode === 'customized' ? config.includeTodayInAll !== false : true }
   };
 }
 
@@ -3586,10 +3599,11 @@ function clonePrefs(prefs) {
 
 function sanitizePrefs(settings) {
   const prefs = defaultPrefs();
-  const config = getDashboardConfigState();
-  const hasCustomConfig = isDashboardConfigCustomized(config);
+  const dashboardMode = normalizeDashboardModeKey(dashboardChromeState.mode || deriveDashboardMode());
+  const config = getDashboardConfigState('customized');
+  const hasCustomConfig = dashboardMode === 'customized' && isDashboardConfigCustomized(config);
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
-  if (!dash || typeof dash !== 'object') {
+  if (!dash || typeof dash !== 'object' || dashboardMode !== 'customized') {
     lastPersistedLayoutColumns = prefs.layout.columns;
     persistDashboardLayoutColumns(prefs.layout.columns, { force: true });
     return prefs;
@@ -3868,11 +3882,15 @@ function applyWidgetSizing(node, key) {
 function applyDashboardConfigLayout(mode) {
   const container = getDashboardContainerNode();
   if (!container) return;
-  const config = getDashboardConfigState();
+  const dashboardMode = normalizeDashboardModeKey(dashboardChromeState.mode || deriveDashboardMode());
+  const config = dashboardMode === 'customized'
+    ? normalizeDashboardConfig(readDashboardConfig('default'), { mode: 'default' })
+    : getDashboardConfigState(dashboardMode);
   const orderMap = new Map();
-  const normalized = normalizeDashboardConfig(config);
-  dashboardConfigState = normalized;
-  writeDashboardConfig(normalized);
+  const normalized = normalizeDashboardConfig(config, { mode: dashboardMode === 'preview' ? 'preview' : 'default' });
+  if (dashboardMode === 'customized') {
+    writeDashboardConfig(normalized, { mode: 'default' });
+  }
   normalized.widgets.forEach((entry, index) => {
     orderMap.set(entry.id, Number.isFinite(entry.order) ? entry.order : index + 1);
   });
@@ -4156,7 +4174,6 @@ function scheduleApply() {
   pendingApply = true;
   Promise.resolve().then(async () => {
     pendingApply = false;
-    dashboardConfigState = normalizeDashboardConfig(readDashboardConfig());
     let prefs = null;
     try {
       ensureDashboardLegend();
