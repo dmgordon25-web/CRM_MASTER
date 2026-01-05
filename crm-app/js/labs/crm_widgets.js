@@ -1734,6 +1734,11 @@ export function renderTodayWidget(container, model) {
 
       const grid = document.createElement('div');
       grid.className = 'today-grid';
+      // Fix: Cap height and allow scrolling
+      grid.style.height = '100%';
+      grid.style.maxHeight = '400px';
+      grid.style.overflowY = 'auto';
+
 
       const sections = [
         { title: 'Due Today', groups: todayGroups, empty: 'Nothing due today.' },
@@ -1814,6 +1819,7 @@ export function renderTodayWidget(container, model) {
             openBtn.className = 'btn';
             openBtn.setAttribute('data-role', 'open-contact');
             if (contactId) openBtn.setAttribute('data-contact-id', contactId);
+            if (taskId) openBtn.setAttribute('data-task-id', taskId);
             openBtn.textContent = 'Open';
 
             const doneBtn = document.createElement('button');
@@ -1875,9 +1881,16 @@ export function renderTodayWidget(container, model) {
         const contactBtn = event.target.closest('[data-role="open-contact"]');
         if (contactBtn) {
           event.preventDefault();
-          const id = contactBtn.getAttribute('data-contact-id');
-          if (id && typeof openContactModal === 'function') {
-            openContactModal(id, { sourceHint: 'labs-today', trigger: contactBtn });
+          const tId = contactBtn.getAttribute('data-task-id');
+          const cId = contactBtn.getAttribute('data-contact-id');
+
+          if (tId && typeof openTaskEditor === 'function') {
+            openTaskEditor({ id: tId, sourceHint: 'labs-today' });
+          } else if (cId && typeof openContactModal === 'function') {
+            openContactModal(cId, { sourceHint: 'labs-today', trigger: contactBtn });
+          } else {
+            console.warn('[labs] Open button clicked but no ID found', contactBtn);
+            if (typeof toast === 'function') toast('Unable to open: Missing record ID');
           }
           return;
         }
@@ -3430,9 +3443,9 @@ export function renderNotificationsWidget(container, _model) {
     const observer = new MutationObserver(() => {
       if (shell.isConnected) return;
       try { observer.disconnect(); }
-      catch (_) {}
+      catch (_) { }
       try { unsubscribe(); }
-      catch (_) {}
+      catch (_) { }
     });
     observer.observe(shell, { childList: true, subtree: true });
   }
