@@ -1124,12 +1124,12 @@ export function normalizeContactId(input) {
           const summaryHost = body.querySelector('[data-role="favorite-host"]');
           if (summaryHost) {
             // Phase 8: Identity Header Structure
-          summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
-          summaryHost.dataset.favoriteType = 'contact';
-          summaryHost.dataset.recordId = summaryIdAttr;
-          if (isFavoriteContact) summaryHost.dataset.favorite = '1';
-          else delete summaryHost.dataset.favorite;
-          summaryHost.innerHTML = `
+            summaryHost.className = isFavoriteContact ? 'identity-header is-favorite' : 'identity-header';
+            summaryHost.dataset.favoriteType = 'contact';
+            summaryHost.dataset.recordId = summaryIdAttr;
+            if (isFavoriteContact) summaryHost.dataset.favorite = '1';
+            else delete summaryHost.dataset.favorite;
+            summaryHost.innerHTML = `
             <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
               ${summaryAvatarMarkup}
               <span class="summary-name-text" data-role="record-name-text">${escape(summaryLabel)}</span>
@@ -3201,6 +3201,23 @@ export async function openContactModal(contactId, options) {
 }
 
 export async function openContactEditor(target, options) {
+  // GUARD: Check if record is deleted before opening
+  if (target) {
+    const id = typeof target === 'string' ? target : (target.id || null);
+    if (id) {
+      try {
+        const store = typeof window.dbGet === 'function' ? await window.dbGet('contacts', id, { includeDeleted: true }) : null;
+        if (store && (store.deleted || store.isDeleted)) {
+          if (options && options.suppressErrorToast) return null;
+          // Use existing toast helper if available
+          if (typeof toastWarn === 'function') toastWarn('This contact has been deleted.');
+          else console.warn('[openContactEditor] Contact is deleted:', id);
+          return null;
+        }
+      } catch (err) { /* ignore read errors */ }
+    }
+  }
+
   console.log('[CONTACTS_DEBUG] openContactEditor called', target);
   try {
     // FIX: Ensure modal code is loaded before attempting to open
@@ -3862,6 +3879,29 @@ export async function createQuick(record) {
 
   if (typeof window.dispatchAppDataChanged === 'function') {
     window.dispatchAppDataChanged('contacts');
+  }
+
+  // --- Soft Delete UI Handling ---
+  if (typeof document !== 'undefined') {
+    document.addEventListener('app:data:changed', (event) => {
+      const detail = event.detail || {};
+      if (detail.source === 'soft-delete') {
+        // Clear selection immediately
+        try {
+          if (window.SelectionService && typeof window.SelectionService.clear === 'function') {
+            window.SelectionService.clear();
+          }
+        } catch (_) { }
+
+        // Force repaint if we are in a relevant view
+        // (Optimized: only if contacts/pipeline is active)
+        const view = document.getElementById('view-contacts');
+        const pipe = document.getElementById('view-pipeline');
+        if ((view && !view.hidden) || (pipe && !pipe.hidden)) {
+          if (typeof window.renderAll === 'function') window.renderAll();
+        }
+      }
+    });
   }
 
   return normalizedContact;

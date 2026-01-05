@@ -2004,23 +2004,48 @@ function ensureDashboardLegend() {
     header.__legendAttached = true;
     return;
   }
-  const legend = createLegendPopover({
-    id: 'dashboard-stage-legend',
-    summaryLabel: 'Legend',
-    summaryAriaLabel: 'Dashboard color legend',
-    title: 'Stage colors',
-    entries: STAGE_LEGEND_ENTRIES,
-    note: 'Status pills reuse these tones for Active, Client, Lost, and Paused states.'
+
+  // Create inline legend container
+  const legend = doc.createElement('div');
+  legend.className = 'dashboard-legend';
+  legend.setAttribute('role', 'list');
+  legend.setAttribute('aria-label', 'Stage legend');
+
+  // Render entries directly
+  STAGE_LEGEND_ENTRIES.forEach(entry => {
+    if (!entry) return;
+    const item = doc.createElement('div');
+    item.className = 'dashboard-legend-item';
+
+    const swatch = doc.createElement('span');
+    swatch.className = 'dashboard-legend-swatch';
+    if (entry.color) {
+      swatch.style.setProperty('--swatch-color', entry.color);
+    }
+
+    const label = doc.createElement('span');
+    label.className = 'dashboard-legend-label';
+    label.textContent = entry.label;
+
+    item.appendChild(swatch);
+    item.appendChild(label);
+    if (entry.description) {
+      item.title = entry.description;
+    }
+    legend.appendChild(item);
   });
-  if (!legend) return;
+
   const canInsertBefore = typeof header.insertBefore === 'function';
+  // Insert before the scope group (Today/All toggle) if possible to keep layout balanced
   const scopeGroup = typeof header.querySelector === 'function' ? header.querySelector('[role="group"][aria-label]') : null;
+
   if (scopeGroup && canInsertBefore) {
     header.insertBefore(legend, scopeGroup);
   } else {
-    const grow = typeof header.querySelector === 'function' ? header.querySelector('.grow') : null;
-    if (grow && grow.parentElement === header && canInsertBefore) {
-      header.insertBefore(legend, grow.nextSibling);
+    // Fallback: try to insert before help icon or at end
+    const helpIcon = header.querySelector('.help-icon');
+    if (helpIcon && canInsertBefore) {
+      header.insertBefore(legend, helpIcon);
     } else {
       header.appendChild(legend);
     }

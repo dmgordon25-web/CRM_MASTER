@@ -38,6 +38,15 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         // The hero usually has h3 "Dashboard (Configurable)"
         const hero = page.locator('h3:has-text("Dashboard (Configurable)")');
         await expect(hero).not.toBeVisible();
+
+        // 6. Verify Legend is Visible (inline)
+        const legend = header.locator('.dashboard-legend');
+        await expect(legend).toBeVisible();
+
+        // Check for specific legend items
+        await expect(legend.locator('.dashboard-legend-item')).toHaveCount(6); // 6 stages
+        await expect(legend).toContainText('Leads & nurture');
+        await expect(legend).toContainText('Lost / Denied');
     });
 
     test('Switching to All mode shows Labs Classic and keeps header', async ({ page }) => {
