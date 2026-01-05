@@ -737,7 +737,12 @@ function renderShell() {
   dashboardRoot.dataset.qa = 'labs-crm-dashboard';
   dashboardRoot.classList.toggle('labs-layout-edit-mode', labsLayoutEditMode);
 
-  const header = createHeader();
+  dashboardRoot.classList.toggle('labs-layout-edit-mode', labsLayoutEditMode);
+
+  // Check if we are embedded (e.g. inside Dashboard All tab)
+  // If embedded, we skip the internal header because the main dashboard has its own.
+  const isEmbedded = dashboardRoot.dataset.embedded === 'true';
+
   const nav = createNavigation();
   const sectionHost = document.createElement('div');
   sectionHost.className = 'labs-section-host';
@@ -745,7 +750,13 @@ function renderShell() {
 
   const contentShell = document.createElement('div');
   contentShell.className = 'labs-content-shell';
-  contentShell.append(header, nav, sectionHost);
+
+  if (!isEmbedded) {
+    const header = createHeader();
+    contentShell.append(header);
+  }
+
+  contentShell.append(nav, sectionHost);
 
   dashboardRoot.replaceChildren(contentShell);
 

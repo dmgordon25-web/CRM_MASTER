@@ -462,6 +462,8 @@ function getLabsClassicHost() {
     host.className = 'dashboard-labs-classic-host';
     host.dataset.qa = 'dashboard-labs-classic';
     host.dataset.noZnext = 'true';
+    // FIX: Mark as embedded so Labs knows to suppress its internal header/hero
+    host.dataset.embedded = 'true';
   }
 
   // Ensure strict placement: Mount OUTSIDE view-dashboard (as a sibling)
@@ -4174,6 +4176,28 @@ function setDashboardMode(mode, options = {}) {
 
 function syncLayoutModeForDashboard(mode) {
   const normalized = mode === 'all' ? 'all' : 'today';
+  const isDashboard = normalized === 'all' || normalized === 'today'; // Assuming 'mode' being passed implies we are in a dashboard context.
+
+  // FIX: Handle moved header visibility manually since it's now outside layout
+  const header = doc.getElementById('dashboard-header');
+  if (header) {
+    if (isDashboard) {
+      header.hidden = false;
+      header.style.removeProperty('display');
+    } else {
+      header.hidden = true;
+      header.style.setProperty('display', 'none', 'important');
+    }
+  }
+
+  if (isDashboard) {
+    // Only schedule apply if we are actually ENTERING dashboard or switching modes
+    // If we're just checking hash, we might not need to re-render everything
+    scheduleApply();
+  } else {
+    // If leaving dashboard, maybe clean up?
+    // unmountLabsClassicFromDashboard(); // DO NOT UNMOUNT! It breaks state.
+  }
   // Dashboard All now mounts Labs classic instead of enabling legacy edit mode
   if (normalized === 'all') {
     mountLabsClassicInDashboard();
@@ -4338,7 +4362,79 @@ function applySurfaceVisibility(prefs) {
   applyDashboardConfigLayout(mode);
   applyWidgetWidths();
   setDebugSelectedIds(visibleKeys);
+  applyDashboardConfigLayout(mode);
+  applyWidgetWidths();
+  setDebugSelectedIds(visibleKeys);
   setDebugTodayMode(restrictToToday);
+  setDebugTodayMode(restrictToToday);
+  updateHeaderKpis();
+}
+
+// NEW: Explicitly sync header visibility based on route
+function syncHeaderVisibility() {
+  if (!doc) return;
+  const header = doc.getElementById('dashboard-header');
+  if (!header) return;
+
+  // Check location hash
+  const hash = win.location.hash || '';
+  const isDashboard = hash === '' || hash === '#/' || hash.startsWith('#/dashboard') || hash.startsWith('#/demo');
+
+  if (isDashboard) {
+    if (header.hidden) {
+      header.hidden = false;
+      header.style.removeProperty('display');
+    }
+    // Also ensure internal Labs header is suppressed if visible? 
+    // (This is handled by labs code via embedded flag, but we might doubly ensure it?)
+  } else {
+    if (!header.hidden) {
+      header.hidden = true;
+      header.style.setProperty('display', 'none', 'important');
+    }
+  }
+}
+
+/**
+ * Updates the simple KPI counters in the persistent dashboard header using dashboardState.
+ * This runs on every data update/render cycle.
+ */
+function updateHeaderKpis() {
+  if (!doc) return;
+  const kpiRoot = doc.getElementById('dashboard-header-kpis');
+  if (!kpiRoot) return;
+
+  // Ensure KPIs are visible if we are in dashboard
+  if (kpiRoot.hidden) kpiRoot.hidden = false;
+
+  const contactsEl = kpiRoot.querySelector('[data-kpi="contacts"]');
+  const partnersEl = kpiRoot.querySelector('[data-kpi="partners"]');
+  const tasksEl = kpiRoot.querySelector('[data-kpi="tasks"]');
+
+  if (dashboardStateApi && dashboardStateApi.snapshot) {
+    const snap = dashboardStateApi.snapshot;
+
+    // Contacts (Clients/Active)
+    if (contactsEl) {
+      // Try to get total contacts or fallback
+      const total = snap.contactCount != null ? snap.contactCount : 0;
+      contactsEl.textContent = String(total);
+    }
+
+    // Partners
+    if (partnersEl) {
+      const total = snap.partnerCount != null ? snap.partnerCount : 0;
+      partnersEl.textContent = String(total);
+    }
+
+    // Tasks (Today/Due)
+    if (tasksEl) {
+      // Use Today + Overdue if available, otherwise total pending
+      const today = snap.kpis && snap.kpis.kpiTasksToday != null ? snap.kpis.kpiTasksToday : 0;
+      const overdue = snap.kpis && snap.kpis.kpiTasksOverdue != null ? snap.kpis.kpiTasksOverdue : 0;
+      tasksEl.textContent = String(today + overdue);
+    }
+  }
 }
 
 function applyKpiVisibility(prefs) {
@@ -4499,9 +4595,15 @@ function bindDashboardEventListeners() {
     } catch (_err) { }
   }
   if (win && typeof win.addEventListener === 'function') {
-    win.addEventListener('hashchange', scheduleApply);
+    win.addEventListener('hashchange', () => {
+      syncHeaderVisibility();
+      scheduleApply();
+    });
   }
-  doc.addEventListener('app:navigate', handleDashboardAppNavigate);
+  doc.addEventListener('app:navigate', (evt) => {
+    handleDashboardAppNavigate(evt);
+    syncHeaderVisibility();
+  });
   doc.addEventListener('dashboard:hidden-change', handleHiddenChange);
   doc.addEventListener('dashboard:layout-columns', handleLayoutColumnsChange);
   doc.addEventListener('app:data:changed', handleDashboardDataChanged);
@@ -4549,8 +4651,12 @@ export function initDashboard(options = {}) {
     bindDashboardEvents(container);
     ensureDashboardRouteLifecycle();
     bindDashboardEventListeners();
+    bindDashboardEvents(container);
+    ensureDashboardRouteLifecycle();
+    bindDashboardEventListeners();
     wireDashboardModeButtons();
     ensureDashboardUiModeListener();
+    syncHeaderVisibility(); // Ensure correct initial state
     if (typeof ensureLayoutToggle === 'function') {
       ensureLayoutToggle();
     }

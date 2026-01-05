@@ -147,42 +147,58 @@
       </nav>
     </div>
     <!-- DASHBOARD -->
-    <main data-ui="dashboard-root" id="view-dashboard">
-      <div class="row" id="dashboard-header" data-dashboard-mode="default"
-        style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-        <h2 style="margin:0;font-size:18px">Dashboard</h2>
-        <span class="muted" id="dashboard-mode-caption">Your daily overview</span>
-        <span class="dash-preview-indicator" data-dashboard-preview hidden aria-label="Preview mode">Preview</span>
-        <span class="grow"></span>
-        <div class="row" role="group" aria-label="Dashboard scope">
-          <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
-          <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
+    <div class="row" id="dashboard-header" data-dashboard-mode="default"
+      style="align-items:center;gap:12px;margin-bottom:12px;padding: 0 4px;flex-wrap:wrap">
+      <h2 style="margin:0;font-size:18px">Dashboard</h2>
+      <span class="muted" id="dashboard-mode-caption">Your daily overview</span>
+      <span class="dash-preview-indicator" data-dashboard-preview hidden aria-label="Preview mode">Preview</span>
+      <span class="grow"></span>
+
+      <!-- New Header KPIs -->
+      <div class="row" style="gap:16px; margin-right: 16px; font-size: 0.9rem" id="dashboard-header-kpis" hidden>
+        <div style="display:flex; gap:6px; align-items:baseline">
+          <strong data-kpi="contacts">0</strong> <span class="muted">Contacts</span>
         </div>
-        <span class="help-icon" data-help="dashboard-page" aria-label="Dashboard help">?</span>
-        <button class="btn subtle dash-layout-customize" data-dashboard-action="layout-customize" type="button"
-          aria-pressed="false" aria-label="Customize dashboard layout" hidden>Customize</button>
-        <div class="dash-customize-banner" data-dashboard-customize-banner hidden>
-          <span class="dash-customize-pill" aria-live="polite">Customize mode</span>
-          <span class="muted dash-customize-hint">Drag and resize widgets, or switch to Today to exit.</span>
-          <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools"
-            hidden>
-            <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button"
-              aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
-              <span data-mode="view">Edit layout</span>
-              <span data-mode="edit" hidden>Done editing</span>
-            </button>
-            <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
-              title="Restore default dashboard layout">
-              <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
-              <span>Reset to recommended layout</span>
-            </button>
-          </div>
+        <div style="display:flex; gap:6px; align-items:baseline">
+          <strong data-kpi="partners">0</strong> <span class="muted">Partners</span>
         </div>
-        <div class="dash-customize-hint muted" data-dashboard-customize-hint aria-live="polite">
-          <span aria-hidden="true">⬑</span>
-          <span>Drag and resize widgets. You can always reset.</span>
+        <div style="display:flex; gap:6px; align-items:baseline">
+          <strong data-kpi="tasks">0</strong> <span class="muted">Tasks</span>
         </div>
       </div>
+
+      <div class="row" role="group" aria-label="Dashboard scope">
+        <button class="btn pill active" data-dashboard-mode="today" type="button">Today</button>
+        <button class="btn pill" data-dashboard-mode="all" type="button">All</button>
+      </div>
+      <span class="help-icon" data-help="dashboard-page" aria-label="Dashboard help">?</span>
+
+      <!-- Legacy Controls (Hidden by default, used only in configurable mode contexts if needed) -->
+      <button class="btn subtle dash-layout-customize" data-dashboard-action="layout-customize" type="button"
+        aria-pressed="false" aria-label="Customize dashboard layout" hidden>Customize</button>
+      <div class="dash-customize-banner" data-dashboard-customize-banner hidden>
+        <span class="dash-customize-pill" aria-live="polite">Customize mode</span>
+        <span class="muted dash-customize-hint">Drag and resize widgets, or switch to Today to exit.</span>
+        <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools"
+          hidden>
+          <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button"
+            aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
+            <span data-mode="view">Edit layout</span>
+            <span data-mode="edit" hidden>Done editing</span>
+          </button>
+          <button class="btn subtle dash-layout-reset" data-dashboard-action="layout-reset" type="button"
+            title="Restore default dashboard layout">
+            <span class="dash-layout-reset-icon" aria-hidden="true">↺</span>
+            <span>Reset to recommended layout</span>
+          </button>
+        </div>
+      </div>
+      <div class="dash-customize-hint muted" data-dashboard-customize-hint aria-live="polite">
+        <span aria-hidden="true">⬑</span>
+        <span>Drag and resize widgets. You can always reset.</span>
+      </div>
+    </div>
+    <main data-ui="dashboard-root" id="view-dashboard">
       <section class="card dash-empty-state" data-role="dash-empty-state" hidden aria-hidden="true">
         <div class="dash-empty-content">
           <div class="dash-empty-heading">No widgets visible</div>
