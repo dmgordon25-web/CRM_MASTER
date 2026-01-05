@@ -27,23 +27,26 @@ import { enableVNextGrid } from './vnext.js';
 import { initActionBarDrag, teardownActionBarWiring } from '../ui/action_bar.js';
 import { DEFAULT_VNEXT_LAYOUTS, DEFAULT_WIDGETS_BY_SECTION } from './vnext_defaults.js';
 import { safeRenderWidget } from './helpers/widget_safety.js';
+import {
+  loadConfigs,
+  getActiveConfig,
+  saveCurrentLayout,
+  saveAsNewConfig,
+  renameConfig,
+  deleteConfig,
+  setActiveConfig,
+  resetToRecommended,
+  getConfigOptions,
+  markDirty,
+  clearDirty,
+  isDirty
+} from './configurable_dashboard_state.js';
 
 const USE_VNEXT_KEY = 'labs.vnext.enabled';
 const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
+// zNext is default enabled but can be disabled via data attribute
 const isVNextEnabled = () => {
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    const engine = params.get('engine');
-    if (engine === 'vnext') return true;
-    if (engine === 'classic' || engine === 'legacy') return false;
-    if (typeof localStorage !== 'undefined') {
-      const stored = localStorage.getItem(USE_VNEXT_KEY);
-      if (stored === 'false') return false;
-      if (stored === 'true') return true;
-      if (stored === null) return true;
-    }
-  }
-  return true;
+  return !dashboardRoot || dashboardRoot.dataset.noZnext !== 'true';
 };
 
 const LABS_DEBUG = typeof window !== 'undefined'
@@ -757,21 +760,34 @@ function createHeader() {
   const partnerCount = formatNumber(labsModel?.partners?.length || 0);
   const taskCount = formatNumber(labsModel?.tasks?.length || 0);
   const warningBadge = LABS_DEBUG && labsModel?.validationWarnings?.length
-    ? `<div class="labs-debug-indicator" title="Dashboard (Preview) model warnings">${labsModel.validationWarnings.length} warning${labsModel.validationWarnings.length === 1 ? '' : 's'}</div>`
+    ? `<div class="labs-debug-indicator" title="Dashboard (Configurable) model warnings">${labsModel.validationWarnings.length} warning${labsModel.validationWarnings.length === 1 ? '' : 's'}</div>`
     : '';
 
   header.innerHTML = `
     <div class="labs-header-content">
       <div class="labs-branding">
         <h1 class="labs-title">
-          <span class="labs-icon-main">🚀</span>
-          Dashboard (Preview)
-          <span class="labs-badge-beta">BETA</span>
+          <span class="labs-icon-main">⚙️</span>
+          Dashboard (Configurable)
         </h1>
-        <p class="labs-subtitle">Preview of the next-generation dashboard powered by your live data.</p>
+        <p class="labs-subtitle">Your customizable dashboard with saved layouts. Drag, resize, and save.</p>
         <a href="#/dashboard" class="labs-link-legacy" style="display:inline-block; margin-top:4px; font-size:0.85rem; color:var(--text-muted); text-decoration:none; border-bottom:1px dashed currentColor;">
           ← Return to Dashboard
         </a>
+      </div>
+      <div class="labs-config-controls" data-qa="config-controls">
+        <label class="labs-config-label">
+          <span>Layout:</span>
+          <select data-action="config-select" class="labs-config-select">
+            <option value="recommended">★ Recommended</option>
+          </select>
+          <span class="labs-config-dirty" data-role="dirty-indicator" style="display:none; color:var(--warning-color, #f59e0b); margin-left:4px;">(unsaved)</span>
+        </label>
+        <button class="labs-btn-ghost" data-action="config-save" title="Save current layout">Save</button>
+        <button class="labs-btn-ghost" data-action="config-save-as" title="Save as new layout">Save As…</button>
+        <button class="labs-btn-ghost" data-action="config-rename" title="Rename current layout">Rename…</button>
+        <button class="labs-btn-ghost" data-action="config-delete" title="Delete current layout">Delete</button>
+        <button class="labs-btn-ghost" data-action="config-reset" title="Load Recommended layout">Reset</button>
       </div>
         <div class="labs-header-stats">
           <div class="header-stat">
@@ -789,17 +805,12 @@ function createHeader() {
       </div>
         <button class="labs-btn-pill" data-action="refresh">Refresh Data</button>
         <button class="labs-btn-ghost" data-action="settings">Experiments</button>
-        <button class="labs-btn-ghost" data-action="layout-toggle" aria-pressed="${labsLayoutEditMode}">
-          ${labsLayoutEditMode ? 'Layout: On' : 'Layout: Off'}
-        </button>
-        <button class="labs-btn-ghost" data-action="toggle-engine" style="min-width: 140px;" title="Switch between Classic and vNext grid engines">
-            ${isVNextEnabled() ? 'Engine: vNext (Beta)' : 'Engine: Classic'}
-        </button>
       </div>
     </div>
   `;
   return header;
 }
+
 
 function updateLayoutToggleUi() {
   const toggle = dashboardRoot?.querySelector('[data-action="layout-toggle"]');
@@ -1377,7 +1388,7 @@ function attachEventListeners() {
       await refreshDashboard();
     }
     if (action === 'settings') {
-      showNotification('Dashboard (Preview) experiments are enabled — this mirrors the main dashboard.', 'info');
+      showNotification('Dashboard (Configurable) — drag and resize widgets, then save your layout.', 'info');
     }
     if (action === 'toggle-customize') {
       const sectionId = event.target.closest('[data-section-id]')?.dataset.sectionId || activeSection;
@@ -1398,14 +1409,26 @@ function attachEventListeners() {
       showNotification('Layout reset to default', 'info');
       return;
     }
-    if (action === 'toggle-engine') {
-      const next = !isVNextEnabled();
-      localStorage.setItem(USE_VNEXT_KEY, String(next));
-      window.location.reload();
+    // --- Config control handlers ---
+    if (action === 'config-save') {
+      await handleConfigSave();
       return;
     }
-    if (action === 'layout-toggle') {
-      setLayoutMode(!labsLayoutEditMode);
+    if (action === 'config-save-as') {
+      await handleConfigSaveAs();
+      return;
+    }
+    if (action === 'config-rename') {
+      await handleConfigRename();
+      return;
+    }
+    if (action === 'config-delete') {
+      await handleConfigDelete();
+      return;
+    }
+    if (action === 'config-reset') {
+      await handleConfigReset();
+      return;
     }
   };
   dashboardRoot.addEventListener('click', navClickHandler);
@@ -1593,10 +1616,169 @@ async function mountLabsDashboard(root) {
     renderShell();
     runLabsParityDiagnostics(labsModel);
     attachEventListeners();
-    console.info('[labs] CRM Dashboard (Preview) rendered');
+    await initConfigControls();
+    console.info('[labs] CRM Dashboard (Configurable) rendered');
   } catch (err) {
     console.error('[labs] Failed to initialize:', err);
-    showError(err.message || 'Unable to render the Dashboard (Preview)');
+    showError(err.message || 'Unable to render the Dashboard (Configurable)');
+  }
+}
+
+// --- Config Control Handlers ---
+
+async function initConfigControls() {
+  await populateConfigDropdown();
+  wireConfigDropdownChange();
+  wireDirtyStateListener();
+}
+
+async function populateConfigDropdown() {
+  const select = dashboardRoot?.querySelector('[data-action="config-select"]');
+  if (!select) return;
+
+  const options = await getConfigOptions();
+  const activeConfig = await getActiveConfig();
+
+  select.innerHTML = options.map(opt => {
+    const star = opt.starred ? '★ ' : '';
+    const selected = opt.id === activeConfig.id ? ' selected' : '';
+    return `<option value="${opt.id}"${selected}>${star}${opt.name}</option>`;
+  }).join('');
+
+  // Update delete button state
+  updateDeleteButtonState(activeConfig.id);
+}
+
+function wireConfigDropdownChange() {
+  const select = dashboardRoot?.querySelector('[data-action="config-select"]');
+  if (!select || select.__configWired) return;
+  select.__configWired = true;
+
+  select.addEventListener('change', async (e) => {
+    const configId = e.target.value;
+    const result = await setActiveConfig(configId);
+    if (result) {
+      showNotification(`Switched to "${(await getActiveConfig()).name}"`, 'info');
+      await renderSection(activeSection);
+      updateDeleteButtonState(configId);
+    }
+  });
+}
+
+function wireDirtyStateListener() {
+  document.addEventListener('configurable-dashboard:dirty', (e) => {
+    const indicator = dashboardRoot?.querySelector('[data-role="dirty-indicator"]');
+    if (indicator) {
+      indicator.style.display = e.detail?.dirty ? 'inline' : 'none';
+    }
+  });
+}
+
+function updateDeleteButtonState(configId) {
+  const deleteBtn = dashboardRoot?.querySelector('[data-action="config-delete"]');
+  if (deleteBtn) {
+    deleteBtn.disabled = configId === 'recommended';
+    deleteBtn.style.opacity = configId === 'recommended' ? '0.5' : '';
+  }
+  const renameBtn = dashboardRoot?.querySelector('[data-action="config-rename"]');
+  if (renameBtn) {
+    renameBtn.disabled = configId === 'recommended';
+    renameBtn.style.opacity = configId === 'recommended' ? '0.5' : '';
+  }
+}
+
+function getCurrentGridLayout() {
+  // Extract current layout from GridStack
+  const grid = dashboardRoot?.querySelector('.grid-stack');
+  if (!grid || !window.GridStack) return [];
+
+  const items = grid.querySelectorAll('.grid-stack-item');
+  const layout = [];
+
+  items.forEach(item => {
+    const id = item.getAttribute('gs-id') || item.getAttribute('data-gs-id');
+    const x = parseInt(item.getAttribute('gs-x') || item.getAttribute('data-gs-x') || '0', 10);
+    const y = parseInt(item.getAttribute('gs-y') || item.getAttribute('data-gs-y') || '0', 10);
+    const w = parseInt(item.getAttribute('gs-w') || item.getAttribute('data-gs-w') || '4', 10);
+    const h = parseInt(item.getAttribute('gs-h') || item.getAttribute('data-gs-h') || '4', 10);
+
+    if (id) {
+      layout.push({ id, x, y, w, h });
+    }
+  });
+
+  return layout;
+}
+
+async function handleConfigSave() {
+  const layout = getCurrentGridLayout();
+  const success = await saveCurrentLayout(layout);
+  if (success) {
+    showNotification('Layout saved', 'success');
+  } else {
+    showNotification('Failed to save layout', 'error');
+  }
+}
+
+async function handleConfigSaveAs() {
+  const name = prompt('Enter a name for the new layout:');
+  if (!name || !name.trim()) return;
+
+  const layout = getCurrentGridLayout();
+  const newId = await saveAsNewConfig(name.trim(), layout);
+  if (newId) {
+    await populateConfigDropdown();
+    showNotification(`Created "${name.trim()}"`, 'success');
+  } else {
+    showNotification('Failed to create layout', 'error');
+  }
+}
+
+async function handleConfigRename() {
+  const activeConfig = await getActiveConfig();
+  if (activeConfig.id === 'recommended') {
+    showNotification('Cannot rename Recommended layout', 'warning');
+    return;
+  }
+
+  const newName = prompt('Enter new name:', activeConfig.name);
+  if (!newName || !newName.trim() || newName.trim() === activeConfig.name) return;
+
+  const success = await renameConfig(activeConfig.id, newName.trim());
+  if (success) {
+    await populateConfigDropdown();
+    showNotification(`Renamed to "${newName.trim()}"`, 'success');
+  } else {
+    showNotification('Failed to rename layout', 'error');
+  }
+}
+
+async function handleConfigDelete() {
+  const activeConfig = await getActiveConfig();
+  if (activeConfig.id === 'recommended') {
+    showNotification('Cannot delete Recommended layout', 'warning');
+    return;
+  }
+
+  const confirmed = confirm(`Delete layout "${activeConfig.name}"? This cannot be undone.`);
+  if (!confirmed) return;
+
+  const success = await deleteConfig(activeConfig.id);
+  if (success) {
+    await populateConfigDropdown();
+    await renderSection(activeSection);
+    showNotification('Layout deleted', 'info');
+  } else {
+    showNotification('Failed to delete layout', 'error');
+  }
+}
+
+async function handleConfigReset() {
+  const result = await resetToRecommended();
+  if (result) {
+    await populateConfigDropdown();
+    await renderSection(activeSection);
+    showNotification('Loaded Recommended layout', 'info');
   }
 }
 

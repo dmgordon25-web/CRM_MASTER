@@ -60,8 +60,8 @@ export const HELP_CONTENT = {
     detailsHtml: '<ul><li>KPIs and tables use contact stage/status (funded, approved, nurture) and linked partner metadata.</li><li>Date range control (All Time, 12M, 90D) gates which records are counted.</li><li>Charts respond to the same Filters applied on Contacts/Partners to keep totals consistent.</li></ul>'
   },
   'labs-view': {
-    title: 'Dashboard (Preview)',
-    short: 'Preview of the next-generation dashboard.',
+    title: 'Dashboard (Configurable)',
+    short: 'Customizable dashboard with saved layouts.',
     detailsHtml: '<ul><li>Pulls from the same contacts, partners, and activity timeline objects already cached.</li><li>Counts mirror what your current Filters expose; no separate data sync.</li><li>Features may change; closing the preview does not affect saved records.</li></ul>'
   },
   'notifications-view': {

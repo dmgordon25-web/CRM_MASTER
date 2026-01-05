@@ -552,6 +552,65 @@ function shouldValidateGeneral(partial) {
     return next;
   }
 
+  // --- Configurable Dashboard Configs ---
+  const RECOMMENDED_CONFIG_ID = 'recommended';
+  const DEFAULT_RECOMMENDED_LAYOUT = [
+    { id: 'focus', x: 0, y: 0, w: 8, h: 4 },
+    { id: 'labsKpiSummary', x: 8, y: 0, w: 4, h: 4 },
+    { id: 'labsPipelineSnapshot', x: 0, y: 4, w: 12, h: 4 },
+    { id: 'goalProgress', x: 0, y: 8, w: 4, h: 4 },
+    { id: 'labsTasks', x: 4, y: 8, w: 4, h: 4 },
+    { id: 'today', x: 8, y: 8, w: 4, h: 4 },
+    { id: 'priorityActions', x: 0, y: 12, w: 4, h: 4 },
+    { id: 'favorites', x: 4, y: 12, w: 4, h: 3 },
+    { id: 'milestones', x: 8, y: 12, w: 4, h: 4 }
+  ];
+
+  function normalizeDashboardConfigs(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    const configs = source.configs && typeof source.configs === 'object' ? { ...source.configs } : {};
+
+    // Ensure Recommended config always exists and is starred
+    if (!configs[RECOMMENDED_CONFIG_ID]) {
+      configs[RECOMMENDED_CONFIG_ID] = {
+        name: 'Recommended',
+        starred: true,
+        layout: DEFAULT_RECOMMENDED_LAYOUT,
+        updatedAt: Date.now()
+      };
+    } else {
+      // Force starred and name for Recommended
+      configs[RECOMMENDED_CONFIG_ID].starred = true;
+      configs[RECOMMENDED_CONFIG_ID].name = 'Recommended';
+      if (!Array.isArray(configs[RECOMMENDED_CONFIG_ID].layout)) {
+        configs[RECOMMENDED_CONFIG_ID].layout = DEFAULT_RECOMMENDED_LAYOUT;
+      }
+    }
+
+    // Normalize each config
+    Object.keys(configs).forEach(id => {
+      const cfg = configs[id];
+      if (!cfg || typeof cfg !== 'object') {
+        delete configs[id];
+        return;
+      }
+      configs[id] = {
+        name: typeof cfg.name === 'string' ? cfg.name.trim() : id,
+        starred: id === RECOMMENDED_CONFIG_ID ? true : !!cfg.starred,
+        layout: Array.isArray(cfg.layout) ? cfg.layout : [],
+        updatedAt: cfg.updatedAt || Date.now()
+      };
+    });
+
+    // Validate activeId
+    let activeId = typeof source.activeId === 'string' ? source.activeId : RECOMMENDED_CONFIG_ID;
+    if (!configs[activeId]) {
+      activeId = RECOMMENDED_CONFIG_ID;
+    }
+
+    return { activeId, configs };
+  }
+
   function normalize(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const profileSource = base && base.loProfile !== undefined ? base.loProfile : base.profile;
@@ -562,6 +621,7 @@ function shouldValidateGeneral(partial) {
       dashboard: normalizeDashboard(base.dashboard),
       favorites: normalizeFavoriteSnapshot(base.favorites),
       dashboardOrder: normalizeDashboardOrder(base.dashboardOrder),
+      dashboardConfigs: normalizeDashboardConfigs(base.dashboardConfigs),
       updatedAt: base.updatedAt || null,
       uiMode: normalizeUiMode(base.uiMode),
       ui: { homeView: normalizeHomeView(base?.ui?.homeView) }
@@ -697,6 +757,16 @@ function shouldValidateGeneral(partial) {
     }
     if (source.dashboardOrder) {
       next.dashboardOrder = normalizeDashboardOrder(source.dashboardOrder);
+    }
+    if (source.dashboardConfigs) {
+      const currentConfigs = current.dashboardConfigs || { activeId: 'recommended', configs: {} };
+      const mergedConfigs = { ...currentConfigs.configs };
+      const sourceConfigs = source.dashboardConfigs.configs || {};
+      Object.keys(sourceConfigs).forEach(id => {
+        mergedConfigs[id] = { ...mergedConfigs[id], ...sourceConfigs[id] };
+      });
+      const mergedActiveId = source.dashboardConfigs.activeId || currentConfigs.activeId;
+      next.dashboardConfigs = normalizeDashboardConfigs({ activeId: mergedActiveId, configs: mergedConfigs });
     }
     if (source.favorites) {
       const currentFavorites = current.favorites || { contacts: [], partners: [] };

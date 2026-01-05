@@ -8,6 +8,7 @@
 import '../../vendor/gridstack/gridstack.all.js';
 import { VNEXT_WIDGET_DEFAULTS } from './vnext_widget_meta.js';
 import { DEFAULT_VNEXT_LAYOUTS } from './vnext_defaults.js';
+import { markDirty } from './configurable_dashboard_state.js';
 
 const VNEXT_STORAGE_PREFIX = 'labs.vnext.layout.';
 let activeGrids = new Map();
@@ -148,7 +149,10 @@ export function enableVNextGrid(container, sectionId) {
         }
     }, container);
 
-    const handleChange = () => scheduleSave(sectionId, grid);
+    const handleChange = () => {
+        scheduleSave(sectionId, grid);
+        markDirty();
+    };
     grid.on('change', handleChange);
 
     activeGrids.set(sectionId, {

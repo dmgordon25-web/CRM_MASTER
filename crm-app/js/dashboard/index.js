@@ -449,6 +449,84 @@ const layoutChromeState = {
   customizeBanner: null
 };
 
+// Labs classic mount state for Dashboard All mode
+let labsClassicMounted = false;
+let labsClassicHost = null;
+
+function getLabsClassicHost() {
+  if (!doc) return null;
+  let host = doc.querySelector('#dashboard-labs-classic-host');
+  if (!host) {
+    host = doc.createElement('div');
+    host.id = 'dashboard-labs-classic-host';
+    host.className = 'dashboard-labs-classic-host';
+    host.dataset.qa = 'dashboard-labs-classic';
+    host.dataset.noZnext = 'true';
+    const dashboardView = doc.getElementById('view-dashboard');
+    if (dashboardView) {
+      dashboardView.appendChild(host);
+    }
+  }
+  return host;
+}
+
+async function mountLabsClassicInDashboard() {
+  if (labsClassicMounted) return;
+  const host = getLabsClassicHost();
+  if (!host) return;
+  // Hide normal dashboard widgets
+  const dashboardHeader = doc.getElementById('dashboard-header');
+  const normalWidgets = doc.querySelectorAll('#view-dashboard > section.card, #view-dashboard > section.grid');
+  normalWidgets.forEach(w => {
+    w.hidden = true;
+    w.style.setProperty('display', 'none', 'important');
+  });
+  // Keep header visible but hide customize controls
+  if (dashboardHeader) {
+    dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
+      .forEach(el => { el.hidden = true; });
+  }
+  host.hidden = false;
+  try {
+    const labsModule = await import('../labs/entry.js');
+    await labsModule.initLabs(host);
+    labsClassicMounted = true;
+    console.info('[dashboard] Labs classic mounted in Dashboard All mode');
+  } catch (err) {
+    console.error('[dashboard] Failed to mount Labs classic:', err);
+    host.innerHTML = '<div class="card"><div class="muted">Unable to load Labs classic view.</div></div>';
+  }
+}
+
+async function unmountLabsClassicFromDashboard() {
+  if (!labsClassicMounted) return;
+  const host = getLabsClassicHost();
+  if (host) {
+    host.hidden = true;
+    host.innerHTML = '';
+  }
+  // Restore normal dashboard widgets
+  const normalWidgets = doc.querySelectorAll('#view-dashboard > section.card, #view-dashboard > section.grid');
+  normalWidgets.forEach(w => {
+    w.hidden = false;
+    w.style.removeProperty('display');
+  });
+  // Keep legacy edit UI hidden since we never want it
+  const dashboardHeader = doc.getElementById('dashboard-header');
+  if (dashboardHeader) {
+    dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
+      .forEach(el => { el.hidden = true; });
+  }
+  try {
+    const labsModule = await import('../labs/entry.js');
+    if (typeof labsModule.unmountLabs === 'function') {
+      await labsModule.unmountLabs();
+    }
+  } catch (_) { }
+  labsClassicMounted = false;
+  console.info('[dashboard] Labs classic unmounted from Dashboard');
+}
+
 const dashboardChromeState = {
   header: null,
   mode: 'default',
@@ -568,7 +646,8 @@ function ensurePreviewBadge(header) {
 
 function deriveDashboardMode() {
   const userMode = getDashboardMode();
-  if (userMode === 'all') return 'customized';
+  // Dashboard All now renders Labs classic - no customized mode needed
+  // Removed: if (userMode === 'all') return 'customized';
   if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
   if (isSimpleDashboardMode()) return 'preview';
   const config = getDashboardConfigState('customized');
@@ -4015,7 +4094,7 @@ function applyModeButtonState(mode) {
 
 function persistDashboardMode(mode) {
   if (!win || !win.Settings || typeof win.Settings.save !== 'function') return;
-  Promise.resolve(win.Settings.save({ dashboard: { mode } }))
+  Promise.resolve(win.Settings.save({ dashboard: { mode } }, { silent: true }))
     .catch(err => {
       try {
         if (console && console.warn) console.warn('[dashboard] mode save failed', err);
@@ -4063,17 +4142,17 @@ function setDashboardMode(mode, options = {}) {
 
 function syncLayoutModeForDashboard(mode) {
   const normalized = mode === 'all' ? 'all' : 'today';
-  const inCustomize = normalized === 'all';
-  setDashboardLayoutProfile(inCustomize ? 'customized' : 'default');
-  if (inCustomize) {
-    if (!layoutToggleState.mode) {
-      applyLayoutToggleMode(true, { commit: true, persist: true });
-    }
+  // Dashboard All now mounts Labs classic instead of enabling legacy edit mode
+  if (normalized === 'all') {
+    mountLabsClassicInDashboard();
+    setDashboardLayoutProfile('default');
   } else {
+    unmountLabsClassicFromDashboard();
     if (layoutToggleState.mode) {
       applyLayoutToggleMode(false, { commit: true, persist: false });
     }
     setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
+    setDashboardLayoutProfile('default');
   }
   syncDashboardMode({ force: true, allowLayoutReset: false });
 }
@@ -4146,6 +4225,14 @@ function refreshTodayHighlightWiring() {
 }
 
 function applySurfaceVisibility(prefs) {
+  if (labsClassicMounted) {
+    const normalWidgets = doc.querySelectorAll('#view-dashboard > section.card, #view-dashboard > section.grid');
+    normalWidgets.forEach(w => {
+      w.hidden = true;
+      w.style.setProperty('display', 'none', 'important');
+    });
+    return;
+  }
   const widgetPrefs = prefs && typeof prefs.widgets === 'object' ? prefs.widgets : {};
   const graphPrefs = prefs && typeof prefs.graphs === 'object' ? prefs.graphs : {};
   const cardPrefs = prefs && typeof prefs.widgetCards === 'object' ? prefs.widgetCards : {};
@@ -4358,9 +4445,14 @@ function handleDashboardDataChanged(evt) {
   }
 
   const scope = evt && evt.detail && evt.detail.scope ? evt.detail.scope : '';
-  if (scope === 'settings') invalidatePrefs();
+  if (scope === 'settings') {
+    invalidatePrefs();
+    // Don't mark celebrations dirty for settings-only changes - prevents loop
+    scheduleApply();
+    return;
+  }
   const normalizedScope = typeof scope === 'string' ? scope.toLowerCase() : '';
-  if (!normalizedScope || normalizedScope.includes('contact') || normalizedScope.includes('setting')) {
+  if (!normalizedScope || normalizedScope.includes('contact')) {
     markCelebrationsDirty();
   }
   scheduleApply();

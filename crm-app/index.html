@@ -113,9 +113,8 @@
         </div>
       </header>
       <nav class="row" id="main-nav" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-nav="labs" title="Preview of the next-generation dashboard">
-          Dashboard (Preview)
-          <span aria-hidden="true" style="margin-left:6px;padding:2px 6px;border-radius:10px;background:var(--bg-subtle, #f0f2f5);color:var(--text-muted, #5f6368);font-size:11px;line-height:1;">Preview</span>
+        <button class="btn" data-nav="labs" title="Your customizable dashboard with saved layouts">
+          Dashboard (Configurable)
         </button>
         <button class="btn active" data-nav="dashboard" title="Your daily overview">
           Dashboard
@@ -149,7 +148,8 @@
     </div>
     <!-- DASHBOARD -->
     <main data-ui="dashboard-root" id="view-dashboard">
-      <div class="row" id="dashboard-header" data-dashboard-mode="default" style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="row" id="dashboard-header" data-dashboard-mode="default"
+        style="align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0;font-size:18px">Dashboard</h2>
         <span class="muted" id="dashboard-mode-caption">Your daily overview</span>
         <span class="dash-preview-indicator" data-dashboard-preview hidden aria-label="Preview mode">Preview</span>
@@ -164,7 +164,8 @@
         <div class="dash-customize-banner" data-dashboard-customize-banner hidden>
           <span class="dash-customize-pill" aria-live="polite">Customize mode</span>
           <span class="muted dash-customize-hint">Drag and resize widgets, or switch to Today to exit.</span>
-          <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools" hidden>
+          <div class="row dash-layout-advanced" data-dashboard-advanced role="group" aria-label="Dashboard layout tools"
+            hidden>
             <button class="btn subtle dash-layout-toggle" data-dashboard-action="layout-toggle" type="button"
               aria-pressed="false" title="Drag, resize, and reorder dashboard widgets">
               <span data-mode="view">Edit layout</span>
@@ -186,7 +187,8 @@
         <div class="dash-empty-content">
           <div class="dash-empty-heading">No widgets visible</div>
           <p class="muted">You hid every widget. Restore the recommended layout to start fresh.</p>
-          <button class="btn" type="button" data-dashboard-action="layout-empty-reset">Restore recommended layout</button>
+          <button class="btn" type="button" data-dashboard-action="layout-empty-reset">Restore recommended
+            layout</button>
         </div>
       </section>
       <section class="card" id="dashboard-focus" data-widget-id="focus"></section>
@@ -403,10 +405,10 @@
     <main class="hidden" data-ui="labs-root" id="view-labs">
       <section class="card" data-qa="labs-shell-placeholder">
         <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
-          <h3 style="margin:0">Dashboard (Preview) <span class="help-icon" data-help-id="labs-view">?</span></h3>
-          <span class="muted">Preview of the next-generation dashboard.</span>
+          <h3 style="margin:0">Dashboard (Configurable) <span class="help-icon" data-help-id="labs-view">?</span></h3>
+          <span class="muted">Your customizable dashboard with saved layouts.</span>
         </div>
-        <p class="muted">Loading Dashboard (Preview)…</p>
+        <p class="muted">Loading Dashboard (Configurable)…</p>
       </section>
     </main>
     <!-- PARTNERS -->
@@ -1317,7 +1319,8 @@
       <section class="card" id="notifications-shell">
         <div class="row" style="align-items:center;gap:12px;margin-bottom:8px">
           <strong>Notifications Center</strong>
-          <span class="help-icon" data-help="notifications-view" aria-label="How notifications behave" role="button" tabindex="0">?</span>
+          <span class="help-icon" data-help="notifications-view" aria-label="How notifications behave" role="button"
+            tabindex="0">?</span>
           <span class="badge-pill" id="notifications-count-pill" style="display:none"></span>
           <div class="grow"></div>
           <button class="btn" id="notifications-export" aria-label="Export notifications to CSV"
@@ -1461,11 +1464,11 @@
                     </label>
                     <label>
                       <input id="home-view-labs" name="home-view" type="radio" value="labs" />
-                      Dashboard (Preview)
+                      Dashboard (Configurable)
                     </label>
                   </div>
                   <p class="muted fine-print" id="home-view-note" style="margin-top:6px;">Applies only to Advanced mode.
-                    Simple mode always opens Dashboard (Preview).</p>
+                    Simple mode always opens Dashboard (Configurable).</p>
                 </div>
                 <p class="muted fine-print" style="margin-top:8px;">
                   Simple mode hides rarely-used fields and advanced features for a cleaner interface.
@@ -1626,6 +1629,15 @@
                 <h3>Focus Mode</h3>
                 <p class="widget-summary muted">Switch between Today and All directly from the dashboard header. Your
                   last choice is saved on this device.</p>
+              </div>
+              <div class="card" id="settings-configurable-dashboard">
+                <h3>Configurable Dashboard</h3>
+                <p class="widget-summary muted">Manage your saved dashboard layouts for the Configurable Dashboard.</p>
+                <button class="btn danger" id="btn-reset-all-configurable-layouts" style="margin-top:8px;">
+                  Reset All Configurable Layouts
+                </button>
+                <p class="muted fine-print" style="margin-top:6px;">This will delete all saved layouts and restore the
+                  Recommended layout.</p>
               </div>
             </div>
           </section>

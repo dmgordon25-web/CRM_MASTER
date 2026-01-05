@@ -919,11 +919,35 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
       wireSimpleModeControls();
       syncSimpleModeControls(data.simpleMode || simpleModeState);
       await hydrateSignatures(data);
+      wireConfigurableDashboardControls();
     } catch (err) {
       console.warn('[soft]', text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
     } finally {
       hydrating = false;
     }
+  }
+
+  function wireConfigurableDashboardControls() {
+    const resetBtn = document.getElementById('btn-reset-all-configurable-layouts');
+    if (!resetBtn || resetBtn.__wired) return;
+    resetBtn.__wired = true;
+    resetBtn.addEventListener('click', async () => {
+      const confirmed = confirm('This will delete all your saved dashboard layouts and restore the Recommended layout. Continue?');
+      if (!confirmed) return;
+      try {
+        // Dynamic import to avoid circular dependencies
+        const { resetAllConfigurableLayouts } = await import('./labs/configurable_dashboard_state.js');
+        const success = await resetAllConfigurableLayouts();
+        if (success) {
+          toastSafe('All configurable layouts reset');
+        } else {
+          toastSafe('Failed to reset layouts');
+        }
+      } catch (err) {
+        console.error('[settings] Failed to reset configurable layouts:', err);
+        toastSafe('Failed to reset layouts');
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
