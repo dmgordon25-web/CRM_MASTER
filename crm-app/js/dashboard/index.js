@@ -462,9 +462,14 @@ function getLabsClassicHost() {
     host.className = 'dashboard-labs-classic-host';
     host.dataset.qa = 'dashboard-labs-classic';
     host.dataset.noZnext = 'true';
-    const dashboardView = doc.getElementById('view-dashboard');
-    if (dashboardView) {
-      dashboardView.appendChild(host);
+  }
+
+  // Ensure strict placement: Mount OUTSIDE view-dashboard (as a sibling)
+  // This fixes the layout constraint issue even if the element was created previously
+  const dashboardView = doc.getElementById('view-dashboard');
+  if (dashboardView && dashboardView.parentNode) {
+    if (host.parentNode !== dashboardView.parentNode) {
+      dashboardView.parentNode.appendChild(host);
     }
   }
   return host;
@@ -474,14 +479,18 @@ async function mountLabsClassicInDashboard() {
   if (labsClassicMounted) return;
   const host = getLabsClassicHost();
   if (!host) return;
-  // Hide normal dashboard widgets
+
+  // Hide the entire dashboard container (removes sidebar/config shell constraints)
+  const dashboardView = doc.getElementById('view-dashboard');
+  if (dashboardView) {
+    dashboardView.hidden = true;
+    dashboardView.style.setProperty('display', 'none', 'important');
+  }
+
+  // Keep header visible hooks but hide customize controls
+  // (Note: header might be outside or inside view-dashboard depending on layout, 
+  // but customize controls need explicit hiding if they are global)
   const dashboardHeader = doc.getElementById('dashboard-header');
-  const normalWidgets = doc.querySelectorAll('#view-dashboard > section.card, #view-dashboard > section.grid');
-  normalWidgets.forEach(w => {
-    w.hidden = true;
-    w.style.setProperty('display', 'none', 'important');
-  });
-  // Keep header visible but hide customize controls
   if (dashboardHeader) {
     dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
       .forEach(el => { el.hidden = true; });
@@ -505,12 +514,14 @@ async function unmountLabsClassicFromDashboard() {
     host.hidden = true;
     host.innerHTML = '';
   }
-  // Restore normal dashboard widgets
-  const normalWidgets = doc.querySelectorAll('#view-dashboard > section.card, #view-dashboard > section.grid');
-  normalWidgets.forEach(w => {
-    w.hidden = false;
-    w.style.removeProperty('display');
-  });
+
+  // Restore dashboard container
+  const dashboardView = doc.getElementById('view-dashboard');
+  if (dashboardView) {
+    dashboardView.hidden = false;
+    dashboardView.style.removeProperty('display');
+  }
+
   // Keep legacy edit UI hidden since we never want it
   const dashboardHeader = doc.getElementById('dashboard-header');
   if (dashboardHeader) {
@@ -647,7 +658,7 @@ function ensurePreviewBadge(header) {
 function deriveDashboardMode() {
   const userMode = getDashboardMode();
   // Dashboard All now renders Labs classic - no customized mode needed
-  // Removed: if (userMode === 'all') return 'customized';
+  if (userMode === 'all') return 'default';
   if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
   if (isSimpleDashboardMode()) return 'preview';
   const config = getDashboardConfigState('customized');
@@ -3552,6 +3563,11 @@ function ensureWidgetDnD() {
     teardownWidgetDnD('missing-container');
     return;
   }
+  // FIX: If we are in Dashboard -> All (Labs Classic), strictly disable all DnD and legacy layout logic.
+  if (labsClassicMounted) {
+    teardownWidgetDnD('labs-classic-active');
+    return;
+  }
   if (dashDnDState.container && dashDnDState.container !== container) {
     teardownWidgetDnD('container-replaced');
   }
@@ -3767,7 +3783,9 @@ function sanitizePrefs(settings) {
   const dash = settings && typeof settings === 'object' ? settings.dashboard : null;
   if (!dash || typeof dash !== 'object' || dashboardMode !== 'customized') {
     lastPersistedLayoutColumns = prefs.layout.columns;
-    persistDashboardLayoutColumns(prefs.layout.columns, { force: true });
+    // FIX: Do not force persist here, implementation loop risk. 
+    // Only persist if actually different (handled by persistDashboardLayoutState internal check if force is false).
+    persistDashboardLayoutColumns(prefs.layout.columns, { force: false });
     return prefs;
   }
   const widgetSource = !hasCustomConfig && dash.widgets && typeof dash.widgets === 'object' ? dash.widgets : null;
@@ -4092,8 +4110,12 @@ function applyModeButtonState(mode) {
   });
 }
 
+let lastPersistedMode = null;
+
 function persistDashboardMode(mode) {
   if (!win || !win.Settings || typeof win.Settings.save !== 'function') return;
+  if (lastPersistedMode === mode) return; // Fix loop
+  lastPersistedMode = mode;
   Promise.resolve(win.Settings.save({ dashboard: { mode } }, { silent: true }))
     .catch(err => {
       try {
@@ -4109,20 +4131,30 @@ function setDashboardMode(mode, options = {}) {
   const fromBus = options.fromBus === true;
   const skipPersist = options.skipPersist === true || fromBus;
   const skipBus = options.skipBus === true || fromBus;
+
   if (current === normalized && !force) {
     applyModeButtonState(normalized);
+    // Even if mode is same, ensure layout state matches (e.g. after refresh)
+    syncLayoutModeForDashboard(normalized);
     applyTodayPrioritiesHighlight();
     return normalized;
   }
+
+  // FIX: Ensure Layout/Labs Classic state is synced FIRST, before we try to render widgets.
+  // This prevents the legacy renderer from running/flickering if we are switching to All.
+  syncLayoutModeForDashboard(normalized);
+
   if (!prefCache.value) {
     prefCache.value = defaultPrefs();
   }
   prefCache.value.mode = normalized;
+
   applyModeButtonState(normalized);
   applySurfaceVisibility(prefCache.value);
   maybeHydrateCelebrations(prefCache.value);
   ensureWidgetDnD();
   applyTodayPrioritiesHighlight();
+
   if (!skipPersist && !fromBus) {
     try {
       console.info('[DASHBOARD] preset changed to', normalized);
@@ -4131,7 +4163,7 @@ function setDashboardMode(mode, options = {}) {
   if (!skipPersist) {
     persistDashboardMode(normalized);
   }
-  syncLayoutModeForDashboard(normalized);
+
   if (!skipBus && dashboardStateApi && typeof dashboardStateApi.setMode === 'function') {
     try {
       dashboardStateApi.setMode(normalized, { reason: 'dashboard:index:set-mode' });
