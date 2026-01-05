@@ -144,6 +144,11 @@ main[data-ui="dashboard-root"] {
   align-items: start;
 }
 
+main[data-ui="dashboard-root"].hidden,
+main[data-ui="dashboard-root"][hidden] {
+  display: none !important;
+}
+
 main[data-ui="dashboard-root"] > #dashboard-header,
 main[data-ui="dashboard-root"] > .dash-span-2 {
   grid-column: 1 / -1;
