@@ -1378,15 +1378,25 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (!(target instanceof HTMLInputElement)) return;
 
       const role = target.dataset ? target.dataset.role : null;
+      console.log('[DEBUG] handleTableChange', target, role, target.dataset?.ui);
       if (role === 'select-all') {
         event.stopImmediatePropagation();
         event.stopPropagation();
         applySelectAllToStore(target, store);
         return;
       }
+
+      if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check')) {
+        const id = selectionIdFor(target);
+        console.log('[DEBUG] row check', id, scope);
+        if (id) {
+          store.toggle(id, scope);
+        }
+      }
     };
 
     try {
+      console.log('[DEBUG] wiring table', table);
       table.addEventListener('change', handleTableChange, true);
     } catch (_err) { }
 

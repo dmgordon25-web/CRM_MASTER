@@ -1,0 +1,86 @@
+
+Running 2 tests using 1 worker
+
+  x  1 [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected (11.1s)
+  x  2 [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected (9.6s)
+
+
+  1) [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m()[22m failed
+
+    Locator:  locator('[data-ui="action-bar"]')
+    Expected: visible
+    Received: hidden
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('[data-ui="action-bar"]')[22m
+    [2m    2 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="contacts">…</div>[22m
+    [2m      - unexpected value "hidden"[22m
+    [2m    2 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
+    [2m      - unexpected value "hidden"[22m
+    [2m    - locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="contacts">…</div>[22m
+    [2m    3 × unexpected value "hidden"[22m
+    [2m      - locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
+    [2m    - unexpected value "hidden"[22m
+
+
+      19 |
+      20 |         // Verify action bar becomes visible
+    > 21 |         await expect(actionBar).toBeVisible();
+         |                                 ^
+      22 |         await expect(actionBar).toHaveAttribute('data-visible', '1');
+      23 |         await expect(actionBar).toHaveAttribute('data-count', '1');
+      24 |
+        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:21:33
+
+    Error Context: test-results\action_bar_selection-Actio-9d182--bar-when-a-row-is-selected-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\action_bar_selection-Actio-9d182--bar-when-a-row-is-selected-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\action_bar_selection-Actio-9d182--bar-when-a-row-is-selected-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m()[22m failed
+
+    Locator:  locator('[data-ui="action-bar"]')
+    Expected: visible
+    Received: hidden
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('[data-ui="action-bar"]')[22m
+    [2m    8 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
+    [2m      - unexpected value "hidden"[22m
+
+
+      43 |
+      44 |         // Verify count is 2
+    > 45 |         await expect(actionBar).toBeVisible();
+         |                                 ^
+      46 |         await expect(actionBar).toHaveAttribute('data-count', '2');
+      47 |     });
+      48 | });
+        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:45:33
+
+    Error Context: test-results\action_bar_selection-Actio-e29d2--multiple-rows-are-selected-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\action_bar_selection-Actio-e29d2--multiple-rows-are-selected-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\action_bar_selection-Actio-e29d2--multiple-rows-are-selected-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected 
+    [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected 

@@ -4223,8 +4223,11 @@ function syncLayoutModeForDashboard(mode) {
     // If leaving dashboard, maybe clean up?
     // unmountLabsClassicFromDashboard(); // DO NOT UNMOUNT! It breaks state.
   }
-  // Dashboard All now mounts Labs classic instead of enabling legacy edit mode
-  if (normalized === 'all') {
+  // FIX: Swapped logic per user request.
+  // Today logic now triggers the Mount path (showing Labs/Configurable views per existing implementation names).
+  // All logic triggers the Unmount path.
+  // This addresses the reported inversion.
+  if (normalized === 'today') {
     mountLabsClassicInDashboard();
     setDashboardLayoutProfile('default');
   } else {
