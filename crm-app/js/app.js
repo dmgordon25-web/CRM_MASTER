@@ -1387,10 +1387,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
 
       if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check')) {
-        const id = selectionIdFor(target);
-        console.log('[DEBUG] row check', id, scope);
         if (id) {
-          store.toggle(id, scope);
+          // Fix for double-binding: use explicit set instead of toggle to be idempotent
+          const current = store.get(scope);
+          if (target.checked) current.add(id);
+          else current.delete(id);
+          store.set(current, scope);
         }
       }
     };

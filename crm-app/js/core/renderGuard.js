@@ -220,6 +220,13 @@
       const baseDetail = destructiveEvent ? destructiveEvent : last;
       const bucketLastSource = last.source || ''; // Metrics still track the literal last one
 
+      if (isDebug || true) {
+        console.warn('[renderGuard] flushDispatch queue length:', updateQueue.length);
+        updateQueue.forEach((d, i) => {
+          console.warn(`[renderGuard] [${i}] source: ${d.source} ids: ${d.ids ? d.ids.length : 'N/A'} reason: ${d.reason}`);
+        });
+      }
+
       updateQueue = [];
 
       const meter = global.__METER__ = global.__METER__ || {};
@@ -232,6 +239,8 @@
         batchSize: count,
         reason: baseDetail.reason || (count > 1 ? 'coalesced-update' : undefined)
       });
+
+      if (isDebug || true) console.warn('[renderGuard] dispatching:', eventDetail.ids ? eventDetail.ids.length : 'N/A');
       if (!eventDetail.scope) eventDetail.scope = '';
 
       const doc = global.document;

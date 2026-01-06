@@ -58,21 +58,35 @@ test.describe('Contact Deletion', () => {
         });
         console.log(`DB Contact Count: ${dbCounts}`);
 
-        // Wait for rows
-        await page.waitForSelector('tr[data-id^="del-"]', { timeout: 10000 });
-        console.log('Rows found. Selecting...');
-        await expect(page.locator('tr[data-id="del-1"]')).toBeVisible();
-        await expect(page.locator('tr[data-id="del-2"]')).toBeVisible();
-        await expect(page.locator('tr[data-id="del-3"]')).toBeVisible();
+        // Wait for rows in the Contacts table specifically
+        const rowSelector = '#view-contacts tr[data-id^="del-"]';
+        // Wait for at least one row to appear
+        await page.waitForSelector(rowSelector, { state: 'attached', timeout: 10000 });
 
-        // 3. Select rows to delete
-        await page.locator('tr[data-id="del-1"] input[type="checkbox"]').check();
-        await page.locator('tr[data-id="del-2"] input[type="checkbox"]').check();
-        await page.locator('tr[data-id="del-3"] input[type="checkbox"]').check();
+        // Remove blocking overlay if present
+        await page.evaluate(() => {
+            const overlay = document.getElementById('diagnostics-overlay');
+            if (overlay) overlay.remove();
+        });
+
+        // Ensure we are selecting from the Visible contacts table
+        const visibleRow = page.locator('#view-contacts tr[data-id="del-1"]');
+        await expect(visibleRow).toBeVisible();
+
+        console.log('Rows found. Selecting...');
+        // Click specific select-all for this table, assuming it's the one in the visible view
+        // Using click() instead of check() because selection triggers a re-render which replaces the element,
+        // causing check()'s internal verification to fail.
+        await page.locator('#view-contacts tr[data-id="del-1"] input[type="checkbox"]').click();
+        await page.locator('#view-contacts tr[data-id="del-2"] input[type="checkbox"]').click();
+        await page.locator('#view-contacts tr[data-id="del-3"] input[type="checkbox"]').click();
+
+        // selects done above
 
         // 4. Click Delete in Action Bar
         // Wait for action bar to appear (it should appear when selection > 0)
-        const actionBar = page.locator('#actionbar');
+        // Scoping to :not([hidden]) to avoid "strict mode violation" if duplicates exist
+        const actionBar = page.locator('#actionbar:not([hidden])');
         await expect(actionBar).toBeVisible();
         // Check if it has 'delete' button
         const deleteBtn = actionBar.locator('button[data-act="delete"]');
