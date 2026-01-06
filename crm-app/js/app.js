@@ -3935,3 +3935,72 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 // Force cache update
 
+
+// --- Global Delete Handler ---
+// --- Global Delete Handler ---
+if (typeof document !== 'undefined') {
+  document.addEventListener('app:data:changed', (event) => {
+    const detail = event.detail || {};
+    console.log('[app] app:data:changed', detail);
+    if (detail.source === 'soft-delete' || detail.source === 'actionbar:delete') {
+      console.log('[app] DELETE HANDLER TRIGGERED', detail);
+      try {
+        if (window.SelectionService && typeof window.SelectionService.clear === 'function') {
+          window.SelectionService.clear('app:data:changed');
+        }
+        if (typeof window.clearGlobalSelection === 'function') {
+          window.clearGlobalSelection('app:data:changed');
+        }
+      } catch (_) { }
+
+      // Force Repaint
+      const viewContacts = document.getElementById('view-contacts');
+      const viewPipeline = document.getElementById('view-pipeline');
+      const hash = typeof location !== 'undefined' ? (location.hash || '') : '';
+      const isContactsRoute = /contacts|pipeline/i.test(hash);
+      const isVisible = isContactsRoute ||
+        (viewContacts && (viewContacts.offsetParent !== null || !viewContacts.classList.contains('hidden'))) ||
+        (viewPipeline && (viewPipeline.offsetParent !== null || !viewPipeline.classList.contains('hidden')));
+
+      console.log('[app] DELETE HANDLER VISIBILITY Check:', isVisible, 'hash:', hash);
+
+      if (isVisible) {
+        if (typeof window.renderAll === 'function') {
+          console.log('[app] Calling renderAll');
+          window.renderAll();
+        } else if (typeof window.renderContacts === 'function') {
+          window.renderContacts();
+        }
+        if (typeof window.renderPipeline === 'function') {
+          window.renderPipeline();
+        }
+      }
+
+      // Close Editor if deleted
+      try {
+        const modal = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (modal && modal.dataset && modal.dataset.contactId) {
+          const openId = String(modal.dataset.contactId);
+          const deletedIds = new Set();
+          if (detail.id) deletedIds.add(String(detail.id));
+          if (Array.isArray(detail.ids)) detail.ids.forEach(x => deletedIds.add(String(x)));
+          if (Array.isArray(detail.prune)) detail.prune.forEach(x => deletedIds.add(String(x)));
+          if (Array.isArray(detail.actions)) detail.actions.forEach(a => { if (a.id) deletedIds.add(String(a.id)); });
+
+          if (deletedIds.has(openId)) {
+            if (typeof closeContactEditor === 'function') {
+              closeContactEditor('record-deleted');
+            } else if (modal.close) {
+              modal.close();
+            }
+            if (typeof window.toast === 'function') {
+              window.toast('Relation was deleted.', 'warn');
+            } else if (typeof toastWarn === 'function') {
+              toastWarn('Relation was deleted.');
+            }
+          }
+        }
+      } catch (_) { }
+    }
+  });
+}

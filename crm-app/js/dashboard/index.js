@@ -3584,6 +3584,7 @@ function ensureDashboardRouteLifecycle() {
     },
     unmount() {
       teardownWidgetDnD('route-lifecycle');
+      unmountLabsClassicFromDashboard();
     }
   });
   releaseDashboardRouteToken = typeof release === 'function' ? release : () => { };

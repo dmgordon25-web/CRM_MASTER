@@ -1,0 +1,182 @@
+[BROWSER] StabilityVerifier loaded. Run window.StabilityVerifier.runAll()
+[BROWSER] [perf] crm:first-route-ready
+[BROWSER] [perf] crm:post-first-paint-start
+[BROWSER] [BOOT] loadModules called with: [./env.js, ./db.js, ./core/renderGuard.js, ./core/theme_injector.js, ./services/selection.js, ./utils.js, ./render.js, ./db_compat.js, ./ical.js, ./presets.js, ../seed_data_inline.js, ./seed_data.js, ./ui_shims.js, ./header_ui.js, ./email/merge_vars.js, ./contact_stage_tracker.js, ./commissions.js, ./post_funding.js, ./qa.js, ./bulk_log.js, ./print.js, ./app.js, ./settings_forms.js, ./compose.js, ./services/pipelineStages.js, ./services/softDelete.js, ./pipeline/stages.js, ./pages/workbench.js, ./pages/email_templates.js, ./pages/notifications.js, ./boot/contracts/services.js, ./boot/phases.js]
+[BROWSER] [VIS] action-bar plus removed
+[BROWSER] [A_BEACON] header loaded
+[BROWSER] [A_BEACON] avatar: limit=6MB
+[BROWSER] [APP] Module evaluating...
+[BROWSER] [DEBUG] app.js IIFE running
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] onDomReady: Calling ensureDefaultRoute
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] onDomReady executing
+[BROWSER] [DEBUG] #main-nav found, attaching listener
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] [labs] requesting bundle
+[BROWSER] [VIS] quick-add: header-only
+[BROWSER] [labs] bundle ready
+[BROWSER] REL_SUMMARY {nodes: 60, edges: 40, keyboardAccess: true}
+[BROWSER] Settings API unavailable
+[BROWSER] [LABS] mountLabsDashboard called
+[BROWSER] [LABS] model loaded {contactCount: 0, partnerCount: 21, taskCount: 4}
+[BROWSER] [LABS] rendered widget focus
+[BROWSER] [LABS] rendered widget labsKpiSummary
+[BROWSER] [LABS] rendered widget labsPipelineSnapshot
+[BROWSER] [LABS] rendered widget goalProgress
+[BROWSER] [LABS] rendered widget labsTasks
+[BROWSER] [LABS] rendered widget today
+[BROWSER] [LABS] rendered widget todo
+[BROWSER] [LABS] rendered widget priorityActions
+[BROWSER] [LABS] rendered widget favorites
+[BROWSER] [LABS] rendered widget milestones
+[BROWSER] [LABS] rendered widget partnerPortfolio
+[BROWSER] [LABS] rendered widget referralLeaderboard
+[BROWSER] [LABS] rendered widget referralTrends
+[BROWSER] [LABS] rendered widget relationshipOpportunities
+[BROWSER] [LABS] rendered widget closingWatch
+[BROWSER] [LABS] rendered widget upcomingCelebrations
+[BROWSER] [vNext] Initializing grid for overview
+[BROWSER] [ZNEXT] enableVNextGrid entered
+[BROWSER] [ZNEXT] Checking GridStack true
+[BROWSER] ✅ [Labs QA] Zero-Unknown Contract passed (text scan).
+[BROWSER] [labs:parity] Core metrics aligned with snapshot data
+[BROWSER] [configurable-dashboard] Settings API not available
+[BROWSER] [configurable-dashboard] Settings API not available
+[BROWSER] [labs] CRM Dashboard (Configurable) rendered
+[BROWSER] [labs] CRM Labs dashboard rendered
+[BROWSER] [BOOT] loadModules called with: [./patch_20250923_baseline.js, ./patch_20250924_bootstrap_ready.js, ./patch_2025-09-26_phase1_pipeline_partners.js, ./patch_2025-09-26_phase2_automations.js, ./patch_2025-09-27_doccenter2.js, ./patch_2025-09-27_contact_linking_5A.js, ./patch_2025-09-27_contact_linking_5B.js, ./patch_2025-09-27_contact_linking_5C.js, ./patch_2025-09-27_merge_ui.js, ./patch_2025-09-27_nth_bundle_and_qa.js, ./patch_2025-09-27_masterfix.js, ./patch_2025-09-27_release_prep.js, ./patches/polish_overlay_ready.js, ./patch_2025-10-02_baseline_ux_cleanup.js, ./patch_2025-10-02_medium_nice.js, ./patch_2025-10-03_calendar_ics_button.js, ./patch_2025-10-03_automation_seed.js, ./contacts_merge.js, ./contacts_merge_orchestrator.js, ./pipeline/kanban_dnd.js, ./patches/patch_2025-10-23_session_beacon.js, ./ui/Toast.js, ./ui/Confirm.js, ./data/settings.js, ./data/seed.js, ./migrations.js, ./templates.js, ./filters.js, ./state/selectionStore.js, ./state/actionBarGuards.js, ./ui/notifications_panel.js, ./ui/action_bar.js, ./ui/merge_modal.js, ./debug/overlay.js, ./quick_add.js, ./doccenter_rules.js, ./contacts.js, ./partners.js, ./partners_detail.js, ./partners_modal.js, ./partners/list.js, ./partners_merge.js, ./partners_merge_orchestrator.js, ./dash_range.js, ./importer.js, ./reports.js, ./notifications.js, ./calendar_impl.js, ./calendar_actions.js, ./calendar.js, ./calendar_ics.js, ./diagnostics_quiet.js, ./doc/doc_center_enhancer.js, ./email/templates_store.js, ./importer_contacts.js, ./importer_helpers.js, ./importer_partners.js, ./merge/merge_core.js, ./notifications/notifier.js, ./patches/loader.js, ./selftest.js, ./selftest_panel.js, ../seed_test_data.js, ./snapshot.js, ./ui/GhostButton.js, ./ui/PrimaryButton.js, ./ui/loading_block.js, ./ui/form_footer.js, ./ui/header_toolbar.js, ./ui/table_layout.js, ./ui/route_toast_sentinel.js, ./ui/quick_add_unified.js, ./ui/settings_form.js, ./ui/strings.js, ./util/strings.js, ./ux/svg_sanitizer.js, ./services/selection_adapter.js, ./services/selection_fallback.js, ./core/capabilities_probe.js]
+[BROWSER] [patch_2025-09-26_phase1_pipeline_partners.init] complete
+[BROWSER] [patch_2025-09-27_doccenter2.init] complete
+[BROWSER] [VIS] polish applied:commissions-empty
+[BROWSER] [DEBUG] #main-nav click JSHandle@node
+[BROWSER] [DEBUG] Nav target: contacts
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] [BOOT] optional import failed: ./filters.js TypeError: b.addEventListener is not a function
+    at http://127.0.0.1:8080/js/filters.js?t=1767683794230:612:60
+    at Array.forEach (<anonymous>)
+    at wireControls (http://127.0.0.1:8080/js/filters.js?t=1767683794230:611:7)
+    at http://127.0.0.1:8080/js/filters.js?t=1767683794230:653:5
+    at ready (http://127.0.0.1:8080/js/filters.js?t=1767683794230:650:115)
+    at http://127.0.0.1:8080/js/filters.js?t=1767683794230:652:3
+    at http://127.0.0.1:8080/js/filters.js?t=1767683794230:665:3
+[BROWSER] [VIS] action-bar plus removed
+[BROWSER] [app] app:data:changed missing scope {scope: , reason: coalesced-update, batchSize: 1}
+[BROWSER] [app] app:data:changed {scope: , reason: coalesced-update, batchSize: 1}
+[BROWSER] [labs] CRM data changed, refreshing... {scope: , reason: coalesced-update, batchSize: 1}
+[BROWSER] [VIS] polish applied:reports-empty
+[BROWSER] [APP_RENDER] full 1767683795337
+[BROWSER] [labs] scheduling model recompute app:data:changed
+[BROWSER] [LABS] model loaded {contactCount: 0, partnerCount: 21, taskCount: 99}
+[BROWSER] [LABS] rendered widget focus
+[BROWSER] [LABS] rendered widget labsKpiSummary
+[BROWSER] [LABS] rendered widget labsPipelineSnapshot
+[BROWSER] [LABS] rendered widget goalProgress
+[BROWSER] [LABS] rendered widget labsTasks
+[BROWSER] [LABS] rendered widget today
+[BROWSER] [LABS] rendered widget todo
+[BROWSER] [LABS] rendered widget priorityActions
+[BROWSER] [LABS] rendered widget favorites
+[BROWSER] [LABS] rendered widget milestones
+[BROWSER] [LABS] rendered widget partnerPortfolio
+[BROWSER] [LABS] rendered widget referralLeaderboard
+[BROWSER] [LABS] rendered widget referralTrends
+[BROWSER] [LABS] rendered widget relationshipOpportunities
+[BROWSER] [LABS] rendered widget closingWatch
+[BROWSER] [LABS] rendered widget upcomingCelebrations
+[BROWSER] [vNext] Initializing grid for overview
+[BROWSER] [ZNEXT] enableVNextGrid entered
+[BROWSER] [ZNEXT] Checking GridStack true
+[BROWSER] BOOT OK
+[BROWSER] [A_BEACON] actionbar:centered
+[BROWSER] [DEBUG] handleTableChange JSHandle@node select row-check
+[BROWSER] [DEBUG] row check del-1 contacts
+[BROWSER] [WARN] Multiple app:data:changed events detected {count: 2, windowMs: 488, detail: Object}
+[BROWSER] [app] app:data:changed {scope: selection, reason: coalesced-update, batchSize: 2}
+[BROWSER] [labs] CRM data changed, refreshing... {scope: selection, reason: coalesced-update, batchSize: 2}
+[BROWSER] Boot OK — modules:2 failures:0
+[BROWSER] [labs] scheduling model recompute app:data:changed
+[BROWSER] [LABS] model loaded {contactCount: 0, partnerCount: 21, taskCount: 99}
+[BROWSER] [LABS] rendered widget focus
+[BROWSER] [LABS] rendered widget labsKpiSummary
+[BROWSER] [LABS] rendered widget labsPipelineSnapshot
+[BROWSER] [LABS] rendered widget goalProgress
+[BROWSER] [LABS] rendered widget labsTasks
+[BROWSER] [LABS] rendered widget today
+[BROWSER] [LABS] rendered widget todo
+[BROWSER] [LABS] rendered widget priorityActions
+[BROWSER] [LABS] rendered widget favorites
+[BROWSER] [LABS] rendered widget milestones
+[BROWSER] [LABS] rendered widget partnerPortfolio
+[BROWSER] [LABS] rendered widget referralLeaderboard
+[BROWSER] [LABS] rendered widget referralTrends
+[BROWSER] [LABS] rendered widget relationshipOpportunities
+[BROWSER] [LABS] rendered widget closingWatch
+[BROWSER] [LABS] rendered widget upcomingCelebrations
+[BROWSER] [vNext] Initializing grid for overview
+[BROWSER] [ZNEXT] enableVNextGrid entered
+[BROWSER] [ZNEXT] Checking GridStack true
+[BROWSER] [selftest] warn Module-only invariant failed [Non-module script for app code: /js/boot/early_trap.js]
+[BROWSER] PATCHES_LOADED [/js/patch_2025-09-26_phase1_pipeline_partners.js, /js/patch_2025-09-27_doccenter2.js]
+[BROWSER] Selftest: required patches missing (manifest enforcement). {missing: Array(79), loaded: Array(2), expected: Array(79)}
+[BROWSER] [soft] PATCHES_MISSING [http://127.0.0.1:8080/js/patch_20250923_baseline.js, http://127.0.0.1:8080/js/patch_20250924_bootstrap_ready.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase1_pipeline_partners.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase2_automations.js, http://127.0.0.1:8080/js/patch_2025-09-27_doccenter2.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5A.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5B.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5C.js, http://127.0.0.1:8080/js/patch_2025-09-27_merge_ui.js, http://127.0.0.1:8080/js/patch_2025-09-27_nth_bundle_and_qa.js, http://127.0.0.1:8080/js/patch_2025-09-27_masterfix.js, http://127.0.0.1:8080/js/patch_2025-09-27_release_prep.js, http://127.0.0.1:8080/js/patches/polish_overlay_ready.js, http://127.0.0.1:8080/js/patch_2025-10-02_baseline_ux_cleanup.js, http://127.0.0.1:8080/js/patch_2025-10-02_medium_nice.js, http://127.0.0.1:8080/js/patch_2025-10-03_calendar_ics_button.js, http://127.0.0.1:8080/js/patch_2025-10-03_automation_seed.js, http://127.0.0.1:8080/js/contacts_merge.js, http://127.0.0.1:8080/js/contacts_merge_orchestrator.js, http://127.0.0.1:8080/js/pipeline/kanban_dnd.js, http://127.0.0.1:8080/js/patches/patch_2025-10-23_session_beacon.js, http://127.0.0.1:8080/js/ui/Toast.js, http://127.0.0.1:8080/js/ui/Confirm.js, http://127.0.0.1:8080/js/data/settings.js, http://127.0.0.1:8080/js/data/seed.js, http://127.0.0.1:8080/js/migrations.js, http://127.0.0.1:8080/js/templates.js, http://127.0.0.1:8080/js/filters.js, http://127.0.0.1:8080/js/state/selectionStore.js, http://127.0.0.1:8080/js/state/actionBarGuards.js, http://127.0.0.1:8080/js/ui/notifications_panel.js, http://127.0.0.1:8080/js/ui/action_bar.js, http://127.0.0.1:8080/js/ui/merge_modal.js, http://127.0.0.1:8080/js/debug/overlay.js, http://127.0.0.1:8080/js/quick_add.js, http://127.0.0.1:8080/js/doccenter_rules.js, http://127.0.0.1:8080/js/contacts.js, http://127.0.0.1:8080/js/partners.js, http://127.0.0.1:8080/js/partners_detail.js, http://127.0.0.1:8080/js/partners_modal.js, http://127.0.0.1:8080/js/partners/list.js, http://127.0.0.1:8080/js/partners_merge.js, http://127.0.0.1:8080/js/partners_merge_orchestrator.js, http://127.0.0.1:8080/js/dash_range.js, http://127.0.0.1:8080/js/importer.js, http://127.0.0.1:8080/js/reports.js, http://127.0.0.1:8080/js/notifications.js, http://127.0.0.1:8080/js/calendar_impl.js, http://127.0.0.1:8080/js/calendar_actions.js, http://127.0.0.1:8080/js/calendar.js, http://127.0.0.1:8080/js/calendar_ics.js, http://127.0.0.1:8080/js/diagnostics_quiet.js, http://127.0.0.1:8080/js/doc/doc_center_enhancer.js, http://127.0.0.1:8080/js/email/templates_store.js, http://127.0.0.1:8080/js/importer_contacts.js, http://127.0.0.1:8080/js/importer_helpers.js, http://127.0.0.1:8080/js/importer_partners.js, http://127.0.0.1:8080/js/merge/merge_core.js, http://127.0.0.1:8080/js/notifications/notifier.js, http://127.0.0.1:8080/js/patches/loader.js, http://127.0.0.1:8080/js/selftest.js, http://127.0.0.1:8080/js/selftest_panel.js, http://127.0.0.1:8080/seed_test_data.js, http://127.0.0.1:8080/js/snapshot.js, http://127.0.0.1:8080/js/ui/GhostButton.js, http://127.0.0.1:8080/js/ui/PrimaryButton.js, http://127.0.0.1:8080/js/ui/loading_block.js, http://127.0.0.1:8080/js/ui/form_footer.js, http://127.0.0.1:8080/js/ui/header_toolbar.js, http://127.0.0.1:8080/js/ui/table_layout.js, http://127.0.0.1:8080/js/ui/route_toast_sentinel.js, http://127.0.0.1:8080/js/ui/quick_add_unified.js, http://127.0.0.1:8080/js/ui/settings_form.js, http://127.0.0.1:8080/js/ui/strings.js, http://127.0.0.1:8080/js/util/strings.js, http://127.0.0.1:8080/js/ux/svg_sanitizer.js, http://127.0.0.1:8080/js/services/selection_adapter.js, http://127.0.0.1:8080/js/services/selection_fallback.js, http://127.0.0.1:8080/js/core/capabilities_probe.js]
+[BROWSER] [soft] Selftest: manifest-declared patches missing {missing: Array(79), loaded: Array(2), expected: Array(79)}
+[BROWSER] [selftest] fail Missing manifest patches: http://127.0.0.1:8080/js/patch_20250923_baseline.js, http://127.0.0.1:8080/js/patch_20250924_bootstrap_ready.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase1_pipeline_partners.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase2_automations.js, http://127.0.0.1:8080/js/patch_2025-09-27_doccenter2.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5A.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5B.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5C.js, http://127.0.0.1:8080/js/patch_2025-09-27_merge_ui.js, http://127.0.0.1:8080/js/patch_2025-09-27_nth_bundle_and_qa.js, http://127.0.0.1:8080/js/patch_2025-09-27_masterfix.js, http://127.0.0.1:8080/js/patch_2025-09-27_release_prep.js, http://127.0.0.1:8080/js/patches/polish_overlay_ready.js, http://127.0.0.1:8080/js/patch_2025-10-02_baseline_ux_cleanup.js, http://127.0.0.1:8080/js/patch_2025-10-02_medium_nice.js, http://127.0.0.1:8080/js/patch_2025-10-03_calendar_ics_button.js, http://127.0.0.1:8080/js/patch_2025-10-03_automation_seed.js, http://127.0.0.1:8080/js/contacts_merge.js, http://127.0.0.1:8080/js/contacts_merge_orchestrator.js, http://127.0.0.1:8080/js/pipeline/kanban_dnd.js, http://127.0.0.1:8080/js/patches/patch_2025-10-23_session_beacon.js, http://127.0.0.1:8080/js/ui/Toast.js, http://127.0.0.1:8080/js/ui/Confirm.js, http://127.0.0.1:8080/js/data/settings.js, http://127.0.0.1:8080/js/data/seed.js, http://127.0.0.1:8080/js/migrations.js, http://127.0.0.1:8080/js/templates.js, http://127.0.0.1:8080/js/filters.js, http://127.0.0.1:8080/js/state/selectionStore.js, http://127.0.0.1:8080/js/state/actionBarGuards.js, http://127.0.0.1:8080/js/ui/notifications_panel.js, http://127.0.0.1:8080/js/ui/action_bar.js, http://127.0.0.1:8080/js/ui/merge_modal.js, http://127.0.0.1:8080/js/debug/overlay.js, http://127.0.0.1:8080/js/quick_add.js, http://127.0.0.1:8080/js/doccenter_rules.js, http://127.0.0.1:8080/js/contacts.js, http://127.0.0.1:8080/js/partners.js, http://127.0.0.1:8080/js/partners_detail.js, http://127.0.0.1:8080/js/partners_modal.js, http://127.0.0.1:8080/js/partners/list.js, http://127.0.0.1:8080/js/partners_merge.js, http://127.0.0.1:8080/js/partners_merge_orchestrator.js, http://127.0.0.1:8080/js/dash_range.js, http://127.0.0.1:8080/js/importer.js, http://127.0.0.1:8080/js/reports.js, http://127.0.0.1:8080/js/notifications.js, http://127.0.0.1:8080/js/calendar_impl.js, http://127.0.0.1:8080/js/calendar_actions.js, http://127.0.0.1:8080/js/calendar.js, http://127.0.0.1:8080/js/calendar_ics.js, http://127.0.0.1:8080/js/diagnostics_quiet.js, http://127.0.0.1:8080/js/doc/doc_center_enhancer.js, http://127.0.0.1:8080/js/email/templates_store.js, http://127.0.0.1:8080/js/importer_contacts.js, http://127.0.0.1:8080/js/importer_helpers.js, http://127.0.0.1:8080/js/importer_partners.js, http://127.0.0.1:8080/js/merge/merge_core.js, http://127.0.0.1:8080/js/notifications/notifier.js, http://127.0.0.1:8080/js/patches/loader.js, http://127.0.0.1:8080/js/selftest.js, http://127.0.0.1:8080/js/selftest_panel.js, http://127.0.0.1:8080/seed_test_data.js, http://127.0.0.1:8080/js/snapshot.js, http://127.0.0.1:8080/js/ui/GhostButton.js, http://127.0.0.1:8080/js/ui/PrimaryButton.js, http://127.0.0.1:8080/js/ui/loading_block.js, http://127.0.0.1:8080/js/ui/form_footer.js, http://127.0.0.1:8080/js/ui/header_toolbar.js, http://127.0.0.1:8080/js/ui/table_layout.js, http://127.0.0.1:8080/js/ui/route_toast_sentinel.js, http://127.0.0.1:8080/js/ui/quick_add_unified.js, http://127.0.0.1:8080/js/ui/settings_form.js, http://127.0.0.1:8080/js/ui/strings.js, http://127.0.0.1:8080/js/util/strings.js, http://127.0.0.1:8080/js/ux/svg_sanitizer.js, http://127.0.0.1:8080/js/services/selection_adapter.js, http://127.0.0.1:8080/js/services/selection_fallback.js, http://127.0.0.1:8080/js/core/capabilities_probe.js
+[BROWSER] [selftest] skip Workbench disabled in prod (expected).
+[BROWSER] Selftest: telemetry helpers unavailable in production context; treating as diagnostic warn.
+[BROWSER] [selftest] info Telemetry helpers inactive in prod (expected noop).
+[BROWSER] [selftest] fail Self-test FAIL — review console for details.
+[BROWSER] [selftest] pass renderAll available
+[BROWSER] [app] app:data:changed missing scope {source: selftest}
+[BROWSER] [app] app:data:changed {source: selftest}
+[BROWSER] [labs] CRM data changed, refreshing... {source: selftest}
+[BROWSER] [selftest] fail app:data:changed triggered 0 requestRender calls but no repaint
+[BROWSER] [selftest] skip SeedDemoData not available; seed tripwire skipped
+[BROWSER] [selftest] warn Importer did not emit any changes
+[BROWSER] [WARN] Multiple app:data:changed events detected {count: 2, windowMs: 77, detail: Object}
+[BROWSER] [app] app:data:changed unknown scope [import] {scope: import, reason: coalesced-update, batchSize: 1}
+[BROWSER] [app] app:data:changed {scope: import, reason: coalesced-update, batchSize: 1}
+[BROWSER] [labs] CRM data changed, refreshing... {scope: import, reason: coalesced-update, batchSize: 1}
+[BROWSER] [APP_RENDER] full 1767683796174
+[BROWSER] [labs] scheduling model recompute app:data:changed
+[BROWSER] [LABS] model loaded {contactCount: 0, partnerCount: 21, taskCount: 99}
+[BROWSER] [LABS] rendered widget focus
+[BROWSER] [LABS] rendered widget labsKpiSummary
+[BROWSER] [LABS] rendered widget labsPipelineSnapshot
+[BROWSER] [LABS] rendered widget goalProgress
+[BROWSER] [LABS] rendered widget labsTasks
+[BROWSER] [LABS] rendered widget today
+[BROWSER] [LABS] rendered widget todo
+[BROWSER] [LABS] rendered widget priorityActions
+[BROWSER] [LABS] rendered widget favorites
+[BROWSER] [LABS] rendered widget milestones
+[BROWSER] [LABS] rendered widget partnerPortfolio
+[BROWSER] [LABS] rendered widget referralLeaderboard
+[BROWSER] [LABS] rendered widget referralTrends
+[BROWSER] [LABS] rendered widget relationshipOpportunities
+[BROWSER] [LABS] rendered widget closingWatch
+[BROWSER] [LABS] rendered widget upcomingCelebrations
+[BROWSER] [vNext] Initializing grid for overview
+[BROWSER] [ZNEXT] enableVNextGrid entered
+[BROWSER] [ZNEXT] Checking GridStack true
+[BROWSER] [A_BEACON] header loaded
+[BROWSER] [A_BEACON] avatar: limit=6MB
+[BROWSER] [A_BEACON] route toast wired
+[BROWSER] [BOOT] services registry warming up (expected during cold start)

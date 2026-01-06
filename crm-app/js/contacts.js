@@ -3207,6 +3207,14 @@ export async function openContactEditor(target, options) {
     if (id) {
       try {
         const store = typeof window.dbGet === 'function' ? await window.dbGet('contacts', id, { includeDeleted: true }) : null;
+
+        // Block if explicitly marked deleted OR if missing when referenced by ID string (ghost edit prevention)
+        if (typeof target === 'string' && !store) {
+          if (options && options.suppressErrorToast) return null;
+          if (typeof toastWarn === 'function') toastWarn('Record not found.');
+          return null;
+        }
+
         if (store && (store.deleted || store.isDeleted)) {
           if (options && options.suppressErrorToast) return null;
           // Use existing toast helper if available
@@ -3881,28 +3889,7 @@ export async function createQuick(record) {
     window.dispatchAppDataChanged('contacts');
   }
 
-  // --- Soft Delete UI Handling ---
-  if (typeof document !== 'undefined') {
-    document.addEventListener('app:data:changed', (event) => {
-      const detail = event.detail || {};
-      if (detail.source === 'soft-delete') {
-        // Clear selection immediately
-        try {
-          if (window.SelectionService && typeof window.SelectionService.clear === 'function') {
-            window.SelectionService.clear();
-          }
-        } catch (_) { }
-
-        // Force repaint if we are in a relevant view
-        // (Optimized: only if contacts/pipeline is active)
-        const view = document.getElementById('view-contacts');
-        const pipe = document.getElementById('view-pipeline');
-        if ((view && !view.hidden) || (pipe && !pipe.hidden)) {
-          if (typeof window.renderAll === 'function') window.renderAll();
-        }
-      }
-    });
-  }
+  // (Soft delete handling moved to global event listener at end of file)
 
   return normalizedContact;
 }
@@ -3910,6 +3897,11 @@ export async function createQuick(record) {
 // --- Editor Export ---
 // Duplicate openContactEditor removed
 
+
+// --- Global Data Change Listener (Repaint & Cleanup) ---
+if (typeof document !== 'undefined') {
+
+}
 
 // --- Window Export ---
 if (typeof window !== 'undefined') {
