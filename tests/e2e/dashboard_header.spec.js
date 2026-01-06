@@ -49,7 +49,7 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         await expect(legend).toContainText('Lost / Denied');
     });
 
-    test('Switching to All mode shows Unmounted View', async ({ page }) => {
+    test('Switching to All mode shows Labs View', async ({ page }) => {
         const header = page.locator('#dashboard-header');
         const allBtn = header.locator('[data-dashboard-mode="all"]');
 
@@ -61,18 +61,16 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         await expect(header).toBeVisible();
         await expect(allBtn).toHaveClass(/active/);
 
-        // 2. "view-dashboard" (Legacy/Configurable) should be VISIBLE
+        // 2. "view-dashboard" (Legacy) should be HIDDEN
         const viewDashboard = page.locator('#view-dashboard');
-        await expect(viewDashboard).toBeVisible();
+        await expect(viewDashboard).not.toBeVisible();
 
-        // 3. Labs Host should be HIDDEN (Unmounted)
+        // 3. Labs Host should be VISIBLE
         const labsHost = page.locator('#dashboard-labs-classic-host');
-        if (await labsHost.count() > 0) {
-            await expect(labsHost).not.toBeVisible();
-        }
+        await expect(labsHost).toBeVisible();
     });
 
-    test('Today Mode shows Mounted View', async ({ page }) => {
+    test('Today Mode shows Legacy View', async ({ page }) => {
         const header = page.locator('#dashboard-header');
         const todayBtn = header.locator('[data-dashboard-mode="today"]');
         const allBtn = header.locator('[data-dashboard-mode="all"]');
@@ -85,21 +83,41 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         await todayBtn.click();
         await page.waitForTimeout(500);
 
-        // 1. "view-dashboard" should be HIDDEN
+        // 1. "view-dashboard" should be VISIBLE
         const viewDashboard = page.locator('#view-dashboard');
-        await expect(viewDashboard).not.toBeVisible();
+        await expect(viewDashboard).toBeVisible();
 
-        // 2. Labs Host should be VISIBLE
+        // 2. Labs Host should be HIDDEN
         const labsHost = page.locator('#dashboard-labs-classic-host');
-        await expect(labsHost).toBeVisible();
+        await expect(labsHost).not.toBeVisible();
     });
 
-    test('Switching to Today shows Legacy Today View', async ({ page }) => {
+    test('Legend click does NOT trigger reset (View stays stable)', async ({ page }) => {
+        const header = page.locator('#dashboard-header');
+        const todayBtn = header.locator('[data-dashboard-mode="today"]');
+        const legend = header.locator('.dashboard-legend');
+
+        // Ensure Today (Legacy) mode
+        await todayBtn.click();
+        await page.waitForTimeout(500);
+        const viewDashboard = page.locator('#view-dashboard');
+        await expect(viewDashboard).toBeVisible();
+
+        // Click Legend container
+        await legend.click();
+        await page.waitForTimeout(500);
+
+        // Verify still in Today mode and View is still visible
+        await expect(todayBtn).toHaveClass(/active/);
+        await expect(viewDashboard).toBeVisible();
+    });
+
+    test('Switching to Today shows Legacy Today View (Repeated Verify)', async ({ page }) => {
         const header = page.locator('#dashboard-header');
         const todayBtn = header.locator('[data-dashboard-mode="today"]');
         const allBtn = header.locator('[data-dashboard-mode="all"]');
 
-        // Ensure we start in All (since beforeEach goes to dashboard default which might be Today)
+        // Ensure we start in All
         await allBtn.click();
         await page.waitForTimeout(500);
 
@@ -107,13 +125,13 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         await todayBtn.click();
         await page.waitForTimeout(500);
 
-        // 1. "view-dashboard" should be HIDDEN (Configurable hidden)
+        // 1. "view-dashboard" should be VISIBLE
         const viewDashboard = page.locator('#view-dashboard');
-        await expect(viewDashboard).not.toBeVisible();
+        await expect(viewDashboard).toBeVisible();
 
-        // 2. Labs Classic Host (Legacy wrapper) should be VISIBLE
+        // 2. Labs Classic Host should be HIDDEN
         const labsHost = page.locator('#dashboard-labs-classic-host');
-        await expect(labsHost).toBeVisible();
+        await expect(labsHost).not.toBeVisible();
     });
 
     test('Header hides when navigating to valid non-dashboard route', async ({ page }) => {

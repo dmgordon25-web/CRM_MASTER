@@ -254,11 +254,12 @@ main[data-ui="dashboard-root"] .insight-card {
 
 .dashboard-legend-swatch {
   display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px; /* Slight rounding but distinct square to differ from traffic lights */
   background-color: var(--swatch-color, #cbd5e1);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
+  border: 1px solid rgba(0, 0, 0, 0.15); /* Defines edge against white background */
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
 }
 
 @media (max-width: 768px) {

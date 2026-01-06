@@ -2010,6 +2010,11 @@ function ensureDashboardLegend() {
   legend.className = 'dashboard-legend';
   legend.setAttribute('role', 'list');
   legend.setAttribute('aria-label', 'Stage legend');
+  legend.addEventListener('click', (evt) => {
+    // Prevent clicks from bubbling to header or parent containers
+    // which might trigger view resets or navigation
+    evt.stopPropagation();
+  });
 
   // Render entries directly
   STAGE_LEGEND_ENTRIES.forEach(entry => {
