@@ -1,10 +1,11 @@
-```
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Action Bar Selection', () => {
-  test('should show action bar when a row is selected', async ({ page }) => {
-    page.on('console', msg => console.log(`[BROWSER] ${ msg.text() } `));
-    // Navigate to Contacts
+    test('should show action bar when a row is selected', async ({ page }) => {
+        page.on('console', msg => console.log('[BROWSER]', msg.text()));
+
+        // Navigate to Contacts
         await page.goto('/#contacts');
         await page.waitForSelector('table[data-selection-scope="contacts"]');
 

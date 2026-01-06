@@ -1,8 +1,75 @@
 
 Running 2 tests using 1 worker
 
-  x  1 [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected (11.1s)
-  x  2 [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected (9.6s)
+[BROWSER] StabilityVerifier loaded. Run window.StabilityVerifier.runAll()
+[BROWSER] [perf] crm:first-route-ready
+[BROWSER] [BOOT] loadModules called with: [./env.js, ./db.js, ./core/renderGuard.js, ./core/theme_injector.js, ./services/selection.js, ./utils.js, ./render.js, ./db_compat.js, ./ical.js, ./presets.js, ../seed_data_inline.js, ./seed_data.js, ./ui_shims.js, ./header_ui.js, ./email/merge_vars.js, ./contact_stage_tracker.js, ./commissions.js, ./post_funding.js, ./qa.js, ./bulk_log.js, ./print.js, ./app.js, ./settings_forms.js, ./compose.js, ./services/pipelineStages.js, ./services/softDelete.js, ./pipeline/stages.js, ./pages/workbench.js, ./pages/email_templates.js, ./pages/notifications.js, ./boot/contracts/services.js, ./boot/phases.js]
+[BROWSER] [perf] crm:post-first-paint-start
+[BROWSER] [VIS] action-bar plus removed
+[BROWSER] [A_BEACON] header loaded
+[BROWSER] [A_BEACON] avatar: limit=6MB
+[BROWSER] [APP] Module evaluating...
+[BROWSER] [DEBUG] app.js IIFE running
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] onDomReady: Calling ensureDefaultRoute
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] onDomReady executing
+[BROWSER] [DEBUG] #main-nav found, attaching listener
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] wiring table JSHandle@node
+[BROWSER] [DEBUG] preferredDefaultRoute: homeView= labs
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] [CRM_DEBUG_UI] {label: after-resetUiInteractivity, overlays: 0, loadingHosts: 0, dialogOpen: 0, qaOverlays: 0}
+[BROWSER] [QC] overlay reset editor-close
+[BROWSER] Settings API unavailable
+[BROWSER] REL_SUMMARY {nodes: 60, edges: 40, keyboardAccess: true}
+[BROWSER] [BOOT] loadModules called with: [./patch_20250923_baseline.js, ./patch_20250924_bootstrap_ready.js, ./patch_2025-09-26_phase1_pipeline_partners.js, ./patch_2025-09-26_phase2_automations.js, ./patch_2025-09-27_doccenter2.js, ./patch_2025-09-27_contact_linking_5A.js, ./patch_2025-09-27_contact_linking_5B.js, ./patch_2025-09-27_contact_linking_5C.js, ./patch_2025-09-27_merge_ui.js, ./patch_2025-09-27_nth_bundle_and_qa.js, ./patch_2025-09-27_masterfix.js, ./patch_2025-09-27_release_prep.js, ./patches/polish_overlay_ready.js, ./patch_2025-10-02_baseline_ux_cleanup.js, ./patch_2025-10-02_medium_nice.js, ./patch_2025-10-03_calendar_ics_button.js, ./patch_2025-10-03_automation_seed.js, ./contacts_merge.js, ./contacts_merge_orchestrator.js, ./pipeline/kanban_dnd.js, ./patches/patch_2025-10-23_session_beacon.js, ./ui/Toast.js, ./ui/Confirm.js, ./data/settings.js, ./data/seed.js, ./migrations.js, ./templates.js, ./filters.js, ./state/selectionStore.js, ./state/actionBarGuards.js, ./ui/notifications_panel.js, ./ui/action_bar.js, ./ui/merge_modal.js, ./debug/overlay.js, ./quick_add.js, ./doccenter_rules.js, ./contacts.js, ./partners.js, ./partners_detail.js, ./partners_modal.js, ./partners/list.js, ./partners_merge.js, ./partners_merge_orchestrator.js, ./dash_range.js, ./importer.js, ./reports.js, ./notifications.js, ./calendar_impl.js, ./calendar_actions.js, ./calendar.js, ./calendar_ics.js, ./diagnostics_quiet.js, ./doc/doc_center_enhancer.js, ./email/templates_store.js, ./importer_contacts.js, ./importer_helpers.js, ./importer_partners.js, ./merge/merge_core.js, ./notifications/notifier.js, ./patches/loader.js, ./selftest.js, ./selftest_panel.js, ../seed_test_data.js, ./snapshot.js, ./ui/GhostButton.js, ./ui/PrimaryButton.js, ./ui/loading_block.js, ./ui/form_footer.js, ./ui/header_toolbar.js, ./ui/table_layout.js, ./ui/route_toast_sentinel.js, ./ui/quick_add_unified.js, ./ui/settings_form.js, ./ui/strings.js, ./util/strings.js, ./ux/svg_sanitizer.js, ./services/selection_adapter.js, ./services/selection_fallback.js, ./core/capabilities_probe.js]
+[BROWSER] [patch_2025-09-26_phase1_pipeline_partners.init] complete
+[BROWSER] [patch_2025-09-27_doccenter2.init] complete
+[BROWSER] [A_BEACON] actionbar:centered
+[BROWSER] [DEBUG] handleTableChange JSHandle@node select row-check
+[BROWSER] [DEBUG] row check 08319ab3-6fb6-7c93-f54a-3bf1bdb2200d contacts
+[BROWSER] [VIS] action-bar plus removed
+[BROWSER] [app] app:data:changed missing scope {scope: , reason: coalesced-update, batchSize: 1}
+[BROWSER] [APP_RENDER] full 1767672562719
+[BROWSER] Boot OK — modules:2 failures:0
+[BROWSER] BOOT OK
+[BROWSER] [selftest] warn Module-only invariant failed [Non-module script for app code: /js/boot/early_trap.js]
+[BROWSER] PATCHES_LOADED [/js/patch_2025-09-26_phase1_pipeline_partners.js, /js/patch_2025-09-27_doccenter2.js]
+[BROWSER] Selftest: required patches missing (manifest enforcement). {missing: Array(79), loaded: Array(2), expected: Array(79)}
+[BROWSER] [soft] PATCHES_MISSING [http://127.0.0.1:8080/js/patch_20250923_baseline.js, http://127.0.0.1:8080/js/patch_20250924_bootstrap_ready.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase1_pipeline_partners.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase2_automations.js, http://127.0.0.1:8080/js/patch_2025-09-27_doccenter2.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5A.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5B.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5C.js, http://127.0.0.1:8080/js/patch_2025-09-27_merge_ui.js, http://127.0.0.1:8080/js/patch_2025-09-27_nth_bundle_and_qa.js, http://127.0.0.1:8080/js/patch_2025-09-27_masterfix.js, http://127.0.0.1:8080/js/patch_2025-09-27_release_prep.js, http://127.0.0.1:8080/js/patches/polish_overlay_ready.js, http://127.0.0.1:8080/js/patch_2025-10-02_baseline_ux_cleanup.js, http://127.0.0.1:8080/js/patch_2025-10-02_medium_nice.js, http://127.0.0.1:8080/js/patch_2025-10-03_calendar_ics_button.js, http://127.0.0.1:8080/js/patch_2025-10-03_automation_seed.js, http://127.0.0.1:8080/js/contacts_merge.js, http://127.0.0.1:8080/js/contacts_merge_orchestrator.js, http://127.0.0.1:8080/js/pipeline/kanban_dnd.js, http://127.0.0.1:8080/js/patches/patch_2025-10-23_session_beacon.js, http://127.0.0.1:8080/js/ui/Toast.js, http://127.0.0.1:8080/js/ui/Confirm.js, http://127.0.0.1:8080/js/data/settings.js, http://127.0.0.1:8080/js/data/seed.js, http://127.0.0.1:8080/js/migrations.js, http://127.0.0.1:8080/js/templates.js, http://127.0.0.1:8080/js/filters.js, http://127.0.0.1:8080/js/state/selectionStore.js, http://127.0.0.1:8080/js/state/actionBarGuards.js, http://127.0.0.1:8080/js/ui/notifications_panel.js, http://127.0.0.1:8080/js/ui/action_bar.js, http://127.0.0.1:8080/js/ui/merge_modal.js, http://127.0.0.1:8080/js/debug/overlay.js, http://127.0.0.1:8080/js/quick_add.js, http://127.0.0.1:8080/js/doccenter_rules.js, http://127.0.0.1:8080/js/contacts.js, http://127.0.0.1:8080/js/partners.js, http://127.0.0.1:8080/js/partners_detail.js, http://127.0.0.1:8080/js/partners_modal.js, http://127.0.0.1:8080/js/partners/list.js, http://127.0.0.1:8080/js/partners_merge.js, http://127.0.0.1:8080/js/partners_merge_orchestrator.js, http://127.0.0.1:8080/js/dash_range.js, http://127.0.0.1:8080/js/importer.js, http://127.0.0.1:8080/js/reports.js, http://127.0.0.1:8080/js/notifications.js, http://127.0.0.1:8080/js/calendar_impl.js, http://127.0.0.1:8080/js/calendar_actions.js, http://127.0.0.1:8080/js/calendar.js, http://127.0.0.1:8080/js/calendar_ics.js, http://127.0.0.1:8080/js/diagnostics_quiet.js, http://127.0.0.1:8080/js/doc/doc_center_enhancer.js, http://127.0.0.1:8080/js/email/templates_store.js, http://127.0.0.1:8080/js/importer_contacts.js, http://127.0.0.1:8080/js/importer_helpers.js, http://127.0.0.1:8080/js/importer_partners.js, http://127.0.0.1:8080/js/merge/merge_core.js, http://127.0.0.1:8080/js/notifications/notifier.js, http://127.0.0.1:8080/js/patches/loader.js, http://127.0.0.1:8080/js/selftest.js, http://127.0.0.1:8080/js/selftest_panel.js, http://127.0.0.1:8080/seed_test_data.js, http://127.0.0.1:8080/js/snapshot.js, http://127.0.0.1:8080/js/ui/GhostButton.js, http://127.0.0.1:8080/js/ui/PrimaryButton.js, http://127.0.0.1:8080/js/ui/loading_block.js, http://127.0.0.1:8080/js/ui/form_footer.js, http://127.0.0.1:8080/js/ui/header_toolbar.js, http://127.0.0.1:8080/js/ui/table_layout.js, http://127.0.0.1:8080/js/ui/route_toast_sentinel.js, http://127.0.0.1:8080/js/ui/quick_add_unified.js, http://127.0.0.1:8080/js/ui/settings_form.js, http://127.0.0.1:8080/js/ui/strings.js, http://127.0.0.1:8080/js/util/strings.js, http://127.0.0.1:8080/js/ux/svg_sanitizer.js, http://127.0.0.1:8080/js/services/selection_adapter.js, http://127.0.0.1:8080/js/services/selection_fallback.js, http://127.0.0.1:8080/js/core/capabilities_probe.js]
+[BROWSER] [soft] Selftest: manifest-declared patches missing {missing: Array(79), loaded: Array(2), expected: Array(79)}
+[BROWSER] [selftest] fail Missing manifest patches: http://127.0.0.1:8080/js/patch_20250923_baseline.js, http://127.0.0.1:8080/js/patch_20250924_bootstrap_ready.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase1_pipeline_partners.js, http://127.0.0.1:8080/js/patch_2025-09-26_phase2_automations.js, http://127.0.0.1:8080/js/patch_2025-09-27_doccenter2.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5A.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5B.js, http://127.0.0.1:8080/js/patch_2025-09-27_contact_linking_5C.js, http://127.0.0.1:8080/js/patch_2025-09-27_merge_ui.js, http://127.0.0.1:8080/js/patch_2025-09-27_nth_bundle_and_qa.js, http://127.0.0.1:8080/js/patch_2025-09-27_masterfix.js, http://127.0.0.1:8080/js/patch_2025-09-27_release_prep.js, http://127.0.0.1:8080/js/patches/polish_overlay_ready.js, http://127.0.0.1:8080/js/patch_2025-10-02_baseline_ux_cleanup.js, http://127.0.0.1:8080/js/patch_2025-10-02_medium_nice.js, http://127.0.0.1:8080/js/patch_2025-10-03_calendar_ics_button.js, http://127.0.0.1:8080/js/patch_2025-10-03_automation_seed.js, http://127.0.0.1:8080/js/contacts_merge.js, http://127.0.0.1:8080/js/contacts_merge_orchestrator.js, http://127.0.0.1:8080/js/pipeline/kanban_dnd.js, http://127.0.0.1:8080/js/patches/patch_2025-10-23_session_beacon.js, http://127.0.0.1:8080/js/ui/Toast.js, http://127.0.0.1:8080/js/ui/Confirm.js, http://127.0.0.1:8080/js/data/settings.js, http://127.0.0.1:8080/js/data/seed.js, http://127.0.0.1:8080/js/migrations.js, http://127.0.0.1:8080/js/templates.js, http://127.0.0.1:8080/js/filters.js, http://127.0.0.1:8080/js/state/selectionStore.js, http://127.0.0.1:8080/js/state/actionBarGuards.js, http://127.0.0.1:8080/js/ui/notifications_panel.js, http://127.0.0.1:8080/js/ui/action_bar.js, http://127.0.0.1:8080/js/ui/merge_modal.js, http://127.0.0.1:8080/js/debug/overlay.js, http://127.0.0.1:8080/js/quick_add.js, http://127.0.0.1:8080/js/doccenter_rules.js, http://127.0.0.1:8080/js/contacts.js, http://127.0.0.1:8080/js/partners.js, http://127.0.0.1:8080/js/partners_detail.js, http://127.0.0.1:8080/js/partners_modal.js, http://127.0.0.1:8080/js/partners/list.js, http://127.0.0.1:8080/js/partners_merge.js, http://127.0.0.1:8080/js/partners_merge_orchestrator.js, http://127.0.0.1:8080/js/dash_range.js, http://127.0.0.1:8080/js/importer.js, http://127.0.0.1:8080/js/reports.js, http://127.0.0.1:8080/js/notifications.js, http://127.0.0.1:8080/js/calendar_impl.js, http://127.0.0.1:8080/js/calendar_actions.js, http://127.0.0.1:8080/js/calendar.js, http://127.0.0.1:8080/js/calendar_ics.js, http://127.0.0.1:8080/js/diagnostics_quiet.js, http://127.0.0.1:8080/js/doc/doc_center_enhancer.js, http://127.0.0.1:8080/js/email/templates_store.js, http://127.0.0.1:8080/js/importer_contacts.js, http://127.0.0.1:8080/js/importer_helpers.js, http://127.0.0.1:8080/js/importer_partners.js, http://127.0.0.1:8080/js/merge/merge_core.js, http://127.0.0.1:8080/js/notifications/notifier.js, http://127.0.0.1:8080/js/patches/loader.js, http://127.0.0.1:8080/js/selftest.js, http://127.0.0.1:8080/js/selftest_panel.js, http://127.0.0.1:8080/seed_test_data.js, http://127.0.0.1:8080/js/snapshot.js, http://127.0.0.1:8080/js/ui/GhostButton.js, http://127.0.0.1:8080/js/ui/PrimaryButton.js, http://127.0.0.1:8080/js/ui/loading_block.js, http://127.0.0.1:8080/js/ui/form_footer.js, http://127.0.0.1:8080/js/ui/header_toolbar.js, http://127.0.0.1:8080/js/ui/table_layout.js, http://127.0.0.1:8080/js/ui/route_toast_sentinel.js, http://127.0.0.1:8080/js/ui/quick_add_unified.js, http://127.0.0.1:8080/js/ui/settings_form.js, http://127.0.0.1:8080/js/ui/strings.js, http://127.0.0.1:8080/js/util/strings.js, http://127.0.0.1:8080/js/ux/svg_sanitizer.js, http://127.0.0.1:8080/js/services/selection_adapter.js, http://127.0.0.1:8080/js/services/selection_fallback.js, http://127.0.0.1:8080/js/core/capabilities_probe.js
+[BROWSER] [selftest] skip Workbench disabled in prod (expected).
+[BROWSER] Selftest: telemetry helpers unavailable in production context; treating as diagnostic warn.
+[BROWSER] [selftest] info Telemetry helpers inactive in prod (expected noop).
+[BROWSER] [selftest] fail Self-test FAIL — review console for details.
+[BROWSER] [selftest] pass renderAll available
+[BROWSER] [WARN] Multiple app:data:changed events detected {count: 2, windowMs: 408, detail: Object}
+[BROWSER] [app] app:data:changed missing scope {source: selftest}
+[BROWSER] [app] app:data:changed missing scope {scope: , reason: coalesced-update, batchSize: 1}
+[BROWSER] [selftest] fail app:data:changed triggered 0 requestRender calls but no repaint
+[BROWSER] [selftest] skip SeedDemoData not available; seed tripwire skipped
+[BROWSER] [selftest] warn Importer did not emit any changes
+[BROWSER] [VIS] polish applied:reports-empty
+[BROWSER] [APP_RENDER] full 1767672563160
+[BROWSER] [app] app:data:changed unknown scope [import] {scope: import, reason: coalesced-update, batchSize: 1}
+[BROWSER] [APP_RENDER] full 1767672563268
+[BROWSER] BOOT OK
+[BROWSER] [A_BEACON] header loaded
+[BROWSER] [A_BEACON] avatar: limit=6MB
+[BROWSER] [A_BEACON] route toast wired
+[BROWSER] [BOOT] services registry warming up (expected during cold start)
+  x  1 [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected (11.9s)
+  x  2 [chromium] › tests\e2e\action_bar_selection.spec.js:34:9 › Action Bar Selection › should show action bar when multiple rows are selected (14.1s)
 
 
   1) [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected 
@@ -27,14 +94,14 @@ Running 2 tests using 1 worker
     [2m    - unexpected value "hidden"[22m
 
 
-      19 |
-      20 |         // Verify action bar becomes visible
-    > 21 |         await expect(actionBar).toBeVisible();
+      21 |
+      22 |         // Verify action bar becomes visible
+    > 23 |         await expect(actionBar).toBeVisible();
          |                                 ^
-      22 |         await expect(actionBar).toHaveAttribute('data-visible', '1');
-      23 |         await expect(actionBar).toHaveAttribute('data-count', '1');
-      24 |
-        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:21:33
+      24 |         await expect(actionBar).toHaveAttribute('data-visible', '1');
+      25 |         await expect(actionBar).toHaveAttribute('data-count', '1');
+      26 |
+        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:23:33
 
     Error Context: test-results\action_bar_selection-Actio-9d182--bar-when-a-row-is-selected-chromium\error-context.md
 
@@ -46,7 +113,7 @@ Running 2 tests using 1 worker
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  2) [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected 
+  2) [chromium] › tests\e2e\action_bar_selection.spec.js:34:9 › Action Bar Selection › should show action bar when multiple rows are selected 
 
     Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m()[22m failed
 
@@ -58,18 +125,22 @@ Running 2 tests using 1 worker
     Call log:
     [2m  - Expect "toBeVisible" with timeout 5000ms[22m
     [2m  - waiting for locator('[data-ui="action-bar"]')[22m
-    [2m    8 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
+    [2m    2 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
+    [2m      - unexpected value "hidden"[22m
+    [2m    2 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="contacts">…</div>[22m
+    [2m      - unexpected value "hidden"[22m
+    [2m    4 × locator resolved to <div id="actionbar" data-count="0" class="actionbar" data-ui="action-bar" data-merge-ready="0" aria-expanded="false" data-idle-visible="1" data-selection-type="pipeline">…</div>[22m
     [2m      - unexpected value "hidden"[22m
 
 
-      43 |
-      44 |         // Verify count is 2
-    > 45 |         await expect(actionBar).toBeVisible();
+      45 |
+      46 |         // Verify count is 2
+    > 47 |         await expect(actionBar).toBeVisible();
          |                                 ^
-      46 |         await expect(actionBar).toHaveAttribute('data-count', '2');
-      47 |     });
-      48 | });
-        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:45:33
+      48 |         await expect(actionBar).toHaveAttribute('data-count', '2');
+      49 |     });
+      50 | });
+        at C:\Users\dmgor\Downloads\Antigravity_MAIN\CRM_MASTER\CRM_MASTER-1\tests\e2e\action_bar_selection.spec.js:47:33
 
     Error Context: test-results\action_bar_selection-Actio-e29d2--multiple-rows-are-selected-chromium\error-context.md
 
@@ -83,4 +154,4 @@ Running 2 tests using 1 worker
 
   2 failed
     [chromium] › tests\e2e\action_bar_selection.spec.js:5:9 › Action Bar Selection › should show action bar when a row is selected 
-    [chromium] › tests\e2e\action_bar_selection.spec.js:32:9 › Action Bar Selection › should show action bar when multiple rows are selected 
+    [chromium] › tests\e2e\action_bar_selection.spec.js:34:9 › Action Bar Selection › should show action bar when multiple rows are selected 
