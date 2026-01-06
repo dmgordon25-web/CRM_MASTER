@@ -1848,6 +1848,7 @@ function runPatch() {
     const doneBtn = evt.target.closest('[data-act="task-done"]');
     if (doneBtn) {
       evt.preventDefault();
+      evt.stopPropagation();
       const id = doneBtn.getAttribute('data-task-id');
       markTaskDone(id);
       return;
@@ -1855,6 +1856,7 @@ function runPatch() {
     const contactBtn = evt.target.closest('[data-role="open-contact"]');
     if (contactBtn) {
       evt.preventDefault();
+      evt.stopPropagation();
       const id = contactBtn.getAttribute('data-contact-id');
       if (!id || typeof openContactModal !== 'function') return;
       try {

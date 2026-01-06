@@ -1,4 +1,5 @@
-// Labs CRM Widgets - Canonical-data-backed and visually modern
+// 1: // Labs CRM Widgets - Canonical-data-backed and visually modern
+
 
 import {
   calculateKPIsFromSnapshot,
@@ -1851,6 +1852,7 @@ export function renderTodayWidget(container, model) {
         const doneBtn = event.target.closest('[data-act="task-done"]');
         if (doneBtn) {
           event.preventDefault();
+          event.stopPropagation();
           const taskId = doneBtn.getAttribute('data-task-id');
           if (taskId) {
             const now = Date.now();
@@ -1881,6 +1883,7 @@ export function renderTodayWidget(container, model) {
         const contactBtn = event.target.closest('[data-role="open-contact"]');
         if (contactBtn) {
           event.preventDefault();
+          event.stopPropagation();
           const tId = contactBtn.getAttribute('data-task-id');
           const cId = contactBtn.getAttribute('data-contact-id');
 
