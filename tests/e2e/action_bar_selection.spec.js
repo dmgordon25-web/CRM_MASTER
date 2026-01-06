@@ -10,7 +10,7 @@ test.describe('Action Bar Selection', () => {
         await page.waitForSelector('table[data-selection-scope="contacts"]');
 
         // Ensure action bar is initially hidden or minimized
-        const actionBar = page.locator('[data-ui="action-bar"]');
+        const actionBar = page.locator('[data-ui="action-bar"]').first();
         await expect(actionBar).not.toBeVisible();
 
         // Find the first row's checkbox

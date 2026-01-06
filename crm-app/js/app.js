@@ -1387,6 +1387,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
 
       if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check')) {
+        const id = selectionIdFor(target);
         if (id) {
           // Fix for double-binding: use explicit set instead of toggle to be idempotent
           const current = store.get(scope);
