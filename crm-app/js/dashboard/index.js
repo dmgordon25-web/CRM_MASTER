@@ -1,7 +1,7 @@
 import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
 import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
 import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout, setDashboardLayoutProfile } from '../ui/dashboard_layout.js';
-import { getDb, getSettingsApi } from '../app_context.js';
+
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditor } from '../editors/partner_entry.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
