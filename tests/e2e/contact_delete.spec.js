@@ -16,11 +16,18 @@ test.describe('Contact Deletion', () => {
         // Seed contacts
         await page.evaluate(async () => {
             const now = Date.now();
+            // Clear existing contacts to prevent duplicates/confusion
+            if (typeof window.dbClear === 'function') await window.dbClear('contacts');
+            else if (typeof window.dbGetAll === 'function') {
+                const all = await window.dbGetAll('contacts');
+                for (const c of all) await window.dbDelete('contacts', c.id);
+            }
+
             const contacts = [
-                { id: 'del-1', first: 'Delete', last: 'Me One', stage: 'new', createdAt: now, updatedAt: now },
-                { id: 'del-2', first: 'Delete', last: 'Me Two', stage: 'new', createdAt: now, updatedAt: now },
-                { id: 'del-3', first: 'Delete', last: 'Me Three', stage: 'new', createdAt: now, updatedAt: now },
-                { id: 'keep-1', first: 'Keep', last: 'Me', stage: 'new', createdAt: now, updatedAt: now }
+                { id: 'del-1', first: 'Delete', last: 'Me1', email: 'del1@example.com', stage: 'Lead', status: 'New', createdAt: now + 1000 },
+                { id: 'del-2', first: 'Delete', last: 'Me2', email: 'del2@example.com', stage: 'Lead', status: 'New', createdAt: now + 2000 },
+                { id: 'del-3', first: 'Delete', last: 'Me3', email: 'del3@example.com', stage: 'Lead', status: 'New', createdAt: now + 3000 },
+                { id: 'keep-1', first: 'Keep', last: 'Me', email: 'keep@example.com', stage: 'Lead', status: 'New', createdAt: now + 4000 }
             ];
             // Ensure DB helpers exist
             if (typeof window.dbBulkPut === 'function') {
@@ -30,17 +37,30 @@ test.describe('Contact Deletion', () => {
             } else {
                 throw new Error('No DB helper found');
             }
+            console.log('Seed complete. Count:', (await window.dbGetAll('contacts')).length);
 
             if (typeof window.renderAll === 'function') window.renderAll();
         });
 
         // 2. Go to Contacts
-        const navBtn = page.locator('[data-nav="contacts"]');
+        console.log('Opening Contacts List...');
+        // await page.evaluate(() => window.Contacts.open()); // INCORRECT: Opens modal
+        const navBtn = page.locator('#main-nav button[data-nav="contacts"]');
         await expect(navBtn).toBeVisible();
         await navBtn.click();
         await expect(page.locator('#view-contacts')).toBeVisible();
 
+        console.log('Contacts List opened. Waiting for rows...');
+
+        // Debug DB state
+        const dbCounts = await page.evaluate(async () => {
+            return (await window.dbGetAll('contacts')).length;
+        });
+        console.log(`DB Contact Count: ${dbCounts}`);
+
         // Wait for rows
+        await page.waitForSelector('tr[data-id^="del-"]', { timeout: 10000 });
+        console.log('Rows found. Selecting...');
         await expect(page.locator('tr[data-id="del-1"]')).toBeVisible();
         await expect(page.locator('tr[data-id="del-2"]')).toBeVisible();
         await expect(page.locator('tr[data-id="del-3"]')).toBeVisible();

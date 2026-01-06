@@ -1,8 +1,15 @@
 // patch_20250926_ctc_actionbar.js — stage canonicalization + hardened action bar
-import { setDisabled } from './patch_2025-10-02_baseline_ux_cleanup.js';
-import { openContactsMergeByIds } from './contacts_merge_orchestrator.js';
-import { openPartnersMergeByIds } from './partners_merge_orchestrator.js';
-import { openPartnerEditModal } from './ui/partner_edit_modal.js';
+
+console.log('[patch_20250926_ctc_actionbar] Loading...');
+
+function setDisabled(btn, disabled) {
+  if (!btn) return;
+  btn.disabled = !!disabled;
+  if (btn.classList) {
+    if (disabled) btn.classList.add('disabled');
+    else btn.classList.remove('disabled');
+  }
+}
 
 let __wired = false;
 function domReady() { if (['complete', 'interactive'].includes(document.readyState)) return Promise.resolve(); return new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true })); }
@@ -46,7 +53,7 @@ function runPatch() {
       return '';
     }
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', async (e) => {
       const trigger = e.target?.closest?.(MERGE_SELECTORS.join(',')) || null;
       if (!trigger) return;
 
@@ -56,9 +63,11 @@ function runPatch() {
       const view = inferViewFromDOM();
       try {
         if (view === 'contacts') {
-          openContactsMergeByIds(ids[0], ids[1]);
+          const m = await import('./contacts_merge_orchestrator.js');
+          if (m && m.openContactsMergeByIds) m.openContactsMergeByIds(ids[0], ids[1]);
         } else if (view === 'partners') {
-          openPartnersMergeByIds(ids[0], ids[1]);
+          const m = await import('./partners_merge_orchestrator.js');
+          if (m && m.openPartnersMergeByIds) m.openPartnersMergeByIds(ids[0], ids[1]);
         } else {
           console.warn('[merge] Unable to infer active view; expected contacts or partners. ids=', ids);
         }
@@ -1481,8 +1490,13 @@ function runPatch() {
   }
 
   async function deleteSelection() {
-    if (!ensureSelectionService()) return false;
+    console.log('[actionbar] deleteSelection CALLED');
+    if (!ensureSelectionService()) {
+      console.log('[actionbar] deleteSelection: Service check failed');
+      return false;
+    }
     const ids = SelectionService.getIds();
+    console.log('[actionbar] deleteSelection: IDs to delete:', ids);
     if (!ids.length) { toast('Select records to delete'); return false; }
     const prompt = `Delete ${ids.length} selected record${ids.length === 1 ? '' : 's'}?`;
     let confirmed = true;
@@ -1497,6 +1511,7 @@ function runPatch() {
     } else if (typeof window.confirm === 'function') {
       confirmed = window.confirm(prompt);
     }
+    console.log('[actionbar] deleteSelection: confirmed =', confirmed);
     if (!confirmed) return { count: 0, ids: [] };
     try {
       const targets = ids.map(id => {
@@ -1505,18 +1520,24 @@ function runPatch() {
         return { store, id };
       }).filter(item => item.store && item.id != null);
       if (!targets.length) { toast('Nothing deleted'); return { count: 0, ids: [] }; }
+
+      console.log('[actionbar] deleteSelection: Targets:', targets);
+
       const describe = window.__SOFT_DELETE_SERVICE__ && typeof window.__SOFT_DELETE_SERVICE__.describeRecords === 'function'
         ? window.__SOFT_DELETE_SERVICE__.describeRecords
         : null;
       const label = describe ? describe(targets) : `${targets.length} record${targets.length === 1 ? '' : 's'}`;
       let removed = 0;
       if (typeof window.softDeleteMany === 'function') {
+        console.log('[actionbar] calling window.softDeleteMany');
         const result = await window.softDeleteMany(targets, {
           source: 'actionbar:delete',
           message: `Deleted ${label}. Undo to restore.`
         });
+        console.log('[actionbar] softDeleteMany result:', result);
         removed = result && typeof result.count === 'number' ? result.count : 0;
       } else if (typeof window.softDelete === 'function') {
+        console.log('[actionbar] calling window.softDelete (fallback)');
         for (const target of targets) {
           try {
             const result = await window.softDelete(target.store, target.id, { source: 'actionbar:delete' });
@@ -1527,6 +1548,7 @@ function runPatch() {
           window.toast({ message: `Deleted ${removed} record${removed === 1 ? '' : 's'}.` });
         }
       } else if (typeof window.dbDelete === 'function') {
+        console.log('[actionbar] calling window.dbDelete (fallback)');
         for (const target of targets) {
           try { await window.dbDelete(target.store, target.id); removed += 1; }
           catch (err) { console.warn('delete failed', target.store, target.id, err); }
@@ -1716,6 +1738,7 @@ function runPatch() {
 
   function bootstrap() {
     if (!ensureSelectionService()) {
+      // ...
       console.warn('[soft] SelectionService unavailable during bootstrap');
       return;
     }
@@ -1784,6 +1807,7 @@ function runPatch() {
 }
 
 export async function init(ctx) {
+  console.log('[patch_20250926_ctc_actionbar] init called');
   ensureCRM();
   const log = (ctx?.logger?.log) || console.log;
   const error = (ctx?.logger?.error) || ((...args) => console.warn('[soft]', ...args));
@@ -1809,4 +1833,14 @@ export async function init(ctx) {
 ensureCRM();
 window.CRM.modules['patch_20250926_ctc_actionbar'] = window.CRM.modules['patch_20250926_ctc_actionbar'] || {};
 window.CRM.modules['patch_20250926_ctc_actionbar'].init = init;
+
+if (typeof window !== 'undefined') {
+  const autoInit = () => { try { init(); } catch (_) { } };
+  if (typeof document !== 'undefined' && document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoInit, { once: true });
+  } else {
+    autoInit();
+  }
+}
+
 

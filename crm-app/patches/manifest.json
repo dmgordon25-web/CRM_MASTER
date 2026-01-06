@@ -4,6 +4,7 @@
     "./patch_20250924_bootstrap_ready.js",
     "./patch_2025-09-26_phase1_pipeline_partners.js",
     "./patch_2025-09-26_phase2_automations.js",
+    "./patch_20250926_ctc_actionbar.js",
     "./patch_2025-09-27_doccenter2.js",
     "./patch_2025-09-27_contact_linking_5A.js",
     "./patch_2025-09-27_contact_linking_5B.js",

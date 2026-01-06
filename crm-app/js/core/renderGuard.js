@@ -209,20 +209,30 @@
       // Collapse metrics
       const count = updateQueue.length;
       const last = updateQueue[updateQueue.length - 1];
+
+      // CRITICAL FIX: Scan for destructive events that must not be swallowed by subsequent updates
+      const destructiveEvent = updateQueue.find(d =>
+        d.source === 'soft-delete' ||
+        d.source === 'actionbar:delete' ||
+        d.action === 'soft-delete'
+      );
+
+      const baseDetail = destructiveEvent ? destructiveEvent : last;
+      const bucketLastSource = last.source || ''; // Metrics still track the literal last one
+
       updateQueue = [];
 
       const meter = global.__METER__ = global.__METER__ || {};
       const bucket = meter.dataChanged = meter.dataChanged || { count: 0, lastSource: '' };
       bucket.count += count;
-      bucket.lastSource = last.source || '';
+      bucket.lastSource = bucketLastSource;
 
-      // Dispatch ONE coalesced event (using the details of the last one, or a generic one)
-      // Ideally we'd merge scopes, but for now we trust the last one or generic.
-      const eventDetail = {
-        scope: last.scope || '',
-        reason: last.reason || 'coalesced-update',
-        batchSize: count
-      };
+      // Dispatch ONE coalesced event (using prioritized details)
+      const eventDetail = Object.assign({}, baseDetail, {
+        batchSize: count,
+        reason: baseDetail.reason || (count > 1 ? 'coalesced-update' : undefined)
+      });
+      if (!eventDetail.scope) eventDetail.scope = '';
 
       const doc = global.document;
       if (doc && typeof doc.dispatchEvent === 'function') {
