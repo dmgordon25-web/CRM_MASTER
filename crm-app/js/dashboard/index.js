@@ -4224,10 +4224,10 @@ function syncLayoutModeForDashboard(mode) {
     // unmountLabsClassicFromDashboard(); // DO NOT UNMOUNT! It breaks state.
   }
   // FIX: Swapped logic per user request.
-  // Today logic now triggers the Mount path (showing Labs/Configurable views per existing implementation names).
-  // All logic triggers the Unmount path.
+  // Today logic now triggers the Unmount path (showing Legacy).
+  // All logic triggers the Mount path (showing Labs Classic).
   // This addresses the reported inversion.
-  if (normalized === 'today') {
+  if (normalized === 'all') {
     mountLabsClassicInDashboard();
     setDashboardLayoutProfile('default');
   } else {
