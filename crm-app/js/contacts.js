@@ -40,6 +40,34 @@ import { validateContact as validateContactSchema } from './validation/schema.js
 const MISSING_DOC_FALLBACK = ['Photo ID', 'Income verification', 'Asset statements', 'Authorization forms'];
 let missingDocsWarned = false;
 
+const DEFAULT_CONTACT_DOC_CHECKLIST = Object.freeze([
+  { key: 'gov-id', label: 'Government-issued ID' },
+  { key: 'w2', label: 'W-2s (2 years)' },
+  { key: 'pay-stubs', label: 'Recent pay stubs' },
+  { key: 'bank-statements', label: 'Bank statements' },
+  { key: 'tax-returns', label: 'Tax returns (2 years)' }
+]);
+
+function normalizeDocChecklistItems(list) {
+  const source = Array.isArray(list) ? list : [];
+  const normalized = [];
+  const seen = new Set();
+  source.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const key = String(item.key || item.id || '').trim();
+    const label = String(item.label || '').trim();
+    if (!key || !label || seen.has(key)) return;
+    const checked = !!item.checked;
+    const updatedAt = item.updatedAt;
+    const payload = { key, label, checked };
+    if (updatedAt != null) payload.updatedAt = updatedAt;
+    normalized.push(payload);
+    seen.add(key);
+  });
+  if (normalized.length) return normalized;
+  return DEFAULT_CONTACT_DOC_CHECKLIST.map(item => ({ key: item.key, label: item.label, checked: false }));
+}
+
 const E2E_CONTACT_HOOK_ENABLED = (() => {
   if (typeof window === 'undefined') return false;
   try {
@@ -1813,6 +1841,50 @@ export function normalizeContactId(input) {
         const docMissingEl = $('#c-doc-missing', body);
         const docEmailBtn = $('#c-email-docs', body);
         const docSyncBtn = $('#c-sync-docs', body);
+        const docChecklistHost = $('#c-doc-checklist', body);
+        let docChecklistState = normalizeDocChecklistItems(c.docChecklist);
+
+        function renderContactChecklist() {
+          if (!docChecklistHost) return;
+          const items = docChecklistState.map((item) => {
+            const checkedAttr = item.checked ? ' checked' : '';
+            return `<li class="doc-checklist-item"><label><input type="checkbox" data-doc-key="${escape(item.key)}"${checkedAttr}><span>${escape(item.label)}</span></label></li>`;
+          });
+          docChecklistHost.innerHTML = items.join('');
+        }
+
+        async function persistContactChecklist() {
+          const contactId = $('#c-id', body)?.value;
+          if (!contactId) return;
+          try {
+            await openDB();
+            let record = await dbGet('contacts', contactId);
+            if (!record) {
+              record = Object.assign({}, c, { id: contactId });
+            }
+            record.docChecklist = docChecklistState.map(item => ({ ...item }));
+            record.updatedAt = Date.now();
+            await dbPut('contacts', record);
+            try { window.dispatchAppDataChanged?.('contact:doc-checklist'); }
+            catch (_err) { }
+          } catch (err) { console.warn('doc checklist update', err); }
+        }
+
+        if (docChecklistHost && !docChecklistHost.__wired) {
+          docChecklistHost.__wired = true;
+          docChecklistHost.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!target || target.type !== 'checkbox') return;
+            const key = target.dataset ? target.dataset.docKey : '';
+            if (!key) return;
+            const entry = docChecklistState.find(item => item.key === key);
+            if (!entry) return;
+            entry.checked = !!target.checked;
+            entry.updatedAt = Date.now();
+            c.docChecklist = docChecklistState;
+            persistContactChecklist();
+          });
+        }
 
         const getLoanLabel = () => {
           const loanSel = $('#c-loanType', body);
@@ -1949,6 +2021,7 @@ export function normalizeContactId(input) {
           });
         }
 
+        renderContactChecklist();
         await renderDocChecklist();
 
         const formShell = dlg.querySelector('form.modal-form-shell');
@@ -2178,6 +2251,7 @@ export function normalizeContactId(input) {
               employmentType: $('#c-employment', body).value,
               creditRange: $('#c-credit', body).value,
               docStage: $('#c-docstage', body).value,
+              docChecklist: docChecklistState,
               pipelineMilestone: normalizedMilestone,
               preApprovalExpires: $('#c-preexp', body).value || '',
               nextFollowUp: $('#c-nexttouch', body).value || '',
@@ -3914,4 +3988,3 @@ if (typeof window !== 'undefined') {
     get: typeof window.dbGet === 'function' ? (id) => window.dbGet('contacts', id) : null
   };
 }
-

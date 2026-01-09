@@ -34,7 +34,7 @@ export const REQ_CONTACT = Object.freeze([
 
 export const CONTACT_TEMPLATE_FIELDS = Object.freeze(Array.from(new Set([
   ...REQ_CONTACT,
-  'nextFollowUp', 'expectedClosing', 'pipelineMilestone', 'leadSource', 'loanProgram', 'preApprovalExpires', 'birthday', 'anniversary', 'createdAt', 'updatedAt'
+  'nextFollowUp', 'expectedClosing', 'pipelineMilestone', 'leadSource', 'loanProgram', 'preApprovalExpires', 'birthday', 'anniversary', 'createdAt', 'updatedAt', 'docChecklist'
 ])));
 
 export const PARTNER_TEMPLATE_FIELDS = Object.freeze(Array.from(new Set([
