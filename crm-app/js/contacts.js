@@ -1920,9 +1920,11 @@ export function normalizeContactId(input) {
           } catch (err) { console.warn('doc checklist update', err); }
         }
 
-        if (docChecklistHost && !docChecklistHost.__wired) {
-          docChecklistHost.__wired = true;
-          docChecklistHost.addEventListener('change', (event) => {
+        if (docChecklistHost) {
+          if (docChecklistHost.__docChecklistHandler) {
+            docChecklistHost.removeEventListener('change', docChecklistHost.__docChecklistHandler);
+          }
+          const handler = (event) => {
             const target = event.target;
             if (!target || target.type !== 'checkbox') return;
             const key = target.dataset ? target.dataset.docKey : '';
@@ -1933,7 +1935,9 @@ export function normalizeContactId(input) {
             entry.updatedAt = Date.now();
             c.docChecklist = docChecklistState;
             persistContactChecklist();
-          });
+          };
+          docChecklistHost.__docChecklistHandler = handler;
+          docChecklistHost.addEventListener('change', handler);
         }
 
         const getLoanLabel = () => {
