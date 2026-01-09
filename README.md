@@ -21,6 +21,7 @@ CRM Master is a single-user mortgage CRM demo that runs entirely in the browser 
 
 ## Documentation
 - See `docs/README.md` for the doc index and historical references.
+- [Workspace Data Inventory](docs/WORKSPACE_DATA_INVENTORY.md): Authoritative mapping of data to storage.
 - Boot expectations and loader ordering remain defined by `crm-app/js/boot/boot_hardener.js` and the supporting specs in `docs/`.
 
 ## Packaging helpers (optional)
