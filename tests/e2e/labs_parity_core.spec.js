@@ -54,7 +54,7 @@ test.describe('Labs Widget Parity', () => {
         }
     });
 
-    test.only('Priority Actions widget renders and handles drilldown', async ({ page }) => {
+    test('Priority Actions widget renders and handles drilldown', async ({ page }) => {
         console.log('STEP 1: Locating widget');
         // 1. Verify Widget Presence - Use specific class to avoid matching rows
         const widget = page.locator('.labs-widget[data-widget-id="priorityActions"]');
