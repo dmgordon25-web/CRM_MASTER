@@ -4,6 +4,7 @@
 - **Boot contract:** [`../BOOT_OPTIMIZATION_2025.md`](../BOOT_OPTIMIZATION_2025.md) captures the latest agreed boot sequence, splash timing, and stabilization requirements.
 - **Dashboard baseline:** [`../DASHBOARD_FEATURES_ANALYSIS.md`](../DASHBOARD_FEATURES_ANALYSIS.md) documents the present dashboard capabilities and expectations.
 - **Product-wide contracts:** [`CONTRACTS.md`](CONTRACTS.md) and supporting specs in this folder remain the source of truth for shared behaviors.
+- **Safety Map:** [`DO_NOT_TOUCH_CASUALLY.md`](DO_NOT_TOUCH_CASUALLY.md) lists high-blast-radius areas and rules of engagement.
 
 ## Historical notes
 - **Boot investigations:** Archived boot sequencing and cycling write-ups now live in [`archive/boot/`](archive/boot/).
