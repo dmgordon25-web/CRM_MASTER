@@ -548,6 +548,11 @@
       }
       if (merged.length) await dbBulkPut(s, merged);
     }
+    try {
+      const detail = { scope: 'all', action: 'restore', mode: restoreMode };
+      if (typeof window.dispatchAppDataChanged === 'function') { window.dispatchAppDataChanged(detail); }
+      else if (window.document) { window.document.dispatchEvent(new CustomEvent('app:data:changed', { detail })); }
+    } catch (_err) { }
   }
 
   // expose

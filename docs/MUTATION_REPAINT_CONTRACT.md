@@ -44,7 +44,7 @@ The following paths have been audited and confirmed to adhere to the contract.
 | Feature | File / Component | Persistence | Emits Signal? | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Contacts** | | | | |
-| Editor Save | `js/contacts.js` (`handleSave`) | `dbPut` | ✅ Yes | Dispatches in `finally` or success block. |
+| Editor Save | `js/contacts.js` (`handleSave`) | `dbPut` | ✅ Yes | Robust dispatch with fallback support. |
 | Import | `js/importer.js` | `dbBulkPut` | ✅ Yes | Uses `emitImportChanged` helper. |
 | Soft Delete | `js/services/softDelete.js` | `dbPut` | ✅ Yes | Emits after `markPending` or `finalize`. |
 | Merge | `js/contacts_merge_orchestrator.js` | `dbPut`/`dbDelete` | ✅ Yes | Emits after transaction completes. |
@@ -52,6 +52,8 @@ The following paths have been audited and confirmed to adhere to the contract.
 | Editor Save | `js/ui/partner_edit_modal.js` | `dbPut` | ✅ Yes | Dispatches `scope: 'partners'`. |
 | Import | `js/importer.js` | `dbBulkPut` | ✅ Yes | Uses `emitImportChanged`. |
 | Merge | `js/partners_merge_orchestrator.js` | `dbPut`/`dbDelete` | ✅ Yes | Emits `scope: 'partners'`. |
+| **System** | | | | |
+| Snapshot Restore | `js/db.js` (`dbRestoreAll`) | `dbBulkPut` | ✅ Yes | Emits `scope: 'all', action: 'restore'`. |
 | **Tasks** | | | | |
 | Create/Update | `js/tasks/api.js` | `dbPut` | ✅ Yes | `dispatchTaskCreated` / `Updated`. |
 | Bulk Follow-Up | `js/patch_20250926_ctc_actionbar.js` | `dbBulkPut` | ✅ Yes | Action bar handles dispatch. |

@@ -2293,8 +2293,11 @@ export function normalizeContactId(input) {
             };
             if (typeof window.dispatchAppDataChanged === 'function') {
               window.dispatchAppDataChanged(detail);
-            } else if (console && typeof console.warn === 'function') {
-              console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+            } else {
+              if (window.document) { window.document.dispatchEvent(new CustomEvent('app:data:changed', { detail })); }
+              else if (console && typeof console.warn === 'function') {
+                console.warn('[soft] dispatchAppDataChanged missing; unable to broadcast contact change.', detail);
+              }
             }
             const successMessage = opts.successMessage || (existed ? 'Contact updated' : 'Contact created');
             if (successMessage) {

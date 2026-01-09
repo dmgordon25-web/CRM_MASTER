@@ -1,17 +1,17 @@
 
 // === ui_shims.js : common UI helpers + fallback modals (QA 2025-09-17) ===
-(function(){
-  try{
+(function () {
+  try {
     window.__INIT_FLAGS__ = window.__INIT_FLAGS__ || {};
     if (window.__INIT_FLAGS__.ui_shims_v20250917) return;
     window.__INIT_FLAGS__.ui_shims_v20250917 = true;
 
-    function el(html){
+    function el(html) {
       const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild;
     }
-    function modal(title, contentHTML){
+    function modal(title, contentHTML) {
       let m = document.getElementById('app-modal');
-      if(!m){
+      if (!m) {
         m = el(`<div id="app-modal" class="modal hidden">
                   <div class="modal-backdrop"></div>
                   <div class="modal-card">
@@ -21,14 +21,14 @@
                   </div>
                 </div>`);
         document.body.appendChild(m);
-        m.querySelector('#modal-close').addEventListener('click', ()=> m.classList.add('hidden'));
-        m.addEventListener('click', (e)=>{ if(e.target.classList.contains('modal-backdrop')) m.classList.add('hidden'); });
+        m.querySelector('#modal-close').addEventListener('click', () => m.classList.add('hidden'));
+        m.addEventListener('click', (e) => { if (e.target.classList.contains('modal-backdrop')) m.classList.add('hidden'); });
       }
       m.querySelector('.modal-head h3').textContent = title || '';
       m.querySelector('.modal-body').innerHTML = contentHTML || '';
       const foot = m.querySelector('.modal-foot'); foot.innerHTML = '';
       m.classList.remove('hidden');
-      return { root:m, foot };
+      return { root: m, foot };
     }
 
     // Minimal styles if not present
@@ -51,44 +51,44 @@
       .btn-primary{ background:#0b5cff; color:#fff; border-color:#0b5cff; }
       .muted{ opacity:.7; }
       `;
-    if(!document.getElementById(MODAL_SHIM_STYLE_ID)){
+    if (!document.getElementById(MODAL_SHIM_STYLE_ID)) {
       const head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
-      if(head && typeof head.appendChild === 'function'){
+      if (head && typeof head.appendChild === 'function') {
         let css = typeof document.querySelector === 'function' ? document.querySelector(`style[data-origin="${MODAL_SHIM_STYLE_ORIGIN}"]`) : null;
-        if(!css){
+        if (!css) {
           css = document.createElement('style');
           css.id = MODAL_SHIM_STYLE_ID;
           css.setAttribute('data-origin', MODAL_SHIM_STYLE_ORIGIN);
           head.appendChild(css);
-        }else if(css.getAttribute && css.getAttribute('data-origin') !== MODAL_SHIM_STYLE_ORIGIN){
-          try{ css.setAttribute('data-origin', MODAL_SHIM_STYLE_ORIGIN); }
-          catch(_err){}
+        } else if (css.getAttribute && css.getAttribute('data-origin') !== MODAL_SHIM_STYLE_ORIGIN) {
+          try { css.setAttribute('data-origin', MODAL_SHIM_STYLE_ORIGIN); }
+          catch (_err) { }
         }
-        if(css && css.textContent !== MODAL_SHIM_STYLE_TEXT){
+        if (css && css.textContent !== MODAL_SHIM_STYLE_TEXT) {
           css.textContent = MODAL_SHIM_STYLE_TEXT;
         }
       }
     }
 
     // Ensure None partner exists (deterministic)
-    async function ensureNonePartner(){
-      try{
+    async function ensureNonePartner() {
+      try {
         await openDB();
         const all = await dbGetAll('partners');
         const id = 'partner-none';
-        const exists = all.find(p=>p.id===id) || all.find(p=>/^none$/i.test(p.name||''));
-        if(!exists){
-          await dbPut('partners', { id, name:'None', bps:0, createdAt: new Date().toISOString() });
+        const exists = all.find(p => p.id === id) || all.find(p => /^none$/i.test(p.name || ''));
+        if (!exists) {
+          await dbPut('partners', { id, name: 'None', bps: 0, createdAt: new Date().toISOString() });
         }
         return id;
-      }catch (e) { console && console.warn && console.warn('ensureNonePartner failed', e); return 'partner-none'; }
+      } catch (e) { console && console.warn && console.warn('ensureNonePartner failed', e); return 'partner-none'; }
     }
 
     // Add Contact fallback
-    async function openAddContact(){
+    async function openAddContact() {
       const noneId = await ensureNonePartner();
       const partners = await dbGetAll('partners');
-      const options = partners.map(p=> `<option value="${p.id}">${p.name}</option>`).join('');
+      const options = partners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
       const body = `
         <div class="grid-2">
           <div class="col"><label>First</label><input id="ac-first"></div>
@@ -104,12 +104,12 @@
         </div>
         <div class="col"><label>Notes</label><textarea id="ac-notes" rows="3"></textarea></div>
       `;
-      const {root,foot} = modal('Add Contact', body);
+      const { root, foot } = modal('Add Contact', body);
       const save = el('<button class="btn btn-primary">Save</button>');
       const cancel = el('<button class="btn">Cancel</button>');
-      cancel.addEventListener('click', ()=> root.classList.add('hidden'));
-      save.addEventListener('click', async ()=>{
-        try{
+      cancel.addEventListener('click', () => root.classList.add('hidden'));
+      save.addEventListener('click', async () => {
+        try {
           await openDB();
           const c = {
             id: crypto.randomUUID(),
@@ -118,7 +118,7 @@
             email: document.getElementById('ac-email').value.trim(),
             phone: document.getElementById('ac-phone').value.trim(),
             loanType: document.getElementById('ac-loan').value.trim(),
-            amount: Number(document.getElementById('ac-amt').value||0),
+            amount: Number(document.getElementById('ac-amt').value || 0),
             due: document.getElementById('ac-due').value || null,
             partnerId: document.getElementById('ac-partner').value || noneId,
             notes: document.getElementById('ac-notes').value.trim(),
@@ -136,16 +136,16 @@
             contactId
           };
           document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
-          if (typeof renderAll === 'function') try { await renderAll(); } catch (_) {}
-        }catch (e) { console && console.warn && console.warn('[soft] Add contact failed', e); }
+          if (typeof renderAll === 'function') try { await renderAll(); } catch (_) { }
+        } catch (e) { console && console.warn && console.warn('[soft] Add contact failed', e); }
       });
       foot.appendChild(cancel); foot.appendChild(save);
     }
 
     // Partner edit shim — forward to canonical modal
-    async function openEditPartner(id, context){
+    async function openEditPartner(id, context) {
       const partnerId = id == null ? '' : String(id).trim();
-      if(!partnerId) return null;
+      if (!partnerId) return null;
 
       const trigger = context && context.trigger ? context.trigger : null;
       const event = context && context.event ? context.event : null;
@@ -153,49 +153,63 @@
         ? window.openPartnerEdit
         : (typeof window.openPartnerEditModal === 'function' ? window.openPartnerEditModal : null);
 
-      if(openModal){
+      if (openModal) {
         const options = { sourceHint: 'ui-shims:edit-partner' };
-        if(trigger) options.trigger = trigger;
-        if(event) options.event = event;
-        try{
+        if (trigger) options.trigger = trigger;
+        if (event) options.event = event;
+        try {
           const result = openModal.call(window, partnerId, options);
           return typeof result?.then === 'function' ? await result : result;
-        }catch (err){
-          try{ console && console.warn && console.warn('[soft] openPartnerEditModal failed', err); }
-          catch(_warnErr){}
+        } catch (err) {
+          try { console && console.warn && console.warn('[soft] openPartnerEditModal failed', err); }
+          catch (_warnErr) { }
         }
       }
 
-      try{ console && console.warn && console.warn('[soft] Partner editor unavailable', { id: partnerId }); }
-      catch(_err){}
-      if(typeof window.toast === 'function'){
-        try{ window.toast('Partner editor unavailable'); }
-        catch(_toastErr){}
+      try { console && console.warn && console.warn('[soft] Partner editor unavailable', { id: partnerId }); }
+      catch (_err) { }
+      if (typeof window.toast === 'function') {
+        try { window.toast('Partner editor unavailable'); }
+        catch (_toastErr) { }
       }
       return null;
     }
 
     // Wire header buttons if present
-    function wireHeader(){
-      const addBtn = Array.from(document.querySelectorAll('button, a')).find(el => /add contact/i.test(el.textContent||''));
-      if(addBtn && !addBtn.__wired){ addBtn.__wired = true; addBtn.addEventListener('click', (e)=>{ e.preventDefault(); openAddContact(); }); }
+    function wireHeader() {
+      const addBtn = Array.from(document.querySelectorAll('button, a')).find(el => /add contact/i.test(el.textContent || ''));
+      if (addBtn && !addBtn.__wired) { addBtn.__wired = true; addBtn.addEventListener('click', (e) => { e.preventDefault(); openAddContact(); }); }
     }
     document.addEventListener('DOMContentLoaded', wireHeader);
 
+
+    // Unified Signal Helper
+    function dispatchAppDataChanged(detail) {
+      if (!detail) return;
+      try {
+        const payload = typeof detail === 'object' ? detail : { scope: String(detail) };
+        document.dispatchEvent(new CustomEvent('app:data:changed', { detail: payload }));
+      } catch (err) {
+        try { console.warn('[soft] dispatchAppDataChanged failed', err); } catch (_) { }
+      }
+    }
+
     // Expose for other modules
     window.uiShims = { openAddContact, openEditPartner };
+    window.dispatchAppDataChanged = dispatchAppDataChanged;
+
     // Delegate for partner edit buttons if any table uses [data-edit-partner]
-    document.addEventListener('click', (e)=>{
+    document.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-edit-partner]');
-      if(!btn) return;
+      if (!btn) return;
       const id = btn.getAttribute('data-edit-partner');
-      if(!id) return;
-      if(typeof e.preventDefault === 'function') e.preventDefault();
-      if(typeof e.stopPropagation === 'function') e.stopPropagation();
-      if(typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      if (!id) return;
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       e.__partnerEditHandled = true;
       openEditPartner(id, { trigger: btn, event: e });
     });
 
-  }catch (e) { try{ console.warn('[soft] ui_shims error', e); }catch (_u) {} }
+  } catch (e) { try { console.warn('[soft] ui_shims error', e); } catch (_u) { } }
 })();
