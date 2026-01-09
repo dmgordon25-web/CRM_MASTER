@@ -2,8 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test('Document Center V2 Kanban Load', async ({ page }) => {
     // 1. Load App
-    await page.goto('http://127.0.0.1:8080/');
+    await page.addInitScript(() => localStorage.setItem('flag_show_doc_widget', '1'));
+    await page.goto('http://127.0.0.1:8080/#doc-center');
     await page.waitForSelector('#view-dashboard:not(.hidden)');
+    await page.evaluate(() => window.DocCenter?.openDocumentCenter?.({ contextType: 'dashboard', source: 'e2e' }));
+    await expect(page.locator('[data-doc-filters]')).toHaveCount(1);
 
     // 2. Open a Contact (First one in list)
     await page.click('[data-nav="contacts"]');

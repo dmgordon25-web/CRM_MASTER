@@ -490,6 +490,17 @@
     }
   }
 
+  function ensureDocCenterEntry(){
+    if (window.DocCenter && typeof window.DocCenter.openDocumentCenter === 'function') {
+      return Promise.resolve(window.DocCenter.openDocumentCenter);
+    }
+    return import('./doc/doc_center_entry.js')
+      .then(() => (window.DocCenter && typeof window.DocCenter.openDocumentCenter === 'function')
+        ? window.DocCenter.openDocumentCenter
+        : null)
+      .catch(() => null);
+  }
+
   // ---- Wiring: when Docs pane becomes active, render (idempotent) ----
   async function tryRenderIfDocsVisible(){
     const pane = findDocsPaneRoot();
@@ -497,6 +508,11 @@
     // Heuristic: pane is considered active if not aria-hidden and is displayed
     const visible = pane.offsetParent !== null && !pane.hasAttribute('aria-hidden');
     if (!visible) return;
+    const openDocCenter = await ensureDocCenterEntry();
+    if (typeof openDocCenter === 'function') {
+      await openDocCenter({ contextType: 'contact', mode: 'checklist', source: 'contact-docs-pane' });
+      return;
+    }
     await renderDocs();
   }
 
@@ -524,5 +540,6 @@
 
   // Public helpers (non-breaking)
   window.DocCenter = window.DocCenter || {};
+  window.DocCenter.renderDocs = renderDocs;
   window.DocCenter.getSpecFor = canonicalListForLoanType;
 })();
