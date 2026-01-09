@@ -571,6 +571,48 @@ export function normalizeContactId(input) {
     { value: 'lost', label: 'Lost' },
     { value: 'denied', label: 'Denied' }
   ];
+  const LOAN_STAGES = [
+    { value: 'lead', label: 'Lead' },
+    { value: 'application', label: 'Application' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'underwriting', label: 'Underwriting' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'ctc', label: 'CTC' },
+    { value: 'closed', label: 'Closed' },
+    { value: 'lost', label: 'Lost' }
+  ];
+  const LOAN_STAGE_FALLBACKS = {
+    'long-shot': 'lead',
+    application: 'application',
+    preapproved: 'application',
+    processing: 'processing',
+    underwriting: 'underwriting',
+    approved: 'approved',
+    'cleared-to-close': 'ctc',
+    funded: 'closed',
+    'post-close': 'closed',
+    nurture: 'lead',
+    lost: 'lost',
+    denied: 'lost',
+    new: 'lead',
+    qualified: 'application',
+    negotiating: 'processing',
+    won: 'closed'
+  };
+  const normalizeLoanStage = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const lowered = raw.toLowerCase();
+    if (lowered === 'clear-to-close' || lowered === 'cleared-to-close') return 'ctc';
+    const match = LOAN_STAGES.find(stage => stage.value === lowered || stage.label.toLowerCase() === lowered);
+    return match ? match.value : lowered;
+  };
+  const resolveLoanStage = (record) => {
+    const explicit = normalizeLoanStage(record && record.loanStage);
+    if (explicit) return explicit;
+    const fallback = LOAN_STAGE_FALLBACKS[String(record && record.stage || '').trim().toLowerCase()];
+    return fallback || '';
+  };
   const STAGE_FLOW = ['long-shot', 'application', 'preapproved', 'processing', 'underwriting', 'approved', 'cleared-to-close', 'funded', 'post-close'];
   const STAGE_AUTOMATIONS = {
     'long-shot': 'Captures brand-new leads, tags referral sources, and schedules nurture cadences automatically.',
@@ -1056,6 +1098,8 @@ export function normalizeContactId(input) {
         const referralPartnerLabel = partnerLabelFor(referralPartnerId) || referralPartnerName;
         const body = dlg.querySelector('#contact-modal-body');
         const stageLabel = findLabel(STAGES, c.stage) || 'Application';
+        const loanStageValue = resolveLoanStage(c);
+        const loanStageLabel = findLabel(LOAN_STAGES, loanStageValue) || (loanStageValue ? loanStageValue : '—');
         const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
         const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
         const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
@@ -1177,6 +1221,7 @@ export function normalizeContactId(input) {
 
           setText('#c-detail-stage', stageLabel);
           setText('#c-detail-status', statusLabel);
+          setText('#c-detail-loan-stage', loanStageLabel);
           setText('#c-detail-last', detailLastTouch);
           setText('#c-detail-next', detailNextFollowUp);
           setText('#c-detail-program', c.loanType || c.loanProgram || 'Select');
@@ -1206,6 +1251,7 @@ export function normalizeContactId(input) {
           setOptions('#c-pref', optionList(COMM_PREFS, c.communicationPreference || 'Phone'), c.communicationPreference || 'Phone');
           setOptions('#c-stage', optionList(STAGES, c.stage || 'application'), c.stage || 'application');
           setOptions('#c-status', optionList(STATUSES, c.status || 'inprogress'), c.status || 'inprogress');
+          setOptions('#c-loanStage', `<option value="">—</option>${optionList(LOAN_STAGES, loanStageValue)}`, loanStageValue);
           setOptions('#c-timeline', optionList(TIMELINES, c.closingTimeline || ''), c.closingTimeline || '');
           setOptions('#c-purpose', optionList(LOAN_PURPOSES, c.loanPurpose || 'Purchase'), c.loanPurpose || 'Purchase');
           setOptions('#c-loanType', optionList(LOAN_PROGRAMS, c.loanType || c.loanProgram || 'Conventional'), c.loanType || c.loanProgram || 'Conventional');
@@ -1654,6 +1700,7 @@ export function normalizeContactId(input) {
           const touchEl = $('#c-summary-touch', body);
           const detailStageEl = $('#c-detail-stage', body);
           const detailStatusEl = $('#c-detail-status', body);
+          const detailLoanStageEl = $('#c-detail-loan-stage', body);
           const detailLastEl = $('#c-detail-last', body);
           const detailNextEl = $('#c-detail-next', body);
           const detailProgramEl = $('#c-detail-program', body);
@@ -1669,8 +1716,10 @@ export function normalizeContactId(input) {
           const statusEls = dialogRoot.querySelectorAll('[data-role="status-pill"], .status-pill[data-role]');
           const stageVal = $('#c-stage', body)?.value || 'application';
           const statusVal = $('#c-status', body)?.value || 'inprogress';
+          const loanStageVal = $('#c-loanStage', body)?.value || '';
           const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
           const statusLabelText = findLabel(STATUSES, statusVal) || 'In Progress';
+          const loanStageLabelText = findLabel(LOAN_STAGES, loanStageVal) || (loanStageVal ? loanStageVal : '—');
           const lastContactField = $('#c-lastcontact', body);
           const nextFollowUpField = $('#c-nexttouch', body);
           const timelineField = $('#c-timeline', body);
@@ -1738,6 +1787,7 @@ export function normalizeContactId(input) {
             stageWrap.hidden = false;
           });
           if (detailStageEl) { detailStageEl.textContent = stageLabelText; }
+          if (detailLoanStageEl) { detailLoanStageEl.textContent = loanStageLabelText; }
           const toneKey = toneForStatus(statusVal);
           const toneClass = toneClassName(toneKey);
           statusEls.forEach((statusEl) => {
@@ -2108,6 +2158,7 @@ export function normalizeContactId(input) {
           const stageValue = $('#c-stage', body)?.value || '';
           const statusValue = $('#c-status', body)?.value || '';
           const milestoneValue = $('#c-milestone', body)?.value || '';
+          const loanStageValue = $('#c-loanStage', body)?.value || '';
           const validationResult = validateContact({
             firstName: firstNameValue,
             lastName: lastNameValue,
@@ -2134,6 +2185,7 @@ export function normalizeContactId(input) {
           const normalizedStage = normalizedModel.stage || $('#c-stage', body).value;
           const normalizedStatus = normalizedModel.status || $('#c-status', body).value;
           const normalizedMilestone = normalizedModel.pipelineMilestone || $('#c-milestone', body).value;
+          const normalizedLoanStage = normalizeLoanStage(loanStageValue);
           renderContactValidationSummary(body, '');
           setBusy(true);
           try {
@@ -2158,7 +2210,7 @@ export function normalizeContactId(input) {
               phone: normalizedPhone,
               address: $('#c-address', body).value.trim(), city: $('#c-city', body).value.trim(),
               state: ($('#c-state', body).value || '').toUpperCase(), zip: $('#c-zip', body).value.trim(),
-              stage: normalizedStage, status: normalizedStatus,
+              stage: normalizedStage, status: normalizedStatus, loanStage: normalizedLoanStage,
               loanAmount: Number($('#c-amount', body).value || 0), rate: Number($('#c-rate', body).value || 0),
               fundedDate: $('#c-funded', body).value || '', buyerPartnerId: $('#c-buyer', body).value || null,
               listingPartnerId: $('#c-listing', body).value || null, lastContact: lastContactValue,
@@ -3914,4 +3966,3 @@ if (typeof window !== 'undefined') {
     get: typeof window.dbGet === 'function' ? (id) => window.dbGet('contacts', id) : null
   };
 }
-
