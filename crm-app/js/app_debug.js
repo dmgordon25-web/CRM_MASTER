@@ -821,16 +821,25 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   (function wireDocCenter() {
     if (window.__DOC_CENTER_NAV__) return; window.__DOC_CENTER_NAV__ = true;
 
+    function loadEntry(options) {
+      import(fromHere('./doc/doc_center_entry.js'))
+        .then(() => {
+          const open = window.DocCenter && window.DocCenter.openDocumentCenter;
+          if (typeof open === 'function') open(options);
+        })
+        .catch(() => { });
+    }
+
     function maybe() {
       // Load enhancer when the Doc Center surface is present or navigated to
       const has = document.querySelector('[data-doc-center], #doc-center, #settings-docs, .doc-center, [data-panel="doc-center"]');
-      if (has) import(fromHere('./doc/doc_center_enhancer.js')).catch(() => { });
+      if (has) loadEntry({ contextType: 'dashboard', source: 'surface' });
     }
 
     // Delegate nav clicks (no HTML edits)
     document.addEventListener('click', (evt) => {
       const a = evt.target.closest('[data-nav="doc-center"], a[href="#doc-center"], button[data-page="doc-center"], button[data-nav="doc-center"]');
-      if (a) { evt.preventDefault?.(); maybe(); history.replaceState(null, '', '#doc-center'); }
+      if (a) { evt.preventDefault?.(); loadEntry({ contextType: 'dashboard', source: 'nav', navigate: true }); }
     });
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybe, { once: true });
