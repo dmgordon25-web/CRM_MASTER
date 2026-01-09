@@ -25,7 +25,7 @@ export const REQ_PARTNER = Object.freeze([
 ]);
 
 export const REQ_CONTACT = Object.freeze([
-  'first', 'last', 'email', 'phone', 'address', 'city', 'state', 'zip', 'referredBy', 'loanType', 'stage', 'loanAmount', 'rate', 'fundedDate', 'status', 'notes',
+  'first', 'last', 'email', 'phone', 'address', 'city', 'state', 'zip', 'referredBy', 'loanType', 'stage', 'loanStage', 'loanAmount', 'rate', 'fundedDate', 'status', 'notes',
   'contactId',
   'buyerPartnerId', 'buyerPartnerName', 'buyerPartnerCompany', 'buyerPartnerEmail', 'buyerPartnerPhone',
   'listingPartnerId', 'listingPartnerName', 'listingPartnerCompany', 'listingPartnerEmail', 'listingPartnerPhone',
