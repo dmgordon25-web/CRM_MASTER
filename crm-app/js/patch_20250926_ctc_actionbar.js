@@ -1556,6 +1556,11 @@ function runPatch() {
         if (removed && typeof window.toast === 'function') {
           window.toast({ message: `Deleted ${removed} record${removed === 1 ? '' : 's'}.` });
         }
+        if (removed) {
+          const detail = { scope: 'selection', action: 'delete', source: 'actionbar:fallback', count: removed };
+          if (typeof window.dispatchAppDataChanged === 'function') window.dispatchAppDataChanged(detail);
+          else document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
+        }
       }
       if (!removed) {
         toast('Nothing deleted');
