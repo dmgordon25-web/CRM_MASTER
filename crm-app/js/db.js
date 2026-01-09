@@ -342,7 +342,16 @@
   async function dbExportAll() {
     const out = {};
     for (const s of STORES) {
-      out[s] = await dbGetAll(s, { includePending: true, includeDeleted: true });
+      if (s === 'notifications') {
+        // OPTION A: Bridge from localStorage for notifications source-of-truth
+        try {
+          const raw = window.localStorage.getItem('notifications:queue');
+          const list = raw ? JSON.parse(raw) : [];
+          out[s] = Array.isArray(list) ? list : [];
+        } catch (_) { out[s] = []; }
+      } else {
+        out[s] = await dbGetAll(s, { includePending: true, includeDeleted: true });
+      }
     }
     return out;
   }
@@ -407,7 +416,7 @@
       else if (a === b) result.notes = a;
       else {
         const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
-        result.notes = `${a}\\n\\n--- merged ${stamp} ---\\n${b}`;
+        result.notes = `${a}\n\n--- merged ${stamp} ---\n${b}`;
       }
     }
     result.updatedAt = Date.now();
@@ -517,10 +526,37 @@
   async function dbRestoreAll(snapshot, mode) {
     const data = snapshot || {};
     const restoreMode = mode === 'replace' ? 'replace' : 'merge';
+
+    // OPTION A: Handle notifications separately via localStorage
+    const notificationsData = Array.isArray(data.notifications) ? data.notifications : [];
+    if (notificationsData.length || restoreMode === 'replace') {
+      try {
+        let nextQueue = notificationsData;
+        if (restoreMode === 'merge') {
+          const raw = window.localStorage.getItem('notifications:queue');
+          const current = raw ? JSON.parse(raw) : [];
+          nextQueue = [...current, ...notificationsData];
+        }
+        window.localStorage.setItem('notifications:queue', JSON.stringify(nextQueue));
+
+        // Hot-update Notifier if present
+        if (typeof window.Notifier !== 'undefined' && typeof window.Notifier.replace === 'function') {
+          window.Notifier.replace(nextQueue);
+        } else if (typeof window.replaceNotifications === 'function') {
+          window.replaceNotifications(nextQueue);
+        }
+      } catch (err) { console.error('Notifications restore failed', err); }
+    }
+
     if (restoreMode === 'replace') {
-      for (const s of STORES) { await dbClear(s); }
+      for (const s of STORES) {
+        if (s === 'notifications') continue; // Handled above
+        await dbClear(s);
+      }
     }
     for (const s of STORES) {
+      if (s === 'notifications') continue; // Handled above
+
       const incoming = Array.isArray(data[s]) ? data[s] : [];
       if (!incoming.length) { continue; }
       if (restoreMode === 'replace') {
