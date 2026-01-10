@@ -18,6 +18,48 @@ async function assertNoDashboardRefreshSpam(page) {
     }
 }
 
+async function ensureSelectionCleared(page, table) {
+    const checked = table.locator('tbody input[data-ui="row-check"]:checked');
+    const checkedCount = await checked.count();
+    if (checkedCount === 0) return;
+    const actionBar = page.locator('[data-ui="action-bar"]').first();
+    const clearButton = actionBar.locator('button[data-act="clear"]');
+    if (await clearButton.count()) {
+        await clearButton.click();
+        await expect(actionBar).not.toBeVisible();
+    }
+}
+
+async function assertSelectAllToggle(page, scope) {
+    await page.goto(`/#${scope}`);
+    await waitForBoot(page);
+    const table = page.locator(`table[data-selection-scope="${scope}"]:visible`).first();
+    await expect(table).toBeVisible();
+    await ensureSelectionCleared(page, table);
+
+    const actionBar = page.locator('[data-ui="action-bar"]').first();
+    const selectAll = table.locator('input[data-role="select-all"]:not([data-auto-hidden="1"]):not([aria-hidden="true"])').first();
+    await expect(selectAll).toBeVisible();
+
+    await selectAll.click();
+    await expect(actionBar).toBeVisible();
+    const countAttr = await actionBar.getAttribute('data-count');
+    const selectionCount = Number(countAttr || '0');
+    const targetCount = await table.locator('tbody input[data-ui="row-check"]:visible').count();
+    if (Number.isFinite(targetCount) && targetCount > 0) {
+        expect(selectionCount).toBe(targetCount);
+        if (targetCount >= 2) {
+            expect(selectionCount).toBeGreaterThanOrEqual(2);
+        }
+    } else {
+        expect(selectionCount).toBeGreaterThanOrEqual(2);
+    }
+
+    await selectAll.click();
+    await expect(actionBar).not.toBeVisible();
+    await expect(actionBar).toHaveAttribute('data-count', '0');
+}
+
 test.describe('Action Bar Selection', () => {
     test('should show action bar when a row is selected', async ({ page }) => {
         page.on('console', msg => console.log('[BROWSER]', msg.text()));
@@ -113,7 +155,7 @@ test.describe('Action Bar Selection', () => {
         const rowCheckboxes = page.locator('table[data-selection-scope="contacts"] tbody input[data-ui="row-check"]');
         await expect(rowCheckboxes.first()).toBeVisible();
 
-        const selectAll = page.locator('table[data-selection-scope="contacts"] input[data-role="select-all"]');
+        const selectAll = page.locator('table[data-selection-scope="contacts"] input[data-role="select-all"]:not([data-auto-hidden="1"]):not([aria-hidden="true"])');
         await expect(selectAll).toBeVisible();
         await selectAll.check();
         await expect(actionBar).toBeVisible();
@@ -123,5 +165,11 @@ test.describe('Action Bar Selection', () => {
         await expect(actionBar).not.toHaveAttribute('data-visible', '1');
         await expect(actionBar).toHaveAttribute('data-count', '0');
         await expect(page.locator('table[data-selection-scope="contacts"] tbody tr[data-id] input[data-ui="row-check"]:checked')).toHaveCount(0);
+    });
+
+    test('should toggle select-all across contacts partners pipeline', async ({ page }) => {
+        await assertSelectAllToggle(page, 'contacts');
+        await assertSelectAllToggle(page, 'partners');
+        await assertSelectAllToggle(page, 'pipeline');
     });
 });
