@@ -47,4 +47,28 @@ test.describe('Action Bar Selection', () => {
         await expect(actionBar).toBeVisible();
         await expect(actionBar).toHaveAttribute('data-count', '2');
     });
+
+    test('should keep action bar in sync for select-all and clear', async ({ page }) => {
+        await page.goto('/#contacts');
+        await page.waitForSelector('table[data-selection-scope="contacts"] tbody tr[data-id]');
+
+        const actionBar = page.locator('[data-ui="action-bar"]').first();
+        const rows = page.locator('table[data-selection-scope="contacts"] tbody tr[data-id]');
+        await expect(rows.first()).toBeVisible();
+
+        const firstRowCheckbox = rows.first().locator('input[data-ui="row-check"]');
+        await firstRowCheckbox.click();
+        await expect(actionBar).toBeVisible();
+        await expect(actionBar).toHaveAttribute('data-visible', '1');
+
+        const selectAll = page.locator('table[data-selection-scope="contacts"] input[data-role="select-all"]');
+        await expect(selectAll).toBeVisible();
+        await selectAll.click();
+        await expect(actionBar).toBeVisible();
+        await expect(actionBar).toHaveAttribute('data-count', /[1-9]\d*/);
+
+        await actionBar.locator('button[data-act="clear"]').click();
+        await expect(actionBar).not.toBeVisible();
+        await expect(page.locator('table[data-selection-scope="contacts"] tbody tr[data-id] input[data-ui="row-check"]:checked')).toHaveCount(0);
+    });
 });

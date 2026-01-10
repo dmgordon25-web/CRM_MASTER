@@ -1923,6 +1923,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         btn.classList?.toggle('active', isPrimary && enabled);
       });
     }
+    if (typeof applyActionBarState === 'function') {
+      applyActionBarState(bar, total, guards);
+    }
     if (total > 0) {
       bar.classList.add('has-selection');
     } else {
