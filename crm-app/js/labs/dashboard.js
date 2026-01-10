@@ -1481,6 +1481,8 @@ function attachEventListeners() {
       const detail = evt?.detail || {};
       // Guard: Ignore internal Labs layout events or self-loops to prevent storms
       if (detail.source === 'labs:layout' || detail.reason === 'labs:refresh') return;
+      // Guard: Ignore selection-only UI state changes
+      if (detail.scope === 'selection' || detail.selectionScope) return;
 
       console.info('[labs] CRM data changed, refreshing...', detail);
       emitLabsEvent('labs:model:recompute', { source: 'app:data:changed', payload: detail });

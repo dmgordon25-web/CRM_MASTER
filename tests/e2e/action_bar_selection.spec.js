@@ -10,6 +10,14 @@ async function waitForBoot(page) {
     });
 }
 
+async function assertNoDashboardRefreshSpam(page) {
+    const notifications = page.locator('.labs-notification');
+    const count = await notifications.count();
+    if (count > 0) {
+        expect(count).toBeLessThanOrEqual(1);
+    }
+}
+
 test.describe('Action Bar Selection', () => {
     test('should show action bar when a row is selected', async ({ page }) => {
         page.on('console', msg => console.log('[BROWSER]', msg.text()));
@@ -33,6 +41,7 @@ test.describe('Action Bar Selection', () => {
         await expect(actionBar).toBeVisible();
         await expect(actionBar).toHaveAttribute('data-visible', '1');
         await expect(actionBar).toHaveAttribute('data-count', '1');
+        await assertNoDashboardRefreshSpam(page);
 
         // Click again to deselect
         await firstRowCheckbox.click();
@@ -71,6 +80,7 @@ test.describe('Action Bar Selection', () => {
 
         await expect(actionBar).toBeVisible();
         await expect(actionBar).toHaveAttribute('data-count', '1');
+        await assertNoDashboardRefreshSpam(page);
     });
 
     test('should show action bar for pipeline selection', async ({ page }) => {
@@ -89,6 +99,7 @@ test.describe('Action Bar Selection', () => {
 
         await expect(actionBar).toBeVisible();
         await expect(actionBar).toHaveAttribute('data-count', '1');
+        await assertNoDashboardRefreshSpam(page);
     });
 
     test('should keep action bar in sync for select-all and clear', async ({ page }) => {
