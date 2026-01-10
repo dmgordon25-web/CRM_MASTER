@@ -29,11 +29,10 @@ function notify(scope) {
   });
   try {
     const detail = {
-      scope: snapshot.scope,
+      scope: 'selection',
       selectionScope: snapshot.scope,
       ids: Array.from(snapshot.ids),
       count: snapshot.ids.size,
-      type: snapshot.scope,
       source: 'SelectionStore'
     };
     if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
