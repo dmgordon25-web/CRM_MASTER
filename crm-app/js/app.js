@@ -1388,7 +1388,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
       const role = target.dataset ? target.dataset.role : null;
       if (role === 'select-all') {
-        applySelectAllToStore(target, store);
+        applySelectAllToStore(target, store, scope, table);
         return;
       }
 
@@ -1580,13 +1580,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return rows.filter(Boolean);
   }
 
-  function applySelectAllToStore(checkbox, store) {
+  function applySelectAllToStore(checkbox, store, scope, hostRoot) {
     if (!checkbox || !store) return;
-    const scope = selectionScopeFor(checkbox);
+    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     checkbox.indeterminate = false;
 
-    const host = checkbox.closest('[data-selection-scope]');
-    const entries = host ? collectSelectionRowData(host) : [];
+    const entries = hostRoot ? collectSelectionRowData(hostRoot) : [];
     const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
     if (!targets.length) {
@@ -1594,12 +1593,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
-      store.set(new Set(), scope);
+      store.set(new Set(), scopeKey);
       return;
     }
 
     const ids = targets.map(entry => entry.id);
-    const base = store.get(scope);
+    const base = store.get(scopeKey);
     const next = base instanceof Set
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
@@ -1657,32 +1656,28 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const normalizedIds = Array.from(next).map(String);
     const selectionCount = normalizedIds.length;
-    const type = scope === 'partners' ? 'partners' : 'contacts';
+    const type = scopeKey === 'partners'
+      ? 'partners'
+      : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
     const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
 
     // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
     if (typeof window !== 'undefined') {
       const selection = window.Selection;
-      if (selection && typeof selection.set === 'function') {
+      if ((type === 'contacts' || type === 'partners') && selection && typeof selection.set === 'function') {
         try { selection.set(normalizedIds, type, origin); }
-        catch (err) {
-          try { console && console.warn && console.warn('[select-all] Selection.set failed', err); }
-          catch (_warnErr) { }
-        }
+        catch (_err) { }
       }
 
       const service = window.SelectionService;
-      if (service && typeof service.set === 'function') {
+      if ((type === 'contacts' || type === 'partners') && service && typeof service.set === 'function') {
         try { service.set(normalizedIds, type, origin); }
-        catch (err) {
-          try { console && console.warn && console.warn('[select-all] SelectionService.set failed', err); }
-          catch (_warnErr) { }
-        }
+        catch (_err) { }
       }
     }
 
-    store.set(next, scope);
-    syncSelectionScope(scope, { ids: next, count: selectionCount, root: host });
+    store.set(next, scopeKey);
+    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
 
     // Notify consumers that rely on the event bus (action bar, etc.)
     try {
@@ -1696,9 +1691,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
       }
-    } catch (_err) {
-      console.warn('[select-all] Failed to dispatch selection:changed', _err);
-    }
+    } catch (_err) { }
 
     // Comprehensive action bar update (match DEMO_MODE behavior)
     const updateActionBar = () => {
@@ -1772,7 +1765,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function applyHeaderSelectAll(checkbox) {
     const store = getSelectionStore();
     if (!store) return;
-    applySelectAllToStore(checkbox, store);
+    const hostRoot = checkbox && typeof checkbox.closest === 'function'
+      ? checkbox.closest('table')
+      : null;
+    const scopeRaw = hostRoot ? selectionScopeFor(hostRoot) : selectionScopeFor(checkbox);
+    const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
+    applySelectAllToStore(checkbox, store, scope, hostRoot);
   }
 
   if (typeof window !== 'undefined') {
