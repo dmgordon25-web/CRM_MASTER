@@ -1387,10 +1387,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (!(target instanceof HTMLInputElement)) return;
 
       const role = target.dataset ? target.dataset.role : null;
-      console.log('[DEBUG] handleTableChange', target, role, target.dataset?.ui);
       if (role === 'select-all') {
-        event.stopImmediatePropagation();
-        event.stopPropagation();
         applySelectAllToStore(target, store);
         return;
       }
@@ -1408,7 +1405,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     };
 
     try {
-      console.log('[DEBUG] wiring table', table);
       table.addEventListener('change', handleTableChange, true);
     } catch (_err) { }
 
@@ -1727,6 +1723,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             bar.style.visibility = 'visible';
             bar.style.pointerEvents = 'auto';
           }
+          try {
+            bar.hidden = false;
+            bar.removeAttribute('aria-hidden');
+          } catch (_err) { }
           bar.dataset.count = String(selectionCount);
           bar.setAttribute('aria-expanded', 'true');
         } else {
@@ -1737,6 +1737,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             bar.style.display = 'none';
             bar.style.visibility = '';
           }
+          try {
+            bar.hidden = true;
+            bar.setAttribute('aria-hidden', 'true');
+          } catch (_err) { }
           bar.dataset.count = '0';
           bar.setAttribute('aria-expanded', 'false');
         }
@@ -2002,26 +2006,30 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
       if (role !== 'select') return;
-      const scope = selectionScopeFor(target);
+      const scopeKey = selectionScopeFor(target);
       const id = selectionIdFor(target);
       if (!id) return;
-      const type = scope === 'partners' ? 'partners' : 'contacts';
-      const next = store.get(scope);
+      const type = (scopeKey === 'partners' || scopeKey === 'contacts' || scopeKey === 'pipeline' || scopeKey === 'notifications')
+        ? scopeKey
+        : 'contacts';
+      const next = store.get(scopeKey);
       if (target.checked) next.add(id);
       else next.delete(id);
-      store.set(next, scope);
+      store.set(next, scopeKey);
 
       // Keep Selection APIs in sync with the store so the action bar reacts immediately
       const normalizedIds = Array.from(next).map(String);
       try {
         const selection = window.Selection;
-        if (selection && typeof selection.set === 'function') {
-          selection.set(normalizedIds, type, 'row-check');
-        } else if (selection && typeof selection.toggle === 'function') {
-          // Fall back to toggle-based update without double flipping the target row
-          const current = selection.getSelectedIds ? new Set(selection.getSelectedIds()) : new Set();
-          const shouldHave = target.checked;
-          if (shouldHave !== current.has(id)) selection.toggle(id, type);
+        if (type === 'contacts' || type === 'partners') {
+          if (selection && typeof selection.set === 'function') {
+            selection.set(normalizedIds, type, 'row-check');
+          } else if (selection && typeof selection.toggle === 'function') {
+            // Fall back to toggle-based update without double flipping the target row
+            const current = selection.getSelectedIds ? new Set(selection.getSelectedIds()) : new Set();
+            const shouldHave = target.checked;
+            if (shouldHave !== current.has(id)) selection.toggle(id, type);
+          }
         }
       } catch (err) {
         try { console && console.warn && console.warn('[selection] sync failed', err); }
@@ -2030,14 +2038,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
       try {
         const compat = window.SelectionService;
-        if (compat && typeof compat.set === 'function') {
+        if ((type === 'contacts' || type === 'partners') && compat && typeof compat.set === 'function') {
           compat.set(normalizedIds, type, 'row-check');
         }
       } catch (err) { logAppError('selectionService:set', err); }
 
       // Notify listeners that depend on the selection event bus (e.g., action bar)
       try {
-        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope, source: 'row-check' };
+        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope: scopeKey, source: 'row-check' };
         document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
       } catch (err) { logAppError('selection:dispatch-change', err); }
     };
