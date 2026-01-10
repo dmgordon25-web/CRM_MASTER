@@ -18,6 +18,10 @@
   These commands ensure the Puppeteer/Playwright Chromium builds have the GTK/ATK and NSS stacks available on a fresh
   machine so the smoke tests can launch the browser process without missing shared libraries.
 
+## Playwright CI stability
+- CI runs add Chromium launch flags (`--disable-dev-shm-usage`, `--no-sandbox`, `--disable-setuid-sandbox`, `--disable-gpu`)
+  to reduce intermittent launch crashes in containerized environments (see `playwright.config.js`).
+
 ## Feature gate & proof artifact
 - Local parity with CI (stamped HTML, Hello dialog, splash hide, avatar persistence, screenshot capture):
   - `npm run check:features`

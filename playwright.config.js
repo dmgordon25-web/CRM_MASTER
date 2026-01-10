@@ -23,6 +23,13 @@ function resolveChromeExecutable() {
 const serveRoot = path.join(__dirname, 'crm-app');
 const serverScript = path.join(__dirname, 'tools', 'node_static_server.js');
 const executablePath = resolveChromeExecutable();
+const launchArgs = process.env.CI
+  ? ['--disable-dev-shm-usage', '--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+  : [];
+const launchOptions = {
+  ...(launchArgs.length ? { args: launchArgs } : {}),
+  ...(executablePath ? { executablePath } : {})
+};
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'tests', 'e2e'),
@@ -32,7 +39,7 @@ module.exports = defineConfig({
     baseURL: 'http://127.0.0.1:8080',
     trace: 'retain-on-failure',
     executablePath,
-    launchOptions: executablePath ? { executablePath } : undefined
+    launchOptions: Object.keys(launchOptions).length ? launchOptions : undefined
   },
   projects: [
     {

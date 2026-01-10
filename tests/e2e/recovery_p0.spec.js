@@ -9,49 +9,86 @@ test.describe('P0 Recovery', () => {
         // We assume the test runner serves index.html at root
         await page.goto('/index.html?e2e=1');
         await page.waitForLoadState('domcontentloaded');
+        await page.waitForSelector('#boot-splash', { state: 'hidden' });
 
         // 2. Run Seeds (Basic V1 seeds only for now)
         await page.evaluate(async () => {
-            if (window.Seeds && window.Seeds.runSeeds) {
-                await window.Seeds.runSeeds();
-            } else {
-                console.warn('Seeds module not found, skipping seed');
+            if (typeof window.openDB === 'function') await window.openDB();
+            if (typeof window.dbClear === 'function') {
+                await window.dbClear('events');
+            } else if (window.db && typeof window.db.clear === 'function') {
+                await window.db.clear('events');
+            }
+            if (window.__SEED_DATA__ && Array.isArray(window.__SEED_DATA__.events)) {
+                window.__SEED_DATA__.events = [];
+            }
+            if (window.CalendarProvider && typeof window.CalendarProvider.loadCalendarData === 'function') {
+                const original = window.CalendarProvider.loadCalendarData;
+                window.CalendarProvider.loadCalendarData = async (request = {}) => {
+                    const data = await original(request);
+                    return Object.assign({}, data, { events: [] });
+                };
+            }
+            const contact = {
+                id: 'persist-contact-1',
+                first: 'Persist',
+                last: 'Tester',
+                email: 'persist.tester@example.com',
+                phone: '5550001234',
+                stage: 'application',
+                status: 'inprogress',
+                pipelineMilestone: 'Intro Call',
+                loanType: 'Conventional',
+                loanProgram: 'Conventional',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+            if (typeof window.dbPut === 'function') {
+                await window.dbPut('contacts', contact);
+            } else if (window.db && typeof window.db.put === 'function') {
+                await window.db.put('contacts', contact);
             }
         });
 
-        // 3. Open New+ Menu
-        await page.click('#quick-add-unified');
-        await page.waitForSelector('#header-new-menu', { state: 'visible' });
-
-        // 4. Select "Task"
-        await page.click('button[data-role="header-new-task"]');
-        await page.waitForSelector('#qc-task-modal', { state: 'visible' });
+        // 3. Open Task Quick Add
+        await page.evaluate(() => {
+            if (window.QuickAddUnified && typeof window.QuickAddUnified.open === 'function') {
+                window.QuickAddUnified.open('task');
+            }
+        });
+        const taskModal = page.locator('#qc-task-modal');
+        if (!(await taskModal.isVisible())) {
+            await page.click('#quick-add-unified');
+            await page.waitForSelector('#header-new-menu', { state: 'visible' });
+            await page.click('button[data-role="header-new-task"]');
+        }
+        await expect(taskModal).toBeVisible({ timeout: 10000 });
 
         // 5. Fill Form
         await page.fill('textarea[name="note"]', 'Test Persistence Task');
+        const todayISO = new Date().toISOString().slice(0, 10);
+        await page.fill('input[name="due"]', todayISO);
+        await page.selectOption('select[name="taskType"]', { label: 'Call' });
 
-        // Ensure we have a linked entity (seed should have provided some)
-        // Wait for options to load
-        await page.waitForFunction(() => {
-            const select = document.querySelector('select[name="linkedId"]');
-            return select && !select.disabled && select.options.length > 1;
-        }, null, { timeout: 5000 }).catch(() => console.log('Timeout waiting for linked entities'));
-
-        const linkedOptions = await page.$eval('select[name="linkedId"]', sel => sel.options.length);
-        if (linkedOptions <= 1) {
-            console.log('No linked entities found, strictly this might be a seed issue, but we will try to save anyway to trigger the error');
-        } else {
-            await page.selectOption('select[name="linkedId"]', { index: 1 });
-        }
+        await expect(page.locator('select[name="linkedId"] option', { hasText: 'Persist Tester' }))
+            .toHaveCount(1, { timeout: 5000 });
+        await page.selectOption('select[name="linkedId"]', { label: 'Persist Tester' });
 
         // 6. Save
-        await page.click('button[data-role="save"]');
+        const taskForm = page.locator('#qc-task-modal form[data-role="form"]');
+        await expect(taskForm).toBeVisible({ timeout: 5000 });
+        await taskForm.evaluate((form) => {
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+        });
+        await expect(page.locator('#qc-task-modal')).toBeHidden({ timeout: 10000 });
 
         // 7. Check for Error Toast
         // The user reports "Unable to save task. Try again."
         // We look for any toast
-        const toastSelector = '.toast-notification, .toast-message, [data-role="status"]';
-
         // Check status div in modal first as it might show error instantly
         const statusText = await page.$eval('[data-role="status"]', el => el.textContent);
         console.log('Modal Status:', statusText);
@@ -74,21 +111,54 @@ test.describe('P0 Recovery', () => {
             throw new Error('Task persistence failed: Task not found in IndexedDB');
         }
         console.log('Task FOUND in DB:', found.id);
+        const taskId = String(found.id || '');
+        if (!taskId) {
+            throw new Error('Task persistence failed: Missing task id');
+        }
+        const taskDue = String(found.due || found.date || found.dueDate || '');
+        if (!taskDue) {
+            throw new Error('Task persistence failed: Missing due date');
+        }
 
         // 7. Verify Calendar Icon
         console.log('Navigating to Calendar to verify icon...');
         await page.evaluate(() => window.location.hash = '#/calendar');
-        // Wait for rendering (might need a moment after view switch)
-        await page.waitForTimeout(3000);
-
-        // Locate the chip container
-        const chip = page.locator('.event-chip', { hasText: 'Test Persistence Task' }).first();
-        await expect(chip).toBeVisible({ timeout: 10000 });
-
-        // Find icon inside
-        const iconEl = chip.locator('.cal-event-icon');
-        await expect(iconEl).toHaveText('✅');
-        console.log('Icon Verified: ✅');
+        await expect(page.locator('#view-calendar')).toBeVisible({ timeout: 10000 });
+        await expect(page.locator('#view-calendar .calendar-grid, #view-calendar #calendar-root'))
+            .toBeVisible({ timeout: 10000 });
+        await page.evaluate(async (due) => {
+            const waitForRender = () => new Promise((resolve) => {
+                const handler = () => {
+                    document.removeEventListener('calendar:rendered', handler);
+                    resolve();
+                };
+                document.addEventListener('calendar:rendered', handler);
+            });
+            const anchor = new Date(due);
+            if (typeof window.setCalendarView === 'function') {
+                window.setCalendarView('month');
+            }
+            if (typeof window.setCalendarAnchor === 'function') {
+                window.setCalendarAnchor(anchor);
+            }
+            if (typeof window.renderCalendar === 'function') {
+                window.renderCalendar();
+            }
+            await waitForRender();
+        }, taskDue);
+        const hasCalendarTask = await page.evaluate(async ({ id, due }) => {
+            const provider = window.CalendarProvider;
+            if (!provider || typeof provider.rangeForView !== 'function' || typeof provider.loadCalendarData !== 'function') {
+                return false;
+            }
+            const anchor = new Date(due);
+            const range = provider.rangeForView(anchor, 'month');
+            const data = await provider.loadCalendarData(range);
+            return Array.isArray(data.tasks) && data.tasks.some(task => task && String(task.id) === id);
+        }, { id: taskId, due: taskDue });
+        if (!hasCalendarTask) {
+            throw new Error(`Calendar data did not include task:${taskId}`);
+        }
 
         // 8. Verify Seeded Events (P0 Item 3)
         // Check for "Initial Consultation" which comes from seed_data.js

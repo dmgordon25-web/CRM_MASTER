@@ -33,11 +33,16 @@ test.describe('contact document checklist', () => {
       }
     });
 
-    await page.evaluate(async () => {
+    await page.evaluate(() => new Promise((resolve) => {
+      const handler = () => {
+        document.removeEventListener('contact:modal:ready', handler);
+        resolve();
+      };
+      document.addEventListener('contact:modal:ready', handler);
       if (window.Contacts && typeof window.Contacts.open === 'function') {
-        await window.Contacts.open('doc-check-1');
+        window.Contacts.open('doc-check-1');
       }
-    });
+    }));
 
     await expect(page.locator('#contact-modal-body')).toBeVisible();
     await page.locator('#contact-tabs button[data-panel="docs"]').click();
@@ -49,11 +54,16 @@ test.describe('contact document checklist', () => {
     await page.reload();
     await page.waitForSelector('#boot-splash', { state: 'hidden' });
 
-    await page.evaluate(async () => {
+    await page.evaluate(() => new Promise((resolve) => {
+      const handler = () => {
+        document.removeEventListener('contact:modal:ready', handler);
+        resolve();
+      };
+      document.addEventListener('contact:modal:ready', handler);
       if (window.Contacts && typeof window.Contacts.open === 'function') {
-        await window.Contacts.open('doc-check-1');
+        window.Contacts.open('doc-check-1');
       }
-    });
+    }));
 
     const checklistItemAfter = page.locator('#c-doc-checklist input[data-doc-key="gov-id"]');
     await page.locator('#contact-tabs button[data-panel="docs"]').click();
