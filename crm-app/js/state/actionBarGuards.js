@@ -143,6 +143,10 @@ export function applyActionBarState(target, countLike, guardsLike) {
     bar.classList.add('has-selection');
     bar.removeAttribute('data-minimized');
     bar.setAttribute('data-visible', '1');
+    try {
+      bar.hidden = false;
+      bar.removeAttribute('aria-hidden');
+    } catch (_err) { }
     if (bar.style) {
       bar.style.display = '';
       bar.style.visibility = '';
@@ -151,6 +155,10 @@ export function applyActionBarState(target, countLike, guardsLike) {
     bar.classList.remove('has-selection');
     bar.removeAttribute('data-visible');
     bar.removeAttribute('data-minimized');
+    try {
+      bar.hidden = true;
+      bar.setAttribute('aria-hidden', 'true');
+    } catch (_err) { }
     if (bar.style) {
       bar.style.display = 'none';
     }

@@ -1833,6 +1833,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         btn.classList?.toggle('active', isPrimary && enabled);
       });
     }
+    const applyState = typeof window.applyActionBarState === 'function'
+      ? window.applyActionBarState
+      : null;
+    if (applyState) {
+      applyState(bar, total, guards);
+    }
 
     if (total > 0) {
       bar.classList.add('has-selection');

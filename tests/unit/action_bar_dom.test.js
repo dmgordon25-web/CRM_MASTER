@@ -9,6 +9,7 @@ describe('Action Bar DOM Integration', () => {
         // Mock Element
         mockBar = {
             id: 'actionbar',
+            hidden: true,
             style: { display: 'none' },
             dataset: { count: '0' },
             classList: {
@@ -66,6 +67,7 @@ describe('Action Bar DOM Integration', () => {
         expect(mockBar.style.display).not.toBe('none');
         expect(mockBar.classList.contains('has-selection')).toBe(true);
         expect(mockBar.dataset.count).toBe("1");
+        expect(mockBar.hidden).toBe(false);
     });
 
     it('should hide when selection count is 0', () => {
@@ -82,5 +84,6 @@ describe('Action Bar DOM Integration', () => {
         expect(mockBar.style.display).toBe('none');
         expect(mockBar.classList.contains('has-selection')).toBe(false);
         expect(mockBar.dataset.count).toBe("0");
+        expect(mockBar.hidden).toBe(true);
     });
 });
