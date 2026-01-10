@@ -1585,8 +1585,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     checkbox.indeterminate = false;
 
-    const entries = hostRoot ? collectSelectionRowData(hostRoot) : [];
-    const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+    const host = hostRoot;
+    if (!host) return;
+
+    const entries = collectSelectionRowData(host);
+    const targets = entries.filter(entry => !entry.disabled);
 
     if (!targets.length) {
       checkbox.indeterminate = false;
@@ -1656,9 +1659,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const normalizedIds = Array.from(next).map(String);
     const selectionCount = normalizedIds.length;
-    const type = scopeKey === 'partners'
-      ? 'partners'
-      : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
+    const type = scopeKey;
     const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
 
     // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
@@ -1677,7 +1678,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     store.set(next, scopeKey);
-    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
+    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: host });
 
     // Notify consumers that rely on the event bus (action bar, etc.)
     try {
