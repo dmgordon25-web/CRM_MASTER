@@ -3667,7 +3667,7 @@ table.list-table td.numeric {
 /* Print Suite */
 .print-grid {
   display: grid;
-  gap: 12px
+  gap: 14px
 }
 
 .print-grid.cols-1 {
@@ -3694,6 +3694,14 @@ table.list-table td.numeric {
   background: #fff
 }
 
+.print-empty {
+  border: 1px dashed #cbd5f5;
+  border-radius: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  font-size: 13px
+}
+
 .print-card-kind {
   font-size: 12px;
   color: #64748b;
@@ -3717,6 +3725,9 @@ table.list-table td.numeric {
 }
 
 @media print {
+  @page {
+    margin: .5in
+  }
 
   header,
   nav,
@@ -3751,6 +3762,11 @@ table.list-table td.numeric {
   .print-card {
     break-inside: avoid;
     page-break-inside: avoid
+  }
+
+  #view-print .card {
+    box-shadow: none;
+    border: 0
   }
 }
 
@@ -5624,12 +5640,26 @@ th.favorite-col>span {
   gap: 8px
 }
 
+.doc-checklist-empty {
+  padding: 10px 12px;
+  border: 1px dashed #cbd5f5;
+  border-radius: 12px;
+  background: #f8fafc;
+  font-size: 12px
+}
+
 .doc-checklist-item label {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
   color: #1e293b
+}
+
+.doc-chip-empty {
+  border-style: dashed;
+  color: #475569;
+  font-weight: 600
 }
 
 .doc-checklist-item input[type="checkbox"] {

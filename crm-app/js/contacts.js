@@ -1126,8 +1126,11 @@ export function normalizeContactId(input) {
         const referralPartnerLabel = partnerLabelFor(referralPartnerId) || referralPartnerName;
         const body = dlg.querySelector('#contact-modal-body');
         const stageLabel = findLabel(STAGES, c.stage) || 'Application';
-        const loanStageValue = resolveLoanStage(c);
-        const loanStageLabel = findLabel(LOAN_STAGES, loanStageValue) || (loanStageValue ? loanStageValue : '—');
+        const explicitLoanStage = normalizeLoanStage(c.loanStage);
+        const loanStageValue = explicitLoanStage || resolveLoanStage(c);
+        const loanStageLabel = explicitLoanStage
+          ? (findLabel(LOAN_STAGES, loanStageValue) || (loanStageValue ? loanStageValue : '—'))
+          : 'Auto (same as Stage)';
         const stageCanonicalKey = canonicalStage(c.stage) || canonicalStage(stageLabel);
         const stageFallbackChip = buildStageFallback(stageLabel, c.stage);
         const stageChip = renderStageChip(c.stage) || renderStageChip(stageLabel) || stageFallbackChip;
@@ -1279,7 +1282,7 @@ export function normalizeContactId(input) {
           setOptions('#c-pref', optionList(COMM_PREFS, c.communicationPreference || 'Phone'), c.communicationPreference || 'Phone');
           setOptions('#c-stage', optionList(STAGES, c.stage || 'application'), c.stage || 'application');
           setOptions('#c-status', optionList(STATUSES, c.status || 'inprogress'), c.status || 'inprogress');
-          setOptions('#c-loanStage', `<option value="">—</option>${optionList(LOAN_STAGES, loanStageValue)}`, loanStageValue);
+          setOptions('#c-loanStage', `<option value="">Auto (same as Stage)</option>${optionList(LOAN_STAGES, loanStageValue)}`, explicitLoanStage);
           setOptions('#c-timeline', optionList(TIMELINES, c.closingTimeline || ''), c.closingTimeline || '');
           setOptions('#c-purpose', optionList(LOAN_PURPOSES, c.loanPurpose || 'Purchase'), c.loanPurpose || 'Purchase');
           setOptions('#c-loanType', optionList(LOAN_PROGRAMS, c.loanType || c.loanProgram || 'Conventional'), c.loanType || c.loanProgram || 'Conventional');
@@ -1747,7 +1750,9 @@ export function normalizeContactId(input) {
           const loanStageVal = $('#c-loanStage', body)?.value || '';
           const stageLabelText = findLabel(STAGES, stageVal) || stageVal || 'Application';
           const statusLabelText = findLabel(STATUSES, statusVal) || 'In Progress';
-          const loanStageLabelText = findLabel(LOAN_STAGES, loanStageVal) || (loanStageVal ? loanStageVal : '—');
+          const loanStageLabelText = loanStageVal
+            ? (findLabel(LOAN_STAGES, loanStageVal) || loanStageVal)
+            : 'Auto (same as Stage)';
           const lastContactField = $('#c-lastcontact', body);
           const nextFollowUpField = $('#c-nexttouch', body);
           const timelineField = $('#c-timeline', body);
@@ -1896,6 +1901,10 @@ export function normalizeContactId(input) {
 
         function renderContactChecklist() {
           if (!docChecklistHost) return;
+          if (!docChecklistState.length) {
+            docChecklistHost.innerHTML = '<li class="doc-checklist-empty muted">No contact-specific documents yet.</li>';
+            return;
+          }
           const items = docChecklistState.map((item) => {
             const checkedAttr = item.checked ? ' checked' : '';
             return `<li class="doc-checklist-item"><label><input type="checkbox" data-doc-key="${escape(item.key)}"${checkedAttr}><span>${escape(item.label)}</span></label></li>`;
@@ -1982,9 +1991,17 @@ export function normalizeContactId(input) {
             if (/^received|waived$/.test(status)) receivedCount++;
             chips.push(`<li class="doc-chip" data-status="${escape(status)}"><span class="doc-chip-name">${escape(name)}</span><span class="doc-chip-status">${escape(statusRaw)}</span></li>`);
           });
-          docListEl.innerHTML = chips.join('');
+          if (!required.length) {
+            docListEl.innerHTML = '<li class="doc-chip doc-chip-empty">No required documents yet.</li>';
+          } else {
+            docListEl.innerHTML = chips.join('');
+          }
           if (docSummaryEl) {
-            if (persisted) {
+            if (!required.length) {
+              docSummaryEl.textContent = persisted
+                ? 'No required documents for this loan program yet.'
+                : 'Save this contact to generate the required document checklist.';
+            } else if (persisted) {
               const outstanding = Math.max(required.length - receivedCount, 0);
               docSummaryEl.textContent = `${required.length} required • ${receivedCount} received • ${outstanding} outstanding`;
             } else {
@@ -1992,7 +2009,10 @@ export function normalizeContactId(input) {
             }
           }
           if (docMissingEl) {
-            if (persisted && missing) {
+            if (!required.length) {
+              docMissingEl.textContent = persisted ? 'No missing documents for this contact.' : '';
+              docMissingEl.classList.remove('warn');
+            } else if (persisted && missing) {
               docMissingEl.textContent = `Still Needed: ${missing}`;
               docMissingEl.classList.add('warn');
             } else if (persisted) {
