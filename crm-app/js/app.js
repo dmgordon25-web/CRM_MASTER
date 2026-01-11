@@ -1551,7 +1551,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
+      const id = row.getAttribute('data-id')
+        || row.getAttribute('data-contact-id')
+        || row.getAttribute('data-partner-id')
+        || row.getAttribute('data-loan-id')
+        || row.getAttribute('data-deal-id');
       if (!id) return null;
       const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
       let checkbox = null;
@@ -1563,10 +1567,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           break;
         }
       }
-      if (!checkbox) return null;
+      if (!checkbox) {
+        checkbox = checkboxes[0] || null;
+      }
 
-      const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
-      const disabled = checkbox.disabled || ariaDisabled === 'true';
+      const disabled = checkbox ? checkbox.disabled : false;
       return { row, checkbox, id: String(id), disabled };
     };
     scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id]').forEach(row => {
@@ -1596,7 +1601,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
-      store.set(new Set(), scopeKey);
       return;
     }
 
