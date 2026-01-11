@@ -45,20 +45,8 @@ async function setSelectAll(tableHandle, checked) {
         const input = preferred || inputs[0] || null;
         if (!input) return false;
         input.indeterminate = false;
-        input.checked = isChecked;
-        const scope = tableEl.getAttribute('data-selection-scope') || 'contacts';
-        if (typeof window !== 'undefined' && typeof window.applySelectAllToStore === 'function' && window.SelectionStore) {
-            window.applySelectAllToStore(input, window.SelectionStore, scope, tableEl);
-        } else if (input.checked !== isChecked) {
+        if (input.checked !== isChecked) {
             input.click();
-        } else {
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        if (typeof window.updateActionbar === 'function') {
-            window.updateActionbar();
-        }
-        if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-            window.__UPDATE_ACTION_BAR_VISIBLE__();
         }
         return true;
     }, checked);
