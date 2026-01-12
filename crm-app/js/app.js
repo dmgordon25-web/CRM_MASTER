@@ -1551,11 +1551,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const id = row.getAttribute('data-id')
-        || row.getAttribute('data-contact-id')
-        || row.getAttribute('data-partner-id')
-        || row.getAttribute('data-loan-id')
-        || row.getAttribute('data-deal-id');
+      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
       if (!id) return null;
       const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
       let checkbox = null;
@@ -1567,11 +1563,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
           break;
         }
       }
-      if (!checkbox) {
-        checkbox = checkboxes[0] || null;
-      }
+      if (!checkbox) return null;
 
-      const disabled = checkbox ? checkbox.disabled : false;
+      const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
+      const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
     scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id]').forEach(row => {
@@ -1590,17 +1585,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     checkbox.indeterminate = false;
 
-    const host = hostRoot;
-    if (!host) return;
-
-    const entries = collectSelectionRowData(host);
-    const targets = entries.filter(entry => !entry.disabled);
+    const entries = hostRoot ? collectSelectionRowData(hostRoot) : [];
+    const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
     if (!targets.length) {
       checkbox.indeterminate = false;
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
+      store.set(new Set(), scopeKey);
       return;
     }
 
@@ -1663,7 +1656,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const normalizedIds = Array.from(next).map(String);
     const selectionCount = normalizedIds.length;
-    const type = scopeKey;
+    const type = scopeKey === 'partners'
+      ? 'partners'
+      : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
     const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
 
     // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
@@ -1682,7 +1677,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     store.set(next, scopeKey);
-    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: host });
+    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
 
     // Notify consumers that rely on the event bus (action bar, etc.)
     try {
