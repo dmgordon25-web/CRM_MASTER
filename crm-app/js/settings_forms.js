@@ -31,6 +31,11 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
     return false;
   }
 
+  function hasSettingsPanels() {
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return false;
+    return !!document.querySelector('.settings-panel');
+  }
+
   (function injectSettingsTidy() {
     if (typeof document === 'undefined') return;
     const SETTINGS_STYLE_ID = 'settings-inline-style';
@@ -903,6 +908,7 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
 
   async function hydrateAll() {
     if (hydrating) return;
+    if (!hasSettingsPanels()) return;
     hydrating = true;
     try {
       if (!ensureSettings()) return;
@@ -997,4 +1003,3 @@ function writeSignatureLocal(value) {
     }
   } catch (_err) { /* noop */ }
 }
-
