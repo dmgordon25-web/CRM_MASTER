@@ -20,11 +20,13 @@ const globalWiringState = typeof window !== 'undefined'
   : { windowListeners: new Map(), documentListeners: new Map(), teardown() { } };
 
 if (!('selectionOff' in globalWiringState)) globalWiringState.selectionOff = null;
+if (!('selectionStoreOff' in globalWiringState)) globalWiringState.selectionStoreOff = null;
 if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0;
 if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = false;
 if (!('mergeReadyCount' in globalWiringState)) globalWiringState.mergeReadyCount = 0;
 if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
+if (!('selectionStoreErrorLogged' in globalWiringState)) globalWiringState.selectionStoreErrorLogged = false;
 if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
 if (!('routeState' in globalWiringState)) {
   globalWiringState.routeState = {
@@ -595,6 +597,12 @@ function clearSelectionSubscription() {
     try { off(); }
     catch (_) { }
   }
+  const offStore = globalWiringState.selectionStoreOff;
+  globalWiringState.selectionStoreOff = null;
+  if (typeof offStore === 'function') {
+    try { offStore(); }
+    catch (_) { }
+  }
   globalWiringState.hasSelectionSnapshot = false;
   globalWiringState.lastSelection = null;
 }
@@ -633,32 +641,42 @@ function readSelectionSnapshot(selection) {
 }
 
 function ensureSelectionSubscription() {
-  if (globalWiringState.selectionOff) return;
+  if (globalWiringState.selectionStoreOff) return;
   const store = getSelectionStore();
   if (store && typeof store.subscribe === 'function') {
     try {
       const off = store.subscribe((snapshot) => {
-        const scope = typeof snapshot?.scope === 'string' && snapshot.scope.trim()
-          ? snapshot.scope.trim()
-          : '';
-        let ids = [];
-        if (snapshot?.ids instanceof Set) {
-          ids = Array.from(snapshot.ids, (value) => String(value ?? '')).filter(Boolean);
-        } else if (Array.isArray(snapshot?.ids)) {
-          ids = snapshot.ids.map((value) => String(value ?? '')).filter(Boolean);
+        try {
+          const scope = typeof snapshot?.scope === 'string' && snapshot.scope.trim()
+            ? snapshot.scope.trim()
+            : '';
+          let ids = [];
+          if (snapshot?.ids instanceof Set) {
+            ids = Array.from(snapshot.ids, (value) => String(value ?? '')).filter(Boolean);
+          } else if (Array.isArray(snapshot?.ids)) {
+            ids = snapshot.ids.map((value) => String(value ?? '')).filter(Boolean);
+          }
+          const count = Number.isFinite(snapshot?.count) ? snapshot.count : ids.length;
+          handleSelectionChanged({
+            ids,
+            count,
+            scope,
+            type: scope,
+            source: 'store'
+          });
+        } catch (error) {
+          if (!globalWiringState.selectionStoreErrorLogged) {
+            globalWiringState.selectionStoreErrorLogged = true;
+            if (typeof window !== 'undefined' && window.__DBG_CLICK === true) {
+              try { console && typeof console.warn === 'function' && console.warn('[SelectionStore] subscriber failed', error); }
+              catch (_) { }
+            }
+          }
         }
-        const count = Number.isFinite(snapshot?.count) ? snapshot.count : ids.length;
-        handleSelectionChanged({
-          ids,
-          count,
-          scope,
-          type: scope,
-          source: 'store'
-        });
       });
-      globalWiringState.selectionOff = typeof off === 'function' ? off : null;
+      globalWiringState.selectionStoreOff = typeof off === 'function' ? off : null;
     } catch (_) { /* noop */ }
-    if (globalWiringState.selectionOff && !globalWiringState.hasSelectionSnapshot) {
+    if (globalWiringState.selectionStoreOff && !globalWiringState.hasSelectionSnapshot) {
       const scopes = inferSelectionScopes();
       let activeScope = '';
       let ids = [];
@@ -694,7 +712,7 @@ function ensureSelectionSubscription() {
       });
     }
   }
-  if (globalWiringState.selectionOff) return;
+  if (globalWiringState.selectionStoreOff || globalWiringState.selectionOff) return;
   const selection = getSelectionApi();
   if (!selection || typeof selection.onChange !== 'function') return;
   try {

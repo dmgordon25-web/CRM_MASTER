@@ -45,7 +45,9 @@ async function setSelectAll(tableHandle, checked) {
         const input = preferred || inputs[0] || null;
         if (!input) return false;
         input.indeterminate = false;
-        if (input.checked !== isChecked) {
+        const checkedRows = tableEl.querySelectorAll('tbody input[data-ui="row-check"]:checked');
+        const shouldClick = input.checked !== isChecked || (isChecked && checkedRows.length === 0);
+        if (shouldClick) {
             input.click();
         }
         return true;
@@ -66,10 +68,11 @@ async function assertSelectAllToggle(page, scope) {
     const tableHandle = await table.elementHandle();
     expect(tableHandle).not.toBeNull();
     await setSelectAll(tableHandle, true);
+    await expect.poll(async () => {
+        const countAttr = await actionBar.getAttribute('data-count');
+        return Number(countAttr || '0');
+    }).toBeGreaterThan(0);
     await expect(actionBar).toBeVisible();
-    const countAttr = await actionBar.getAttribute('data-count');
-    const selectionCount = Number(countAttr || '0');
-    expect(selectionCount).toBeGreaterThan(0);
 
     await setSelectAll(tableHandle, false);
     await expect(actionBar).not.toBeVisible();
@@ -187,5 +190,22 @@ test.describe('Action Bar Selection', () => {
         await assertSelectAllToggle(page, 'contacts');
         await assertSelectAllToggle(page, 'partners');
         await assertSelectAllToggle(page, 'pipeline');
+    });
+
+    test('should keep action bar stable across tab switching select-all cycles', async ({ page }) => {
+        let subscriberFailures = 0;
+        page.on('console', msg => {
+            if (msg.text().includes('subscriber failed')) {
+                subscriberFailures += 1;
+            }
+        });
+
+        for (let cycle = 0; cycle < 2; cycle += 1) {
+            await assertSelectAllToggle(page, 'contacts');
+            await assertSelectAllToggle(page, 'partners');
+            await assertSelectAllToggle(page, 'pipeline');
+        }
+
+        expect(subscriberFailures).toBe(0);
     });
 });
