@@ -1,6 +1,7 @@
 const SCOPES = new Map();
 const SUBSCRIBERS = new Set();
-const SELECTION_EVENT = 'selection:changed';
+const MUTATION_EVENT = 'app:data:changed';
+const EVENT_DETAIL = { scope: 'selection' };
 
 function normalizeScope(scope) {
   return typeof scope === 'string' && scope.trim() ? scope.trim() : 'default';
@@ -28,19 +29,17 @@ function notify(scope) {
     }
   });
   try {
-    const detail = {
-      scope: 'selection',
-      selectionScope: snapshot.scope,
-      ids: Array.from(snapshot.ids),
-      count: snapshot.ids.size,
-      source: 'SelectionStore'
-    };
+    const detail = { ...EVENT_DETAIL, selectionScope: snapshot.scope, ids: Array.from(snapshot.ids) };
+    if (typeof window !== 'undefined' && typeof window.dispatchAppDataChanged === 'function') {
+      window.dispatchAppDataChanged(detail);
+      return;
+    }
     if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-      document.dispatchEvent(new CustomEvent(SELECTION_EVENT, { detail }));
+      document.dispatchEvent(new CustomEvent(MUTATION_EVENT, { detail }));
       return;
     }
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
-      window.dispatchEvent(new window.CustomEvent(SELECTION_EVENT, { detail }));
+      window.dispatchEvent(new window.CustomEvent(MUTATION_EVENT, { detail }));
     }
   } catch (err) {
     console.warn('[SelectionStore] dispatch failed', err);
@@ -73,36 +72,6 @@ export const SelectionStore = {
     if (setsAreEqual(target, next)) return;
     SCOPES.set(key, next);
     notify(key);
-  },
-  selectMany(ids, scope) {
-    if (!ids) return;
-    const key = normalizeScope(scope);
-    const target = ensureScope(key);
-    const toAdd = Array.isArray(ids) || ids instanceof Set ? Array.from(ids) : [ids];
-    let changed = false;
-    toAdd.forEach(raw => {
-      const val = String(raw);
-      if (!target.has(val)) {
-        target.add(val);
-        changed = true;
-      }
-    });
-    if (changed) notify(key);
-  },
-  clearMany(ids, scope) {
-    if (!ids) return;
-    const key = normalizeScope(scope);
-    const target = ensureScope(key);
-    const toRemove = Array.isArray(ids) || ids instanceof Set ? Array.from(ids) : [ids];
-    let changed = false;
-    toRemove.forEach(raw => {
-      const val = String(raw);
-      if (target.has(val)) {
-        target.delete(val);
-        changed = true;
-      }
-    });
-    if (changed) notify(key);
   },
   toggle(id, scope) {
     if (id == null) return;
