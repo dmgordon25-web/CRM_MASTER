@@ -577,13 +577,14 @@ function handleSelectionChanged(detail) {
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
 
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
+    // FIX: Do not auto-clear selection on init. Trust the store.
+    // This prevents desync where Action Bar clears state that the Grid just restored.
+    /*
     count = 0;
-    try { window.Selection?.clear?.('actionbar:init'); }
-    catch (_) { }
-    try { window.SelectionService?.clear?.('actionbar:init'); }
-    catch (_) { }
-    try { window.SelectionStore?.clear?.('partners'); }
-    catch (_) { }
+    try { window.Selection?.clear?.('actionbar:init'); } catch (_) { }
+    try { window.SelectionService?.clear?.('actionbar:init'); } catch (_) { }
+    try { window.SelectionStore?.clear?.('partners'); } catch (_) { }
+    */
   }
   setSelectedCount(count);
 }
@@ -913,9 +914,9 @@ function markActionbarHost() {
     applyManualPosition(bar, left, top);
   } else if (applyStoredActionBarPosition(bar)) {
     /* position restored from storage */
-  } else if (globalWiringState.routeState && globalWiringState.routeState.centerActive) {
     centerActionBarForRoute({ pulse: false, silent: true });
   }
+  // Restored: Ensure drag handles are initialized
   ensureActionBarDragHandles(bar);
   ensureHeaderQuickAddBinding();
   ensureHeaderQuickAddBinding();

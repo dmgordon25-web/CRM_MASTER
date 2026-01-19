@@ -1,5 +1,4 @@
 console.log('[APP] Module evaluating...');
-if (typeof window !== 'undefined' && typeof window.onAnalyticsSegment !== 'function') { window.onAnalyticsSegment = () => { }; }
 import './boot/splash_sequence.js';
 import { SelectionStore } from './state/selectionStore.js';
 import { initDashboard } from './dashboard/index.js';
@@ -30,7 +29,6 @@ import {
   setSelectionStore as setContextSelectionStore
 } from './app_context.js';
 import { createBinding } from './ui/quick_create_menu.js';
-import { runFullWorkflowSeed } from './seed_full.js';
 
 
 
@@ -106,7 +104,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const loadingCard = document.createElement('section');
     loadingCard.className = 'card';
     loadingCard.dataset.qa = 'labs-loading';
-    loadingCard.innerHTML = '<strong>Loading Dashboard (Preview)...</strong><p class="muted">Fetching preview widgets.</p>';
+    loadingCard.innerHTML = '<strong>Loading Labs...</strong><p class="muted">Fetching experimental widgets.</p>';
     root.appendChild(loadingCard);
     root.setAttribute('aria-busy', 'true');
 
@@ -118,7 +116,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
             ? mod.default
             : null;
         if (!init) {
-          throw new Error('Dashboard (Preview) module missing initLabs export');
+          throw new Error('Labs module missing initLabs export');
         }
         return init(root);
       })
@@ -131,7 +129,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const errorCard = document.createElement('section');
         errorCard.className = 'card';
         errorCard.dataset.qa = 'labs-error';
-        errorCard.innerHTML = '<h2>Dashboard (Preview) unavailable</h2><p class="muted">Dashboard (Preview) is not available in this build. This does <strong>not</strong> affect your main CRM data.</p>';
+        errorCard.innerHTML = '<h2>Labs unavailable</h2><p class="muted">Labs are not available in this build. This does <strong>not</strong> affect your main CRM data.</p>';
         const retryRow = document.createElement('div');
         retryRow.className = 'row';
         retryRow.style.gap = '8px';
@@ -194,11 +192,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function preferredDefaultRoute() {
     if (isSimpleMode()) return SIMPLE_DEFAULT_ROUTE;
     const homeView = getHomeViewPreference();
-    console.log('[DEBUG] preferredDefaultRoute: homeView=', homeView);
-    // Phase 2C: Default to Labs unless user explicitly prefers legacy dashboard
-    return homeView === 'dashboard' ? 'dashboard' : 'labs';
+    return homeView === 'labs' ? 'labs' : DEFAULT_ROUTE;
   }
-
 
   function applyActionBarIdleVisibility(route) {
     const bar = getActionBarNode();
@@ -500,9 +495,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       } catch (err) { logAppError('route:reset-notifications-hash', err); }
       return;
     }
-    if (hash && hash !== '#') {
-      return;
-    }
+    if (hash && hash !== '#') return;
     const targetHash = `#/${defaultRoute}`;
     try {
       window.location.hash = targetHash;
@@ -516,22 +509,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (err) { logAppError('route:replace-default', err); }
   }
 
-  onDomReady(() => {
-    try {
-      console.log('[DEBUG] onDomReady: Calling ensureDefaultRoute');
-      ensureDefaultRoute();
-    } catch (err) {
-      console.error('[DEBUG] ensureDefaultRoute failed', err);
-    }
-  });
+  ensureDefaultRoute();
 
 
+  /* FIX: Do not clear selection on boot. Let Persistence/Store decide.
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
   try {
     window.SelectionService?.clear?.('app:boot');
   } catch (err) { logAppError('selectionService:clear-boot', err); }
+  */
 
   function dedupeHeaderSettings() {
     try {
@@ -551,66 +539,37 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   function wireUnifiedNew() {
     try {
       const btn = document.getElementById('quick-add-unified');
-      if (!btn) return;
-
-
-
-      if (btn.__quickAddUnifiedHandler) {
-        try { btn.removeEventListener('click', btn.__quickAddUnifiedHandler); }
-        catch (_) { }
-        btn.__quickAddUnifiedHandler = null;
-      }
-
-      const host = btn.closest('.header-new-wrap') || btn.parentElement || btn;
-
-      import('./ui/quick_create_menu.js')
-        .then((mod) => {
-          const { createBinding, openQuickCreateMenu } = mod || {};
-          if (typeof createBinding === 'function') {
-            createBinding(host, { toggleSelector: '#quick-add-unified', enableActionBar: true });
+      if (!btn || btn.__quickAddWired) return;
+      btn.__quickAddWired = true;
+      btn.addEventListener('click', async (event) => {
+        if (event) event.preventDefault();
+        try {
+          const mod = await import('./ui/quick_create_menu.js');
+          if (mod && typeof mod.openQuickCreateMenu === 'function') {
+            mod.openQuickCreateMenu({ anchor: btn, source: 'header', origin: 'header' });
             return;
           }
-
-          if (typeof openQuickCreateMenu === 'function') {
-            const handler = (event) => {
-              if (event && typeof event.preventDefault === 'function') event.preventDefault();
-              if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
-              const opened = openQuickCreateMenu({ anchor: btn, source: 'header', origin: 'header' });
-              try {
-                if (typeof window !== 'undefined' && window.__QA_NEW_DEBUG === true && console && typeof console.debug === 'function') {
-                  const targetId = btn && typeof btn.getAttribute === 'function' ? btn.getAttribute('id') : null;
-                  const isOpen = mod && typeof mod.isQuickCreateMenuOpen === 'function'
-                    ? !!mod.isQuickCreateMenuOpen('header')
-                    : !!opened;
-                  console.debug('[NEW+] click handled', { targetId, opened: isOpen });
-                }
-              } catch (_) { }
-            };
-            btn.addEventListener('click', handler);
-            btn.__quickAddUnifiedHandler = handler;
-            return;
+        } catch (err) {
+          try { console && console.warn && console.warn('[quick-add] menu unavailable', err); }
+          catch (warnErr) { logAppError('quick-add:warn', warnErr); }
+        }
+        try {
+          const mod = await import('./contacts.js');
+          if (mod && typeof mod.openContactEditor === 'function') {
+            mod.openContactEditor({}, { sourceHint: 'header:new' });
           }
-
-          btn.addEventListener('click', async (event) => {
-            if (event && typeof event.preventDefault === 'function') event.preventDefault();
-            if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
-            try {
-              const contactsMod = await import('./contacts.js');
-              if (contactsMod && typeof contactsMod.openContactEditor === 'function') {
-                contactsMod.openContactEditor({}, { sourceHint: 'header:new' });
-              }
-            } catch (err) { logAppError('quick-add:fallback-contact', err); }
-          });
-        })
-        .catch((err) => { logAppError('quick-add:wire', err); });
+        } catch (err) { logAppError('quick-add:fallback-contact', err); }
+      });
     } catch (err) { logAppError('quick-add:wire', err); }
   }
+  /* FIX: Remove redundant boot clears - consolidated
   try {
-    window.SelectionStore?.clear?.('partners');
+    // window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
   ensureActionBarIdleState();
   applyActionBarIdleVisibility(preferredDefaultRoute());
   applyNotificationsNavVisibility(notificationsEnabled);
+  
   try {
     window.Selection?.clear?.('app:boot');
   } catch (err) { logAppError('selection:clear-boot', err); }
@@ -620,6 +579,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   try {
     window.SelectionStore?.clear?.('partners');
   } catch (err) { logAppError('selectionStore:clear-partners', err); }
+  */
   window.CRM.openPipelineWithFilter = function (stage) {
     try {
       const raw = stage == null ? '' : String(stage).trim();
@@ -853,25 +813,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
   (function wireDocCenter() {
     if (window.__DOC_CENTER_NAV__) return; window.__DOC_CENTER_NAV__ = true;
 
-    function loadEntry(options) {
-      import(fromHere('./doc/doc_center_entry.js'))
-        .then(() => {
-          const open = window.DocCenter && window.DocCenter.openDocumentCenter;
-          if (typeof open === 'function') open(options);
-        })
-        .catch(() => { });
-    }
-
     function maybe() {
       // Load enhancer when the Doc Center surface is present or navigated to
       const has = document.querySelector('[data-doc-center], #doc-center, #settings-docs, .doc-center, [data-panel="doc-center"]');
-      if (has) loadEntry({ contextType: 'dashboard', source: 'surface' });
+      if (has) import(fromHere('./doc/doc_center_enhancer.js')).catch(() => { });
     }
 
     // Delegate nav clicks (no HTML edits)
     document.addEventListener('click', (evt) => {
       const a = evt.target.closest('[data-nav="doc-center"], a[href="#doc-center"], button[data-page="doc-center"], button[data-nav="doc-center"]');
-      if (a) { evt.preventDefault?.(); loadEntry({ contextType: 'dashboard', source: 'nav', navigate: true }); }
+      if (a) { evt.preventDefault?.(); maybe(); history.replaceState(null, '', '#doc-center'); }
     });
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybe, { once: true });
@@ -1314,150 +1265,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return store ? store.get(scope) : new Set();
   }
 
-  function wireSelectAllForTable(table) {
-    if (!isTableElement(table)) return;
-    const store = getSelectionStore();
-    if (!store) return;
-    const scopeRaw = selectionScopeFor(table);
-    const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
-    const existing = TABLE_SELECT_ALL_BINDINGS.get(table);
-    if (existing && typeof existing.refresh === 'function') {
-      existing.refresh();
-      return;
-    }
-    let cleaned = false;
-    let unsubscribe = null;
-    let removalObserver = null;
-    let refreshing = false;
-    const ensureHeader = () => {
-      const header = typeof table.querySelector === 'function'
-        ? table.querySelector(SELECT_ALL_INPUT_SELECTOR)
-        : null;
-      if (!header) return null;
-      try {
-        if (header.getAttribute('role') !== 'checkbox') {
-          header.setAttribute('role', 'checkbox');
-        }
-        const state = header.indeterminate ? 'mixed' : (header.checked ? 'true' : 'false');
-        header.setAttribute('aria-checked', state);
-      } catch (_err) { }
-      return header;
-    };
 
-    const header = ensureHeader();
-    if (!header) return;
-
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      try { table.removeEventListener('change', handleTableChange); }
-      catch (_err) { }
-      if (unsubscribe) {
-        try { unsubscribe(); }
-        catch (_err) { }
-        unsubscribe = null;
-      }
-      if (removalObserver) {
-        try { removalObserver.disconnect(); }
-        catch (_err) { }
-        removalObserver = null;
-      }
-      TABLE_SELECT_ALL_BINDINGS.delete(table);
-      if (table.__crmRowCheckBound === binding) {
-        table.__crmRowCheckBound = null;
-      }
-    };
-
-    const sync = (ids, count) => {
-      if (cleaned) return;
-      if (!table.isConnected) {
-        cleanup();
-        return;
-      }
-      const normalizedIds = normalizeIdSet(ids, scope, store);
-      const payload = { root: table, ids: normalizedIds };
-      if (Number.isFinite(count)) {
-        payload.count = Number(count);
-      }
-      syncSelectionScope(scope, payload);
-    };
-
-    const handleTableChange = (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement)) return;
-
-      const role = target.dataset ? target.dataset.role : null;
-      if (role === 'select-all') {
-        applySelectAllToStore(target, store, scope, table);
-        return;
-      }
-
-      if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check')) {
-        const id = selectionIdFor(target);
-        if (id) {
-          // Fix for double-binding: use explicit set instead of toggle to be idempotent
-          const current = store.get(scope);
-          if (target.checked) current.add(id);
-          else current.delete(id);
-          store.set(current, scope);
-        }
-      }
-    };
-
-    try {
-      table.addEventListener('change', handleTableChange, true);
-    } catch (_err) { }
-
-    if (typeof MutationObserver === 'function') {
-      try {
-        removalObserver = new MutationObserver(() => {
-          if (cleaned) return;
-          if (table.isConnected) return;
-          cleanup();
-        });
-        const doc = table.ownerDocument || (typeof document !== 'undefined' ? document : null);
-        const root = doc && doc.documentElement ? doc.documentElement : null;
-        if (root) {
-          removalObserver.observe(root, { childList: true, subtree: true });
-        }
-      } catch (_err) {
-        removalObserver = null;
-      }
-    }
-
-    unsubscribe = store.subscribe((snapshot) => {
-      if (cleaned) return;
-      if (!snapshot || snapshot.scope !== scope) return;
-      sync(snapshot.ids, snapshot.count);
-    });
-
-    // Initial sync for this table
-    const current = store.get(scope);
-    if (current && current.size > 0) {
-      sync(current, current.size);
-    }
-
-    const refresh = () => {
-      if (cleaned || refreshing) return;
-      refreshing = true;
-      try {
-        ensureHeader();
-        sync(store.get(scope), store.count(scope));
-      } finally {
-        refreshing = false;
-      }
-    };
-
-    const binding = {
-      cleanup,
-      scope,
-      refresh
-    };
-
-    TABLE_SELECT_ALL_BINDINGS.set(table, binding);
-
-    refresh();
-  }
 
   function isTableElement(node) {
     if (!node || typeof node !== 'object') return false;
@@ -1529,253 +1337,122 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       return;
     }
     if (typeof root.querySelectorAll !== 'function') return;
-    root.querySelectorAll('table[data-selection-scope]').forEach((table) => {
-      ensureRowCheckHeaderForTable(table);
-    });
-  }
-
-  function isSelectableRowVisible(row) {
-    if (!row) return false;
-    // Check if element consumes space
-    if (row.offsetWidth > 0 || row.offsetHeight > 0 || row.getClientRects().length > 0) return true;
-    // Fallback for some edge cases (fixed position etc)
-    const style = window.getComputedStyle(row);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    // FIXED: Only query if we have a valid root
+    try {
+      const tables = root.querySelectorAll('table[data-selection-scope]');
+      tables.forEach((table) => {
+        ensureRowCheckHeaderForTable(table);
+      });
+    } catch (_err) { }
   }
 
   function collectSelectionRowData(scopeRoot) {
     if (!scopeRoot) return [];
-    ensureRowCheckHeaders(scopeRoot);
+    try { ensureRowCheckHeaders(scopeRoot); } catch (_err) { }
     const seen = new Set();
     const rows = [];
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
+      const id = row.getAttribute('data-id');
       if (!id) return null;
-      const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
+      // FIXED: More robust checkbox query
       let checkbox = null;
-      for (let i = 0; i < checkboxes.length; i++) {
-        const cb = checkboxes[i];
-        // Check standard hidden, aria-hidden, OR data-auto-hidden
-        if (!cb.hidden && cb.getAttribute('aria-hidden') !== 'true' && cb.getAttribute('data-auto-hidden') !== '1') {
-          checkbox = cb;
-          break;
-        }
+      if (typeof row.querySelector === 'function') {
+        checkbox = row.querySelector('[data-role="select"][data-ui="row-check"]');
       }
       if (!checkbox) return null;
-
       const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
-    scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id]').forEach(row => {
-      const entry = addRow(row);
-      if (entry) rows.push(entry);
-    });
-    scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
-      const entry = addRow(row);
-      if (entry) rows.push(entry);
-    });
+    if (typeof scopeRoot.querySelectorAll === 'function') {
+      scopeRoot.querySelectorAll('tbody tr[data-id]').forEach(row => {
+        const entry = addRow(row);
+        if (entry) rows.push(entry);
+      });
+      scopeRoot.querySelectorAll('[data-selection-row][data-id]').forEach(row => {
+        const entry = addRow(row);
+        if (entry) rows.push(entry);
+      });
+    }
     return rows.filter(Boolean);
   }
 
-  function applySelectAllToStore(checkbox, store, scope, hostRoot) {
-    if (!checkbox || !store) return;
-    const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
-    checkbox.indeterminate = false;
+  function isSelectableRowVisible(row) {
+    if (!row) return false;
+    if (row.hidden) return false;
+    if (row.style && row.style.display === 'none') return false;
+    if (row.classList && row.classList.contains('hidden')) return false;
+    return true;
+  }
 
-    const entries = hostRoot ? collectSelectionRowData(hostRoot) : [];
-    const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
-
-    if (!targets.length) {
-      checkbox.indeterminate = false;
-      checkbox.checked = false;
-      try { checkbox.setAttribute('aria-checked', 'false'); }
-      catch (_err) { }
-      store.set(new Set(), scopeKey);
-      return;
-    }
-
-    const ids = targets.map(entry => entry.id);
-    const base = store.get(scopeKey);
-    const next = base instanceof Set
-      ? new Set(base)
-      : new Set(Array.from(base || [], value => String(value)));
-
-    // FIX: Use state-based determination instead of purely relying on the checkbox change event.
-    // Invariant:
-    // 1. If ALL visible rows are selected -> Clear selection.
-    // 2. If NOT all visible rows are selected (partial or none) -> Select all visible.
-    // This allows "Select All" to function as a "Complete Selection" action when partially selected.
-
-    // Check if we currently have all visible targets selected
-    const allVisibleAreSelected = targets.length > 0 && targets.every(entry => next.has(entry.id));
-
-    if (allVisibleAreSelected) {
-      // CLEAR OPERATION
-      ids.forEach(id => next.delete(id));
-
-      // Update UI to unchecked
-      checkbox.checked = false;
-      try { checkbox.setAttribute('aria-checked', 'false'); }
-      catch (_err) { }
-
-      targets.forEach(entry => {
-        if (entry.checkbox && entry.id) {
-          entry.checkbox.checked = false;
-          try { entry.checkbox.setAttribute('aria-checked', 'false'); }
-          catch (_err) { }
-          if (entry.row) {
-            try { entry.row.removeAttribute('data-selected'); }
-            catch (_err) { }
-          }
-        }
-      });
-    } else {
-      // SELECT ALL OPERATION
-      ids.forEach(id => next.add(id));
-
-      // Update UI to checked
-      checkbox.checked = true;
-      try { checkbox.setAttribute('aria-checked', 'true'); }
-      catch (_err) { }
-
-      targets.forEach(entry => {
-        if (entry.checkbox && entry.id) {
-          entry.checkbox.checked = true;
-          try { entry.checkbox.setAttribute('aria-checked', 'true'); }
-          catch (_err) { }
-          if (entry.row) {
-            try { entry.row.setAttribute('data-selected', '1'); }
-            catch (_err) { }
-          }
-        }
-      });
-    }
-
-    const normalizedIds = Array.from(next).map(String);
-    const selectionCount = normalizedIds.length;
-    const type = scopeKey === 'partners'
-      ? 'partners'
-      : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
-    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
-
-    // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
-    if (typeof window !== 'undefined') {
-      const selection = window.Selection;
-      if ((type === 'contacts' || type === 'partners') && selection && typeof selection.set === 'function') {
-        try { selection.set(normalizedIds, type, origin); }
-        catch (_err) { }
+  function wireSelectAllForTable(table) {
+    if (!table) return;
+    const checkbox = table.querySelector('thead input[data-role="select-all"]');
+    if (!checkbox || checkbox.__wired) return;
+    checkbox.__wired = true;
+    checkbox.addEventListener('change', () => {
+      const scope = table.getAttribute('data-selection-scope') || 'contacts';
+      const store = getSelectionStore();
+      if (!store) {
+        console.warn('[app] SelectionStore not available for select-all');
+        return;
       }
 
-      const service = window.SelectionService;
-      if ((type === 'contacts' || type === 'partners') && service && typeof service.set === 'function') {
-        try { service.set(normalizedIds, type, origin); }
-        catch (_err) { }
+      // FIXED: Ensure we only select visible rows
+      const visibleRows = Array.from(table.querySelectorAll('tbody tr[data-id]'))
+        .filter(isSelectableRowVisible);
+
+      const ids = visibleRows.map(r => r.getAttribute('data-id')).filter(Boolean);
+      const current = store.get(scope);
+      const next = new Set(current);
+
+      if (checkbox.checked) {
+        ids.forEach(id => next.add(id));
+      } else {
+        ids.forEach(id => next.delete(id));
       }
-    }
 
-    store.set(next, scopeKey);
-    syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
+      store.set(next, scope);
 
-    // Notify consumers that rely on the event bus (action bar, etc.)
-    try {
-      const eventDetail = {
-        type,
-        ids: normalizedIds,
-        count: selectionCount,
-        source: origin,
-        scope
+      const normalizedIds = Array.from(next).map(String);
+      const selectionCount = normalizedIds.length;
+
+      // CRITICAL: Dispatch selection:changed event to notify action bar
+      try {
+        const eventDetail = {
+          type: scope === 'partners' ? 'partners' : 'contacts',
+          ids: normalizedIds,
+          count: selectionCount,
+          source: checkbox.checked ? 'select-all:on' : 'select-all:off',
+          scope: scope
+        };
+        if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+          document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+        }
+      } catch (_err) {
+        console.warn('[select-all] Failed to dispatch selection:changed', _err);
+      }
+
+      // Explicitly update action bar visibility
+      const updateActionBar = () => {
+        if (typeof window !== 'undefined') {
+          if (typeof window.updateActionBarMinimizedState === 'function') {
+            try { window.updateActionBarMinimizedState(selectionCount); } catch (_) { }
+          }
+          if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
+            try { window.__UPDATE_ACTION_BAR_VISIBLE__(); } catch (_) { }
+          }
+        }
       };
-      if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-        document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
+
+      updateActionBar();
+      // Double check via microtask
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(updateActionBar);
       }
-    } catch (_err) { }
-
-    // Comprehensive action bar update (match DEMO_MODE behavior)
-    const updateActionBar = () => {
-      if (typeof window !== 'undefined' && typeof window.updateActionbar === 'function') {
-        try { window.updateActionbar(); }
-        catch (_err) { }
-      }
-
-      const bar = typeof document !== 'undefined'
-        ? (document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar'))
-        : null;
-      if (bar) {
-        if (selectionCount > 0) {
-          if (bar.hasAttribute('data-minimized')) {
-            bar.removeAttribute('data-minimized');
-          }
-          bar.setAttribute('data-visible', '1');
-          if (bar.dataset) bar.dataset.idleVisible = '1';
-          if (bar.style) {
-            bar.style.display = '';
-            bar.style.opacity = '1';
-            bar.style.visibility = 'visible';
-            bar.style.pointerEvents = 'auto';
-          }
-          try {
-            bar.hidden = false;
-            bar.removeAttribute('aria-hidden');
-          } catch (_err) { }
-          bar.dataset.count = String(selectionCount);
-          bar.setAttribute('aria-expanded', 'true');
-        } else {
-          bar.removeAttribute('data-visible');
-          bar.removeAttribute('data-idle-visible');
-          bar.setAttribute('data-minimized', '1');
-          if (bar.style) {
-            bar.style.display = 'none';
-            bar.style.visibility = '';
-          }
-          try {
-            bar.hidden = true;
-            bar.setAttribute('aria-hidden', 'true');
-          } catch (_err) { }
-          bar.dataset.count = '0';
-          bar.setAttribute('aria-expanded', 'false');
-        }
-      }
-
-      if (typeof window !== 'undefined') {
-        if (typeof window.ensureActionBarPostPaintRefresh === 'function') {
-          try { window.ensureActionBarPostPaintRefresh(); }
-          catch (_err) { }
-        }
-        if (typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-          try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-          catch (_err) { }
-        }
-      }
-    };
-
-    updateActionBar();
-    if (typeof queueMicrotask === 'function') {
-      queueMicrotask(updateActionBar);
-    } else if (typeof Promise !== 'undefined') {
-      Promise.resolve().then(updateActionBar).catch(() => { });
-    }
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(updateActionBar);
-    }
-  }
-
-  function applyHeaderSelectAll(checkbox) {
-    const store = getSelectionStore();
-    if (!store) return;
-    const hostRoot = checkbox && typeof checkbox.closest === 'function'
-      ? checkbox.closest('table')
-      : null;
-    const scopeRaw = hostRoot ? selectionScopeFor(hostRoot) : selectionScopeFor(checkbox);
-    const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
-    applySelectAllToStore(checkbox, store, scope, hostRoot);
-  }
-
-  if (typeof window !== 'undefined') {
-    if (!window.applySelectAllToStore) window.applySelectAllToStore = applySelectAllToStore;
-    if (!window.applyHeaderSelectAll) window.applyHeaderSelectAll = applyHeaderSelectAll;
+    });
   }
 
   function syncSelectionCheckboxes(scope, ids, options) {
@@ -1825,7 +1502,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       });
       const header = table.querySelector('thead input[data-role="select-all"]');
       if (header) {
-        const visible = entries.filter(entry => !entry.disabled);
+        const visible = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
         const total = visible.length;
         let selectedVisible = 0;
         visible.forEach((entry) => {
@@ -1872,78 +1549,42 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const bar = document.getElementById('actionbar');
     if (!bar) return;
     const totalRaw = Number(count);
-    const total = Number.isFinite(totalRaw) ? totalRaw : 0;
+    const total = Number.isFinite(totalRaw) ? Math.max(0, Math.floor(totalRaw)) : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
     } else {
       bar.removeAttribute('data-selection-type');
     }
-    const mergeReadyAttr = total >= 2 ? '1' : '0';
-    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
-      bar.setAttribute('data-merge-ready', mergeReadyAttr);
-    }
-    const apply = typeof window.applyActionBarGuards === 'function'
-      ? window.applyActionBarGuards
-      : null;
-    let guards = null;
-    if (scopeKey === 'notifications') {
-      guards = {
+
+    const guards = scopeKey === 'notifications'
+      ? {
         edit: false,
         merge: false,
         emailTogether: false,
         emailMass: false,
         addTask: false,
         bulkLog: false,
+        convertToPipeline: false,
         delete: false,
-        clear: true
-      };
-    } else if (apply) {
-      guards = apply(bar, total);
-    } else {
-      const compute = typeof window.computeActionBarGuards === 'function'
-        ? window.computeActionBarGuards
-        : (() => ({}));
-      guards = compute(total);
-      const fallbackActs = {
-        edit: 'edit',
-        merge: 'merge',
-        emailTogether: 'emailTogether',
-        emailMass: 'emailMass',
-        addTask: 'task',
-        bulkLog: 'bulkLog',
-        delete: 'delete',
-        clear: 'clear'
-      };
-      Object.entries(fallbackActs).forEach(([key, act]) => {
-        const btn = bar.querySelector(`[data-act="${act}"]`);
-        if (!btn) return;
-        const enabled = !!guards[key];
-        btn.disabled = !enabled;
-        btn.classList?.toggle('disabled', !enabled);
-        const isPrimary = act === 'edit' || act === 'merge';
-        btn.classList?.toggle('active', isPrimary && enabled);
-      });
-    }
-    if (typeof applyActionBarState === 'function') {
-      applyActionBarState(bar, total, guards);
-    }
-    if (total > 0) {
-      bar.classList.add('has-selection');
-    } else {
-      bar.classList.remove('has-selection');
-    }
-    if (bar.dataset && bar.dataset.idleVisible === '1') {
-      bar.setAttribute('data-visible', '1');
-      if (bar.style && bar.style.display === 'none') {
-        bar.style.display = '';
+        clear: total > 0
       }
+      : computeActionBarGuards(total);
+
+    const mergeReadyAttr = total >= 2 ? '1' : '0';
+    if (bar.getAttribute('data-merge-ready') !== mergeReadyAttr) {
+      bar.setAttribute('data-merge-ready', mergeReadyAttr);
     }
+
+    applyActionBarGuards(bar, guards);
+    applyActionBarState(bar, total, guards);
+
     if (typeof window !== 'undefined' && typeof window.__UPDATE_ACTION_BAR_VISIBLE__ === 'function') {
-      queueMicrotask(() => {
+      // FIXED: Use setTimeout to break render cycle
+      setTimeout(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
-        catch (_) { }
-      });
+        catch (err) { logAppError('actionbar:update-visible', err); }
+      }, 0);
     }
   }
 
@@ -1995,7 +1636,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (!store) return;
     initSelectionBindings.__wired = true;
     store.subscribe(handleSelectionSnapshot);
-
     const handleChange = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
@@ -2004,30 +1644,26 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
       if (role !== 'select') return;
-      const scopeKey = selectionScopeFor(target);
+      const scope = selectionScopeFor(target);
       const id = selectionIdFor(target);
       if (!id) return;
-      const type = (scopeKey === 'partners' || scopeKey === 'contacts' || scopeKey === 'pipeline' || scopeKey === 'notifications')
-        ? scopeKey
-        : 'contacts';
-      const next = store.get(scopeKey);
+      const type = scope === 'partners' ? 'partners' : 'contacts';
+      const next = store.get(scope);
       if (target.checked) next.add(id);
       else next.delete(id);
-      store.set(next, scopeKey);
+      store.set(next, scope);
 
       // Keep Selection APIs in sync with the store so the action bar reacts immediately
       const normalizedIds = Array.from(next).map(String);
       try {
         const selection = window.Selection;
-        if (type === 'contacts' || type === 'partners') {
-          if (selection && typeof selection.set === 'function') {
-            selection.set(normalizedIds, type, 'row-check');
-          } else if (selection && typeof selection.toggle === 'function') {
-            // Fall back to toggle-based update without double flipping the target row
-            const current = selection.getSelectedIds ? new Set(selection.getSelectedIds()) : new Set();
-            const shouldHave = target.checked;
-            if (shouldHave !== current.has(id)) selection.toggle(id, type);
-          }
+        if (selection && typeof selection.set === 'function') {
+          selection.set(normalizedIds, type, 'row-check');
+        } else if (selection && typeof selection.toggle === 'function') {
+          // Fall back to toggle-based update without double flipping the target row
+          const current = selection.getSelectedIds ? new Set(selection.getSelectedIds()) : new Set();
+          const shouldHave = target.checked;
+          if (shouldHave !== current.has(id)) selection.toggle(id, type);
         }
       } catch (err) {
         try { console && console.warn && console.warn('[selection] sync failed', err); }
@@ -2036,14 +1672,14 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
       try {
         const compat = window.SelectionService;
-        if ((type === 'contacts' || type === 'partners') && compat && typeof compat.set === 'function') {
+        if (compat && typeof compat.set === 'function') {
           compat.set(normalizedIds, type, 'row-check');
         }
       } catch (err) { logAppError('selectionService:set', err); }
 
       // Notify listeners that depend on the selection event bus (e.g., action bar)
       try {
-        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope: scopeKey, source: 'row-check' };
+        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope, source: 'row-check' };
         document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
       } catch (err) { logAppError('selection:dispatch-change', err); }
     };
@@ -2056,8 +1692,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (err) { logAppError('selection:wire-select-all', err); }
     if (typeof window !== 'undefined') {
       window.syncSelectionScope = syncSelectionScope;
-      window.ensureRowCheckHeaderForTable = ensureRowCheckHeaderForTable;
-      window.wireSelectAllForTable = wireSelectAllForTable;
     }
   }
 
@@ -2070,23 +1704,19 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (event && event.__crmRowEditorHandled) return;
       if (!target) return;
       const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
-      if (target.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"], button, [role="button"]')) return;
+      if (!anchor) return;
+      if (anchor.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"]')) return;
 
-      const row = (anchor && anchor.closest?.('[data-contact-id],[data-partner-id]'))
-        || target.closest?.('[data-contact-id],[data-partner-id]');
-      if (!row) return;
-
-      const contactId = row.getAttribute('data-contact-id')
-        || anchor?.getAttribute('data-contact-id')
-        || anchor?.getAttribute('data-id')
-        || row.getAttribute('data-id');
-      if (contactId) {
+      const contactRow = anchor.closest?.('tr[data-contact-id]');
+      if (contactRow) {
+        const id = contactRow.getAttribute('data-contact-id') || anchor.getAttribute('data-id');
+        if (!id) return;
         event.preventDefault();
         event.stopPropagation();
         try {
           const mod = await import('./contacts.js');
           if (mod && typeof mod.openContactEditor === 'function') {
-            mod.openContactEditor(contactId, { sourceHint: 'contacts:row-click', trigger: row });
+            mod.openContactEditor(id, { sourceHint: 'contacts:row-click', trigger: contactRow });
           }
         } catch (err) {
           try { console && console.warn && console.warn('contact row open failed', err); }
@@ -2095,16 +1725,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
 
-      const partnerId = row.getAttribute('data-partner-id')
-        || anchor?.getAttribute('data-partner-id')
-        || row.getAttribute('data-id');
-      if (partnerId) {
+      const partnerRow = anchor.closest?.('tr[data-partner-id]');
+      if (partnerRow) {
+        const id = partnerRow.getAttribute('data-partner-id') || anchor.getAttribute('data-partner-id');
+        if (!id) return;
         event.preventDefault();
         event.stopPropagation();
         try {
           const mod = await import('./partners.js');
           if (mod && typeof mod.openPartnerEditModal === 'function') {
-            mod.openPartnerEditModal(partnerId, { sourceHint: 'partners:row-click', trigger: row });
+            mod.openPartnerEditModal(id, { sourceHint: 'partners:row-click', trigger: partnerRow });
           }
         } catch (err) {
           try { console && console.warn && console.warn('partner row open failed', err); }
@@ -2242,7 +1872,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     calendar: {
       id: 'view-calendar',
       ui: 'calendar-root',
-      resetOnDeactivate: false,
+      resetOnDeactivate: true,
       async mount() {
         try {
           const mod = await import('./calendar.js');
@@ -2322,10 +1952,21 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     labs: {
       id: 'view-labs',
       ui: 'labs-root',
+      resetOnDeactivate: true,
       mount(root) {
         if (!root) return;
         if (root.dataset && root.dataset.labsReady === '1') return;
         bootLabs(root);
+      },
+      async unmount() {
+        try {
+          const mod = await import('./labs/entry.js');
+          if (mod && typeof mod.unmountLabs === 'function') {
+            mod.unmountLabs();
+          }
+        } catch (err) {
+          console.warn('[app] Labs unmount failed', err);
+        }
       }
     },
     pipeline: {
@@ -2781,6 +2422,21 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (normalized === previous) return;
 
     const previousLifecycle = previous ? VIEW_LIFECYCLE[previous] : null;
+
+    if (previousLifecycle && typeof previousLifecycle.unmount === 'function') {
+      try {
+        const result = previousLifecycle.unmount();
+        if (result && typeof result.then === 'function') {
+          // Fire and forget promise or await? 
+          // Since activate is not async here (or at least treated synchronously usually), 
+          // we treat it as fire-and-forget but catch errors.
+          result.catch(err => console.warn('[app] unmount async error', err));
+        }
+      } catch (err) {
+        console.warn('[app] unmount sync error', err);
+      }
+    }
+
     if (previousLifecycle?.resetOnDeactivate && previous !== normalized) {
       const previousId = previousLifecycle.id || ('view-' + previous);
       const prevRoot = previousId ? document.getElementById(previousId) : null;
@@ -3220,55 +2876,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const id = e.detail?.id; if (id) ensureSortable(id);
   });
 
-  const LOCAL_STORAGE_EXPORT_KEYS = [
-    'dashboard:config:v1',
-    'dash:layoutMode:v1',
-    'crm:homeView'
-  ];
-  function captureLocalStorageSnapshot() {
-    if (typeof localStorage === 'undefined') return null;
-    const snapshot = {};
-    LOCAL_STORAGE_EXPORT_KEYS.forEach((key) => {
-      try {
-        const value = localStorage.getItem(key);
-        if (value !== null && value !== undefined) snapshot[key] = value;
-      } catch (_err) { /* noop */ }
-    });
-    return Object.keys(snapshot).length ? snapshot : null;
-  }
-  function restoreLocalStorageSnapshot(data) {
-    if (!data || typeof data !== 'object' || typeof localStorage === 'undefined') return;
-    LOCAL_STORAGE_EXPORT_KEYS.forEach((key) => {
-      if (!Object.prototype.hasOwnProperty.call(data, key)) return;
-      try { localStorage.setItem(key, data[key]); }
-      catch (_err) { /* noop */ }
-    });
-  }
-
-  let pendingImportFile = null;
-  async function handleWorkspaceImport(mode) {
-    if (!pendingImportFile) throw new Error('No file selected for import');
-    const text = await pendingImportFile.text();
-    const snapshot = JSON.parse(text);
-    const importMode = mode === 'replace' ? 'replace' : 'merge';
-    await dbRestoreAll(snapshot, importMode);
-    restoreLocalStorageSnapshot(snapshot.__localStorage || snapshot.localStorage);
-    try { window.dispatchAppDataChanged?.({ source: 'import', action: 'restore', mode: importMode }); }
-    catch (_err) { /* noop */ }
-    try { scheduleAppRender(); }
-    catch (_err) { /* noop */ }
-    pendingImportFile = null;
-  }
-  window.handleWorkspaceImport = handleWorkspaceImport;
-
   const exportBtn = $('#btn-export-json');
   if (exportBtn && !exportBtn.__wired) {
     exportBtn.__wired = true;
     exportBtn.addEventListener('click', async () => {
       try {
         const snapshot = await dbExportAll();
-        const ls = captureLocalStorageSnapshot();
-        if (ls) snapshot.__localStorage = ls;
         const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -3444,29 +3057,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     });
   }
-
-  const seedFullBtn = $('#btn-seed-full-workflow');
-  if (seedFullBtn && !seedFullBtn.__wired) {
-    seedFullBtn.__wired = true;
-    seedFullBtn.addEventListener('click', async () => {
-      seedFullBtn.disabled = true;
-      try {
-        await runFullWorkflowSeed();
-        if (typeof window.toast === 'function') window.toast('Full workflow seeded successfully');
-      } catch (err) {
-        console.error('Full seed failed', err);
-        if (typeof window.toast === 'function') window.toast('Seeding failed: ' + err.message);
-      } finally {
-        seedFullBtn.disabled = false;
-      }
-    });
-  }
-  const toggleDark = $('#toggle-dark');
-  if (toggleDark) {
-    toggleDark.addEventListener('change', (e) => {
-      document.documentElement.style.filter = e.target.checked ? 'invert(1) hue-rotate(180deg)' : 'none';
-    });
-  }
+  // Dark mode is now controlled via the theme dropdown (Settings > Theme > Dark)
 
   window.addEventListener('beforeunload', async (event) => {
     const enabled = $('#toggle-autobackup')?.checked;
@@ -3813,18 +3404,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         });
         if (scopedHandled) return;
       }
-      const meaningfulScopes = scopeCandidates
-        .map(scope => String(scope || '').toLowerCase())
-        .filter(label => label && label !== 'selection');
-
-      // FIX: If selection is the only scope, do NOT trigger a render (handled by selection:changed)
-      if (!shouldFullRender && meaningfulScopes.length === 0 && scopeCandidates.length > 0) {
-        return;
-      }
-
       const renderScopeLabel = shouldFullRender
         ? 'full'
-        : (meaningfulScopes.join(',') || 'full');
+        : (scopeCandidates
+          .map(scope => String(scope || '').toLowerCase())
+          .filter(label => label && label !== 'selection')
+          .join(',') || 'full');
       queueAppDataRender(renderScopeLabel);
     };
     if (document && typeof document.addEventListener === 'function') {
@@ -3956,72 +3541,3 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
 // Force cache update
 
-
-// --- Global Delete Handler ---
-// --- Global Delete Handler ---
-if (typeof document !== 'undefined') {
-  document.addEventListener('app:data:changed', (event) => {
-    const detail = event.detail || {};
-    console.log('[app] app:data:changed', detail);
-    if (detail.source === 'soft-delete' || detail.source === 'actionbar:delete') {
-      console.log('[app] DELETE HANDLER TRIGGERED', detail);
-      try {
-        if (window.SelectionService && typeof window.SelectionService.clear === 'function') {
-          window.SelectionService.clear('app:data:changed');
-        }
-        if (typeof window.clearGlobalSelection === 'function') {
-          window.clearGlobalSelection('app:data:changed');
-        }
-      } catch (_) { }
-
-      // Force Repaint
-      const viewContacts = document.getElementById('view-contacts');
-      const viewPipeline = document.getElementById('view-pipeline');
-      const hash = typeof location !== 'undefined' ? (location.hash || '') : '';
-      const isContactsRoute = /contacts|pipeline/i.test(hash);
-      const isVisible = isContactsRoute ||
-        (viewContacts && (viewContacts.offsetParent !== null || !viewContacts.classList.contains('hidden'))) ||
-        (viewPipeline && (viewPipeline.offsetParent !== null || !viewPipeline.classList.contains('hidden')));
-
-      console.log('[app] DELETE HANDLER VISIBILITY Check:', isVisible, 'hash:', hash);
-
-      if (isVisible) {
-        if (typeof window.renderAll === 'function') {
-          console.log('[app] Calling renderAll');
-          window.renderAll();
-        } else if (typeof window.renderContacts === 'function') {
-          window.renderContacts();
-        }
-        if (typeof window.renderPipeline === 'function') {
-          window.renderPipeline();
-        }
-      }
-
-      // Close Editor if deleted
-      try {
-        const modal = document.querySelector('[data-ui="contact-edit-modal"]');
-        if (modal && modal.dataset && modal.dataset.contactId) {
-          const openId = String(modal.dataset.contactId);
-          const deletedIds = new Set();
-          if (detail.id) deletedIds.add(String(detail.id));
-          if (Array.isArray(detail.ids)) detail.ids.forEach(x => deletedIds.add(String(x)));
-          if (Array.isArray(detail.prune)) detail.prune.forEach(x => deletedIds.add(String(x)));
-          if (Array.isArray(detail.actions)) detail.actions.forEach(a => { if (a.id) deletedIds.add(String(a.id)); });
-
-          if (deletedIds.has(openId)) {
-            if (typeof closeContactEditor === 'function') {
-              closeContactEditor('record-deleted');
-            } else if (modal.close) {
-              modal.close();
-            }
-            if (typeof window.toast === 'function') {
-              window.toast('Relation was deleted.', 'warn');
-            } else if (typeof toastWarn === 'function') {
-              toastWarn('Relation was deleted.');
-            }
-          }
-        }
-      } catch (_) { }
-    }
-  });
-}
