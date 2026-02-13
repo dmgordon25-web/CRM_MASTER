@@ -1530,6 +1530,15 @@ export async function renderAll(request) {
         }
 
         attention = openTasks.filter(t => t.status === 'overdue' || t.status === 'soon').slice(0, 6);
+        if (!$('#needs-attn')) {
+          const priorityCard = document.getElementById('priority-actions-card');
+          if (priorityCard && !priorityCard.querySelector('#needs-attn')) {
+            const list = document.createElement('ul');
+            list.id = 'needs-attn';
+            list.className = 'insight-list actionable';
+            priorityCard.appendChild(list);
+          }
+        }
         html($('#needs-attn'), attention.length ? attention.map(task => {
           const cls = task.status === 'overdue' ? 'bad' : (task.status === 'soon' ? 'warn' : 'good');
           const phr = task.status === 'overdue' ? `${Math.abs(task.diffFromToday || 0)}d overdue` : (task.status === 'soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
