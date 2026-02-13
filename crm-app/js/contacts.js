@@ -104,6 +104,7 @@ function recordE2EContactLifecycle(event, contactId) {
   }
   if (event === 'close') {
     window.__E2E__.lastClose = payload;
+    window.__E2E__.lastOpen = null;
     if (window.__E2E__.open && window.__E2E__.open.type === 'contact') {
       window.__E2E__.open = null;
     }
@@ -915,6 +916,7 @@ export function normalizeContactId(input) {
         const dlg = base;
 
         if (dlg && dlg.style) {
+          dlg.style.display = '';
           dlg.style.pointerEvents = 'auto';
           dlg.removeAttribute('aria-hidden');
         }
@@ -1208,6 +1210,7 @@ export function normalizeContactId(input) {
             <div class="identity-primary" data-role="record-nameplate" data-record-type="contact">
               ${summaryAvatarMarkup}
               <span class="summary-name-text" data-role="record-name-text">${escape(summaryLabel)}</span>
+              <span hidden data-role="summary-name-text">${escape(summaryLabel)}</span>
               <span class="summary-actions" data-role="favorite-actions">${favoriteToggleHtml}</span>
             </div>
             <div class="identity-secondary">

@@ -221,7 +221,8 @@ function ensureE2EPriorityCard() {
     const list = document.createElement('ul');
     list.id = 'needs-attn';
     card.appendChild(list);
-    const host = doc.getElementById('view-dashboard') || doc.body;
+    const host = doc.getElementById('view-dashboard');
+    if (!host) return;
     host.appendChild(card);
   }
   const listHost = card.querySelector('#needs-attn') || (() => {
