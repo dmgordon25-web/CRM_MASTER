@@ -7,11 +7,11 @@ const win = typeof window === 'undefined' ? null : window;
 const DASHBOARD_DRILLDOWN_SELECTOR = '[data-id],[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const DASHBOARD_HANDLED_CLICK_KEY = '__crmDashHandledClickAt';
 
-const drilldownTestHooks = { openContact: null, openPartner: null };
+const dashboardDrilldownHookState = { openContact: null, openPartner: null };
 
 function safeOpenContact(contactId) {
   if (!contactId) return false;
-  const hook = drilldownTestHooks.openContact;
+  const hook = dashboardDrilldownHookState.openContact;
   if (typeof hook === 'function') {
     hook(String(contactId));
     return true;
@@ -25,7 +25,7 @@ function safeOpenContact(contactId) {
 
 function safeOpenPartner(partnerId) {
   if (!partnerId) return false;
-  const hook = drilldownTestHooks.openPartner;
+  const hook = dashboardDrilldownHookState.openPartner;
   if (typeof hook === 'function') {
     hook(String(partnerId));
     return true;
@@ -158,8 +158,8 @@ export async function initDashboard(options = {}) {
 }
 
 export function __setDashboardDrilldownTestHooks(hooks = {}) {
-  drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
-  drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
+  dashboardDrilldownHookState.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
+  dashboardDrilldownHookState.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
 }
 
 export function __getHandleDashboardClickForTest() {
