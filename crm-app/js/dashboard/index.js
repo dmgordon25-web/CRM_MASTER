@@ -86,7 +86,7 @@ function markHandled(node) {
   catch (_) { }
 }
 
-function handleDashboardClick(evt) {
+function handleDashboardDrilldownClick(evt) {
   const target = evt && evt.target;
   if (!target || typeof target.closest !== 'function') return false;
 
@@ -124,7 +124,7 @@ function handleDashboardTap(evt, explicitTarget) {
   if (!evt && !explicitTarget) return false;
   const target = explicitTarget || evt.target;
   if (!target || typeof target.closest !== 'function') return false;
-  return handleDashboardClick({ ...evt, target });
+  return handleDashboardDrilldownClick({ ...evt, target });
 }
 
 function isSafeMode() {
@@ -133,10 +133,18 @@ function isSafeMode() {
   return /[?&]safe=1(?:&|$)/.test(search);
 }
 
+function ensureDashboardDrilldown(root) {
+  if (!root || typeof root.addEventListener !== 'function') return;
+  if (root.__crmDashboardDrilldownBound) return;
+  root.addEventListener('click', handleDashboardDrilldownClick);
+  root.__crmDashboardDrilldownBound = true;
+}
+
 export async function initDashboard(options = {}) {
   const root = options.root
     || (doc && typeof doc.getElementById === 'function' ? doc.getElementById('view-dashboard') : null);
   if (!root) return;
+  ensureDashboardDrilldown(root);
   if (isSafeMode()) return;
   const mod = await import('../labs/dashboard.js');
   const initLabs = mod && typeof mod.initLabsCRMDashboard === 'function'
@@ -155,7 +163,7 @@ export function __setDashboardDrilldownTestHooks(hooks = {}) {
 }
 
 export function __getHandleDashboardClickForTest() {
-  return evt => handleDashboardClick(evt);
+  return evt => handleDashboardDrilldownClick(evt);
 }
 
 export function __getHandleDashboardTapForTest() {
