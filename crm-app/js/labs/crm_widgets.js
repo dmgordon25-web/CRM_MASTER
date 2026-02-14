@@ -1763,6 +1763,7 @@ export function renderTodayWidget(container, model) {
 
         const list = document.createElement('ul');
         list.className = 'insight-list';
+        list.setAttribute('data-role', 'today-list');
 
         section.groups.forEach((group) => {
           const name = (group.contact && (group.contact.displayName || group.contact.name))
@@ -1798,8 +1799,10 @@ export function renderTodayWidget(container, model) {
             rowWrap.style.alignItems = 'center';
             rowWrap.style.gap = '8px';
 
-            const taskId = task.id || task.taskId;
-            applyTodayAttrs(row, { contactId, partnerId, taskId }, [rowWrap]);
+            const rowContactId = contactId || task.contactId || task.contact_id || (task.contact && task.contact.id) || '';
+            const rowPartnerId = partnerId || task.partnerId || task.partner_id || (task.contact && task.contact.partnerId) || '';
+            const taskId = task.id || task.taskId || (task.raw && task.raw.id);
+            applyTodayAttrs(row, { contactId: rowContactId, partnerId: rowPartnerId, taskId }, [rowWrap]);
 
             const grow = document.createElement('div');
             grow.className = 'grow';
@@ -1819,7 +1822,7 @@ export function renderTodayWidget(container, model) {
             const openBtn = document.createElement('button');
             openBtn.className = 'btn';
             openBtn.setAttribute('data-role', 'open-contact');
-            if (contactId) openBtn.setAttribute('data-contact-id', contactId);
+            if (rowContactId) openBtn.setAttribute('data-contact-id', rowContactId);
             if (taskId) openBtn.setAttribute('data-task-id', taskId);
             openBtn.textContent = 'Open';
 
@@ -1835,7 +1838,7 @@ export function renderTodayWidget(container, model) {
 
             row.appendChild(rowWrap);
             taskList.appendChild(row);
-            applyTodayAttrs(rowWrap, { contactId, partnerId, taskId }, [grow, title, meta]);
+            applyTodayAttrs(rowWrap, { contactId: rowContactId, partnerId: rowPartnerId, taskId }, [grow, title, meta]);
           });
 
           card.appendChild(taskList);
@@ -1903,13 +1906,13 @@ export function renderTodayWidget(container, model) {
           const contactId = row.getAttribute('data-contact-id');
           const partnerId = row.getAttribute('data-partner-id');
           const taskId = row.getAttribute('data-task-id');
+          if (taskId) {
+            openTaskEditor({ id: taskId, sourceHint: 'labs-today' });
+            return;
+          }
           if (openContactFromWidget(contactId, 'labs-today')) return;
           if (partnerId) {
             openPartnerEditor(partnerId, { source: 'labs-today' });
-            return;
-          }
-          if (taskId) {
-            openTaskEditor({ id: taskId, sourceHint: 'labs-today' });
           }
         }
       };
@@ -2233,8 +2236,12 @@ export function renderPriorityActionsWidget(container, model) {
             ? 'Due today'
             : `Due in ${diff}d`;
 
-      const contact = task.contactId ? contactsById.get(String(task.contactId)) : null;
-      const contactId = task.contactId || (contact && contact.id) || null;
+      const taskContact = task && typeof task === 'object' ? task.contact : null;
+      const resolvedContactId = task.contactId || task.contact_id || (taskContact && taskContact.id) || null;
+      const contact = resolvedContactId
+        ? contactsById.get(String(resolvedContactId)) || taskContact || null
+        : (taskContact || null);
+      const contactId = resolvedContactId || (contact && contact.id) || null;
       const partnerId = task.partnerId || (contact && contact.partnerId) || null;
       const stageKey = contact ? normalizeStagesForDisplay(contact.stage || contact.lane) : '';
       const stageLabel = stageKey && STAGE_CONFIG[stageKey] ? STAGE_CONFIG[stageKey].label : '';
@@ -2362,9 +2369,12 @@ export function renderMilestonesWidget(container, model) {
         const dueDate = new Date(task.due);
         if (Number.isNaN(dueDate.getTime())) return null;
 
-        const contactId = task.contactId != null ? String(task.contactId) : '';
-        const partnerId = task.partnerId != null ? String(task.partnerId) : '';
-        const contact = contactById.get(contactId) || task.contact || null;
+        const taskContact = task && typeof task === 'object' ? task.contact : null;
+        const rawContactId = task.contactId != null ? task.contactId : (task.contact_id != null ? task.contact_id : (taskContact && taskContact.id));
+        const rawPartnerId = task.partnerId != null ? task.partnerId : (task.partner_id != null ? task.partner_id : (taskContact && taskContact.partnerId));
+        const contactId = rawContactId != null ? String(rawContactId) : '';
+        const partnerId = rawPartnerId != null ? String(rawPartnerId) : '';
+        const contact = contactById.get(contactId) || taskContact || null;
         const diffFromToday = Math.floor((dueDate.getTime() - todayStart.getTime()) / DAY_MS);
         let status = 'ready';
         if (Number.isFinite(diffFromToday)) {

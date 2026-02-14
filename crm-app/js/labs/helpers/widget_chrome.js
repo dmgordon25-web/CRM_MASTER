@@ -12,7 +12,7 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   }
 
   const header = document.createElement('div');
-  header.className = 'labs-widget-chrome__header';
+  header.className = 'labs-widget__header labs-widget-chrome__header';
 
   const titleEl = document.createElement('div');
   titleEl.className = 'labs-widget-chrome__title';
@@ -24,7 +24,7 @@ export function renderWidgetChrome({ widgetId, title, countText, bodyHtml, foote
   }
 
   const titleText = document.createElement('span');
-  titleText.className = 'labs-widget-chrome__label';
+  titleText.className = 'labs-widget__title labs-widget-chrome__label';
   titleText.textContent = title || '';
   titleEl.appendChild(titleText);
   header.appendChild(titleEl);
