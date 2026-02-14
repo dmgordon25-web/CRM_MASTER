@@ -7,11 +7,11 @@ const win = typeof window === 'undefined' ? null : window;
 const DASHBOARD_DRILLDOWN_SELECTOR = '[data-id],[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
 const DASHBOARD_HANDLED_CLICK_KEY = '__crmDashHandledClickAt';
 
-const drilldownTestHooks = { openContact: null, openPartner: null };
+const dashboardDrilldownHookState = { openContact: null, openPartner: null };
 
 function safeOpenContact(contactId) {
   if (!contactId) return false;
-  const hook = drilldownTestHooks.openContact;
+  const hook = dashboardDrilldownHookState.openContact;
   if (typeof hook === 'function') {
     hook(String(contactId));
     return true;
@@ -25,7 +25,7 @@ function safeOpenContact(contactId) {
 
 function safeOpenPartner(partnerId) {
   if (!partnerId) return false;
-  const hook = drilldownTestHooks.openPartner;
+  const hook = dashboardDrilldownHookState.openPartner;
   if (typeof hook === 'function') {
     hook(String(partnerId));
     return true;
@@ -86,7 +86,7 @@ function markHandled(node) {
   catch (_) { }
 }
 
-function handleDashboardClick(evt) {
+function handleDashboardDrilldownClick(evt) {
   const target = evt && evt.target;
   if (!target || typeof target.closest !== 'function') return false;
 
@@ -120,11 +120,11 @@ function handleDashboardClick(evt) {
   return false;
 }
 
-function handleDashboardTap(evt, explicitTarget) {
+function handleDashboardDrilldownTap(evt, explicitTarget) {
   if (!evt && !explicitTarget) return false;
   const target = explicitTarget || evt.target;
   if (!target || typeof target.closest !== 'function') return false;
-  return handleDashboardClick({ ...evt, target });
+  return handleDashboardDrilldownClick({ ...evt, target });
 }
 
 function isSafeMode() {
@@ -133,11 +133,22 @@ function isSafeMode() {
   return /[?&]safe=1(?:&|$)/.test(search);
 }
 
-export async function initDashboard(options = {}) {
+function ensureDashboardDrilldown(root) {
+  if (!root || typeof root.addEventListener !== 'function') return;
+  if (root.__crmDashboardDrilldownBound) return;
+  root.addEventListener('click', handleDashboardDrilldownClick);
+  root.__crmDashboardDrilldownBound = true;
+}
+
+async function startDashboardInit(options = {}) {
   const root = options.root
     || (doc && typeof doc.getElementById === 'function' ? doc.getElementById('view-dashboard') : null);
   if (!root) return;
-  if (isSafeMode()) return;
+  const safeMode = isSafeMode();
+  if (safeMode) {
+    ensureDashboardDrilldown(root);
+    return;
+  }
   const mod = await import('../labs/dashboard.js');
   const initLabs = mod && typeof mod.initLabsCRMDashboard === 'function'
     ? mod.initLabsCRMDashboard
@@ -149,15 +160,22 @@ export async function initDashboard(options = {}) {
   }
 }
 
-export function __setDashboardDrilldownTestHooks(hooks = {}) {
-  drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
-  drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
+function setDashboardDrilldownTestHooks(hooks = {}) {
+  dashboardDrilldownHookState.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
+  dashboardDrilldownHookState.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
 }
 
-export function __getHandleDashboardClickForTest() {
-  return evt => handleDashboardClick(evt);
+function getHandleDashboardClickForTest() {
+  return evt => handleDashboardDrilldownClick(evt);
 }
 
-export function __getHandleDashboardTapForTest() {
-  return (evt, target) => handleDashboardTap(evt, target);
+function getHandleDashboardTapForTest() {
+  return (evt, target) => handleDashboardDrilldownTap(evt, target);
 }
+
+export {
+  startDashboardInit as initDashboard,
+  setDashboardDrilldownTestHooks as __setDashboardDrilldownTestHooks,
+  getHandleDashboardClickForTest as __getHandleDashboardClickForTest,
+  getHandleDashboardTapForTest as __getHandleDashboardTapForTest
+};
