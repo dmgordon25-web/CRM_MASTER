@@ -1563,6 +1563,41 @@ nav {
   --event-chip-border: color-mix(in srgb, var(--accent-task) 34%, transparent);
 }
 
+.event-chip[data-category="email"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-contact) 14%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-contact) 32%, transparent);
+}
+
+.event-chip[data-category="sms"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-partner) 16%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-partner) 34%, transparent);
+}
+
+.event-chip[data-category="postal"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-other) 15%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-other) 32%, transparent);
+}
+
+.event-chip[data-category="followup"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-milestone) 14%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-milestone) 30%, transparent);
+}
+
+.event-chip[data-category="nurture"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-nurture) 16%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-nurture) 34%, transparent);
+}
+
+.event-chip[data-category="partner"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-partner) 15%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-partner) 32%, transparent);
+}
+
+.event-chip[data-category="task"] {
+  --event-chip-bg: color-mix(in srgb, var(--accent-task) 14%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--accent-task) 30%, transparent);
+}
+
 .followup-scheduler {
   background: var(--surface-elevated, #fff);
   border: 1px solid rgba(148, 163, 184, .3);
