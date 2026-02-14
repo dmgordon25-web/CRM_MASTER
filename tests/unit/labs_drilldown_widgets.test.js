@@ -233,6 +233,20 @@ describe('Labs dashboard drilldowns', () => {
     expect(partnerRow.getAttribute('data-partner-id')).toBe('partner-2');
   });
 
+  it('stops bubbling for Priority Actions row clicks', () => {
+    const container = document.createElement('div');
+    const model = buildModel();
+
+    renderPriorityActionsWidget(container, model);
+    const contactRow = container.querySelector('[data-role="priority-row"][data-contact-id="contact-1"]');
+    expect(contactRow).not.toBeNull();
+
+    const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+    contactRow.dispatchEvent(evt);
+
+    expect(evt.defaultPrevented).toBe(true);
+  });
+
   it("Today's Work rows keep drilldown hooks after navigation cycles", () => {
     const container = document.createElement('div');
     const model = buildModel();
@@ -249,5 +263,19 @@ describe('Labs dashboard drilldowns', () => {
     const rerenderedTaskRow = container.querySelector('[data-role="today-row"][data-contact-id="contact-1"]');
     rerenderedTaskRow.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(rerenderedTaskRow.getAttribute('data-task-id')).toBe('task-today');
+  });
+
+  it("stops bubbling for Today's Work row clicks", () => {
+    const container = document.createElement('div');
+    const model = buildModel();
+
+    renderTodayWidget(container, model);
+    const taskRow = container.querySelector('[data-role="today-row"][data-contact-id="contact-1"]');
+    expect(taskRow).not.toBeNull();
+
+    const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+    taskRow.dispatchEvent(evt);
+
+    expect(evt.defaultPrevented).toBe(true);
   });
 });

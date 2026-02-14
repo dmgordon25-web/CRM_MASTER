@@ -87,6 +87,7 @@ function markHandled(node) {
 }
 
 function handleDashboardDrilldownClick(evt) {
+  if (evt && evt.defaultPrevented) return false;
   const target = evt && evt.target;
   if (!target || typeof target.closest !== 'function') return false;
 
