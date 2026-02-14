@@ -18,11 +18,13 @@ export class HelpSystem {
 
   register(id, { title, content, short, detailsHtml, detailsText }) {
     if (!id) return;
+    const previous = this.registry.get(id) || null;
+    const preserveRichContent = !!(previous && previous.detailsHtml && !detailsHtml && !detailsText && !short);
     const entry = {
-      title: title || id,
-      short: short || content || '',
-      detailsHtml: detailsHtml || '',
-      detailsText: detailsText || ''
+      title: preserveRichContent ? (previous.title || title || id) : (title || previous?.title || id),
+      short: preserveRichContent ? (previous.short || content || '') : (short || content || previous?.short || ''),
+      detailsHtml: detailsHtml || previous?.detailsHtml || '',
+      detailsText: detailsText || previous?.detailsText || ''
     };
     this.registry.set(id, entry);
   }
