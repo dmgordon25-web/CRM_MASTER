@@ -136,6 +136,7 @@ import dashboardState from './state/dashboard_state.js';
 
     const host = document.getElementById('reports-gridstack');
     if(!host) return null;
+    host.classList.add('grid-stack');
 
     const GridStack = await loadReportsGridstackLib();
     if(!GridStack) return null;
