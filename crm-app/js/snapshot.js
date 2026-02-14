@@ -3,13 +3,19 @@
   if (window.__SNAPSHOT_V1__) return; window.__SNAPSHOT_V1__ = true;
 
   async function exportJSON(){
-    const out = { contacts:[], partners:[], events:[], documents:[] };
-    try {
-      out.contacts  = await window.db.getAll?.("contacts")  || out.contacts;
-      out.partners  = await window.db.getAll?.("partners")  || out.partners;
-      out.events    = await window.db.getAll?.("events")    || out.events;
-      out.documents = await window.db.getAll?.("documents") || out.documents;
-    } catch (e) {}
+    let out = { contacts:[], partners:[], events:[], documents:[] };
+    if (typeof window.dbExportAll === "function") {
+      try {
+        out = { version: 2, stores: await window.dbExportAll() };
+      } catch (_err) {}
+    } else {
+      try {
+        out.contacts  = await window.db.getAll?.("contacts")  || out.contacts;
+        out.partners  = await window.db.getAll?.("partners")  || out.partners;
+        out.events    = await window.db.getAll?.("events")    || out.events;
+        out.documents = await window.db.getAll?.("documents") || out.documents;
+      } catch (_err) {}
+    }
     const blob = new Blob([JSON.stringify(out,null,2)], {type:"application/json"});
     const url  = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download=`crm_snapshot_${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
@@ -18,6 +24,12 @@
   async function restoreJSON(file){
     const json = await file.text();
     const data = JSON.parse(json);
+    if (data && (data.stores || data.version != null) && typeof window.dbRestoreAll === "function") {
+      const stores = data && typeof data.stores === "object" && data.stores ? data.stores : data;
+      await window.dbRestoreAll(stores);
+      window.dispatchAppDataChanged?.("snapshot:restore");
+      return;
+    }
     async function putAll(store, rows){
       for (const r of (rows||[])){ try { await window.db.put(store, r); } catch (e) {} }
     }
