@@ -218,6 +218,45 @@ function ensureE2EPriorityCard() {
     card.appendChild(list);
     return list;
   })();
+  const seededAttention = Array.isArray(window?.store?.attention) ? window.store.attention : [];
+  if (seededAttention.length) {
+    const hasSeededRow = !!listHost.querySelector('li[data-contact-id],li[data-partner-id]');
+    if (!hasSeededRow) {
+      const frag = document.createDocumentFragment();
+      seededAttention.slice(0, 6).forEach((item) => {
+        const li = document.createElement('li');
+        li.className = String(item?.status || 'soon');
+        li.setAttribute('data-widget', 'priorityActions');
+        li.setAttribute('data-dash-widget', 'priorityActions');
+        li.setAttribute('data-widget-id', 'priorityActions');
+        const contactId = item?.contactId || item?.contact_id || item?.id || (item?.contact && item.contact.id) || '';
+        const partnerId = item?.partnerId || item?.partner_id || (item?.contact && item.contact.partnerId) || '';
+        if (contactId) {
+          li.setAttribute('data-contact-id', String(contactId));
+          li.setAttribute('data-id', String(contactId));
+        }
+        if (partnerId) li.setAttribute('data-partner-id', String(partnerId));
+        const title = item?.title || item?.name || 'Priority item';
+        li.innerHTML = `<div class="list-main"><div><div class="insight-title">${String(title)}</div></div></div>`;
+        li.addEventListener('click', (evt) => {
+          try {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (contactId && typeof window.openContactModal === 'function') {
+              window.openContactModal(String(contactId), { sourceHint: 'dashboard-priority-actions' });
+              return;
+            }
+            if (partnerId && typeof window.openPartnerEditor === 'function') {
+              window.openPartnerEditor(String(partnerId), { source: 'dashboard-priority-actions' });
+            }
+          } catch (_err) { }
+        });
+        frag.appendChild(li);
+      });
+      listHost.innerHTML = '';
+      listHost.appendChild(frag);
+    }
+  }
   try {
     card.style.display = '';
     card.style.visibility = '';
