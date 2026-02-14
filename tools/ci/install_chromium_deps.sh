@@ -16,12 +16,42 @@ if [ -z "${SUDO}" ] && [ "$(id -u)" -ne 0 ]; then
   exit 0
 fi
 
-${SUDO}apt-get update
-${SUDO}apt-get install -y \
+choose_pkg() {
+  for pkg in "$@"; do
+    candidate=$(apt-cache policy "$pkg" | awk '/Candidate:/ { print $2 }' | head -n1)
+    if [ -n "${candidate:-}" ] && [ "$candidate" != "(none)" ]; then
+      echo "$pkg"
+      return 0
+    fi
+  done
+  return 1
+}
+
+apt_cmd() {
+  if [ "${APT_UBUNTU_ONLY:-0}" = "1" ]; then
+    ${SUDO}apt-get \
+      -o Dir::Etc::sourcelist=/etc/apt/sources.list \
+      -o Dir::Etc::sourceparts=/dev/null \
+      "$@"
+    return
+  fi
+  ${SUDO}apt-get "$@"
+}
+
+if ! apt_cmd update; then
+  echo "apt-get update failed with full source list; retrying with base Ubuntu sources only"
+  APT_UBUNTU_ONLY=1
+  apt_cmd update
+fi
+
+ALSA_PKG="$(choose_pkg libasound2 libasound2t64)"
+CUPS_PKG="$(choose_pkg libcups2 libcups2t64)"
+
+apt_cmd install -y \
   libnss3 \
   libatk1.0-0 \
   libatk-bridge2.0-0 \
-  libcups2 \
+  "${CUPS_PKG}" \
   libdrm2 \
   libxkbcommon0 \
   libxcomposite1 \
@@ -30,12 +60,12 @@ ${SUDO}apt-get install -y \
   libxrandr2 \
   libgbm1 \
   libpango-1.0-0 \
-  libasound2 \
+  "${ALSA_PKG}" \
   fonts-liberation \
   libxshmfence1 \
   libxcb1 \
   libx11-6 \
   ca-certificates
 
-${SUDO}apt-get clean
+apt_cmd clean
 ${SUDO}rm -rf /var/lib/apt/lists/*
