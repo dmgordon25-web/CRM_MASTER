@@ -1,7 +1,9 @@
 import { normalizeStatus } from './pipeline/constants.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import dashboardState from './state/dashboard_state.js';
-import './vendor/gridstack-all.js';
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && typeof navigator !== 'undefined') {
+  import('./vendor/gridstack-all.js').catch(() => {});
+}
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){

@@ -43,6 +43,7 @@ class FakeNode {
 function createEvent(target) {
   return {
     target,
+    defaultPrevented: false,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn()
   };
@@ -107,5 +108,19 @@ describe('dashboard drilldowns', () => {
     expect(handled).toBe(true);
     expect(openPartner).toHaveBeenCalledTimes(1);
     expect(openPartner).toHaveBeenCalledWith('partner-42');
+  });
+
+  it('ignores events already prevented by widget handlers', () => {
+    const row = new FakeNode({ 'data-contact-id': '123', 'data-dash-widget': 'priorityActions' });
+    const child = new FakeNode({}, row);
+    const event = createEvent(child);
+    event.defaultPrevented = true;
+    const openContact = vi.fn();
+    setTestHooks({ openContact });
+
+    const handled = handleDashboardTap(event, child);
+
+    expect(handled).toBe(false);
+    expect(openContact).not.toHaveBeenCalled();
   });
 });

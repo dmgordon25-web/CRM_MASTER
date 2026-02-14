@@ -87,6 +87,7 @@ function markHandled(node) {
 }
 
 function handleDashboardDrilldownClick(evt) {
+  if (evt && evt.defaultPrevented) return false;
   const target = evt && evt.target;
   if (!target || typeof target.closest !== 'function') return false;
 
@@ -120,7 +121,7 @@ function handleDashboardDrilldownClick(evt) {
   return false;
 }
 
-function handleDashboardTap(evt, explicitTarget) {
+function forwardDashboardTapToDrilldown(evt, explicitTarget) {
   if (!evt && !explicitTarget) return false;
   const target = explicitTarget || evt.target;
   if (!target || typeof target.closest !== 'function') return false;
@@ -140,7 +141,7 @@ function ensureDashboardDrilldown(root) {
   root.__crmDashboardDrilldownBound = true;
 }
 
-export async function initDashboard(options = {}) {
+const initDashboardInternal = async (options = {}) => {
   const root = options.root
     || (doc && typeof doc.getElementById === 'function' ? doc.getElementById('view-dashboard') : null);
   if (!root) return;
@@ -155,17 +156,20 @@ export async function initDashboard(options = {}) {
   if (typeof initLabs === 'function') {
     await initLabs(root);
   }
-}
+};
 
-export function __setDashboardDrilldownTestHooks(hooks = {}) {
+const setDashboardDrilldownTestHooksInternal = (hooks = {}) => {
   dashboardDrilldownHookState.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
   dashboardDrilldownHookState.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
-}
+};
 
-export function __getHandleDashboardClickForTest() {
-  return evt => handleDashboardDrilldownClick(evt);
-}
+const getHandleDashboardClickForTestInternal = () => evt => handleDashboardDrilldownClick(evt);
 
-export function __getHandleDashboardTapForTest() {
-  return (evt, target) => handleDashboardTap(evt, target);
-}
+const getHandleDashboardTapForTestInternal = () => (evt, target) => forwardDashboardTapToDrilldown(evt, target);
+
+export {
+  initDashboardInternal as initDashboard,
+  setDashboardDrilldownTestHooksInternal as __setDashboardDrilldownTestHooks,
+  getHandleDashboardClickForTestInternal as __getHandleDashboardClickForTest,
+  getHandleDashboardTapForTestInternal as __getHandleDashboardTapForTest
+};
