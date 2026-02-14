@@ -3512,6 +3512,24 @@ function bindDashboardEvents(container = getDashboardContainerNode()) {
   exposeDashboardDnDHandlers();
 }
 
+function bindDocCenterCardNavigation() {
+  if (!doc) return;
+  const card = doc.getElementById('doc-center-card');
+  if (!card || card.dataset.docCenterBound === '1') return;
+  card.dataset.docCenterBound = '1';
+  card.style.cursor = 'pointer';
+  if (!card.getAttribute('data-dashboard-route')) {
+    card.setAttribute('data-dashboard-route', '#doccenter');
+  }
+  card.addEventListener('click', (evt) => {
+    const target = evt && evt.target;
+    if (target && target.closest && target.closest('.help-icon,[data-help],[data-help-id],a,button,input,select,textarea,label')) {
+      return;
+    }
+    tryNavigateDashboardRoute('#doccenter', card);
+  });
+}
+
 function persistDashboardOrder(orderLike) {
   const normalized = normalizeOrderList(orderLike);
   const signature = normalized.join('|');
@@ -4710,7 +4728,8 @@ export function initDashboard(options = {}) {
     ensureWidgetDnD();
     refreshTodayHighlightWiring();
 
-    helpSystem.refresh(); // Auto-attaches to data-help-id elements
+    helpSystem.refresh(container);
+    bindDocCenterCardNavigation();
     if (doc) {
       try {
         const readyEvent = new CustomEvent('dashboard:widgets:ready', { bubbles: true });

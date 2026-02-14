@@ -4,6 +4,13 @@ function normalizeMeta(meta){
   return meta && typeof meta === 'object' ? meta : {};
 }
 
+function applyContactModalPolish(){
+  if (typeof document === 'undefined') return;
+  const modal = document.querySelector('[data-ui="contact-edit-modal"], #contact-modal');
+  if (!modal) return;
+  modal.classList.add('identity-nameplate-layout');
+}
+
 export function mountContactEditor(contactId, meta){
   const safeMeta = normalizeMeta(meta);
   const opts = {
@@ -13,7 +20,12 @@ export function mountContactEditor(contactId, meta){
     suppressErrorToast: safeMeta.suppressErrorToast === true,
   };
   const target = { id: contactId, __isNew: false };
-  return legacyOpenContactEditor(target, opts);
+  const result = legacyOpenContactEditor(target, opts);
+  applyContactModalPolish();
+  if (result && typeof result.then === 'function') {
+    result.then(() => applyContactModalPolish()).catch(() => {});
+  }
+  return result;
 }
 
 export function mountNewContactEditor(meta){
@@ -26,7 +38,12 @@ export function mountNewContactEditor(meta){
     prefill: safeMeta.prefill,
   };
   const prefill = Object.assign({ __isNew: true }, safeMeta.prefill || {});
-  return legacyOpenContactEditor(prefill, opts);
+  const result = legacyOpenContactEditor(prefill, opts);
+  applyContactModalPolish();
+  if (result && typeof result.then === 'function') {
+    result.then(() => applyContactModalPolish()).catch(() => {});
+  }
+  return result;
 }
 
 export default { mountContactEditor, mountNewContactEditor };

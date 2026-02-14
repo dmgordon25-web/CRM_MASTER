@@ -78,3 +78,44 @@
 .record-nameplate {
   display: none !important;
 }
+
+/* Editor modal polish: keep the identity nameplate as the main header */
+.record-modal.identity-nameplate-layout .modal-header .modal-title[data-role="record-name-text"],
+.record-modal.identity-nameplate-layout .modal-header #partner-title {
+  display: none;
+}
+
+.record-modal.identity-nameplate-layout .modal-form-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(420px, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.record-modal.identity-nameplate-layout .modal-summary {
+  display: contents;
+}
+
+.record-modal.identity-nameplate-layout .modal-summary > .identity-header,
+.record-modal.identity-nameplate-layout .modal-summary > .summary-meta {
+  grid-column: 1 / -1;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.record-modal.identity-nameplate-layout .modal-summary > .identity-header .summary-name-text,
+.record-modal.identity-nameplate-layout .modal-summary > .summary-meta .summary-name-text,
+.record-modal.identity-nameplate-layout .modal-summary > .summary-meta [data-role="record-name-text"] {
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.record-modal.identity-nameplate-layout .modal-summary .summary-metrics,
+.record-modal.identity-nameplate-layout .modal-summary .modal-note {
+  grid-column: 1;
+}
+
+.record-modal.identity-nameplate-layout .modal-main {
+  grid-column: 2;
+  grid-row: 2;
+}

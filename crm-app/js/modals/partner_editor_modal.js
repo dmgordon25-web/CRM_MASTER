@@ -4,6 +4,13 @@ function normalizeMeta(meta){
   return meta && typeof meta === 'object' ? meta : {};
 }
 
+function applyPartnerModalPolish(){
+  if (typeof document === 'undefined') return;
+  const modal = document.querySelector('[data-ui="partner-edit-modal"], #partner-modal');
+  if (!modal) return;
+  modal.classList.add('identity-nameplate-layout');
+}
+
 export function mountPartnerEditor(partnerId, meta){
   const safeMeta = normalizeMeta(meta);
   const opts = {
@@ -12,7 +19,12 @@ export function mountPartnerEditor(partnerId, meta){
     allowAutoOpen: safeMeta.allowAutoOpen !== false,
     suppressErrorToast: safeMeta.suppressErrorToast === true,
   };
-  return legacyOpenPartnerEditor(partnerId || '', opts);
+  const result = legacyOpenPartnerEditor(partnerId || '', opts);
+  applyPartnerModalPolish();
+  if (result && typeof result.then === 'function') {
+    result.then(() => applyPartnerModalPolish()).catch(() => {});
+  }
+  return result;
 }
 
 export function mountNewPartnerEditor(meta){
@@ -23,7 +35,12 @@ export function mountNewPartnerEditor(meta){
     allowAutoOpen: true,
     suppressErrorToast: safeMeta.suppressErrorToast === true,
   };
-  return legacyOpenPartnerEditor('', opts);
+  const result = legacyOpenPartnerEditor('', opts);
+  applyPartnerModalPolish();
+  if (result && typeof result.then === 'function') {
+    result.then(() => applyPartnerModalPolish()).catch(() => {});
+  }
+  return result;
 }
 
 export default { mountPartnerEditor, mountNewPartnerEditor };
