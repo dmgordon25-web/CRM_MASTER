@@ -157,15 +157,21 @@ export async function initDashboard(options = {}) {
   }
 }
 
-export function __setDashboardDrilldownTestHooks(hooks = {}) {
+function setDashboardDrilldownTestHooks(hooks = {}) {
   dashboardDrilldownHookState.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
   dashboardDrilldownHookState.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
 }
 
-export function __getHandleDashboardClickForTest() {
+function getHandleDashboardClickForTest() {
   return evt => handleDashboardDrilldownClick(evt);
 }
 
-export function __getHandleDashboardTapForTest() {
+function getHandleDashboardTapForTest() {
   return (evt, target) => handleDashboardTap(evt, target);
 }
+
+export {
+  setDashboardDrilldownTestHooks as __setDashboardDrilldownTestHooks,
+  getHandleDashboardClickForTest as __getHandleDashboardClickForTest,
+  getHandleDashboardTapForTest as __getHandleDashboardTapForTest
+};
