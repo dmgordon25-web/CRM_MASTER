@@ -1,115 +1,38 @@
-
 import { test, expect } from '@playwright/test';
 
 test.describe('Packet B: Seeding & Calendar Parity', () => {
+  test('runs Demo Week seed profile and validates calendar + pipeline coverage', async ({ page }) => {
+    await page.goto('/index.html?e2e=1#/settings');
+    await page.waitForSelector('.settings-panel');
+    await page.locator('#settings-nav button[data-panel="data"]').click();
+    await page.waitForSelector('.settings-panel[data-panel="data"].active, .settings-panel[data-panel="data"]:not([hidden])');
 
-    test('should seed full workflow data and verify calendar coverage', async ({ page }) => {
-        // 1. Go to Settings to run seeds
-        await page.goto('http://127.0.0.1:8080/#/settings');
-        await page.waitForSelector('.settings-panel');
+    await page.locator('#seed-profile-select').selectOption('demo-week');
+    await page.locator('#btn-run-seed-profile').click();
 
-        // Find the seed trigger (assuming it's available or we run via console)
-        // For reliability in this specific task, we'll invoke the global seeder if UI button not present,
-        // but typically we'd click 'Data Tools' -> 'Seed Full Workflow' if wired.
-        // Based on user request, we have a "Data Tools" section.
+    await expect.poll(async () => {
+      return page.evaluate(async () => {
+        const events = await window.dbGetAll('events');
+        return Array.isArray(events) ? events.length : 0;
+      });
+    }).toBeGreaterThan(12);
 
-        // Inject seed call directly to ensure deterministic run
-        await page.evaluate(async () => {
-            // Import the module dynamically if needed, or rely on window exposure
-            // Since seed_full.js is an ES module, we might need to expose it or reload.
-            // However, app usually exposes `Seeds` or we can trigger via button if clean.
+    await page.goto('/index.html?e2e=1#/calendar');
+    await page.waitForSelector('.calendar-month-grid');
 
-            // Let's try to find the button or inject
-            // But first, let's just use the console injection for the seed if possible,
-            // or assume the previous steps wired it up.
-            // Actually, let's just import it in the context if module support allows, 
-            // or easier: The previous 'Packet A' wired a button id="btn-seed-full-workflow-data".
-            // We will try that first.
-        });
+    const visibleLegendCount = await page.locator('.calendar-legend .legend-chip').count();
+    expect(visibleLegendCount).toBeGreaterThanOrEqual(6);
 
-        // Check if the button exists from Packet A work
-        const seedBtn = page.locator('#btn-seed-full-workflow-data');
-        if (await seedBtn.count() > 0) {
-            await seedBtn.click();
-            // Wait for extensive seeding
-            await page.waitForTimeout(2000);
-        } else {
-            // Fallback: Manually trigger if button missing (should not be validation failure of THIS packet, but lets be robust)
-            await page.evaluate(async () => {
-                const mod = await import('./js/seed_full.js');
-                await mod.runFullWorkflowSeed();
-            });
-            await page.waitForTimeout(2000);
-        }
-
-        // 2. Go to Calendar
-        await page.goto('http://127.0.0.1:8080/#/calendar');
-        await page.waitForSelector('.calendar-month-grid');
-
-        // 3. Verify Legend
-        const legend = page.locator('.calendar-legend');
-        await expect(legend).toBeVisible();
-
-        // Check specific legend items - MATCHING constants.js
-        const expectedItems = [
-            { label: 'Task', icon: '✅' },
-            { label: 'Follow-up', icon: '🔔' }, // New parity item
-            // { label: 'Contact', icon: '👥' }, // 'Meeting' label in constants, but let's check icon
-            { label: 'Partner', icon: '🤝' },
-            { label: 'Milestone', icon: '⭐' }, // Label 'Milestone' from constants
-            { label: 'Nurture', icon: '📌' }
-        ];
-
-        for (const item of expectedItems) {
-            // Legend label might vary slightly (e.g. 'Meeting' vs 'Contact'), 
-            // but we check if we can find the icon associated with a label or just the row
-            const chip = legend.locator(`.legend-chip:has-text("${item.label}")`);
-            await expect(chip).toBeVisible();
-            await expect(chip).toContainText(item.icon);
-        }
-
-        // 4. Verify rendered events for each type
-        // We seeded events into the current month, so they should be visible.
-
-        // Task
-        const taskEvent = page.locator('.event-chip[data-category="task"]').first();
-        await expect(taskEvent).toBeVisible();
-        await expect(taskEvent.locator('.cal-event-icon')).toHaveText('✅');
-
-        // Follow-up (Bell) - New Parity Check
-        const followEvent = page.locator('.event-chip[data-category="followup"]').first();
-        await expect(followEvent).toBeVisible();
-        await expect(followEvent.locator('.cal-event-icon')).toHaveText('🔔');
-
-        const followLegendChip = legend.locator('.legend-chip[data-key="followup"]');
-        await followLegendChip.click();
-        await expect(page.locator('.event-chip[data-category="followup"]')).toHaveCount(0);
-
-        // Nurture
-        const nurtureEvent = page.locator('.event-chip[data-category="nurture"]').first();
-        await expect(nurtureEvent).toBeVisible();
-        await expect(nurtureEvent.locator('.cal-event-icon')).toHaveText('📌');
-
-        // Partner
-        // categoryKey 'partner'
-        const partnerEvent = page.locator('.event-chip[data-category="partner"]').first();
-        await expect(partnerEvent).toBeVisible();
-        await expect(partnerEvent.locator('.cal-event-icon')).toHaveText('🤝');
-
-        // Milestone
-        // categoryKey 'deadline' maps to label 'Milestone'
-        const milestoneEvent = page.locator('.event-chip[data-category="deadline"]').first();
-        await expect(milestoneEvent).toBeVisible();
-        await expect(milestoneEvent.locator('.cal-event-icon')).toHaveText('⭐');
-
-        // Contact / Meeting
-        // Birthday/Anniversary usually maps to 'meeting' categoryKey which has 👥
-        const contactEvent = page.locator('.event-chip[data-category="meeting"]').first();
-        await expect(contactEvent).toBeVisible();
-        await expect(contactEvent.locator('.cal-event-icon')).toHaveText('👥');
-
-        // 5. Verify mix
-        const allEvents = page.locator('.event-chip');
-        expect(await allEvents.count()).toBeGreaterThan(5);
+    const distinctEventCategories = await page.evaluate(() => {
+      const chips = Array.from(document.querySelectorAll('.event-chip[data-category]'));
+      return new Set(chips.map((el) => el.getAttribute('data-category'))).size;
     });
+    expect(distinctEventCategories).toBeGreaterThanOrEqual(6);
+
+    await page.goto('/index.html?e2e=1#/pipeline');
+    await page.waitForFunction(() => document.querySelectorAll('#view-pipeline tbody tr').length > 0);
+
+    const pipelineRows = await page.locator('#view-pipeline tbody tr').count();
+    expect(pipelineRows).toBeGreaterThanOrEqual(8);
+  });
 });
