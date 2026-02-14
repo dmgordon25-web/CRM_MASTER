@@ -57,6 +57,7 @@
     root.style.alignItems = 'center';
     root.style.justifyContent = 'center';
     root.style.padding = '32px';
+    root.style.pointerEvents = 'none';
 
     const panel = doc.createElement('div');
     panel.style.background = 'rgba(15, 23, 42, 0.88)';
@@ -68,6 +69,7 @@
     panel.style.overflow = 'auto';
     panel.style.padding = '32px';
     panel.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    panel.style.pointerEvents = 'auto';
 
     const heading = doc.createElement('h2');
     heading.textContent = 'Boot diagnostics';
