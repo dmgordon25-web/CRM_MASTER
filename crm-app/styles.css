@@ -1462,8 +1462,11 @@ nav {
   gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-lg);
+  --event-chip-bg: color-mix(in srgb, var(--event-accent) 12%, #fff);
+  --event-chip-border: color-mix(in srgb, var(--event-accent) 36%, rgba(148, 163, 184, .26));
   background: var(--event-chip-bg);
   border: 1px solid var(--event-chip-border);
+  border-inline-start: 5px solid var(--event-accent);
   box-shadow: var(--event-chip-shadow);
   position: relative;
   isolation: isolate;
@@ -6494,12 +6497,20 @@ main:not(#view-calendar) .calendar-grid {
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ink, #1e293b);
-  padding: 4px 8px;
-  border-radius: 6px;
-  background-color: var(--surface-offset, #f8fafc);
-  border: 1px solid var(--border-subtle, #e2e8f0);
+  padding: 4px 10px;
+  border-radius: 7px;
+  --legend-color: var(--accent-other);
+  background: color-mix(in srgb, var(--legend-color) 14%, #fff);
+  border: 1px solid color-mix(in srgb, var(--legend-color) 34%, rgba(148, 163, 184, .24));
+  border-inline-start: 4px solid var(--legend-color);
+}
+
+.legend-chip.is-muted,
+.legend-chip[data-enabled="0"] {
+  opacity: .58;
+  text-decoration: line-through;
 }
 
 /* Color indicator swatch effect */
@@ -6510,6 +6521,17 @@ main:not(#view-calendar) .calendar-grid {
   height: 8px;
   border-radius: 50%;
   background-color: var(--legend-color);
+}
+
+.legend-reset {
+  border: 0;
+  background: none;
+  color: var(--accent-contact, #2563eb);
+  font-weight: 600;
+  font-size: .8rem;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 2px;
 }
 
 .legend-icon {

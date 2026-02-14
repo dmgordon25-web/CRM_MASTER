@@ -81,6 +81,10 @@ test.describe('Packet B: Seeding & Calendar Parity', () => {
         await expect(followEvent).toBeVisible();
         await expect(followEvent.locator('.cal-event-icon')).toHaveText('🔔');
 
+        const followLegendChip = legend.locator('.legend-chip[data-key="followup"]');
+        await followLegendChip.click();
+        await expect(page.locator('.event-chip[data-category="followup"]')).toHaveCount(0);
+
         // Nurture
         const nurtureEvent = page.locator('.event-chip[data-category="nurture"]').first();
         await expect(nurtureEvent).toBeVisible();

@@ -157,7 +157,8 @@ export async function runFullWorkflowSeed() {
 
     // 4. Calendar Events (15+)
     // Directly inject into 'events' store for Partner events and manual items
-    const eventTypes = ['meeting', 'call', 'partner', 'nurture', 'email', 'sms', 'postal', 'followup', 'task', 'deadline', 'other'];
+    const requiredEventTypes = ['call', 'email', 'sms', 'postal', 'followup', 'nurture', 'partner', 'meeting', 'deadline', 'other'];
+    const eventTypes = [...requiredEventTypes, 'task'];
 
     for (let i = 0; i < 24; i++) {
         const id = getId('event', i + 1);

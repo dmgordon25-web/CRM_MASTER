@@ -1979,12 +1979,25 @@ export function initCalendar({ openDB, bus, services, mount }) {
         mount.parentNode.insertBefore(legendContainer, mount);
       }
     }
-    renderLegend(legendContainer, { visibility: state.legendVisibility, onToggle: handleLegendToggle });
+    renderLegend(legendContainer, {
+      visibility: state.legendVisibility,
+      onToggle: handleLegendToggle,
+      onReset: handleLegendReset,
+    });
   }
 
   function handleLegendToggle(categoryKey, enabled) {
     if (!categoryKey) return;
     state.legendVisibility = normalizeLegendVisibility({ ...state.legendVisibility, [categoryKey]: enabled !== false });
+    persistLegendVisibility(state.legendVisibility);
+    renderLegendUI();
+    state.renderCount += 1;
+    state.loading = false;
+    renderSurface(mount, state, handlers);
+  }
+
+  function handleLegendReset() {
+    state.legendVisibility = buildLegendDefaults();
     persistLegendVisibility(state.legendVisibility);
     renderLegendUI();
     state.renderCount += 1;
