@@ -676,17 +676,23 @@ function runPatch() {
   }
 
   function updateDashboardModeControls() {
+    const modeFromState = typeof dashboardState?.getMode === 'function'
+      ? dashboardState.getMode()
+      : state.dashboard.mode;
+    const activeMode = modeFromState === 'all' ? 'all' : 'today';
+    state.dashboard.mode = activeMode;
+
     const caption = document.getElementById('dashboard-mode-caption');
     if (caption) {
-      caption.textContent = state.dashboard.mode === 'all'
+      caption.textContent = activeMode === 'all'
         ? 'Viewing all dashboard widgets.'
-        : 'Focus on today\'s priorities.';
+        : 'Focus on today's priorities.';
     }
     if (typeof document.querySelectorAll === 'function') {
       const buttons = document.querySelectorAll('[data-dashboard-mode]');
       buttons.forEach(btn => {
         const mode = btn.getAttribute('data-dashboard-mode');
-        btn.classList.toggle('active', mode === state.dashboard.mode);
+        btn.classList.toggle('active', mode === activeMode);
       });
     }
   }

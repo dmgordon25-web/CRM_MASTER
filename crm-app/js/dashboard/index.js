@@ -4188,14 +4188,14 @@ function setDashboardMode(mode, options = {}) {
     return normalized;
   }
 
-  // FIX: Ensure Layout/Labs Classic state is synced FIRST, before we try to render widgets.
-  // This prevents the legacy renderer from running/flickering if we are switching to All.
-  syncLayoutModeForDashboard(normalized);
-
   if (!prefCache.value) {
     prefCache.value = defaultPrefs();
   }
   prefCache.value.mode = normalized;
+
+  // Keep pref cache aligned before syncing layout so scheduleApply reads the new mode.
+  // This prevents a stale Today mode repaint from immediately clearing the All toggle state.
+  syncLayoutModeForDashboard(normalized);
 
   applyModeButtonState(normalized);
   applySurfaceVisibility(prefCache.value);
@@ -4254,6 +4254,7 @@ function syncLayoutModeForDashboard(mode) {
   } else {
     unmountLabsClassicFromDashboard();
   }
+  applyModeButtonState(normalized);
   syncDashboardMode({ force: true, allowLayoutReset: false });
 }
 
@@ -4661,6 +4662,7 @@ function wireDashboardModeButtons() {
     btn.__modeWired = true;
     btn.addEventListener('click', (evt) => {
       evt.preventDefault();
+      evt.stopPropagation();
       const mode = btn.getAttribute('data-dashboard-mode');
       if (mode) setDashboardMode(mode);
     });
