@@ -789,7 +789,7 @@ function createHeader() {
       <div class="labs-config-controls" data-qa="config-controls">
         <label class="labs-config-label">
           <span>Layout:</span>
-          <select data-action="config-select" class="labs-config-select" size="2">
+          <select data-action="config-select" class="labs-config-select">
             <option value="recommended">★ Recommended</option>
           </select>
           <span class="labs-config-dirty" data-role="dirty-indicator" style="display:none; color:var(--warning-color, #f59e0b); margin-left:4px;">(unsaved)</span>

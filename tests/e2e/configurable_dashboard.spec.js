@@ -9,13 +9,13 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Configurable Dashboard Consolidation', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('http://127.0.0.1:8125/#/labs');
+        await page.goto('/#/labs');
         // Wait for the Labs dashboard to initialize
         await page.waitForSelector('[data-qa="labs-header"]', { timeout: 15000 });
     });
 
     test('Dashboard (Configurable) tab exists and is labeled correctly', async ({ page }) => {
-        await page.goto('http://127.0.0.1:8125/');
+        await page.goto('/');
 
         // Verify the nav button exists with correct text
         const navButton = page.locator('button[data-nav="labs"]');
@@ -52,8 +52,11 @@ test.describe('Configurable Dashboard Consolidation', () => {
 
         // Verify Recommended option exists
         const recommendedOption = dropdown.locator('option[value="recommended"]');
-        await expect(recommendedOption).toBeVisible();
+        await expect(recommendedOption).toHaveCount(1);
         await expect(recommendedOption).toContainText('Recommended');
+
+        await dropdown.selectOption('recommended');
+        await expect(dropdown).toHaveValue('recommended');
     });
 
     test('Configuration action buttons exist', async ({ page }) => {
@@ -97,7 +100,7 @@ test.describe('Configurable Dashboard Consolidation', () => {
 
     test('Legacy dashboard does not have drag/resize UI', async ({ page }) => {
         // Navigate to legacy dashboard
-        await page.goto('http://127.0.0.1:8125/#/dashboard');
+        await page.goto('/#/dashboard');
         await page.waitForSelector('#view-dashboard', { state: 'visible', timeout: 10000 });
 
         // Wait for dashboard to render
