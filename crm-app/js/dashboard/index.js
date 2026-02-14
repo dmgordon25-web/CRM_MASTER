@@ -1,1283 +1,165 @@
-import { makeDraggableGrid, destroyDraggable, listenerCount, setDebugTodayMode, setDebugSelectedIds, bumpDebugResized } from '../ui/drag_core.js';
-import { acquireRouteLifecycleToken } from '../ui/route_lifecycle.js';
-import { setDashboardLayoutMode, readStoredLayoutMode, resetLayout, setDashboardLayoutProfile } from '../ui/dashboard_layout.js';
-
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditor } from '../editors/partner_entry.js';
-import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
-import { attachStatusBanner } from '../ui/status_banners.js';
-import { attachLoadingBlock, detachLoadingBlock } from '../ui/loading_block.js';
-import dashboardState from '../state/dashboard_state.js';
-import { isSimpleMode, onUiModeChanged } from '../ui/ui_mode.js';
-import {
-  DASHBOARD_WIDGETS,
-  buildDefaultConfig,
-  normalizeDashboardConfig,
-  readDashboardConfig,
-  writeDashboardConfig,
-  isTodayWidget,
-  DEFAULT_WIDGET_SET,
-  PREVIEW_WIDGET_SET,
-  DOC_CENTER_WIDGET_ENABLED
-} from './config.js';
-import { helpSystem } from '../utils/help_system.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
-const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
-let releaseDashboardRouteToken = null;
 
-// Labs-only: edit mode and drag/drop are disabled in normal runtime
-const DASHBOARD_EDITING_LABS_ENABLED = true;
-
-function setDebugWidths(values) {
-  if (!win || typeof win !== 'object') return;
-  const root = win.__DND_DEBUG__ && typeof win.__DND_DEBUG__ === 'object' ? win.__DND_DEBUG__ : (win.__DND_DEBUG__ = {});
-  root.widths = Array.isArray(values) ? values.map(val => (val == null ? '' : String(val))).filter(Boolean) : [];
-}
-
-const CELEBRATIONS_WIDGET_KEY = 'upcomingCelebrations';
-const CELEBRATIONS_WIDGET_ID = 'dashboard-celebrations';
-const CELEBRATIONS_WIDGET_TITLE = 'Upcoming Birthdays & Anniversaries (7 days)';
-const CELEBRATIONS_WINDOW_DAYS = 7;
-const DASHBOARD_INIT_ERROR_ROLE = 'dashboard-init-error';
-
-let dashboardInitPromise = null;
-let dashboardInitialized = false;
-let dashboardEventsBound = false;
-let dashboardUiModeUnsub = null;
-
-const DASHBOARD_CONTAINER_SELECTOR = 'main[data-ui="dashboard-root"]';
-const DASHBOARD_ITEM_SELECTOR = ':scope > [data-dash-widget]';
-const DASHBOARD_WIDGET_NODE_SELECTOR = 'section.card, section.grid, div.card, section.status-stack';
-const DASHBOARD_ORDER_STORAGE_KEY = 'crm:dashboard:widget-order';
-const DASHBOARD_LAYOUT_MODE_STORAGE_KEY = 'dash:layoutMode:v1';
-const DASHBOARD_STYLE_ID = 'dashboard-dnd-style';
-const DASHBOARD_STYLE_ORIGIN = 'crm:dashboard:dnd';
 const DASHBOARD_DRILLDOWN_SELECTOR = '[data-id],[data-contact-id],[data-partner-id],[data-dashboard-route],[data-dash-route],[data-dashboard-href],[data-dash-href]';
-const TODAY_MODE_BUTTON_SELECTOR = '[data-dashboard-mode="today"]';
-const TODAY_PRIORITIES_CONTAINER_CLASSES = ['query-shell'];
-const TODAY_PRIORITIES_HEADING_CLASSES = ['insight-pill', 'core'];
-const DASHBOARD_MIN_COLUMNS = 3;
-const DASHBOARD_MAX_COLUMNS = 4;
+const DASHBOARD_HANDLED_CLICK_KEY = '__crmDashHandledClickAt';
 
-const DASHBOARD_RESIZE_HANDLES = [
-  { key: 'e', qa: 'resize-e', label: 'Resize from right edge' },
-  { key: 'se', qa: 'resize-se', label: 'Resize from bottom right corner' },
-  { key: 'ne', qa: 'resize-ne', label: 'Resize from top right corner' }
-];
+const drilldownTestHooks = { openContact: null, openPartner: null };
 
-const DASHBOARD_WIDTH_SEQUENCE = ['third', 'half', 'twoThird', 'full'];
-const DASHBOARD_WIDTH_DEBUG_LABELS = { third: '1/3', half: '1/2', twoThird: '2/3', full: '1/1' };
-
-const DASHBOARD_WIDTH_SET = new Set(DASHBOARD_WIDTH_SEQUENCE);
-const DASHBOARD_DEFAULT_WIDTH = 'third';
-const DASHBOARD_DEFAULT_WIDTHS = {
-  today: 'full',
-  pipeline: 'twoThird',
-  goalProgress: 'twoThird',
-  numbersMomentum: 'twoThird',
-  pipelineCalendar: 'twoThird'
-};
-const TODAY_WIDGET_KEYS = new Set([
-  'focus',
-  'today',
-  'todo',
-  'favorites',
-  'priorityActions', // Default-visible in today mode; missing pref should not hide it.
-  CELEBRATIONS_WIDGET_KEY
-]);
-
-const DEFAULT_WIDGET_KEY_SET = new Set(DEFAULT_WIDGET_SET);
-const PREVIEW_WIDGET_KEY_SET = new Set(PREVIEW_WIDGET_SET);
-
-const todayHighlightState = {
-  modeObserver: null,
-  modeButton: null,
-  hostObserver: null,
-  host: null
-};
-
-function isSimpleDashboardMode() {
-  return typeof isSimpleMode === 'function' ? isSimpleMode() : false;
-}
-
-const KPI_KEYS = [
-  'kpiNewLeads7d',
-  'kpiActivePipeline',
-  'kpiFundedYTD',
-  'kpiFundedVolumeYTD',
-  'kpiAvgCycleLeadToFunded',
-  'kpiTasksToday',
-  'kpiTasksOverdue',
-  'kpiReferralsYTD'
-];
-
-const GRAPH_RESOLVERS = {
-  goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
-  numbersPortfolio: () => doc ? doc.getElementById('numbers-portfolio-card') : null,
-  numbersMomentum: () => doc ? doc.getElementById('numbers-momentum-card') : null,
-  pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null
-};
-
-function ensureStyle(originId, cssText, legacyId) {
-  if (!doc) return null;
-  const head = doc.head || doc.getElementsByTagName('head')[0] || doc.documentElement;
-  if (!head || typeof head.appendChild !== 'function') return null;
-  const selector = `style[data-origin="${originId}"]`;
-  let style = typeof doc.querySelector === 'function' ? doc.querySelector(selector) : null;
-  if (!style && legacyId && typeof doc.getElementById === 'function') {
-    style = doc.getElementById(legacyId);
+function safeOpenContact(contactId) {
+  if (!contactId) return false;
+  const hook = drilldownTestHooks.openContact;
+  if (typeof hook === 'function') {
+    hook(String(contactId));
+    return true;
   }
-  if (style) {
-    if (style.getAttribute && style.getAttribute('data-origin') !== originId) {
-      try { style.setAttribute('data-origin', originId); }
-      catch (_) { }
-    }
-    if (typeof cssText === 'string' && style.textContent !== cssText) {
-      style.textContent = cssText;
-    }
-    return style;
+  if (typeof openContactModal === 'function') {
+    openContactModal(String(contactId));
+    return true;
   }
-  style = doc.createElement('style');
-  if (legacyId) style.id = legacyId;
-  style.setAttribute('data-origin', originId);
-  if (typeof cssText === 'string') {
-    style.textContent = cssText;
+  return false;
+}
+
+function safeOpenPartner(partnerId) {
+  if (!partnerId) return false;
+  const hook = drilldownTestHooks.openPartner;
+  if (typeof hook === 'function') {
+    hook(String(partnerId));
+    return true;
   }
-  head.appendChild(style);
-  return style;
-}
-
-const WIDGET_RESOLVERS = {
-  focus: () => doc ? doc.getElementById('dashboard-focus') : null,
-  filters: () => doc ? doc.getElementById('dashboard-filters') : null,
-  kpis: () => doc ? doc.getElementById('dashboard-kpis') : null,
-  pipeline: () => doc ? doc.getElementById('dashboard-pipeline-overview') : null,
-  today: () => doc ? doc.getElementById('dashboard-today') : null,
-  leaderboard: () => doc ? doc.getElementById('numbers-referrals-card') : null,
-  stale: () => doc ? doc.getElementById('dashboard-stale') : null,
-  favorites: () => doc ? doc.getElementById('favorites-card') : null,
-  goalProgress: () => doc ? doc.getElementById('goal-progress-card') : null,
-  numbersPortfolio: () => doc ? doc.getElementById('numbers-portfolio-card') : null,
-  numbersReferrals: () => doc ? doc.getElementById('numbers-referrals-card') : null,
-  numbersMomentum: () => doc ? doc.getElementById('numbers-momentum-card') : null,
-  pipelineCalendar: () => doc ? doc.getElementById('pipeline-calendar-card') : null,
-  todo: () => doc ? doc.getElementById('dashboard-todo') : null,
-  priorityActions: () => doc ? doc.getElementById('priority-actions-card') : null,
-  milestones: () => doc ? doc.getElementById('milestones-card') : null,
-  docPulse: () => doc ? doc.getElementById('doc-pulse-card') : null,
-  relationshipOpportunities: () => doc ? doc.getElementById('rel-opps-card') : null,
-  clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
-  closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
-  upcomingCelebrations: resolveCelebrationsWidget
-};
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_RESOLVERS.docCenter = () => doc ? doc.getElementById('doc-center-card') : null;
-}
-
-const WIDGET_CARD_RESOLVERS = {
-  priorityActions: () => {
-    if (!doc) return null;
-    const node = doc.getElementById('needs-attn');
-    return node ? node.closest('.insight-card') : null;
-  },
-  milestones: () => {
-    if (!doc) return null;
-    const node = doc.getElementById('upcoming');
-    return node ? node.closest('.insight-card') : null;
-  },
-  docPulse: () => {
-    if (!doc) return null;
-    const node = doc.getElementById('doc-status-summary');
-    return node ? node.closest('.insight-card') : null;
-  },
-  relationshipOpportunities: () => doc ? doc.getElementById('rel-opps-card') : null,
-  clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
-  closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
-};
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_CARD_RESOLVERS.docCenter = () => {
-    if (!doc) return null;
-    const node = doc.getElementById('doc-center-card');
-    return node ? node.closest('.card') : null;
-  };
-}
-
-function ensureE2EPriorityCard() {
-  if (!doc || typeof document === 'undefined') return;
-  let search = '';
-  try { search = typeof window?.location?.search === 'string' ? window.location.search : ''; }
-  catch (_) { search = ''; }
-  if (!/[?&]e2e=1(?:&|$)/.test(search || '')) return;
-  let card = doc.getElementById('priority-actions-card');
-  if (!card) {
-    card = document.createElement('div');
-    card.id = 'priority-actions-card';
-    card.className = 'card insight-card';
-    card.dataset.widget = 'priorityActions';
-    card.dataset.dashWidget = 'priorityActions';
-    card.dataset.widgetId = 'priorityActions';
-    const list = document.createElement('ul');
-    list.id = 'needs-attn';
-    card.appendChild(list);
-    const host = doc.getElementById('view-dashboard');
-    if (!host) return;
-    host.appendChild(card);
+  if (typeof openPartnerEditor === 'function') {
+    openPartnerEditor(String(partnerId));
+    return true;
   }
-  const listHost = card.querySelector('#needs-attn') || (() => {
-    const list = document.createElement('ul');
-    list.id = 'needs-attn';
-    card.appendChild(list);
-    return list;
-  })();
-  try {
-    card.style.display = '';
-    card.style.visibility = '';
-    card.style.opacity = '1';
-    card.style.pointerEvents = 'auto';
-    card.removeAttribute('hidden');
-    card.removeAttribute('aria-hidden');
-    listHost.style.display = '';
-    listHost.style.visibility = 'visible';
-    listHost.style.opacity = '1';
-    listHost.style.pointerEvents = 'auto';
-    listHost.removeAttribute('hidden');
-  } catch (_) { }
-}
-
-const WIDGET_DOM_ID_MAP = {
-  focus: 'dashboard-focus',
-  filters: 'dashboard-filters',
-  kpis: 'dashboard-kpis',
-  pipeline: 'dashboard-pipeline-overview',
-  today: 'dashboard-today',
-  leaderboard: 'numbers-referrals-card',
-  stale: 'dashboard-stale',
-  favorites: 'favorites-card',
-  goalProgress: 'goal-progress-card',
-  numbersPortfolio: 'numbers-portfolio-card',
-  numbersReferrals: 'numbers-referrals-card',
-  numbersMomentum: 'numbers-momentum-card',
-  pipelineCalendar: 'pipeline-calendar-card',
-  todo: 'dashboard-todo',
-  priorityActions: 'priority-actions-card',
-  milestones: 'milestones-card',
-  docPulse: 'doc-pulse-card',
-  relationshipOpportunities: 'rel-opps-card',
-  clientCareRadar: 'nurture-card',
-  closingWatch: 'closing-watch-card',
-  upcomingCelebrations: CELEBRATIONS_WIDGET_ID
-};
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_DOM_ID_MAP.docCenter = 'doc-center-card';
-}
-
-if (!DOC_CENTER_WIDGET_ENABLED && doc) {
-  const docCenterNode = doc.getElementById('doc-center-card');
-  if (docCenterNode) {
-    docCenterNode.setAttribute('hidden', 'hidden');
-    docCenterNode.style.display = 'none';
-    docCenterNode.style.visibility = 'hidden';
-  }
-}
-
-function logDashboardWidgetError(widgetKey, error) {
-  if (!error) return;
-  try {
-    if (console && typeof console.error === 'function') {
-      console.error(`[DASHBOARD_WIDGET_ERROR:${widgetKey}]`, error);
-    }
-  } catch (_) { }
-}
-
-ensureE2EPriorityCard();
-try { doc && doc.addEventListener && doc.addEventListener('app:data:changed', ensureE2EPriorityCard, { passive: true }); }
-catch (_) { }
-
-const WIDGET_ID_LOOKUP = new Map();
-
-function registerWidgetLookupId(value, key) {
-  if (!value || !key) return;
-  const normalized = String(value).trim();
-  if (!normalized) return;
-  if (!WIDGET_ID_LOOKUP.has(normalized)) {
-    WIDGET_ID_LOOKUP.set(normalized, key);
-  }
-  const lower = normalized.toLowerCase();
-  if (!WIDGET_ID_LOOKUP.has(lower)) {
-    WIDGET_ID_LOOKUP.set(lower, key);
-  }
-}
-
-Object.entries(WIDGET_DOM_ID_MAP).forEach(([key, domId]) => {
-  registerWidgetLookupId(domId, key);
-});
-
-function refreshWidgetIdLookup() {
-  if (!doc) return;
-  Object.entries(WIDGET_RESOLVERS).forEach(([key, resolver]) => {
-    let node = null;
-    try {
-      node = resolver();
-    } catch (_err) {
-      node = null;
-    }
-    if (!node) return;
-    registerWidgetLookupId(node.id, key);
-    const dataset = node.dataset || {};
-    ['dashWidget', 'widgetId', 'widget', 'widgetKey'].forEach(attr => {
-      if (!dataset[attr]) return;
-      registerWidgetLookupId(dataset[attr], key);
-    });
-  });
-}
-
-function normalizeDashboardModeKey(mode) {
-  if (mode === 'customized') return 'customized';
-  if (mode === 'preview') return 'preview';
-  return 'default';
-}
-
-function getDashboardConfigState(mode) {
-  const normalizedMode = normalizeDashboardModeKey(mode);
-  if (normalizedMode === 'customized') {
-    return normalizeDashboardConfig(readDashboardConfig('default'), { mode: 'default' });
-  }
-  return normalizeDashboardConfig(buildDefaultConfig(normalizedMode), { mode: normalizedMode });
-}
-
-function resetDashboardConfigState(mode) {
-  return getDashboardConfigState(mode);
-}
-
-function clearDashboardConfigStorage() {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('dashboard:config:v1');
-    }
-  } catch (_err) { }
-  try { readDashboardConfig('default'); } catch (_err2) { }
-}
-
-function resolveWidgetKeyFromId(rawId) {
-  if (rawId == null) return '';
-  const normalized = String(rawId).trim();
-  if (!normalized) return '';
-  const direct = WIDGET_ID_LOOKUP.get(normalized) || WIDGET_ID_LOOKUP.get(normalized.toLowerCase());
-  if (direct) return direct;
-  refreshWidgetIdLookup();
-  return WIDGET_ID_LOOKUP.get(normalized) || WIDGET_ID_LOOKUP.get(normalized.toLowerCase()) || '';
-}
-
-const GRAPH_KEYS = new Set(Object.keys(GRAPH_RESOLVERS));
-const WIDGET_CARD_KEYS = new Set(Object.keys(WIDGET_CARD_RESOLVERS));
-
-const prefCache = { value: null, loading: null };
-let lastPersistedLayoutColumns = null;
-let pendingLayoutPersist = null;
-const DASHBOARD_WIDGET_EDITING_CLASS = 'dash-widget-editing';
-
-const dashDnDState = {
-  controller: null,
-  container: null,
-  orderSignature: '',
-  pointerHandlers: null,
-  active: false,
-  columns: DASHBOARD_MIN_COLUMNS,
-  pendingColumns: null,
-  lastAppliedColumns: null,
-  widths: new Map(),
-  resizeSession: null,
-  hostObserver: null,
-  hostObserverTarget: null,
-  hostNode: null,
-  lastTeardownReason: '',
-  editing: false,
-  updatingEditing: false
-};
-
-function isDashboardEditingEnabled() {
-  return DASHBOARD_EDITING_LABS_ENABLED && !!dashDnDState.editing;
-}
-
-function applyRootEditingState(container, enabled) {
-  if (!container) return;
-  if (enabled) {
-    try { container.setAttribute('data-editing', '1'); } catch (_err) { }
-  } else {
-    if (container.removeAttribute) {
-      try { container.removeAttribute('data-editing'); } catch (_err) { }
-    }
-  }
-}
-
-function applyWidgetEditingMarkers(container, enabled) {
-  if (!container) return;
-  const nodes = collectWidgetNodes(container);
-  if (!nodes.length) return;
-  nodes.forEach(node => {
-    if (!node) return;
-    if (node.classList) {
-      if (enabled) {
-        node.classList.add(DASHBOARD_WIDGET_EDITING_CLASS);
-      } else {
-        node.classList.remove(DASHBOARD_WIDGET_EDITING_CLASS);
-      }
-    }
-  });
-}
-
-const layoutToggleState = {
-  button: null,
-  viewLabel: null,
-  editLabel: null,
-  mode: false,
-  wired: false,
-  storageBound: false,
-  bootstrapped: false,
-  modeListenerBound: false
-};
-
-const layoutResetState = {
-  button: null,
-  emptyButton: null,
-  pending: false
-};
-
-const layoutChromeState = {
-  customizeButton: null,
-  advancedHost: null,
-  customizeBanner: null
-};
-
-// Labs classic mount state for Dashboard All mode
-let labsClassicMounted = false;
-let labsClassicHost = null;
-
-function getLabsClassicHost() {
-  if (!doc) return null;
-  let host = doc.querySelector('#dashboard-labs-classic-host');
-  if (!host) {
-    host = doc.createElement('div');
-    host.id = 'dashboard-labs-classic-host';
-    host.className = 'dashboard-labs-classic-host';
-    host.dataset.qa = 'dashboard-labs-classic';
-    host.dataset.noZnext = 'true';
-    // FIX: Mark as embedded so Labs knows to suppress its internal header/hero
-    host.dataset.embedded = 'true';
-  }
-
-  // Ensure strict placement: Mount OUTSIDE view-dashboard (as a sibling)
-  // This fixes the layout constraint issue even if the element was created previously
-  const dashboardView = doc.getElementById('view-dashboard');
-  if (dashboardView && dashboardView.parentNode) {
-    if (host.parentNode !== dashboardView.parentNode) {
-      dashboardView.parentNode.appendChild(host);
-    }
-  }
-  return host;
-}
-
-async function mountLabsClassicInDashboard() {
-  if (labsClassicMounted) return;
-  const host = getLabsClassicHost();
-  if (!host) return;
-
-  // Hide the entire dashboard container (removes sidebar/config shell constraints)
-  const dashboardView = doc.getElementById('view-dashboard');
-  if (dashboardView) {
-    dashboardView.hidden = true;
-    dashboardView.style.setProperty('display', 'none', 'important');
-  }
-
-  // Keep header visible hooks but hide customize controls
-  // (Note: header might be outside or inside view-dashboard depending on layout, 
-  // but customize controls need explicit hiding if they are global)
-  const dashboardHeader = doc.getElementById('dashboard-header');
-  if (dashboardHeader) {
-    dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
-      .forEach(el => { el.hidden = true; });
-  }
-  host.hidden = false;
-  try {
-    const labsModule = await import('../labs/entry.js');
-    await labsModule.initLabs(host);
-    labsClassicMounted = true;
-    console.info('[dashboard] Labs classic mounted in Dashboard All mode');
-  } catch (err) {
-    console.error('[dashboard] Failed to mount Labs classic:', err);
-    host.innerHTML = '<div class="card"><div class="muted">Unable to load Labs classic view.</div></div>';
-  }
-}
-
-async function unmountLabsClassicFromDashboard() {
-  if (!labsClassicMounted) return;
-  const host = getLabsClassicHost();
-  if (host) {
-    host.hidden = true;
-    host.innerHTML = '';
-  }
-
-  // Restore dashboard container
-  const dashboardView = doc.getElementById('view-dashboard');
-  if (dashboardView) {
-    dashboardView.hidden = false;
-    dashboardView.style.removeProperty('display');
-  }
-
-  // Keep legacy edit UI hidden since we never want it
-  const dashboardHeader = doc.getElementById('dashboard-header');
-  if (dashboardHeader) {
-    dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
-      .forEach(el => { el.hidden = true; });
-  }
-  try {
-    const labsModule = await import('../labs/entry.js');
-    if (typeof labsModule.unmountLabs === 'function') {
-      await labsModule.unmountLabs();
-    }
-  } catch (_) { }
-  labsClassicMounted = false;
-  console.info('[dashboard] Labs classic unmounted from Dashboard');
-}
-
-const dashboardChromeState = {
-  header: null,
-  mode: 'default',
-  previewBadge: null
-};
-
-
-function resolveDashboardDrilldownDispatcher() {
-  const shared = win && typeof win.__DASHBOARD_DRILLDOWN__ === 'function'
-    ? win.__DASHBOARD_DRILLDOWN__
-    : (win && typeof win.__DEMO_DASHBOARD_DRILLDOWN__ === 'function'
-      ? win.__DEMO_DASHBOARD_DRILLDOWN__
-      : null);
-
-  if (shared) return shared;
-
-  if (win && !win.__DASHBOARD_DRILLDOWN__) {
-    try { win.__DASHBOARD_DRILLDOWN__ = handleDashboardTap; }
-    catch (_err) { }
-  }
-
-  return handleDashboardTap;
-}
-
-function detachLayoutToggleButton(target) {
-  if (!target) return;
-  try { target.removeEventListener('click', handleLayoutToggleClick); }
-  catch (_err) { }
-  try { target.removeEventListener('keydown', handleLayoutToggleKeydown); }
-  catch (_err) { }
-}
-
-function detachLayoutCustomizeButton(target) {
-  if (!target) return;
-  try { target.removeEventListener('click', handleLayoutCustomizeClick); }
-  catch (_err) { }
-}
-
-function releaseLayoutToggleGlobals() {
-  if (layoutToggleState.modeListenerBound && doc && typeof doc.removeEventListener === 'function') {
-    try { doc.removeEventListener('dashboard:layout-mode', handleExternalLayoutMode); }
-    catch (_err) { }
-    layoutToggleState.modeListenerBound = false;
-  }
-  if (layoutToggleState.storageBound && win && typeof win.removeEventListener === 'function') {
-    try { win.removeEventListener('storage', handleLayoutToggleStorage); }
-    catch (_err) { }
-    layoutToggleState.storageBound = false;
-  }
-}
-
-function resolveLayoutCustomizeButton() {
-  if (!doc) return null;
-  const button = doc.querySelector('[data-dashboard-action="layout-customize"]');
-  return button || null;
-}
-
-function resolveLayoutAdvancedHost() {
-  if (!doc) return null;
-  const host = doc.querySelector('[data-dashboard-advanced]');
-  return host || null;
-}
-
-function resolveCustomizeBannerHost() {
-  if (!doc) return null;
-  const host = doc.querySelector('[data-dashboard-customize-banner]');
-  return host || null;
-}
-
-function teardownLayoutControls() {
-  if (layoutToggleState.button && layoutToggleState.wired) {
-    detachLayoutToggleButton(layoutToggleState.button);
-  }
-  detachLayoutCustomizeButton(layoutChromeState.customizeButton);
-  layoutToggleState.button = null;
-  layoutToggleState.viewLabel = null;
-  layoutToggleState.editLabel = null;
-  layoutToggleState.wired = false;
-  layoutChromeState.customizeButton = null;
-  layoutChromeState.advancedHost = null;
-  layoutChromeState.customizeBanner = null;
-  releaseLayoutToggleGlobals();
-}
-
-function resolveDashboardHeader() {
-  const existing = dashboardChromeState.header;
-  if (existing && existing.isConnected) return existing;
-  if (!doc) return null;
-  const header = doc.getElementById('dashboard-header');
-  dashboardChromeState.header = header || null;
-  return dashboardChromeState.header;
-}
-
-function ensurePreviewBadge(header) {
-  if (!doc) return null;
-  const host = header || resolveDashboardHeader();
-  if (!host) return null;
-  let badge = dashboardChromeState.previewBadge && dashboardChromeState.previewBadge.isConnected
-    ? dashboardChromeState.previewBadge
-    : host.querySelector('[data-dashboard-preview]');
-  if (!badge) {
-    badge = doc.createElement('span');
-    badge.className = 'dash-preview-indicator';
-    badge.setAttribute('data-dashboard-preview', 'true');
-    badge.setAttribute('aria-label', 'Preview mode');
-    badge.textContent = 'Preview';
-    const grow = typeof host.querySelector === 'function' ? host.querySelector('.grow') : null;
-    if (grow && typeof host.insertBefore === 'function') {
-      host.insertBefore(badge, grow);
-    } else {
-      host.appendChild(badge);
-    }
-  }
-  dashboardChromeState.previewBadge = badge;
-  return badge;
-}
-
-function deriveDashboardMode() {
-  const userMode = getDashboardMode();
-  // Dashboard All now renders Labs classic - no customized mode needed
-  if (userMode === 'all') return 'default';
-  if (isDashboardEditingEnabled() || layoutToggleState.mode) return 'customized';
-  if (isSimpleDashboardMode()) return 'preview';
-  const config = getDashboardConfigState('customized');
-  return isDashboardConfigCustomized(config) ? 'customized' : 'default';
-}
-
-function syncDashboardMode(options = {}) {
-  const header = resolveDashboardHeader();
-  if (!header) return 'default';
-  const nextMode = deriveDashboardMode();
-  const prevMode = dashboardChromeState.mode || 'default';
-  if (!options.force && prevMode === nextMode) return nextMode;
-  dashboardChromeState.mode = nextMode;
-  try { header.dataset.dashboardMode = nextMode; } catch (_err) { }
-  const badge = ensurePreviewBadge(header);
-  if (badge) {
-    badge.hidden = nextMode !== 'preview';
-  }
-  setDashboardLayoutProfile(nextMode);
-  updateLayoutChromeVisibility(layoutToggleState.mode, nextMode);
-  updateLayoutToggleButton(layoutToggleState.mode, nextMode);
-  if (options.allowLayoutReset !== false && prevMode === 'customized' && nextMode !== 'customized' && layoutToggleState.mode) {
-    applyLayoutToggleMode(false, { commit: true, dispatch: true });
-  }
-  return nextMode;
+  return false;
 }
 
 function resolveDashboardRouteTarget(node) {
+  if (!node || typeof node.getAttribute !== 'function') return '';
+  const route = node.getAttribute('data-dashboard-route')
+    || node.getAttribute('data-dash-route')
+    || node.getAttribute('data-dashboard-href')
+    || node.getAttribute('data-dash-href')
+    || '';
+  if (!route) return '';
+  return String(route).trim();
+}
+
+function navigateDashboardRoute(route) {
+  if (!route || !win) return false;
+  const nextHash = String(route).startsWith('#') ? String(route) : `#${route}`;
+  try {
+    if (win.Router && typeof win.Router.goto === 'function') {
+      win.Router.goto(nextHash);
+      return true;
+    }
+    if (win.location) {
+      win.location.hash = nextHash;
+      return true;
+    }
+  } catch (_) { }
+  return false;
+}
+
+function getContactIdFromNode(node) {
   if (!node) return '';
   const dataset = node.dataset || {};
-  const routeCandidates = [
-    dataset.dashboardRoute,
-    dataset.dashRoute,
-    dataset.dashboardHref,
-    dataset.dashHref,
-    dataset.route
-  ];
-  for (const candidate of routeCandidates) {
-    const value = candidate == null ? '' : String(candidate).trim();
-    if (value) return value;
-  }
-  if (node.getAttribute) {
-    const direct = node.getAttribute('data-dashboard-route')
-      || node.getAttribute('data-dash-route')
-      || node.getAttribute('data-dashboard-href')
-      || node.getAttribute('data-dash-href');
-    if (direct) return String(direct).trim();
-    const href = node.getAttribute('href');
-    if (href && href !== '#') return String(href).trim();
-  }
-  return '';
+  return dataset.contactId
+    || (typeof node.getAttribute === 'function' ? node.getAttribute('data-contact-id') : '')
+    || '';
 }
 
-function tryNavigateDashboardRoute(route, target) {
-  const value = route == null ? '' : String(route).trim();
-  if (!value) return false;
-  if (win && win.location) {
-    try {
-      if (value.startsWith('#')) {
-        win.location.hash = value;
-        return true;
-      }
-      if (value.startsWith('/')) {
-        win.location.hash = `#${value.replace(/^[#/]+/, '')}`;
-        return true;
-      }
-    } catch (_err) { }
-  }
-  const detail = { view: value, trigger: target || null };
-  let dispatched = false;
-  if (doc) {
-    try {
-      doc.dispatchEvent(new CustomEvent('app:navigate', { detail }));
-      dispatched = true;
-    } catch (_err) { }
-  }
-  if (win && typeof win.dispatchEvent === 'function') {
-    try {
-      win.dispatchEvent(new CustomEvent('app:navigate', { detail }));
-      dispatched = true;
-    } catch (_err) { }
-  }
-  return dispatched;
-}
-const DASHBOARD_HANDLED_CLICK_KEY = '__dashLastHandledAt';
-const POINTER_HANDLER_KEYS = ['onClick'];
-
-function countPointerHandlers() {
-  const handlers = dashDnDState.pointerHandlers;
-  if (!handlers || typeof handlers !== 'object') return 0;
-  return POINTER_HANDLER_KEYS.reduce((count, key) => {
-    return count + (typeof handlers[key] === 'function' ? 1 : 0);
-  }, 0);
+function getPartnerIdFromNode(node) {
+  if (!node) return '';
+  const dataset = node.dataset || {};
+  return dataset.partnerId
+    || (typeof node.getAttribute === 'function' ? node.getAttribute('data-partner-id') : '')
+    || '';
 }
 
-function exposeDashboardDnDHandlers() {
-  if (!win || typeof win !== 'object') return;
-  const api = {
-    ensure: ensureWidgetDnD,
-    teardown: reason => teardownWidgetDnD(reason || 'manual'),
-    destroy: reason => teardownWidgetDnD(reason || 'manual'),
-    destroyDraggable,
-    listenerCount,
-    handlerCount: () => countPointerHandlers(),
-    cleanupPointerHandlers: () => cleanupPointerHandlersFor(dashDnDState.container),
-    observeHost: () => observeDashboardHost(dashDnDState.container),
-    get container() {
-      return dashDnDState.container;
-    },
-    get controller() {
-      return dashDnDState.controller;
-    },
-    get pointerHandlers() {
-      return dashDnDState.pointerHandlers;
-    },
-    get active() {
-      return !!dashDnDState.active;
-    },
-    get lastReason() {
-      return dashDnDState.lastTeardownReason || '';
-    },
-    get pointerHandlerCount() {
-      return countPointerHandlers();
-    },
-    state: dashDnDState
-  };
-  try {
-    win.__DASH_DND_HANDLERS__ = api;
-  } catch (_err) { }
+function markHandled(node) {
+  if (!node) return;
+  try { node[DASHBOARD_HANDLED_CLICK_KEY] = Date.now(); }
+  catch (_) { }
 }
 
-function cleanupPointerHandlersFor(container) {
-  const handlers = dashDnDState.pointerHandlers;
-  const target = container && typeof container.removeEventListener === 'function'
-    ? container
-    : (handlers && handlers.target && typeof handlers.target.removeEventListener === 'function'
-      ? handlers.target
-      : (dashDnDState.container && typeof dashDnDState.container.removeEventListener === 'function'
-        ? dashDnDState.container
-        : null));
-  if (target && handlers) {
-    if (target === doc && doc && doc.__crmDashboardClickBound) {
-      dashDnDState.pointerHandlers = null;
-      exposeDashboardDnDHandlers();
-      return;
-    }
-    try { target.removeEventListener('click', handlers.onClick); } catch (_err) { }
+function handleDashboardClick(evt) {
+  const target = evt && evt.target;
+  if (!target || typeof target.closest !== 'function') return false;
+
+  const actionable = target.closest(DASHBOARD_DRILLDOWN_SELECTOR);
+  if (!actionable) return false;
+
+  const contactId = getContactIdFromNode(actionable) || (typeof actionable.getAttribute === 'function' ? actionable.getAttribute('data-id') : '');
+  if (contactId) {
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    markHandled(actionable);
+    return safeOpenContact(contactId);
   }
-  dashDnDState.pointerHandlers = null;
-  exposeDashboardDnDHandlers();
+
+  const partnerId = getPartnerIdFromNode(actionable);
+  if (partnerId) {
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    markHandled(actionable);
+    return safeOpenPartner(partnerId);
+  }
+
+  const route = resolveDashboardRouteTarget(actionable);
+  if (route) {
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    markHandled(actionable);
+    return navigateDashboardRoute(route);
+  }
+
+  return false;
 }
 
-function disconnectDashboardHostObserver() {
-  if (dashDnDState.hostObserver) {
-    try { dashDnDState.hostObserver.disconnect(); } catch (_err) { }
-  }
-  dashDnDState.hostObserver = null;
-  dashDnDState.hostObserverTarget = null;
-  dashDnDState.hostNode = null;
+function handleDashboardTap(evt, explicitTarget) {
+  if (!evt && !explicitTarget) return false;
+  const target = explicitTarget || evt.target;
+  if (!target || typeof target.closest !== 'function') return false;
+  return handleDashboardClick({ ...evt, target });
 }
 
-function observeDashboardHost(container) {
-  if (!container) {
-    disconnectDashboardHostObserver();
-    return;
-  }
-  if (dashDnDState.hostNode === container && dashDnDState.hostObserver) return;
-  const Observer = (win && win.MutationObserver) || (typeof MutationObserver !== 'undefined' ? MutationObserver : null);
-  if (typeof Observer !== 'function') return;
-  disconnectDashboardHostObserver();
-  const observer = new Observer(() => {
-    if (dashDnDState.container !== container) return;
-    const connected = typeof container.isConnected === 'boolean'
-      ? container.isConnected
-      : (doc ? doc.contains(container) : true);
-    if (!connected) {
-      teardownWidgetDnD('host-removed');
-    }
-  });
-  try {
-    const parent = container.parentNode;
-    if (parent) {
-      observer.observe(parent, { childList: true });
-    }
-    const rootTarget = (doc && doc.body) || (doc && doc.documentElement) || (container.ownerDocument && container.ownerDocument.body) || parent;
-    if (rootTarget) {
-      observer.observe(rootTarget, { childList: true, subtree: true });
-    }
-    dashDnDState.hostObserver = observer;
-    dashDnDState.hostObserverTarget = parent || rootTarget || null;
-    dashDnDState.hostNode = container;
-  } catch (_err) {
-    try { observer.disconnect(); } catch (_err2) { }
+function isSafeMode() {
+  if (!win || !win.location) return false;
+  const search = typeof win.location.search === 'string' ? win.location.search : '';
+  return /[?&]safe=1(?:&|$)/.test(search);
+}
+
+export async function initDashboard(options = {}) {
+  const root = options.root
+    || (doc && typeof doc.getElementById === 'function' ? doc.getElementById('view-dashboard') : null);
+  if (!root) return;
+  if (isSafeMode()) return;
+  const mod = await import('../labs/dashboard.js');
+  const initLabs = mod && typeof mod.initLabsCRMDashboard === 'function'
+    ? mod.initLabsCRMDashboard
+    : mod && typeof mod.default === 'function'
+      ? mod.default
+      : null;
+  if (typeof initLabs === 'function') {
+    await initLabs(root);
   }
 }
 
-function teardownWidgetDnD(reason) {
-  const container = dashDnDState.container;
-  if (dashDnDState.resizeSession) {
-    finishWidgetResize(null, false);
-  }
-  cleanupPointerHandlersFor(container);
-  const controller = dashDnDState.controller;
-  if (controller && typeof controller.destroy === 'function') {
-    try { controller.destroy(); } catch (_err) { }
-  }
-  if (container) {
-    try { destroyDraggable(container); } catch (_err) { }
-  }
-  applyWidgetEditingMarkers(container, false);
-  applyRootEditingState(container, false);
-  dashDnDState.controller = null;
-  dashDnDState.container = null;
-  dashDnDState.active = false;
-  dashDnDState.lastTeardownReason = reason || '';
-  disconnectDashboardHostObserver();
-  celebrationsState.dndReady = false;
-  exposeDashboardDnDHandlers();
-  if (reason === 'route-lifecycle' || reason === 'host-removed') {
-    teardownLayoutControls();
-  }
+export function __setDashboardDrilldownTestHooks(hooks = {}) {
+  drilldownTestHooks.openContact = typeof hooks.openContact === 'function' ? hooks.openContact : null;
+  drilldownTestHooks.openPartner = typeof hooks.openPartner === 'function' ? hooks.openPartner : null;
 }
 
-function handleDashboardAppNavigate(evt) {
-  const detail = evt && typeof evt === 'object' ? evt.detail : null;
-  const nextView = detail && typeof detail.view === 'string' ? detail.view : '';
-  if (nextView === 'dashboard') {
-    ensureWidgetDnD();
-    return;
-  }
-  if (layoutToggleState.mode) {
-    applyLayoutToggleMode(false, { commit: true });
-  }
-  syncDashboardMode({ force: true });
-  teardownLayoutControls();
-  if (!dashDnDState.container && !dashDnDState.pointerHandlers && !dashDnDState.controller) return;
-  teardownWidgetDnD('app:navigate');
+export function __getHandleDashboardClickForTest() {
+  return evt => handleDashboardClick(evt);
 }
 
-exposeDashboardDnDHandlers();
-
-const celebrationsState = {
-  node: null,
-  list: null,
-  statusHost: null,
-  statusBanner: null,
-  shouldRender: false,
-  hydrated: false,
-  hydrating: false,
-  dirty: true,
-  dndReady: false,
-  hydrationScheduled: false,
-  pendingHydration: false,
-  bindingApplied: false,
-  dateFormatter: null,
-  items: [],
-  lastError: null,
-  fallback: null
-};
-
-const scheduleIdleTask = (typeof win !== 'undefined' && win && typeof win.requestIdleCallback === 'function')
-  ? cb => win.requestIdleCallback(cb)
-  : cb => setTimeout(() => cb({ didTimeout: true, timeRemaining: () => 0 }), 0);
-
-function resolveLayoutToggleButton() {
-  if (!doc) return null;
-  const button = doc.querySelector('[data-dashboard-action="layout-toggle"]');
-  return button || null;
-}
-
-function resolveLayoutResetButton() {
-  if (!doc) return null;
-  const button = doc.querySelector('[data-dashboard-action="layout-reset"]');
-  return button || null;
-}
-
-function resolveEmptyLayoutResetButton() {
-  if (!doc) return null;
-  const button = doc.querySelector('[data-dashboard-action="layout-empty-reset"]');
-  return button || null;
-}
-
-function updateLayoutResetButtons() {
-  const buttons = [layoutResetState.button, layoutResetState.emptyButton].filter(btn => btn && btn.isConnected);
-  buttons.forEach(button => {
-    if (layoutResetState.pending) {
-      button.disabled = true;
-      button.dataset.loading = 'true';
-    } else {
-      button.disabled = false;
-      if (button.dataset && Object.prototype.hasOwnProperty.call(button.dataset, 'loading')) {
-        delete button.dataset.loading;
-      } else {
-        button.removeAttribute('data-loading');
-      }
-    }
-  });
-}
-
-function ensureLayoutResetButton() {
-  const button = resolveLayoutResetButton();
-  layoutResetState.button = button;
-  if (!button) return null;
-  if (!button.__wired) {
-    button.__wired = true;
-    button.addEventListener('click', handleLayoutResetClick);
-  }
-  updateLayoutResetButtons();
-  return button;
-}
-
-function ensureEmptyResetButton() {
-  const button = resolveEmptyLayoutResetButton();
-  layoutResetState.emptyButton = button;
-  if (!button) return null;
-  if (!button.__wired) {
-    button.__wired = true;
-    button.addEventListener('click', handleLayoutResetClick);
-  }
-  updateLayoutResetButtons();
-  return button;
-}
-
-function ensureLayoutChrome() {
-  const customize = resolveLayoutCustomizeButton();
-  const advancedHost = resolveLayoutAdvancedHost();
-  const customizeBanner = resolveCustomizeBannerHost();
-  layoutChromeState.customizeButton = customize;
-  layoutChromeState.advancedHost = advancedHost;
-  layoutChromeState.customizeBanner = customizeBanner;
-  if (!DASHBOARD_EDITING_LABS_ENABLED) {
-    if (customize && customize.__wired) {
-      detachLayoutCustomizeButton(customize);
-      customize.__wired = false;
-    }
-    updateLayoutChromeVisibility(false, dashboardChromeState.mode || deriveDashboardMode());
-    return null;
-  }
-  if (customize && !customize.__wired) {
-    customize.__wired = true;
-    customize.addEventListener('click', handleLayoutCustomizeClick);
-  }
-  updateLayoutChromeVisibility(layoutToggleState.mode, dashboardChromeState.mode || deriveDashboardMode());
-  return customize;
-}
-
-function dispatchLayoutModeEvent(enabled) {
-  if (!doc || typeof doc.dispatchEvent !== 'function') return;
-  const CustomEventCtor = typeof CustomEvent === 'function'
-    ? CustomEvent
-    : (win && typeof win.CustomEvent === 'function' ? win.CustomEvent : null);
-  if (!CustomEventCtor) return;
-  try {
-    doc.dispatchEvent(new CustomEventCtor('dashboard:layout-mode', { detail: { enabled: !!enabled, source: 'dashboard-toggle' } }));
-  } catch (_err) { }
-}
-
-function updateLayoutToggleButton(enabled, dashboardModeOverride) {
-  const button = layoutToggleState.button || resolveLayoutToggleButton();
-  if (!button) return;
-  const dashboardMode = dashboardModeOverride || dashboardChromeState.mode || deriveDashboardMode();
-  if (!DASHBOARD_EDITING_LABS_ENABLED || dashboardMode !== 'customized') {
-    button.hidden = true;
-    button.setAttribute('aria-hidden', 'true');
-    button.dataset.layoutMode = 'view';
-    return;
-  }
-  button.hidden = false;
-  button.removeAttribute('aria-hidden');
-  const next = !!enabled;
-  button.setAttribute('aria-pressed', next ? 'true' : 'false');
-  if (button.classList) {
-    if (next) {
-      button.classList.add('active');
-    } else {
-      button.classList.remove('active');
-    }
-  }
-  const viewLabel = layoutToggleState.viewLabel && layoutToggleState.viewLabel.isConnected
-    ? layoutToggleState.viewLabel
-    : button.querySelector('[data-mode="view"]');
-  const editLabel = layoutToggleState.editLabel && layoutToggleState.editLabel.isConnected
-    ? layoutToggleState.editLabel
-    : button.querySelector('[data-mode="edit"]');
-  if (viewLabel) {
-    viewLabel.hidden = next;
-    layoutToggleState.viewLabel = viewLabel;
-  }
-  if (editLabel) {
-    editLabel.hidden = !next;
-    layoutToggleState.editLabel = editLabel;
-  }
-  button.dataset.layoutMode = next ? 'edit' : 'view';
-}
-
-function updateLayoutChromeVisibility(enabled, dashboardModeOverride) {
-  const dashboardMode = dashboardModeOverride || dashboardChromeState.mode || deriveDashboardMode();
-  const showChrome = DASHBOARD_EDITING_LABS_ENABLED && dashboardMode === 'customized';
-  const customizeBanner = layoutChromeState.customizeBanner || resolveCustomizeBannerHost();
-  if (customizeBanner) {
-    customizeBanner.hidden = !showChrome;
-    if (showChrome) {
-      customizeBanner.removeAttribute('aria-hidden');
-    } else {
-      customizeBanner.setAttribute('aria-hidden', 'true');
-    }
-  }
-  const advancedHost = layoutChromeState.advancedHost || resolveLayoutAdvancedHost();
-  if (advancedHost) {
-    advancedHost.hidden = !showChrome;
-    if (showChrome) {
-      advancedHost.removeAttribute('aria-hidden');
-    } else {
-      advancedHost.setAttribute('aria-hidden', 'true');
-    }
-  }
-  const customize = layoutChromeState.customizeButton || resolveLayoutCustomizeButton();
-  if (customize) {
-    if (!DASHBOARD_EDITING_LABS_ENABLED || dashboardMode !== 'customized') {
-      customize.hidden = true;
-      customize.setAttribute('aria-hidden', 'true');
-      customize.setAttribute('aria-pressed', 'false');
-      return;
-    }
-    const hideCustomize = !!enabled;
-    customize.hidden = hideCustomize;
-    if (hideCustomize) {
-      customize.setAttribute('aria-pressed', 'true');
-    } else {
-      customize.setAttribute('aria-pressed', 'false');
-      customize.removeAttribute('aria-hidden');
-    }
-  }
-  const reset = layoutResetState.button || resolveLayoutResetButton();
-  if (reset) {
-    const showReset = showChrome && !!layoutToggleState.mode;
-    reset.hidden = !showReset;
-    if (showReset) {
-      reset.removeAttribute('aria-hidden');
-    } else {
-      reset.setAttribute('aria-hidden', 'true');
-    }
-  }
-}
-
-function updateDashboardEditingState(enabled, options = {}) {
-  if (!DASHBOARD_EDITING_LABS_ENABLED) {
-    dashDnDState.editing = false;
-    const container = dashDnDState.container || getDashboardContainerNode();
-    if (container) {
-      applyRootEditingState(container, false);
-      applyWidgetEditingMarkers(container, false);
-    }
-    exposeDashboardDnDHandlers();
-    return;
-  }
-  const next = !!enabled;
-  dashDnDState.editing = next;
-  const wasUpdating = dashDnDState.updatingEditing;
-  if (!wasUpdating) {
-    dashDnDState.updatingEditing = true;
-    try {
-      ensureWidgetDnD();
-    } finally {
-      dashDnDState.updatingEditing = false;
-    }
-  }
-  const container = dashDnDState.container || getDashboardContainerNode();
-  if (container) {
-    applyRootEditingState(container, next);
-    applyWidgetEditingMarkers(container, next);
-  }
-  const controller = dashDnDState.controller;
-  if (controller) {
-    if (typeof controller.setEditMode === 'function') {
-      controller.setEditMode(next);
-    }
-    if (next) {
-      if (typeof controller.enable === 'function') {
-        controller.enable();
-      }
-    } else if (typeof controller.disable === 'function') {
-      controller.disable();
-    }
-  }
-  if (!next) {
-    dashDnDState.active = false;
-    const shouldPersist = options.persist !== false && options.commit !== false;
-    if (shouldPersist) {
-      const host = dashDnDState.container || getDashboardContainerNode();
-      if (host) {
-        persistDashboardOrderImmediate();
-        const columns = dashDnDState.columns || getPreferredLayoutColumns();
-        persistDashboardLayoutState(columns, { includeWidths: true, force: true });
-      }
-    }
-  }
-  exposeDashboardDnDHandlers();
-}
-
-function applyLayoutToggleMode(enabled, options = {}) {
-  if (!DASHBOARD_EDITING_LABS_ENABLED) {
-    layoutToggleState.mode = false;
-    const dashboardMode = dashboardChromeState.mode || deriveDashboardMode();
-    updateLayoutToggleButton(false, dashboardMode);
-    updateLayoutChromeVisibility(false, dashboardMode);
-    updateDashboardEditingState(false, { commit: false, persist: false });
-    if (options.commit !== false) {
-      setDashboardLayoutMode(false, { persist: false });
-    }
-    if (options.dispatch !== false && options.commit !== false) {
-      dispatchLayoutModeEvent(false);
-    }
-    return;
-  }
-  const next = !!enabled;
-  layoutToggleState.mode = next;
-  const dashboardMode = dashboardChromeState.mode || deriveDashboardMode();
-  updateLayoutToggleButton(next, dashboardMode);
-  updateLayoutChromeVisibility(next, dashboardMode);
-  updateDashboardEditingState(next, { commit: options.commit !== false, persist: options.persist !== false });
-  if (options.commit !== false) {
-    const setOptions = {};
-    if (options.persist === false) setOptions.persist = false;
-    if (options.force) setOptions.force = true;
-    if (options.silent) setOptions.silent = true;
-    setDashboardLayoutMode(next, setOptions);
-  }
-  if (options.dispatch !== false && options.commit !== false) {
-    dispatchLayoutModeEvent(next);
-  }
-  syncDashboardMode({ allowLayoutReset: false, force: true });
-}
-
-function handleLayoutCustomizeClick(evt) {
-  if (evt) {
-    evt.preventDefault();
-    evt.stopPropagation();
-  }
-  if (!DASHBOARD_EDITING_LABS_ENABLED) return;
-  applyLayoutToggleMode(true, { commit: true });
-  const toggle = resolveLayoutToggleButton();
-  if (toggle && typeof toggle.focus === 'function') {
-    try { toggle.focus({ preventScroll: true }); } catch (_err) { }
-  }
-}
-
-function handleLayoutToggleClick(evt) {
-  if (evt) {
-    evt.preventDefault();
-    evt.stopPropagation();
-  }
-  applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
-}
-
-async function performDashboardLayoutReset(reason) {
-  const resetReason = reason || 'toolbar-reset:recommended';
-  clearDashboardConfigStorage();
-  setDashboardMode('today', { force: true });
-  await resetLayout({ reason: resetReason });
-}
-
-async function handleLayoutResetClick(evt) {
-  if (evt) {
-    evt.preventDefault();
-    evt.stopPropagation();
-  }
-  ensureLayoutResetButton();
-  ensureEmptyResetButton();
-  const trigger = evt && evt.currentTarget ? evt.currentTarget : null;
-  const reason = trigger && trigger.getAttribute('data-dashboard-action') === 'layout-empty-reset'
-    ? 'empty-state-reset'
-    : 'toolbar-reset:recommended';
-  const allowReset = !win || typeof win.confirm !== 'function'
-    ? true
-    : win.confirm('Restore the recommended layout? Your widgets will return to the Today defaults.');
-  if (!allowReset) return;
-  if (layoutResetState.pending) return;
-  layoutResetState.pending = true;
-  updateLayoutResetButtons();
-  try {
-    await performDashboardLayoutReset(reason);
-  } catch (err) {
-    try {
-      if (console && console.warn) console.warn('[dashboard] layout reset failed', err);
-    } catch (_warnErr) { }
-  } finally {
-    layoutResetState.pending = false;
-    updateLayoutResetButtons();
-    ensureLayoutToggle();
-  }
-}
-
-function handleLayoutToggleKeydown(evt) {
-  if (!evt) return;
-  const key = evt.key || evt.code || '';
-  if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
-  evt.preventDefault();
-  evt.stopPropagation();
-  if (evt.repeat) return;
-  applyLayoutToggleMode(!layoutToggleState.mode, { commit: true });
-}
-
-function handleExternalLayoutMode(evt) {
-  if (!evt) return;
-  const detail = evt.detail && typeof evt.detail === 'object' ? evt.detail : {};
-  if (detail.source === 'dashboard-toggle') return;
-  if (!Object.prototype.hasOwnProperty.call(detail, 'enabled')) return;
-  applyLayoutToggleMode(!!detail.enabled, { commit: false });
-}
-
-function handleLayoutToggleStorage(evt) {
-  if (!evt || typeof evt.key !== 'string') return;
-  if (evt.key !== DASHBOARD_LAYOUT_MODE_STORAGE_KEY) return;
-  applyLayoutToggleMode(!!readStoredLayoutMode(), { commit: false });
+export function __getHandleDashboardTapForTest() {
+  return (evt, target) => handleDashboardTap(evt, target);
 }
 
 function ensureLayoutToggle() {
