@@ -1,30 +1,17 @@
-
 import { normalizeStatus } from './pipeline/constants.js';
 
-const SEED_PREFIX = 'seed_fw_'; // fw = full workflow
+const SEED_PREFIX = 'seed_fw_';
 
-// Deterministic helpers
 function getId(type, index) {
     return `${SEED_PREFIX}${type}_${index}`;
 }
 
-// Helper to get a date relative to the START of the current month
-// This ensures events are always visible in the default month view
-function getDateInCurrentMonth(dayOffset) {
+function getDateNearTodayInCurrentMonth(dayOffset) {
     const d = new Date();
-    d.setDate(1); // Start of month
-    // Add offset days (e.g., 5th, 10th, 15th...)
-    // Wrap around if extending beyond month end (simple approach)
     const maxDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    const targetDay = Math.max(1, Math.min(dayOffset, maxDays));
-    d.setDate(targetDay);
-    return d.toISOString().split('T')[0]; // YYYY-MM-DD
-}
-
-function getTimestamp(offsetDays) {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    return d.toISOString();
+    const nextDay = Math.min(maxDays, Math.max(1, d.getDate() + dayOffset));
+    d.setDate(nextDay);
+    return d.toISOString().split('T')[0];
 }
 
 async function upsert(store, key, row) {
@@ -32,7 +19,6 @@ async function upsert(store, key, row) {
     try {
         const existing = await window.db.get(store, key).catch(() => null);
         const rec = existing ? { ...existing, ...row, id: key } : { ...row, id: key };
-        // Ensure timestamp
         if (!rec.updatedAt) rec.updatedAt = new Date().toISOString();
         await window.db.put(store, rec);
     } catch (err) {
@@ -40,17 +26,43 @@ async function upsert(store, key, row) {
     }
 }
 
-export async function runFullWorkflowSeed() {
-    console.log('[Seed] Starting Full Workflow Seed (Packet B Parity)...');
-
-    if (!window.db) {
-        console.error('[Seed] DB not available');
-        return;
+const PROFILE_PRESETS = Object.freeze({
+    'demo-week': {
+        contacts: 12,
+        tasks: 20,
+        events: 24,
+        deals: 3,
+        eventSpreadDays: 6,
+        description: 'Calendar-heavy demo with full funnel + docs scenarios'
+    },
+    'production-ish': {
+        contacts: 7,
+        tasks: 8,
+        events: 10,
+        deals: 2,
+        eventSpreadDays: 12,
+        description: 'Lighter realistic dataset with key workflows represented'
     }
+});
 
-    const todayDate = new Date().toISOString().split('T')[0];
+const CONTACT_BLUEPRINTS = Object.freeze([
+    { first: 'Aaron', last: 'Anderson', stage: 'lead', status: 'nurture', loanType: 'Conventional', amount: 350000, note: 'New online lead' },
+    { first: 'Beth', last: 'Baker', stage: 'application', status: 'inprogress', loanType: 'FHA', amount: 280000, note: 'Application in progress' },
+    { first: 'Carl', last: 'Clark', stage: 'processing', status: 'active', loanType: 'VA', amount: 420000, note: 'Processing docs' },
+    { first: 'Diana', last: 'Davis', stage: 'underwriting', status: 'active', loanType: 'Conventional', amount: 310000, note: 'Conditions in underwriting' },
+    { first: 'Evan', last: 'Edwards', stage: 'cleared-to-close', status: 'active', loanType: 'Jumbo', amount: 750000, note: 'CTC timeline locked' },
+    { first: 'Fiona', last: 'Foster', stage: 'funded', status: 'client', loanType: 'Conventional', amount: 300000, note: 'Recently funded' },
+    { first: 'George', last: 'Green', stage: 'approved', status: 'active', loanType: 'FHA', amount: 250000, note: 'Approved, awaiting closing date' },
+    { first: 'Hannah', last: 'Hill', stage: 'lead', status: 'nurture', loanType: 'USDA', amount: 200000, note: 'Nurture cadence contact' },
+    { first: 'Ivan', last: 'Ingram', stage: 'application', status: 'paused', loanType: 'Conventional', amount: 400000, note: 'Application paused for updates' },
+    { first: 'Julia', last: 'Jones', stage: 'processing', status: 'active', loanType: 'VA', amount: 450000, note: 'Referral partner contact' },
+    { first: 'Kevin', last: 'King', stage: 'underwriting', status: 'active', loanType: 'Conventional', amount: 330000, note: 'Awaiting appraisal docs' },
+    { first: 'Laura', last: 'Lee', stage: 'funded', status: 'client', loanType: 'Jumbo', amount: 800000, note: 'Past client check-in' }
+]);
 
-    // 1. Partners (8+)
+const EVENT_TYPES = Object.freeze(['meeting', 'call', 'email', 'sms', 'postal', 'followup', 'nurture', 'deadline', 'other', 'partner']);
+
+async function seedPartners() {
     const partners = [
         { name: 'Apex Realty', type: 'Real Estate', tier: 'Preferred', email: 'team@apex.test' },
         { name: 'Beta Title', type: 'Title', tier: 'Core', email: 'closing@beta.test' },
@@ -64,8 +76,7 @@ export async function runFullWorkflowSeed() {
 
     for (let i = 0; i < partners.length; i++) {
         const p = partners[i];
-        const id = getId('partner', i + 1);
-        await upsert('partners', id, {
+        await upsert('partners', getId('partner', i + 1), {
             name: p.name,
             company: p.name,
             email: p.email,
@@ -75,28 +86,13 @@ export async function runFullWorkflowSeed() {
             updatedAt: new Date().toISOString()
         });
     }
+}
 
-    // 2. Contacts (12+) with Birthday/Anniversary coverage
-    const contactsData = [
-        { first: 'Aaron', last: 'Anderson', stage: 'lead', status: 'nurture', loanType: 'Conventional', amount: 350000, note: 'New lead' },
-        { first: 'Beth', last: 'Baker', stage: 'application', status: 'inprogress', loanType: 'FHA', amount: 280000, note: 'App started' },
-        { first: 'Carl', last: 'Clark', stage: 'processing', status: 'active', loanType: 'VA', amount: 420000, note: 'Docs in' },
-        { first: 'Diana', last: 'Davis', stage: 'underwriting', status: 'active', loanType: 'Conventional', amount: 310000, note: 'In UW warning' },
-        { first: 'Evan', last: 'Edwards', stage: 'approved', status: 'active', loanType: 'Jumbo', amount: 750000, note: 'Approved with conditions' },
-        { first: 'Fiona', last: 'Foster', stage: 'cleared-to-close', status: 'active', loanType: 'Conventional', amount: 300000, note: 'CTC ready' },
-        { first: 'George', last: 'Green', stage: 'funded', status: 'client', loanType: 'FHA', amount: 250000, note: 'Past Client' },
-        { first: 'Hannah', last: 'Hill', stage: 'nurture', status: 'nurture', loanType: 'USDA', amount: 200000, note: 'Long term nurture' },
-        { first: 'Ivan', last: 'Ingram', stage: 'application', status: 'paused', loanType: 'Conventional', amount: 400000, note: 'Paused app' },
-        { first: 'Julia', last: 'Jones', stage: 'lead', status: 'nurture', loanType: 'VA', amount: 450000, note: 'Referral' },
-        { first: 'Kevin', last: 'King', stage: 'processing', status: 'active', loanType: 'Conventional', amount: 330000, note: 'Processing fast' },
-        { first: 'Laura', last: 'Lee', stage: 'funded', status: 'client', loanType: 'Jumbo', amount: 800000, note: 'Recent closure' }
-    ];
-
-    for (let i = 0; i < contactsData.length; i++) {
-        const c = contactsData[i];
+async function seedContacts(config) {
+    const now = Date.now();
+    for (let i = 0; i < config.contacts; i++) {
+        const c = CONTACT_BLUEPRINTS[i % CONTACT_BLUEPRINTS.length];
         const id = getId('contact', i + 1);
-
-        // Assign partners cyclically
         const buyerId = getId('partner', (i % 8) + 1);
         const listingId = getId('partner', ((i + 1) % 8) + 1);
 
@@ -112,93 +108,79 @@ export async function runFullWorkflowSeed() {
             buyerPartnerId: buyerId,
             listingPartnerId: listingId,
             notes: c.note,
-            updatedAt: new Date().toISOString()
+            createdAt: now,
+            updatedAt: now
         };
 
-        // Ensure Birthday and Anniversary fall in current month for visibility
-        if (i === 0) contact.birthday = getDateInCurrentMonth(5); // 5th of current month
-        if (i === 1) contact.anniversary = getDateInCurrentMonth(10); // 10th of current month
+        if (i === 0) contact.birthday = getDateNearTodayInCurrentMonth(1);
+        if (i === 1) contact.anniversary = getDateNearTodayInCurrentMonth(3);
+        if (i === 2) {
+            contact.missingDocs = 'Most recent pay stubs; Asset statements';
+            contact.docChecklist = [
+                { key: 'gov-id', label: 'Government-issued ID', checked: true, updatedAt: now },
+                { key: 'pay-stubs', label: 'Recent pay stubs', checked: false, updatedAt: now },
+                { key: 'bank-statements', label: 'Bank statements', checked: false, updatedAt: now }
+            ];
+        }
+        if (i === 3) {
+            contact.missingDocs = 'Tax returns';
+            contact.docChecklist = [
+                { key: 'gov-id', label: 'Government-issued ID', checked: true, updatedAt: now },
+                { key: 'tax-returns', label: 'Tax returns (2 years)', checked: false, updatedAt: now }
+            ];
+        }
 
         await upsert('contacts', id, contact);
     }
+}
 
-    // 3. Tasks - Ensuring Task vs Nurture distinction
-    // Nurture tasks should use 'nurture' type or have nurture hints
+async function seedTasks(config) {
     const taskDefs = [
-        { type: 'call', title: 'Call Client', offset: 2 },
-        { type: 'email', title: 'Send Email', offset: 3 },
-        { type: 'nurture', title: 'Nurture Touch', offset: 4 }, // Distinct Nurture
-        { type: 'followup', title: 'Follow Up', offset: 5 },    // Bell / Reminder
-        { type: 'task', title: 'General Task', offset: 6 },     // Generic Task
-        { type: 'deadline', title: 'Doc Deadline', offset: 7 },
-        { type: 'meeting', title: 'Review Meeting', offset: 8 }
+        { type: 'call', title: 'Call Client' },
+        { type: 'email', title: 'Send Email' },
+        { type: 'nurture', title: 'Nurture Touch' },
+        { type: 'followup', title: 'Follow Up' },
+        { type: 'task', title: 'General Task' },
+        { type: 'deadline', title: 'Doc Deadline' },
+        { type: 'meeting', title: 'Review Meeting' }
     ];
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < config.tasks; i++) {
         const def = taskDefs[i % taskDefs.length];
-        const id = getId('task', i + 1);
         const isContact = i % 2 === 0;
-        const linkId = isContact ? getId('contact', (i % 12) + 1) : getId('partner', (i % 8) + 1);
-        const due = getDateInCurrentMonth(def.offset + i); // Spread out in current month
+        const linkId = isContact ? getId('contact', (i % config.contacts) + 1) : getId('partner', (i % 8) + 1);
+        const due = getDateNearTodayInCurrentMonth((i % config.eventSpreadDays) - 2);
 
-        await upsert('tasks', id, {
-            title: `${def.title} ${i + 1} ${isContact ? '' : '(Partner)'}`,
-            due: due,
+        await upsert('tasks', getId('task', i + 1), {
+            title: `${def.title} ${i + 1}${isContact ? '' : ' (Partner)'}`,
+            due,
             status: 'open',
             priority: i % 3 === 0 ? 'high' : 'normal',
             associatedId: linkId,
             contactId: isContact ? linkId : undefined,
             partnerId: !isContact ? linkId : undefined,
-            type: def.type, // Critical for icon mapping
+            type: def.type,
             description: 'Auto-generated seed task',
             updatedAt: new Date().toISOString()
         });
     }
+}
 
-    // 4. Calendar Events (15+)
-    // Directly inject into 'events' store for Partner events and manual items
-    const requiredEventTypes = ['call', 'email', 'sms', 'postal', 'followup', 'nurture', 'partner', 'meeting', 'deadline', 'other'];
-    const eventTypes = [...requiredEventTypes, 'task'];
-
-    for (let i = 0; i < 24; i++) {
-        const id = getId('event', i + 1);
-        const typeKey = eventTypes[i % eventTypes.length];
-        let type = typeKey;
-        let titlePrefix = 'Seed Event';
-        let category = typeKey;
-
-        // Force Partner Event
-        if (typeKey === 'partner') {
-            titlePrefix = 'Partner Call';
-        } else if (typeKey === 'nurture') {
-            titlePrefix = 'Nurture Check-in';
-        } else if (typeKey === 'email') {
-            titlePrefix = 'Email Update';
-        } else if (typeKey === 'sms') {
-            titlePrefix = 'SMS Touch';
-        } else if (typeKey === 'postal') {
-            titlePrefix = 'Postal Mailer';
-        } else if (typeKey === 'followup') {
-            titlePrefix = 'Follow-up Reminder';
-        } else if (typeKey === 'task') {
-            titlePrefix = 'Task Block';
-        } else if (typeKey === 'deadline') {
-            titlePrefix = 'Milestone Deadline';
-        } else if (typeKey === 'other') {
-            titlePrefix = 'General Calendar Note';
-        }
-
-        const date = getDateInCurrentMonth((i * 2) + 1); // Every other day
+async function seedEvents(config) {
+    for (let i = 0; i < config.events; i++) {
+        const typeKey = EVENT_TYPES[i % EVENT_TYPES.length];
         const isContact = i % 2 !== 0;
-        const linkId = isContact ? getId('contact', (i % 12) + 1) : getId('partner', (i % 8) + 1);
+        const linkId = isContact ? getId('contact', (i % config.contacts) + 1) : getId('partner', (i % 8) + 1);
+        const dayOffset = (i % config.eventSpreadDays) - 3;
+        const date = getDateNearTodayInCurrentMonth(dayOffset);
 
-        await upsert('events', id, {
-            title: `${titlePrefix} ${i + 1}`,
-            type: type, // 'partner', 'nurture', 'meeting'
-            category: category,
+        await upsert('events', getId('event', i + 1), {
+            title: `${typeKey === 'partner' ? 'Partner Touch' : typeKey.charAt(0).toUpperCase() + typeKey.slice(1)} Event ${i + 1}`,
+            type: typeKey,
+            category: typeKey,
             start: `${date}T10:00:00`,
-            end: `${date}T11:00:00`,
-            allDay: i % 5 === 0,
+            end: `${date}T10:45:00`,
+            allDay: i % 7 === 0,
             associatedId: linkId,
             contactId: isContact ? linkId : undefined,
             partnerId: !isContact ? linkId : undefined,
@@ -206,43 +188,63 @@ export async function runFullWorkflowSeed() {
             updatedAt: new Date().toISOString()
         });
     }
+}
 
-    // 5. Milestones (Deals)
-    // Create 'deals' that calendar_impl.js reads as milestones
-    const dealContacts = [getId('contact', 4), getId('contact', 5), getId('contact', 6)];
-    for (let i = 0; i < dealContacts.length; i++) {
-        const id = getId('deal', i + 1);
-        const date = getDateInCurrentMonth(20 + i); // End of month
-        await upsert('deals', id, {
-            contactId: dealContacts[i],
-            status: 'funded', // or 'cleared-to-close'
+async function seedDeals(config) {
+    for (let i = 0; i < config.deals; i++) {
+        const date = getDateNearTodayInCurrentMonth(i + 4);
+        await upsert('deals', getId('deal', i + 1), {
+            contactId: getId('contact', i + 3),
+            status: i % 2 === 0 ? 'funded' : 'cleared-to-close',
             closingDate: date,
-            date: date, // some code paths use date
-            amount: 500000,
+            date,
+            amount: 450000 + (i * 50000),
             updatedAt: new Date().toISOString()
         });
     }
+}
 
-    // 6. Documents (Cleanup/No-op for calendar but good for completeness)
+async function seedDocuments() {
     const docContacts = [getId('contact', 2), getId('contact', 3)];
     let docCount = 0;
     for (const cid of docContacts) {
         for (let j = 0; j < 2; j++) {
-            const id = getId('doc', docCount + 1);
-            await upsert('documents', id, {
+            await upsert('documents', getId('doc', docCount + 1), {
                 contactId: cid,
-                name: `Doc ${j}`,
-                status: 'Requested',
+                name: `Doc ${j + 1}`,
+                status: j === 0 ? 'Requested' : 'Missing',
                 updatedAt: new Date().toISOString()
             });
             docCount++;
         }
     }
+}
 
-    console.log('[Seed] Full Workflow Seed Complete (Packet B).');
+export async function runSeedProfile(profile = 'demo-week') {
+    const resolvedProfile = PROFILE_PRESETS[profile] ? profile : 'demo-week';
+    const config = PROFILE_PRESETS[resolvedProfile];
 
-    // Force UI Refresh
-    if (typeof window.dispatchAppDataChanged === 'function') {
-        window.dispatchAppDataChanged({ source: 'seed-full', mode: 'full-repaint' });
+    console.log(`[Seed] Starting seed profile: ${resolvedProfile}`);
+
+    if (!window.db) {
+        console.error('[Seed] DB not available');
+        return;
     }
+
+    await seedPartners();
+    await seedContacts(config);
+    await seedTasks(config);
+    await seedEvents(config);
+    await seedDeals(config);
+    await seedDocuments();
+
+    console.log(`[Seed] Seed profile complete: ${resolvedProfile} (${config.description})`);
+
+    if (typeof window.dispatchAppDataChanged === 'function') {
+        window.dispatchAppDataChanged({ source: 'seed-full', mode: 'full-repaint', profile: resolvedProfile });
+    }
+}
+
+export async function runFullWorkflowSeed() {
+    await runSeedProfile('demo-week');
 }

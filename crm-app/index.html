@@ -1608,6 +1608,21 @@
                         </div>
                         <p class="muted fine-print" style="margin-top:8px">Unselected partner roles default to None.</p>
                       </fieldset>
+                      <fieldset style="border:1px solid var(--border-subtle, #d9d9d9);border-radius:8px;padding:12px">
+                        <legend class="muted" style="font-size:0.85rem;padding:0 6px">Seed Profiles</legend>
+                        <div class="grid cols-2" style="gap:8px 12px;align-items:end">
+                          <label>
+                            Profile
+                            <select id="seed-profile-select">
+                              <option value="demo-week">Demo Week</option>
+                              <option value="production-ish">Production-ish</option>
+                            </select>
+                          </label>
+                          <button class="btn" id="btn-run-seed-profile" type="button">Run Seed</button>
+                        </div>
+                        <p class="muted fine-print" id="seed-profile-preview" style="margin-top:8px">Demo Week: full funnel coverage, calendar variety, and checklist scenarios.</p>
+                        <p class="muted fine-print" style="margin-top:4px">This will overwrite current local demo data.</p>
+                      </fieldset>
                       <div class="row" style="justify-content:flex-end; gap:8px">
                         <button class="btn" id="btn-seed-full-workflow" type="button">Seed Full Workflow
                           Dataset</button>

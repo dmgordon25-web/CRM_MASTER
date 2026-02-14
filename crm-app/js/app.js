@@ -30,7 +30,7 @@ import {
   setSelectionStore as setContextSelectionStore
 } from './app_context.js';
 import { createBinding } from './ui/quick_create_menu.js';
-import { runFullWorkflowSeed } from './seed_full.js';
+import { runFullWorkflowSeed, runSeedProfile } from './seed_full.js';
 
 
 
@@ -3526,6 +3526,44 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       }
     });
   }
+
+  const seedProfileSelect = $('#seed-profile-select');
+  const seedProfilePreview = $('#seed-profile-preview');
+  const runSeedProfileBtn = $('#btn-run-seed-profile');
+  const profileDescriptions = {
+    'demo-week': 'Demo Week: full funnel coverage, calendar variety, and checklist scenarios.',
+    'production-ish': 'Production-ish: smaller realistic dataset that still covers core workflows.'
+  };
+
+  if (seedProfileSelect && !seedProfileSelect.__wired) {
+    seedProfileSelect.__wired = true;
+    const syncSeedProfilePreview = () => {
+      const selected = String(seedProfileSelect.value || 'demo-week');
+      if (seedProfilePreview) {
+        seedProfilePreview.textContent = profileDescriptions[selected] || profileDescriptions['demo-week'];
+      }
+    };
+    seedProfileSelect.addEventListener('change', syncSeedProfilePreview);
+    syncSeedProfilePreview();
+  }
+
+  if (runSeedProfileBtn && !runSeedProfileBtn.__wired) {
+    runSeedProfileBtn.__wired = true;
+    runSeedProfileBtn.addEventListener('click', async () => {
+      const profile = String(seedProfileSelect?.value || 'demo-week');
+      runSeedProfileBtn.disabled = true;
+      try {
+        await runSeedProfile(profile);
+        if (typeof window.toast === 'function') window.toast(`Seed profile complete: ${profile}`);
+      } catch (err) {
+        console.error('Seed profile failed', err);
+        if (typeof window.toast === 'function') window.toast('Seed profile failed: ' + err.message);
+      } finally {
+        runSeedProfileBtn.disabled = false;
+      }
+    });
+  }
+
   const toggleDark = $('#toggle-dark');
   if (toggleDark) {
     toggleDark.addEventListener('change', (e) => {
