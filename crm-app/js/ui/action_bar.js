@@ -53,6 +53,24 @@ if (!('dragState' in globalWiringState)) {
   };
 }
 
+
+function canonicalActionBarRoot() {
+  if (typeof document === 'undefined') return null;
+  const byId = document.getElementById('actionbar');
+  const nodes = typeof document.querySelectorAll === 'function'
+    ? Array.from(document.querySelectorAll('[data-ui="action-bar"]'))
+    : [];
+  const primary = byId || nodes[0] || null;
+  if (primary && nodes.length > 1) {
+    nodes.forEach((node) => {
+      if (!node || node === primary) return;
+      try { node.removeAttribute('data-ui'); }
+      catch (_) { }
+    });
+  }
+  return primary;
+}
+
 const scheduleVisibilityRefresh = typeof queueMicrotask === 'function'
   ? queueMicrotask
   : (fn) => {
@@ -141,8 +159,7 @@ function requestVisibilityRefresh() {
 }
 
 function getActionBarRoot() {
-  if (typeof document === 'undefined') return null;
-  return document.getElementById('actionbar');
+  return canonicalActionBarRoot();
 }
 
 function ensureActionBarPill(bar) {
@@ -812,9 +829,7 @@ function hasDomSelectionSnapshot() {
 
 export function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
-  const bar = explicitEl
-    || document.querySelector('[data-ui="action-bar"]')
-    || document.getElementById('actionbar');
+  const bar = explicitEl || canonicalActionBarRoot();
   if (!bar) return;
 
   const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
@@ -891,12 +906,27 @@ function markActionbarHost() {
   _attachActionBarVisibilityHooks(bar);
   bar.querySelectorAll('[data-act]').forEach((node) => {
     const action = node.getAttribute('data-act');
-    if (!action || node.hasAttribute('data-action')) return;
-    node.setAttribute('data-action', action);
+    if (action && !node.hasAttribute('data-action')) {
+      node.setAttribute('data-action', action);
+    }
+    if (node.dataset && node.dataset.wired !== '1') {
+      node.dataset.wired = '1';
+    }
+    if (!node.__wired) {
+      node.__wired = true;
+    }
   });
   const clearBtn = bar.querySelector('[data-act="clear"]');
-  if (clearBtn && !clearBtn.hasAttribute('data-action')) {
-    clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
+  if (clearBtn) {
+    if (!clearBtn.hasAttribute('data-action')) {
+      clearBtn.setAttribute('data-action', DATA_ACTION_NAME);
+    }
+    if (clearBtn.dataset && clearBtn.dataset.wired !== '1') {
+      clearBtn.dataset.wired = '1';
+    }
+    if (!clearBtn.__wired) {
+      clearBtn.__wired = true;
+    }
   }
   const mergeBtn = bar.querySelector('[data-act="merge"]');
   if (mergeBtn) {

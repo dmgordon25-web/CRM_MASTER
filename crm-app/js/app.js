@@ -1371,8 +1371,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       cleaned = true;
       try { table.removeEventListener('change', handleTableChange, true); }
       catch (_err) { }
-      try { header.removeEventListener('click', handleSelectAllClick); }
-      catch (_err) { }
       if (unsubscribe) {
         try { unsubscribe(); }
         catch (_err) { }
@@ -1403,12 +1401,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       syncSelectionScope(scope, payload);
     };
 
-    const handleSelectAllClick = (event) => {
-      if (cleaned || event.__crmSelectAllHandled) return;
-      event.__crmSelectAllHandled = true;
-      applySelectAllToStore(header, store, scope, table);
-    };
-
     const handleTableChange = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
@@ -1432,10 +1424,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       }
     };
-
-    try {
-      header.addEventListener('click', handleSelectAllClick);
-    } catch (_err) { }
 
     try {
       table.addEventListener('change', handleTableChange, true);
@@ -1576,9 +1564,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
 
-  function collectSelectionRowData(scopeRoot) {
+  function collectSelectionRowData(scopeRoot, options) {
     if (!scopeRoot) return [];
-    ensureRowCheckHeaders(scopeRoot);
+    const shouldEnsureHeaders = !!(options && options.ensureHeaders);
+    if (shouldEnsureHeaders) {
+      ensureRowCheckHeaders(scopeRoot);
+    }
     const seen = new Set();
     const rows = [];
     const addRow = (row) => {
@@ -1636,7 +1627,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     checkbox.indeterminate = false;
 
-    const entries = hostRoot ? collectSelectionRowData(hostRoot) : [];
+    const entries = hostRoot ? collectSelectionRowData(hostRoot, { ensureHeaders: true }) : [];
     const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
 
     if (!targets.length) {
