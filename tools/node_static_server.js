@@ -14,3 +14,17 @@ server.listen(port, () => {
 process.on('SIGINT', () => {
   server.close(() => process.exit(0));
 });
+
+process.on('SIGTERM', () => {
+  server.close(() => process.exit(0));
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[static-server] uncaughtException', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[static-server] unhandledRejection', reason);
+  process.exit(1);
+});

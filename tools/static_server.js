@@ -22,7 +22,12 @@ function isPathInside(parent, child) {
 }
 
 function resolvePath(root, requestPath) {
-  const decoded = decodeURIComponent(requestPath.split('?')[0]);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(requestPath.split('?')[0]);
+  } catch {
+    return null;
+  }
   const clean = decoded === '/' ? '/index.html' : decoded;
   const stripped = clean.replace(/^\/+/, '');
   const candidate = path.join(root, stripped);
@@ -46,7 +51,12 @@ function createStaticServer(root, { verbose = true } = {}) {
 
   const server = http.createServer((req, res) => {
     const { method = 'GET', url = '/' } = req;
-    const pathname = new URL(url, 'http://localhost').pathname;
+    let pathname;
+    try {
+      pathname = new URL(url, 'http://localhost').pathname;
+    } catch {
+      return send(res, 400, 'Bad Request');
+    }
 
     if (pathname === '/health' || pathname === '/healthz') {
       return send(res, 200, 'OK');
@@ -68,6 +78,9 @@ function createStaticServer(root, { verbose = true } = {}) {
     }
 
     let filePath = resolvePath(base, pathname);
+    if (!filePath) {
+      return send(res, 400, 'Bad Request');
+    }
     if (!isPathInside(base, filePath)) {
       return send(res, 403, 'Forbidden');
     }

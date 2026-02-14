@@ -35,6 +35,7 @@ module.exports = defineConfig({
   testDir: path.join(__dirname, 'tests', 'e2e'),
   timeout: 60 * 1000,
   retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 1 : undefined,
   use: {
     baseURL: 'http://127.0.0.1:8080',
     trace: 'retain-on-failure',
@@ -49,8 +50,8 @@ module.exports = defineConfig({
   ],
   webServer: {
     command: `node ${JSON.stringify(serverScript)} ${JSON.stringify(serveRoot)} 8080`,
-    port: 8080,
+    url: 'http://127.0.0.1:8080/healthz',
     reuseExistingServer: !process.env.CI,
-    timeout: 30 * 1000
+    timeout: 60 * 1000
   }
 });
