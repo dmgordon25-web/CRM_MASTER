@@ -1257,6 +1257,25 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return scope && scope.trim() ? scope.trim() : 'contacts';
   }
 
+
+  function isClickDebugEnabled() {
+    if (typeof window === 'undefined') return false;
+    if (window.__DBG_CLICK === true) return true;
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+      return params.get('dbgClick') === '1';
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function debugClickLog(label, detail) {
+    if (!isClickDebugEnabled()) return;
+    try {
+      console.log('[DBG_CLICK]', label, detail || '');
+    } catch (_err) { }
+  }
+
   function selectionIdFor(node) {
     if (!node) return null;
     if (typeof node.getAttribute === 'function') {
@@ -1565,19 +1584,27 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
+      const checkboxes = row.querySelectorAll('[data-ui="row-check"], input[data-role="select"], input[type="checkbox"]');
       const checkboxIds = [];
       checkboxes.forEach((cb) => {
         if (!cb || typeof cb.getAttribute !== 'function') return;
         checkboxIds.push(cb.getAttribute('data-id'));
         checkboxIds.push(cb.getAttribute('data-contact-id'));
         checkboxIds.push(cb.getAttribute('data-partner-id'));
+        checkboxIds.push(cb.getAttribute('data-row-id'));
+        checkboxIds.push(cb.getAttribute('value'));
+        checkboxIds.push(cb.id);
       });
-      const id = row.getAttribute('data-id')
+      let id = row.getAttribute('data-id')
         || row.getAttribute('data-contact-id')
         || row.getAttribute('data-partner-id')
-        || checkboxIds.find(Boolean);
-      if (!id) return null;
+        || row.getAttribute('data-row-id')
+        || row.id
+        || checkboxIds.find((value) => !!value && value !== 'on');
+      if (!id) {
+        const fallbackIndex = Number.isFinite(row.sectionRowIndex) ? row.sectionRowIndex : rows.length;
+        id = `__row_${fallbackIndex}`;
+      }
       let checkbox = null;
       for (let i = 0; i < checkboxes.length; i++) {
         const cb = checkboxes[i];
@@ -1593,7 +1620,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const disabled = checkbox.disabled || ariaDisabled === 'true';
       return { row, checkbox, id: String(id), disabled };
     };
-    scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id]').forEach(row => {
+    scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id], tbody tr[data-partner-id]').forEach(row => {
       const entry = addRow(row);
       if (entry) rows.push(entry);
     });
@@ -1684,6 +1711,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ? 'partners'
       : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
     const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
+    debugClickLog('select-all:click', { scope: scopeKey, checked: !!checkbox.checked, count: selectionCount, origin });
 
     // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
     if (typeof window !== 'undefined') {
@@ -1702,6 +1730,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     store.set(next, scopeKey);
     syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
+
+    if (selectionCount > 0 && typeof queueMicrotask === 'function') {
+      queueMicrotask(() => {
+        try { updateActionBarGuards(selectionCount, scopeKey); }
+        catch (_err) { }
+      });
+    }
 
     // Notify consumers that rely on the event bus (action bar, etc.)
     try {
@@ -1957,6 +1992,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } else {
       bar.classList.remove('has-selection');
     }
+    debugClickLog('actionbar:guards', { scope: scopeKey || null, count: total, visible: bar.getAttribute('data-visible') === '1', hasSelection: bar.classList.contains('has-selection') });
     if (bar.dataset && bar.dataset.idleVisible === '1') {
       bar.setAttribute('data-visible', '1');
       if (bar.style && bar.style.display === 'none') {
@@ -1967,6 +2003,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       queueMicrotask(() => {
         try { window.__UPDATE_ACTION_BAR_VISIBLE__(); }
         catch (_) { }
+        debugClickLog('actionbar:visible-update', { scope: scopeKey || null, count: total, visible: bar.getAttribute('data-visible') === '1', hasSelection: bar.classList.contains('has-selection') });
       });
     }
   }
