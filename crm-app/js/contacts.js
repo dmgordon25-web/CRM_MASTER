@@ -26,6 +26,7 @@ import {
   milestoneIndex
 } from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { normalizeStage } from './workflows/status_canonical.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
 import { openPartnerEditModal } from './ui/modals/partner_edit/index.js';
@@ -2368,7 +2369,7 @@ export function normalizeContactId(input) {
             const nextStatusKey = canonicalStatusKey(u.status || '');
             const statusChanged = prevStatusKey !== nextStatusKey;
             const milestoneChanged = prevMilestoneNormalized !== u.pipelineMilestone;
-            const prevCanon = canonicalStage(prevStage);
+            const prevCanon = normalizeStage(prevStage) || canonicalStage(prevStage);
             if (typeof window.updateContactStage === 'function') {
               const maybeResult = window.updateContactStage(u, u.stage, prevStage);
               if (maybeResult && typeof maybeResult.then === 'function') {
@@ -2379,7 +2380,7 @@ export function normalizeContactId(input) {
                 ? window.canonicalizeStage
                 : (val) => String(val || '').toLowerCase();
               const prevFallback = canonFn(prevStage);
-              const nextCanon = canonFn(u.stage);
+              const nextCanon = normalizeStage(u.stage) || canonFn(u.stage);
               u.stage = nextCanon;
               if (!u.stageEnteredAt || prevFallback !== nextCanon) {
                 u.stageEnteredAt = new Date().toISOString();
@@ -2388,7 +2389,7 @@ export function normalizeContactId(input) {
             if (!u.stageEnteredAt) {
               u.stageEnteredAt = c.stageEnteredAt || new Date().toISOString();
             }
-            const nextCanon = canonicalStage(u.stage);
+            const nextCanon = normalizeStage(u.stage) || canonicalStage(u.stage);
             if (nextCanon !== prevCanon) {
               try {
                 console && console.info && console.info('[contacts] stage transition persisted', {

@@ -1,4 +1,5 @@
 import { normalizeStatus } from '../pipeline/constants.js';
+import { normalizeStage } from '../workflows/status_canonical.js';
 import { openContactModal } from '../contacts.js';
 import { openPartnerEditModal } from '../ui/modals/partner_edit/index.js';
 import { createLegendPopover, STAGE_LEGEND_ENTRIES } from '../ui/legend_popover.js';
@@ -107,7 +108,7 @@ function formatCurrencyValue(value){
 }
 
 function formatStage(value){
-  const norm = normalizeStatus(value);
+  const norm = normalizeStage(value) || normalizeStatus(value);
   if(!norm) return '';
   return norm.replace(/[-_]/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
@@ -313,7 +314,7 @@ const RAW_LENS_CONFIGS = {
     baseFilter: (record) => {
       const status = toLower(record?.status);
       if(LEAD_STATUSES.has(status)) return true;
-      const stage = normalizeStatus(record?.stage || record?.status);
+      const stage = normalizeStage(record?.stage || record?.status) || normalizeStatus(record?.stage || record?.status);
       if(!stage) return false;
       if(stage.includes('long')) return true;
       if(stage.includes('nurture')) return true;
@@ -332,7 +333,7 @@ const RAW_LENS_CONFIGS = {
     entity: 'contact',
     selectionScope: 'contacts',
     baseFilter: (record) => {
-      const stage = normalizeStatus(record?.stage);
+      const stage = normalizeStage(record?.stage) || normalizeStatus(record?.stage);
       return CONTACT_PIPELINE_STAGES.includes(stage);
     },
     fieldKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','lastTouch','nextAction','createdAt','updatedAt','id'],
@@ -348,7 +349,7 @@ const RAW_LENS_CONFIGS = {
     entity: 'contact',
     selectionScope: 'contacts',
     baseFilter: (record) => {
-      const stage = normalizeStatus(record?.stage);
+      const stage = normalizeStage(record?.stage) || normalizeStatus(record?.stage);
       return CONTACT_CLIENT_STAGES.includes(stage);
     },
     fieldKeys: ['name','stage','owner','loanType','loanAmount','email','phone','city','referredBy','pipelineMilestone','fundedDate','lastTouch','updatedAt','createdAt','id'],
