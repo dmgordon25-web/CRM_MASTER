@@ -2,6 +2,7 @@ import { STR, text } from './ui/strings.js';
 import { safeMax, normalizePhone, normalizeEmail } from './util/strings.js';
 import { stageKeyFromLabel } from './pipeline/stages.js';
 import { normalizeStatus, toCanonicalStage, canonicalStatusKey } from './pipeline/constants.js';
+import { normalizeStage } from './workflows/status_canonical.js';
 import { NONE_PARTNER_ID as NONE_PARTNER_ID_CONST } from './constants/ids.js';
 import {
   buildContactDedupeKeys,
@@ -232,7 +233,7 @@ function clampPartner(record, stats) {
 }
 
 function normalizeStageValue(value) {
-  const canon = toCanonicalStage(value);
+  const canon = normalizeStage(value) || toCanonicalStage(value);
   if (canon) return canon;
   return stageKeyFromLabel(value) || '';
 }

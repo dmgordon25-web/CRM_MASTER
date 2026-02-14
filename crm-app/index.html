@@ -1526,6 +1526,17 @@
                 <p class="widget-summary muted">Quick look at detected extras after an import.</p>
                 <div class="muted" id="extras-registry">Extras registry will appear after an import.</div>
               </div>
+              <div class="card" id="settings-data-diagnostics">
+                <h3>Data Diagnostics</h3>
+                <p class="widget-summary muted">Detect non-canonical stage/status values stored in local data.</p>
+                <div class="row" style="justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+                  <button class="btn" id="btn-run-data-diagnostics" type="button">Run Scan</button>
+                  <button class="btn" id="btn-copy-data-diagnostics" type="button">Copy Report</button>
+                </div>
+                <div class="muted fine-print" id="data-diagnostics-summary">No scan run yet.</div>
+                <div class="muted fine-print" id="data-diagnostics-canonical" style="margin-top:8px">Canonical values will appear after scanning.</div>
+                <div class="muted fine-print" id="data-diagnostics-orphans" style="margin-top:8px">Unknown/orphan values will appear after scanning.</div>
+              </div>
               <div class="card" id="local-utilities-card">
                 <h3>Local Utilities</h3>
                 <p class="widget-summary muted">Run imports, exports, demo seeds, and diagnostics without leaving your

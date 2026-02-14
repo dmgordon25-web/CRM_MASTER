@@ -10,6 +10,7 @@ import {
 import { getUiMode, onUiModeChanged, setUiMode } from './ui/ui_mode.js';
 import { getHomeViewPreference, normalizeHomeView, setHomeViewPreference } from './ui/home_view.js';
 import { getRenderer } from './app_services.js';
+import { initDataDiagnostics, refreshDataDiagnostics } from './settings/data_diagnostics.js';
 const __STR_FALLBACK__ = (window.STR && typeof window.STR === 'object') ? window.STR : {};
 function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__[k]) || k; } catch (_) { return k; } }
 
@@ -926,6 +927,8 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
       syncSimpleModeControls(data.simpleMode || simpleModeState);
       await hydrateSignatures(data);
       wireConfigurableDashboardControls();
+      initDataDiagnostics();
+      await refreshDataDiagnostics();
     } catch (err) {
       console.warn('[soft]', text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
     } finally {
