@@ -37,12 +37,6 @@ const { normalizeFavoriteSnapshot, applyFavoriteSnapshot } = __FAVORITES_API__;
 const EMAIL_FROM_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 const TZ_FALLBACK_PATTERN = /^[A-Za-z0-9_.+-]+(?:\/[A-Za-z0-9_.+-]+)*$/;
 
-function isDocCenterWidgetEnabled() {
-  try { return localStorage.getItem('flag_show_doc_widget') === '1'; }
-  catch (_err) { return false; }
-}
-const DOC_CENTER_WIDGET_ENABLED = isDocCenterWidgetEnabled();
-
 const DASHBOARD_WIDGET_DOM_IDS = {
   focus: 'dashboard-focus',
   filters: 'dashboard-filters',
@@ -66,9 +60,6 @@ const DASHBOARD_WIDGET_DOM_IDS = {
   closingWatch: 'closing-watch-card',
   upcomingCelebrations: 'dashboard-celebrations'
 };
-if (DOC_CENTER_WIDGET_ENABLED) {
-  DASHBOARD_WIDGET_DOM_IDS.docCenter = 'doc-center-card';
-}
 
 const DASHBOARD_WIDGET_ORDER = Object.keys(DASHBOARD_WIDGET_DOM_IDS);
 const DASHBOARD_WIDGET_KEY_SET = (() => {

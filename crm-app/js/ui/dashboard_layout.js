@@ -113,8 +113,7 @@ const DASHBOARD_WIDGETS = [
   { id: 'rel-opps-card', key: 'relationshipOpportunities', label: 'Relationship Opportunities', defaultEnabled: false },
   { id: 'nurture-card', key: 'clientCareRadar', label: 'Client Care Radar', defaultEnabled: false },
   { id: 'closing-watch-card', key: 'closingWatch', label: 'Closing Watchlist', defaultEnabled: false },
-  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)', defaultEnabled: false },
-  { id: 'doc-center-card', key: 'docCenter', label: 'Document Center', defaultEnabled: false }
+  { id: 'dashboard-celebrations', key: 'upcomingCelebrations', label: 'Upcoming Birthdays & Anniversaries (7 days)', defaultEnabled: false }
 ];
 
 const LEGACY_WIDGET_REDIRECT = (() => {

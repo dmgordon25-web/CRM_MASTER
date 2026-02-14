@@ -22,8 +22,7 @@ export const BASELINE_WIDGET_POLICY = Object.freeze({
   docPulse: { today: false, all: true },
   relationshipOpportunities: { today: false, all: true },
   clientCareRadar: { today: false, all: true },
-  closingWatch: { today: false, all: true },
-  docCenter: { today: false, all: true }
+  closingWatch: { today: false, all: true }
 });
 
 export function computeWidgetVisibility(mode, widgetSettings = {}, policy = BASELINE_WIDGET_POLICY) {

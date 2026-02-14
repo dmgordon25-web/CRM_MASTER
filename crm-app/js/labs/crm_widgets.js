@@ -3674,7 +3674,6 @@ export const CRM_WIDGET_RENDERERS = {
   clientCareRadar: renderRelationshipWidget,
   closingWatch: renderClosingWatchWidget,
   upcomingCelebrations: renderUpcomingCelebrationsWidget,
-  docCenter: renderDocPulseWidget,
   notifications: renderNotificationsWidget,
   favorites: renderFavoritesWidget,
   // Hidden feature shortcuts (Advanced-only, experimental)

@@ -1,9 +1,4 @@
 const STORAGE_KEY = 'dashboard:config:v1';
-const DOC_CENTER_WIDGET_ENABLED = (() => {
-  try { return localStorage.getItem('flag_show_doc_widget') === '1'; }
-  catch (_err) { return false; }
-})();
-
 export const DEFAULT_WIDGET_SET = [
   'focus',
   'filters',
@@ -41,9 +36,6 @@ export const DASHBOARD_WIDGETS = [
   { id: 'upcomingCelebrations', label: 'Upcoming Celebrations', size: 'medium', today: true },
   { id: 'favorites', label: 'Favorites', size: 'medium', today: true }
 ];
-if (DOC_CENTER_WIDGET_ENABLED) {
-  DASHBOARD_WIDGETS.splice(DASHBOARD_WIDGETS.length - 1, 0, { id: 'docCenter', label: 'Document Center', size: 'large' });
-}
 
 function mapById(list = []) {
   const map = new Map();
@@ -181,4 +173,3 @@ export function isTodayWidget(id) {
   return !!(meta && meta.today);
 }
 
-export { DOC_CENTER_WIDGET_ENABLED };
