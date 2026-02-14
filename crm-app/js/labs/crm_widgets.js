@@ -1900,6 +1900,8 @@ export function renderTodayWidget(container, model) {
 
         const row = event.target.closest('[data-role="today-row"]');
         if (row) {
+          event.preventDefault();
+          event.stopPropagation();
           const contactId = row.getAttribute('data-contact-id');
           const partnerId = row.getAttribute('data-partner-id');
           const taskId = row.getAttribute('data-task-id');
@@ -2318,6 +2320,9 @@ export function renderPriorityActionsWidget(container, model) {
       const clickHandler = (event) => {
         const target = event.target.closest('[data-role="priority-row"]');
         if (!target) return;
+
+        event.preventDefault();
+        event.stopPropagation();
 
         const contactId = target.getAttribute('data-contact-id');
         const partnerId = target.getAttribute('data-partner-id');
