@@ -121,6 +121,7 @@
 
   const CORE_STORES = ['contacts', 'partners', 'tasks', 'documents', 'deals', 'commissions', 'settings', 'templates', 'notifications', 'docs', 'closings', 'meta'];
   const EXTRA_STORES = ['relationships', 'savedViews'];
+  const PRIMARY_LOCAL_STORAGE_KEYS = ['crm:theme', 'calendar:legend:visibility'];
   const STORES = CORE_STORES.concat(EXTRA_STORES);
   window.DB_META = { DB_NAME, STORES };
 
@@ -353,6 +354,13 @@
         out[s] = await dbGetAll(s, { includePending: true, includeDeleted: true });
       }
     }
+    out.localStorage = {};
+    for (const key of PRIMARY_LOCAL_STORAGE_KEYS) {
+      try {
+        const value = window.localStorage.getItem(key);
+        if (value != null) out.localStorage[key] = value;
+      } catch (_err) { }
+    }
     return out;
   }
   function clonePartner(record) {
@@ -584,6 +592,18 @@
       }
       if (merged.length) await dbBulkPut(s, merged);
     }
+    const localData = data && typeof data.localStorage === 'object' && data.localStorage ? data.localStorage : null;
+    for (const key of PRIMARY_LOCAL_STORAGE_KEYS) {
+      try {
+        if (localData && Object.prototype.hasOwnProperty.call(localData, key)) {
+          const value = localData[key];
+          if (value == null) window.localStorage.removeItem(key);
+          else window.localStorage.setItem(key, String(value));
+        } else if (restoreMode === 'replace') {
+          window.localStorage.removeItem(key);
+        }
+      } catch (_err) { }
+    }
     try {
       const detail = { scope: 'all', action: 'restore', mode: restoreMode };
       if (typeof window.dispatchAppDataChanged === 'function') { window.dispatchAppDataChanged(detail); }
@@ -622,4 +642,3 @@ const __dbScope = typeof globalThis !== 'undefined'
 
 // Exports removed to support synchronous <script> loading
 // window.openDB etc are already assigned above.
-
