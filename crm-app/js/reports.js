@@ -1,6 +1,7 @@
 import { normalizeStatus } from './pipeline/constants.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import dashboardState from './state/dashboard_state.js';
+import './vendor/gridstack-all.js';
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){
@@ -111,6 +112,37 @@ import dashboardState from './state/dashboard_state.js';
     }catch (_err) {}
   }
 
+
+
+  let reportsGridstack = null;
+
+  function ensureReportsGridstack(){
+    const safe = typeof window !== 'undefined'
+      && window.location
+      && /[?&]safe=1(?:&|$)/.test(String(window.location.search||''));
+    if(safe) return null;
+
+    const host = document.getElementById('reports-gridstack');
+    if(!host || !window.GridStack) return null;
+
+    if(reportsGridstack){
+      try{ reportsGridstack.cellHeight(120); }catch(_err){}
+      return reportsGridstack;
+    }
+
+    reportsGridstack = window.GridStack.init({
+      column: 12,
+      margin: 12,
+      cellHeight: 120,
+      float: true,
+      disableOneColumnMode: true,
+      animate: true,
+      draggable: { handle: '.portfolio-card-header, .card strong' },
+      resizable: { handles: 'e, se, s, sw, w' }
+    }, host);
+
+    return reportsGridstack;
+  }
   async function compute(){
     await openDB();
     const [contacts, partners, tasks, documents] = await Promise.all([
@@ -532,6 +564,7 @@ import dashboardState from './state/dashboard_state.js';
   }
 
   async function renderReportsView(){
+    ensureReportsGridstack();
     const rangeSel = document.getElementById('rep-range');
     if(!rangeSel) return;
     const startEl = document.getElementById('rep-start');
