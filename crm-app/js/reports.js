@@ -1,9 +1,6 @@
 import { normalizeStatus } from './pipeline/constants.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import dashboardState from './state/dashboard_state.js';
-if (typeof window !== 'undefined' && typeof document !== 'undefined' && typeof navigator !== 'undefined') {
-  import('./vendor/gridstack-all.js').catch(() => {});
-}
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){
@@ -117,22 +114,38 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined' && typeof n
 
 
   let reportsGridstack = null;
+  let reportsGridstackLibPromise = null;
 
-  function ensureReportsGridstack(){
+  function loadReportsGridstackLib(){
+    if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
+    if (window.GridStack) return Promise.resolve(window.GridStack);
+    if (reportsGridstackLibPromise) return reportsGridstackLibPromise;
+
+    reportsGridstackLibPromise = import('./vendor/gridstack-all.js')
+      .then(() => window.GridStack || null)
+      .catch(() => null);
+
+    return reportsGridstackLibPromise;
+  }
+
+  async function ensureReportsGridstack(){
     const safe = typeof window !== 'undefined'
       && window.location
       && /[?&]safe=1(?:&|$)/.test(String(window.location.search||''));
     if(safe) return null;
 
     const host = document.getElementById('reports-gridstack');
-    if(!host || !window.GridStack) return null;
+    if(!host) return null;
+
+    const GridStack = await loadReportsGridstackLib();
+    if(!GridStack) return null;
 
     if(reportsGridstack){
       try{ reportsGridstack.cellHeight(120); }catch(_err){}
       return reportsGridstack;
     }
 
-    reportsGridstack = window.GridStack.init({
+    reportsGridstack = GridStack.init({
       column: 12,
       margin: 12,
       cellHeight: 120,
@@ -566,7 +579,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined' && typeof n
   }
 
   async function renderReportsView(){
-    ensureReportsGridstack();
+    await ensureReportsGridstack();
     const rangeSel = document.getElementById('rep-range');
     if(!rangeSel) return;
     const startEl = document.getElementById('rep-start');
