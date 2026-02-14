@@ -1065,109 +1065,127 @@
             Export CSV
           </button>
         </div>
-        <div class="grid cols-3">
-          <div class="card">
-            <div class="muted">
-              Funded (Count)
-            </div>
-            <div class="kval" id="rep-funded-count">
-              0
-            </div>
-          </div>
-          <div class="card">
-            <div class="muted">
-              Funded Volume
-            </div>
-            <div class="kval" id="rep-funded-sum">
-              $0
-            </div>
-          </div>
-          <div class="card">
-            <div class="muted">
-              Pipeline (Open)
-            </div>
-            <div class="kval" id="rep-pipeline-open">
-              0
-            </div>
-          </div>
-        </div>
-        <section class="card" id="reports-root"></section>
-        <div class="card" style="margin-top:12px">
-          <div class="portfolio-card-header">
-            <h3 class="portfolio-card-title" title="Referral Partner Performance">
-              Referral Partner Performance
-              <span class="help-icon" data-help="portfolio-referrals">?</span>
-            </h3>
-            <div class="table-search">
-              <input aria-label="Search partners" data-table-search="#tbl-referral-performance"
-                placeholder="Search Partners" type="search" />
+        <div class="grid-stack" id="reports-gridstack" data-gs-animate="true">
+          <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="12" gs-h="2" data-gs-id="reports-kpis">
+            <div class="grid-stack-item-content">
+              <div class="grid cols-3" data-portfolio-card="kpis">
+                <div class="card">
+                  <div class="muted">
+                    Funded (Count)
+                  </div>
+                  <div class="kval" id="rep-funded-count">
+                    0
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="muted">
+                    Funded Volume
+                  </div>
+                  <div class="kval" id="rep-funded-sum">
+                    $0
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="muted">
+                    Pipeline (Open)
+                  </div>
+                  <div class="kval" id="rep-pipeline-open">
+                    0
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <p class="widget-summary muted">Track which partners are sending quality leads and closing loans. Your #1
-            business metric.</p>
-          <div class="table-wrap portfolio-table-wrap">
-            <table class="table portfolio-table" id="tbl-referral-performance">
-              <thead>
-                <tr>
-                  <th>Partner</th>
-                  <th>Tier</th>
-                  <th>Leads Sent</th>
-                  <th>Applications</th>
-                  <th>Funded</th>
-                  <th>Conversion %</th>
-                  <th>Total Volume</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="empty-row">
-                  <td colspan="7">Loading partner metrics...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card" style="margin-top:12px">
-          <div class="portfolio-card-header">
-            <h3 class="portfolio-card-title" title="Funded Deals in Range">
-              Funded Deals in Range
-              <span class="help-icon" data-help="portfolio-funded">?</span>
-            </h3>
-            <div class="table-search">
-              <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals"
-                type="search" />
+          <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="12" gs-h="4" data-gs-id="reports-portfolio">
+            <div class="grid-stack-item-content">
+              <section class="card" id="reports-root"></section>
             </div>
           </div>
-          <div class="table-wrap portfolio-table-wrap">
-            <table class="table portfolio-table" id="tbl-funded">
-              <colgroup>
-                <col class="portfolio-col-name" />
-                <col class="portfolio-col-type" />
-                <col class="portfolio-col-amount" />
-                <col class="portfolio-col-date" />
-                <col class="portfolio-col-partner" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>
-                    Name
-                  </th>
-                  <th>
-                    Loan Type
-                  </th>
-                  <th>
-                    Amount
-                  </th>
-                  <th>
-                    Funded Date
-                  </th>
-                  <th>
-                    Partner
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-              </tbody>
-            </table>
+          <div class="grid-stack-item" gs-x="0" gs-y="6" gs-w="12" gs-h="5" data-gs-id="reports-referral-performance">
+            <div class="grid-stack-item-content">
+              <div class="card" style="margin-top:12px">
+                <div class="portfolio-card-header">
+                  <h3 class="portfolio-card-title" title="Referral Partner Performance">
+                    Referral Partner Performance
+                    <span class="help-icon" data-help="portfolio-referrals">?</span>
+                  </h3>
+                  <div class="table-search">
+                    <input aria-label="Search partners" data-table-search="#tbl-referral-performance"
+                      placeholder="Search Partners" type="search" />
+                  </div>
+                </div>
+                <p class="widget-summary muted">Track which partners are sending quality leads and closing loans. Your #1
+                  business metric.</p>
+                <div class="table-wrap portfolio-table-wrap">
+                  <table class="table portfolio-table" id="tbl-referral-performance">
+                    <thead>
+                      <tr>
+                        <th>Partner</th>
+                        <th>Tier</th>
+                        <th>Leads Sent</th>
+                        <th>Applications</th>
+                        <th>Funded</th>
+                        <th>Conversion %</th>
+                        <th>Total Volume</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="empty-row">
+                        <td colspan="7">Loading partner metrics...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid-stack-item" gs-x="0" gs-y="11" gs-w="12" gs-h="5" data-gs-id="reports-funded-deals">
+            <div class="grid-stack-item-content">
+              <div class="card" style="margin-top:12px">
+                <div class="portfolio-card-header">
+                  <h3 class="portfolio-card-title" title="Funded Deals in Range">
+                    Funded Deals in Range
+                    <span class="help-icon" data-help="portfolio-funded">?</span>
+                  </h3>
+                  <div class="table-search">
+                    <input aria-label="Search funded deals" data-table-search="#tbl-funded" placeholder="Search Funded Deals"
+                      type="search" />
+                  </div>
+                </div>
+                <div class="table-wrap portfolio-table-wrap">
+                  <table class="table portfolio-table" id="tbl-funded">
+                    <colgroup>
+                      <col class="portfolio-col-name" />
+                      <col class="portfolio-col-type" />
+                      <col class="portfolio-col-amount" />
+                      <col class="portfolio-col-date" />
+                      <col class="portfolio-col-partner" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>
+                          Name
+                        </th>
+                        <th>
+                          Loan Type
+                        </th>
+                        <th>
+                          Amount
+                        </th>
+                        <th>
+                          Funded Date
+                        </th>
+                        <th>
+                          Partner
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

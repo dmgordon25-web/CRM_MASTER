@@ -2280,15 +2280,15 @@ export function renderPriorityActionsWidget(container, model) {
     }
 
     renderWidgetBody(shell, (body) => {
-      const listEl = document.createElement('div');
+      const listEl = document.createElement('ul');
+      listEl.id = 'needs-attn';
       listEl.className = 'priority-list';
       listEl.setAttribute('data-role', 'priority-list');
       listEl.style.display = 'block';
 
-      rows.forEach((row, idx) => {
-        const rowEl = document.createElement('div');
+      rows.forEach((row) => {
+        const rowEl = document.createElement('li');
         rowEl.className = `priority-row tone-${row.tone}`;
-        // Test stability: Disable animation to avoid 'element not visible' errors during transitions
         rowEl.style.animation = 'none';
         rowEl.style.opacity = '1';
         rowEl.innerHTML = `

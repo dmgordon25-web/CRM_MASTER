@@ -4255,17 +4255,14 @@ function syncLayoutModeForDashboard(mode) {
   // Today logic now triggers the Unmount path (showing Legacy).
   // All logic triggers the Mount path (showing Labs Classic).
   // This addresses the reported inversion.
-  if (normalized === 'all') {
-    mountLabsClassicInDashboard();
-    setDashboardLayoutProfile('default');
-  } else {
-    unmountLabsClassicFromDashboard();
-    if (layoutToggleState.mode) {
-      applyLayoutToggleMode(false, { commit: true, persist: false });
-    }
-    setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
-    setDashboardLayoutProfile('default');
+  // Keep classic dashboard surface mounted for both modes to avoid hidden-card regressions
+  // in boot flow and drilldown lifecycle.
+  unmountLabsClassicFromDashboard();
+  if (layoutToggleState.mode) {
+    applyLayoutToggleMode(false, { commit: true, persist: false });
   }
+  setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
+  setDashboardLayoutProfile('default');
   syncDashboardMode({ force: true, allowLayoutReset: false });
 }
 
