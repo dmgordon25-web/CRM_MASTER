@@ -32,7 +32,7 @@ export const HELP_CONTENT = {
   'doc-pulse': {
     title: 'Document Pulse',
     short: 'Outstanding checklist items across active loans.',
-    detailsHtml: '<ul><li>Surfaces contacts with missingDocs entries and open checklist items in the contact editor.</li><li>Counts drop as you mark items received inside the Document Checklist tab.</li><li>Document Center uses the same data and respects the same filters.</li></ul>'
+    detailsHtml: '<ul><li>Surfaces contacts with missingDocs entries and open checklist items in the contact editor.</li><li>Counts drop as you mark items received inside the Document Checklist tab.</li><li>Clicking the list opens the related contact editor for direct checklist cleanup.</li></ul>'
   },
   'contacts-view': {
     title: 'Contacts',
@@ -68,11 +68,6 @@ export const HELP_CONTENT = {
     title: 'Notifications',
     short: 'Queue of alerts, reminders, and outbound messages.',
     detailsHtml: '<ul><li>Rows come from the notifications store (queued, sent, and archived entries).</li><li>Unread pill counts items without a read or archived flag; exporting honors current filters.</li><li>Throttles and quiet hours configured elsewhere still apply when scheduling from here.</li></ul>'
-  },
-  'doc-center-widget': {
-    title: 'Document Center',
-    short: 'Track missing borrower documents and jump into checklist cleanup quickly.',
-    detailsHtml: '<ul><li>Shows borrowers with open checklist items or requested docs.</li><li>As items are marked received in the contact editor, this list shrinks.</li><li>Clicking the card opens Document Center for full document workflow management.</li></ul>'
   },
   'task-list': {
     title: 'Task List',

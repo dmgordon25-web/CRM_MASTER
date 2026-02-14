@@ -17,8 +17,7 @@ import {
   writeDashboardConfig,
   isTodayWidget,
   DEFAULT_WIDGET_SET,
-  PREVIEW_WIDGET_SET,
-  DOC_CENTER_WIDGET_ENABLED
+  PREVIEW_WIDGET_SET
 } from './config.js';
 import { helpSystem } from '../utils/help_system.js';
 
@@ -172,10 +171,6 @@ const WIDGET_RESOLVERS = {
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null,
   upcomingCelebrations: resolveCelebrationsWidget
 };
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_RESOLVERS.docCenter = () => doc ? doc.getElementById('doc-center-card') : null;
-}
-
 const WIDGET_CARD_RESOLVERS = {
   priorityActions: () => {
     if (!doc) return null;
@@ -196,14 +191,6 @@ const WIDGET_CARD_RESOLVERS = {
   clientCareRadar: () => doc ? doc.getElementById('nurture-card') : null,
   closingWatch: () => doc ? doc.getElementById('closing-watch-card') : null
 };
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_CARD_RESOLVERS.docCenter = () => {
-    if (!doc) return null;
-    const node = doc.getElementById('doc-center-card');
-    return node ? node.closest('.card') : null;
-  };
-}
-
 function ensureE2EPriorityCard() {
   if (!doc || typeof document === 'undefined') return;
   let search = '';
@@ -269,19 +256,6 @@ const WIDGET_DOM_ID_MAP = {
   closingWatch: 'closing-watch-card',
   upcomingCelebrations: CELEBRATIONS_WIDGET_ID
 };
-if (DOC_CENTER_WIDGET_ENABLED) {
-  WIDGET_DOM_ID_MAP.docCenter = 'doc-center-card';
-}
-
-if (!DOC_CENTER_WIDGET_ENABLED && doc) {
-  const docCenterNode = doc.getElementById('doc-center-card');
-  if (docCenterNode) {
-    docCenterNode.setAttribute('hidden', 'hidden');
-    docCenterNode.style.display = 'none';
-    docCenterNode.style.visibility = 'hidden';
-  }
-}
-
 function logDashboardWidgetError(widgetKey, error) {
   if (!error) return;
   try {
@@ -3512,26 +3486,6 @@ function bindDashboardEvents(container = getDashboardContainerNode()) {
   exposeDashboardDnDHandlers();
 }
 
-function bindDocCenterCardNavigation() {
-  if (!doc) return;
-  const card = doc.getElementById('doc-center-card');
-  if (!card || card.dataset.docCenterBound === '1') return;
-  card.dataset.docCenterBound = '1';
-  card.style.cursor = 'pointer';
-  if (!card.getAttribute('data-dashboard-route')) {
-    card.setAttribute('data-dashboard-route', '#doccenter');
-  }
-  card.addEventListener('click', (evt) => {
-    if (evt && evt.defaultPrevented) return;
-    if (isDashboardEditingEnabled()) return;
-    const target = evt && evt.target;
-    if (target && target.closest && target.closest('.help-icon,[data-help],[data-help-id],a,button,input,select,textarea,label')) {
-      return;
-    }
-    tryNavigateDashboardRoute('#doccenter', card);
-  });
-}
-
 function persistDashboardOrder(orderLike) {
   const normalized = normalizeOrderList(orderLike);
   const signature = normalized.join('|');
@@ -4726,7 +4680,6 @@ export function initDashboard(options = {}) {
     refreshTodayHighlightWiring();
 
     helpSystem.refresh(container);
-    bindDocCenterCardNavigation();
     if (doc) {
       try {
         const readyEvent = new CustomEvent('dashboard:widgets:ready', { bubbles: true });
