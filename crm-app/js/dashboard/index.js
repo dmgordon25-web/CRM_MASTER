@@ -3522,6 +3522,8 @@ function bindDocCenterCardNavigation() {
     card.setAttribute('data-dashboard-route', '#doccenter');
   }
   card.addEventListener('click', (evt) => {
+    if (evt && evt.defaultPrevented) return;
+    if (isDashboardEditingEnabled()) return;
     const target = evt && evt.target;
     if (target && target.closest && target.closest('.help-icon,[data-help],[data-help-id],a,button,input,select,textarea,label')) {
       return;
