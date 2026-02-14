@@ -26,7 +26,7 @@ function isEnabled(key, visibility) {
  * @param {object} options - Visibility + toggle handler for live filtering.
  */
 export function renderLegend(container, options = {}) {
-  const { visibility = {}, onToggle } = options;
+  const { visibility = {}, onToggle, onReset } = options;
 
   if (container) {
     const existing = container.querySelector('.calendar-legend');
@@ -70,6 +70,19 @@ export function renderLegend(container, options = {}) {
 
     legend.appendChild(chip);
   });
+
+  const hasDisabled = items.some((item) => !isEnabled(item.key, visibility));
+  if (hasDisabled) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'legend-reset';
+    reset.dataset.qa = 'cal-legend-reset';
+    reset.textContent = 'Show all';
+    reset.addEventListener('click', () => {
+      if (typeof onReset === 'function') onReset();
+    });
+    legend.appendChild(reset);
+  }
 
   if (container) {
     container.appendChild(legend);
