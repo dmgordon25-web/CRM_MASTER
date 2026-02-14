@@ -111,6 +111,53 @@ import dashboardState from './state/dashboard_state.js';
     }catch (_err) {}
   }
 
+
+
+  let reportsGridstack = null;
+  let reportsGridstackLibPromise = null;
+
+  function loadReportsGridstackLib(){
+    if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
+    if (window.GridStack) return Promise.resolve(window.GridStack);
+    if (reportsGridstackLibPromise) return reportsGridstackLibPromise;
+
+    reportsGridstackLibPromise = import('./vendor/gridstack-all.js')
+      .then(() => window.GridStack || null)
+      .catch(() => null);
+
+    return reportsGridstackLibPromise;
+  }
+
+  async function ensureReportsGridstack(){
+    const safe = typeof window !== 'undefined'
+      && window.location
+      && /[?&]safe=1(?:&|$)/.test(String(window.location.search||''));
+    if(safe) return null;
+
+    const host = document.getElementById('reports-gridstack');
+    if(!host) return null;
+
+    const GridStack = await loadReportsGridstackLib();
+    if(!GridStack) return null;
+
+    if(reportsGridstack){
+      try{ reportsGridstack.cellHeight(120); }catch(_err){}
+      return reportsGridstack;
+    }
+
+    reportsGridstack = GridStack.init({
+      column: 12,
+      margin: 12,
+      cellHeight: 120,
+      float: true,
+      disableOneColumnMode: true,
+      animate: true,
+      draggable: { handle: '.portfolio-card-header, .card strong' },
+      resizable: { handles: 'e, se, s, sw, w' }
+    }, host);
+
+    return reportsGridstack;
+  }
   async function compute(){
     await openDB();
     const [contacts, partners, tasks, documents] = await Promise.all([
@@ -532,6 +579,7 @@ import dashboardState from './state/dashboard_state.js';
   }
 
   async function renderReportsView(){
+    await ensureReportsGridstack();
     const rangeSel = document.getElementById('rep-range');
     if(!rangeSel) return;
     const startEl = document.getElementById('rep-start');
