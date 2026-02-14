@@ -26,6 +26,7 @@ import {
   milestoneIndex
 } from './pipeline/constants.js';
 import { toastError, toastInfo, toastSuccess, toastWarn } from './ui/toast_helpers.js';
+import { initHelp } from './ui/help.js';
 import { normalizeStage } from './workflows/status_canonical.js';
 import { TOUCH_OPTIONS, createTouchLogEntry, formatTouchDate, touchSuccessMessage } from './util/touch_log.js';
 import { ensureFavoriteState, renderFavoriteToggle } from './util/favorites.js';
@@ -1169,6 +1170,7 @@ export function normalizeContactId(input) {
         body.innerHTML = '';
         if (usedTemplate) {
           body.appendChild(template.content.cloneNode(true));
+          initHelp(body);
         } else {
           const fallbackNotice = document.createElement('div');
           fallbackNotice.className = 'muted';
