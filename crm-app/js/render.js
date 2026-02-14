@@ -2443,7 +2443,7 @@ export async function renderPartnersView(options) {
                     <button class="btn" data-export-table="partners" aria-label="Export to CSV"
                         title="Export to CSV">Export
                         CSV</button>
-                    <button class="btn" id="btn-filters-partners">
+                    <button class="btn" id="btn-filters-partners" data-filters-scope="partners">
                         Filters
                     </button>
                 </div>
