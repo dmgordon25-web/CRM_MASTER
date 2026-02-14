@@ -16,12 +16,26 @@ if [ -z "${SUDO}" ] && [ "$(id -u)" -ne 0 ]; then
   exit 0
 fi
 
+choose_pkg() {
+  for pkg in "$@"; do
+    candidate=$(apt-cache policy "$pkg" | awk '/Candidate:/ { print $2 }' | head -n1)
+    if [ -n "${candidate:-}" ] && [ "$candidate" != "(none)" ]; then
+      echo "$pkg"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ALSA_PKG="$(choose_pkg libasound2 libasound2t64)"
+CUPS_PKG="$(choose_pkg libcups2 libcups2t64)"
+
 ${SUDO}apt-get update
 ${SUDO}apt-get install -y \
   libnss3 \
   libatk1.0-0 \
   libatk-bridge2.0-0 \
-  libcups2 \
+  "${CUPS_PKG}" \
   libdrm2 \
   libxkbcommon0 \
   libxcomposite1 \
@@ -30,7 +44,7 @@ ${SUDO}apt-get install -y \
   libxrandr2 \
   libgbm1 \
   libpango-1.0-0 \
-  libasound2 \
+  "${ALSA_PKG}" \
   fonts-liberation \
   libxshmfence1 \
   libxcb1 \
