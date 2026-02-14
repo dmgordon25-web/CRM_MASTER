@@ -21,13 +21,13 @@ export const HELP_CONTENT = {
   },
   'referral-leaders': {
     title: 'Referral Leaders',
-    short: 'Top partners sending you borrowers.',
-    detailsHtml: '<ul><li>Ranks partners by linked contacts and funded volume (contact.partnerId fields).</li><li>Counts update when you assign or change referral partners on contacts.</li><li>Filters applied on the Partners view roll into this ranking.</li></ul>'
+    short: 'Shows which partners are sending you the most client opportunities right now.',
+    detailsHtml: '<ul><li>Partners are ranked by linked contacts and funded volume.</li><li>When you change a contact\'s referral partner, this widget updates automatically.</li><li>Use it to see who deserves a follow-up thank-you or co-marketing touchpoint.</li></ul>'
   },
   'pipeline-momentum': {
     title: 'Pipeline Momentum',
-    short: 'Stage-by-stage counts of active borrowers.',
-    detailsHtml: '<ul><li>Aggregates contacts by pipeline stage (Application through Funded).</li><li>Counts mirror the Pipeline board and the Contacts list with the same filters applied.</li><li>Dragging cards or changing stage in the editor immediately updates this chart.</li></ul>'
+    short: 'Quick stage-by-stage snapshot of how many active borrowers are in motion.',
+    detailsHtml: '<ul><li>Counts are grouped by pipeline stage (Application to Funded).</li><li>Numbers match the Pipeline board and Contacts view for the same filters.</li><li>Updating a stage in the editor immediately refreshes this chart.</li></ul>'
   },
   'doc-pulse': {
     title: 'Document Pulse',
@@ -71,8 +71,13 @@ export const HELP_CONTENT = {
   },
   'doc-center-widget': {
     title: 'Document Center',
-    short: 'Checklist of document requests per borrower.',
-    detailsHtml: '<ul><li>Lists contacts whose Document Checklist tab shows missing items or follow-up doc requests.</li><li>Counts shrink as items are marked received inside the contact editor.</li><li>Filters applied on Contacts/Longshots affect what appears here so you see matching borrowers only.</li></ul>'
+    short: 'Track missing borrower documents and jump into checklist cleanup quickly.',
+    detailsHtml: '<ul><li>Shows borrowers with open checklist items or requested docs.</li><li>As items are marked received in the contact editor, this list shrinks.</li><li>Clicking the card opens Document Center for full document workflow management.</li></ul>'
+  },
+  'task-list': {
+    title: 'Task List',
+    short: 'Your immediate to-dos for follow-up, reminders, and due tasks.',
+    detailsHtml: '<ul><li>Includes tasks due today and upcoming items that need attention.</li><li>Completing or rescheduling a task updates this widget right away.</li><li>Use it as a daily execution list before moving to deeper views.</li></ul>'
   },
   'settings-view': {
     title: 'Settings',
