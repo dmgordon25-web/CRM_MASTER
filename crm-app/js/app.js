@@ -1350,7 +1350,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const cleanup = () => {
       if (cleaned) return;
       cleaned = true;
-      try { table.removeEventListener('change', handleTableChange); }
+      try { table.removeEventListener('change', handleTableChange, true); }
+      catch (_err) { }
+      try { header.removeEventListener('click', handleSelectAllClick); }
       catch (_err) { }
       if (unsubscribe) {
         try { unsubscribe(); }
@@ -1382,12 +1384,20 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       syncSelectionScope(scope, payload);
     };
 
+    const handleSelectAllClick = (event) => {
+      if (cleaned || event.__crmSelectAllHandled) return;
+      event.__crmSelectAllHandled = true;
+      applySelectAllToStore(header, store, scope, table);
+    };
+
     const handleTableChange = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
 
       const role = target.dataset ? target.dataset.role : null;
       if (role === 'select-all') {
+        if (event.__crmSelectAllHandled) return;
+        event.__crmSelectAllHandled = true;
         applySelectAllToStore(target, store, scope, table);
         return;
       }
@@ -1403,6 +1413,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       }
     };
+
+    try {
+      header.addEventListener('click', handleSelectAllClick);
+    } catch (_err) { }
 
     try {
       table.addEventListener('change', handleTableChange, true);
@@ -1551,9 +1565,19 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id');
-      if (!id) return null;
       const checkboxes = row.querySelectorAll('[data-ui="row-check"]');
+      const checkboxIds = [];
+      checkboxes.forEach((cb) => {
+        if (!cb || typeof cb.getAttribute !== 'function') return;
+        checkboxIds.push(cb.getAttribute('data-id'));
+        checkboxIds.push(cb.getAttribute('data-contact-id'));
+        checkboxIds.push(cb.getAttribute('data-partner-id'));
+      });
+      const id = row.getAttribute('data-id')
+        || row.getAttribute('data-contact-id')
+        || row.getAttribute('data-partner-id')
+        || checkboxIds.find(Boolean);
+      if (!id) return null;
       let checkbox = null;
       for (let i = 0; i < checkboxes.length; i++) {
         const cb = checkboxes[i];
@@ -2000,11 +2024,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
       const role = target.dataset ? target.dataset.role : null;
+      const scopeKey = selectionScopeFor(target);
       if (role === 'select-all') {
+        if (event.__crmSelectAllHandled) return;
+        event.__crmSelectAllHandled = true;
+        const host = target.closest && target.closest('table[data-selection-scope]');
+        applySelectAllToStore(target, store, scopeKey, host || null);
         return;
       }
       if (role !== 'select') return;
-      const scopeKey = selectionScopeFor(target);
       const id = selectionIdFor(target);
       if (!id) return;
       const type = (scopeKey === 'partners' || scopeKey === 'contacts' || scopeKey === 'pipeline' || scopeKey === 'notifications')

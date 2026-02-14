@@ -157,9 +157,9 @@ export async function runFullWorkflowSeed() {
 
     // 4. Calendar Events (15+)
     // Directly inject into 'events' store for Partner events and manual items
-    const eventTypes = ['meeting', 'call', 'partner', 'nurture'];
+    const eventTypes = ['meeting', 'call', 'partner', 'nurture', 'email', 'sms', 'postal', 'followup', 'task', 'deadline', 'other'];
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 24; i++) {
         const id = getId('event', i + 1);
         const typeKey = eventTypes[i % eventTypes.length];
         let type = typeKey;
@@ -171,6 +171,20 @@ export async function runFullWorkflowSeed() {
             titlePrefix = 'Partner Call';
         } else if (typeKey === 'nurture') {
             titlePrefix = 'Nurture Check-in';
+        } else if (typeKey === 'email') {
+            titlePrefix = 'Email Update';
+        } else if (typeKey === 'sms') {
+            titlePrefix = 'SMS Touch';
+        } else if (typeKey === 'postal') {
+            titlePrefix = 'Postal Mailer';
+        } else if (typeKey === 'followup') {
+            titlePrefix = 'Follow-up Reminder';
+        } else if (typeKey === 'task') {
+            titlePrefix = 'Task Block';
+        } else if (typeKey === 'deadline') {
+            titlePrefix = 'Milestone Deadline';
+        } else if (typeKey === 'other') {
+            titlePrefix = 'General Calendar Note';
         }
 
         const date = getDateInCurrentMonth((i * 2) + 1); // Every other day
