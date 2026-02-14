@@ -615,6 +615,13 @@ import { normalizeStatus } from './pipeline/constants.js';
     ].forEach(([sc, sel]) => {
       const b = $(sel); if (b && !b.__wired) { b.__wired = true; b.addEventListener('click', () => openFilters(sc)); }
     });
+    $all('[data-filters-scope]').forEach((button) => {
+      if (!button || button.__wired) return;
+      const scope = String(button.dataset.filtersScope || '').trim();
+      if (!scope || !DEFAULTS[scope]) return;
+      button.__wired = true;
+      button.addEventListener('click', () => openFilters(scope));
+    });
     [
       ['inprog', '#btn-saveview-inprog'],
       ['active', '#btn-saveview-active'],

@@ -2,6 +2,7 @@ import { canonicalStage } from '../pipeline/constants.js';
 import { stageKeyFromLabel } from '../pipeline/stages.js';
 
 const PIPELINE_STAGE_KEYS = Object.freeze(['application', 'processing', 'underwriting']);
+const EVENT_CATEGORY_KEYS = new Set(['call', 'email', 'sms', 'meeting', 'partner', 'postal', 'followup', 'nurture', 'task', 'deadline', 'other']);
 
 function getGlobalScope(){
   if (typeof window !== 'undefined') return window;
@@ -17,6 +18,33 @@ function normalizeStageValue(stage){
 
 function ensureArray(input){
   return Array.isArray(input) ? input : [];
+}
+
+function normalizeEventCategoryKey(value){
+  const key = String(value == null ? '' : value).trim().toLowerCase();
+  if (!key) return '';
+  if (EVENT_CATEGORY_KEYS.has(key)) return key;
+  if (key === 'partners' || key === 'partner-contact') return 'partner';
+  if (key === 'contacts' || key === 'contact' || key === 'client') return 'meeting';
+  return '';
+}
+
+function canonicalizeSeedEvents(dataset){
+  if (!dataset || typeof dataset !== 'object') return;
+  const events = ensureArray(dataset.events);
+  if (events !== dataset.events) dataset.events = events;
+  events.forEach((event) => {
+    if (!event || typeof event !== 'object') return;
+    const normalizedKey = normalizeEventCategoryKey(event.categoryKey || event.category || event.type);
+    if (!normalizedKey) return;
+    event.categoryKey = normalizedKey;
+    if (!event.category || !EVENT_CATEGORY_KEYS.has(String(event.category).toLowerCase())) {
+      event.category = normalizedKey;
+    }
+    if (!event.type || String(event.type).toLowerCase() === 'contacts' || String(event.type).toLowerCase() === 'partners') {
+      event.type = normalizedKey;
+    }
+  });
 }
 
 function canonicalizeContacts(dataset){
@@ -141,6 +169,7 @@ function synthesizePipelineContact(dataset, contacts, seenIds, stage, ordinal){
   if (!globalScope) return;
 
   const dataset = globalScope.__SEED_DATA__;
+  canonicalizeSeedEvents(dataset);
   const { contacts, hasCtc, seenIds, pipelineCount } = canonicalizeContacts(dataset);
   if (pipelineCount < 2 && contacts === dataset?.contacts) {
     const deficit = Math.max(2 - pipelineCount, 0);

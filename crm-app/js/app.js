@@ -2287,7 +2287,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const saveRow = card.querySelector('.row.query-save-row');
         removeNode(saveRow);
 
-        ['#btn-filters-longshots', '#btn-saveview-longshots', '#btn-delview-longshots', '#views-longshots']
+        ['#btn-saveview-longshots', '#btn-delview-longshots', '#views-longshots']
           .forEach((selector) => removeSelector(selector, card));
 
         const simpleSearch = card.querySelector('input[data-table-search="#tbl-longshots"]');
