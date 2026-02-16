@@ -585,6 +585,14 @@ function runPatch() {
     return document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
   }
 
+  function applyActionBarCount(bar, count) {
+    if (!bar) return;
+    const numeric = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    const text = String(numeric);
+    bar.dataset.count = text;
+    bar.setAttribute('data-count', text);
+  }
+
   function syncActionBarVisibility(selCount) {
     if (typeof document === 'undefined') return;
     const bar = actionbar();
@@ -599,7 +607,7 @@ function runPatch() {
         bar.removeAttribute('data-minimized');
       }
       bar.setAttribute('aria-expanded', 'true');
-      bar.dataset.count = String(numeric);
+      applyActionBarCount(bar, numeric);
       // RESTORE DRAG: Ensure it's draggable when visible
       bar.setAttribute('draggable', 'true');
     } else {
@@ -608,7 +616,7 @@ function runPatch() {
       bar.removeAttribute('data-idle-visible');
       bar.setAttribute('data-minimized', '1');
       bar.setAttribute('aria-expanded', 'false');
-      bar.dataset.count = '0';
+      applyActionBarCount(bar, 0);
       // Optional: remove draggable if hidden, but keeping it doesn't hurt. 
       // We'll leave it to avoid flickering state.
     }
@@ -780,7 +788,7 @@ function runPatch() {
         });
       } catch (err) { console.warn('computeActionBarGuards failed', err); }
     }
-    bar.dataset.count = String(count);
+    applyActionBarCount(bar, count);
     const countEl = bar.querySelector('[data-role="count"]');
     const breakdownEl = bar.querySelector('[data-role="breakdown"]');
     const amountEl = bar.querySelector('[data-role="amount"]');
