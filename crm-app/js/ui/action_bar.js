@@ -557,6 +557,7 @@ function handleAppViewChanged(event) {
   const view = typeof detail.view === 'string' ? detail.view : '';
   applyRouteCandidate(view, { forceReset: true, allowNullReset: true });
   if (!shouldSchedulePostPaintForRoute(view)) return;
+  reconcileVisibleSelectionState();
   ensureActionBarPostPaintRefresh();
 }
 
@@ -565,7 +566,33 @@ function handleRouteHashChange() {
   refreshActiveRouteFromLocation({ forceReset: true });
   const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
   if (!shouldSchedulePostPaintForRoute(hash)) return;
+  reconcileVisibleSelectionState();
   ensureActionBarPostPaintRefresh();
+}
+
+
+function reconcileVisibleSelectionState() {
+  if (typeof document === 'undefined') return;
+  if (hasDomSelectionSnapshot()) return;
+  const store = getSelectionStore();
+  if (!store || typeof store.count !== 'function' || typeof store.clear !== 'function') return;
+  const visibleScopes = getVisibleSelectionScopes();
+  if (!visibleScopes.length) return;
+  let cleared = false;
+  visibleScopes.forEach((scope) => {
+    const scopeKey = typeof scope === 'string' ? scope.trim() : '';
+    if (!scopeKey) return;
+    try {
+      const count = Number(store.count(scopeKey));
+      if (Number.isFinite(count) && count > 0) {
+        store.clear(scopeKey);
+        cleared = true;
+      }
+    } catch (_) { }
+  });
+  if (!cleared) return;
+  setActionBarSelectionScope('');
+  setSelectedCount(0);
 }
 
 function setActionsReady(flag) {
@@ -653,18 +680,59 @@ function handleSelectionChanged(detail) {
       }
     } catch (_) { }
   }
-  if (!scope && count <= 0 && (globalWiringState.selectedCount || 0) > 0 && hasDomSelectionSnapshot()) {
-    return;
+  if (!scope && count <= 0 && (globalWiringState.selectedCount || 0) > 0) {
+    const fallbackScopes = new Set();
+    const activeScope = typeof globalWiringState.activeSelectionScope === 'string'
+      ? globalWiringState.activeSelectionScope.trim()
+      : '';
+    if (activeScope) fallbackScopes.add(activeScope);
+    visibleScopes.forEach((visibleScope) => {
+      if (typeof visibleScope === 'string' && visibleScope.trim()) {
+        fallbackScopes.add(visibleScope.trim());
+      }
+    });
+    const barRoot = getActionBarRoot();
+    const hostScope = barRoot && typeof barRoot.getAttribute === 'function'
+      ? (barRoot.getAttribute('data-scope') || '').trim()
+      : '';
+    if (hostScope) fallbackScopes.add(hostScope);
+
+    let retainedSelection = hasDomSelectionSnapshot();
+    if (!retainedSelection && fallbackScopes.size) {
+      try {
+        const store = getSelectionStore();
+        if (store && typeof store.count === 'function') {
+          retainedSelection = Array.from(fallbackScopes).some((scopeKey) => {
+            const scopedCount = Number(store.count(scopeKey));
+            return Number.isFinite(scopedCount) && scopedCount > 0;
+          });
+        }
+      } catch (_) { }
+    }
+    if (retainedSelection) {
+      return;
+    }
   }
 
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
     count = 0;
+    const resetScope = scope || (typeof globalWiringState.activeSelectionScope === 'string'
+      ? globalWiringState.activeSelectionScope.trim()
+      : '');
     try { window.Selection?.clear?.('actionbar:init'); }
     catch (_) { }
     try { window.SelectionService?.clear?.('actionbar:init'); }
     catch (_) { }
-    try { window.SelectionStore?.clear?.('partners'); }
-    catch (_) { }
+    if (resetScope) {
+      try { window.SelectionStore?.clear?.(resetScope); }
+      catch (_) { }
+    } else {
+      const scopesToReset = inferSelectionScopes();
+      scopesToReset.forEach((scopeKey) => {
+        try { window.SelectionStore?.clear?.(scopeKey); }
+        catch (_) { }
+      });
+    }
   }
   setActionBarSelectionScope(scope);
   setSelectedCount(count);
