@@ -102,6 +102,7 @@ export const CORE = [
   './qa.js',
   './bulk_log.js',
   './print.js',
+  './snapshot.js',
 
   './app.js',
 
