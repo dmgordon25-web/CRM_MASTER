@@ -1566,7 +1566,18 @@ function runPatch() {
         toast('Nothing deleted');
         return { count: 0, ids: [] };
       }
-      return { count: removed, ids: ids.slice() };
+      const deletedIds = ids.slice();
+      if (typeof document !== 'undefined' && deletedIds.length) {
+        deletedIds.forEach((id) => {
+          if (id == null) return;
+          const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(String(id)) : String(id).replace(/"/g, '\\"');
+          const rows = document.querySelectorAll(`tr[data-id="${safeId}"]`);
+          rows.forEach((row) => {
+            try { row.remove(); } catch (_) { }
+          });
+        });
+      }
+      return { count: removed, ids: deletedIds };
     } catch (err) {
       console.warn('deleteSelection', err);
       toast('Delete failed');
