@@ -64,7 +64,6 @@
     "./selftest.js",
     "./selftest_panel.js",
     "../seed_test_data.js",
-    "./snapshot.js",
     "./ui/GhostButton.js",
     "./ui/PrimaryButton.js",
     "./ui/loading_block.js",
