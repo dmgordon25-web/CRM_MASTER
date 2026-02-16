@@ -1520,6 +1520,11 @@ function runPatch() {
         return { store, id };
       }).filter(item => item.store && item.id != null);
       if (!targets.length) { toast('Nothing deleted'); return { count: 0, ids: [] }; }
+      const deletedCountsByStore = targets.reduce((acc, item) => {
+        const key = item.store;
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
 
       console.log('[actionbar] deleteSelection: Targets:', targets);
 
@@ -1567,15 +1572,28 @@ function runPatch() {
         return { count: 0, ids: [] };
       }
       const deletedIds = ids.slice();
-      if (typeof document !== 'undefined' && deletedIds.length) {
-        deletedIds.forEach((id) => {
-          if (id == null) return;
-          const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(String(id)) : String(id).replace(/"/g, '\\"');
-          const rows = document.querySelectorAll(`tr[data-id="${safeId}"]`);
-          rows.forEach((row) => {
-            try { row.remove(); } catch (_) { }
-          });
+      if (typeof document !== 'undefined') {
+        Object.keys(deletedCountsByStore).forEach((scope) => {
+          const detail = {
+            source: 'actionbar:delete',
+            action: 'delete',
+            scope,
+            count: deletedCountsByStore[scope]
+          };
+          if (typeof window.dispatchAppDataChanged === 'function') window.dispatchAppDataChanged(detail);
+          else document.dispatchEvent(new CustomEvent('app:data:changed', { detail }));
         });
+        if (deletedIds.length) {
+          deletedIds.forEach((id) => {
+            if (id == null) return;
+            const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(String(id)) : String(id).replace(/"/g, '\\"');
+            const rows = document.querySelectorAll(`tr[data-id="${safeId}"]`);
+            rows.forEach((row) => {
+              try { row.remove(); }
+              catch (_) { }
+            });
+          });
+        }
       }
       return { count: removed, ids: deletedIds };
     } catch (err) {
@@ -1858,5 +1876,3 @@ if (typeof window !== 'undefined') {
     autoInit();
   }
 }
-
-
