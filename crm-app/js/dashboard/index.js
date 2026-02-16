@@ -467,6 +467,20 @@ const layoutChromeState = {
 // Labs classic mount state for Dashboard All mode
 let labsClassicMounted = false;
 let labsClassicHost = null;
+let labsClassicEpoch = 0;
+let labsClassicMounting = false;
+
+function restoreDashboardViewAndHideLabsHost() {
+  const host = getLabsClassicHost();
+  if (host) {
+    host.hidden = true;
+  }
+  const dashboardView = doc.getElementById('view-dashboard');
+  if (dashboardView) {
+    dashboardView.hidden = false;
+    dashboardView.style.removeProperty('display');
+  }
+}
 
 function getLabsClassicHost() {
   if (!doc) return null;
@@ -492,8 +506,23 @@ function getLabsClassicHost() {
   return host;
 }
 
-async function mountLabsClassicInDashboard() {
-  if (labsClassicMounted) return;
+function isLabsClassicMountCurrent(epoch) {
+  return epoch === labsClassicEpoch;
+}
+
+async function mountLabsClassicInDashboard(options = {}) {
+  const epoch = Number(options.epoch || 0);
+  if (!isLabsClassicMountCurrent(epoch)) {
+    labsClassicMounting = false;
+    if (getDashboardMode() !== 'all') {
+      restoreDashboardViewAndHideLabsHost();
+    }
+    return;
+  }
+  if (labsClassicMounted) {
+    labsClassicMounting = false;
+    return;
+  }
   const host = getLabsClassicHost();
   if (!host) return;
 
@@ -515,29 +544,42 @@ async function mountLabsClassicInDashboard() {
   host.hidden = false;
   try {
     const labsModule = await import('../labs/entry.js');
+    if (!isLabsClassicMountCurrent(epoch)) {
+      labsClassicMounting = false;
+      if (getDashboardMode() !== 'all') {
+        restoreDashboardViewAndHideLabsHost();
+      }
+      return;
+    }
     await labsModule.initLabs(host);
+    if (!isLabsClassicMountCurrent(epoch)) {
+      labsClassicMounting = false;
+      if (getDashboardMode() !== 'all') {
+        restoreDashboardViewAndHideLabsHost();
+      }
+      return;
+    }
     labsClassicMounted = true;
+    labsClassicMounting = false;
     console.info('[dashboard] Labs classic mounted in Dashboard All mode');
   } catch (err) {
+    labsClassicMounting = false;
     console.error('[dashboard] Failed to mount Labs classic:', err);
     host.innerHTML = '<div class="card"><div class="muted">Unable to load Labs classic view.</div></div>';
   }
 }
 
-async function unmountLabsClassicFromDashboard() {
-  if (!labsClassicMounted) return;
+async function unmountLabsClassicFromDashboard(options = {}) {
+  const force = options && options.force === true;
+  if (!force && !labsClassicMounted && !labsClassicMounting) return;
+  labsClassicMounting = false;
   const host = getLabsClassicHost();
   if (host) {
     host.hidden = true;
     host.innerHTML = '';
   }
 
-  // Restore dashboard container
-  const dashboardView = doc.getElementById('view-dashboard');
-  if (dashboardView) {
-    dashboardView.hidden = false;
-    dashboardView.style.removeProperty('display');
-  }
+  restoreDashboardViewAndHideLabsHost();
 
   // Keep legacy edit UI hidden since we never want it
   const dashboardHeader = doc.getElementById('dashboard-header');
@@ -545,12 +587,14 @@ async function unmountLabsClassicFromDashboard() {
     dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
       .forEach(el => { el.hidden = true; });
   }
-  try {
-    const labsModule = await import('../labs/entry.js');
-    if (typeof labsModule.unmountLabs === 'function') {
-      await labsModule.unmountLabs();
-    }
-  } catch (_) { }
+  if (labsClassicMounted || force) {
+    try {
+      const labsModule = await import('../labs/entry.js');
+      if (typeof labsModule.unmountLabs === 'function') {
+        await labsModule.unmountLabs();
+      }
+    } catch (_) { }
+  }
   labsClassicMounted = false;
   console.info('[dashboard] Labs classic unmounted from Dashboard');
 }
@@ -4245,14 +4289,17 @@ function syncLayoutModeForDashboard(mode) {
     // unmountLabsClassicFromDashboard(); // DO NOT UNMOUNT! It breaks state.
   }
   if (normalized === 'all') {
-    mountLabsClassicInDashboard();
+    const myEpoch = ++labsClassicEpoch;
+    labsClassicMounting = true;
+    mountLabsClassicInDashboard({ epoch: myEpoch, mode: 'all' });
     if (layoutToggleState.mode) {
       applyLayoutToggleMode(false, { commit: true, persist: false });
     }
     setDashboardLayoutMode(false, { persist: false, force: true, silent: true });
     setDashboardLayoutProfile('default');
   } else {
-    unmountLabsClassicFromDashboard();
+    labsClassicEpoch++;
+    unmountLabsClassicFromDashboard({ force: true });
   }
   applyModeButtonState(normalized);
   syncDashboardMode({ force: true, allowLayoutReset: false });

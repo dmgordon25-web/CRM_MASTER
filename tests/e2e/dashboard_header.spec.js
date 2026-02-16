@@ -92,6 +92,24 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         await expect(labsHost).not.toBeVisible();
     });
 
+    test('Rapid All to Today toggle keeps Today view visible and Labs hidden', async ({ page }) => {
+        const header = page.locator('#dashboard-header');
+        const todayBtn = header.locator('[data-dashboard-mode="today"]');
+        const allBtn = header.locator('[data-dashboard-mode="all"]');
+        const viewDashboard = page.locator('#view-dashboard');
+        const labsHost = page.locator('#dashboard-labs-classic-host');
+
+        await allBtn.click();
+        await page.waitForTimeout(20);
+        await todayBtn.click();
+
+        await expect(todayBtn).toHaveClass(/active/);
+        await expect(viewDashboard).toBeVisible();
+        await expect(viewDashboard).not.toHaveJSProperty('hidden', true);
+        await expect(viewDashboard).not.toHaveCSS('display', 'none');
+        await expect(labsHost).not.toBeVisible();
+    });
+
     test('Legend click does NOT trigger reset (View stays stable)', async ({ page }) => {
         const header = page.locator('#dashboard-header');
         const todayBtn = header.locator('[data-dashboard-mode="today"]');
