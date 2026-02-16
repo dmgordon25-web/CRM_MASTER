@@ -51,6 +51,11 @@
   function buildDetail(action, entries, options, groupId){
     const list = Array.isArray(entries) ? entries : [];
     if(!list.length) return { source: options && options.source ? options.source : 'soft-delete' };
+    const stores = list.reduce((acc, entry) => {
+      const store = entry.store;
+      acc[store] = (acc[store] || 0) + 1;
+      return acc;
+    }, {});
     const primary = list[0];
     const others = list.slice(1).map(entry => ({
       action,
@@ -59,19 +64,19 @@
       groupId,
       count: list.length
     }));
+    const storeKeys = Object.keys(stores);
+    const scopedStore = storeKeys.length === 1 ? storeKeys[0] : null;
     return {
       source: options && options.source ? options.source : 'soft-delete',
       action,
       entity: primary.store,
+      scope: scopedStore,
       id: primary.id,
+      ids: list.map(entry => entry.id),
       groupId,
       count: list.length,
       actions: others,
-      stores: list.reduce((acc, entry) => {
-        const store = entry.store;
-        acc[store] = (acc[store] || 0) + 1;
-        return acc;
-      }, {})
+      stores
     };
   }
 
@@ -135,7 +140,8 @@
       const pendingRecord = Object.assign({}, record, {
         deletedAtPending: pendingAt,
         deletedAt: null,
-        isDeleted: false,
+        isDeleted: true,
+        deleted: true,
         __pendingDeleteBackup: snapshot
       });
       try{
@@ -205,6 +211,7 @@
       delete restorePayload.deletedAt;
       delete restorePayload.deletedAtPending;
       delete restorePayload.isDeleted;
+      delete restorePayload.deleted;
       delete restorePayload.__pendingDeleteBackup;
       restorePayload.updatedAt = Date.now();
       try{
