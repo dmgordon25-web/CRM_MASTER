@@ -572,6 +572,7 @@ async function mountLabsClassicInDashboard(options = {}) {
 async function unmountLabsClassicFromDashboard(options = {}) {
   const force = options && options.force === true;
   if (!force && !labsClassicMounted && !labsClassicMounting) return;
+  const cancelInFlightMount = labsClassicMounting && !labsClassicMounted;
   labsClassicMounting = false;
   const host = getLabsClassicHost();
   if (host) {
@@ -586,6 +587,11 @@ async function unmountLabsClassicFromDashboard(options = {}) {
   if (dashboardHeader) {
     dashboardHeader.querySelectorAll('.dash-layout-customize, .dash-customize-banner, .dash-layout-advanced, [data-dashboard-customize-hint]')
       .forEach(el => { el.hidden = true; });
+  }
+  if (cancelInFlightMount) {
+    labsClassicMounted = false;
+    console.info('[dashboard] Labs classic mount canceled before completion');
+    return;
   }
   if (labsClassicMounted || force) {
     try {
