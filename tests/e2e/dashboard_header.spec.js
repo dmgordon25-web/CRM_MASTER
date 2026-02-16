@@ -99,15 +99,16 @@ test.describe('Dashboard Header & Toggle Parity', () => {
         const viewDashboard = page.locator('#view-dashboard');
         const labsHost = page.locator('#dashboard-labs-classic-host');
 
-        await allBtn.click();
-        await page.waitForTimeout(20);
-        await todayBtn.click();
+        for (let i = 0; i < 5; i += 1) {
+            await allBtn.click();
+            await todayBtn.click();
 
-        await expect(todayBtn).toHaveClass(/active/);
-        await expect(viewDashboard).toBeVisible();
-        await expect(viewDashboard).not.toHaveJSProperty('hidden', true);
-        await expect(viewDashboard).not.toHaveCSS('display', 'none');
-        await expect(labsHost).not.toBeVisible();
+            await expect(todayBtn).toHaveClass(/active/);
+            await expect(viewDashboard).toBeVisible();
+            await expect(viewDashboard).not.toHaveJSProperty('hidden', true);
+            await expect(viewDashboard).not.toHaveCSS('display', 'none');
+            await expect(labsHost).not.toBeVisible();
+        }
     });
 
     test('Legend click does NOT trigger reset (View stays stable)', async ({ page }) => {
