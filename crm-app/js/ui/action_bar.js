@@ -28,6 +28,7 @@ if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = n
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
 if (!('activeSelectionScope' in globalWiringState)) globalWiringState.activeSelectionScope = '';
 if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
+if (!('scopeSelectionOffs' in globalWiringState)) globalWiringState.scopeSelectionOffs = new Map();
 if (!('routeState' in globalWiringState)) {
   globalWiringState.routeState = {
     key: null,
@@ -147,9 +148,58 @@ function announceActionBarDragReady() {
   postActionBarTelemetry('actionbar-drag-ready');
 }
 
+function ensureScopeSelectionListeners() {
+  if (typeof document === 'undefined') return;
+  const registry = globalWiringState.scopeSelectionOffs;
+  if (!registry || typeof registry.forEach !== 'function') return;
+  const live = new Set();
+  document.querySelectorAll('[data-selection-scope]').forEach((host) => {
+    if (!host || !host.isConnected) return;
+    if (!isSelectionScopeActive(host)) return;
+    live.add(host);
+    if (registry.has(host)) return;
+    const handler = (event) => {
+      const target = event && event.target;
+      if (!target || typeof target.matches !== 'function') return;
+      if (!target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"]')) return;
+      scheduleVisibilityRefresh(() => {
+        const snapshot = getVisibleDomSelectionSnapshot();
+        if (snapshot.count > 0) {
+          globalWiringState.selectedCount = snapshot.count;
+          globalWiringState.mergeReadyCount = snapshot.count;
+          updateActionBar({ count: snapshot.count, scope: snapshot.scope });
+          return;
+        }
+        if ((globalWiringState.selectedCount || 0) > 0) {
+          reconcileVisibleSelectionState();
+        }
+        updateActionBar({ count: 0, scope: '' });
+      });
+    };
+    host.addEventListener('change', handler);
+    registry.set(host, () => {
+      try { host.removeEventListener('change', handler); }
+      catch (_) { }
+    });
+  });
+  registry.forEach((off, host) => {
+    if (live.has(host)) return;
+    if (typeof off === 'function') {
+      try { off(); }
+      catch (_) { }
+    }
+    registry.delete(host);
+  });
+}
+
 function refreshActionBarVisibility() {
   if (typeof document === 'undefined') return;
+  ensureScopeSelectionListeners();
+  const visibleDomSelection = getVisibleDomSelectionSnapshot();
   let count = Number(globalWiringState.selectedCount || 0);
+  let scope = typeof globalWiringState.activeSelectionScope === 'string'
+    ? globalWiringState.activeSelectionScope.trim()
+    : '';
   if (count <= 0) {
     try {
       const store = getSelectionStore();
@@ -159,7 +209,7 @@ function refreshActionBarVisibility() {
           const scoped = Number(store.count(scope));
           if (Number.isFinite(scoped) && scoped > 0) {
             count = scoped;
-            setActionBarSelectionScope(scope);
+            scope = scope || '';
             globalWiringState.selectedCount = scoped;
             globalWiringState.mergeReadyCount = scoped;
             break;
@@ -168,12 +218,36 @@ function refreshActionBarVisibility() {
       }
     } catch (_) { }
   }
-  const root = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
-  if (root) {
-    applyActionBarState(root, count, computeActionBarGuards(count));
-  } else {
-    syncActionBarVisibility(count);
+  if (count <= 0 && visibleDomSelection.count > 0) {
+    count = visibleDomSelection.count;
+    scope = visibleDomSelection.scope || scope;
+    globalWiringState.selectedCount = count;
+    globalWiringState.mergeReadyCount = count;
   }
+  if (count > 0 && visibleDomSelection.count === 0) {
+    let retainedStoreCount = 0;
+    let hasVisibleScope = false;
+    try {
+      const store = getSelectionStore();
+      if (store && typeof store.count === 'function') {
+        const visibleScopes = getVisibleSelectionScopes();
+        hasVisibleScope = visibleScopes.length > 0;
+        retainedStoreCount = visibleScopes.reduce((total, scopeKey) => {
+          const scoped = Number(store.count(scopeKey));
+          if (!Number.isFinite(scoped) || scoped <= 0) return total;
+          return total + scoped;
+        }, 0);
+      }
+    } catch (_) { }
+    if (hasVisibleScope && retainedStoreCount <= 0) {
+      count = 0;
+      scope = '';
+      globalWiringState.selectedCount = 0;
+      globalWiringState.mergeReadyCount = 0;
+    }
+  }
+  const root = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+  updateActionBar({ root, count, scope });
 }
 
 function requestVisibilityRefresh() {
@@ -392,18 +466,18 @@ export function ensureActionBarPostPaintRefresh() {
 function shouldSchedulePostPaintForRoute(value) {
   const raw = String(value == null ? '' : value).trim().toLowerCase();
   if (!raw) return false;
-  if (raw === 'partners' || raw === 'contacts') return true;
+  if (raw === 'partners' || raw === 'contacts' || raw === 'pipeline') return true;
   let normalized = raw;
   normalized = normalized.replace(/^#/, '');
   normalized = normalized.replace(/^\/+/, '');
   const segment = normalized.split(/[?&#]/)[0];
-  return segment === 'partners' || segment === 'contacts';
+  return segment === 'partners' || segment === 'contacts' || segment === 'pipeline';
 }
 
 function extractRouteKey(value) {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!raw) return null;
-  if (raw === 'partners' || raw === 'contacts') return raw;
+  if (raw === 'partners' || raw === 'contacts' || raw === 'pipeline') return raw;
   const hashIndex = raw.indexOf('#');
   let normalized = hashIndex >= 0 ? raw.slice(hashIndex + 1) : raw;
   normalized = normalized.replace(/^https?:\/\//, '');
@@ -413,7 +487,7 @@ function extractRouteKey(value) {
   }
   normalized = normalized.replace(/^\/+/, '');
   const segment = normalized.split(/[?&#/]/)[0];
-  if (segment === 'partners' || segment === 'contacts') return segment;
+  if (segment === 'partners' || segment === 'contacts' || segment === 'pipeline') return segment;
   return null;
 }
 
@@ -454,7 +528,7 @@ function refreshActiveRouteFromLocation(options = {}) {
 function isActionBarRouteActive() {
   const state = globalWiringState.routeState;
   if (!state || !state.key) return false;
-  return state.key === 'partners' || state.key === 'contacts';
+  return state.key === 'partners' || state.key === 'contacts' || state.key === 'pipeline';
 }
 
 function clearActionBarInlinePosition(bar) {
@@ -573,7 +647,7 @@ function handleRouteHashChange() {
 
 function reconcileVisibleSelectionState() {
   if (typeof document === 'undefined') return;
-  if (hasDomSelectionSnapshot()) return;
+  if (getVisibleDomSelectionSnapshot().count > 0) return;
   const store = getSelectionStore();
   if (!store || typeof store.count !== 'function' || typeof store.clear !== 'function') return;
   const visibleScopes = getVisibleSelectionScopes();
@@ -612,7 +686,7 @@ function setSelectedCount(count) {
   }
   applyMergeReadyFlag(next);
   updateActionBarMinimizedState(next);
-  applyActionBarState(getActionBarRoot(), next, computeActionBarGuards(next));
+  updateActionBar({ count: next });
   if (previous === next) return;
   handleSelectionTransition(previous, next);
   requestVisibilityRefresh();
@@ -697,7 +771,7 @@ function handleSelectionChanged(detail) {
       : '';
     if (hostScope) fallbackScopes.add(hostScope);
 
-    let retainedSelection = hasDomSelectionSnapshot();
+    let retainedSelection = getVisibleDomSelectionSnapshot().count > 0;
     if (!retainedSelection && fallbackScopes.size) {
       try {
         const store = getSelectionStore();
@@ -714,7 +788,7 @@ function handleSelectionChanged(detail) {
     }
   }
 
-  if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
+  if (isInitialSnapshot && count > 0 && getVisibleDomSelectionSnapshot().count <= 0) {
     count = 0;
     const resetScope = scope || (typeof globalWiringState.activeSelectionScope === 'string'
       ? globalWiringState.activeSelectionScope.trim()
@@ -934,48 +1008,87 @@ function _isActuallyVisible(el) {
   return rects && rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
 }
 
+function isSelectionScopeActive(node) {
+  if (!node) return false;
+  const hiddenAncestor = typeof node.closest === 'function'
+    ? node.closest('[hidden], .hidden, [aria-hidden="true"]')
+    : null;
+  if (hiddenAncestor && hiddenAncestor !== node) return false;
+  if (node.hasAttribute && node.hasAttribute('hidden')) return false;
+  if (node.classList && node.classList.contains('hidden')) return false;
+  if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return false;
+  return true;
+}
+
 function getVisibleSelectionScopes() {
   if (typeof document === 'undefined') return [];
   const scopes = new Set();
   document.querySelectorAll('[data-selection-scope]').forEach((node) => {
     const scope = node.getAttribute('data-selection-scope');
     if (!scope || !scope.trim()) return;
-    if (!_isActuallyVisible(node)) return;
+    if (!isSelectionScopeActive(node)) return;
     scopes.add(scope.trim());
   });
   return Array.from(scopes);
 }
 
-function hasDomSelectionSnapshot() {
-  if (typeof document === 'undefined') return false;
-  const selectors = [
-    '[data-ui="row-check"][aria-checked="true"]',
-    '[data-ui="row-check"]:checked',
-    '[data-ui="row-check"][data-selected="true"]',
-    '[data-selected="true"]',
-    'tr.selected',
-    '[data-row].is-selected'
-  ];
-  for (const selector of selectors) {
-    try {
-      if (document.querySelector(selector)) return true;
-    } catch (_) {
-      /* noop */
+function getVisibleDomSelectionSnapshot() {
+  if (typeof document === 'undefined') return { count: 0, scope: '' };
+  const visibleScopes = getVisibleSelectionScopes();
+  if (!visibleScopes.length) return { count: 0, scope: '' };
+  let count = 0;
+  let scope = '';
+  visibleScopes.forEach((scopeKey) => {
+    const safeScope = typeof scopeKey === 'string' ? scopeKey.trim() : '';
+    if (!safeScope) return;
+    let scopedCount = 0;
+    const selectors = [
+      `[data-selection-scope="${safeScope}"] input[data-ui="row-check"]:checked`,
+      `[data-selection-scope="${safeScope}"] input[data-role="select"]:checked`
+    ];
+    selectors.forEach((selector) => {
+      try {
+        scopedCount = Math.max(scopedCount, document.querySelectorAll(selector).length);
+      } catch (_) { }
+    });
+    if (scopedCount > 0) {
+      count += scopedCount;
+      if (!scope) scope = safeScope;
     }
-  }
-  return false;
+  });
+  return { count, scope };
 }
 
 
 export function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
   const bar = explicitEl || canonicalActionBarRoot();
-  if (!bar) return;
+  updateActionBar({ root: bar, count: selCount });
+}
 
-  const numeric = typeof selCount === 'number' && Number.isFinite(selCount)
-    ? Math.max(0, Math.floor(selCount))
+function updateActionBar({ root, count, scope } = {}) {
+  if (typeof document === 'undefined') return;
+  const bar = root || canonicalActionBarRoot();
+  if (!bar) return;
+  const numeric = typeof count === 'number' && Number.isFinite(count)
+    ? Math.max(0, Math.floor(count))
     : 0;
+  const normalizedScope = typeof scope === 'string' && scope.trim()
+    ? scope.trim()
+    : (numeric > 0 ? globalWiringState.activeSelectionScope : '');
+  if (normalizedScope) {
+    setActionBarSelectionScope(normalizedScope);
+  } else if (numeric <= 0) {
+    setActionBarSelectionScope('');
+  }
   applyActionBarState(bar, numeric, computeActionBarGuards(numeric));
+  try {
+    ensureClearHandler(bar);
+  } catch (_) { }
+  try {
+    bar.dataset.count = String(numeric || 0);
+    bar.setAttribute('data-count', String(numeric || 0));
+  } catch (_) { }
 }
 
 function _updateDataVisible(el) {
@@ -1097,7 +1210,7 @@ function ensureClearHandler(bar) {
   if (typeof document === 'undefined') return;
   const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
   if (!host) return;
-  const clearBtn = bar.querySelector(`[data-act="${DATA_ACTION_NAME}"]`);
+  const clearBtn = host.querySelector(`[data-act="${DATA_ACTION_NAME}"]`);
   if (!clearBtn) return;
   if (clearBtn.__clearHandlerWired) return;
 
