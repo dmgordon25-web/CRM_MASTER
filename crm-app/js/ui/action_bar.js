@@ -25,6 +25,7 @@ if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = fal
 if (!('mergeReadyCount' in globalWiringState)) globalWiringState.mergeReadyCount = 0;
 if (!('lastSelection' in globalWiringState)) globalWiringState.lastSelection = null;
 if (!('hasSelectionSnapshot' in globalWiringState)) globalWiringState.hasSelectionSnapshot = false;
+if (!('activeSelectionScope' in globalWiringState)) globalWiringState.activeSelectionScope = '';
 if (!('postPaintRefreshScheduled' in globalWiringState)) globalWiringState.postPaintRefreshScheduled = false;
 if (!('routeState' in globalWiringState)) {
   globalWiringState.routeState = {
@@ -567,6 +568,20 @@ function setSelectedCount(count) {
   requestVisibilityRefresh();
 }
 
+function setActionBarSelectionScope(scope) {
+  const normalized = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
+  globalWiringState.activeSelectionScope = normalized;
+  const bar = getActionBarRoot();
+  if (!bar) return;
+  if (!normalized) {
+    try { bar.removeAttribute('data-scope'); }
+    catch (_) { }
+    return;
+  }
+  try { bar.setAttribute('data-scope', normalized); }
+  catch (_) { }
+}
+
 function resetActionBarState() {
   globalWiringState.actionsReady = false;
   globalWiringState.selectedCount = 0;
@@ -590,6 +605,20 @@ function handleSelectionChanged(detail) {
   let count = typeof payload.count === 'number' && Number.isFinite(payload.count)
     ? payload.count
     : ids.length;
+  const scope = typeof payload.scope === 'string' && payload.scope.trim()
+    ? payload.scope.trim()
+    : (typeof payload.selectionScope === 'string' && payload.selectionScope.trim()
+      ? payload.selectionScope.trim()
+      : (typeof payload.type === 'string' && payload.type.trim() ? payload.type.trim() : ''));
+  const visibleScopes = getVisibleSelectionScopes();
+  if (scope && visibleScopes.length && !visibleScopes.includes(scope)) {
+    const activeScope = typeof globalWiringState.activeSelectionScope === 'string'
+      ? globalWiringState.activeSelectionScope
+      : '';
+    if (activeScope && activeScope !== scope && count <= 0) {
+      return;
+    }
+  }
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
 
@@ -602,6 +631,7 @@ function handleSelectionChanged(detail) {
     try { window.SelectionStore?.clear?.('partners'); }
     catch (_) { }
   }
+  setActionBarSelectionScope(scope);
   setSelectedCount(count);
 }
 
@@ -827,6 +857,7 @@ function hasDomSelectionSnapshot() {
   return false;
 }
 
+
 export function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
   const bar = explicitEl || canonicalActionBarRoot();
@@ -966,9 +997,20 @@ function ensureClearHandler(bar) {
     const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
     const scopes = getVisibleSelectionScopes();
     const store = getSelectionStore();
-    const targetScopes = scopes.length ? scopes : ['contacts'];
+    const targetScopeSet = new Set(scopes.length ? scopes : []);
+    const activeScope = typeof globalWiringState.activeSelectionScope === 'string' && globalWiringState.activeSelectionScope.trim()
+      ? globalWiringState.activeSelectionScope.trim()
+      : '';
+    if (activeScope) targetScopeSet.add(activeScope);
+    const hostScope = host && typeof host.getAttribute === 'function' ? (host.getAttribute('data-scope') || '').trim() : '';
+    if (hostScope) targetScopeSet.add(hostScope);
+    const lastScope = typeof globalWiringState.lastSelection?.scope === 'string' && globalWiringState.lastSelection.scope.trim()
+      ? globalWiringState.lastSelection.scope.trim()
+      : '';
+    if (lastScope) targetScopeSet.add(lastScope);
+    if (!targetScopeSet.size) targetScopeSet.add('contacts');
 
-    targetScopes.forEach((scope) => {
+    targetScopeSet.forEach((scope) => {
       if (store && typeof store.clear === 'function') {
         try { store.clear(scope); }
         catch (e) { console.warn('[action-bar] clear failed', e); }
