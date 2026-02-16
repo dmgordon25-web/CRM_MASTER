@@ -469,6 +469,7 @@ let labsClassicMounted = false;
 let labsClassicHost = null;
 let labsClassicEpoch = 0;
 let labsClassicMounting = false;
+let labsClassicTransitionId = 0;
 
 function restoreDashboardViewAndHideLabsHost() {
   const host = getLabsClassicHost();
@@ -510,9 +511,14 @@ function isLabsClassicMountCurrent(epoch) {
   return epoch === labsClassicEpoch;
 }
 
+function isLabsClassicTransitionCurrent(transitionId) {
+  return transitionId === labsClassicTransitionId;
+}
+
 async function mountLabsClassicInDashboard(options = {}) {
   const epoch = Number(options.epoch || 0);
-  if (!isLabsClassicMountCurrent(epoch)) {
+  const transitionId = Number(options.transitionId || 0);
+  if (!isLabsClassicMountCurrent(epoch) || !isLabsClassicTransitionCurrent(transitionId) || getDashboardMode() !== 'all') {
     labsClassicMounting = false;
     if (getDashboardMode() !== 'all') {
       restoreDashboardViewAndHideLabsHost();
@@ -544,18 +550,18 @@ async function mountLabsClassicInDashboard(options = {}) {
   host.hidden = false;
   try {
     const labsModule = await import('../labs/entry.js');
-    if (!isLabsClassicMountCurrent(epoch)) {
+    if (!isLabsClassicMountCurrent(epoch) || !isLabsClassicTransitionCurrent(transitionId) || getDashboardMode() !== 'all') {
       labsClassicMounting = false;
       if (getDashboardMode() !== 'all') {
-        restoreDashboardViewAndHideLabsHost();
+        await unmountLabsClassicFromDashboard({ force: true, skipModuleUnmount: true });
       }
       return;
     }
     await labsModule.initLabs(host);
-    if (!isLabsClassicMountCurrent(epoch)) {
+    if (!isLabsClassicMountCurrent(epoch) || !isLabsClassicTransitionCurrent(transitionId) || getDashboardMode() !== 'all') {
       labsClassicMounting = false;
       if (getDashboardMode() !== 'all') {
-        restoreDashboardViewAndHideLabsHost();
+        await unmountLabsClassicFromDashboard({ force: true });
       }
       return;
     }
@@ -571,6 +577,7 @@ async function mountLabsClassicInDashboard(options = {}) {
 
 async function unmountLabsClassicFromDashboard(options = {}) {
   const force = options && options.force === true;
+  const skipModuleUnmount = options && options.skipModuleUnmount === true;
   if (!force && !labsClassicMounted && !labsClassicMounting) return;
   const cancelInFlightMount = labsClassicMounting && !labsClassicMounted;
   labsClassicMounting = false;
@@ -593,7 +600,7 @@ async function unmountLabsClassicFromDashboard(options = {}) {
     console.info('[dashboard] Labs classic mount canceled before completion');
     return;
   }
-  if (labsClassicMounted || force) {
+  if (!skipModuleUnmount && (labsClassicMounted || force)) {
     try {
       const labsModule = await import('../labs/entry.js');
       if (typeof labsModule.unmountLabs === 'function') {
@@ -4272,6 +4279,7 @@ function setDashboardMode(mode, options = {}) {
 
 function syncLayoutModeForDashboard(mode) {
   const normalized = mode === 'all' ? 'all' : 'today';
+  const transitionId = ++labsClassicTransitionId;
   const isDashboard = normalized === 'all' || normalized === 'today'; // Assuming 'mode' being passed implies we are in a dashboard context.
 
   // FIX: Handle moved header visibility manually since it's now outside layout
@@ -4297,7 +4305,7 @@ function syncLayoutModeForDashboard(mode) {
   if (normalized === 'all') {
     const myEpoch = ++labsClassicEpoch;
     labsClassicMounting = true;
-    mountLabsClassicInDashboard({ epoch: myEpoch, mode: 'all' });
+    mountLabsClassicInDashboard({ epoch: myEpoch, transitionId, mode: 'all' });
     if (layoutToggleState.mode) {
       applyLayoutToggleMode(false, { commit: true, persist: false });
     }
