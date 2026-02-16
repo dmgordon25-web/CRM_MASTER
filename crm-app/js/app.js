@@ -1628,7 +1628,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     checkbox.indeterminate = false;
 
     const entries = hostRoot ? collectSelectionRowData(hostRoot, { ensureHeaders: true }) : [];
-    const targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+    let targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
+    if (!targets.length) {
+      targets = entries.filter(entry => !entry.disabled);
+    }
 
     if (!targets.length) {
       checkbox.indeterminate = false;
@@ -1924,6 +1927,17 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const totalRaw = Number(count);
     const total = Number.isFinite(totalRaw) ? totalRaw : 0;
     const scopeKey = typeof scope === 'string' && scope.trim() ? scope.trim() : '';
+    const scopeHosts = scopeKey
+      ? Array.from(document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`))
+      : [];
+    const hasVisibleScopeHost = scopeHosts.some((node) => {
+      if (!node || !node.isConnected) return false;
+      const hiddenAncestor = node.closest('.hidden,[hidden],[aria-hidden="true"]');
+      return !hiddenAncestor;
+    });
+    if (scopeKey && total <= 0 && !hasVisibleScopeHost) {
+      return;
+    }
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
     } else {
@@ -1978,6 +1992,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     if (typeof applyActionBarState === 'function') {
       applyActionBarState(bar, total, guards);
     }
+    try {
+      bar.dataset.count = String(Math.max(0, total));
+    } catch (_err) { }
     if (total > 0) {
       bar.classList.add('has-selection');
     } else {

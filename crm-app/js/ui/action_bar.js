@@ -20,6 +20,7 @@ const globalWiringState = typeof window !== 'undefined'
   : { windowListeners: new Map(), documentListeners: new Map(), teardown() { } };
 
 if (!('selectionOff' in globalWiringState)) globalWiringState.selectionOff = null;
+if (!('selectionCompatOff' in globalWiringState)) globalWiringState.selectionCompatOff = null;
 if (!('selectedCount' in globalWiringState)) globalWiringState.selectedCount = 0;
 if (!('actionsReady' in globalWiringState)) globalWiringState.actionsReady = false;
 if (!('mergeReadyCount' in globalWiringState)) globalWiringState.mergeReadyCount = 0;
@@ -148,9 +149,31 @@ function announceActionBarDragReady() {
 
 function refreshActionBarVisibility() {
   if (typeof document === 'undefined') return;
+  let count = Number(globalWiringState.selectedCount || 0);
+  if (count <= 0) {
+    try {
+      const store = getSelectionStore();
+      if (store && typeof store.count === 'function') {
+        const visibleScopes = getVisibleSelectionScopes();
+        for (const scope of visibleScopes) {
+          const scoped = Number(store.count(scope));
+          if (Number.isFinite(scoped) && scoped > 0) {
+            count = scoped;
+            setActionBarSelectionScope(scope);
+            globalWiringState.selectedCount = scoped;
+            globalWiringState.mergeReadyCount = scoped;
+            break;
+          }
+        }
+      }
+    } catch (_) { }
+  }
   const root = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
-  if (root) _updateDataVisible(root);
-  else syncActionBarVisibility(globalWiringState.selectedCount || 0);
+  if (root) {
+    applyActionBarState(root, count, computeActionBarGuards(count));
+  } else {
+    syncActionBarVisibility(count);
+  }
 }
 
 function requestVisibilityRefresh() {
@@ -621,6 +644,18 @@ function handleSelectionChanged(detail) {
   }
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
+  if (scope && count <= 0) {
+    try {
+      const store = getSelectionStore();
+      const retained = store && typeof store.count === 'function' ? Number(store.count(scope)) : 0;
+      if (Number.isFinite(retained) && retained > 0) {
+        count = retained;
+      }
+    } catch (_) { }
+  }
+  if (!scope && count <= 0 && (globalWiringState.selectedCount || 0) > 0 && hasDomSelectionSnapshot()) {
+    return;
+  }
 
   if (isInitialSnapshot && count > 0 && !hasDomSelectionSnapshot()) {
     count = 0;
@@ -637,9 +672,15 @@ function handleSelectionChanged(detail) {
 
 function clearSelectionSubscription() {
   const off = globalWiringState.selectionOff;
+  const compatOff = globalWiringState.selectionCompatOff;
   globalWiringState.selectionOff = null;
+  globalWiringState.selectionCompatOff = null;
   if (typeof off === 'function') {
     try { off(); }
+    catch (_) { }
+  }
+  if (typeof compatOff === 'function') {
+    try { compatOff(); }
     catch (_) { }
   }
   globalWiringState.hasSelectionSnapshot = false;
@@ -680,9 +721,10 @@ function readSelectionSnapshot(selection) {
 }
 
 function ensureSelectionSubscription() {
-  if (globalWiringState.selectionOff) return;
+  const hasStoreSubscription = typeof globalWiringState.selectionOff === 'function';
+  const hasCompatSubscription = typeof globalWiringState.selectionCompatOff === 'function';
   const store = getSelectionStore();
-  if (store && typeof store.subscribe === 'function') {
+  if (!hasStoreSubscription && store && typeof store.subscribe === 'function') {
     try {
       const off = store.subscribe((snapshot) => {
         const scope = typeof snapshot?.scope === 'string' && snapshot.scope.trim()
@@ -741,18 +783,17 @@ function ensureSelectionSubscription() {
       });
     }
   }
-  if (globalWiringState.selectionOff) return;
+  const nowHasStoreSubscription = typeof globalWiringState.selectionOff === 'function';
   const selection = getSelectionApi();
-  if (!selection || typeof selection.onChange !== 'function') return;
-  try {
-    const off = selection.onChange((detail) => {
-      handleSelectionChanged(detail);
-    });
-    globalWiringState.selectionOff = typeof off === 'function' ? off : null;
-  } catch (_) {
-    return;
+  if (!hasCompatSubscription && selection && typeof selection.onChange === 'function') {
+    try {
+      const off = selection.onChange((detail) => {
+        handleSelectionChanged(detail);
+      });
+      globalWiringState.selectionCompatOff = typeof off === 'function' ? off : null;
+    } catch (_) { /* noop */ }
   }
-  if (!globalWiringState.hasSelectionSnapshot) {
+  if (!globalWiringState.hasSelectionSnapshot && selection && typeof selection.onChange === 'function' && !nowHasStoreSubscription) {
     const snapshot = readSelectionSnapshot(selection);
     handleSelectionChanged({ ...snapshot, source: snapshot.source || 'snapshot' });
   }
