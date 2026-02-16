@@ -1356,13 +1356,22 @@ export async function renderAll(request) {
       const settingsPromise = (window.Settings && typeof window.Settings.get === 'function')
         ? window.Settings.get()
         : dbGetAll('settings');
-      const [contacts, partners, tasks, rawSettings, documents] = await Promise.all([
+      const [rawContacts, partners, tasks, rawSettings, documents] = await Promise.all([
         dbGetAll('contacts'),
         dbGetAll('partners'),
         dbGetAll('tasks'),
         settingsPromise,
         dbGetAll('documents')
       ]);
+      const contacts = (Array.isArray(rawContacts) ? rawContacts : []).filter((record) => {
+        if (!record) return false;
+        if (record.deleted || record.isDeleted) return false;
+        const deletedAt = Number(record.deletedAt);
+        if (Number.isFinite(deletedAt) && deletedAt > 0) return false;
+        const pendingAt = Number(record.deletedAtPending);
+        if (Number.isFinite(pendingAt) && pendingAt > 0) return false;
+        return true;
+      });
       const partnerNameMap = new Map((partners || []).map(p => [String(p.id), p.name || p.company || '']));
       const partnerIndex = buildPartnerIndex(partners || []);
       const contactIndex = buildContactIndex(contacts || [], partnerNameMap);
@@ -2537,5 +2546,4 @@ export function renderPipelineView(options) {
   }
   return Promise.resolve(false);
 }
-
 
