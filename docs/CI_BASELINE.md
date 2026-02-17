@@ -1,7 +1,7 @@
 # CI Baseline
-- Timestamp (UTC): 2026-02-17T04:52:17Z
-- Commit tested: 911139407c5fd841519892c8174aaf5ebfe4fbeb
-- Repository sync note: Could not fetch/pull latest main because no `origin` remote is configured in this checkout.
+- Timestamp (UTC): 2026-02-17T19:37:21Z
+- Commit tested: d0ca5218757fd310ac147cbe8cb11a159b91df2f
+- Repository sync note: Unable to fetch/pull latest `main` because no `origin` remote is configured in this environment (`git fetch origin` failed: "'origin' does not appear to be a git repository").
 
 ## Commands run
 ```bash
@@ -14,34 +14,34 @@ npm run check:features
 npm run audit
 ```
 
-## PASS/FAIL summary
+PASS/FAIL summary
 | Suite | Command | Status | Notes |
-| Suite | Command | Status | Notes |
-| Install | npm ci | PASS | EXIT_CODE=0 |
-| Build verify | npm run verify:build | PASS | EXIT_CODE=0 |
-| Unit tests | npm run test:unit | PASS | EXIT_CODE=0; 15 files / 59 tests passed |
-| Counts suite | npm run test:counts | PASS | EXIT_CODE=0; 8 passed |
-| E2E suite | npm run test:e2e | FAIL | Initial run terminated early/hung during execution; diagnostic rerun `timeout 900s npm run test:e2e` => EXIT_CODE=1 with 5 failed, 49 passed |
-| Features check | npm run check:features | PASS | EXIT_CODE=0 |
-| Audit | npm run audit | PASS | EXIT_CODE=0 |
+| --- | --- | --- | --- |
+| Install deps | `npm ci` | PASS | EXIT_CODE=0; installed packages; reported 7 moderate vulnerabilities. |
+| Build verification | `npm run verify:build` | PASS | EXIT_CODE=0; `[manifest-audit] OK`; `[boot-smoke] PASS`. |
+| Unit tests | `npm run test:unit` | PASS | EXIT_CODE=0; 15 files / 59 tests passed. |
+| Count tests | `npm run test:counts` | FAIL | EXIT_CODE=1; 1 failed, 7 passed (Playwright subset). |
+| E2E tests | `npm run test:e2e` | FAIL | Initial run terminated early/hung; diagnostic rerun executed with `timeout 900s npm run test:e2e`; diagnostic EXIT_CODE=1 with 3 failed, 51 passed. |
+| Feature checks | `npm run check:features` | PASS | EXIT_CODE=0; `[boot-smoke] PASS`. |
+| Audit gate | `npm run audit` | PASS | EXIT_CODE=0; `[audit] OK: manifest + feature checks passed`. |
 
-## Failing suite details
-### npm run test:e2e (FAIL)
-Key error line: `Error: expect(locator).toBeChecked() failed`
+Failing suite details
+npm run test:e2e (FAIL)
+Key error line: `3 failed`
 
-### Failing specs list (spec file — test title)
-- tests/e2e/action_bar_selection.spec.js — Action Bar Selection › should keep action bar stable across tab switching select-all cycles
-- tests/e2e/contact_delete.spec.js — Contact Deletion › bulk delete updates UI immediately
-- tests/e2e/contact_doc_checklist.spec.js — contact document checklist › persists checklist toggles across reload
-- tests/e2e/dashboard_widget_drilldown.spec.ts — Dashboard widget drilldowns › Priority Actions opens the correct contact before and after rerender
-- tests/e2e/labs_znext_render.spec.js — Labs zNext Engine Render Verification
+Failing specs list (spec file — test title)
+- `tests/e2e/action_bar_selection.spec.js` — `Action Bar Selection › tripwire selection flow across contacts partners pipeline`
+- `tests/e2e/contact_delete.spec.js` — `Contact Deletion › bulk delete updates UI immediately`
+- `tests/e2e/dashboard_widget_drilldown.spec.ts` — `Dashboard widget drilldowns › Priority Actions opens the correct contact before and after rerender`
 
-### npm run audit (PASS)
-Key error line: `[audit] OK: manifest + feature checks passed`
+npm run audit (FAIL)
+Key error line: `N/A (PASS in this run: [audit] OK: manifest + feature checks passed)`
 
-## Top 5 remaining failure clusters
-1. Action bar selection stability across tab switching + select-all cycles.
-2. Contact deletion UI update lifecycle.
-3. Contact document checklist persistence across reload.
-4. Dashboard Priority Actions drilldown/editor open lifecycle after rerender.
-5. Labs zNext grid render sizing/parity (grid height expectation unmet).
+Top 5 remaining failure clusters
+Group the remaining issues by area (examples):
+
+- Action bar selection stability/tripwire parity (contacts/partners/pipeline flow)
+- Contact deletion UI consistency (duplicate row visibility after delete)
+- Dashboard Priority Actions drilldown/render parity across rerenders
+- Selftest/manifest patch diagnostics noise during e2e (`PATCHES_MISSING`, `app:data:changed` warnings)
+- Counts/e2e coverage mismatch due selection tripwire regression (`test:counts` fails on same area)
