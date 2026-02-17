@@ -5,7 +5,7 @@
   "scripts": {
     "lint-lite": "eslint -c crm-app/.eslintrc-lite.json crm-app/js/contacts_merge.js || exit 0",
     "fix-catch": "node tools/fix_catch_syntax.js",
-    "postinstall": "playwright install",
+    "postinstall": "node tools/ensure_playwright_browsers.mjs",
     "ci": "npm run ci:unit",
     "ci:unit": "vitest run --reporter=basic --bail 1 --watch=false",
     "audit": "node devtools/audit.mjs",

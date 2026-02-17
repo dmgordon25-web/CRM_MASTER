@@ -285,7 +285,7 @@ function runPatch() {
 
   function resolveRowId(node) {
     if (!node) return null;
-    const attrs = ['data-id', 'data-contact-id', 'data-partner-id', 'data-row-id'];
+    const attrs = ['data-contact-id', 'data-partner-id', 'data-id', 'data-row-id'];
     for (const attr of attrs) {
       const direct = node.getAttribute && node.getAttribute(attr);
       if (direct) return String(direct);
