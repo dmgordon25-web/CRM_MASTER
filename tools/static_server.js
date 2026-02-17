@@ -38,7 +38,24 @@ function serveFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const type = MIME_TYPES[ext] || 'application/octet-stream';
   res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-  fs.createReadStream(filePath).pipe(res);
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', (error) => {
+    if (!res.headersSent) {
+      send(res, 500, 'Internal Server Error');
+      return;
+    }
+    if (error && error.code !== 'ECONNRESET' && error.code !== 'EPIPE') {
+      res.destroy(error);
+      return;
+    }
+    res.end();
+  });
+  res.on('error', (error) => {
+    if (error && error.code !== 'ECONNRESET' && error.code !== 'EPIPE') {
+      stream.destroy(error);
+    }
+  });
+  stream.pipe(res);
 }
 
 function send(res, status, body, headers = {}) {
@@ -58,7 +75,7 @@ function createStaticServer(root, { verbose = true } = {}) {
       return send(res, 400, 'Bad Request');
     }
 
-    if (pathname === '/health' || pathname === '/healthz') {
+    if (pathname === '/health' || pathname === '/healthz' || pathname === '/__health') {
       return send(res, 200, 'OK');
     }
 
