@@ -1,0 +1,6 @@
+- Updated crm-app/js/ui/action_bar.js with a current-root reconciliation path that derives selection count from the active contacts/partners/pipeline scope host.
+- Added a synchronous clear-state helper to force action bar hidden/count=0/scope cleared before async store or selection events.
+- Updated clear button flow to force clear state first, then reconcile from current active root.
+- Tightened checkbox clearing selector to input[data-ui="row-check"] and input[data-role="select"].
+- Added select-all unchecked hard reset within active scope change handler to uncheck all row checkboxes and clear [data-selected] rows before reconciling.
+- Hooked route/view transition handlers to reconcile from current active root instead of only store-based visible-scope reconciliation.

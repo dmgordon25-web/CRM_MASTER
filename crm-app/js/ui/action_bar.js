@@ -162,6 +162,18 @@ function ensureScopeSelectionListeners() {
       const target = event && event.target;
       if (!target || typeof target.matches !== 'function') return;
       if (!target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"]')) return;
+      const isSelectAllToggle = target.matches('input[data-role="select-all"]');
+      if (isSelectAllToggle && target.checked === false && typeof host.querySelectorAll === 'function') {
+        host.querySelectorAll('input[data-ui="row-check"], input[data-role="select"]').forEach((node) => {
+          if (!(node instanceof HTMLInputElement)) return;
+          node.indeterminate = false;
+          node.checked = false;
+          node.setAttribute('aria-checked', 'false');
+        });
+        host.querySelectorAll('[data-selected]').forEach((row) => {
+          row.removeAttribute('data-selected');
+        });
+      }
       scheduleVisibilityRefresh(() => {
         const snapshot = getVisibleDomSelectionSnapshot();
         if (snapshot.count > 0) {
@@ -173,7 +185,8 @@ function ensureScopeSelectionListeners() {
         if ((globalWiringState.selectedCount || 0) > 0) {
           reconcileVisibleSelectionState();
         }
-        updateActionBar({ count: 0, scope: '' });
+        forceActionBarClearedState(getActionBarRoot());
+        reconcileActionBarFromCurrentRoot();
       });
     };
     host.addEventListener('change', handler);
@@ -631,7 +644,7 @@ function handleAppViewChanged(event) {
   const view = typeof detail.view === 'string' ? detail.view : '';
   applyRouteCandidate(view, { forceReset: true, allowNullReset: true });
   if (!shouldSchedulePostPaintForRoute(view)) return;
-  reconcileVisibleSelectionState();
+  reconcileActionBarFromCurrentRoot();
   ensureActionBarPostPaintRefresh();
 }
 
@@ -640,7 +653,7 @@ function handleRouteHashChange() {
   refreshActiveRouteFromLocation({ forceReset: true });
   const hash = typeof window.location.hash === 'string' ? window.location.hash : '';
   if (!shouldSchedulePostPaintForRoute(hash)) return;
-  reconcileVisibleSelectionState();
+  reconcileActionBarFromCurrentRoot();
   ensureActionBarPostPaintRefresh();
 }
 
@@ -1059,6 +1072,70 @@ function getVisibleDomSelectionSnapshot() {
   return { count, scope };
 }
 
+function resolveCurrentScopeFromRoute() {
+  const routeScope = globalWiringState.routeState && typeof globalWiringState.routeState.key === 'string'
+    ? globalWiringState.routeState.key.trim()
+    : '';
+  if (routeScope === 'contacts' || routeScope === 'partners' || routeScope === 'pipeline') {
+    return routeScope;
+  }
+  if (typeof window !== 'undefined' && window.location && typeof window.location.hash === 'string') {
+    const hashScope = extractRouteKey(window.location.hash);
+    if (hashScope === 'contacts' || hashScope === 'partners' || hashScope === 'pipeline') {
+      return hashScope;
+    }
+  }
+  return '';
+}
+
+function getCurrentActiveSelectionRoot() {
+  if (typeof document === 'undefined') return null;
+  const currentScope = resolveCurrentScopeFromRoute();
+  if (currentScope) {
+    const scopedHosts = Array.from(document.querySelectorAll(`[data-selection-scope="${currentScope}"]`));
+    const visibleScopedHost = scopedHosts.find((node) => isSelectionScopeActive(node) && _isActuallyVisible(node));
+    if (visibleScopedHost) return visibleScopedHost;
+    if (scopedHosts.length) return scopedHosts[0];
+  }
+  const hosts = Array.from(document.querySelectorAll('[data-selection-scope]'));
+  return hosts.find((node) => isSelectionScopeActive(node) && _isActuallyVisible(node)) || null;
+}
+
+function getDomSelectionCountFromRoot(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return 0;
+  return root.querySelectorAll('input[data-ui="row-check"]:checked, input[data-role="select"]:checked').length;
+}
+
+function reconcileActionBarFromCurrentRoot() {
+  if (typeof document === 'undefined') return;
+  const host = getActionBarRoot();
+  if (!host) return;
+  const root = getCurrentActiveSelectionRoot();
+  const scope = root && typeof root.getAttribute === 'function' ? (root.getAttribute('data-selection-scope') || '').trim() : '';
+  const domCount = getDomSelectionCountFromRoot(root);
+  if (domCount <= 0) {
+    applyActionBarState(host, 0, computeActionBarGuards(0));
+    host.setAttribute('data-count', '0');
+    if (host.dataset) host.dataset.count = '0';
+    setActionBarSelectionScope('');
+    setSelectedCount(0);
+    return;
+  }
+  globalWiringState.selectedCount = domCount;
+  globalWiringState.mergeReadyCount = domCount;
+  updateActionBar({ root: host, count: domCount, scope });
+}
+
+function forceActionBarClearedState(host) {
+  if (!host) return;
+  applyActionBarState(host, 0, computeActionBarGuards(0));
+  host.setAttribute('data-count', '0');
+  if (host.dataset) host.dataset.count = '0';
+  host.removeAttribute('data-scope');
+  setActionBarSelectionScope('');
+  setSelectedCount(0);
+}
+
 
 export function syncActionBarVisibility(selCount, explicitEl) {
   if (typeof document === 'undefined') return;
@@ -1217,6 +1294,7 @@ function ensureClearHandler(bar) {
   const handler = (event) => {
     event.preventDefault();
     const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
+    forceActionBarClearedState(host);
     const scopes = getVisibleSelectionScopes();
     const store = getSelectionStore();
     const targetScopeSet = new Set(scopes.length ? scopes : []);
@@ -1247,7 +1325,7 @@ function ensureClearHandler(bar) {
           node.checked = false;
           node.setAttribute('aria-checked', 'false');
         });
-        document.querySelectorAll(`[data-selection-scope="${scope}"] [data-ui="row-check"], [data-selection-scope="${scope}"] [data-role="select"]`).forEach((node) => {
+        document.querySelectorAll(`[data-selection-scope="${scope}"] input[data-ui="row-check"], [data-selection-scope="${scope}"] input[data-role="select"]`).forEach((node) => {
           if (node instanceof HTMLInputElement) {
             node.indeterminate = false;
             node.checked = false;
@@ -1265,8 +1343,7 @@ function ensureClearHandler(bar) {
       } catch (_) { }
     });
 
-    applyActionBarState(host, 0, computeActionBarGuards(0));
-    setSelectedCount(0);
+    reconcileActionBarFromCurrentRoot();
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
     catch (_) { }
   };

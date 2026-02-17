@@ -1,0 +1,1 @@
+Last command: npm run test:e2e >/tmp/gate_test_e2e.log && echo OK. Result: FAIL. The full e2e gate failed with multiple flaky/intermittent assertions, including action bar selection regressions and unrelated dashboard/navigation assertions; action bar targeted tests pass in isolated runs, but full suite currently remains red.
