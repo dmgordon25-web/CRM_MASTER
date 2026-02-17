@@ -729,7 +729,7 @@ function handleSelectionChanged(detail) {
   let count = typeof payload.count === 'number' && Number.isFinite(payload.count)
     ? payload.count
     : ids.length;
-  const scope = typeof payload.scope === 'string' && payload.scope.trim()
+  let scope = typeof payload.scope === 'string' && payload.scope.trim()
     ? payload.scope.trim()
     : (typeof payload.selectionScope === 'string' && payload.selectionScope.trim()
       ? payload.selectionScope.trim()
@@ -745,14 +745,12 @@ function handleSelectionChanged(detail) {
   }
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
-  if (scope && count <= 0) {
-    try {
-      const store = getSelectionStore();
-      const retained = store && typeof store.count === 'function' ? Number(store.count(scope)) : 0;
-      if (Number.isFinite(retained) && retained > 0) {
-        count = retained;
-      }
-    } catch (_) { }
+  const reconciledCurrent = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
+  if (reconciledCurrent.scope) {
+    scope = reconciledCurrent.scope;
+    if (!visibleScopes.length || visibleScopes.includes(scope)) {
+      count = reconciledCurrent.count;
+    }
   }
   if (!scope && count <= 0 && (globalWiringState.selectedCount || 0) > 0) {
     const fallbackScopes = new Set();
@@ -812,8 +810,8 @@ function handleSelectionChanged(detail) {
     const reconciled = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
     if (reconciled.count > 0) {
       count = reconciled.count;
-      if (!scope) {
-        setActionBarSelectionScope(reconciled.scope);
+      if (reconciled.scope) {
+        scope = reconciled.scope;
       }
     }
   }
