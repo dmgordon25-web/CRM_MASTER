@@ -1413,7 +1413,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         return;
       }
 
-      if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check')) {
+      if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check') || (target.type === 'checkbox' && target.closest && target.closest('tbody'))) {
         const id = selectionIdFor(target);
         if (id) {
           // Fix for double-binding: use explicit set instead of toggle to be idempotent

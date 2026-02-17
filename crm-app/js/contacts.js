@@ -3567,6 +3567,9 @@ function clearSurfaceSelection(surface, table, reason) {
 
 function wireContactRowSelection(table) {
   if (!table || typeof table.querySelectorAll !== 'function') return;
+  const selectionScope = typeof table.getAttribute === 'function'
+    ? ((table.getAttribute('data-selection-scope') || '').trim() || 'contacts')
+    : 'contacts';
   table.querySelectorAll('[data-ui="row-check"]').forEach((node) => {
     if (!node || node.__crmRowSelectionBound) return;
     node.__crmRowSelectionBound = true;
@@ -3583,10 +3586,10 @@ function wireContactRowSelection(table) {
       const store = typeof window !== 'undefined' ? window.SelectionStore : null;
       if (store && typeof store.selectMany === 'function' && typeof store.clearMany === 'function') {
         if (checked && rowId) {
-          try { store.selectMany([rowId], 'contacts'); }
+          try { store.selectMany([rowId], selectionScope); }
           catch (_) { }
         } else if (rowId) {
-          try { store.clearMany([rowId], 'contacts'); }
+          try { store.clearMany([rowId], selectionScope); }
           catch (_) { }
         }
       }

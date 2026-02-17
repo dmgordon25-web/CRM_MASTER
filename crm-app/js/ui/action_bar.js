@@ -161,7 +161,7 @@ function ensureScopeSelectionListeners() {
     const handler = (event) => {
       const target = event && event.target;
       if (!target || typeof target.matches !== 'function') return;
-      if (!target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"]')) return;
+      if (!target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"], tbody input[type="checkbox"]')) return;
       scheduleVisibilityRefresh(() => {
         const snapshot = getVisibleDomSelectionSnapshot();
         if (snapshot.count > 0) {
@@ -747,9 +747,14 @@ function handleSelectionChanged(detail) {
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
   const reconciledCurrent = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
   if (reconciledCurrent.scope) {
-    scope = reconciledCurrent.scope;
-    if (!visibleScopes.length || visibleScopes.includes(scope)) {
-      count = reconciledCurrent.count;
+    const canUseReconciledScope = !visibleScopes.length || visibleScopes.includes(reconciledCurrent.scope);
+    if (canUseReconciledScope) {
+      scope = reconciledCurrent.scope;
+      const hasExplicitSelection = Number.isFinite(count) && count > 0;
+      const hasReconciledSelection = Number.isFinite(reconciledCurrent.count) && reconciledCurrent.count > 0;
+      if (!hasExplicitSelection || hasReconciledSelection) {
+        count = reconciledCurrent.count;
+      }
     }
   }
   if (!scope && count <= 0 && (globalWiringState.selectedCount || 0) > 0) {
@@ -1047,7 +1052,8 @@ function getVisibleDomSelectionSnapshot() {
     let scopedCount = 0;
     const selectors = [
       `[data-selection-scope="${safeScope}"] input[data-ui="row-check"]:checked`,
-      `[data-selection-scope="${safeScope}"] input[data-role="select"]:checked`
+      `[data-selection-scope="${safeScope}"] input[data-role="select"]:checked`,
+      `[data-selection-scope="${safeScope}"] tbody input[type="checkbox"]:checked`
     ];
     selectors.forEach((selector) => {
       try {
@@ -1085,7 +1091,7 @@ function resolveCurrentScopeHost(preferredScope = '') {
 
 function getScopeDomSelectionCount(scopeHost) {
   if (!scopeHost || typeof scopeHost.querySelectorAll !== 'function') return 0;
-  const checkedRows = scopeHost.querySelectorAll('input[data-ui="row-check"]:checked, input[data-role="select"]:checked');
+  const checkedRows = scopeHost.querySelectorAll('input[data-ui="row-check"]:checked, input[data-role="select"]:checked, tbody input[type="checkbox"]:checked');
   return checkedRows ? checkedRows.length : 0;
 }
 
@@ -1288,7 +1294,7 @@ function ensureClearHandler(bar) {
           node.checked = false;
           node.setAttribute('aria-checked', 'false');
         });
-        document.querySelectorAll(`[data-selection-scope="${scope}"] [data-ui="row-check"], [data-selection-scope="${scope}"] [data-role="select"]`).forEach((node) => {
+        document.querySelectorAll(`[data-selection-scope="${scope}"] [data-ui="row-check"], [data-selection-scope="${scope}"] [data-role="select"], [data-selection-scope="${scope}"] tbody input[type="checkbox"]`).forEach((node) => {
           if (node instanceof HTMLInputElement) {
             node.indeterminate = false;
             node.checked = false;
