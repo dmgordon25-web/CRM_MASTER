@@ -1539,6 +1539,29 @@ export async function renderAll(request) {
         }
 
         attention = openTasks.filter(t => t.status === 'overdue' || t.status === 'soon').slice(0, 6);
+        if (Array.isArray(window?.store?.attention) && window.store.attention.length) {
+          const seededAttention = window.store.attention.slice(0, 6).map((item) => ({
+            status: item?.status || 'soon',
+            diffFromToday: Number(item?.diffFromToday ?? item?.diff ?? 0) || 0,
+            title: item?.title || item?.name || 'Priority item',
+            name: item?.name || item?.contact?.name || '',
+            stage: item?.stage || item?.contact?.stage || '',
+            dueLabel: item?.dueLabel || item?.due || '',
+            contactId: item?.contactId || item?.contact_id || item?.contact?.id || '',
+            partnerId: item?.partnerId || item?.partner_id || item?.contact?.partnerId || '',
+            raw: item?.raw || item,
+            contact: item?.contact || null
+          }));
+          const mergedAttention = [];
+          const seen = new Set();
+          [...seededAttention, ...attention].forEach((task) => {
+            const key = String(task?.contactId || task?.partnerId || task?.id || task?.raw?.id || task?.title || '');
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            mergedAttention.push(task);
+          });
+          attention = mergedAttention.slice(0, 6);
+        }
         if (!$('#needs-attn')) {
           const priorityCard = document.getElementById('priority-actions-card');
           if (priorityCard && !priorityCard.querySelector('#needs-attn')) {
@@ -2158,7 +2181,7 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...pipelineColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="pipe:${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblPipeline, tbPipe, pipelineRows);
           }
@@ -2215,7 +2238,7 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...clientColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(stageTone)} data-id="client:${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-stage="${stageAttr}"${stageCanonicalAttr} data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-last-touch="${lastAttr}" data-next-action="${nextAttr}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}" data-funded="${fundedIso}" data-ref="${refAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblClients, tbClients, clientRows);
           }
@@ -2267,7 +2290,7 @@ export async function renderAll(request) {
                 favoriteCell,
                 ...longshotColumns.map((col) => buildContactCell(c, col.id, { stageMeta, loanLabel, amountVal, formatDate: displayDate, partnerMap }))
               ];
-              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}" data-next-action="${nextIso}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
+              return `<tr class="${rowClasses.join(' ')}"${rowToneAttr}${rowToneStyle(longshotTone)} data-id="longshot:${idAttr}" data-contact-id="${idAttr}" data-name="${nameAttr}" data-status="${statusAttr}" data-city="${cityAttr}" data-owner="${ownerAttr}" data-pipeline-milestone="${milestoneAttr}" data-loan="${loanAttr}" data-amount="${amountAttr}" data-email="${emailAttr}" data-phone="${phoneAttr}" data-ref="${refAttr}" data-last="${lastIso}" data-next-action="${nextIso}" data-created-at="${createdAttr}" data-updated-at="${updatedAttr}"${favoriteAttr}>${cells.join('')}</tr>`;
             }).join('');
             renderTableBody(tblLongshots, tbLs, longshotRows);
           }

@@ -28,7 +28,7 @@
 
   function resolveRowId(node) {
     if (!node) return null;
-    const attrNames = ['data-id', 'data-contact-id', 'data-partner-id', 'data-row-id'];
+    const attrNames = ['data-contact-id', 'data-partner-id', 'data-id', 'data-row-id'];
     for (const name of attrNames) {
       if (node.getAttribute) {
         const val = node.getAttribute(name);
@@ -36,7 +36,7 @@
       }
     }
     if (node.dataset) {
-      for (const key of ['id', 'contactId', 'partnerId', 'rowId']) {
+      for (const key of ['contactId', 'partnerId', 'id', 'rowId']) {
         if (node.dataset[key]) return String(node.dataset[key]);
       }
     }
@@ -47,7 +47,7 @@
         if (val) return String(val);
       }
       if (row.dataset) {
-        for (const key of ['id', 'contactId', 'partnerId', 'rowId']) {
+        for (const key of ['contactId', 'partnerId', 'id', 'rowId']) {
           if (row.dataset[key]) return String(row.dataset[key]);
         }
       }
