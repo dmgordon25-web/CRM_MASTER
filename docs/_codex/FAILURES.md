@@ -1,24 +1,43 @@
-# FAILURES
-Current failing command: npm run test:counts
+# CI Failures Snapshot
 
-Primary failure signature:
-- `page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:8080/#contacts`
-- Affected tests:
-  - should show action bar when multiple rows are selected
-  - should show action bar for partners selection
-  - should show action bar for pipeline selection
-  - should keep action bar in sync for select-all and clear
-  - should toggle select-all across contacts partners pipeline
-  - should keep action bar stable across tab switching select-all cycles
-  - tripwire selection flow across contacts partners pipeline
+## Full gate run (`npm run test:e2e`)
+Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-Recent log tail:
-  7 failed
-    [chromium] › tests/e2e/action_bar_selection.spec.js:173:9 › Action Bar Selection › should show action bar when multiple rows are selected
-    [chromium] › tests/e2e/action_bar_selection.spec.js:191:9 › Action Bar Selection › should show action bar for partners selection
-    [chromium] › tests/e2e/action_bar_selection.spec.js:206:9 › Action Bar Selection › should show action bar for pipeline selection
-    [chromium] › tests/e2e/action_bar_selection.spec.js:225:9 › Action Bar Selection › should keep action bar in sync for select-all and clear
-    [chromium] › tests/e2e/action_bar_selection.spec.js:255:9 › Action Bar Selection › should toggle select-all across contacts partners pipeline
-    [chromium] › tests/e2e/action_bar_selection.spec.js:261:9 › Action Bar Selection › should keep action bar stable across tab switching select-all cycles
-    [chromium] › tests/e2e/action_bar_selection.spec.js:279:9 › Action Bar Selection › tripwire selection flow across contacts partners pipeline
-  1 passed (21.3s)
+### 1) `tests/e2e/action_bar_selection.spec.js`
+- Test: `tripwire selection flow across contacts partners pipeline`
+- Assertion:
+  - `expect.poll(...).toBe(true)` timed out in `waitForActionBarSelection`
+  - `Expected: true`
+  - `Received: false`
+
+### 2) `tests/e2e/contact_delete.spec.js`
+- Test: `bulk delete updates UI immediately`
+- Assertion:
+  - `expect(locator('tr[data-id="del-1"]')).toBeHidden()` failed due strict mode violation
+  - Locator resolved to 2 elements (duplicate `tr[data-id="del-1"]`)
+
+### 3) `tests/e2e/contact_doc_checklist.spec.js`
+- Test: `persists checklist toggles across reload`
+- Assertion:
+  - Fails during persisted checklist verification after reload (spec listed failing in full run)
+
+### 4) `tests/e2e/dashboard_widget_drilldown.spec.ts`
+- Test: `Priority Actions opens the correct contact before and after rerender`
+- Assertion:
+  - `expect(locator('#priority-actions-card li[data-contact-id="boot-smoke-priority-contact"]').first()).toHaveAttribute('data-widget', /priorityActions/)`
+  - `Received: <element(s) not found>`
+
+### 5) `tests/e2e/navigation_editors.spec.ts`
+- Test: `New+ and widget drilldowns open editors`
+- Assertion:
+  - Timeout closing partner modal
+  - `locator('[data-ui="partner-edit-modal"], #partner-modal').locator('[data-close],[data-close-partner],[data-ui="close"]').first().click()`
+  - element resolved but not visible
+
+## Isolated reproductions run
+
+### `npx playwright test tests/e2e/contact_delete.spec.js --project=chromium --workers=1 --retries=0 --trace=on`
+- Reproduced failure with duplicate `tr[data-id="del-1"]` strict-mode error.
+
+### `npx playwright test tests/e2e/action_bar_selection.spec.js -g "tripwire selection flow" --project=chromium --workers=1 --retries=0 --trace=on`
+- Passed once (indicates flake; still fails in suite).
