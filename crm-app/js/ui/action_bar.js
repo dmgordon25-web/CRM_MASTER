@@ -808,6 +808,15 @@ function handleSelectionChanged(detail) {
       });
     }
   }
+  if (count <= 0) {
+    const reconciled = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
+    if (reconciled.count > 0) {
+      count = reconciled.count;
+      if (!scope) {
+        setActionBarSelectionScope(reconciled.scope);
+      }
+    }
+  }
   setActionBarSelectionScope(scope);
   setSelectedCount(count);
 }
@@ -1009,15 +1018,11 @@ function _isActuallyVisible(el) {
 }
 
 function isSelectionScopeActive(node) {
-  if (!node) return false;
-  const hiddenAncestor = typeof node.closest === 'function'
-    ? node.closest('[hidden], .hidden, [aria-hidden="true"]')
-    : null;
-  if (hiddenAncestor && hiddenAncestor !== node) return false;
+  if (!node || !node.isConnected) return false;
   if (node.hasAttribute && node.hasAttribute('hidden')) return false;
   if (node.classList && node.classList.contains('hidden')) return false;
-  if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return false;
-  return true;
+  if (node.getAttribute && node.getAttribute('aria-hidden') === 'true' && !_isActuallyVisible(node)) return false;
+  return _isActuallyVisible(node);
 }
 
 function getVisibleSelectionScopes() {
@@ -1058,6 +1063,44 @@ function getVisibleDomSelectionSnapshot() {
   });
   return { count, scope };
 }
+
+function resolveCurrentScopeHost(preferredScope = '') {
+  if (typeof document === 'undefined') return null;
+  const preferred = typeof preferredScope === 'string' ? preferredScope.trim() : '';
+  if (preferred) {
+    const preferredHost = document.querySelector(`[data-selection-scope="${preferred}"]`);
+    if (preferredHost && isSelectionScopeActive(preferredHost)) {
+      return preferredHost;
+    }
+  }
+  const routeScope = globalWiringState?.routeState?.key;
+  if (routeScope) {
+    const routeHost = document.querySelector(`[data-selection-scope="${routeScope}"]`);
+    if (routeHost && isSelectionScopeActive(routeHost)) {
+      return routeHost;
+    }
+  }
+  const firstVisibleScope = getVisibleSelectionScopes()[0];
+  if (!firstVisibleScope) return null;
+  return document.querySelector(`[data-selection-scope="${firstVisibleScope}"]`);
+}
+
+function getScopeDomSelectionCount(scopeHost) {
+  if (!scopeHost || typeof scopeHost.querySelectorAll !== 'function') return 0;
+  const checkedRows = scopeHost.querySelectorAll('input[data-ui="row-check"]:checked, input[data-role="select"]:checked');
+  return checkedRows ? checkedRows.length : 0;
+}
+
+function reconcileFromCurrentScope(preferredScope = '') {
+  const host = resolveCurrentScopeHost(preferredScope);
+  if (!host || typeof host.getAttribute !== 'function') {
+    return { scope: '', count: 0 };
+  }
+  const scope = (host.getAttribute('data-selection-scope') || '').trim();
+  const count = getScopeDomSelectionCount(host);
+  return { scope, count };
+}
+
 
 
 export function syncActionBarVisibility(selCount, explicitEl) {
@@ -1266,7 +1309,14 @@ function ensureClearHandler(bar) {
     });
 
     applyActionBarState(host, 0, computeActionBarGuards(0));
+    setActionBarSelectionScope('');
     setSelectedCount(0);
+    const reconciled = reconcileFromCurrentScope(activeScope || hostScope || lastScope);
+    if (reconciled.count > 0) {
+      updateActionBar({ root: host, count: reconciled.count, scope: reconciled.scope });
+      setActionBarSelectionScope(reconciled.scope);
+      setSelectedCount(reconciled.count);
+    }
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
     catch (_) { }
   };
@@ -1303,6 +1353,21 @@ function initializeActionBar() {
 
 function trackLastActionBarClick(event) {
   const target = event && event.target;
+  if (target && typeof target.matches === 'function' && target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"]')) {
+    const scopeHost = typeof target.closest === 'function' ? target.closest('[data-selection-scope]') : null;
+    const scope = scopeHost && typeof scopeHost.getAttribute === 'function'
+      ? (scopeHost.getAttribute('data-selection-scope') || '').trim()
+      : '';
+    scheduleVisibilityRefresh(() => {
+      const reconciled = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
+      if (reconciled.count > 0) {
+        setActionBarSelectionScope(reconciled.scope);
+        setSelectedCount(reconciled.count);
+        return;
+      }
+      setSelectedCount(0);
+    });
+  }
   const btn = target && typeof target.closest === 'function' ? target.closest('[data-action]') : null;
   if (!btn) return;
   const action = btn.getAttribute('data-action');
