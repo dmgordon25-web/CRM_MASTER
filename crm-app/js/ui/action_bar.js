@@ -1296,7 +1296,10 @@ function ensureClearHandler(bar) {
     const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
     const scopes = getVisibleSelectionScopes();
     const store = getSelectionStore();
-    const targetScopeSet = new Set(scopes.length ? scopes : []);
+    const targetScopeSet = new Set(['contacts', 'partners', 'pipeline', 'notifications']);
+    scopes.forEach((scopeKey) => {
+      if (scopeKey && scopeKey.trim()) targetScopeSet.add(scopeKey.trim());
+    });
     const activeScope = typeof globalWiringState.activeSelectionScope === 'string' && globalWiringState.activeSelectionScope.trim()
       ? globalWiringState.activeSelectionScope.trim()
       : '';
@@ -1307,8 +1310,6 @@ function ensureClearHandler(bar) {
       ? globalWiringState.lastSelection.scope.trim()
       : '';
     if (lastScope) targetScopeSet.add(lastScope);
-    if (!targetScopeSet.size) targetScopeSet.add('contacts');
-
     targetScopeSet.forEach((scope) => {
       if (store && typeof store.clear === 'function') {
         try { store.clear(scope); }
