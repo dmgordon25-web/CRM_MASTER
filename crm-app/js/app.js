@@ -1371,6 +1371,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       cleaned = true;
       try { table.removeEventListener('change', handleTableChange, true); }
       catch (_err) { }
+      try { table.removeEventListener('click', handleTableClick, true); }
+      catch (_err) { }
       if (unsubscribe) {
         try { unsubscribe(); }
         catch (_err) { }
@@ -1401,32 +1403,62 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       syncSelectionScope(scope, payload);
     };
 
-    const handleTableChange = (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement)) return;
+    const lastClickFallback = { scope: '', id: '', checked: null, ts: 0 };
 
+    const updateStoreFromCheckbox = (target) => {
+      if (!target) return;
       const role = target.dataset ? target.dataset.role : null;
       if (role === 'select-all') {
-        if (event.__crmSelectAllHandled) return;
-        event.__crmSelectAllHandled = true;
         applySelectAllToStore(target, store, scope, table);
         return;
       }
-
-      if (role === 'select' || (target.dataset && target.dataset.ui === 'row-check') || (target.type === 'checkbox' && target.closest && target.closest('tbody'))) {
-        const id = selectionIdFor(target);
-        if (id) {
-          // Fix for double-binding: use explicit set instead of toggle to be idempotent
-          const current = store.get(scope);
-          if (target.checked) current.add(id);
-          else current.delete(id);
-          store.set(current, scope);
-        }
+      if (!(role === 'select' || (target.dataset && target.dataset.ui === 'row-check') || (target.type === 'checkbox' && target.closest && target.closest('tbody')))) {
+        return;
       }
+      const id = selectionIdFor(target);
+      if (!id) return;
+      const current = store.get(scope);
+      if (target.checked) current.add(id);
+      else current.delete(id);
+      store.set(current, scope);
+    };
+
+    const handleTableChange = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (event.__crmSelectAllHandled) return;
+      event.__crmSelectAllHandled = true;
+      updateStoreFromCheckbox(target);
+    };
+
+    const handleTableClick = (event) => {
+      const rawTarget = event && event.target;
+      const target = rawTarget && typeof rawTarget.closest === 'function'
+        ? rawTarget.closest('input[type="checkbox"], [role="checkbox"], [data-ui="row-check"], [data-role="row-check"], [data-role="select-all"], [data-role="select"]')
+        : null;
+      if (!target) return;
+      queueMicrotask(() => {
+        const checkbox = target instanceof HTMLInputElement ? target : null;
+        if (!checkbox) return;
+        const id = selectionIdFor(checkbox) || (checkbox.dataset && checkbox.dataset.role === 'select-all' ? '__all__' : '');
+        const checked = !!checkbox.checked;
+        const now = Date.now();
+        if (lastClickFallback.scope === scope && lastClickFallback.id === id && lastClickFallback.checked === checked && (now - lastClickFallback.ts) < 250) {
+          return;
+        }
+        lastClickFallback.scope = scope;
+        lastClickFallback.id = id;
+        lastClickFallback.checked = checked;
+        lastClickFallback.ts = now;
+        updateStoreFromCheckbox(checkbox);
+      });
     };
 
     try {
       table.addEventListener('change', handleTableChange, true);
+    } catch (_err) { }
+    try {
+      table.addEventListener('click', handleTableClick, true);
     } catch (_err) { }
 
     if (typeof MutationObserver === 'function') {
@@ -1555,15 +1587,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     });
   }
 
-  function isSelectableRowVisible(row) {
-    if (!row) return false;
-    // Check if element consumes space
-    if (row.offsetWidth > 0 || row.offsetHeight > 0 || row.getClientRects().length > 0) return true;
-    // Fallback for some edge cases (fixed position etc)
-    const style = window.getComputedStyle(row);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-  }
-
   function collectSelectionRowData(scopeRoot, options) {
     if (!scopeRoot) return [];
     const shouldEnsureHeaders = !!(options && options.ensureHeaders);
@@ -1586,12 +1609,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         checkboxIds.push(cb.getAttribute('value'));
         checkboxIds.push(cb.id);
       });
-      let id = row.getAttribute('data-id')
+      const checkboxId = checkboxIds.find((value) => !!value && value !== 'on');
+      let id = checkboxId
+        || row.getAttribute('data-id')
         || row.getAttribute('data-contact-id')
         || row.getAttribute('data-partner-id')
         || row.getAttribute('data-row-id')
-        || row.id
-        || checkboxIds.find((value) => !!value && value !== 'on');
+        || row.id;
       if (!id) {
         const fallbackIndex = Number.isFinite(row.sectionRowIndex) ? row.sectionRowIndex : rows.length;
         id = `__row_${fallbackIndex}`;
@@ -1628,10 +1652,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     checkbox.indeterminate = false;
 
     const entries = hostRoot ? collectSelectionRowData(hostRoot, { ensureHeaders: true }) : [];
-    let targets = entries.filter(entry => !entry.disabled && isSelectableRowVisible(entry.row));
-    if (!targets.length) {
-      targets = entries.filter(entry => !entry.disabled);
-    }
+    const targets = entries.filter(entry => !entry.disabled);
 
     if (!targets.length) {
       checkbox.indeterminate = false;
@@ -1648,21 +1669,10 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       ? new Set(base)
       : new Set(Array.from(base || [], value => String(value)));
 
-    // FIX: Use state-based determination instead of purely relying on the checkbox change event.
-    // Invariant:
-    // 1. If ALL visible rows are selected -> Clear selection.
-    // 2. If NOT all visible rows are selected (partial or none) -> Select all visible.
-    // This allows "Select All" to function as a "Complete Selection" action when partially selected.
+    const shouldSelectAll = !!checkbox.checked;
 
-    // Check if we currently have all visible targets selected
-    const allVisibleAreSelected = targets.length > 0 && targets.every(entry => next.has(entry.id));
-
-    if (allVisibleAreSelected) {
-      // CLEAR OPERATION
+    if (!shouldSelectAll) {
       ids.forEach(id => next.delete(id));
-
-      // Update UI to unchecked
-      checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
 
@@ -1678,11 +1688,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       });
     } else {
-      // SELECT ALL OPERATION
       ids.forEach(id => next.add(id));
-
-      // Update UI to checked
-      checkbox.checked = true;
       try { checkbox.setAttribute('aria-checked', 'true'); }
       catch (_err) { }
 

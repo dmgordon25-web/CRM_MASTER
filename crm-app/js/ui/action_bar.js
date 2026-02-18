@@ -162,19 +162,11 @@ function ensureScopeSelectionListeners() {
       const target = event && event.target;
       if (!target || typeof target.matches !== 'function') return;
       if (!target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"], tbody input[type="checkbox"]')) return;
-      scheduleVisibilityRefresh(() => {
-        const snapshot = getVisibleDomSelectionSnapshot();
-        if (snapshot.count > 0) {
-          globalWiringState.selectedCount = snapshot.count;
-          globalWiringState.mergeReadyCount = snapshot.count;
-          updateActionBar({ count: snapshot.count, scope: snapshot.scope });
-          return;
-        }
-        if ((globalWiringState.selectedCount || 0) > 0) {
-          reconcileVisibleSelectionState();
-        }
-        updateActionBar({ count: 0, scope: '' });
-      });
+      const scopeHost = typeof target.closest === 'function' ? target.closest('[data-selection-scope]') : null;
+      const scope = scopeHost && typeof scopeHost.getAttribute === 'function'
+        ? (scopeHost.getAttribute('data-selection-scope') || '').trim()
+        : '';
+      scheduleDomTruthRefresh('scope-change', scope);
     };
     host.addEventListener('change', handler);
     registry.set(host, () => {
@@ -195,57 +187,19 @@ function ensureScopeSelectionListeners() {
 function refreshActionBarVisibility() {
   if (typeof document === 'undefined') return;
   ensureScopeSelectionListeners();
-  const visibleDomSelection = getVisibleDomSelectionSnapshot();
-  let count = Number(globalWiringState.selectedCount || 0);
-  let scope = typeof globalWiringState.activeSelectionScope === 'string'
-    ? globalWiringState.activeSelectionScope.trim()
-    : '';
-  if (count <= 0) {
-    try {
-      const store = getSelectionStore();
-      if (store && typeof store.count === 'function') {
-        const visibleScopes = getVisibleSelectionScopes();
-        for (const scope of visibleScopes) {
-          const scoped = Number(store.count(scope));
-          if (Number.isFinite(scoped) && scoped > 0) {
-            count = scoped;
-            scope = scope || '';
-            globalWiringState.selectedCount = scoped;
-            globalWiringState.mergeReadyCount = scoped;
-            break;
-          }
-        }
-      }
-    } catch (_) { }
-  }
-  if (count <= 0 && visibleDomSelection.count > 0) {
-    count = visibleDomSelection.count;
-    scope = visibleDomSelection.scope || scope;
-    globalWiringState.selectedCount = count;
-    globalWiringState.mergeReadyCount = count;
-  }
-  if (count > 0 && visibleDomSelection.count === 0) {
-    let retainedStoreCount = 0;
-    let hasVisibleScope = false;
-    try {
-      const store = getSelectionStore();
-      if (store && typeof store.count === 'function') {
-        const visibleScopes = getVisibleSelectionScopes();
-        hasVisibleScope = visibleScopes.length > 0;
-        retainedStoreCount = visibleScopes.reduce((total, scopeKey) => {
-          const scoped = Number(store.count(scopeKey));
-          if (!Number.isFinite(scoped) || scoped <= 0) return total;
-          return total + scoped;
-        }, 0);
-      }
-    } catch (_) { }
-    if (hasVisibleScope && retainedStoreCount <= 0) {
-      count = 0;
-      scope = '';
-      globalWiringState.selectedCount = 0;
-      globalWiringState.mergeReadyCount = 0;
-    }
-  }
+  const snapshot = getActiveScopeDomSelectionSnapshot(globalWiringState.activeSelectionScope || '');
+  const count = snapshot.domCount;
+  const scope = count > 0 ? snapshot.scope : '';
+  globalWiringState.selectedCount = count;
+  globalWiringState.mergeReadyCount = count;
+  debugActionBarDomTruth('refresh', {
+    activeScope: resolveActiveScope(scope),
+    domCount: count,
+    storeCount: Number(globalWiringState.selectedCount || 0),
+    barVisible: count > 0,
+    dataCount: count,
+    scope
+  });
   const root = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
   updateActionBar({ root, count, scope });
 }
@@ -254,6 +208,34 @@ function requestVisibilityRefresh() {
   scheduleVisibilityRefresh(() => {
     refreshActionBarVisibility();
   });
+}
+
+function scheduleDomTruthRefresh(source = 'event', preferredScope = '') {
+  const run = () => {
+    const snapshot = getActiveScopeDomSelectionSnapshot(preferredScope || globalWiringState.activeSelectionScope || '');
+    const count = snapshot.domCount;
+    const scope = count > 0 ? snapshot.scope : '';
+    globalWiringState.selectedCount = count;
+    globalWiringState.mergeReadyCount = count;
+    debugActionBarDomTruth(source, {
+      activeScope: resolveActiveScope(scope),
+      domCount: count,
+      storeCount: Number(globalWiringState.selectedCount || 0),
+      barVisible: count > 0,
+      dataCount: count,
+      scope
+    });
+    updateActionBar({ count, scope });
+  };
+  try {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        scheduleVisibilityRefresh(run);
+      });
+      return;
+    }
+  } catch (_) { }
+  scheduleVisibilityRefresh(run);
 }
 
 function getActionBarRoot() {
@@ -633,6 +615,7 @@ function handleAppViewChanged(event) {
   if (!shouldSchedulePostPaintForRoute(view)) return;
   reconcileVisibleSelectionState();
   ensureActionBarPostPaintRefresh();
+  scheduleDomTruthRefresh('route-view-change', resolveActiveScope(view));
 }
 
 function handleRouteHashChange() {
@@ -642,6 +625,7 @@ function handleRouteHashChange() {
   if (!shouldSchedulePostPaintForRoute(hash)) return;
   reconcileVisibleSelectionState();
   ensureActionBarPostPaintRefresh();
+  scheduleDomTruthRefresh('route-hash-change', resolveActiveScope(''));
 }
 
 
@@ -744,6 +728,12 @@ function handleSelectionChanged(detail) {
     }
   }
   const source = typeof payload.source === 'string' ? payload.source.toLowerCase() : '';
+  const domAuthoritativeEvent = count <= 0
+    || source.includes('clear')
+    || source.includes('deselect')
+    || source.includes('select-all')
+    || source.includes('toggle')
+    || source.includes('route');
   const isInitialSnapshot = !hadSnapshot && (source === 'snapshot' || source === 'init' || source === 'ready');
   const reconciledCurrent = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
   if (reconciledCurrent.scope) {
@@ -820,8 +810,14 @@ function handleSelectionChanged(detail) {
       }
     }
   }
+  if (domAuthoritativeEvent) {
+    const domSnapshot = getActiveScopeDomSelectionSnapshot(scope || globalWiringState.activeSelectionScope || '');
+    count = domSnapshot.domCount;
+    scope = count > 0 ? domSnapshot.scope : '';
+  }
   setActionBarSelectionScope(scope);
   setSelectedCount(count);
+  scheduleDomTruthRefresh(`selection:${source || 'changed'}`, scope || globalWiringState.activeSelectionScope || '');
 }
 
 function clearSelectionSubscription() {
@@ -1041,68 +1037,102 @@ function getVisibleSelectionScopes() {
 }
 
 function getVisibleDomSelectionSnapshot() {
-  if (typeof document === 'undefined') return { count: 0, scope: '' };
-  const visibleScopes = getVisibleSelectionScopes();
-  if (!visibleScopes.length) return { count: 0, scope: '' };
-  let count = 0;
-  let scope = '';
-  visibleScopes.forEach((scopeKey) => {
-    const safeScope = typeof scopeKey === 'string' ? scopeKey.trim() : '';
-    if (!safeScope) return;
-    let scopedCount = 0;
-    const selectors = [
-      `[data-selection-scope="${safeScope}"] input[data-ui="row-check"]:checked`,
-      `[data-selection-scope="${safeScope}"] input[data-role="select"]:checked`,
-      `[data-selection-scope="${safeScope}"] tbody input[type="checkbox"]:checked`
-    ];
-    selectors.forEach((selector) => {
-      try {
-        scopedCount = Math.max(scopedCount, document.querySelectorAll(selector).length);
-      } catch (_) { }
+  const snapshot = getActiveScopeDomSelectionSnapshot('');
+  return { count: snapshot.domCount, scope: snapshot.scope };
+}
+
+function debugActionBarDomTruth(eventSource, payload = {}) {
+  if (typeof window === 'undefined' || window.__DBG_ACTIONBAR !== true) return;
+  try {
+    console.info('[action-bar:dom-truth]', {
+      eventSource,
+      ...payload
     });
-    if (scopedCount > 0) {
-      count += scopedCount;
-      if (!scope) scope = safeScope;
-    }
-  });
-  return { count, scope };
+  } catch (_) { }
+}
+
+function getActiveScopeHosts(scope = '') {
+  if (typeof document === 'undefined') return [];
+  const normalizedScope = typeof scope === 'string' ? scope.trim() : '';
+  if (!normalizedScope) return [];
+  const hosts = Array.from(document.querySelectorAll(`[data-selection-scope="${normalizedScope}"]`));
+  return hosts.filter((host) => isSelectionScopeActive(host));
 }
 
 function resolveCurrentScopeHost(preferredScope = '') {
   if (typeof document === 'undefined') return null;
   const preferred = typeof preferredScope === 'string' ? preferredScope.trim() : '';
   if (preferred) {
-    const preferredHost = document.querySelector(`[data-selection-scope="${preferred}"]`);
-    if (preferredHost && isSelectionScopeActive(preferredHost)) {
-      return preferredHost;
-    }
+    const preferredHosts = getActiveScopeHosts(preferred);
+    if (preferredHosts.length) return preferredHosts[0];
   }
   const routeScope = globalWiringState?.routeState?.key;
   if (routeScope) {
-    const routeHost = document.querySelector(`[data-selection-scope="${routeScope}"]`);
-    if (routeHost && isSelectionScopeActive(routeHost)) {
-      return routeHost;
-    }
+    const routeHosts = getActiveScopeHosts(routeScope);
+    if (routeHosts.length) return routeHosts[0];
   }
   const firstVisibleScope = getVisibleSelectionScopes()[0];
   if (!firstVisibleScope) return null;
-  return document.querySelector(`[data-selection-scope="${firstVisibleScope}"]`);
+  const visibleHosts = getActiveScopeHosts(firstVisibleScope);
+  return visibleHosts.length ? visibleHosts[0] : null;
 }
 
-function getScopeDomSelectionCount(scopeHost) {
-  if (!scopeHost || typeof scopeHost.querySelectorAll !== 'function') return 0;
-  const checkedRows = scopeHost.querySelectorAll('input[data-ui="row-check"]:checked, input[data-role="select"]:checked, tbody input[type="checkbox"]:checked');
-  return checkedRows ? checkedRows.length : 0;
+function resolveActiveScope(preferredScope = '') {
+  const preferred = typeof preferredScope === 'string' ? preferredScope.trim() : '';
+  if (preferred) return preferred;
+  const routeScope = typeof globalWiringState?.routeState?.key === 'string'
+    ? globalWiringState.routeState.key.trim()
+    : '';
+  if (routeScope) return routeScope;
+  if (typeof window !== 'undefined' && window.location && typeof window.location.hash === 'string') {
+    const hashScope = extractRouteKey(window.location.hash);
+    if (hashScope) return hashScope;
+  }
+  if (typeof document === 'undefined') return '';
+  const activeView = document.querySelector('main[id^="view-"]:not(.hidden)');
+  if (activeView && typeof activeView.id === 'string' && activeView.id.startsWith('view-')) {
+    const idScope = activeView.id.slice(5).trim();
+    if (idScope) return idScope;
+  }
+  const visibleScope = getVisibleSelectionScopes()[0];
+  return typeof visibleScope === 'string' ? visibleScope.trim() : '';
+}
+
+function getActiveScopeDomSelectionSnapshot(preferredScope = '', preferredHost = null) {
+  const resolvedScope = resolveActiveScope(preferredScope);
+  const candidateHosts = preferredHost
+    ? [preferredHost]
+    : (getActiveScopeHosts(resolvedScope).length ? getActiveScopeHosts(resolvedScope) : [resolveCurrentScopeHost(resolvedScope)].filter(Boolean));
+  if (!candidateHosts.length) {
+    return { domCount: 0, checkedIds: [], domVisible: false, scope: resolvedScope || '' };
+  }
+  let domCount = 0;
+  const checkedIds = [];
+  let scope = resolvedScope || '';
+  candidateHosts.forEach((host) => {
+    if (!host || typeof host.getAttribute !== 'function' || typeof host.querySelectorAll !== 'function') return;
+    const scopeAttr = (host.getAttribute('data-selection-scope') || '').trim();
+    if (!scope && scopeAttr) scope = scopeAttr;
+    const nodes = host.querySelectorAll('tbody input[data-ui="row-check"]:checked, tbody input[data-role="select"]:checked, tbody input[type="checkbox"]:checked');
+    const selectedRows = host.querySelectorAll('tbody tr[data-selected], tbody tr.is-selected');
+    const scopedCount = Math.max(nodes ? nodes.length : 0, selectedRows ? selectedRows.length : 0);
+    domCount += scopedCount;
+    const sourceRows = nodes && nodes.length ? nodes : selectedRows;
+    sourceRows.forEach((node) => {
+      const row = node && typeof node.closest === 'function'
+        ? node.closest('tr[data-id], tr[data-contact-id], tr[data-partner-id]')
+        : (node && node.matches && node.matches('tr') ? node : null);
+      if (!row || typeof row.getAttribute !== 'function') return;
+      const id = row.getAttribute('data-id') || row.getAttribute('data-contact-id') || row.getAttribute('data-partner-id') || '';
+      if (id) checkedIds.push(String(id));
+    });
+  });
+  return { domCount, checkedIds, domVisible: domCount > 0, scope };
 }
 
 function reconcileFromCurrentScope(preferredScope = '') {
-  const host = resolveCurrentScopeHost(preferredScope);
-  if (!host || typeof host.getAttribute !== 'function') {
-    return { scope: '', count: 0 };
-  }
-  const scope = (host.getAttribute('data-selection-scope') || '').trim();
-  const count = getScopeDomSelectionCount(host);
-  return { scope, count };
+  const snapshot = getActiveScopeDomSelectionSnapshot(preferredScope);
+  return { scope: snapshot.scope, count: snapshot.domCount };
 }
 
 
@@ -1266,7 +1296,10 @@ function ensureClearHandler(bar) {
     const host = bar || document.getElementById('actionbar') || document.querySelector('[data-ui="action-bar"]');
     const scopes = getVisibleSelectionScopes();
     const store = getSelectionStore();
-    const targetScopeSet = new Set(scopes.length ? scopes : []);
+    const targetScopeSet = new Set(['contacts', 'partners', 'pipeline', 'notifications']);
+    scopes.forEach((scopeKey) => {
+      if (scopeKey && scopeKey.trim()) targetScopeSet.add(scopeKey.trim());
+    });
     const activeScope = typeof globalWiringState.activeSelectionScope === 'string' && globalWiringState.activeSelectionScope.trim()
       ? globalWiringState.activeSelectionScope.trim()
       : '';
@@ -1277,8 +1310,6 @@ function ensureClearHandler(bar) {
       ? globalWiringState.lastSelection.scope.trim()
       : '';
     if (lastScope) targetScopeSet.add(lastScope);
-    if (!targetScopeSet.size) targetScopeSet.add('contacts');
-
     targetScopeSet.forEach((scope) => {
       if (store && typeof store.clear === 'function') {
         try { store.clear(scope); }
@@ -1315,12 +1346,7 @@ function ensureClearHandler(bar) {
     applyActionBarState(host, 0, computeActionBarGuards(0));
     setActionBarSelectionScope('');
     setSelectedCount(0);
-    const reconciled = reconcileFromCurrentScope(activeScope || hostScope || lastScope);
-    if (reconciled.count > 0) {
-      updateActionBar({ root: host, count: reconciled.count, scope: reconciled.scope });
-      setActionBarSelectionScope(reconciled.scope);
-      setSelectedCount(reconciled.count);
-    }
+    scheduleDomTruthRefresh('clear', activeScope || hostScope || lastScope);
     try { window.__UPDATE_ACTION_BAR_VISIBLE__?.(); }
     catch (_) { }
   };
@@ -1357,20 +1383,23 @@ function initializeActionBar() {
 
 function trackLastActionBarClick(event) {
   const target = event && event.target;
-  if (target && typeof target.matches === 'function' && target.matches('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"]')) {
-    const scopeHost = typeof target.closest === 'function' ? target.closest('[data-selection-scope]') : null;
+  const checkboxTarget = target && typeof target.closest === 'function'
+    ? target.closest('input[data-ui="row-check"], input[data-role="select-all"], input[data-role="select"], tbody input[type="checkbox"]')
+    : null;
+  if (checkboxTarget && typeof checkboxTarget.matches === 'function') {
+    const scopeHost = typeof checkboxTarget.closest === 'function' ? checkboxTarget.closest('[data-selection-scope]') : null;
     const scope = scopeHost && typeof scopeHost.getAttribute === 'function'
       ? (scopeHost.getAttribute('data-selection-scope') || '').trim()
       : '';
-    scheduleVisibilityRefresh(() => {
-      const reconciled = reconcileFromCurrentScope(scope || globalWiringState.activeSelectionScope || '');
-      if (reconciled.count > 0) {
-        setActionBarSelectionScope(reconciled.scope);
-        setSelectedCount(reconciled.count);
-        return;
-      }
+    const isSelectAll = checkboxTarget.getAttribute && checkboxTarget.getAttribute('data-role') === 'select-all';
+    const nextScope = scope || globalWiringState.activeSelectionScope || resolveActiveScope('');
+    setActionBarSelectionScope(nextScope);
+    if (isSelectAll && !checkboxTarget.checked) {
       setSelectedCount(0);
-    });
+    } else {
+      setSelectedCount(Math.max(1, Number(globalWiringState.selectedCount || 0)));
+    }
+    scheduleDomTruthRefresh('click-toggle', scope || globalWiringState.activeSelectionScope || '');
   }
   const btn = target && typeof target.closest === 'function' ? target.closest('[data-action]') : null;
   if (!btn) return;
