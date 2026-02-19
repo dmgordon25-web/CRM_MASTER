@@ -1409,7 +1409,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (!target) return;
       const role = target.dataset ? target.dataset.role : null;
       if (role === 'select-all') {
-        applySelectAllToStore(target, store, scope, table);
+        applySelectAllToStore(target, store, scope, table, { forceMode: target.checked ? 'on' : 'off' });
         return;
       }
       if (!(role === 'select' || (target.dataset && target.dataset.ui === 'row-check') || (target.type === 'checkbox' && target.closest && target.closest('tbody')))) {
@@ -1440,6 +1440,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       queueMicrotask(() => {
         const checkbox = target instanceof HTMLInputElement ? target : null;
         if (!checkbox) return;
+        if (checkbox.dataset && checkbox.dataset.role === 'select-all') return;
         const id = selectionIdFor(checkbox) || (checkbox.dataset && checkbox.dataset.role === 'select-all' ? '__all__' : '');
         const checked = !!checkbox.checked;
         const now = Date.now();
@@ -1494,8 +1495,16 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (cleaned || refreshing) return;
       refreshing = true;
       try {
-        ensureHeader();
-        sync(store.get(scope), store.count(scope));
+        const currentHeader = ensureHeader();
+        const currentIds = store.get(scope);
+        const currentCount = store.count(scope);
+        if (currentHeader && currentHeader.checked && currentCount <= 0) {
+          const available = collectSelectionRowData(table, { ensureHeaders: true }).filter(entry => !entry.disabled);
+          if (available.length) {
+            applySelectAllToStore(currentHeader, store, scope, table);
+          }
+        }
+        sync(currentIds, currentCount);
       } finally {
         refreshing = false;
       }
@@ -1598,7 +1607,36 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const addRow = (row) => {
       if (!row || seen.has(row)) return null;
       seen.add(row);
-      const checkboxes = row.querySelectorAll('[data-ui="row-check"], input[data-role="select"], input[type="checkbox"]');
+      const checkboxes = Array.from(row.querySelectorAll('input[type="checkbox"], [data-ui="row-check"], input[data-role="select"]'));
+      let interactiveCheckbox = null;
+      checkboxes.forEach((cb) => {
+        if (!cb || typeof cb.getAttribute !== 'function') return;
+        const markedRowCheck = cb.getAttribute('data-ui') === 'row-check' || cb.getAttribute('data-role') === 'select';
+        if (markedRowCheck && (cb.hidden || cb.getAttribute('aria-hidden') === 'true' || cb.getAttribute('data-auto-hidden') === '1')) {
+          cb.hidden = false;
+          cb.removeAttribute('aria-hidden');
+          cb.removeAttribute('data-auto-hidden');
+        }
+        const isInteractive = !cb.hidden
+          && cb.getAttribute('aria-hidden') !== 'true'
+          && cb.getAttribute('data-auto-hidden') !== '1'
+          && !cb.disabled
+          && cb.getAttribute('aria-disabled') !== 'true';
+        if (!interactiveCheckbox && isInteractive) {
+          interactiveCheckbox = cb;
+          if (cb.getAttribute('data-ui') !== 'row-check') {
+            cb.setAttribute('data-ui', 'row-check');
+          }
+          if (cb.getAttribute('data-role') !== 'select') {
+            cb.setAttribute('data-role', 'select');
+          }
+          return;
+        }
+        if (cb.getAttribute('data-ui') === 'row-check') {
+          cb.removeAttribute('data-ui');
+        }
+      });
+      if (!interactiveCheckbox) return null;
       const checkboxIds = [];
       checkboxes.forEach((cb) => {
         if (!cb || typeof cb.getAttribute !== 'function') return;
@@ -1620,22 +1658,12 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const fallbackIndex = Number.isFinite(row.sectionRowIndex) ? row.sectionRowIndex : rows.length;
         id = `__row_${fallbackIndex}`;
       }
-      let checkbox = null;
-      for (let i = 0; i < checkboxes.length; i++) {
-        const cb = checkboxes[i];
-        // Check standard hidden, aria-hidden, OR data-auto-hidden
-        if (!cb.hidden && cb.getAttribute('aria-hidden') !== 'true' && cb.getAttribute('data-auto-hidden') !== '1') {
-          checkbox = cb;
-          break;
-        }
-      }
-      if (!checkbox) return null;
 
-      const ariaDisabled = checkbox.getAttribute ? checkbox.getAttribute('aria-disabled') : null;
-      const disabled = checkbox.disabled || ariaDisabled === 'true';
-      return { row, checkbox, id: String(id), disabled };
+      const ariaDisabled = interactiveCheckbox.getAttribute ? interactiveCheckbox.getAttribute('aria-disabled') : null;
+      const disabled = interactiveCheckbox.disabled || ariaDisabled === 'true';
+      return { row, checkbox: interactiveCheckbox, id: String(id), disabled };
     };
-    scopeRoot.querySelectorAll('tbody tr[data-id], tbody tr[data-contact-id], tbody tr[data-partner-id]').forEach(row => {
+    scopeRoot.querySelectorAll('tbody tr').forEach(row => {
       const entry = addRow(row);
       if (entry) rows.push(entry);
     });
@@ -1646,7 +1674,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     return rows.filter(Boolean);
   }
 
-  function applySelectAllToStore(checkbox, store, scope, hostRoot) {
+  function applySelectAllToStore(checkbox, store, scope, hostRoot, options) {
     if (!checkbox || !store) return;
     const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
     checkbox.indeterminate = false;
@@ -1656,6 +1684,11 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     if (!targets.length) {
       checkbox.indeterminate = false;
+      if (checkbox.checked) {
+        try { checkbox.setAttribute('aria-checked', 'true'); }
+        catch (_err) { }
+        return;
+      }
       checkbox.checked = false;
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
@@ -1664,15 +1697,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     }
 
     const ids = targets.map(entry => entry.id);
-    const base = store.get(scopeKey);
-    const next = base instanceof Set
-      ? new Set(base)
-      : new Set(Array.from(base || [], value => String(value)));
+    const next = new Set();
 
-    const shouldSelectAll = !!checkbox.checked;
+    const selectedVisibleCount = targets.reduce((sum, entry) => sum + (entry.checkbox && entry.checkbox.checked ? 1 : 0), 0);
+    const forceMode = options && options.forceMode === 'off' ? 'off' : (options && options.forceMode === 'on' ? 'on' : '');
+    const shouldSelectAll = forceMode ? forceMode === 'on' : (selectedVisibleCount < targets.length);
+    checkbox.checked = shouldSelectAll;
 
     if (!shouldSelectAll) {
-      ids.forEach(id => next.delete(id));
+      next.clear();
       try { checkbox.setAttribute('aria-checked', 'false'); }
       catch (_err) { }
 
@@ -1707,11 +1740,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const normalizedIds = Array.from(next).map(String);
     const selectionCount = normalizedIds.length;
-    const type = scopeKey === 'partners'
-      ? 'partners'
-      : (scopeKey === 'contacts' ? 'contacts' : scopeKey);
-    const origin = checkbox.checked ? 'select-all:on' : 'select-all:off';
-    debugClickLog('select-all:click', { scope: scopeKey, checked: !!checkbox.checked, count: selectionCount, origin });
+    const type = scopeKey;
+    const origin = shouldSelectAll ? 'select-all:on' : 'select-all:off';
+    debugClickLog('select-all:click', { scope: scopeKey, checked: shouldSelectAll, count: selectionCount, origin });
 
     // Sync Selection APIs before updating the store (Workbench/DEMO_MODE behavior)
     if (typeof window !== 'undefined') {
@@ -1730,6 +1761,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     store.set(next, scopeKey);
     syncSelectionScope(scopeKey, { ids: next, count: selectionCount, root: hostRoot });
+    if (selectionCount <= 0) {
+      updateActionBarGuards(0, scopeKey);
+    }
 
     if (selectionCount > 0 && typeof queueMicrotask === 'function') {
       queueMicrotask(() => {
@@ -1745,7 +1779,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         ids: normalizedIds,
         count: selectionCount,
         source: origin,
-        scope
+        scope: scopeKey
       };
       if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('selection:changed', { detail: eventDetail }));
@@ -1829,7 +1863,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       : null;
     const scopeRaw = hostRoot ? selectionScopeFor(hostRoot) : selectionScopeFor(checkbox);
     const scope = scopeRaw && scopeRaw.trim() ? scopeRaw.trim() : 'contacts';
-    applySelectAllToStore(checkbox, store, scope, hostRoot);
+    applySelectAllToStore(checkbox, store, scope, hostRoot, { forceMode: checkbox.checked ? 'on' : 'off' });
   }
 
   if (typeof window !== 'undefined') {
@@ -1886,12 +1920,9 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       if (header) {
         const visible = entries.filter(entry => !entry.disabled);
         const total = visible.length;
-        let selectedVisible = 0;
-        visible.forEach((entry) => {
-          if (idSet.has(entry.id)) selectedVisible += 1;
-        });
-        const shouldIndeterminate = total > 0 && selectedVisible > 0 && selectedVisible < total;
-        const shouldChecked = total > 0 && selectedVisible === total;
+        const selectedVisible = visible.reduce((sum, entry) => sum + (entry.checkbox && entry.checkbox.checked ? 1 : 0), 0);
+        const shouldIndeterminate = false;
+        const shouldChecked = total > 0 && selectedVisible > 0;
         header.indeterminate = shouldIndeterminate;
         header.checked = shouldChecked;
         try {
@@ -1936,6 +1967,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const scopeHosts = scopeKey
       ? Array.from(document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`))
       : [];
+    if (scopeKey === 'pipeline' && total > 0) {
+      const header = scopeHosts.length ? scopeHosts[0].querySelector('input[data-role="select-all"]') : null;
+      if (header && !header.checked) {
+        const store = getSelectionStore();
+        if (store && typeof store.clear === 'function') {
+          store.clear(scopeKey);
+        }
+      }
+    }
     const hasVisibleScopeHost = scopeHosts.some((node) => {
       if (!node || !node.isConnected) return false;
       const hiddenAncestor = node.closest('.hidden,[hidden],[aria-hidden="true"]');
@@ -1994,6 +2034,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const isPrimary = act === 'edit' || act === 'merge';
         btn.classList?.toggle('active', isPrimary && enabled);
       });
+    }
+    if (scopeKey) {
+      try {
+        document.querySelectorAll(`[data-selection-scope="${scopeKey}"] input[data-role="select-all"]`).forEach((header) => {
+          header.indeterminate = false;
+          header.checked = total > 0;
+          header.setAttribute('aria-checked', total > 0 ? 'true' : 'false');
+        });
+      } catch (_err) { }
     }
     if (typeof applyActionBarState === 'function') {
       applyActionBarState(bar, total, guards);
@@ -2080,15 +2129,13 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         if (event.__crmSelectAllHandled) return;
         event.__crmSelectAllHandled = true;
         const host = target.closest && target.closest('table[data-selection-scope]');
-        applySelectAllToStore(target, store, scopeKey, host || null);
+        applySelectAllToStore(target, store, scopeKey, host || null, { forceMode: target.checked ? 'on' : 'off' });
         return;
       }
       if (role !== 'select') return;
       const id = selectionIdFor(target);
       if (!id) return;
-      const type = (scopeKey === 'partners' || scopeKey === 'contacts' || scopeKey === 'pipeline' || scopeKey === 'notifications')
-        ? scopeKey
-        : 'contacts';
+      const type = scopeKey;
       const next = store.get(scopeKey);
       if (target.checked) next.add(id);
       else next.delete(id);
@@ -4005,6 +4052,15 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const nodes = document.querySelectorAll('button[data-action],a[data-action],[data-role]');
       nodes.forEach(el => {
         const autoHidden = el.dataset.autoHidden === '1';
+        const isSelectionCheckbox = typeof el.matches === 'function' && el.matches('[data-ui="row-check"], [data-ui="row-check-all"], input[data-role="select"], input[data-role="select-all"]');
+        if (isSelectionCheckbox) {
+          if (autoHidden || el.hidden || el.getAttribute('aria-hidden') === 'true') {
+            el.hidden = false;
+            el.removeAttribute('aria-hidden');
+            delete el.dataset.autoHidden;
+          }
+          return;
+        }
         if (!isActionCandidate(el)) {
           if (autoHidden) {
             el.hidden = false; el.removeAttribute('aria-hidden'); delete el.dataset.autoHidden;

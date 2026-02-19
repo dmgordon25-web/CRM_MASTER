@@ -329,6 +329,7 @@ function runPatch() {
       table.dataset ? (table.dataset.scope || table.dataset.type || table.dataset.selectionScope || table.dataset.selectionType) : null
     ].filter(Boolean).join(' ').toLowerCase();
     if (hints.includes('partner')) return 'partners';
+    if (hints.includes('pipeline')) return 'pipeline';
     return 'contacts';
   }
 
@@ -1640,6 +1641,9 @@ function runPatch() {
       if (!(target instanceof HTMLInputElement)) return;
       if (target.type !== 'checkbox') return;
       if (!target.closest('table')) return;
+      const role = target.dataset ? target.dataset.role : '';
+      const ui = target.dataset ? target.dataset.ui : '';
+      if (role === 'select-all' || ui === 'row-check-all') return;
       const id = resolveRowId(target);
       if (!id) return;
       const type = detectRowType(target);
@@ -1690,7 +1694,7 @@ function runPatch() {
         if (typeof SelectionService !== 'undefined' && SelectionService) {
           try {
             const next = SelectionService.get ? SelectionService.get() : null;
-            const scopeType = type === 'partners' ? 'partners' : 'contacts';
+            const scopeType = (type === 'partners' || type === 'contacts' || type === 'pipeline') ? type : 'contacts';
             const ids = new Set(next && Array.isArray(next.ids) ? next.ids.map(String) : []);
             if (target.checked) ids.add(id); else ids.delete(id);
             if (typeof SelectionService.set === 'function') {
@@ -1702,7 +1706,7 @@ function runPatch() {
       }
       if (!applied && typeof window !== 'undefined' && window.SelectionStore && typeof window.SelectionStore.set === 'function') {
         try {
-          const scopeKey = type === 'partners' ? 'partners' : 'contacts';
+          const scopeKey = (type === 'partners' || type === 'contacts' || type === 'pipeline') ? type : 'contacts';
           const current = window.SelectionStore.get(scopeKey);
           const next = current instanceof Set ? new Set(current) : new Set();
           if (target.checked) next.add(id); else next.delete(id);

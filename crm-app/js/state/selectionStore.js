@@ -29,7 +29,8 @@ function notify(scope) {
   });
   try {
     const detail = {
-      scope: 'selection',
+      scope: snapshot.scope,
+      type: snapshot.scope,
       selectionScope: snapshot.scope,
       ids: Array.from(snapshot.ids),
       count: snapshot.ids.size,
