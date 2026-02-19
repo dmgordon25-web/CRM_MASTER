@@ -1701,7 +1701,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
 
     const selectedVisibleCount = targets.reduce((sum, entry) => sum + (entry.checkbox && entry.checkbox.checked ? 1 : 0), 0);
     const forceMode = options && options.forceMode === 'off' ? 'off' : (options && options.forceMode === 'on' ? 'on' : '');
-    const shouldSelectAll = forceMode ? forceMode === 'on' : (selectedVisibleCount < targets.length);
+    const shouldSelectAll = forceMode ? forceMode === 'on' : !!checkbox.checked;
     checkbox.checked = shouldSelectAll;
 
     if (!shouldSelectAll) {
@@ -1921,8 +1921,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         const visible = entries.filter(entry => !entry.disabled);
         const total = visible.length;
         const selectedVisible = visible.reduce((sum, entry) => sum + (entry.checkbox && entry.checkbox.checked ? 1 : 0), 0);
-        const shouldIndeterminate = false;
-        const shouldChecked = total > 0 && selectedVisible > 0;
+        const shouldIndeterminate = selectedVisible > 0 && selectedVisible < total;
+        const shouldChecked = total > 0 && selectedVisible === total;
         header.indeterminate = shouldIndeterminate;
         header.checked = shouldChecked;
         try {
@@ -1967,15 +1967,6 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     const scopeHosts = scopeKey
       ? Array.from(document.querySelectorAll(`[data-selection-scope="${scopeKey}"]`))
       : [];
-    if (scopeKey === 'pipeline' && total > 0) {
-      const header = scopeHosts.length ? scopeHosts[0].querySelector('input[data-role="select-all"]') : null;
-      if (header && !header.checked) {
-        const store = getSelectionStore();
-        if (store && typeof store.clear === 'function') {
-          store.clear(scopeKey);
-        }
-      }
-    }
     const hasVisibleScopeHost = scopeHosts.some((node) => {
       if (!node || !node.isConnected) return false;
       const hiddenAncestor = node.closest('.hidden,[hidden],[aria-hidden="true"]');
