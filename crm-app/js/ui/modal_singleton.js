@@ -96,6 +96,7 @@ export function resetUiInteractivity(reason) {
 
     // 5) Final pointer events reset.
     try { if (body && body.style) body.style.pointerEvents = ''; } catch (_) { }
+    try { if (doc.documentElement && doc.documentElement.style) doc.documentElement.style.pointerEvents = ''; } catch (_) { }
     try { win.__crmDebugUIState && win.__crmDebugUIState('after-resetUiInteractivity'); } catch (_) { }
   } catch (_) {
     // Never throw from the safety net.

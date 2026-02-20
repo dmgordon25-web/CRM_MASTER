@@ -3316,13 +3316,14 @@ function handleDashboardClick(evt) {
   // It is currently bound on document capture and is eating clicks across the app.
   const liveRoot = doc ? doc.getElementById('view-dashboard') : null;
   const dashRoot = liveRoot || null;
-  if (dashRoot) {
-    if (!dashRoot.contains(target)) return false;
-  } else {
+  const probe = target.closest && target.closest('[data-contact-id],[data-partner-id]');
+  const hasEntityId = probe && (probe.getAttribute('data-contact-id') || probe.getAttribute('data-partner-id'));
+  if (dashRoot && !dashRoot.contains(target) && !hasEntityId) {
+    return false;
+  }
+  if (!dashRoot) {
     // Unit-test / headless fallback: only handle clicks on dashboard widget entity rows
     // (must have an entity id and ideally a widget marker)
-    const probe = target.closest('[data-contact-id],[data-partner-id]');
-    const hasEntityId = probe && (probe.getAttribute('data-contact-id') || probe.getAttribute('data-partner-id'));
     if (!probe || !hasEntityId) return false;
     const widgetHost = probe.closest('[data-dash-widget],[data-widget],[data-widget-id]');
     const widgetKey =
@@ -3449,7 +3450,8 @@ function handleDashboardClick(evt) {
     Promise.resolve().then(() => {
       try {
         const modal = doc && doc.querySelector ? doc.querySelector('[data-ui="contact-edit-modal"], [data-modal-key="contact-edit"], #contact-modal') : null;
-        if (modal && modal.dataset && String(modal.dataset.contactId || '') === String(contactId) && modal.dataset.open !== '1') {
+        if (modal && modal.dataset && modal.dataset.open !== '1') {
+          modal.dataset.contactId = String(contactId);
           modal.removeAttribute('aria-hidden');
           modal.classList.remove('hidden');
           if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
@@ -3466,6 +3468,20 @@ function handleDashboardClick(evt) {
   }
   if (partnerId && typeof openPartner === 'function') {
     openPartner(partnerId);
+    Promise.resolve().then(() => {
+      try {
+        const modal = doc && doc.querySelector ? doc.querySelector('[data-ui="partner-edit-modal"], #partner-modal') : null;
+        if (modal && modal.dataset && modal.dataset.open !== '1') {
+          modal.dataset.partnerId = String(partnerId);
+          modal.removeAttribute('aria-hidden');
+          modal.classList.remove('hidden');
+          if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
+          if (typeof modal.setAttribute === 'function') { modal.setAttribute('open', ''); }
+          modal.dataset.open = '1';
+          modal.dataset.opening = '0';
+        }
+      } catch (_) { }
+    });
     if (qcTrace && console && typeof console.debug === 'function') {
       console.debug('[QC_TRACE:DASH] click:handled', { partnerId, widgetKey });
     }
@@ -3505,6 +3521,35 @@ function bindNurtureListClickFallback() {
     evt.stopPropagation();
     tryOpenContactModal(contactId);
   });
+}
+
+
+function bindEntityListFallback(hostId) {
+  if (!doc) return;
+  const host = doc.getElementById(hostId);
+  if (!host || host.__entityClickWired) return;
+  host.__entityClickWired = true;
+  host.addEventListener('click', evt => {
+    if (evt && evt.defaultPrevented) return;
+    const row = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    if (!row || !host.contains(row)) return;
+    const contactId = row.getAttribute('data-contact-id');
+    const partnerId = row.getAttribute('data-partner-id');
+    if (!contactId && !partnerId) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (contactId) {
+      tryOpenContactModal(contactId);
+      return;
+    }
+    tryOpenPartnerModal(partnerId);
+  });
+}
+
+function bindDashboardEntityListFallbacks() {
+  bindEntityListFallback('needs-attn');
+  bindEntityListFallback('upcoming');
+  bindEntityListFallback('top3');
 }
 
 export function __setDashboardDrilldownTestHooks(hooks = {}) {
@@ -3578,6 +3623,7 @@ function bindDashboardEvents(container = getDashboardContainerNode()) {
   if (!container) return;
   bindDashboardGlobalClick();
   bindNurtureListClickFallback();
+  bindDashboardEntityListFallbacks();
   dashDnDState.pointerHandlers = { target: doc, onClick: handleDashboardClick };
   exposeDashboardDnDHandlers();
 }

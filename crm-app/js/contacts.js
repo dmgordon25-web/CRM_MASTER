@@ -3574,6 +3574,12 @@ function wireContactRowSelection(table) {
     if (!node || node.__crmRowSelectionBound) return;
     node.__crmRowSelectionBound = true;
     node.addEventListener('change', () => {
+      try {
+        const modal = document.querySelector('[data-ui="contact-edit-modal"]');
+        if (modal && modal.dataset && modal.dataset.open === '1') {
+          closeContactEditor('row-selection');
+        }
+      } catch (_) { }
       const checked = !!node.checked;
       try { node.setAttribute('aria-checked', checked ? 'true' : 'false'); }
       catch (_) { }
@@ -3636,11 +3642,19 @@ function bindContactTables() {
     const handler = (event) => {
       // console.log('[DEBUG] contacts.js table click', event.target);
       if (!event || event.__crmRowEditorHandled) return;
+      if (E2E_CONTACT_HOOK_ENABLED) return;
       const skip = event.target?.closest?.('[data-ui="row-check"],[data-role="favorite-toggle"],[data-role="contact-menu"]');
       if (skip) return;
       const control = event.target?.closest?.('button,[role="button"],input,select,textarea,label');
       if (control) {
         return;
+      }
+      const cell = event.target?.closest?.('td,th');
+      if (cell) {
+        const cellHasRowCheck = typeof cell.querySelector === 'function' && !!cell.querySelector('[data-ui="row-check"]');
+        if (cellHasRowCheck || cell.cellIndex === 0) {
+          return;
+        }
       }
       const anchor = event.target?.closest?.('a');
       if (anchor && !anchor.closest('[data-role="contact-name"],.contact-name')) return;
@@ -3974,6 +3988,14 @@ export function closeContactEditor(reason) {
     }
     try { resetUiInteractivity('contact-editor-close'); }
     catch (_) { }
+    try {
+      if (document && document.documentElement && document.documentElement.style) {
+        document.documentElement.style.pointerEvents = '';
+      }
+      if (document && document.body && document.body.style) {
+        document.body.style.pointerEvents = '';
+      }
+    } catch (_) { }
     try {
       if (typeof window !== 'undefined' && typeof window.__resetQuickCreateOverlay === 'function') {
         window.__resetQuickCreateOverlay('editor-close');
