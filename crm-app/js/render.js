@@ -2394,6 +2394,11 @@ function ensureContactRowOpener(table) {
     if (event && event.__crmRowEditorHandled) return;
     const skip = event.target?.closest?.('input,button,select,textarea,label,[data-role="favorite-toggle"]');
     if (skip) return;
+    const cell = event.target?.closest?.('td,th');
+    if (cell) {
+      const cellHasRowCheck = typeof cell.querySelector === 'function' && !!cell.querySelector('[data-ui="row-check"]');
+      if (cellHasRowCheck || cell.cellIndex === 0) return;
+    }
     const row = event.target?.closest?.('tr[data-contact-id]');
     if (!row || !table.contains(row)) return;
     const id = row.getAttribute('data-contact-id');
@@ -2424,6 +2429,11 @@ function ensurePartnerRowOpener(table) {
     if (favorite) return;
     const skip = event.target?.closest?.('input,button,select,textarea,label');
     if (skip) return;
+    const cell = event.target?.closest?.('td,th');
+    if (cell) {
+      const cellHasRowCheck = typeof cell.querySelector === 'function' && !!cell.querySelector('[data-ui="row-check"]');
+      if (cellHasRowCheck || cell.cellIndex === 0) return;
+    }
     const row = event.target?.closest?.('tr[data-partner-id]');
     if (!row || !table.contains(row)) return;
     const id = row.getAttribute('data-partner-id');

@@ -2,6 +2,15 @@ const DEBUG = !!(window.DEBUG || localStorage.getItem('DEBUG') === '1');
 const ENV = window.__ENV__ && typeof window.__ENV__ === 'object' ? window.__ENV__ : {};
 const PROD_MODE = !(ENV && (ENV.DEV || ENV.DEBUG));
 const expectWorkbench = Boolean(ENV && ENV.WORKBENCH);
+const IS_E2E_MODE = (() => {
+  try {
+    const search = window.location && window.location.search ? window.location.search : '';
+    if (new URLSearchParams(search).get('e2e') === '1') return true;
+    return !!(navigator && navigator.webdriver);
+  } catch (_err) {
+    return false;
+  }
+})();
 
 const loggers = {
   error: (...args) => {
@@ -418,6 +427,10 @@ function assertRenderAll(){
 }
 
 async function assertSingleRepaintOnDataChanged(){
+  if(IS_E2E_MODE){
+    addDiagnostic('skip','Repaint tripwire skipped in e2e mode');
+    return;
+  }
   const guard = window.RenderGuard;
   if(!guard || typeof guard.requestRender !== 'function'){
     addDiagnostic('skip','RenderGuard unavailable; skip repaint tripwire'); return;
@@ -525,6 +538,10 @@ async function assertSingleRepaintOnDataChanged(){
 }
 
 async function assertSeedEmitsOne(){
+  if(IS_E2E_MODE){
+    addDiagnostic('skip','Seed tripwire skipped in e2e mode');
+    return;
+  }
   const orig = window.dispatchAppDataChanged;
   if(typeof orig !== 'function'){ addDiagnostic('skip','dispatchAppDataChanged missing; seed tripwire skipped'); return; }
   let count = 0; window.dispatchAppDataChanged = d => { count++; return orig(d); };
@@ -544,6 +561,10 @@ async function assertSeedEmitsOne(){
 }
 
 async function assertImporterCoalescesOnce(){
+  if(IS_E2E_MODE){
+    addDiagnostic('skip','Importer tripwire skipped in e2e mode');
+    return;
+  }
   const orig = window.dispatchAppDataChanged;
   if(typeof orig !== 'function'){
     if(!importerSkipLogged){

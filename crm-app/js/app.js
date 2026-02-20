@@ -2189,8 +2189,8 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const anchor = target.closest?.('a.contact-name, [data-role="contact-name"] a, a.partner-name, [data-role="partner-name"] a');
       if (target.closest('input[type="checkbox"], [data-role="select"], [data-ui="row-check"], [data-role="favorite-toggle"], button, [role="button"]')) return;
 
-      const row = (anchor && anchor.closest?.('[data-contact-id],[data-partner-id]'))
-        || target.closest?.('[data-contact-id],[data-partner-id]');
+      if (!anchor) return;
+      const row = anchor.closest?.('[data-contact-id],[data-partner-id]');
       if (!row) return;
 
       const contactId = row.getAttribute('data-contact-id')
