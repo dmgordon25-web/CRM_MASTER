@@ -297,6 +297,17 @@ function applyLogFallback(promise) {
 
 const LOG_ENDPOINT_HREF = LOG_ENDPOINT ? LOG_ENDPOINT.href : null;
 const LOG_ENDPOINT_PATH = LOG_ENDPOINT ? LOG_ENDPOINT.pathname : null;
+const SAFE_MODE_BANNER_ID = 'boot-safe-mode-banner';
+const BOOT_ATTEMPT_STORAGE_KEY = 'BOOT_ATTEMPTS_V1';
+const BOOT_ATTEMPT_WINDOW_MS = 30_000;
+const BOOT_ATTEMPT_LIMIT = 3;
+const NONESSENTIAL_PATCH_DENYLIST = new Set([
+  './debug/overlay.js',
+  './diagnostics_quiet.js',
+  './selftest.js',
+  './selftest_panel.js',
+  './patches/patch_2025-10-23_session_beacon.js'
+]);
 
 function matchesLogEndpoint(candidate) {
   if (!LOG_ENDPOINT) return false;
@@ -457,12 +468,93 @@ function interpretBootAnimationValue(value) {
 export function isSafeMode() {
   try {
     const q = new URLSearchParams(location.search);
+    if (truthyFlag(q.get('safeMode'))) return true;
+  } catch (_) { }
+  try {
+    const q = new URLSearchParams(location.search);
     if (truthyFlag(q.get('safe'))) return true;
   } catch (_) { }
   try {
     if (truthyFlag(localStorage.getItem('SAFE'))) return true;
   } catch (_) { }
   return false;
+}
+
+function trackBootAttempt() {
+  if (typeof localStorage === 'undefined') {
+    return { count: 1, timestamp: Date.now(), forcedSafeMode: false };
+  }
+  const now = Date.now();
+  let snapshot = { count: 0, timestamp: 0 };
+
+  try {
+    const raw = localStorage.getItem(BOOT_ATTEMPT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const count = Number(parsed?.count) || 0;
+      const timestamp = Number(parsed?.timestamp) || 0;
+      snapshot = { count, timestamp };
+    }
+  } catch (_) { }
+
+  const withinWindow = (now - snapshot.timestamp) <= BOOT_ATTEMPT_WINDOW_MS;
+  const next = {
+    count: withinWindow ? (snapshot.count + 1) : 1,
+    timestamp: now
+  };
+
+  try {
+    localStorage.setItem(BOOT_ATTEMPT_STORAGE_KEY, JSON.stringify(next));
+  } catch (_) { }
+
+  return {
+    ...next,
+    forcedSafeMode: next.count >= BOOT_ATTEMPT_LIMIT
+  };
+}
+
+function clearBootAttemptTracking() {
+  try {
+    localStorage.removeItem(BOOT_ATTEMPT_STORAGE_KEY);
+  } catch (_) { }
+}
+
+function renderSafeModeBanner() {
+  if (!documentRef || !documentRef.body) return;
+  let banner = documentRef.getElementById(SAFE_MODE_BANNER_ID);
+  if (!banner) {
+    banner = documentRef.createElement('button');
+    banner.id = SAFE_MODE_BANNER_ID;
+    banner.type = 'button';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 14px;background:#7a1f1f;color:#fff;border:0;font:600 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;text-align:center;';
+    banner.onclick = () => {
+      try { localStorage.removeItem('SAFE'); } catch (_) { }
+      clearBootAttemptTracking();
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('safe');
+        url.searchParams.delete('safeMode');
+        window.location.href = url.toString();
+      } catch (_) {
+        window.location.reload();
+      }
+    };
+    documentRef.body.appendChild(banner);
+  }
+  banner.textContent = 'Safe Mode: click to resume normal boot';
+}
+
+function filterPatchesForSafeMode(patches) {
+  const skipped = [];
+  const allowed = [];
+  for (const spec of patches || []) {
+    if (NONESSENTIAL_PATCH_DENYLIST.has(spec)) {
+      skipped.push(spec);
+      continue;
+    }
+    allowed.push(spec);
+  }
+  return { allowed, skipped };
 }
 
 function getBootAnimationDecision({ safeOverride } = {}) {
@@ -918,7 +1010,8 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       overlay.hide();
       const readyPromise = scheduleReadyFinalization();
 
-      const safe = isSafeMode();
+      const attempt = trackBootAttempt();
+      const safe = isSafeMode() || attempt.forcedSafeMode;
       state.safe = safe;
       if (typeof window !== 'undefined') {
         try {
@@ -933,13 +1026,20 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
         } catch (_) { }
       }
 
-      const patchRecords = safe
-        ? []
-        : await loadModules(PATCHES, { fatalOnFailure: false });
+      const safePatchPlan = safe
+        ? filterPatchesForSafeMode(PATCHES)
+        : { allowed: PATCHES, skipped: [] };
+      const patchRecords = await loadModules(safePatchPlan.allowed, { fatalOnFailure: false });
 
-      if (safe && PATCHES.length) {
-        console.warn('[BOOT] SAFE MODE active — skipping patches');
-        postLog('boot.safe_mode', {});
+      if (safe) {
+        renderSafeModeBanner();
+        if (safePatchPlan.skipped.length) {
+          console.warn('[BOOT] SAFE MODE active — skipping nonessential patches', safePatchPlan.skipped);
+        }
+        postLog('boot.safe_mode', {
+          forcedByAttemptGuard: attempt.forcedSafeMode ? 1 : 0,
+          skippedPatches: safePatchPlan.skipped
+        });
       }
       state.patches = patchRecords.map(({ path }) => path);
 
@@ -966,6 +1066,9 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       const animationPromise = animateTabCycle({ decision: animationDecision });
 
       recordSuccess({ core: state.core.length, patches: state.patches.length, safe });
+      if (!safe) {
+        clearBootAttemptTracking();
+      }
 
       await animationPromise;
       finalizeSplashAndHeader();
