@@ -97,7 +97,23 @@ function Describe-Process([int]$pid){
 }
 
 # Resolve node.exe robustly
-$node = (Get-Command node -ErrorAction SilentlyContinue).Source
+$bundledCandidates = @(
+  (Join-Path $PSScriptRoot 'node\node.exe'),
+  (Join-Path $PSScriptRoot 'node\node')
+)
+
+$node = $null
+foreach($candidate in $bundledCandidates){
+  if(Test-Path $candidate){
+    $node = $candidate
+    break
+  }
+}
+
+if (-not $node) {
+  $node = (Get-Command node -ErrorAction SilentlyContinue).Source
+}
+
 if (-not $node) {
   $candidates = @(
     (Join-Path $env:ProgramFiles 'nodejs\node.exe'),

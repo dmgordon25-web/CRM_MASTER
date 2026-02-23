@@ -26,7 +26,8 @@
     "check:s1": "node tools/check_suite_s1.mjs",
     "sweep:s1": "npm run verify:build && npm run check:s1",
     "check:s2": "node tools/check_suite_s2.mjs",
-    "sweep:s2": "(npm run verify:build || true) && npm run check:s2"
+    "sweep:s2": "(npm run verify:build || true) && npm run check:s2",
+    "build:release": "node tools/build_release.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.39.0",
