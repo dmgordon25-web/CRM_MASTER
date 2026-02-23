@@ -1,5 +1,5 @@
 
-// post_funding.js — Idempotent watcher: on first transition to funded, enqueue nurture follow-ups
+// post_funding.js — Idempotent watcher: keep one annual review reminder aligned to funded date
 (function(){
   if(!window.__INIT_FLAGS__) window.__INIT_FLAGS__ = {};
   if(window.__INIT_FLAGS__.post_funding) return;
@@ -15,7 +15,6 @@
     return new Date();
   }
   function ymd(d){ return new Date(d).toISOString().slice(0,10); }
-  function addDays(d, n){ const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
   function addMonths(d, n){
     const dt = new Date(d);
     if(isNaN(dt)) return ymd(nowDate());
@@ -32,35 +31,61 @@
     const full = `${first} ${last}`.trim();
     return full || String(c?.name || 'Client').trim() || 'Client';
   }
+  function fundedKey(c){
+    return lc(c?.stage || c?.status || c?.pipelineMilestone);
+  }
+  function isFundedOrClosed(c){
+    const key = fundedKey(c);
+    return key === 'funded' || key === 'closed' || key === 'funded/closed';
+  }
+  function fundedDateValue(c){
+    const raw = c?.fundedDate || c?.fundedOn || c?.closeDate || c?.closingDate || '';
+    const dt = new Date(raw);
+    return isNaN(dt) ? '' : dt.toISOString().slice(0,10);
+  }
+  function annualReminderId(contactId){
+    return `postfunding-annual:${String(contactId || '').trim()}`;
+  }
 
   async function onFunded(contact){
     try{
       if(!contact) return;
       await openDB();
       const c = Object.assign({}, contact);
-      if(c.postFundingWorkflowTriggered) return;
+      if(!isFundedOrClosed(c)) return;
+      const fundedOn = fundedDateValue(c);
+      if(!fundedOn) return;
 
-      const today = ymd(nowDate());
-      const fundedBase = c.fundedDate || c.fundedOn || c.closeDate || c.closingDate || today;
       const displayName = contactName(c);
-      const nurture = [
-        { title:`Nurture: 1-week check-in with ${displayName}`, due:addDays(today, 7) },
-        { title:`Nurture: 30-day satisfaction + docs follow-up`, due:addDays(today, 30) },
-        { title:`Request review/testimonial`, due:addDays(today, 14) },
-        { title:`Annual mortgage review: ${displayName}`, due:addMonths(fundedBase, 11) }
-      ];
-
-      const tasks = nurture.map(n => ({
-        id: (window.uuid ? uuid() : (Math.random().toString(16).slice(2))),
-        contactId: c.id, title: n.title, text: n.title, due: n.due, done:false, updatedAt: Date.now()
-      }));
-
-      if(tasks.length) await dbBulkPut('tasks', tasks);
+      const reminderTitle = `Annual mortgage review: ${displayName}`;
+      const reminderDue = addMonths(fundedOn, 11);
+      const taskId = annualReminderId(c.id);
+      const allTasks = await dbGetAll('tasks');
+      const reminder = (allTasks || []).find((task) => {
+        if(!task) return false;
+        if(task.id === taskId) return true;
+        const isLegacyAnnual = String(task.title || task.text || '').startsWith('Annual mortgage review:');
+        return isLegacyAnnual && String(task.contactId || '') === String(c.id || '');
+      });
+      const nextReminder = Object.assign({}, reminder || {}, {
+        id: taskId,
+        contactId: c.id,
+        title: reminderTitle,
+        text: reminderTitle,
+        due: reminderDue,
+        done: reminder?.done === true,
+        updatedAt: Date.now(),
+        type: reminder?.type || 'reminder',
+        meta: Object.assign({}, reminder?.meta || {}, { postFundingAnnual: true, fundedDate: fundedOn })
+      });
+      await dbPut('tasks', nextReminder);
 
       // timeline + flag
       c.extras = c.extras || {};
       const tl = Array.isArray(c.extras.timeline)? c.extras.timeline : [];
-      tl.push({ when:new Date().toISOString(), text:'Post-funding workflow started', tag:'nurture' });
+      if(!c.postFundingWorkflowTriggered){
+        tl.push({ when:new Date().toISOString(), text:'Post-funding annual reminder scheduled', tag:'nurture' });
+      }
       c.extras.timeline = tl;
       c.postFundingWorkflowTriggered = true;
       c.updatedAt = Date.now();
@@ -84,9 +109,11 @@
     const res = await _dbPut.call(this, store, obj);
     try{
       if(store==='contacts' && obj){
-        const prev = lc(old?.stage);
-        const next = lc(obj.stage);
-        if(next==='funded' && prev!=='funded' && !obj.postFundingWorkflowTriggered){
+        const prevFundedDate = fundedDateValue(old);
+        const nextFundedDate = fundedDateValue(obj);
+        const wasFunded = isFundedOrClosed(old);
+        const isFunded = isFundedOrClosed(obj);
+        if(isFunded && nextFundedDate && (!wasFunded || prevFundedDate !== nextFundedDate || !obj.postFundingWorkflowTriggered)){
           await onFunded(obj);
         }
       }
@@ -107,9 +134,11 @@
       if(store==='contacts'){
         for(const c of list){
           const old = beforeIdx.get(c.id);
-          const prev = lc(old?.stage);
-          const next = lc(c?.stage);
-          if(next==='funded' && prev!=='funded' && !c.postFundingWorkflowTriggered){
+          const prevFundedDate = fundedDateValue(old);
+          const nextFundedDate = fundedDateValue(c);
+          const wasFunded = isFundedOrClosed(old);
+          const isFunded = isFundedOrClosed(c);
+          if(isFunded && nextFundedDate && (!wasFunded || prevFundedDate !== nextFundedDate || !c.postFundingWorkflowTriggered)){
             await onFunded(c);
           }
         }
@@ -124,7 +153,7 @@
       await openDB();
       const contacts = await dbGetAll('contacts');
       for(const c of contacts){
-        if(lc(c.stage)==='funded' && !c.postFundingWorkflowTriggered){
+        if(isFundedOrClosed(c) && fundedDateValue(c)){
           await onFunded(c);
         }
       }
