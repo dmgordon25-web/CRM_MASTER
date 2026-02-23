@@ -26,6 +26,7 @@ export function printPatchLoadOrder({ core = [], patches = [] } = {}) {
 
   console.groupCollapsed(`[debugPatches] planned module load order (${rows.length})`);
   console.table(rows);
+  console.log('[debugPatches] location', window.location.href);
   console.log('[debugPatches] expected patches', Array.isArray(window.__EXPECTED_PATCHES__) ? window.__EXPECTED_PATCHES__ : []);
   console.log('[debugPatches] loaded patches', Array.isArray(window.__PATCHES_LOADED__) ? window.__PATCHES_LOADED__ : []);
   console.groupEnd();
