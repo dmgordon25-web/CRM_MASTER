@@ -1,9 +1,10 @@
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
+$cacheRoot = Join-Path $repoRoot '.cache'
+$cacheNodeRoot = Join-Path $cacheRoot 'node'
 
 $launcherPaths = @(
   'Start CRM.bat'
@@ -15,6 +16,11 @@ $requiredPaths = @(
 )
 
 $requiredPaths += $launcherPaths
+
+$portableNodeVersion = 'v20.19.5'
+$portableNodeZipName = "node-$portableNodeVersion-win-x64.zip"
+$portableNodeFolderName = "node-$portableNodeVersion-win-x64"
+$portableNodeUrl = "https://nodejs.org/dist/$portableNodeVersion/$portableNodeZipName"
 
 function Invoke-PatchBundleBuild {
   param(
@@ -84,10 +90,55 @@ function Invoke-PatchBundleBuild {
   Set-Content -LiteralPath $releasePatchManifestPath -Value $updatedManifest -Encoding UTF8
 }
 
+function Install-PortableNode {
+  param(
+    [Parameter(Mandatory = $true)][string]$DestinationRoot
+  )
+
+  if (-not (Test-Path -LiteralPath $cacheNodeRoot)) {
+    New-Item -ItemType Directory -Path $cacheNodeRoot -Force | Out-Null
+  }
+
+  $zipPath = Join-Path $cacheNodeRoot $portableNodeZipName
+  $extractRoot = Join-Path $cacheNodeRoot $portableNodeFolderName
+
+  if (-not (Test-Path -LiteralPath $zipPath)) {
+    Write-Host "Downloading portable Node.js from $portableNodeUrl"
+    Invoke-WebRequest -Uri $portableNodeUrl -OutFile $zipPath
+  }
+
+  if (-not (Test-Path -LiteralPath $extractRoot)) {
+    Write-Host "Extracting portable Node.js archive to cache"
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $cacheNodeRoot -Force
+  }
+
+  $sourceNodeExe = Join-Path $extractRoot 'node.exe'
+  if (-not (Test-Path -LiteralPath $sourceNodeExe)) {
+    throw "Portable Node extraction failed: missing $sourceNodeExe"
+  }
+
+  $releaseNodeRoot = Join-Path $DestinationRoot 'node'
+  if (Test-Path -LiteralPath $releaseNodeRoot) {
+    Remove-Item -LiteralPath $releaseNodeRoot -Recurse -Force
+  }
+
+  New-Item -ItemType Directory -Path $releaseNodeRoot -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $extractRoot '*') -Destination $releaseNodeRoot -Recurse -Force
+
+  $releaseNodeExe = Join-Path $releaseNodeRoot 'node.exe'
+  if (-not (Test-Path -LiteralPath $releaseNodeExe)) {
+    throw "Portable Node installation failed: missing $releaseNodeExe"
+  }
+
+  Write-Host "Portable Node.js staged at $releaseNodeRoot"
+}
+
 $startScriptReferences = @(
   'Start CRM.bat',
   'crm-app',
-  'server.js'
+  'server.js',
+  'node/node.exe',
+  'README.txt'
 )
 
 if (-not (Test-Path -LiteralPath $releaseRoot)) {
@@ -115,33 +166,36 @@ foreach ($relativePath in $requiredPaths) {
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
+Install-PortableNode -DestinationRoot $releaseCrm
 Invoke-PatchBundleBuild -ReleaseCrmPath $releaseCrm
 
-$readmePath = Join-Path $releaseCrm 'README_RELEASE.txt'
+$readmePath = Join-Path $releaseCrm 'README.txt'
 $readmeContent = @"
 CRM Release Package
 ===================
 
 How to run
 ----------
-Double click Start CRM.bat
+1) Double-click Start CRM.bat
+2) Wait for status lines in the launcher window
+3) Browser opens automatically when ready
 
-Runtime notes
--------------
-- The launcher opens http://127.0.0.1:8080/ by default.
-- Double click Start CRM.bat to launch CRM.
-- Start CRM.bat opens Microsoft Edge app mode first, then Chrome app mode, then default browser fallback.
-- Start CRM.bat starts Node.js with: server.js --port [port].
-- If the selected port already has a responsive CRM server, launcher opens the app without starting another server.
-- Node.js is not bundled in this release folder.
-- Install Node.js 18+ on Windows or ensure node.exe is available on PATH.
-- Patches bundled for faster boot; behavior identical.
+What the launcher guarantees
+----------------------------
+- Visible progress output for every step.
+- Creates launcher.log in this folder.
+- Reuses an existing CRM server on 8080-8100 when /health responds.
+- Starts server.js on a free port from 8080-8100 when needed.
+- Waits up to 20 seconds for readiness, then shows a clear error.
+- Opens launcher.log automatically on failure.
+- Uses bundled node\\node.exe first, then PATH node.exe fallback.
+
+If launch fails
+---------------
+- Read launcher.log (opens automatically).
+- Install Node.js LTS only if bundled node folder is missing/corrupt.
 "@
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
-
-$resolvedPort = 8080
-$resolvedRootUrl = "http://127.0.0.1:$resolvedPort/"
-$resolvedServerCommand = "node server.js --port $resolvedPort"
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
@@ -163,28 +217,6 @@ foreach ($relativePath in $startScriptReferences) {
   }
   else {
     Write-Host (" [MISSING] {0}" -f $relativePath)
-    $missing += $relativePath
-  }
-}
-
-Write-Host 'Launcher verification:'
-Write-Host (" [INFO] PORT: {0}" -f $resolvedPort)
-Write-Host (" [INFO] URL (fallback): {0}" -f $resolvedRootUrl)
-Write-Host (" [INFO] Server command: {0}" -f $resolvedServerCommand)
-
-$launcherReferencedFiles = @(
-  'Start CRM.bat',
-  'crm-app',
-  'server.js'
-)
-
-foreach ($relativePath in $launcherReferencedFiles) {
-  $releasePath = Join-Path $releaseCrm $relativePath
-  if (Test-Path -LiteralPath $releasePath) {
-    Write-Host (" [OK] release/CRM/{0}" -f $relativePath)
-  }
-  else {
-    Write-Host (" [MISSING] release/CRM/{0}" -f $relativePath)
     $missing += $relativePath
   }
 }
