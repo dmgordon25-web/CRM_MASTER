@@ -1,70 +1,108 @@
-# CRM Patch Architecture Map (Audit Only)
+# ARCH_MAP — Patch Loading Audit (No Behavior Changes)
 
 ## Scope
-This document maps how patches are referenced and loaded **today** without changing runtime behavior.
-
----
+This map documents the current patch-loading path in `CRM_MASTER` as implemented today.
 
 ## Where patch files are referenced
 
-1. **Runtime entry point (`index.html`)**
-   - Boot script imports `ensureCoreThenPatches` from `js/boot/boot_hardener.js`.
-   - Boot script imports `CORE`, `PATCHES`, and `REQUIRED` from `js/boot/manifest.js`.
-   - Boot script executes `ensureCoreThenPatches({ CORE, PATCHES, REQUIRED })`.
+1. **`crm-app/index.html`**
+   - The boot module inlines imports for `ensureCoreThenPatches` and `CORE/PATCHES/REQUIRED`, then calls `ensureCoreThenPatches({ CORE, PATCHES, REQUIRED })`. 
+   - It also imports `printPatchLoadOrder` and executes it before boot so `?debugPatches=1` can print the planned order without changing runtime flow.
 
-2. **Patch manifest (`js/boot/manifest.js`)**
-   - Loads `crm-app/patches/manifest.json` (Node read in Node runtime, `fetch` in browser, JSON import fallback).
-   - Exposes `PATCHES` directly from manifest order.
-   - Exposes `ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES` (safe mode currently skips patch loading).
+2. **`crm-app/js/boot/manifest.js`**
+   - Loads `crm-app/patches/manifest.json` via:
+     - Node file read path (`fs.readFileSync`) in Node runtime.
+     - Browser `fetch()` path in browser runtime.
+     - JSON module import fallback.
+   - Exposes `PATCHES` from manifest order (`Object.freeze([...PATCH_LIST])`).
+   - Exposes `ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES`.
+   - Defines `CORE` list directly in-file.
 
-3. **Patch list source of truth (`patches/manifest.json`)**
-   - Ordered list of patch/module specifiers consumed as-is by `manifest.js`.
+3. **`crm-app/patches/manifest.json`**
+   - Source-of-truth ordered patch list.
+   - No sort keys/priority fields: order is file position.
 
-4. **Loader patch inside manifest (`js/patches/loader.js`)**
-   - Included as one patch entry in `patches/manifest.json`.
-   - Contains additional phase orchestration logic after `ensureCoreThenPatches` completes.
+4. **`crm-app/js/boot/boot_hardener.js`**
+   - `loadModules(paths)` loops with `for (const spec of paths || [])` and imports sequentially.
+   - No runtime sorting/reordering is applied; import order is preserved.
+   - Runs CORE first (`fatalOnFailure=true`), then PATCHES (`fatalOnFailure=false`, except safe mode).
 
 ---
 
 ## Boot sequence diagram (text)
 
 ```text
-index.html
-  ├─ imports boot_hardener.ensureCoreThenPatches
-  ├─ imports manifest.{CORE, PATCHES, REQUIRED}
-  └─ calls ensureCoreThenPatches({ CORE, PATCHES, REQUIRED })
+index.html (module script)
+  ├─ import printPatchLoadOrder + boot_hardener + manifest exports
+  ├─ printPatchLoadOrder({core, patches}) if ?debugPatches=1
+  └─ ensureCoreThenPatches({ CORE, PATCHES, REQUIRED })
 
 ensureCoreThenPatches()
-  ├─ loadModules(CORE, fatalOnFailure=true)
-  │    └─ sequential dynamic import for each CORE spec (array order)
+  ├─ loadModules(CORE, fatalOnFailure=true)      // sequential in CORE array order
   ├─ waitForDomReady()
-  ├─ evaluatePrereqs(hard)
-  ├─ set expected patch list on window (__EXPECTED_PATCHES__)
-  ├─ determine safe mode
-  │    ├─ safe=true  -> skip patch imports
-  │    └─ safe=false -> loadModules(PATCHES, fatalOnFailure=false)
-  │         └─ sequential dynamic import for each PATCH spec (manifest order)
+  ├─ evaluatePrereqs(coreRecords, 'hard')
+  ├─ set window.__EXPECTED_PATCHES__
+  ├─ safe = isSafeMode()
+  │   ├─ if safe: skip patch imports
+  │   └─ else: loadModules(PATCHES, fatalOnFailure=false) // sequential manifest order
   ├─ maybeRenderAll()
-  ├─ evaluatePrereqs(soft)
-  ├─ finalize ready state
-  ├─ if loaded patch list includes patches/loader.js -> delegate orchestration path
-  └─ otherwise continue hardener animation/finalization path
+  ├─ evaluatePrereqs(core+patchRecords, 'soft')
+  ├─ gather service waiters + required-module checks
+  ├─ recordSuccess()/recordFatal() + boot signals
+  └─ if patches/loader.js was loaded, phase orchestration continues from that module
 ```
 
 ---
 
-## Exact load-order rules
+## Patch/Core load-order rules (exact)
 
-- `loadModules()` iterates with `for (const spec of paths || [])` and imports each module sequentially.
-- There is **no sorting** of `CORE` or `PATCHES` during load.
-- Effective patch order = `patches/manifest.json` entry order.
-- In safe mode, patch order is still defined, but execution is skipped (`PATCHES` not loaded).
+- **Sorting logic:** none.
+- **Normalization logic:** module IDs are normalized to URLs (`normalizeModuleId`) before import, but list order is not changed.
+- **Execution order:**
+  1. Entire `CORE` list from `manifest.js` (in declared order).
+  2. Entire `PATCHES` list from `patches/manifest.json` (in manifest order), unless safe mode.
 
----
+### CORE order (`crm-app/js/boot/manifest.js`)
 
-## Patch load order table (PATCHES from `patches/manifest.json`)
+| Order | Module |
+|---:|---|
+| 1 | `./env.js` |
+| 2 | `./db.js` |
+| 3 | `./core/renderGuard.js` |
+| 4 | `./core/theme_injector.js` |
+| 5 | `./services/selection.js` |
+| 6 | `./utils.js` |
+| 7 | `./render.js` |
+| 8 | `./db_compat.js` |
+| 9 | `./ical.js` |
+| 10 | `./presets.js` |
+| 11 | `../seed_data_inline.js` |
+| 12 | `./seed_data.js` |
+| 13 | `./ui_shims.js` |
+| 14 | `./header_ui.js` |
+| 15 | `./email/merge_vars.js` |
+| 16 | `./contact_stage_tracker.js` |
+| 17 | `./commissions.js` |
+| 18 | `./post_funding.js` |
+| 19 | `./qa.js` |
+| 20 | `./bulk_log.js` |
+| 21 | `./print.js` |
+| 22 | `./snapshot.js` |
+| 23 | `./app.js` |
+| 24 | `./settings_forms.js` |
+| 25 | `./compose.js` |
+| 26 | `./services/pipelineStages.js` |
+| 27 | `./services/softDelete.js` |
+| 28 | `./pipeline/stages.js` |
+| 29 | `./pages/workbench.js` |
+| 30 | `./pages/email_templates.js` |
+| 31 | `./pages/notifications.js` |
+| 32 | `./boot/contracts/services.js` |
+| 33 | `./boot/phases.js` |
 
-| Order | Patch spec |
+### PATCH order (`crm-app/patches/manifest.json`)
+
+| Order | Patch |
 |---:|---|
 | 1 | `./patch_20250923_baseline.js` |
 | 2 | `./patch_20250924_bootstrap_ready.js` |
@@ -148,45 +186,58 @@ ensureCoreThenPatches()
 
 ---
 
-## Patches with boot/selection/automation/doc-center impact
+## Patches/modules that register listeners or mutate critical paths
 
-### Boot-path / startup-impacting
-- `./patch_20250924_bootstrap_ready.js` (boot readiness + app:data:changed emit)
-- `./patches/polish_overlay_ready.js` (overlay readiness behavior)
-- `./patches/loader.js` (phase orchestration and boot completion signaling)
-- `./debug/overlay.js` and `./diagnostics_quiet.js` (boot/diagnostic overlays)
+### Boot-path mutators
+- `./patch_20250924_bootstrap_ready.js`
+  - Installs DOM-ready init and updates `window.__PATCHES_LOADED__`.
+- `./patches/loader.js`
+  - Re-runs `ensureCoreThenPatches`, executes phase runner contracts, dispatches `boot:done`.
+- `./patches/polish_overlay_ready.js`
+  - Startup overlay/readiness polish behavior.
 
-### Selection / action-bar / pipeline selection coupling
+### Selection-path mutators/listeners
 - `./patch_20250926_ctc_actionbar.js`
+  - Registers a document click listener to trigger action-bar behavior.
 - `./state/selectionStore.js`
-- `./state/actionBarGuards.js`
-- `./ui/action_bar.js`
+  - Dispatches `selection:changed` through `document` and `window`.
 - `./services/selection_adapter.js`
+  - Bridges legacy/global selection APIs and dispatches `ui:selection-ready`.
 - `./services/selection_fallback.js`
-- `./patch_2025-09-26_phase1_pipeline_partners.js` (pipeline selection sync)
+  - Adds `document` change listener (capture) when fallback is active and dispatches `selection:changed`.
 
-### Automations / reminders
+### Automation-path mutators/listeners
 - `./patch_2025-09-26_phase2_automations.js`
+  - Automation engine wiring and timeline interactions.
 - `./patch_2025-10-03_automation_seed.js`
+  - Automation seed initialization at startup.
 - `./notifications.js` / `./notifications/notifier.js`
-- `./post_funding.js` is CORE (not PATCHES) but is in boot-critical runtime set
+  - Notification queue sync + `notifications:changed` event surface used by automation-adjacent reminder flows.
 
-### Doc center
+### Doc-center mutators/listeners
 - `./patch_2025-09-27_doccenter2.js`
+  - Doc-center patch wiring and app-data changed dispatch.
 - `./doccenter_rules.js`
+  - Seeds/maintains doc-center rules and hydrates on `DOMContentLoaded`.
 - `./doc/doc_center_enhancer.js`
+  - Adds UI listeners (`click`, `input`) and listens for `app:data:changed` to refresh doc-center controls.
 
 ---
 
 ## High-risk patches (boot / selection / automation)
 
 1. **`./patches/loader.js`**
-   - High risk because it performs post-hardener phase orchestration and re-signals boot completion.
+   - High-risk: it controls post-hardener orchestration and emits completion signals.
 2. **`./patch_20250924_bootstrap_ready.js`**
-   - High risk because it influences boot readiness and data-change dispatch timing.
-3. **`./patch_20250926_ctc_actionbar.js` + `./ui/action_bar.js` + `./state/selectionStore.js`**
-   - High risk because selection/action-bar consistency depends on ordering and shared state updates.
-4. **`./services/selection_adapter.js` + `./services/selection_fallback.js`**
-   - High risk because they bridge/fallback selection capability and can affect global selection truth.
-5. **`./patch_2025-09-26_phase2_automations.js` + `./patch_2025-10-03_automation_seed.js`**
-   - High risk because reminder/automation registration must be deterministic to avoid duplicate or missing automations.
+   - High-risk: participates in startup readiness and patch bookkeeping.
+3. **`./patch_20250926_ctc_actionbar.js` + selection service/store modules**
+   - High-risk: selection/event consistency affects action bar, bulk actions, and row targeting.
+4. **`./patch_2025-09-26_phase2_automations.js` + `./patch_2025-10-03_automation_seed.js`**
+   - High-risk: startup automation registration must remain deterministic to avoid duplicate/missing rules.
+
+---
+
+## Dev-only runtime helper
+
+- `crm-app/js/dev/debug_patch_order.js` prints planned module order only when URL contains `?debugPatches=1`.
+- Wired from `crm-app/index.html` boot script and executes before `ensureCoreThenPatches(...)`.
