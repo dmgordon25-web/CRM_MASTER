@@ -11,15 +11,17 @@ function parsePort(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--port') {
       const candidate = Number.parseInt(argv[i + 1], 10);
-      if (Number.isInteger(candidate) && candidate > 0 && candidate < 65536) {
+      if (Number.isInteger(candidate) && candidate >= 0 && candidate < 65536) {
         return candidate;
       }
     }
   }
+
   const envPort = Number.parseInt(process.env.PORT || '', 10);
-  if (Number.isInteger(envPort) && envPort > 0 && envPort < 65536) {
+  if (Number.isInteger(envPort) && envPort >= 0 && envPort < 65536) {
     return envPort;
   }
+
   return 8080;
 }
 
@@ -51,9 +53,11 @@ function safeFilePathFromUrl(requestUrl) {
   const relative = normalized.replace(/^\/+/, '');
   const targetPath = relative ? path.join(appDir, relative) : path.join(appDir, 'index.html');
   const resolved = path.resolve(targetPath);
+
   if (!resolved.startsWith(path.resolve(appDir) + path.sep) && resolved !== path.resolve(appDir)) {
     return null;
   }
+
   return resolved;
 }
 
@@ -99,7 +103,7 @@ function serveFile(filePath, res, fallbackToIndex) {
   });
 }
 
-const port = parsePort(process.argv.slice(2));
+const requestedPort = parsePort(process.argv.slice(2));
 
 const server = http.createServer((req, res) => {
   const method = (req.method || 'GET').toUpperCase();
@@ -122,8 +126,10 @@ const server = http.createServer((req, res) => {
   serveFile(filePath, res, !isAssetRequest);
 });
 
-server.listen(port, '127.0.0.1', () => {
-  process.stdout.write(`LISTENING http://127.0.0.1:${port}\n`);
+server.listen(requestedPort, '127.0.0.1', () => {
+  const address = server.address();
+  const boundPort = typeof address === 'object' && address ? address.port : requestedPort;
+  process.stdout.write(`LISTENING http://127.0.0.1:${boundPort}\n`);
 });
 
 server.on('error', (err) => {
