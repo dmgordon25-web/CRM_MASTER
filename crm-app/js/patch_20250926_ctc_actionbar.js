@@ -746,18 +746,31 @@ function runPatch() {
     return key ? key.replace(/-/g, ' ') : 'Application';
   }
 
+
+  function getSelectionStoreSnapshot() {
+    const store = (typeof window !== 'undefined' && window.SelectionStore) ? window.SelectionStore : null;
+    if (!store || typeof store.count !== 'function' || typeof store.get !== 'function') {
+      return { scope: (SelectionService && SelectionService.type) || 'contacts', ids: [], count: 0 };
+    }
+    const scopes = ['contacts', 'partners', 'pipeline'];
+    for (const scope of scopes) {
+      const count = Number(store.count(scope)) || 0;
+      if (count > 0) {
+        const ids = Array.from(store.get(scope) || []).map(String);
+        return { scope, ids, count: ids.length || count };
+      }
+    }
+    return { scope: 'contacts', ids: [], count: 0 };
+  }
+
   function updateActionbarBase() {
-    if (!ensureSelectionService()) return;
     const bar = actionbar();
     if (!bar) return;
     ensureConvertButton();
     assignActionLabel(bar.querySelector('[data-act="task"]'), 'Schedule Follow-Up for Selected', 'bulk-followup');
     assignActionLabel(bar.querySelector('[data-act="bulkLog"]'), 'Log Call for Selected', 'bulk-logcall');
-    let count = 0;
-    try {
-      const raw = typeof SelectionService.count === 'function' ? SelectionService.count() : 0;
-      count = Number.isFinite(raw) ? raw : Number(raw) || 0;
-    } catch (_err) { }
+    const storeSnapshot = getSelectionStoreSnapshot();
+    let count = Number(storeSnapshot.count) || 0;
     if (!Number.isFinite(count)) count = 0;
     count = count > 0 ? Math.max(0, Math.floor(count)) : 0;
     syncActionBarVisibility(count);
@@ -819,7 +832,7 @@ function runPatch() {
     }
     bar.style.display = '';
     bar.classList.add('has-selection');
-    bar.setAttribute('data-selection-type', SelectionService.type);
+    bar.setAttribute('data-selection-type', storeSnapshot.scope);
     if (countEl) countEl.textContent = count === 1 ? '1 Selected' : `${count} Selected`;
     updatePrimaryButtons();
     syncActionBarVisibility(count);
@@ -834,7 +847,8 @@ function runPatch() {
   async function fetchSelectionRecords() {
     if (!ensureSelectionService()) return { contacts: [], partners: [] };
     if (typeof window.openDB !== 'function') return { contacts: [], partners: [] };
-    const ids = SelectionService.getIds();
+    const storeSnapshot = getSelectionStoreSnapshot();
+    const ids = storeSnapshot.ids;
     if (!ids.length) return { contacts: [], partners: [] };
     await window.openDB();
     const [contacts, partners] = await Promise.all([
@@ -844,7 +858,7 @@ function runPatch() {
     const contactMap = new Map((contacts || []).map(row => [String(row.id), row]));
     const partnerMap = new Map((partners || []).map(row => [String(row.id), row]));
     const data = { contacts: [], partners: [] };
-    if (SelectionService.type === 'partners') {
+    if (storeSnapshot.scope === 'partners') {
       SelectionService.getIds().forEach(id => {
         const row = partnerMap.get(String(id));
         if (row) data.partners.push(row);
