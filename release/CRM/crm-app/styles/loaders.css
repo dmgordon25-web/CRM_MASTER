@@ -1,0 +1,124 @@
+.ui-inline-loader{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:14px;
+  line-height:1.4;
+  color:#475467;
+}
+
+.ui-inline-loader--block{
+  display:flex;
+}
+
+.ui-inline-loader--sm{
+  font-size:13px;
+}
+
+.ui-inline-loader--sm .ui-spinner{
+  width:14px;
+  height:14px;
+  border-width:2px;
+}
+
+.ui-inline-loader--lg{
+  font-size:16px;
+}
+
+.ui-inline-loader--lg .ui-spinner{
+  width:22px;
+  height:22px;
+  border-width:3px;
+}
+
+.ui-inline-loader__spinner{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.ui-inline-loader__label{
+  font-weight:500;
+}
+
+.loading-block{
+  display:none;
+  flex-direction:column;
+  gap:12px;
+  padding:16px 0;
+}
+
+.loading-block .ui-inline-loader{
+  color:#4b5563;
+}
+
+.loading-block .loading-line{
+  border-radius:999px;
+}
+
+.loading-host{
+  min-height:var(--loading-block-min-height, 96px);
+}
+
+.loading-host.is-loading>.loading-block{
+  display:flex;
+}
+
+.card.loading-host{
+  min-height:var(--card-loading-min-height, 200px);
+}
+
+.status-table-wrap.loading-host,
+.table-card.loading-host{
+  min-height:var(--table-loading-min-height, 240px);
+}
+
+main[data-ui="dashboard-root"] > [data-dash-widget].loading-host,
+.insight-card.loading-host{
+  min-height:var(--widget-loading-min-height, 220px);
+}
+
+.calendar-card.loading-host{
+  min-height:var(--calendar-loading-min-height, 260px);
+}
+
+.boot-splash{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#fff;
+  z-index:99999;
+  opacity:1;
+  transition:opacity .24s ease, visibility .24s ease;
+}
+
+.boot-splash.is-hidden{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+
+.boot-splash .ui-inline-loader{
+  gap:12px;
+  font-size:18px;
+  color:#1f2937;
+}
+
+.boot-splash .ui-inline-loader .ui-spinner{
+  width:26px;
+  height:26px;
+  border-width:3px;
+}
+
+.status-banner-loader{
+  font-size:13px;
+  gap:6px;
+}
+
+.status-banner-loader .ui-spinner{
+  width:14px;
+  height:14px;
+  border-width:2px;
+}

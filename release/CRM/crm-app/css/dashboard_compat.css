@@ -1,0 +1,145 @@
+/* Dashboard layout compatibility layer for Labs/zNext */
+
+.labs-crm-dashboard[data-dashboard-compat="true"] {
+  --dash-compat-card-padding: var(--card-padding, 24px);
+  --dash-compat-card-gap: var(--space-3, 12px);
+  --dash-compat-header-height: 48px;
+  --dash-compat-header-font-size: var(--font-size-base, 16px);
+  --dash-compat-header-weight: 700;
+  --dash-compat-row-line-height: var(--line-height-base, 1.5);
+  --dash-compat-row-gap: var(--space-2, 8px);
+  --dash-compat-row-padding-y: var(--space-2, 8px);
+  --dash-compat-row-padding-x: var(--space-3, 12px);
+  --dash-compat-body-gap: var(--space-3, 12px);
+  --dash-compat-empty-padding: var(--space-5, 24px);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-grid-shell {
+  padding: var(--space-3, 12px) var(--space-4, 16px) var(--space-4, 16px);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .grid-stack,
+.labs-crm-dashboard[data-dashboard-compat="true"] .grid-stack > .grid-stack-item {
+  padding: 0;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .grid-stack-item-content {
+  padding: 0;
+  background: transparent;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget {
+  padding: var(--dash-compat-card-padding);
+  gap: var(--dash-compat-card-gap);
+  line-height: var(--dash-compat-row-line-height);
+  border-radius: var(--radius-2xl, 24px);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__header {
+  min-height: var(--dash-compat-header-height);
+  gap: var(--space-2, 8px);
+  margin-bottom: 0;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__title {
+  font-size: var(--dash-compat-header-font-size);
+  font-weight: var(--dash-compat-header-weight);
+  line-height: var(--line-height-snug, 1.35);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__subtitle,
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__description {
+  font-size: var(--font-size-sm, 14px);
+  line-height: var(--dash-compat-row-line-height);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__body {
+  gap: var(--dash-compat-body-gap);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__count-pill,
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__count {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-row-list {
+  gap: var(--dash-compat-row-gap);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-row {
+  padding: var(--dash-compat-row-padding-y) var(--dash-compat-row-padding-x);
+  gap: var(--dash-compat-row-gap);
+  line-height: var(--dash-compat-row-line-height);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-row__primary {
+  font-size: var(--font-size-base, 16px);
+  line-height: var(--dash-compat-row-line-height);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-row__secondary,
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-row__meta {
+  font-size: var(--font-size-sm, 14px);
+  line-height: var(--dash-compat-row-line-height);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget__state,
+.labs-crm-dashboard[data-dashboard-compat="true"] .empty-state {
+  padding: var(--dash-compat-empty-padding);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget--chrome {
+  padding: 0;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__header,
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__body,
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__footer {
+  padding-left: var(--dash-compat-card-padding);
+  padding-right: var(--dash-compat-card-padding);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__header {
+  padding-top: var(--space-3, 12px);
+  padding-bottom: var(--space-3, 12px);
+  min-height: var(--dash-compat-header-height);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8fafc;
+  font-size: 1rem;
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__body {
+  gap: var(--dash-compat-body-gap);
+  padding-top: var(--space-3, 12px);
+  padding-bottom: var(--space-3, 12px);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .labs-widget-chrome__footer {
+  padding-top: var(--space-2, 8px);
+  padding-bottom: var(--space-3, 12px);
+}
+
+.labs-crm-dashboard[data-dashboard-compat="true"] .focus-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
