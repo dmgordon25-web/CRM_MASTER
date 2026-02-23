@@ -204,10 +204,6 @@ function runPatch() {
     await dbPut('documents', next);
     const docs = await loadDocsForContact(contactId);
     const options = Object.assign({ touchContact: false, recompute: true }, opts || {});
-
-    // [PATCH] Set flag to restore tab if modal re-renders due to contact update
-    try { sessionStorage.setItem('crm_restore_doc_tab', contactId); } catch (_) { }
-
     await syncContactAfterChange(contactId, docs, { recomputeMissing: options.recompute, touch: options.touchContact });
     dispatchDataChanged({ store: 'documents', contactId, updated: next.id, ids: [String(next.id)], reason: 'doc:update' });
     return docs;
@@ -934,24 +930,6 @@ function runPatch() {
     }
     const state = setupBoard(dialog, body);
     if (state) dialog.__docBoardState = state;
-
-    // [PATCH] Restore tab if we just updated a doc
-    try {
-      const restoreId = sessionStorage.getItem('crm_restore_doc_tab');
-      if (restoreId) {
-        // Check if this modal is for the same contact
-        const currentId = state && state.contactId ? state.contactId() : null;
-        if (restoreId === currentId) {
-          sessionStorage.removeItem('crm_restore_doc_tab');
-          // Find tab and click
-          setTimeout(() => {
-            const tabs = Array.from(dialog.querySelectorAll('.modal-tabs .tab, .tab-btn, button'));
-            const docTab = tabs.find(el => el.textContent.includes('Document Checklist'));
-            if (docTab) docTab.click();
-          }, 50);
-        }
-      }
-    } catch (err) { console.warn('doccenter2 tab restore', err); }
   });
 
   (function wrapEnsureRequiredDocs() {
