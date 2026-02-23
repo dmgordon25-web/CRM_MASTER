@@ -6,7 +6,32 @@
   window.__INIT_FLAGS__.post_funding = true;
 
   function lc(s){ return String(s||'').toLowerCase(); }
+  function nowDate(){
+    const override = window.__CRM_NOW__;
+    if(typeof override === 'string' || typeof override === 'number' || override instanceof Date){
+      const dt = new Date(override);
+      if(!isNaN(dt)) return dt;
+    }
+    return new Date();
+  }
+  function ymd(d){ return new Date(d).toISOString().slice(0,10); }
   function addDays(d, n){ const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
+  function addMonths(d, n){
+    const dt = new Date(d);
+    if(isNaN(dt)) return ymd(nowDate());
+    const startDay = dt.getDate();
+    dt.setDate(1);
+    dt.setMonth(dt.getMonth() + n);
+    const endOfTargetMonth = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+    dt.setDate(Math.min(startDay, endOfTargetMonth));
+    return dt.toISOString().slice(0,10);
+  }
+  function contactName(c){
+    const first = String(c?.first || c?.firstName || '').trim();
+    const last = String(c?.last || c?.lastName || '').trim();
+    const full = `${first} ${last}`.trim();
+    return full || String(c?.name || 'Client').trim() || 'Client';
+  }
 
   async function onFunded(contact){
     try{
@@ -15,12 +40,14 @@
       const c = Object.assign({}, contact);
       if(c.postFundingWorkflowTriggered) return;
 
-      const today = new Date().toISOString().slice(0,10);
+      const today = ymd(nowDate());
+      const fundedBase = c.fundedDate || c.fundedOn || c.closeDate || c.closingDate || today;
+      const displayName = contactName(c);
       const nurture = [
-        { title:`Nurture: 1-week check-in with ${c.first||''} ${c.last||''}`, due:addDays(today, 7) },
+        { title:`Nurture: 1-week check-in with ${displayName}`, due:addDays(today, 7) },
         { title:`Nurture: 30-day satisfaction + docs follow-up`, due:addDays(today, 30) },
         { title:`Request review/testimonial`, due:addDays(today, 14) },
-        { title:`Anniversary prep: confirm contact details`, due:addDays(today, 330) }
+        { title:`Annual mortgage review: ${displayName}`, due:addMonths(fundedBase, 11) }
       ];
 
       const tasks = nurture.map(n => ({
@@ -103,5 +130,6 @@
       }
     }catch (_) {}
   }
-  document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(rescan, 100); });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', rescan);
+  else rescan();
 })();
