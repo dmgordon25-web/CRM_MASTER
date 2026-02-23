@@ -114,7 +114,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const filePath = safeFilePathFromUrl(req.url || '/');
+  const parsed = new URL(req.url || '/', 'http://127.0.0.1');
+  if (parsed.pathname === '/health') {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  const filePath = safeFilePathFromUrl(parsed.pathname);
   if (!filePath) {
     res.statusCode = 400;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
