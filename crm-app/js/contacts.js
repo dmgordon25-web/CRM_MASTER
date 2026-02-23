@@ -1654,6 +1654,23 @@ export function normalizeContactId(input) {
             });
           });
         }
+        const openDocsPanel = () => {
+          if (!tabNav) return;
+          const docsTab = tabNav.querySelector('button[data-panel="docs"]');
+          if (!docsTab) return;
+          docsTab.click();
+        };
+        const openDocCenterBtn = $('#c-open-doc-center', body);
+        if (openDocCenterBtn) {
+          openDocCenterBtn.addEventListener('click', async (evt) => {
+            evt.preventDefault();
+            openDocsPanel();
+            const openDocCenter = window.DocCenter && window.DocCenter.openDocumentCenter;
+            if (typeof openDocCenter === 'function') {
+              await openDocCenter({ contextType: 'contact', mode: 'checklist', source: 'contact-card-entry' });
+            }
+          });
+        }
 
         const stageSelect = $('#c-stage', body);
         const statusSelect = $('#c-status', body);
@@ -1983,6 +2000,13 @@ export function normalizeContactId(input) {
                 const allDocs = await dbGetAll('documents');
                 docs = (allDocs || []).filter(d => String(d.contactId) === String(contactId));
                 missing = persisted.missingDocs || '';
+                const persistedChecklist = normalizeDocChecklistItems(persisted.docChecklist);
+                const hasChecklistChange = JSON.stringify(docChecklistState) !== JSON.stringify(persistedChecklist);
+                if (hasChecklistChange) {
+                  docChecklistState = persistedChecklist;
+                  c.docChecklist = persistedChecklist.map(item => ({ ...item }));
+                  renderContactChecklist();
+                }
               }
             } catch (err) { console.warn('doc checklist load', err); }
           }
