@@ -38,50 +38,23 @@ function Get-ListeningProcessId([int]$port){
   return $null
 }
 
-function Open-Browser([int]$port){
-  $url = "http://127.0.0.1:$port/"
-
-  $edgeCandidates = @(
-    (Get-Command msedge.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
-    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
-    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe')
-  ) | Where-Object { $_ -and (Test-Path $_) }
-
-  if($edgeCandidates.Count -gt 0){
-    Start-Process -FilePath $edgeCandidates[0] -ArgumentList "--app=$url"
-    return
+function Test-ServerHttpReady([int]$port, [int]$timeoutSeconds = 2){
+  $rootUrl = "http://127.0.0.1:$port/"
+  try {
+    $null = Invoke-WebRequest -Uri $rootUrl -Method Get -TimeoutSec $timeoutSeconds -UseBasicParsing
+    return $true
+  } catch {
+    return $false
   }
-
-  $chromeCandidates = @(
-    (Get-Command chrome.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
-    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
-    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
-  ) | Where-Object { $_ -and (Test-Path $_) }
-
-  if($chromeCandidates.Count -gt 0){
-    Start-Process -FilePath $chromeCandidates[0] -ArgumentList "--app=$url"
-    return
-  }
-
-  Start-Process $url
 }
 
 function Wait-ServerReady([int]$port, [int]$timeoutSeconds = 20){
   $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSeconds)
   while([DateTime]::UtcNow -lt $deadline){
-    try {
-      $tcpClient = [System.Net.Sockets.TcpClient]::new()
-      $async = $tcpClient.ConnectAsync('127.0.0.1', $port)
-      if($async.Wait(500) -and $tcpClient.Connected){
-        $tcpClient.Dispose()
-        return $true
-      }
-      $tcpClient.Dispose()
-    } catch {
-      $null = $_
+    if(Test-ServerHttpReady -port $port -timeoutSeconds 2){
+      return $true
     }
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 250
   }
 
   return $false
@@ -94,6 +67,38 @@ function Describe-Process([int]$pid){
   } catch {
     return 'unknown'
   }
+}
+
+function Open-Browser([int]$port){
+  $appUrl = "http://127.0.0.1:$port/#/labs"
+  $rootUrl = "http://127.0.0.1:$port/"
+
+  $edgeCandidates = @(
+    (Get-Command msedge.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  if($edgeCandidates.Count -gt 0){
+    Start-Process -FilePath $edgeCandidates[0] -ArgumentList "--app=$appUrl"
+    return
+  }
+
+  $chromeCandidates = @(
+    (Get-Command chrome.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  if($chromeCandidates.Count -gt 0){
+    Start-Process -FilePath $chromeCandidates[0] -ArgumentList "--app=$appUrl"
+    return
+  }
+
+  Write-Host "[CRM] Edge/Chrome app mode not found. Opening default browser." -ForegroundColor Yellow
+  Write-Host "[CRM] Install Microsoft Edge or Google Chrome for app-window mode." -ForegroundColor Yellow
+  Start-Process $rootUrl
 }
 
 # Resolve node.exe robustly
@@ -122,7 +127,7 @@ if (-not $node) {
   foreach($c in $candidates){ if (Test-Path $c) { $node = $c; break } }
 }
 if (-not $node) {
-  Write-Host "Node.js not found on PATH. Install Node 18+ or add node.exe to PATH." -ForegroundColor Red
+  Write-Host "[CRM] Node.js not found. Install Node 18+ or add node.exe to PATH." -ForegroundColor Red
   Log "FATAL: node.exe not found."
   Write-Host "Press Enter to close..." -ForegroundColor Yellow
   [void][System.Console]::ReadLine()
@@ -142,22 +147,18 @@ if($Visible -or $Diagnose){
   Write-Host "[CRM] Launch command: $commandLine" -ForegroundColor Cyan
 }
 
-Write-Host "[CRM] Checking port $Port availability..."
+if(Test-ServerHttpReady -port $Port -timeoutSeconds 2){
+  Write-Host "[CRM] Server already running on port $Port. Opening app..." -ForegroundColor Green
+  Log "Existing responsive server on port $Port; launching browser only."
+  Open-Browser -port $Port
+  exit 0
+}
+
 $listenerPid = Get-ListeningProcessId -port $Port
 if($listenerPid){
   $processName = Describe-Process -pid $listenerPid
-  if($processName -ieq 'node'){
-    Write-Host "[CRM] Node is already listening on port $Port (PID $listenerPid). Opening browser..." -ForegroundColor Green
-    Log "Existing node on port $Port (PID $listenerPid); launching browser only."
-    if(-not (Wait-ServerReady -port $Port)){
-      Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
-      Log "Timeout waiting for existing server readiness on port $Port."
-      exit 4
-    }
-    Open-Browser -port $Port
-    exit 0
-  }
-  Write-Host "[CRM] Port $Port is already in use by PID $listenerPid ($processName)." -ForegroundColor Red
+  Write-Host "[CRM] Port $Port is in use by another app (PID $listenerPid, $processName)." -ForegroundColor Red
+  Write-Host "[CRM] Fix: close that app or launch CRM with a different port (set CRM_PORT=8090)." -ForegroundColor Yellow
   Log "Port $Port busy by PID $listenerPid ($processName)."
   exit 1
 }
@@ -170,9 +171,10 @@ try{
       -WorkingDirectory $workingDir `
       -NoNewWindow `
       -PassThru
-    Write-Host "[CRM] Server PID: $($child.Id)" -ForegroundColor Green
-    if(-not (Wait-ServerReady -port $Port)){
-      Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
+    Write-Host "[CRM] Starting local server..." -ForegroundColor Green
+    if(-not (Wait-ServerReady -port $Port -timeoutSeconds 20)){
+      Write-Host "[CRM] Server failed to respond at http://127.0.0.1:$Port/ within 20 seconds." -ForegroundColor Red
+      Write-Host "[CRM] Fix: check launcher.log, verify Node can run tools/node_static_server.js, and free port $Port." -ForegroundColor Yellow
       Log "Timeout waiting for server readiness on port $Port (visible mode)."
       exit 4
     }
@@ -189,16 +191,19 @@ try{
   Log "Spawned node (PID $($child.Id))."
 } catch {
   Log ("FATAL: Start-Process failed: {0}" -f $_)
-  Write-Host "Launcher failed to start Node: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "[CRM] Launcher failed to start Node: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "[CRM] Fix: verify Node install and file permissions under $PSScriptRoot." -ForegroundColor Yellow
   Write-Host "Press Enter to close..." -ForegroundColor Yellow
   [void][System.Console]::ReadLine()
   exit 3
 }
 
-if(-not (Wait-ServerReady -port $Port)){
-  Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
+if(-not (Wait-ServerReady -port $Port -timeoutSeconds 20)){
+  Write-Host "[CRM] Server failed to respond at http://127.0.0.1:$Port/ within 20 seconds." -ForegroundColor Red
+  Write-Host "[CRM] Fix: check launcher.log, verify Node can run tools/node_static_server.js, and free port $Port." -ForegroundColor Yellow
   Log "Timeout waiting for server readiness on port $Port."
   exit 4
 }
+
 Open-Browser -port $Port
 exit 0
