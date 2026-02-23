@@ -22,6 +22,74 @@ $requiredPaths = @(
 
 $requiredPaths += $launcherPaths
 
+function Invoke-PatchBundleBuild {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+  )
+
+  $releaseAppRoot = Join-Path $ReleaseCrmPath 'crm-app'
+  $releaseJsRoot = Join-Path $releaseAppRoot 'js'
+  $releasePatchManifestPath = Join-Path $releaseAppRoot 'patches/manifest.json'
+  $releaseBundlePath = Join-Path $releaseJsRoot 'patch_bundle.js'
+  $releaseBundleSpec = './patch_bundle.js'
+
+  $manifestRaw = Get-Content -LiteralPath $releasePatchManifestPath -Raw -Encoding UTF8
+  $manifestObj = $manifestRaw | ConvertFrom-Json
+  if (-not ($manifestObj.PSObject.Properties.Name -contains 'patches') -or -not ($manifestObj.patches -is [System.Array])) {
+    throw "Invalid patch manifest format at $releasePatchManifestPath"
+  }
+
+  $orderedPatchSpecs = @($manifestObj.patches)
+  $bundleEntryPath = Join-Path $releaseJsRoot '__patch_bundle_entry__.mjs'
+  $bundleEntryLines = @()
+  foreach ($patchSpec in $orderedPatchSpecs) {
+    if (-not ($patchSpec -is [string]) -or [string]::IsNullOrWhiteSpace($patchSpec)) {
+      throw "Invalid patch spec in manifest: $patchSpec"
+    }
+
+    $normalizedSpec = $patchSpec.Trim()
+    if (-not $normalizedSpec.StartsWith('./')) {
+      throw "Unsupported patch spec format in manifest: $normalizedSpec"
+    }
+
+    $relativeJsPath = $normalizedSpec.Substring(2)
+    $absolutePatchPath = Join-Path $releaseJsRoot $relativeJsPath
+    if (-not (Test-Path -LiteralPath $absolutePatchPath)) {
+      throw "Patch listed in manifest was not found: $normalizedSpec"
+    }
+
+    $bundleEntryLines += "import '$normalizedSpec';"
+  }
+
+  Set-Content -LiteralPath $bundleEntryPath -Value ($bundleEntryLines -join [Environment]::NewLine) -Encoding UTF8
+
+  try {
+    $esbuildArgs = @(
+      '--yes',
+      'esbuild',
+      $bundleEntryPath,
+      '--bundle',
+      '--format=esm',
+      '--platform=browser',
+      '--target=es2020',
+      "--outfile=$releaseBundlePath"
+    )
+    & npx @esbuildArgs
+    if ($LASTEXITCODE -ne 0) {
+      throw "esbuild failed with exit code $LASTEXITCODE"
+    }
+  }
+  finally {
+    if (Test-Path -LiteralPath $bundleEntryPath) {
+      Remove-Item -LiteralPath $bundleEntryPath -Force
+    }
+  }
+
+  $manifestObj.patches = @($releaseBundleSpec)
+  $updatedManifest = $manifestObj | ConvertTo-Json -Depth 100
+  Set-Content -LiteralPath $releasePatchManifestPath -Value $updatedManifest -Encoding UTF8
+}
+
 foreach ($optionalLauncherPath in $optionalLauncherPaths) {
   $optionalSourcePath = Join-Path $repoRoot $optionalLauncherPath
   if (Test-Path -LiteralPath $optionalSourcePath) {
@@ -68,6 +136,8 @@ foreach ($relativePath in $requiredPaths) {
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
+Invoke-PatchBundleBuild -ReleaseCrmPath $releaseCrm
+
 $readmePath = Join-Path $releaseCrm 'README_RELEASE.txt'
 $readmeContent = @"
 CRM Release Package
@@ -89,6 +159,7 @@ Runtime notes
 - If the port is busy by another process, launcher exits with a port-in-use error.
 - Node.js is not bundled in this release folder.
 - Install Node.js 18+ on Windows or ensure node.exe is available on PATH.
+- Patches bundled for faster boot; behavior identical.
 "@
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
 
