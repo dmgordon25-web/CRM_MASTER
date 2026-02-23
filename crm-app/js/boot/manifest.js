@@ -1,5 +1,5 @@
 /* Manifest with relative paths (relative to crm-app/js). Dedupe and phase separation. */
-import { normalizeModuleId, isSafeMode } from './boot_hardener.js';
+import { normalizeModuleId, isSafeMode, filterPatchesForSafeMode } from './boot_hardener.js';
 
 const isNodeRuntime = typeof process !== 'undefined'
   && !!process?.versions?.node
@@ -124,7 +124,7 @@ export const patches = PATCHES;
 
 export const SAFE_MODE = isSafeMode();
 
-export const ACTIVE_PATCHES = SAFE_MODE ? [] : PATCHES;
+export const ACTIVE_PATCHES = SAFE_MODE ? filterPatchesForSafeMode(PATCHES).allowed : PATCHES;
 
 const pickSpec = (list, suffix) => list.find((entry) => entry.endsWith(suffix)) ?? `./${suffix}`;
 
