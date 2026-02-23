@@ -39,7 +39,52 @@ function Get-ListeningProcessId([int]$port){
 }
 
 function Open-Browser([int]$port){
-  Start-Process "http://127.0.0.1:$port/"
+  $url = "http://127.0.0.1:$port/"
+
+  $edgeCandidates = @(
+    (Get-Command msedge.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  if($edgeCandidates.Count -gt 0){
+    Start-Process -FilePath $edgeCandidates[0] -ArgumentList "--app=$url"
+    return
+  }
+
+  $chromeCandidates = @(
+    (Get-Command chrome.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  if($chromeCandidates.Count -gt 0){
+    Start-Process -FilePath $chromeCandidates[0] -ArgumentList "--app=$url"
+    return
+  }
+
+  Start-Process $url
+}
+
+function Wait-ServerReady([int]$port, [int]$timeoutSeconds = 20){
+  $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSeconds)
+  while([DateTime]::UtcNow -lt $deadline){
+    try {
+      $tcpClient = [System.Net.Sockets.TcpClient]::new()
+      $async = $tcpClient.ConnectAsync('127.0.0.1', $port)
+      if($async.Wait(500) -and $tcpClient.Connected){
+        $tcpClient.Dispose()
+        return $true
+      }
+      $tcpClient.Dispose()
+    } catch {
+      $null = $_
+    }
+    Start-Sleep -Milliseconds 200
+  }
+
+  return $false
 }
 
 function Describe-Process([int]$pid){
@@ -88,6 +133,11 @@ if($listenerPid){
   if($processName -ieq 'node'){
     Write-Host "[CRM] Node is already listening on port $Port (PID $listenerPid). Opening browser..." -ForegroundColor Green
     Log "Existing node on port $Port (PID $listenerPid); launching browser only."
+    if(-not (Wait-ServerReady -port $Port)){
+      Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
+      Log "Timeout waiting for existing server readiness on port $Port."
+      exit 4
+    }
     Open-Browser -port $Port
     exit 0
   }
@@ -105,7 +155,11 @@ try{
       -NoNewWindow `
       -PassThru
     Write-Host "[CRM] Server PID: $($child.Id)" -ForegroundColor Green
-    Start-Sleep -Seconds 1
+    if(-not (Wait-ServerReady -port $Port)){
+      Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
+      Log "Timeout waiting for server readiness on port $Port (visible mode)."
+      exit 4
+    }
     Open-Browser -port $Port
     Wait-Process $child.Id
     exit $LASTEXITCODE
@@ -125,6 +179,10 @@ try{
   exit 3
 }
 
-Start-Sleep -Seconds 1
+if(-not (Wait-ServerReady -port $Port)){
+  Write-Host "[CRM] Server did not become ready on port $Port within timeout." -ForegroundColor Red
+  Log "Timeout waiting for server readiness on port $Port."
+  exit 4
+}
 Open-Browser -port $Port
 exit 0
