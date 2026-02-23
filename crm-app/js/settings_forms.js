@@ -32,6 +32,121 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
     return false;
   }
 
+  function formatDiagnosticsTimestamp(value) {
+    if (!value) return '—';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString();
+  }
+
+  function isSafeModeActive() {
+    if (typeof location === 'undefined') return false;
+    return /[?&](safe=1|safeMode=1)\b/.test(location.search || '');
+  }
+
+  async function collectHealthDiagnostics() {
+    const dbOpen = typeof window.openDB === 'function';
+    let indexedDbStatus = 'Unavailable';
+    if (dbOpen) {
+      try {
+        await window.openDB();
+        indexedDbStatus = 'Open';
+      } catch (_err) {
+        indexedDbStatus = 'Failed';
+      }
+    }
+
+    const readCount = async (store) => {
+      if (typeof window.dbGetAll !== 'function') return 0;
+      try {
+        const list = await window.dbGetAll(store);
+        return Array.isArray(list) ? list.length : 0;
+      } catch (_err) {
+        return 0;
+      }
+    };
+
+    const [contacts, partners, pipeline, events, notifications, docChecklist, lastBackup] = await Promise.all([
+      readCount('contacts'),
+      readCount('partners'),
+      readCount('deals'),
+      readCount('events'),
+      readCount('notifications'),
+      readCount('docs'),
+      typeof window.dbGet === 'function'
+        ? window.dbGet('meta', 'lastBackup').catch(() => null)
+        : Promise.resolve(null)
+    ]);
+
+    const appVersion = window.__APP_VERSION__ || 'Unknown';
+    const appCommit = window.__APP_COMMIT__ || window.__COMMIT_SHA__ || 'n/a';
+    const buildStamp = window.__BUILD_TIMESTAMP__ || document.lastModified || 'n/a';
+    const lastBackupAt = lastBackup && lastBackup.at ? lastBackup.at : null;
+    const safeMode = isSafeModeActive() ? 'Enabled' : 'Disabled';
+
+    const lines = [
+      `App Version: ${appVersion}`,
+      `Commit: ${appCommit}`,
+      `Build Timestamp: ${buildStamp}`,
+      `IndexedDB: ${indexedDbStatus}`,
+      `Store Counts: contacts=${contacts}, partners=${partners}, pipeline=${pipeline}, events=${events}, notifications=${notifications}, docChecklist=${docChecklist}`,
+      `Last Backup: ${formatDiagnosticsTimestamp(lastBackupAt)}`,
+      `Safe Mode: ${safeMode}`
+    ];
+
+    return {
+      text: lines.join('\n'),
+      html: [
+        `<div>Version: <strong>${appVersion}</strong></div>`,
+        `<div>Commit: <strong>${appCommit}</strong></div>`,
+        `<div>Build: <strong>${buildStamp}</strong></div>`,
+        `<div>IndexedDB: <strong>${indexedDbStatus}</strong></div>`,
+        `<div>Counts: <strong>C ${contacts}</strong> · <strong>P ${partners}</strong> · <strong>PL ${pipeline}</strong> · <strong>E ${events}</strong> · <strong>N ${notifications}</strong> · <strong>Docs ${docChecklist}</strong></div>`,
+        `<div>Last Backup: <strong>${formatDiagnosticsTimestamp(lastBackupAt)}</strong></div>`,
+        `<div>Safe Mode: <strong>${safeMode}</strong></div>`
+      ].join('')
+    };
+  }
+
+  async function copyDiagnosticsText(text) {
+    if (!text) return false;
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const helper = document.createElement('textarea');
+    helper.value = text;
+    helper.setAttribute('readonly', 'readonly');
+    helper.style.position = 'fixed';
+    helper.style.left = '-9999px';
+    document.body.appendChild(helper);
+    helper.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(helper);
+    return copied;
+  }
+
+  async function refreshHealthPanel() {
+    const output = document.getElementById('settings-health-output');
+    if (!output) return;
+    const copyBtn = document.getElementById('btn-copy-diagnostics');
+    const diagnostics = await collectHealthDiagnostics();
+    output.innerHTML = diagnostics.html;
+    output.dataset.diagnostics = diagnostics.text;
+    if (copyBtn && !copyBtn.__wiredDiagnostics) {
+      copyBtn.__wiredDiagnostics = true;
+      copyBtn.addEventListener('click', async () => {
+        try {
+          const copied = await copyDiagnosticsText(output.dataset.diagnostics || '');
+          if (copied) toastSafe('Diagnostics copied');
+          else toastSafe('Copy not supported in this browser');
+        } catch (_err) {
+          toastSafe('Unable to copy diagnostics');
+        }
+      });
+    }
+  }
+
   function hasSettingsPanels() {
     if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return false;
     return !!document.querySelector('.settings-panel');
@@ -929,6 +1044,7 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
       wireConfigurableDashboardControls();
       initDataDiagnostics();
       await refreshDataDiagnostics();
+      await refreshHealthPanel();
     } catch (err) {
       console.warn('[soft]', text?.('toast.settings.hydrate-failed') ?? __textFallback__('toast.settings.hydrate-failed'), err);
     } finally {
