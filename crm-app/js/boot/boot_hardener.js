@@ -298,7 +298,9 @@ function applyLogFallback(promise) {
 const LOG_ENDPOINT_HREF = LOG_ENDPOINT ? LOG_ENDPOINT.href : null;
 const LOG_ENDPOINT_PATH = LOG_ENDPOINT ? LOG_ENDPOINT.pathname : null;
 const SAFE_MODE_BANNER_ID = 'boot-safe-mode-banner';
-const BOOT_ATTEMPT_STORAGE_KEY = 'BOOT_ATTEMPTS_V1';
+const SAFE_MODE_STORAGE_KEY = 'SAFE_MODE';
+const LEGACY_SAFE_MODE_STORAGE_KEY = 'SAFE';
+const BOOT_ATTEMPT_STORAGE_KEY = 'BOOT_ATTEMPTS_V2';
 const BOOT_ATTEMPT_WINDOW_MS = 30_000;
 const BOOT_ATTEMPT_LIMIT = 3;
 const NONESSENTIAL_PATCH_DENYLIST = new Set([
@@ -466,6 +468,20 @@ function interpretBootAnimationValue(value) {
 }
 
 export function isSafeMode() {
+  const safeModeQuery = (() => {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.has('safeMode')) {
+        const safeModeValue = q.get('safeMode');
+        if (truthyFlag(safeModeValue)) return true;
+        if (FALSY_BOOT_VALUES.has(String(safeModeValue || '').toLowerCase())) return false;
+      }
+    } catch (_) { }
+    return null;
+  })();
+  if (typeof safeModeQuery === 'boolean') {
+    return safeModeQuery;
+  }
   try {
     const q = new URLSearchParams(location.search);
     if (truthyFlag(q.get('safeMode'))) return true;
@@ -475,9 +491,41 @@ export function isSafeMode() {
     if (truthyFlag(q.get('safe'))) return true;
   } catch (_) { }
   try {
-    if (truthyFlag(localStorage.getItem('SAFE'))) return true;
+    if (truthyFlag(localStorage.getItem(SAFE_MODE_STORAGE_KEY))) return true;
+  } catch (_) { }
+  try {
+    if (truthyFlag(localStorage.getItem(LEGACY_SAFE_MODE_STORAGE_KEY))) return true;
   } catch (_) { }
   return false;
+}
+
+function persistSafeMode(enabled) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (enabled) {
+      localStorage.setItem(SAFE_MODE_STORAGE_KEY, '1');
+      localStorage.setItem(LEGACY_SAFE_MODE_STORAGE_KEY, '1');
+    } else {
+      localStorage.removeItem(SAFE_MODE_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_SAFE_MODE_STORAGE_KEY);
+    }
+  } catch (_) { }
+}
+
+function applySafeModeQueryOverride() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('safeMode')) return;
+    const value = q.get('safeMode');
+    if (truthyFlag(value)) {
+      persistSafeMode(true);
+      return;
+    }
+    if (FALSY_BOOT_VALUES.has(String(value || '').toLowerCase())) {
+      persistSafeMode(false);
+      clearBootAttemptTracking();
+    }
+  } catch (_) { }
 }
 
 function trackBootAttempt() {
@@ -485,31 +533,34 @@ function trackBootAttempt() {
     return { count: 1, timestamp: Date.now(), forcedSafeMode: false };
   }
   const now = Date.now();
-  let snapshot = { count: 0, timestamp: 0 };
+  let attempts = [];
 
   try {
     const raw = localStorage.getItem(BOOT_ATTEMPT_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      const count = Number(parsed?.count) || 0;
-      const timestamp = Number(parsed?.timestamp) || 0;
-      snapshot = { count, timestamp };
+      if (Array.isArray(parsed?.attempts)) {
+        attempts = parsed.attempts;
+      }
     }
   } catch (_) { }
 
-  const withinWindow = (now - snapshot.timestamp) <= BOOT_ATTEMPT_WINDOW_MS;
-  const next = {
-    count: withinWindow ? (snapshot.count + 1) : 1,
-    timestamp: now
-  };
+  const nextAttempts = attempts
+    .map((value) => Number(value) || 0)
+    .filter((value) => value > 0 && (now - value) <= BOOT_ATTEMPT_WINDOW_MS);
+  nextAttempts.push(now);
+  const recentAttempts = nextAttempts.slice(-BOOT_ATTEMPT_LIMIT);
+  const next = { attempts: recentAttempts };
 
   try {
     localStorage.setItem(BOOT_ATTEMPT_STORAGE_KEY, JSON.stringify(next));
   } catch (_) { }
 
   return {
-    ...next,
-    forcedSafeMode: next.count >= BOOT_ATTEMPT_LIMIT
+    attempts: recentAttempts,
+    count: recentAttempts.length,
+    timestamp: recentAttempts[recentAttempts.length - 1] || now,
+    forcedSafeMode: recentAttempts.length >= BOOT_ATTEMPT_LIMIT
   };
 }
 
@@ -528,7 +579,7 @@ function renderSafeModeBanner() {
     banner.type = 'button';
     banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 14px;background:#7a1f1f;color:#fff;border:0;font:600 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;text-align:center;';
     banner.onclick = () => {
-      try { localStorage.removeItem('SAFE'); } catch (_) { }
+      persistSafeMode(false);
       clearBootAttemptTracking();
       try {
         const url = new URL(window.location.href);
@@ -541,10 +592,10 @@ function renderSafeModeBanner() {
     };
     documentRef.body.appendChild(banner);
   }
-  banner.textContent = 'Safe Mode: click to resume normal boot';
+  banner.textContent = 'Safe Mode (Recovery). Click to resume normal boot.';
 }
 
-function filterPatchesForSafeMode(patches) {
+export function filterPatchesForSafeMode(patches) {
   const skipped = [];
   const allowed = [];
   for (const spec of patches || []) {
@@ -989,6 +1040,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
   if (bootSequencePromise) return bootSequencePromise;
 
   bootSequencePromise = (async () => {
+    applySafeModeQueryOverride();
     const state = { core: [], patches: [], safe: false };
     const requiredSet = new Set((REQUIRED ? Array.from(REQUIRED) : []).map((value) => {
       try {
@@ -1013,6 +1065,7 @@ export async function ensureCoreThenPatches({ CORE = [], PATCHES = [], REQUIRED 
       const attempt = trackBootAttempt();
       const safe = isSafeMode() || attempt.forcedSafeMode;
       state.safe = safe;
+      persistSafeMode(safe);
       if (typeof window !== 'undefined') {
         try {
           const expected = safe

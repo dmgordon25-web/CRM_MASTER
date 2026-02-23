@@ -11,9 +11,12 @@ import { runPhase } from './phase_runner.js';
 function isSafeMode() {
   try {
     const url = new URL(window.location.href);
+    if (url.searchParams.get('safeMode') === '0') return false;
+    if (url.searchParams.get('safeMode') === '1') return true;
     if (url.searchParams.get('safe') === '1') return true;
   } catch (_) { }
   try {
+    if (window.localStorage.getItem('SAFE_MODE') === '1') return true;
     if (window.localStorage.getItem('SAFE') === '1') return true;
   } catch (_) { }
   return false;

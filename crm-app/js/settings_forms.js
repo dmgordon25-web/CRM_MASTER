@@ -519,7 +519,7 @@ function __textFallback__(k) { try { return (STR && STR[k]) || (__STR_FALLBACK__
   // ========== Theme Preferences ==========
   const THEME_KEY = 'crm:theme';
   const VALID_THEMES = ['classic', 'ocean', 'fresh', 'slate', 'dark'];
-  const SAFE_MODE = typeof location !== 'undefined' && /[?&]safe=1/.test(location.search || '');
+  const SAFE_MODE = typeof location !== 'undefined' && /[?&](safe=1|safeMode=1)\b/.test(location.search || '');
 
   function normalizeTheme(value) {
     const theme = typeof value === 'string' ? value.trim().toLowerCase() : '';
