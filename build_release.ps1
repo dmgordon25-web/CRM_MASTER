@@ -6,18 +6,12 @@ $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
 
 $launcherPaths = @(
-  'Start CRM.bat',
-  'Start CRM.ps1'
-)
-
-$optionalLauncherPaths = @(
-  'Start CRM (Visible).bat'
+  'Start CRM.bat'
 )
 
 $requiredPaths = @(
   'crm-app',
-  'tools/node_static_server.js',
-  'tools/static_server.js'
+  'server.js'
 )
 
 $requiredPaths += $launcherPaths
@@ -90,26 +84,11 @@ function Invoke-PatchBundleBuild {
   Set-Content -LiteralPath $releasePatchManifestPath -Value $updatedManifest -Encoding UTF8
 }
 
-foreach ($optionalLauncherPath in $optionalLauncherPaths) {
-  $optionalSourcePath = Join-Path $repoRoot $optionalLauncherPath
-  if (Test-Path -LiteralPath $optionalSourcePath) {
-    $requiredPaths += $optionalLauncherPath
-  }
-}
-
 $startScriptReferences = @(
-  'Start CRM.ps1',
   'Start CRM.bat',
   'crm-app',
-  'tools/node_static_server.js',
-  'tools/static_server.js'
+  'server.js'
 )
-
-foreach ($optionalLauncherPath in $optionalLauncherPaths) {
-  if ($requiredPaths -contains $optionalLauncherPath) {
-    $startScriptReferences += $optionalLauncherPath
-  }
-}
 
 if (-not (Test-Path -LiteralPath $releaseRoot)) {
   New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
@@ -149,14 +128,11 @@ Double click Start CRM.bat
 
 Runtime notes
 -------------
-- The launcher opens http://127.0.0.1:8080/ by default (or CRM_PORT / -Port override).
+- The launcher opens http://127.0.0.1:8080/ by default.
 - Double click Start CRM.bat to launch CRM.
-- Start CRM.bat runs Start CRM.ps1.
-- Start CRM.ps1 opens Microsoft Edge app mode first (--app=http://127.0.0.1:[port]/#/labs), then Chrome app mode, then default browser fallback.
-- Start CRM.ps1 starts Node.js with: tools/node_static_server.js crm-app [port].
-- node_static_server.js requires tools/static_server.js.
-- If the port already has a responsive CRM server, launcher opens the app without starting another server.
-- If the port is busy by another process, launcher exits with a port-in-use error.
+- Start CRM.bat opens Microsoft Edge app mode first, then Chrome app mode, then default browser fallback.
+- Start CRM.bat starts Node.js with: server.js --port [port].
+- If the selected port already has a responsive CRM server, launcher opens the app without starting another server.
 - Node.js is not bundled in this release folder.
 - Install Node.js 18+ on Windows or ensure node.exe is available on PATH.
 - Patches bundled for faster boot; behavior identical.
@@ -164,12 +140,8 @@ Runtime notes
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
 
 $resolvedPort = 8080
-if (-not [string]::IsNullOrWhiteSpace($env:CRM_PORT)) {
-  $resolvedPort = [int]$env:CRM_PORT
-}
 $resolvedRootUrl = "http://127.0.0.1:$resolvedPort/"
-$resolvedAppUrl = "http://127.0.0.1:$resolvedPort/#/labs"
-$resolvedServerCommand = "node tools/node_static_server.js crm-app $resolvedPort"
+$resolvedServerCommand = "node server.js --port $resolvedPort"
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
@@ -197,23 +169,14 @@ foreach ($relativePath in $startScriptReferences) {
 
 Write-Host 'Launcher verification:'
 Write-Host (" [INFO] PORT: {0}" -f $resolvedPort)
-Write-Host (" [INFO] URL (app mode): {0}" -f $resolvedAppUrl)
 Write-Host (" [INFO] URL (fallback): {0}" -f $resolvedRootUrl)
 Write-Host (" [INFO] Server command: {0}" -f $resolvedServerCommand)
 
 $launcherReferencedFiles = @(
   'Start CRM.bat',
-  'Start CRM.ps1',
   'crm-app',
-  'tools/node_static_server.js',
-  'tools/static_server.js'
+  'server.js'
 )
-
-foreach ($optionalLauncherPath in $optionalLauncherPaths) {
-  if ($requiredPaths -contains $optionalLauncherPath) {
-    $launcherReferencedFiles += $optionalLauncherPath
-  }
-}
 
 foreach ($relativePath in $launcherReferencedFiles) {
   $releasePath = Join-Path $releaseCrm $relativePath
