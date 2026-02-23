@@ -1276,6 +1276,62 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     } catch (_err) { }
   }
 
+  function isSelectionDebugEnabled() {
+    if (typeof window === 'undefined') return false;
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+      return params.get('debugSelection') === '1';
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function logSelectionDebug(scope, type) {
+    if (!isSelectionDebugEnabled()) return;
+    try {
+      const scopeKey = scope && scope.trim() ? scope.trim() : 'contacts';
+      const typeKey = type && type.trim() ? type.trim() : scopeKey;
+      const domCheckedCount = document.querySelectorAll(`[data-selection-scope="${scopeKey}"] tbody input[data-ui="row-check"]:checked`).length;
+      const storeCount = getSelectionStore()?.count?.(scopeKey) || 0;
+      const actionBar = document.querySelector('[data-ui="action-bar"]') || document.getElementById('actionbar');
+      const actionBarCount = Number(actionBar?.getAttribute('data-count') || actionBar?.dataset?.count || 0) || 0;
+      console.log('[selection:debug]', { scope: scopeKey, type: typeKey, domCheckedCount, storeCount, actionBarCount });
+    } catch (_err) { }
+  }
+
+  function updateActionBarVisibility(bar, total) {
+    if (!bar) return;
+    if (total > 0) {
+      bar.setAttribute('data-visible', '1');
+      if (bar.dataset) bar.dataset.idleVisible = '1';
+      bar.removeAttribute('data-minimized');
+      if (bar.style) {
+        bar.style.display = '';
+        bar.style.opacity = '1';
+        bar.style.visibility = 'visible';
+        bar.style.pointerEvents = 'auto';
+      }
+      try {
+        bar.hidden = false;
+        bar.removeAttribute('aria-hidden');
+      } catch (_err) { }
+      bar.setAttribute('aria-expanded', 'true');
+    } else {
+      bar.removeAttribute('data-visible');
+      bar.removeAttribute('data-idle-visible');
+      bar.setAttribute('data-minimized', '1');
+      if (bar.style) {
+        bar.style.display = 'none';
+        bar.style.visibility = '';
+      }
+      try {
+        bar.hidden = true;
+        bar.setAttribute('aria-hidden', 'true');
+      } catch (_err) { }
+      bar.setAttribute('aria-expanded', 'false');
+    }
+  }
+
   function selectionIdFor(node) {
     if (!node) return null;
     if (typeof node.getAttribute === 'function') {
@@ -1972,9 +2028,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       const hiddenAncestor = node.closest('.hidden,[hidden],[aria-hidden="true"]');
       return !hiddenAncestor;
     });
-    if (scopeKey && total <= 0 && !hasVisibleScopeHost) {
-      return;
-    }
+    if (scopeKey && total <= 0 && !hasVisibleScopeHost) return;
     if (scopeKey) {
       bar.setAttribute('data-selection-type', scopeKey);
     } else {
@@ -2041,6 +2095,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
     try {
       bar.dataset.count = String(Math.max(0, total));
     } catch (_err) { }
+    updateActionBarVisibility(bar, total);
     if (total > 0) {
       bar.classList.add('has-selection');
     } else {
@@ -2060,6 +2115,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         debugClickLog('actionbar:visible-update', { scope: scopeKey || null, count: total, visible: bar.getAttribute('data-visible') === '1', hasSelection: bar.classList.contains('has-selection') });
       });
     }
+    logSelectionDebug(scopeKey, scopeKey);
   }
 
   function handleSelectionSnapshot(snapshot) {
@@ -2132,7 +2188,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
       else next.delete(id);
       store.set(next, scopeKey);
 
-      // Keep Selection APIs in sync with the store so the action bar reacts immediately
+      // Store is source of truth; Selection APIs are compatibility mirrors.
       const normalizedIds = Array.from(next).map(String);
       try {
         const selection = window.Selection;
@@ -2158,11 +2214,7 @@ if (typeof globalThis.Router !== 'object' || !globalThis.Router) {
         }
       } catch (err) { logAppError('selectionService:set', err); }
 
-      // Notify listeners that depend on the selection event bus (e.g., action bar)
-      try {
-        const detail = { ids: normalizedIds, count: normalizedIds.length, type, scope: scopeKey, source: 'row-check' };
-        document.dispatchEvent(new CustomEvent('selection:changed', { detail }));
-      } catch (err) { logAppError('selection:dispatch-change', err); }
+      logSelectionDebug(scopeKey, type);
     };
     document.addEventListener('change', handleChange, { capture: true });
     updateActionBarGuards(0, null);
