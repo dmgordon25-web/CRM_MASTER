@@ -29,6 +29,11 @@ function createHarness(options = {}) {
       if (store === 'contacts' && record && record.id != null) {
         contacts.set(String(record.id), { ...record });
       }
+      if (store === 'tasks' && record && record.id != null) {
+        const idx = tasks.findIndex((task) => String(task.id) === String(record.id));
+        if (idx >= 0) tasks[idx] = { ...record };
+        else tasks.push({ ...record });
+      }
       return record;
     }),
     dbBulkPut: vi.fn(async (store, list) => {
@@ -92,24 +97,48 @@ describe('post_funding workflow', () => {
 
     await windowObj.dbPut('contacts', contact);
 
-    const annual = tasks.find((task) => task.title === 'Annual mortgage review: Jamie Doe');
-    expect(annual).toBeTruthy();
+    expect(tasks).toHaveLength(1);
+    const annual = tasks[0];
+    expect(annual.title).toBe('Annual mortgage review: Jamie Doe');
     expect(annual.due).toBe('2025-12-15');
+    expect(annual.id).toBe('postfunding-annual:c-1');
   });
 
-  it('supports __CRM_NOW__ override for deterministic funded workflow dates', async () => {
-    const { windowObj, tasks } = createHarness({ now: '2025-02-10T00:00:00.000Z' });
-    const contact = {
+  it('updates existing annual reminder due date when fundedDate changes', async () => {
+    const { windowObj, tasks } = createHarness();
+
+    await windowObj.dbPut('contacts', {
       id: 'c-2',
       firstName: 'Alex',
       lastName: 'Smith',
-      stage: 'funded'
-    };
+      stage: 'funded',
+      fundedDate: '2025-01-10'
+    });
 
-    await windowObj.dbPut('contacts', contact);
+    await windowObj.dbPut('contacts', {
+      id: 'c-2',
+      firstName: 'Alex',
+      lastName: 'Smith',
+      stage: 'funded',
+      fundedDate: '2025-02-10'
+    });
 
-    const annual = tasks.find((task) => task.title === 'Annual mortgage review: Alex Smith');
-    expect(annual).toBeTruthy();
+    expect(tasks).toHaveLength(1);
+    const annual = tasks[0];
+    expect(annual.title).toBe('Annual mortgage review: Alex Smith');
     expect(annual.due).toBe('2026-01-10');
+  });
+
+  it('does not create reminder without a funded date', async () => {
+    const { windowObj, tasks } = createHarness({ now: '2025-02-10T00:00:00.000Z' });
+
+    await windowObj.dbPut('contacts', {
+      id: 'c-3',
+      firstName: 'No',
+      lastName: 'Date',
+      stage: 'funded'
+    });
+
+    expect(tasks).toHaveLength(0);
   });
 });
