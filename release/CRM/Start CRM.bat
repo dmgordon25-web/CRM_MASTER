@@ -1,28 +1,52 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+title CRM Launcher
 
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
-set "LOG=%ROOT%launcher.log"
+set "LOG=%~dp0launcher.log"
+set "CRM_EXITCODE=0"
+set "FATAL_MSG="
 
-call :banner
-call :log [CRM] Launcher root: "%ROOT%"
+(
+  echo [CRM] ==============================================
+  echo [CRM] Starting CRM launcher at %DATE% %TIME%
+  echo [CRM] Root: "%ROOT%"
+  echo [CRM] ==============================================
+) > "%LOG%"
 
-if not exist "%ROOT%server.js" call :fail [CRM][ERROR] Missing required file: "%ROOT%server.js"
-if not exist "%ROOT%crm-app\index.html" call :fail [CRM][ERROR] Missing required file: "%ROOT%crm-app\index.html"
+echo [CRM] ==============================================
+echo [CRM] Starting CRM launcher at %DATE% %TIME%
+echo [CRM] ==============================================
+
+call :LOG [CRM] Launcher root: "%ROOT%"
+
+if not exist "%ROOT%server.js" (
+  set "FATAL_MSG=[CRM][ERROR] Missing required file: \"%ROOT%server.js\""
+  goto :FATAL
+)
+if not exist "%ROOT%crm-app\index.html" (
+  set "FATAL_MSG=[CRM][ERROR] Missing required file: \"%ROOT%crm-app\index.html\""
+  goto :FATAL
+)
 
 call :resolve_node
-if not defined NODE call :fail [CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship "%ROOT%node\node.exe".
-call :log [CRM] Using Node executable: "%NODE%"
+if not defined NODE (
+  set "FATAL_MSG=[CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship \"%ROOT%node\node.exe\"."
+  goto :FATAL
+)
+call :LOG [CRM] Using Node executable: "%NODE%"
 
+call :LOG [CRM] Selecting port...
 set "PORT="
+set "REUSE_SERVER=0"
 for /l %%P in (8080,1,8100) do (
   if not defined PORT (
     call :is_crm_alive %%P
     if "!errorlevel!"=="0" (
       set "PORT=%%P"
       set "REUSE_SERVER=1"
-      call :log [CRM] Reusing existing CRM server at http://127.0.0.1:%%P/
+      call :LOG [CRM] Reusing existing CRM server at http://127.0.0.1:%%P/
     )
   )
 )
@@ -34,88 +58,111 @@ if not defined PORT (
       if "!errorlevel!"=="0" (
         set "PORT=%%P"
         set "REUSE_SERVER=0"
-        call :log [CRM] Selected free port %%P
+        call :LOG [CRM] Selected free port %%P
       )
     )
   )
 )
 
-if not defined PORT call :fail [CRM][ERROR] No reusable or free port found in range 8080-8100.
+if not defined PORT (
+  set "FATAL_MSG=[CRM][ERROR] No reusable or free port found in range 8080-8100."
+  goto :FATAL
+)
+call :LOG [CRM] Port selection complete: %PORT% (reuse=%REUSE_SERVER%).
 
 if "%REUSE_SERVER%"=="1" (
+  call :LOG [CRM] Waiting for server readiness...
+  call :wait_for_port "%PORT%"
+  if not "%errorlevel%"=="0" (
+    set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port %PORT% did not respond within 20 seconds."
+    goto :FATAL
+  )
+  call :LOG [CRM] Launching browser...
   call :open_browser "%PORT%"
-  if not "%errorlevel%"=="0" call :fail [CRM][ERROR] Failed to launch browser for http://127.0.0.1:%PORT%/
-  call :log [CRM] Launcher complete (existing server reused).
+  if not "%errorlevel%"=="0" (
+    set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:%PORT%/."
+    goto :FATAL
+  )
+  call :LOG [CRM] Launcher complete (existing server reused).
   exit /b 0
 )
 
-call :start_server "%PORT%"
-if not "%errorlevel%"=="0" call :fail [CRM][ERROR] Failed to start CRM server process.
+call :LOG [CRM] Starting server...
+call :RUN "Starting server process" start "" /B "%NODE%" "%ROOT%server.js" --port %PORT%
+call :LOG [CRM] Server start command issued, PID unknown (start /B).
 
+call :LOG [CRM] Waiting for server readiness...
 call :wait_for_port "%PORT%"
-if not "%errorlevel%"=="0" call :fail [CRM][ERROR] CRM server did not become reachable within 20 seconds.
+if not "%errorlevel%"=="0" (
+  set "FATAL_MSG=[CRM][ERROR] CRM server did not become reachable within 20 seconds on port %PORT%."
+  goto :FATAL
+)
 
 call :is_crm_alive "%PORT%"
-if not "%errorlevel%"=="0" call :fail [CRM][ERROR] Port %PORT% opened but CRM health endpoint is not responding.
+if not "%errorlevel%"=="0" (
+  set "FATAL_MSG=[CRM][ERROR] Port %PORT% opened but CRM health endpoint is not responding."
+  goto :FATAL
+)
 
+call :LOG [CRM] Launching browser...
 call :open_browser "%PORT%"
-if not "%errorlevel%"=="0" call :fail [CRM][ERROR] Failed to launch browser for http://127.0.0.1:%PORT%/
+if not "%errorlevel%"=="0" (
+  set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:%PORT%/."
+  goto :FATAL
+)
 
-call :log [CRM] Launcher complete.
+call :LOG [CRM] Launcher complete.
 exit /b 0
 
-:banner
-set "STAMP=%DATE% %TIME%"
-echo [CRM] ==============================================
-echo [CRM] Starting CRM launcher at %STAMP%
-echo [CRM] ==============================================
->"%LOG%" echo [CRM] ==============================================
->>"%LOG%" echo [CRM] Starting CRM launcher at %STAMP%
->>"%LOG%" echo [CRM] ==============================================
+:RUN
+set "RUN_DESC=%~1"
+shift
+call :LOG [CRM] %RUN_DESC%
+>>"%LOG%" echo [%DATE% %TIME%] [CRM][CMD] %*
+call %* >> "%LOG%" 2>&1
+set "RUN_EXIT=%errorlevel%"
+if not "%RUN_EXIT%"=="0" (
+  set "FATAL_MSG=[CRM][ERROR] %RUN_DESC% failed with exit code %RUN_EXIT%."
+  goto :FATAL
+)
 exit /b 0
 
 :resolve_node
 set "NODE="
 if exist "%ROOT%node\node.exe" (
   set "NODE=%ROOT%node\node.exe"
-  call :log [CRM] Found bundled Node runtime.
+  call :LOG [CRM] Found bundled Node runtime.
   exit /b 0
 )
-call :log [CRM] Bundled Node runtime not found. Checking PATH for node.exe.
+call :LOG [CRM] Bundled Node runtime not found. Checking PATH for node.exe.
 for /f "delims=" %%I in ('where node.exe 2^>^&1') do (
   if not defined NODE if exist "%%~fI" set "NODE=%%~fI"
 )
 if defined NODE (
-  call :log [CRM] Found node.exe on PATH.
+  call :LOG [CRM] Found node.exe on PATH.
 ) else (
-  call :log [CRM] Node runtime discovery failed.
+  call :LOG [CRM] Node runtime discovery failed.
 )
 exit /b 0
 
-:start_server
-set "PORT=%~1"
-call :log [CRM] Starting CRM server on port %PORT%.
-set "SERVER_PID="
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $argsList=@('""%ROOT%server.js""','--port','%PORT%'); $p=Start-Process -FilePath '%NODE%' -ArgumentList $argsList -WorkingDirectory '%ROOT%' -WindowStyle Hidden -RedirectStandardOutput '%LOG%' -RedirectStandardError '%LOG%' -PassThru; Write-Output $p.Id" 2^>^&1`) do (
-  if not defined SERVER_PID set "SERVER_PID=%%I"
-)
-if defined SERVER_PID (
-  call :log [CRM] CRM server process started with PID %SERVER_PID%.
-  exit /b 0
-)
-call :log [CRM] CRM server start did not return a PID.
-exit /b 1
-
 :wait_for_port
 set "PORT=%~1"
-call :log [CRM] Waiting for TCP readiness on 127.0.0.1:%PORT% (max 20 seconds).
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $deadline=(Get-Date).AddSeconds(20); while((Get-Date) -lt $deadline){ $client=New-Object System.Net.Sockets.TcpClient; try { $iar=$client.BeginConnect('127.0.0.1', %PORT%, $null, $null); if($iar.AsyncWaitHandle.WaitOne(500)){ $null=$client.EndConnect($iar); $client.Close(); exit 0 } } catch {} finally { $client.Close() }; Start-Sleep -Milliseconds 250 }; exit 1" >> "%LOG%" 2>&1
+set /a WAIT_COUNT=0
+set /a WAIT_MAX=20
+:wait_loop
+set /a WAIT_COUNT+=1
+>>"%LOG%" echo [%DATE% %TIME%] [CRM] Readiness probe attempt !WAIT_COUNT! of !WAIT_MAX! on 127.0.0.1:%PORT%.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $client=New-Object System.Net.Sockets.TcpClient; try { $iar=$client.BeginConnect('127.0.0.1', %PORT%, $null, $null); if($iar.AsyncWaitHandle.WaitOne(800)){ $null=$client.EndConnect($iar); exit 0 } else { exit 1 } } catch { exit 1 } finally { $client.Close() }" >> "%LOG%" 2>&1
 if "%errorlevel%"=="0" (
-  call :log [CRM] TCP readiness confirmed for port %PORT%.
+  call :LOG [CRM] TCP readiness confirmed for port %PORT% on attempt !WAIT_COUNT!.
   exit /b 0
 )
-call :log [CRM] TCP readiness timeout reached for port %PORT%.
-exit /b 1
+if !WAIT_COUNT! GEQ !WAIT_MAX! (
+  call :LOG [CRM] TCP readiness timeout reached for port %PORT% after !WAIT_COUNT! attempts.
+  exit /b 2
+)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 1" >> "%LOG%" 2>&1
+goto :wait_loop
 
 :is_port_free
 set "PORT=%~1"
@@ -137,10 +184,11 @@ if not defined EDGE if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\mse
 if not defined EDGE for /f "delims=" %%I in ('where msedge.exe 2^>^&1') do if not defined EDGE set "EDGE=%%~fI"
 
 if defined EDGE (
-  call :log [CRM] Launching Microsoft Edge app mode: "%EDGE%"
+  call :LOG [CRM] Browser launch URL: %URL%
+  call :LOG [CRM] Browser path selected: "%EDGE%"
   start "" "%EDGE%" --app="%URL%" >> "%LOG%" 2>&1
   if "%errorlevel%"=="0" exit /b 0
-  call :log [CRM] Edge launch command returned error %errorlevel%.
+  call :LOG [CRM] Edge launch command returned error %errorlevel%.
 )
 
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
@@ -148,27 +196,32 @@ if not defined CHROME if exist "%ProgramFiles(x86)%\Google\Chrome\Application\ch
 if not defined CHROME for /f "delims=" %%I in ('where chrome.exe 2^>^&1') do if not defined CHROME set "CHROME=%%~fI"
 
 if defined CHROME (
-  call :log [CRM] Launching Google Chrome app mode: "%CHROME%"
+  call :LOG [CRM] Browser launch URL: %URL%
+  call :LOG [CRM] Browser path selected: "%CHROME%"
   start "" "%CHROME%" --app="%URL%" >> "%LOG%" 2>&1
   if "%errorlevel%"=="0" exit /b 0
-  call :log [CRM] Chrome launch command returned error %errorlevel%.
+  call :LOG [CRM] Chrome launch command returned error %errorlevel%.
 )
 
-call :log [CRM] Launching default browser fallback: %URL%
+call :LOG [CRM] Browser launch URL: %URL%
+call :LOG [CRM] Browser path selected: shell-default
 start "" "%URL%" >> "%LOG%" 2>&1
 if "%errorlevel%"=="0" exit /b 0
-call :log [CRM] Default browser launch returned error %errorlevel%.
-exit /b 1
+call :LOG [CRM] Default browser launch returned error %errorlevel%.
+exit /b 2
 
-:log
+:LOG
 echo %*
 >>"%LOG%" echo [%DATE% %TIME%] %*
 exit /b 0
 
-:fail
-call :log %*
-call :log [CRM][ERROR] Opening launcher log: %LOG%
-start "" notepad.exe "%LOG%"
+:FATAL
+set "CRM_EXITCODE=1"
+if not defined FATAL_MSG set "FATAL_MSG=[CRM][ERROR] Launcher failed with an unknown error."
+echo %FATAL_MSG%
+>>"%LOG%" echo [%DATE% %TIME%] %FATAL_MSG%
+>>"%LOG%" echo [%DATE% %TIME%] [CRM][ERROR] Opening launcher log: %LOG%
+start "" notepad "%LOG%"
 echo [CRM][ERROR] Launcher failed. Review launcher.log for details.
 pause
 exit /b 1
