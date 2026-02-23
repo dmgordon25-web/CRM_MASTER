@@ -8,7 +8,6 @@ $releaseCrm = Join-Path $releaseRoot 'CRM'
 $requiredPaths = @(
   'crm-app',
   'Start CRM.bat',
-  'Start CRM (Visible).bat',
   'Start CRM.ps1',
   'tools/node_static_server.js',
   'tools/static_server.js'
@@ -16,14 +15,19 @@ $requiredPaths = @(
 
 $startScriptReferences = @(
   'Start CRM.ps1',
-  'tools/node_static_server.js',
   'crm-app',
+  'tools/node_static_server.js',
   'tools/static_server.js'
 )
+
+if (-not (Test-Path -LiteralPath $releaseRoot)) {
+  New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
+}
 
 if (Test-Path -LiteralPath $releaseCrm) {
   Remove-Item -LiteralPath $releaseCrm -Recurse -Force
 }
+
 New-Item -ItemType Directory -Path $releaseCrm -Force | Out-Null
 
 foreach ($relativePath in $requiredPaths) {
@@ -52,8 +56,10 @@ Double click Start CRM.bat
 
 Runtime notes
 -------------
-- The launcher serves crm-app over http://127.0.0.1:8080/ by default.
+- The launcher opens http://127.0.0.1:8080/ by default (or CRM_PORT / -Port override).
+- Start CRM.bat runs Start CRM.ps1.
 - Start CRM.ps1 starts Node.js with: tools/node_static_server.js crm-app [port].
+- node_static_server.js requires tools/static_server.js.
 - Node.js is not bundled in this release folder.
 - Install Node.js 18+ on Windows or ensure node.exe is available on PATH.
 "@
