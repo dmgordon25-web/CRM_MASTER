@@ -79,7 +79,7 @@ function Open-Browser([int]$port){
     (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe')
   ) | Where-Object { $_ -and (Test-Path $_) }
 
-  if($edgeCandidates.Count -gt 0){
+  if(@($edgeCandidates).Count -gt 0){
     Start-Process -FilePath $edgeCandidates[0] -ArgumentList "--app=$appUrl"
     return
   }
@@ -91,7 +91,7 @@ function Open-Browser([int]$port){
     (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
   ) | Where-Object { $_ -and (Test-Path $_) }
 
-  if($chromeCandidates.Count -gt 0){
+  if(@($chromeCandidates).Count -gt 0){
     Start-Process -FilePath $chromeCandidates[0] -ArgumentList "--app=$appUrl"
     return
   }
