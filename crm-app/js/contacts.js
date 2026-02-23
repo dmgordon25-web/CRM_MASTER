@@ -1662,13 +1662,9 @@ export function normalizeContactId(input) {
         };
         const openDocCenterBtn = $('#c-open-doc-center', body);
         if (openDocCenterBtn) {
-          openDocCenterBtn.addEventListener('click', async (evt) => {
+          openDocCenterBtn.addEventListener('click', (evt) => {
             evt.preventDefault();
             openDocsPanel();
-            const openDocCenter = window.DocCenter && window.DocCenter.openDocumentCenter;
-            if (typeof openDocCenter === 'function') {
-              await openDocCenter({ contextType: 'contact', mode: 'checklist', source: 'contact-card-entry' });
-            }
           });
         }
 

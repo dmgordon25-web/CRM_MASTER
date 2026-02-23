@@ -45,7 +45,8 @@ test.describe('contact document checklist', () => {
     }));
 
     await expect(page.locator('#contact-modal-body')).toBeVisible();
-    await page.locator('#contact-tabs button[data-panel="docs"]').click();
+    await page.locator('#c-open-doc-center').click();
+    await expect(page.locator('#contact-tabs button[data-panel="docs"]')).toHaveClass(/active/);
 
     const checklistItem = page.locator('#c-doc-checklist input[data-doc-key="gov-id"]');
     await expect(checklistItem).toBeVisible();
@@ -66,7 +67,7 @@ test.describe('contact document checklist', () => {
     }));
 
     const checklistItemAfter = page.locator('#c-doc-checklist input[data-doc-key="gov-id"]');
-    await page.locator('#contact-tabs button[data-panel="docs"]').click();
+    await page.locator('#c-open-doc-center').click();
     await expect(checklistItemAfter).toBeVisible();
     await expect(checklistItemAfter).toBeChecked();
   });
