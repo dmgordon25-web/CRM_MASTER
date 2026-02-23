@@ -2545,6 +2545,9 @@
   <script type="module">
     import { ensureCoreThenPatches } from './js/boot/boot_hardener.js';
     import { CORE, PATCHES, REQUIRED } from './js/boot/manifest.js';
+    import { printPatchLoadOrder } from './js/dev/debug_patch_order.js';
+
+    printPatchLoadOrder({ core: CORE, patches: PATCHES });
     ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   </script>
 </body>
