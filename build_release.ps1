@@ -1,8 +1,8 @@
-$ErrorActionPreference = 'Stop'
-
 param(
   [switch]$DryRun
 )
+
+$ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
