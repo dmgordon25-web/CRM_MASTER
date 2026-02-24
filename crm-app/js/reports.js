@@ -95,6 +95,26 @@ import dashboardState from './state/dashboard_state.js';
   }
   function html(el, value){ if(el) el.innerHTML = value; }
 
+  function openPriorityActionContact(contactId){
+    const id = String(contactId || '').trim();
+    if (!id) return false;
+    try {
+      const e2eState = window.__E2E__ || (window.__E2E__ = {});
+      e2eState.lastOpen = { type: 'contact', id, ts: Date.now() };
+    } catch (_err) { }
+    const opener = typeof window.openContactModal === 'function'
+      ? window.openContactModal
+      : (typeof window.openContactEditor === 'function' ? window.openContactEditor : null);
+    if (typeof opener !== 'function') return false;
+    try {
+      const result = opener(id, { sourceHint: 'dashboard-priority-actions' });
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
   function polishBeacon(area){
     try{
       if(!window.__VIS_POLISH__) window.__VIS_POLISH__ = {};
@@ -115,6 +135,7 @@ import dashboardState from './state/dashboard_state.js';
 
   let reportsGridstack = null;
   let reportsGridstackLibPromise = null;
+  let reportsComputeVersion = 0;
 
   function loadReportsGridstackLib(){
     if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
@@ -160,10 +181,12 @@ import dashboardState from './state/dashboard_state.js';
     return reportsGridstack;
   }
   async function compute(){
+    const runVersion = ++reportsComputeVersion;
     await openDB();
     const [contacts, partners, tasks, documents] = await Promise.all([
       dbGetAll('contacts'), dbGetAll('partners'), dbGetAll('tasks'), dbGetAll('documents')
     ]);
+    if (runVersion !== reportsComputeVersion) return;
     const range = typeof dashboardState?.getRange === 'function' ? dashboardState.getRange() : 'all';
     const R = range === 'tm' ? (x=> inThisMonth(x)) : (_=>true);
 
@@ -392,6 +415,22 @@ import dashboardState from './state/dashboard_state.js';
         <div class="insight-meta ${cls}"${entityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
     }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
+
+    const needsAttentionList = $('#needs-attn');
+    if (needsAttentionList && !needsAttentionList.__crmPriorityActionsBound) {
+      needsAttentionList.__crmPriorityActionsBound = true;
+      needsAttentionList.addEventListener('click', (event) => {
+        if (!event || event.defaultPrevented) return;
+        const row = event.target && event.target.closest
+          ? event.target.closest('li[data-contact-id],li[data-id]')
+          : null;
+        if (!row || !needsAttentionList.contains(row)) return;
+        const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
+        if (!openPriorityActionContact(contactId)) return;
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    }
 
     const timeline = openTasks.filter(task=> task.status!=='overdue').slice(0,6);
     html($('#upcoming'), timeline.length ? timeline.map(task=>{
