@@ -26,17 +26,17 @@ echo [CRM] ==============================================
 call :LOG [CRM] Launcher root: "%ROOT%"
 
 if not exist "%ROOT%server.js" (
-  set "FATAL_MSG=[CRM][ERROR] Missing required file: \"%ROOT%server.js\""
+  set "FATAL_MSG=[CRM][ERROR] Missing required file: %ROOT%server.js"
   goto :FATAL
 )
 if not exist "%ROOT%crm-app\index.html" (
-  set "FATAL_MSG=[CRM][ERROR] Missing required file: \"%ROOT%crm-app\index.html\""
+  set "FATAL_MSG=[CRM][ERROR] Missing required file: %ROOT%crm-app\index.html"
   goto :FATAL
 )
 
 call :resolve_node
 if not defined NODE (
-  set "FATAL_MSG=[CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship \"%ROOT%node\node.exe\"."
+  set "FATAL_MSG=[CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship %ROOT%node\node.exe."
   goto :FATAL
 )
 call :LOG [CRM] Using Node executable: "%NODE%"
