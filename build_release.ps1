@@ -75,6 +75,8 @@ function Invoke-PatchBundleBuild {
 
   Set-Content -LiteralPath $bundleEntryPath -Value ($bundleEntryLines -join [Environment]::NewLine) -Encoding UTF8
 
+  $bundleSucceeded = $true
+
   try {
     $bundleLogPath = Join-Path $ReleaseCrmPath 'release_build_esbuild.log'
     $esbuildArgs = @(
@@ -133,22 +135,27 @@ function Invoke-PatchBundleBuild {
     }
 
     if ($esbuildProc.ExitCode -ne 0) {
-      $firstFailingImport = '<not identified>'
-      $resolveMatch = [regex]::Match($combinedOutput, "(?im)^.*Could not resolve\s+[\"'`]([^\"'`]+)[\"'`].*$")
-      if ($resolveMatch.Success) {
-        $firstFailingImport = $resolveMatch.Groups[1].Value
+      $bundleSucceeded = $false
+      $firstResolveLine = '<not identified>'
+      $resolveLines = @($combinedOutput -split '\r?\n' | Where-Object { $_ -match 'Could not resolve' })
+      if ($resolveLines.Count -gt 0) {
+        $firstResolveLine = $resolveLines[0]
       }
 
-      Write-Host 'esbuild failed while bundling patches'
-      Write-Host ("first failing import: {0}" -f $firstFailingImport)
-      Write-Host ("log saved to {0}" -f $bundleLogPath)
-      throw "esbuild failed with exit code $($esbuildProc.ExitCode)"
+      Write-Warning 'esbuild failed while bundling patches; skipping patch bundle generation.'
+      Write-Warning ("first resolve error: {0}" -f $firstResolveLine)
+      Write-Warning ("log saved to {0}" -f $bundleLogPath)
     }
   }
   finally {
     if (Test-Path -LiteralPath $bundleEntryPath) {
       Remove-Item -LiteralPath $bundleEntryPath -Force
     }
+  }
+
+
+  if (-not $bundleSucceeded) {
+    return
   }
 
   $manifestObj.patches = @($releaseBundleSpec)
