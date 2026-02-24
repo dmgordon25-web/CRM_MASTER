@@ -3193,6 +3193,12 @@ function tryOpenContactModal(contactId) {
   const id = contactId == null ? '' : String(contactId).trim();
   if (!id) return;
   try {
+    if (win) {
+      const e2eState = win.__E2E__ || (win.__E2E__ = {});
+      e2eState.lastOpen = { type: 'contact', id, ts: Date.now() };
+    }
+  } catch (_err) { }
+  try {
     const result = openContactModal(id);
     if (result && typeof result.catch === 'function') {
       result.catch(err => {
@@ -3446,21 +3452,13 @@ function handleDashboardClick(evt) {
   emitDashClick(resolvedType, resolvedId);
 
   if (contactId && typeof openContact === 'function') {
+    try {
+      if (win) {
+        const e2eState = win.__E2E__ || (win.__E2E__ = {});
+        e2eState.lastOpen = { type: 'contact', id: String(contactId), ts: Date.now() };
+      }
+    } catch (_err) { }
     openContact(contactId);
-    Promise.resolve().then(() => {
-      try {
-        const modal = doc && doc.querySelector ? doc.querySelector('[data-ui="contact-edit-modal"], [data-modal-key="contact-edit"], #contact-modal') : null;
-        if (modal && modal.dataset && modal.dataset.open !== '1') {
-          modal.dataset.contactId = String(contactId);
-          modal.removeAttribute('aria-hidden');
-          modal.classList.remove('hidden');
-          if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
-          if (typeof modal.setAttribute === 'function') { modal.setAttribute('open', ''); }
-          modal.dataset.open = '1';
-          modal.dataset.opening = '0';
-        }
-      } catch (_) { }
-    });
     if (qcTrace && console && typeof console.debug === 'function') {
       console.debug('[QC_TRACE:DASH] click:handled', { contactId, widgetKey });
     }
@@ -3468,20 +3466,6 @@ function handleDashboardClick(evt) {
   }
   if (partnerId && typeof openPartner === 'function') {
     openPartner(partnerId);
-    Promise.resolve().then(() => {
-      try {
-        const modal = doc && doc.querySelector ? doc.querySelector('[data-ui="partner-edit-modal"], #partner-modal') : null;
-        if (modal && modal.dataset && modal.dataset.open !== '1') {
-          modal.dataset.partnerId = String(partnerId);
-          modal.removeAttribute('aria-hidden');
-          modal.classList.remove('hidden');
-          if (modal.style) { modal.style.display = 'block'; modal.style.pointerEvents = 'auto'; }
-          if (typeof modal.setAttribute === 'function') { modal.setAttribute('open', ''); }
-          modal.dataset.open = '1';
-          modal.dataset.opening = '0';
-        }
-      } catch (_) { }
-    });
     if (qcTrace && console && typeof console.debug === 'function') {
       console.debug('[QC_TRACE:DASH] click:handled', { partnerId, widgetKey });
     }

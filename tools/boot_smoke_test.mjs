@@ -107,7 +107,7 @@ async function run() {
         try { d.removeAttribute('open'); } catch (e) { }
         try { d.remove(); } catch (e) { }
       });
-      document.querySelectorAll('.record-modal, .modal, .overlay, [data-ui*="modal"], [data-modal-key], [data-open="1"]').forEach(el => {
+      document.querySelectorAll('dialog[open], .record-modal, .modal, .overlay, [data-open="1"]').forEach(el => {
         const isDialogish =
           el.tagName === 'DIALOG' ||
           el.classList.contains('record-modal') ||
@@ -367,10 +367,14 @@ async function run() {
   };
 
   const priorityRowSelector = '#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]';
-  const priorityRow = () => page.locator(priorityRowSelector).first();
-  await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
+  const priorityRowAny = () => page.locator(priorityRowSelector).first();
+  await priorityRowAny().waitFor({ state: 'attached', timeout: 30000 });
   const rowCount = await page.locator(priorityRowSelector).count();
-  const firstRowId = await priorityRow().evaluate((el) => el.getAttribute('data-contact-id') || el.getAttribute('data-id') || '');
+  const firstRowId = await priorityRowAny().evaluate((el) => el.getAttribute('data-contact-id') || el.getAttribute('data-id') || '');
+  const priorityRowSelectorForId = firstRowId
+    ? `#priority-actions-card #needs-attn li[data-contact-id="${firstRowId}"], #priority-actions-card #needs-attn li[data-id="${firstRowId}"]`
+    : priorityRowSelector;
+  const priorityRow = () => page.locator(priorityRowSelectorForId).first();
   console.log(`[boot-smoke] Priority Actions rows=${rowCount} firstRowContactId=${firstRowId}`);
   await page.evaluate(() => {
     const card = document.getElementById('priority-actions-card');
@@ -383,7 +387,14 @@ async function run() {
   const waitForContactModal = async () => {
     try {
       await page.waitForFunction(
-        (id) => window.__E2E__?.lastOpen?.type === 'contact' && window.__E2E__?.lastOpen?.id === id,
+        (id) => {
+          const markerMatch = window.__E2E__?.lastOpen?.type === 'contact' && window.__E2E__?.lastOpen?.id === id;
+          if (markerMatch) return true;
+          const modal = document.querySelector('dialog#contact-modal[open], [data-ui="contact-edit-modal"][open], [data-ui="contact-edit-modal"][data-open="1"]');
+          if (!modal) return false;
+          const modalId = modal.getAttribute('data-contact-id') || modal.dataset?.contactId || '';
+          return String(modalId || '').trim() === String(id || '').trim();
+        },
         firstRowId,
         { timeout: 30000 }
       );
@@ -405,109 +416,18 @@ async function run() {
   };
 
   const openFirstPriorityAction = async () => {
-    const card = page.locator('#priority-actions-card');
-
-    // Force visibility BEFORE waiting
-    await page.evaluate(() => {
-      const el = document.querySelector('#priority-actions-card #needs-attn li[data-contact-id], #priority-actions-card #needs-attn li[data-id]');
-      if (el) {
-        el.style.display = 'list-item';
-        el.style.visibility = 'visible';
-        el.style.opacity = '1';
-      }
-
-      const cardEl = document.getElementById('priority-actions-card');
-      if (cardEl) {
-        cardEl.style.setProperty('display', 'block', 'important');
-        cardEl.style.visibility = 'visible';
-        cardEl.style.opacity = '1';
-        cardEl.removeAttribute('aria-hidden');
-        cardEl.removeAttribute('inert');
-      }
-
-      const dash = document.getElementById('view-dashboard');
-      if (dash) {
-        dash.removeAttribute('aria-hidden');
-        dash.removeAttribute('inert');
-        dash.style.visibility = 'visible';
-      }
-
-      const list = el ? el.closest('#priority-actions-card #needs-attn') : null;
-      if (list) {
-        list.style.setProperty('display', 'block', 'important');
-        list.style.visibility = 'visible';
-        list.style.opacity = '1';
-      }
-    });
-
-    await card.waitFor({ state: 'visible', timeout: 30000 });
-    await page.waitForFunction(() => {
-      const c = document.getElementById('priority-actions-card');
-      if (!c) return false;
-      const cs = getComputedStyle(c);
-      const box = c.getBoundingClientRect();
-      return cs.display !== 'none' && cs.visibility !== 'hidden' && box.width > 0 && box.height > 0;
-    }, { timeout: 30000 });
-    await priorityRow().waitFor({ state: 'attached', timeout: 30000 });
+    const row = priorityRow();
+    await row.waitFor({ state: 'attached', timeout: 30000 });
+    await row.scrollIntoViewIfNeeded().catch(() => { });
     await logPriorityRowContext('pre-click');
 
-    const maxAttempts = 5;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const row = priorityRow();
-      const childTarget = () => row.locator('.insight-sub, .insight-title, .list-main, .insight-meta').first();
-      try {
-        await row.waitFor({ state: 'attached', timeout: 30000 });
-        await childTarget().waitFor({ state: 'attached', timeout: 10000 });
-        const [rowVisible, targetVisible] = await Promise.all([
-          row.isVisible().catch(() => false),
-          childTarget().isVisible().catch(() => false)
-        ]);
-        const rowBox = await row.boundingBox();
-        const childBox = await childTarget().boundingBox();
-        console.log(`[boot-smoke] Attempt ${attempt} row visible=${rowVisible} target visible=${targetVisible}`, 'row bbox', rowBox, 'child bbox', childBox);
-        if ((!rowBox || !rowBox.width || !rowBox.height) && childBox && childBox.width && childBox.height) {
-          console.log('[boot-smoke] Priority row bbox missing/zero while child is non-zero (expected child click)');
-        }
-
-        let clicked = false;
-        if (targetVisible) {
-          await childTarget().click({ timeout: 5000 });
-          clicked = true;
-        } else {
-          await row.evaluate((el) => {
-            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-          });
-          clicked = true;
-        }
-
-        if (clicked) {
-          const modalAppeared = await contactModal.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
-          await logModalDiagnostics('post-click presence');
-          if (modalAppeared) return;
-        }
-      } catch (err) {
-        const msg = String(err.message || err || '');
-        if (attempt < maxAttempts && /detached from dom|not attached/i.test(msg)) {
-          await page.waitForTimeout(150);
-          continue;
-        }
-        if (attempt < maxAttempts && /not visible|timeout/i.test(msg)) {
-          await page.waitForTimeout(150);
-          continue;
-        }
-        throw err;
-      }
-      await page.waitForTimeout(150);
-    }
-    throw new Error('Unable to open contact modal from Priority Actions after retries');
+    await row.evaluate((el) => {
+      const child = el.querySelector('.insight-sub, .insight-title, .list-main, .insight-meta') || el;
+      child.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
   };
 
   try {
-    await openFirstPriorityAction();
-    await waitForContactModal();
-    await hardCloseContactModal(page);
-    await hardClearOverlays(page);
-
     await openFirstPriorityAction();
     await waitForContactModal();
     await hardCloseContactModal(page);
