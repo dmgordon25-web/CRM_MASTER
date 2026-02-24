@@ -5,3 +5,5 @@ proofs/
 
 .runs/
 test-results/
+release/CRM/
+.cache/node/
