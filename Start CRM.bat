@@ -7,6 +7,7 @@ cd /d "%ROOT%"
 set "LOG=%~dp0launcher.log"
 set "CRM_EXITCODE=0"
 set "FATAL_MSG="
+set "NODE=%ROOT%node\node.exe"
 
 (
   echo [CRM] ==============================================
@@ -87,7 +88,7 @@ if "%REUSE_SERVER%"=="1" (
   exit /b 0
 )
 
-call :LOG [CRM] Starting server...
+call :LOG [CRM] Starting server.js...
 call :RUN "Starting server process" start "" /B "%NODE%" "%ROOT%server.js" --port %PORT%
 call :LOG [CRM] Server start command issued, PID unknown (start /B).
 
@@ -128,13 +129,12 @@ if not "%RUN_EXIT%"=="0" (
 exit /b 0
 
 :resolve_node
-set "NODE="
 if exist "%ROOT%node\node.exe" (
-  set "NODE=%ROOT%node\node.exe"
   call :LOG [CRM] Found bundled Node runtime.
   exit /b 0
 )
 call :LOG [CRM] Bundled Node runtime not found. Checking PATH for node.exe.
+set "NODE="
 for /f "delims=" %%I in ('where node.exe 2^>^&1') do (
   if not defined NODE if exist "%%~fI" set "NODE=%%~fI"
 )
