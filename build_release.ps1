@@ -167,11 +167,17 @@ function Install-PortableNode {
   }
 
   New-Item -ItemType Directory -Path $releaseNodeRoot -Force | Out-Null
-  Copy-Item -LiteralPath (Join-Path $nodeRoot '*') -Destination $releaseNodeRoot -Recurse -Force
+  Copy-Item -Path (Join-Path $nodeRoot '*') -Destination $releaseNodeRoot -Recurse -Force -ErrorAction Stop
 
   Write-Host "Portable Node final executable path: $releaseNodeExe"
   if (-not (Test-Path -LiteralPath $releaseNodeExe)) {
-    throw "Portable Node installation failed. cacheExtractDir=$cacheExtractDir; resolvedNodeRoot=$nodeRoot; releaseNodeExe=$releaseNodeExe"
+    $releaseNodeListing = if (Test-Path -LiteralPath $releaseNodeRoot) {
+      (Get-ChildItem -LiteralPath $releaseNodeRoot -Force | Select-Object -ExpandProperty Name) -join ', '
+    }
+    else {
+      '<release-node-root-missing>'
+    }
+    throw "Portable Node installation failed. cacheExtractDir=$cacheExtractDir; resolvedNodeRoot=$nodeRoot; releaseNodeExe=$releaseNodeExe; releaseNodeRootContents=$releaseNodeListing"
   }
 
   Write-Host "Portable Node.js staged at $releaseNodeRoot"
