@@ -52,13 +52,21 @@ function Invoke-PatchBundleBuild {
     }
 
     $normalizedSpec = $patchSpec.Trim()
-    if (-not $normalizedSpec.StartsWith('./')) {
+    $hasSupportedPrefix = $normalizedSpec.StartsWith('./') -or $normalizedSpec.StartsWith('../')
+    if (-not $hasSupportedPrefix) {
       throw "Unsupported patch spec format in manifest: $normalizedSpec"
     }
 
-    $relativeJsPath = $normalizedSpec.Substring(2)
-    $absolutePatchPath = Join-Path $releaseJsRoot $relativeJsPath
-    if (-not (Test-Path -LiteralPath $absolutePatchPath)) {
+    $absolutePatchPath = Join-Path $releaseJsRoot $normalizedSpec
+    $resolvedPatchPath = $null
+    try {
+      $resolvedPatchPath = (Resolve-Path -LiteralPath $absolutePatchPath).ProviderPath
+    }
+    catch {
+      $resolvedPatchPath = $null
+    }
+
+    if (-not $resolvedPatchPath -or -not (Test-Path -LiteralPath $resolvedPatchPath)) {
       throw "Patch listed in manifest was not found: $normalizedSpec"
     }
 
