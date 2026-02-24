@@ -8,6 +8,9 @@ set "LOG=%~dp0launcher.log"
 set "CRM_EXITCODE=0"
 set "FATAL_MSG="
 set "NODE=%ROOT%node\node.exe"
+set "MAX_SPAWN_ATTEMPTS=2"
+set "SPAWN_ATTEMPT=0"
+set "STARTED_NODE_PID="
 
 (
   echo [CRM] ==============================================
@@ -72,8 +75,8 @@ if not defined PORT (
 call :LOG [CRM] Port selection complete: %PORT% (reuse=%REUSE_SERVER%).
 
 if "%REUSE_SERVER%"=="1" (
-  call :LOG [CRM] Waiting for server readiness...
-  call :wait_for_port "%PORT%"
+  call :LOG [CRM] Waiting for existing server health readiness...
+  call :wait_for_health "%PORT%" "20"
   if not "%errorlevel%"=="0" (
     set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port %PORT% did not respond within 20 seconds."
     goto :FATAL
@@ -88,21 +91,35 @@ if "%REUSE_SERVER%"=="1" (
   exit /b 0
 )
 
-call :LOG [CRM] Starting server.js...
-call :RUN "Starting server process" start "" /B "%NODE%" "%ROOT%server.js" --port %PORT%
-call :LOG [CRM] Server start command issued, PID unknown (start /B).
-
-call :LOG [CRM] Waiting for server readiness...
-call :wait_for_port "%PORT%"
-if not "%errorlevel%"=="0" (
-  set "FATAL_MSG=[CRM][ERROR] CRM server did not become reachable within 20 seconds on port %PORT%."
+:spawn_retry_loop
+if !SPAWN_ATTEMPT! GEQ %MAX_SPAWN_ATTEMPTS% (
+  set "FATAL_MSG=[CRM][ERROR] CRM server failed health checks after %MAX_SPAWN_ATTEMPTS% launch attempts. See launcher.log."
   goto :FATAL
 )
 
-call :is_crm_alive "%PORT%"
+set /a SPAWN_ATTEMPT+=1
+call :LOG [CRM] Starting server.js (attempt !SPAWN_ATTEMPT! of %MAX_SPAWN_ATTEMPTS%) on port %PORT%...
+call :start_server "%PORT%"
 if not "%errorlevel%"=="0" (
-  set "FATAL_MSG=[CRM][ERROR] Port %PORT% opened but CRM health endpoint is not responding."
+  set "FATAL_MSG=[CRM][ERROR] Failed to start CRM server process on attempt !SPAWN_ATTEMPT!."
   goto :FATAL
+)
+
+call :LOG [CRM] Waiting for server health readiness...
+call :wait_for_health "%PORT%" "20"
+if not "%errorlevel%"=="0" (
+  call :LOG [CRM][WARN] Health endpoint did not respond on attempt !SPAWN_ATTEMPT! for port %PORT%.
+  call :stop_spawned_server
+  if !SPAWN_ATTEMPT! GEQ %MAX_SPAWN_ATTEMPTS% (
+    set "FATAL_MSG=[CRM][ERROR] CRM server did not become healthy after %MAX_SPAWN_ATTEMPTS% launch attempts."
+    goto :FATAL
+  )
+  call :select_next_free_port "%PORT%"
+  if not "%errorlevel%"=="0" (
+    set "FATAL_MSG=[CRM][ERROR] Unable to find an alternate free port in range 8080-8100 after failed launch."
+    goto :FATAL
+  )
+  goto :spawn_retry_loop
 )
 
 call :LOG [CRM] Launching browser...
@@ -115,18 +132,6 @@ if not "%errorlevel%"=="0" (
 call :LOG [CRM] Launcher complete.
 exit /b 0
 
-:RUN
-set "RUN_DESC=%~1"
-shift
-call :LOG [CRM] %RUN_DESC%
->>"%LOG%" echo [%DATE% %TIME%] [CRM][CMD] %*
-call %* >> "%LOG%" 2>&1
-set "RUN_EXIT=%errorlevel%"
-if not "%RUN_EXIT%"=="0" (
-  set "FATAL_MSG=[CRM][ERROR] %RUN_DESC% failed with exit code %RUN_EXIT%."
-  goto :FATAL
-)
-exit /b 0
 
 :resolve_node
 if exist "%ROOT%node\node.exe" (
@@ -145,24 +150,69 @@ if defined NODE (
 )
 exit /b 0
 
-:wait_for_port
+:wait_for_health
 set "PORT=%~1"
+set "WAIT_MAX=%~2"
 set /a WAIT_COUNT=0
-set /a WAIT_MAX=20
-:wait_loop
+:wait_health_loop
 set /a WAIT_COUNT+=1
->>"%LOG%" echo [%DATE% %TIME%] [CRM] Readiness probe attempt !WAIT_COUNT! of !WAIT_MAX! on 127.0.0.1:%PORT%.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $client=New-Object System.Net.Sockets.TcpClient; try { $iar=$client.BeginConnect('127.0.0.1', %PORT%, $null, $null); if($iar.AsyncWaitHandle.WaitOne(800)){ $null=$client.EndConnect($iar); exit 0 } else { exit 1 } } catch { exit 1 } finally { $client.Close() }" >> "%LOG%" 2>&1
+call :LOG [CRM] Health probe attempt !WAIT_COUNT! of !WAIT_MAX! on http://127.0.0.1:%PORT%/health
+call :is_crm_alive "%PORT%"
 if "%errorlevel%"=="0" (
-  call :LOG [CRM] TCP readiness confirmed for port %PORT% on attempt !WAIT_COUNT!.
+  call :LOG [CRM] Health readiness confirmed for port %PORT% on attempt !WAIT_COUNT!.
   exit /b 0
 )
 if !WAIT_COUNT! GEQ !WAIT_MAX! (
-  call :LOG [CRM] TCP readiness timeout reached for port %PORT% after !WAIT_COUNT! attempts.
+  call :LOG [CRM] Health readiness timeout reached for port %PORT% after !WAIT_COUNT! attempts.
   exit /b 2
 )
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 1" >> "%LOG%" 2>&1
-goto :wait_loop
+goto :wait_health_loop
+
+:start_server
+set "PORT=%~1"
+set "STARTED_NODE_PID="
+set "NODE_EXE=%NODE%"
+set "SERVER_SCRIPT=%ROOT%server.js"
+set "SERVER_ROOT=%ROOT%"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList @($env:SERVER_SCRIPT, '--port', '%PORT%') -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden; Write-Output $p.Id" 2^>^> "%LOG%"`) do (
+  if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
+)
+if not defined STARTED_NODE_PID (
+  call :LOG [CRM][ERROR] Failed to capture Node PID after start attempt.
+  exit /b 2
+)
+call :LOG [CRM] Server process started with PID !STARTED_NODE_PID!.
+exit /b 0
+
+:stop_spawned_server
+if not defined STARTED_NODE_PID (
+  call :LOG [CRM] No spawned server PID recorded; skip cleanup.
+  exit /b 0
+)
+call :LOG [CRM] Stopping spawned Node process PID !STARTED_NODE_PID!.
+taskkill /PID !STARTED_NODE_PID! /T /F >> "%LOG%" 2>&1
+if "%errorlevel%"=="0" (
+  call :LOG [CRM] Cleanup succeeded for PID !STARTED_NODE_PID!.
+) else (
+  call :LOG [CRM][WARN] Cleanup taskkill returned %errorlevel% for PID !STARTED_NODE_PID!.
+)
+set "STARTED_NODE_PID="
+exit /b 0
+
+:select_next_free_port
+set "PREVIOUS_PORT=%~1"
+for /l %%P in (8080,1,8100) do (
+  if not "%%P"=="%PREVIOUS_PORT%" (
+    call :is_port_free %%P
+    if "!errorlevel!"=="0" (
+      set "PORT=%%P"
+      call :LOG [CRM] Retrying launch on alternate free port %%P.
+      exit /b 0
+    )
+  )
+)
+exit /b 2
 
 :is_port_free
 set "PORT=%~1"
