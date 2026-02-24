@@ -393,8 +393,10 @@ import dashboardState from './state/dashboard_state.js';
       return ad-bd;
     });
 
+    const modernDashboard = typeof window.renderDashboardView === 'function' || typeof window.renderAll === 'function';
     const attention = openTasks.filter(task=> task.status==='overdue' || task.status==='soon').slice(0,6);
-    html($('#needs-attn'), attention.length ? attention.map(task=>{
+    if (!modernDashboard) {
+      html($('#needs-attn'), attention.length ? attention.map(task=>{
       const cls = task.status==='overdue' ? 'bad' : (task.status==='soon' ? 'warn' : 'good');
       const phr = task.status==='overdue' ? `${Math.abs(task.diffFromToday||0)}d overdue` : (task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled');
       const cid = (task.contactId || '').toString().trim();
@@ -414,9 +416,13 @@ import dashboardState from './state/dashboard_state.js';
         </div>
         <div class="insight-meta ${cls}"${entityAttrs}>${phr} · ${task.dueLabel}</div>
       </li>`;
-    }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
+      }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
+    }
 
     const needsAttentionList = $('#needs-attn');
+    const deferPriorityContactOpen = (fn) => {
+      setTimeout(fn, 0);
+    };
     if (needsAttentionList && !needsAttentionList.__crmPriorityActionsBound) {
       needsAttentionList.__crmPriorityActionsBound = true;
       needsAttentionList.addEventListener('click', (event) => {
@@ -426,14 +432,17 @@ import dashboardState from './state/dashboard_state.js';
           : null;
         if (!row || !needsAttentionList.contains(row)) return;
         const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
-        if (!openPriorityActionContact(contactId)) return;
+        deferPriorityContactOpen(() => {
+          openPriorityActionContact(contactId);
+        });
         event.preventDefault();
         event.stopPropagation();
       });
     }
 
     const timeline = openTasks.filter(task=> task.status!=='overdue').slice(0,6);
-    html($('#upcoming'), timeline.length ? timeline.map(task=>{
+    if (!modernDashboard) {
+      html($('#upcoming'), timeline.length ? timeline.map(task=>{
       const cls = task.status==='soon' ? 'warn' : 'good';
       const phr = task.status==='soon' ? `Due in ${task.diffFromToday}d` : 'Scheduled';
       const cid = (task.contactId || (task.contact && task.contact.id) || '').toString().trim();
@@ -454,7 +463,8 @@ import dashboardState from './state/dashboard_state.js';
         </div>
         <div class="insight-meta ${cls}"${entityText}>${phr} · ${task.dueLabel}</div>
       </li>`;
-    }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
+      }).join('') : '<li class="empty">No events scheduled. Add tasks to stay proactive.</li>');
+    }
 
     // Pipeline stage breakdown
     const stageCounts = contacts.reduce((map, contact)=>{

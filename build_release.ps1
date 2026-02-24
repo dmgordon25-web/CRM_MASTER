@@ -76,6 +76,7 @@ function Invoke-PatchBundleBuild {
   Set-Content -LiteralPath $bundleEntryPath -Value ($bundleEntryLines -join [Environment]::NewLine) -Encoding UTF8
 
   try {
+    $bundleLogPath = Join-Path $ReleaseCrmPath 'release_build_esbuild.log'
     $esbuildArgs = @(
       '--yes',
       'esbuild',
@@ -83,12 +84,65 @@ function Invoke-PatchBundleBuild {
       '--bundle',
       '--format=esm',
       '--platform=browser',
-      '--target=es2020',
+      '--target=es2022',
       "--outfile=$releaseBundlePath"
     )
-    & npx @esbuildArgs
-    if ($LASTEXITCODE -ne 0) {
-      throw "esbuild failed with exit code $LASTEXITCODE"
+
+    $npxCmd = Get-Command 'npx.cmd' -ErrorAction SilentlyContinue
+    if (-not $npxCmd) {
+      $npxCmd = Get-Command 'npx' -ErrorAction Stop
+    }
+
+    $stdoutPath = Join-Path $ReleaseCrmPath '__esbuild_stdout.log'
+    $stderrPath = Join-Path $ReleaseCrmPath '__esbuild_stderr.log'
+    if (Test-Path -LiteralPath $stdoutPath) {
+      Remove-Item -LiteralPath $stdoutPath -Force
+    }
+    if (Test-Path -LiteralPath $stderrPath) {
+      Remove-Item -LiteralPath $stderrPath -Force
+    }
+
+    $esbuildProc = Start-Process -FilePath $npxCmd.Source -ArgumentList $esbuildArgs -WorkingDirectory $releaseJsRoot -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $stdoutContent = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw -Encoding UTF8 } else { '' }
+    $stderrContent = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw -Encoding UTF8 } else { '' }
+    $combinedOutput = (@($stdoutContent, $stderrContent) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
+    $entryPreviewLines = @()
+    if (Test-Path -LiteralPath $bundleEntryPath) {
+      $entryPreviewLines = Get-Content -LiteralPath $bundleEntryPath -Encoding UTF8 | Select-Object -First 30
+    }
+
+    $logLines = @(
+      '=== esbuild invocation ===',
+      ('Command: {0} {1}' -f $npxCmd.Source, ($esbuildArgs -join ' ')),
+      ('WorkingDirectory: {0}' -f $releaseJsRoot),
+      ('ExitCode: {0}' -f $esbuildProc.ExitCode),
+      '',
+      '=== esbuild stdout/stderr ===',
+      $combinedOutput,
+      '',
+      '=== __patch_bundle_entry__.mjs (first 30 lines) ===',
+      ($entryPreviewLines -join [Environment]::NewLine)
+    )
+    Set-Content -LiteralPath $bundleLogPath -Value ($logLines -join [Environment]::NewLine) -Encoding UTF8
+
+    if (Test-Path -LiteralPath $stdoutPath) {
+      Remove-Item -LiteralPath $stdoutPath -Force
+    }
+    if (Test-Path -LiteralPath $stderrPath) {
+      Remove-Item -LiteralPath $stderrPath -Force
+    }
+
+    if ($esbuildProc.ExitCode -ne 0) {
+      $firstFailingImport = '<not identified>'
+      $resolveMatch = [regex]::Match($combinedOutput, "(?im)^.*Could not resolve\s+[\"'`]([^\"'`]+)[\"'`].*$")
+      if ($resolveMatch.Success) {
+        $firstFailingImport = $resolveMatch.Groups[1].Value
+      }
+
+      Write-Host 'esbuild failed while bundling patches'
+      Write-Host ("first failing import: {0}" -f $firstFailingImport)
+      Write-Host ("log saved to {0}" -f $bundleLogPath)
+      throw "esbuild failed with exit code $($esbuildProc.ExitCode)"
     }
   }
   finally {
