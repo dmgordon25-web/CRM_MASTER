@@ -133,6 +133,19 @@ function Install-PortableNode {
   Write-Host "Portable Node.js staged at $releaseNodeRoot"
 }
 
+function Assert-ReleaseNodePresent {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+  )
+
+  $releaseNodeExe = Join-Path $ReleaseCrmPath 'node/node.exe'
+  if (-not (Test-Path -LiteralPath $releaseNodeExe)) {
+    throw "Release validation failed. Missing bundled Node runtime: $releaseNodeExe"
+  }
+
+  Write-Host "Verified bundled Node runtime: $releaseNodeExe"
+}
+
 $startScriptReferences = @(
   'Start CRM.bat',
   'crm-app',
@@ -167,6 +180,7 @@ foreach ($relativePath in $requiredPaths) {
 }
 
 Install-PortableNode -DestinationRoot $releaseCrm
+Assert-ReleaseNodePresent -ReleaseCrmPath $releaseCrm
 Invoke-PatchBundleBuild -ReleaseCrmPath $releaseCrm
 
 $readmePath = Join-Path $releaseCrm 'README.txt'

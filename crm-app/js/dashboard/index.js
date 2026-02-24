@@ -3317,13 +3317,13 @@ function handleDashboardClick(evt) {
   const liveRoot = doc ? doc.getElementById('view-dashboard') : null;
   const dashRoot = liveRoot || null;
   const probe = target.closest && target.closest('[data-contact-id],[data-partner-id]');
-  const hasEntityId = probe && (probe.getAttribute('data-contact-id') || probe.getAttribute('data-partner-id'));
-  if (dashRoot && !dashRoot.contains(target) && !hasEntityId) {
+  if (dashRoot && !dashRoot.contains(target)) {
     return false;
   }
   if (!dashRoot) {
     // Unit-test / headless fallback: only handle clicks on dashboard widget entity rows
     // (must have an entity id and ideally a widget marker)
+    const hasEntityId = probe && (probe.getAttribute('data-contact-id') || probe.getAttribute('data-partner-id'));
     if (!probe || !hasEntityId) return false;
     const widgetHost = probe.closest('[data-dash-widget],[data-widget],[data-widget-id]');
     const widgetKey =
@@ -3345,8 +3345,8 @@ function handleDashboardClick(evt) {
     let cur = node;
     while (cur) {
       const contactAttr = typeof cur.getAttribute === 'function'
-        ? cur.getAttribute('data-contact-id')
-        : (cur.dataset ? cur.dataset.contactId : (cur.attrs && cur.attrs['data-contact-id']));
+        ? (cur.getAttribute('data-contact-id') || cur.getAttribute('data-id'))
+        : (cur.dataset ? (cur.dataset.contactId || cur.dataset.id) : (cur.attrs && (cur.attrs['data-contact-id'] || cur.attrs['data-id'])));
       const partnerAttr = typeof cur.getAttribute === 'function'
         ? cur.getAttribute('data-partner-id')
         : (cur.dataset ? cur.dataset.partnerId : (cur.attrs && cur.attrs['data-partner-id']));
@@ -3356,7 +3356,7 @@ function handleDashboardClick(evt) {
       }
 
       if (typeof cur.closest === 'function') {
-        const probe = cur.closest('[data-contact-id],[data-partner-id]');
+        const probe = cur.closest('[data-contact-id],[data-id],[data-partner-id]');
         if (probe && !visited.has(probe)) {
           visited.add(probe);
           cur = probe;
@@ -3376,10 +3376,10 @@ function handleDashboardClick(evt) {
     if (debug) {
       const t = evt && evt.target;
       const card = t && t.closest && t.closest('#priority-actions-card,#milestones-card,#numbers-referrals-card');
-      const contactProbe = t && t.closest && t.closest('[data-contact-id]');
+      const contactProbe = t && t.closest && t.closest('[data-contact-id],[data-id]');
       const partnerProbe = t && t.closest && t.closest('[data-partner-id]');
       const contactAttr = contactProbe && typeof contactProbe.getAttribute === 'function'
-        ? contactProbe.getAttribute('data-contact-id')
+        ? (contactProbe.getAttribute('data-contact-id') || contactProbe.getAttribute('data-id'))
         : null;
       const partnerAttr = partnerProbe && typeof partnerProbe.getAttribute === 'function'
         ? partnerProbe.getAttribute('data-partner-id')
@@ -3515,7 +3515,7 @@ function bindNurtureListClickFallback() {
     if (evt && evt.defaultPrevented) return;
     const row = evt.target && evt.target.closest ? evt.target.closest('li[data-contact-id]') : null;
     if (!row || !host.contains(row)) return;
-    const contactId = row.getAttribute('data-contact-id');
+    const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id');
     if (!contactId) return;
     evt.preventDefault();
     evt.stopPropagation();
@@ -3531,9 +3531,9 @@ function bindEntityListFallback(hostId) {
   host.__entityClickWired = true;
   host.addEventListener('click', evt => {
     if (evt && evt.defaultPrevented) return;
-    const row = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-partner-id]') : null;
+    const row = evt.target && evt.target.closest ? evt.target.closest('[data-contact-id],[data-id],[data-partner-id]') : null;
     if (!row || !host.contains(row)) return;
-    const contactId = row.getAttribute('data-contact-id');
+    const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id');
     const partnerId = row.getAttribute('data-partner-id');
     if (!contactId && !partnerId) return;
     evt.preventDefault();

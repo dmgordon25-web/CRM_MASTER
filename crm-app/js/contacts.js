@@ -106,7 +106,6 @@ function recordE2EContactLifecycle(event, contactId) {
   }
   if (event === 'close') {
     window.__E2E__.lastClose = payload;
-    window.__E2E__.lastOpen = null;
     if (window.__E2E__.open && window.__E2E__.open.type === 'contact') {
       window.__E2E__.open = null;
     }
