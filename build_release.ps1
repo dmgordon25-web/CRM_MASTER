@@ -1,5 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
+param(
+  [switch]$DryRun
+)
+
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
@@ -92,7 +96,8 @@ function Invoke-PatchBundleBuild {
 
 function Install-PortableNode {
   param(
-    [Parameter(Mandatory = $true)][string]$DestinationRoot
+    [Parameter(Mandatory = $true)][string]$DestinationRoot,
+    [Parameter(Mandatory = $false)][switch]$DryRunInstall
   )
 
   if (-not (Test-Path -LiteralPath $cacheNodeRoot)) {
@@ -100,34 +105,73 @@ function Install-PortableNode {
   }
 
   $zipPath = Join-Path $cacheNodeRoot $portableNodeZipName
-  $extractRoot = Join-Path $cacheNodeRoot $portableNodeFolderName
+  $cacheExtractDir = Join-Path $cacheNodeRoot $portableNodeFolderName
+  $releaseNodeRoot = Join-Path $DestinationRoot 'node'
+  $releaseNodeExe = Join-Path $releaseNodeRoot 'node.exe'
+
+  Write-Host "Portable Node cache extract dir: $cacheExtractDir"
+
+  if ($DryRunInstall) {
+    Write-Host 'Dry run enabled: skipping portable Node download/extract and creating placeholder runtime path.'
+    if (Test-Path -LiteralPath $releaseNodeRoot) {
+      Remove-Item -LiteralPath $releaseNodeRoot -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $releaseNodeRoot -Force | Out-Null
+    Set-Content -LiteralPath $releaseNodeExe -Value '' -Encoding ASCII
+    Write-Host "Portable Node resolved root: <dry-run-placeholder>"
+    Write-Host "Portable Node final executable path: $releaseNodeExe"
+    return
+  }
 
   if (-not (Test-Path -LiteralPath $zipPath)) {
     Write-Host "Downloading portable Node.js from $portableNodeUrl"
     Invoke-WebRequest -Uri $portableNodeUrl -OutFile $zipPath
   }
 
-  if (-not (Test-Path -LiteralPath $extractRoot)) {
-    Write-Host "Extracting portable Node.js archive to cache"
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $cacheNodeRoot -Force
+  if (Test-Path -LiteralPath $cacheExtractDir) {
+    Remove-Item -LiteralPath $cacheExtractDir -Recurse -Force
   }
 
-  $sourceNodeExe = Join-Path $extractRoot 'node.exe'
-  if (-not (Test-Path -LiteralPath $sourceNodeExe)) {
-    throw "Portable Node extraction failed: missing $sourceNodeExe"
+  New-Item -ItemType Directory -Path $cacheExtractDir -Force | Out-Null
+
+  Write-Host "Extracting portable Node.js archive to cache"
+  Expand-Archive -LiteralPath $zipPath -DestinationPath $cacheExtractDir -Force
+
+  $nodeRootDir = Get-ChildItem -LiteralPath $cacheExtractDir -Directory | Where-Object { $_.Name -like 'node-*-win-x64' } | Select-Object -First 1
+  $nodeExe = $null
+  if ($nodeRootDir) {
+    $candidateExe = Join-Path $nodeRootDir.FullName 'node.exe'
+    if (Test-Path -LiteralPath $candidateExe) {
+      $nodeExe = Get-Item -LiteralPath $candidateExe
+    }
   }
 
-  $releaseNodeRoot = Join-Path $DestinationRoot 'node'
+  if (-not $nodeExe) {
+    $nodeExe = Get-ChildItem -LiteralPath $cacheExtractDir -Recurse -Filter node.exe | Select-Object -First 1
+  }
+
+  $nodeRoot = $null
+  if ($nodeExe) {
+    $nodeRoot = Split-Path -Parent $nodeExe.FullName
+  }
+
+  Write-Host "Portable Node resolved root: $nodeRoot"
+
+  $expectedNodeExe = if ($nodeRoot) { Join-Path $nodeRoot 'node.exe' } else { '<unresolved>' }
+  if (-not $nodeRoot -or -not (Test-Path -LiteralPath $expectedNodeExe)) {
+    throw "Portable Node extraction failed. cacheExtractDir=$cacheExtractDir; resolvedNodeRoot=$nodeRoot; expectedNodeExe=$expectedNodeExe"
+  }
+
   if (Test-Path -LiteralPath $releaseNodeRoot) {
     Remove-Item -LiteralPath $releaseNodeRoot -Recurse -Force
   }
 
   New-Item -ItemType Directory -Path $releaseNodeRoot -Force | Out-Null
-  Copy-Item -LiteralPath (Join-Path $extractRoot '*') -Destination $releaseNodeRoot -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $nodeRoot '*') -Destination $releaseNodeRoot -Recurse -Force
 
-  $releaseNodeExe = Join-Path $releaseNodeRoot 'node.exe'
+  Write-Host "Portable Node final executable path: $releaseNodeExe"
   if (-not (Test-Path -LiteralPath $releaseNodeExe)) {
-    throw "Portable Node installation failed: missing $releaseNodeExe"
+    throw "Portable Node installation failed. cacheExtractDir=$cacheExtractDir; resolvedNodeRoot=$nodeRoot; releaseNodeExe=$releaseNodeExe"
   }
 
   Write-Host "Portable Node.js staged at $releaseNodeRoot"
@@ -179,9 +223,14 @@ foreach ($relativePath in $requiredPaths) {
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
-Install-PortableNode -DestinationRoot $releaseCrm
+Install-PortableNode -DestinationRoot $releaseCrm -DryRunInstall:$DryRun
 Assert-ReleaseNodePresent -ReleaseCrmPath $releaseCrm
-Invoke-PatchBundleBuild -ReleaseCrmPath $releaseCrm
+if ($DryRun) {
+  Write-Host 'Dry run enabled: skipping patch bundle build.'
+}
+else {
+  Invoke-PatchBundleBuild -ReleaseCrmPath $releaseCrm
+}
 
 $readmePath = Join-Path $releaseCrm 'README.txt'
 $readmeContent = @"

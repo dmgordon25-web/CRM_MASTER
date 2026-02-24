@@ -3368,6 +3368,10 @@ export async function openContactModal(contactId, options) {
   const rawId = model ? model.id : (contactId || '');
   const normalizedId = normalizeContactId(rawId);
 
+  if (normalizedId) {
+    recordE2EContactLifecycle('open', normalizedId);
+  }
+
   // 3. Open Fresh
   try {
     const result = await opener(normalizedId, { ...opts, prefetchedRecord: model });
