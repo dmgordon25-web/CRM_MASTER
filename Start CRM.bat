@@ -138,6 +138,8 @@ call :require_label is_pid_alive
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label log_server_tail
 if not "!errorlevel!"=="0" exit /b 2
+call :require_label LOG
+if not "!errorlevel!"=="0" exit /b 2
 call :LOG [CRM] Required labels verified.
 exit /b 0
 
@@ -286,15 +288,24 @@ if not exist "!SERVER_SCRIPT!" (
   call :LOG [CRM][ERROR] Spawn preflight failed: SERVER_SCRIPT not found at "!SERVER_SCRIPT!".
   exit /b 2
 )
-set "SPAWN_PORT=!TARGET_PORT!"
-call :LOG [CRM] Child working directory: "!SERVER_ROOT!"
+set "LAUNCH_PORT=!TARGET_PORT!"
+set "ROOT_DIR=!ROOT!"
+if not defined ROOT_DIR (
+  call :LOG [CRM][ERROR] Spawn preflight failed: ROOT is empty.
+  exit /b 2
+)
+if not exist "!ROOT_DIR!" (
+  call :LOG [CRM][ERROR] Spawn preflight failed: ROOT path not found at "!ROOT_DIR!".
+  exit /b 2
+)
+call :LOG [CRM] Child working directory: "!ROOT_DIR!"
 call :LOG [CRM] Child output log path: "!SERVER_LOGFILE!"
 call :LOG [CRM] Child error log path: "!SERVER_ERR_LOGFILE!"
 call :LOG [CRM] Spawn preflight NODE_EXE="!NODE_EXE!"
 call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
-call :LOG [CRM] Spawn preflight PORT="!SPAWN_PORT!"
-call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !SPAWN_PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; if ([string]::IsNullOrWhiteSpace($env:NODE_EXE)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_SCRIPT)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($env:SPAWN_PORT)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_ROOT)) { throw 'SERVER_ROOT empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_LOGFILE)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_ERR_LOGFILE)) { throw 'SERVER_ERR_LOGFILE empty' }; $args = @($env:SERVER_SCRIPT, '--port', $env:SPAWN_PORT); if ($args.Count -ne 3) { throw 'ArgumentList length invalid' }; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList $args -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden -RedirectStandardOutput $env:SERVER_LOGFILE -RedirectStandardError $env:SERVER_ERR_LOGFILE; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
+call :LOG [CRM] Spawn preflight PORT="!LAUNCH_PORT!"
+call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT!
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $argList = @($serverScript, '--port', $port); $p = Start-Process -FilePath $nodeExe -ArgumentList $argList -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
   if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
 )
 if not defined STARTED_NODE_PID (
@@ -353,8 +364,14 @@ tasklist /FI "PID eq !CHECK_PID!" /FO CSV /NH | findstr /I /C:""!CHECK_PID!"" >n
 exit /b %errorlevel%
 
 :log_server_tail
-if exist "!SERVER_LOGFILE!" powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path $env:SERVER_LOGFILE){ Get-Content -Path $env:SERVER_LOGFILE -Tail 40 | ForEach-Object { '[CRM][SERVER][OUT] ' + $_ } | Tee-Object -FilePath $env:LOGFILE -Append }"
-if exist "!SERVER_ERR_LOGFILE!" powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path $env:SERVER_ERR_LOGFILE){ Get-Content -Path $env:SERVER_ERR_LOGFILE -Tail 40 | ForEach-Object { '[CRM][SERVER][ERR] ' + $_ } | Tee-Object -FilePath $env:LOGFILE -Append }"
+if exist "!SERVER_LOGFILE!" for /f "usebackq delims=" %%L in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path -LiteralPath $env:SERVER_LOGFILE){ Get-Content -LiteralPath $env:SERVER_LOGFILE -Tail 40 }"`) do (
+  echo [CRM][SERVER][OUT] %%L
+  >>"!LOGFILE!" echo [CRM][SERVER][OUT] %%L
+)
+if exist "!SERVER_ERR_LOGFILE!" for /f "usebackq delims=" %%L in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path -LiteralPath $env:SERVER_ERR_LOGFILE){ Get-Content -LiteralPath $env:SERVER_ERR_LOGFILE -Tail 40 }"`) do (
+  echo [CRM][SERVER][ERR] %%L
+  >>"!LOGFILE!" echo [CRM][SERVER][ERR] %%L
+)
 exit /b 0
 
 :open_browser
