@@ -113,6 +113,23 @@ if not defined PORT (
   set "FATAL_MSG=[CRM][ERROR] Cannot start server because selected PORT is empty."
   exit /b 2
 )
+if not "!REUSE_SERVER!"=="1" goto :start_or_reuse_spawn
+call :wait_health "!PORT!" "20"
+if "!errorlevel!"=="0" goto :start_or_reuse_open
+set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port !PORT! did not respond within 20 seconds."
+exit /b 2
+
+:start_or_reuse_open
+call :open_browser "!PORT!"
+if "!errorlevel!"=="0" goto :start_or_reuse_reused_ok
+set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:!PORT!/#/labs."
+exit /b 2
+
+:start_or_reuse_reused_ok
+call :LOG [CRM] Launcher complete (existing server reused).
+exit /b 0
+
+:start_or_reuse_spawn
 call :spawn_server
 exit /b !errorlevel!
 
@@ -120,8 +137,6 @@ exit /b !errorlevel!
 call :require_label is_crm_alive
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label start_or_reuse
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label start_or_reuse_spawn
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label spawn_server
 if not "!errorlevel!"=="0" exit /b 2
