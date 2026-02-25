@@ -115,16 +115,19 @@ import dashboardState from './state/dashboard_state.js';
     }
   }
 
-  function hasPriorityActionOpener(){
-    return typeof window.openContactModal === 'function' || typeof window.openContactEditor === 'function';
-  }
-
   function ensureNeedsAttentionClickBinding(){
-    const priorityCard = document.getElementById('priority-actions-card');
-    const needsAttentionList = $('#needs-attn', priorityCard || document);
-    const bindTarget = priorityCard || needsAttentionList;
-    if (!bindTarget || bindTarget.__crmPriorityActionsBound) return;
-    bindTarget.__crmPriorityActionsBound = true;
+    const needsAttentionList = document.getElementById('needs-attn');
+    if (!needsAttentionList || needsAttentionList.__crmPriorityActionsBound) return;
+    needsAttentionList.__crmPriorityActionsBound = true;
+
+    const priorityClickLog = (event, contactId) => {
+      if (typeof fetch !== 'function') return;
+      fetch('/__log', {
+        method: 'POST',
+        headers: {'content-type':'application/json'},
+        body: JSON.stringify({event, contactId: String(contactId || '')})
+      }).catch(() => {});
+    };
 
     const deferPriorityContactOpen = (fn) => {
       if (typeof queueMicrotask === 'function') {
@@ -134,23 +137,22 @@ import dashboardState from './state/dashboard_state.js';
       Promise.resolve().then(fn).catch(() => {});
     };
 
-    bindTarget.addEventListener('click', (event) => {
+    needsAttentionList.addEventListener('click', (event) => {
       if (!event || event.defaultPrevented) return;
       const row = event.target && event.target.closest
-        ? event.target.closest('li[data-contact-id],li[data-id]')
+        ? event.target.closest('li[data-contact-id], li[data-id]')
         : null;
-      if (!row) return;
-      const listHost = document.getElementById('needs-attn');
-      if (!listHost || !listHost.contains(row)) return;
+      if (!row || !needsAttentionList.contains(row)) return;
       const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
       if (!contactId) return;
-      if (!hasPriorityActionOpener()) return;
       event.preventDefault();
       event.stopPropagation();
+      priorityClickLog('priority-actions-click-fired', contactId);
+      priorityClickLog('priority-actions-contact-resolved', contactId);
       deferPriorityContactOpen(() => {
+        priorityClickLog('priority-actions-open-invoked', contactId);
         openPriorityActionContact(contactId);
       });
-      return;
     });
   }
 
