@@ -9,7 +9,7 @@ set "SERVER_LOGFILE=%~dp0launcher-server.log"
 set "SERVER_ERR_LOGFILE=%~dp0launcher-server.err.log"
 set "CRM_EXITCODE=0"
 set "FATAL_MSG="
-set "NODE=%ROOT%node\node.exe"
+set "NODE_EXE=%ROOT%node\node.exe"
 set "MAX_SPAWN_ATTEMPTS=2"
 set "SPAWN_ATTEMPT=0"
 set "STARTED_NODE_PID="
@@ -44,11 +44,11 @@ if not exist "!ROOT!crm-app\index.html" (
 
 echo [CRM] Step: resolve node runtime
 call :resolve_node
-if not defined NODE (
+if not defined NODE_EXE (
   set "FATAL_MSG=[CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship !ROOT!node\node.exe."
   goto :fatal
 )
-call :LOG [CRM] Using Node executable: "!NODE!"
+call :LOG [CRM] Using Node executable: "!NODE_EXE!"
 
 echo [CRM] Step: select port
 call :LOG [CRM] Selecting port...
@@ -122,16 +122,25 @@ call :spawn_server
 exit /b !errorlevel!
 
 :verify_required_labels
-for %%L in (is_crm_alive start_or_reuse start_or_reuse_spawn spawn_server wait_health open_browser is_pid_alive log_server_tail LOG) do (
-  findstr /B /C:":%%L" "%~f0" >nul 2>&1
-  if not "!errorlevel!"=="0" (
-    set "FATAL_MSG=[CRM][ERROR] Launcher integrity check failed. Missing label :%%L in %~nx0."
-    call :LOG !FATAL_MSG!
-    exit /b 2
-  )
+for %%L in (LOG require_label verify_required_labels resolve_node is_port_free is_crm_alive wait_health wait_for_health start_or_reuse start_or_reuse_spawn start_server spawn_server probe_spawned_server stop_spawned_server select_next_free_port is_pid_alive log_server_tail open_browser) do (
+  call :require_label %%L
+  if not "!errorlevel!"=="0" exit /b 2
 )
 call :LOG [CRM] Required labels verified.
 exit /b 0
+
+:require_label
+set "REQUIRED_LABEL=%~1"
+if not defined REQUIRED_LABEL (
+  set "FATAL_MSG=[CRM][ERROR] Launcher integrity check failed. Empty label name passed to :require_label."
+  call :LOG !FATAL_MSG!
+  exit /b 2
+)
+findstr /B /C:":!REQUIRED_LABEL!" "%~f0" >nul 2>&1
+if "!errorlevel!"=="0" exit /b 0
+set "FATAL_MSG=[CRM][ERROR] Launcher integrity check failed. Missing label :!REQUIRED_LABEL! in %~nx0."
+call :LOG !FATAL_MSG!
+exit /b 2
 
 :spawn_server
 echo [CRM] Step: spawn_server
@@ -207,11 +216,11 @@ if exist "!ROOT!node\node.exe" (
 )
 echo [CRM] Step: resolve_node PATH lookup
 call :LOG [CRM] Bundled Node runtime not found. Checking PATH for node.exe.
-set "NODE="
+set "NODE_EXE="
 for /f "delims=" %%I in ('where node.exe 2^>^&1') do (
-  if not defined NODE if exist "%%~fI" set "NODE=%%~fI"
+  if not defined NODE_EXE if exist "%%~fI" set "NODE_EXE=%%~fI"
 )
-if defined NODE (
+if defined NODE_EXE (
   call :LOG [CRM] Found node.exe on PATH.
 ) else (
   call :LOG [CRM] Node runtime discovery failed.
@@ -247,7 +256,6 @@ goto :wait_health_loop
 :start_server
 set "TARGET_PORT=%~1"
 set "STARTED_NODE_PID="
-set "NODE_EXE=!NODE!"
 set "SERVER_SCRIPT=!ROOT!server.js"
 set "SERVER_ROOT=!ROOT!"
 if not defined TARGET_PORT (
