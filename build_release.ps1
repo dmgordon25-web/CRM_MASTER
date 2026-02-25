@@ -11,7 +11,9 @@ $cacheRoot = Join-Path $repoRoot '.cache'
 $cacheNodeRoot = Join-Path $cacheRoot 'node'
 
 $launcherPaths = @(
-  'Start CRM.bat'
+  'Start CRM.bat',
+  'Create Desktop Shortcut.bat',
+  'Create Desktop Shortcut.ps1'
 )
 
 $requiredPaths = @(
@@ -20,6 +22,26 @@ $requiredPaths = @(
 )
 
 $requiredPaths += $launcherPaths
+
+$releasePrunePaths = @(
+  'crm-app/docs',
+  'crm-app/reports',
+  'crm-app/export_changed_records_stability.csv',
+  'crm-app/seed_test_data.js',
+  'crm-app/stability_verifier.js',
+  'crm-app/js/render_fixed.js.bak'
+)
+
+$runtimeFileMap = @(
+  @{ Path = 'Start CRM.bat'; Why = 'Primary launcher used by client handoff.' },
+  @{ Path = 'Create Desktop Shortcut.bat'; Why = 'One-click helper to create a desktop shortcut.' },
+  @{ Path = 'Create Desktop Shortcut.ps1'; Why = 'Creates the CRM Tool desktop shortcut (.lnk).' },
+  @{ Path = 'server.js'; Why = 'Offline local static server and /health endpoint.' },
+  @{ Path = 'crm-app/'; Why = 'SPA runtime assets (HTML/CSS/JS/data/patches).' },
+  @{ Path = 'node/'; Why = 'Bundled portable Node runtime used first by launcher.' },
+  @{ Path = 'README.txt'; Why = 'Client launch/troubleshooting instructions.' },
+  @{ Path = 'RUNTIME_FILE_MAP.txt'; Why = 'Runtime-required file map for release audit.' }
+)
 
 $portableNodeVersion = 'v20.19.5'
 $portableNodeZipName = "node-$portableNodeVersion-win-x64.zip"
@@ -163,6 +185,39 @@ function Invoke-PatchBundleBuild {
   Set-Content -LiteralPath $releasePatchManifestPath -Value $updatedManifest -Encoding UTF8
 }
 
+function Remove-ReleaseClutter {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+  )
+
+  foreach ($relativePath in $releasePrunePaths) {
+    $targetPath = Join-Path $ReleaseCrmPath $relativePath
+    if (Test-Path -LiteralPath $targetPath) {
+      Remove-Item -LiteralPath $targetPath -Recurse -Force
+      Write-Host ("Pruned release-only clutter: {0}" -f $relativePath)
+    }
+  }
+}
+
+function Write-RuntimeFileMap {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+  )
+
+  $mapPath = Join-Path $ReleaseCrmPath 'RUNTIME_FILE_MAP.txt'
+  $lines = @(
+    'CRM Runtime-Required File Map',
+    '=============================',
+    ''
+  )
+
+  foreach ($item in $runtimeFileMap) {
+    $lines += ("- {0}: {1}" -f $item.Path, $item.Why)
+  }
+
+  Set-Content -LiteralPath $mapPath -Value ($lines -join [Environment]::NewLine) -Encoding UTF8
+}
+
 function Install-PortableNode {
   param(
     [Parameter(Mandatory = $true)][string]$DestinationRoot,
@@ -267,10 +322,13 @@ function Assert-ReleaseNodePresent {
 
 $startScriptReferences = @(
   'Start CRM.bat',
+  'Create Desktop Shortcut.bat',
+  'Create Desktop Shortcut.ps1',
   'crm-app',
   'server.js',
   'node/node.exe',
-  'README.txt'
+  'README.txt',
+  'RUNTIME_FILE_MAP.txt'
 )
 
 if (-not (Test-Path -LiteralPath $releaseRoot)) {
@@ -298,6 +356,8 @@ foreach ($relativePath in $requiredPaths) {
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
+Remove-ReleaseClutter -ReleaseCrmPath $releaseCrm
+
 Install-PortableNode -DestinationRoot $releaseCrm -DryRunInstall:$DryRun
 Assert-ReleaseNodePresent -ReleaseCrmPath $releaseCrm
 if ($DryRun) {
@@ -309,31 +369,30 @@ else {
 
 $readmePath = Join-Path $releaseCrm 'README.txt'
 $readmeContent = @"
-CRM Release Package
-===================
+CRM Tool (Client Release)
+=========================
 
-How to run
-----------
+What to double-click
+--------------------
+1) Start CRM.bat
+   - Launches the CRM Tool in your browser.
+2) Create Desktop Shortcut.bat (optional, one time)
+   - Adds a desktop shortcut named "CRM Tool".
+
+Normal launch flow
+------------------
 1) Double-click Start CRM.bat
-2) Wait for status lines in the launcher window
+2) Wait for launcher status lines
 3) Browser opens automatically when ready
-
-What the launcher guarantees
-----------------------------
-- Visible progress output for every step.
-- Creates launcher.log in this folder.
-- Reuses an existing CRM server on 8080-8100 when /health responds.
-- Starts server.js on a free port from 8080-8100 when needed.
-- Waits up to 20 seconds for readiness, then shows a clear error.
-- Opens launcher.log automatically on failure.
-- Uses bundled node\\node.exe first, then PATH node.exe fallback.
 
 If launch fails
 ---------------
-- Read launcher.log (opens automatically).
-- Install Node.js LTS only if bundled node folder is missing/corrupt.
+- Check launcher.log in this folder (opens automatically on launcher failures).
+- Re-run Start CRM.bat.
+- If the bundled node folder is missing/corrupt, re-extract the full release package.
 "@
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
+Write-RuntimeFileMap -ReleaseCrmPath $releaseCrm
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
