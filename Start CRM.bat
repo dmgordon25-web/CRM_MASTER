@@ -13,6 +13,7 @@ set "NODE_EXE=%ROOT%node\node.exe"
 set "MAX_SPAWN_ATTEMPTS=2"
 set "SPAWN_ATTEMPT=0"
 set "STARTED_NODE_PID="
+set "PORT_PROBE_TIMEOUT_MS=250"
 
 >"!LOGFILE!" echo [CRM] ==============================================
 >>"!LOGFILE!" echo [CRM] Starting CRM launcher at %DATE% %TIME%
@@ -56,7 +57,7 @@ set "PORT="
 set "REUSE_SERVER=0"
 for /l %%P in (8080,1,8100) do (
   if not defined PORT (
-    call :is_crm_alive %%P
+    call :is_crm_alive %%P "!PORT_PROBE_TIMEOUT_MS!"
     if "!errorlevel!"=="0" (
       set "PORT=%%P"
       set "REUSE_SERVER=1"
@@ -257,7 +258,6 @@ goto :wait_health_loop
 set "TARGET_PORT=%~1"
 set "STARTED_NODE_PID="
 set "SERVER_SCRIPT=!ROOT!server.js"
-set "SERVER_ROOT=!ROOT!"
 if not defined TARGET_PORT (
   call :LOG [CRM][ERROR] Spawn preflight failed: PORT is empty.
   exit /b 2
@@ -294,8 +294,9 @@ call :LOG [CRM] Child error log path: "!SERVER_ERR_LOGFILE!"
 call :LOG [CRM] Spawn preflight NODE_EXE="!NODE_EXE!"
 call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
 call :LOG [CRM] Spawn preflight PORT="!LAUNCH_PORT!"
+call :LOG [CRM] Spawn preflight ROOT="!ROOT_DIR!"
 call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $argList = @($serverScript, '--port', $port); $p = Start-Process -FilePath $nodeExe -ArgumentList $argList -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $argLine = ('"' + $serverScript + '" --port ' + $port); $p = Start-Process -FilePath $nodeExe -ArgumentList $argLine -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
   if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
 )
 if not defined STARTED_NODE_PID (
@@ -342,8 +343,10 @@ exit /b %errorlevel%
 
 :is_crm_alive
 set "HEALTH_PORT=%~1"
+set "HEALTH_TIMEOUT_MS=%~2"
 if not defined HEALTH_PORT exit /b 1
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!HEALTH_PORT!/health'); $req.Method='GET'; $req.Timeout=1500; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
+if not defined HEALTH_TIMEOUT_MS set "HEALTH_TIMEOUT_MS=1500"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!HEALTH_PORT!/health'); $req.Method='GET'; $req.Timeout=[int]!HEALTH_TIMEOUT_MS!; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
 exit /b %errorlevel%
 
 
