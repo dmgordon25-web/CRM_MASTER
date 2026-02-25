@@ -296,7 +296,7 @@ call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
 call :LOG [CRM] Spawn preflight PORT="!LAUNCH_PORT!"
 call :LOG [CRM] Spawn preflight ROOT="!ROOT_DIR!"
 call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $argLine = '"' + $serverScript + '" --port ' + $port; $p = Start-Process -FilePath $nodeExe -ArgumentList $argLine -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $q = [char]34; $argLine = $q + $serverScript + $q + ' --port ' + $port; Add-Content -LiteralPath $env:LOGFILE -Value ('[' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff') + '] [CRM] PowerShell Start-Process ArgumentList: ' + $argLine); $p = Start-Process -FilePath $nodeExe -ArgumentList $argLine -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
   if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
 )
 if not defined STARTED_NODE_PID (
@@ -309,6 +309,12 @@ exit /b 0
 :stop_spawned_server
 if not defined STARTED_NODE_PID (
   call :LOG [CRM] No spawned server PID recorded; skip cleanup.
+  exit /b 0
+)
+echo(!STARTED_NODE_PID!| findstr /R "^[0-9][0-9]*$" >nul
+if not "!errorlevel!"=="0" (
+  call :LOG [CRM][WARN] Spawned server PID value is invalid ('!STARTED_NODE_PID!'); skip cleanup.
+  set "STARTED_NODE_PID="
   exit /b 0
 )
 call :LOG [CRM] Stopping spawned Node process PID !STARTED_NODE_PID!.
