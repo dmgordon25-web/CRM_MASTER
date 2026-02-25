@@ -1,7 +1,6 @@
 import { normalizeStatus } from './pipeline/constants.js';
 import { NONE_PARTNER_ID } from './constants/ids.js';
 import dashboardState from './state/dashboard_state.js';
-import { openContactModal as openContactModalDirect } from './contacts.js';
 
 // reports.js — Safe KPI & Sidebar (2025-09-17)
 (function(){
@@ -103,11 +102,9 @@ import { openContactModal as openContactModalDirect } from './contacts.js';
       const e2eState = window.__E2E__ || (window.__E2E__ = {});
       e2eState.lastOpen = { type: 'contact', id, ts: Date.now() };
     } catch (_err) { }
-    const opener = typeof openContactModalDirect === 'function'
-      ? openContactModalDirect
-      : (typeof window.openContactModal === 'function'
-        ? window.openContactModal
-        : (typeof window.openContactEditor === 'function' ? window.openContactEditor : null));
+    const opener = typeof window.openContactModal === 'function'
+      ? window.openContactModal
+      : (typeof window.openContactEditor === 'function' ? window.openContactEditor : null);
     if (typeof opener !== 'function') return false;
     try {
       const result = opener(id, { sourceHint: 'dashboard-priority-actions' });
@@ -119,14 +116,6 @@ import { openContactModal as openContactModalDirect } from './contacts.js';
   }
 
   function ensureNeedsAttentionClickBinding(){
-    const priorityCard = document.getElementById('priority-actions-card');
-    if (priorityCard && !needsAttentionBindingObserver && typeof MutationObserver === 'function') {
-      needsAttentionBindingObserver = new MutationObserver(() => {
-        ensureNeedsAttentionClickBinding();
-      });
-      needsAttentionBindingObserver.observe(priorityCard, { childList: true, subtree: true });
-    }
-
     const needsAttentionList = document.getElementById('needs-attn');
     if (!needsAttentionList) return;
     if (needsAttentionClickBoundEl === needsAttentionList && needsAttentionList.__crmPriorityActionsBound) return;
@@ -143,17 +132,17 @@ import { openContactModal as openContactModalDirect } from './contacts.js';
       };
 
       const deferPriorityContactOpen = (fn) => {
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(fn);
+          return;
+        }
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => {
             fn();
           });
           return;
         }
-        if (typeof queueMicrotask === 'function') {
-          queueMicrotask(fn);
-          return;
-        }
-        setTimeout(fn, 0);
+        Promise.resolve().then(fn).catch(() => {});
       };
 
       needsAttentionList.addEventListener('click', (event) => {
@@ -201,7 +190,6 @@ import { openContactModal as openContactModalDirect } from './contacts.js';
   let reportsGridstackLibPromise = null;
   let reportsComputeVersion = 0;
   let needsAttentionClickBoundEl = null;
-  let needsAttentionBindingObserver = null;
 
   function loadReportsGridstackLib(){
     if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
