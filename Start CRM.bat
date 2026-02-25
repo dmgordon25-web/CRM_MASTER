@@ -14,6 +14,8 @@ set "MAX_SPAWN_ATTEMPTS=2"
 set "SPAWN_ATTEMPT=0"
 set "STARTED_NODE_PID="
 set "PORT_PROBE_TIMEOUT_MS=250"
+set "HEALTH_WAIT_MAX_ATTEMPTS=8"
+set "HEALTH_PROBE_TIMEOUT_MS=700"
 
 >"!LOGFILE!" echo [CRM] ==============================================
 >>"!LOGFILE!" echo [CRM] Starting CRM launcher at %DATE% %TIME%
@@ -97,9 +99,9 @@ if "!REUSE_SERVER!"=="1" goto :start_or_reuse_reuse_existing
 goto :start_or_reuse_spawn
 
 :start_or_reuse_reuse_existing
-call :wait_health "!PORT!" "20"
+call :wait_health "!PORT!" "!HEALTH_WAIT_MAX_ATTEMPTS!"
 if "!errorlevel!"=="0" goto :start_or_reuse_open
-set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port !PORT! did not respond within 20 seconds."
+set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port !PORT! did not respond within startup timeout."
 exit /b 2
 
 :start_or_reuse_open
@@ -174,7 +176,7 @@ if not "!errorlevel!"=="0" (
   goto :spawn_retry_loop
 )
 
-call :wait_health "!PORT!" "20"
+call :wait_health "!PORT!" "!HEALTH_WAIT_MAX_ATTEMPTS!"
 if not "!errorlevel!"=="0" (
   call :LOG [CRM][WARN] Health endpoint did not respond on attempt !SPAWN_ATTEMPT! for port !PORT!.
   call :log_server_tail
@@ -201,7 +203,10 @@ exit /b 0
 
 
 :probe_spawned_server
-if not defined STARTED_NODE_PID exit /b 2
+if not defined STARTED_NODE_PID (
+  call :LOG [CRM] Spawned server PID capture disabled; continuing with health checks as source of truth.
+  exit /b 0
+)
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Milliseconds 700" >> "!LOGFILE!" 2>&1
 call :is_pid_alive "!STARTED_NODE_PID!"
 if "!errorlevel!"=="0" exit /b 0
@@ -296,14 +301,20 @@ call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
 call :LOG [CRM] Spawn preflight PORT="!LAUNCH_PORT!"
 call :LOG [CRM] Spawn preflight ROOT="!ROOT_DIR!"
 call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $nodeExe = $env:NODE_EXE; $serverScript = $env:SERVER_SCRIPT; $port = $env:LAUNCH_PORT; $rootDir = $env:ROOT_DIR; $stdoutLog = $env:SERVER_LOGFILE; $stderrLog = $env:SERVER_ERR_LOGFILE; if ([string]::IsNullOrWhiteSpace($nodeExe)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($serverScript)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($port)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($rootDir)) { throw 'ROOT empty' }; if ([string]::IsNullOrWhiteSpace($stdoutLog)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($stderrLog)) { throw 'SERVER_ERR_LOGFILE empty' }; if (-not (Test-Path -LiteralPath $nodeExe)) { throw ('NODE_EXE not found: ' + $nodeExe) }; if (-not (Test-Path -LiteralPath $serverScript)) { throw ('SERVER_SCRIPT not found: ' + $serverScript) }; if (-not (Test-Path -LiteralPath $rootDir)) { throw ('ROOT not found: ' + $rootDir) }; $q = [char]34; $argLine = $q + $serverScript + $q + ' --port ' + $port; $p = Start-Process -FilePath $nodeExe -ArgumentList $argLine -WorkingDirectory $rootDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; [Console]::Out.WriteLine($p.Id)" 2^>^> "!LOGFILE!"`) do (
-  if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
-)
-if not defined STARTED_NODE_PID (
-  call :LOG [CRM][ERROR] Failed to capture Node PID after start attempt.
+pushd "!ROOT_DIR!" >> "!LOGFILE!" 2>&1
+if not "!errorlevel!"=="0" (
+  call :LOG [CRM][ERROR] Failed to enter launch root "!ROOT_DIR!".
   exit /b 2
 )
-call :LOG [CRM] Server process started with PID !STARTED_NODE_PID!.
+start "" /b "!NODE_EXE!" "!ROOT!server.js" --port !LAUNCH_PORT! 1>>"!SERVER_LOGFILE!" 2>>"!SERVER_ERR_LOGFILE!"
+set "START_EXIT=!errorlevel!"
+popd >> "!LOGFILE!" 2>&1
+if not "!START_EXIT!"=="0" (
+  call :LOG [CRM][ERROR] start command returned !START_EXIT!.
+  exit /b 2
+)
+set "STARTED_NODE_PID="
+call :LOG [CRM] Server process spawned via start /b (no PID capture mode).
 exit /b 0
 
 :stop_spawned_server
@@ -351,7 +362,7 @@ exit /b %errorlevel%
 set "HEALTH_PORT=%~1"
 set "HEALTH_TIMEOUT_MS=%~2"
 if not defined HEALTH_PORT exit /b 1
-if not defined HEALTH_TIMEOUT_MS set "HEALTH_TIMEOUT_MS=1500"
+if not defined HEALTH_TIMEOUT_MS set "HEALTH_TIMEOUT_MS=!HEALTH_PROBE_TIMEOUT_MS!"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!HEALTH_PORT!/health'); $req.Method='GET'; $req.Timeout=[int]!HEALTH_TIMEOUT_MS!; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
 exit /b %errorlevel%
 
@@ -377,28 +388,15 @@ exit /b 0
 echo [CRM] Step: open_browser
 set "PORT=%~1"
 set "URL=http://127.0.0.1:!PORT!/#/labs"
-set "EDGE="
 set "CHROME="
-if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" set "EDGE=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
-if not defined EDGE if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
-if not defined EDGE for /f "delims=" %%I in ('where msedge.exe 2^>^&1') do if not defined EDGE set "EDGE=%%~fI"
-
-if defined EDGE (
-  call :LOG [CRM] Browser launch URL: !URL!
-  call :LOG [CRM] Browser path selected: "!EDGE!"
-  start "" "!EDGE!" --app="!URL!" >> "!LOGFILE!" 2>&1
-  if "!errorlevel!"=="0" exit /b 0
-  call :LOG [CRM] Edge launch command returned error !errorlevel!.
-)
-
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
-if not defined CHROME for /f "delims=" %%I in ('where chrome.exe 2^>^&1') do if not defined CHROME set "CHROME=%%~fI"
+if not defined CHROME if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 
 if defined CHROME (
   call :LOG [CRM] Browser launch URL: !URL!
   call :LOG [CRM] Browser path selected: "!CHROME!"
-  start "" "!CHROME!" --app="!URL!" >> "!LOGFILE!" 2>&1
+  start "" "!CHROME!" "!URL!" >> "!LOGFILE!" 2>&1
   if "!errorlevel!"=="0" exit /b 0
   call :LOG [CRM] Chrome launch command returned error !errorlevel!.
 )
