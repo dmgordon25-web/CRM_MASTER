@@ -122,34 +122,16 @@ call :spawn_server
 exit /b !errorlevel!
 
 :verify_required_labels
-call :require_label is_crm_alive
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label start_or_reuse
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label start_or_reuse_spawn
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label spawn_server
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label wait_health
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label open_browser
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label is_pid_alive
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label log_server_tail
-if not "!errorlevel!"=="0" exit /b 2
-call :require_label LOG
-if not "!errorlevel!"=="0" exit /b 2
+for %%L in (is_crm_alive start_or_reuse start_or_reuse_spawn spawn_server wait_health open_browser is_pid_alive log_server_tail LOG) do (
+  findstr /B /C:":%%L" "%~f0" >nul 2>&1
+  if not "!errorlevel!"=="0" (
+    set "FATAL_MSG=[CRM][ERROR] Launcher integrity check failed. Missing label :%%L in %~nx0."
+    call :LOG !FATAL_MSG!
+    exit /b 2
+  )
+)
 call :LOG [CRM] Required labels verified.
 exit /b 0
-
-:require_label
-set "REQ_LABEL=%~1"
-findstr /B /C:":%REQ_LABEL%" "%~f0" >nul 2>&1
-if "!errorlevel!"=="0" exit /b 0
-set "FATAL_MSG=[CRM][ERROR] Launcher integrity check failed. Missing label :%REQ_LABEL% in %~nx0."
-call :LOG !FATAL_MSG!
-exit /b 2
 
 :spawn_server
 echo [CRM] Step: spawn_server
