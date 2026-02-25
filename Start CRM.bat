@@ -16,6 +16,7 @@ set "STARTED_NODE_PID="
 set "PORT_PROBE_TIMEOUT_MS=250"
 set "HEALTH_WAIT_MAX_ATTEMPTS=8"
 set "HEALTH_PROBE_TIMEOUT_MS=700"
+set "BROWSER_OPENED=0"
 
 >"!LOGFILE!" echo [CRM] ==============================================
 >>"!LOGFILE!" echo [CRM] Starting CRM launcher at %DATE% %TIME%
@@ -386,26 +387,44 @@ exit /b 0
 
 :open_browser
 echo [CRM] Step: open_browser
-set "PORT=%~1"
-set "URL=http://127.0.0.1:!PORT!/#/labs"
+if "!BROWSER_OPENED!"=="1" (
+  call :LOG [CRM] Browser launch skipped because BROWSER_OPENED=1.
+  exit /b 0
+)
+set "TARGET_BROWSER_PORT=%~1"
+if not defined TARGET_BROWSER_PORT (
+  call :LOG [CRM][ERROR] Browser launch skipped because requested port is empty.
+  exit /b 2
+)
+set "URL=http://127.0.0.1:!TARGET_BROWSER_PORT!/#/labs"
 set "CHROME="
+set "BROWSER_MODE=shell-default"
+set "BROWSER_TARGET="
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
 if not defined CHROME if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 
 if defined CHROME (
-  call :LOG [CRM] Browser launch URL: !URL!
-  call :LOG [CRM] Browser path selected: "!CHROME!"
-  start "" "!CHROME!" "!URL!" >> "!LOGFILE!" 2>&1
-  if "!errorlevel!"=="0" exit /b 0
-  call :LOG [CRM] Chrome launch command returned error !errorlevel!.
+  set "BROWSER_MODE=chrome"
+  set "BROWSER_TARGET=!CHROME!"
 )
 
+call :LOG [CRM] Browser launch attempt (BROWSER_OPENED=!BROWSER_OPENED!).
 call :LOG [CRM] Browser launch URL: !URL!
-call :LOG [CRM] Browser path selected: shell-default
-start "" "!URL!" >> "!LOGFILE!" 2>&1
-if "!errorlevel!"=="0" exit /b 0
-call :LOG [CRM] Default browser launch returned error !errorlevel!.
+if "!BROWSER_MODE!"=="chrome" (
+  call :LOG [CRM] Browser launch selected mode=!BROWSER_MODE! path="!BROWSER_TARGET!"
+  start "" "!BROWSER_TARGET!" "!URL!" >> "!LOGFILE!" 2>&1
+) else (
+  call :LOG [CRM] Browser launch selected mode=!BROWSER_MODE! path=shell-default
+  start "" "!URL!" >> "!LOGFILE!" 2>&1
+)
+
+if "!errorlevel!"=="0" (
+  set "BROWSER_OPENED=1"
+  call :LOG [CRM] Browser launch completed; BROWSER_OPENED set to 1.
+  exit /b 0
+)
+call :LOG [CRM][ERROR] Browser launch command returned error !errorlevel! (mode=!BROWSER_MODE!, url=!URL!).
 exit /b 2
 
 :LOG
