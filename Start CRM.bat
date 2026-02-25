@@ -87,7 +87,10 @@ call :LOG [CRM] Launcher complete.
 exit /b 0
 
 :start_or_reuse
-if not "!REUSE_SERVER!"=="1" goto :start_or_reuse_spawn
+if "!REUSE_SERVER!"=="1" goto :start_or_reuse_reuse_existing
+goto :start_or_reuse_spawn
+
+:start_or_reuse_reuse_existing
 call :wait_health "!PORT!" "20"
 if "!errorlevel!"=="0" goto :start_or_reuse_open
 set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port !PORT! did not respond within 20 seconds."
@@ -104,6 +107,12 @@ call :LOG [CRM] Launcher complete (existing server reused).
 exit /b 0
 
 :start_or_reuse_spawn
+echo [CRM] Step: start_or_reuse_spawn
+call :LOG [CRM] Step: start_or_reuse_spawn
+if not defined PORT (
+  set "FATAL_MSG=[CRM][ERROR] Cannot start server because selected PORT is empty."
+  exit /b 2
+)
 call :spawn_server
 exit /b !errorlevel!
 
@@ -111,6 +120,8 @@ exit /b !errorlevel!
 call :require_label is_crm_alive
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label start_or_reuse
+if not "!errorlevel!"=="0" exit /b 2
+call :require_label start_or_reuse_spawn
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label spawn_server
 if not "!errorlevel!"=="0" exit /b 2
@@ -194,32 +205,58 @@ call :wait_for_health "%~1" "%~2"
 exit /b !errorlevel!
 
 :wait_for_health
-set "PORT=%~1"
+set "WAIT_PORT=%~1"
 set "WAIT_MAX=%~2"
+if not defined WAIT_PORT exit /b 2
+if not defined WAIT_MAX set "WAIT_MAX=20"
 set /a WAIT_COUNT=0
 :wait_health_loop
 set /a WAIT_COUNT+=1
-call :LOG [CRM] Health probe attempt !WAIT_COUNT! of !WAIT_MAX! on http://127.0.0.1:!PORT!/health
-call :is_crm_alive "!PORT!"
+call :LOG [CRM] Health probe attempt !WAIT_COUNT! of !WAIT_MAX! on http://127.0.0.1:!WAIT_PORT!/health
+call :is_crm_alive "!WAIT_PORT!"
 if "!errorlevel!"=="0" (
-  call :LOG [CRM] Health readiness confirmed for port !PORT! on attempt !WAIT_COUNT!.
+  call :LOG [CRM] Health readiness confirmed for port !WAIT_PORT! on attempt !WAIT_COUNT!.
   exit /b 0
 )
 if !WAIT_COUNT! GEQ !WAIT_MAX! (
-  call :LOG [CRM] Health readiness timeout reached for port !PORT! after !WAIT_COUNT! attempts.
+  call :LOG [CRM] Health readiness timeout reached for port !WAIT_PORT! after !WAIT_COUNT! attempts.
   exit /b 2
 )
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 1" >> "!LOGFILE!" 2>&1
 goto :wait_health_loop
 
 :start_server
-set "PORT=%~1"
+set "TARGET_PORT=%~1"
 set "STARTED_NODE_PID="
 set "NODE_EXE=!NODE!"
 set "SERVER_SCRIPT=!ROOT!server.js"
 set "SERVER_ROOT=!ROOT!"
-call :LOG [CRM] Spawn command: "!NODE_EXE!" "!ROOT!server.js" --port !PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList @($env:SERVER_SCRIPT, '--port', $env:PORT) -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
+if not defined TARGET_PORT (
+  call :LOG [CRM][ERROR] Spawn preflight failed: PORT is empty.
+  exit /b 2
+)
+if not defined NODE_EXE (
+  call :LOG [CRM][ERROR] Spawn preflight failed: NODE_EXE is empty.
+  exit /b 2
+)
+if not exist "!NODE_EXE!" (
+  call :LOG [CRM][ERROR] Spawn preflight failed: NODE_EXE not found at "!NODE_EXE!".
+  exit /b 2
+)
+if not defined SERVER_SCRIPT (
+  call :LOG [CRM][ERROR] Spawn preflight failed: SERVER_SCRIPT is empty.
+  exit /b 2
+)
+if not exist "!SERVER_SCRIPT!" (
+  call :LOG [CRM][ERROR] Spawn preflight failed: SERVER_SCRIPT not found at "!SERVER_SCRIPT!".
+  exit /b 2
+)
+set "SPAWN_PORT=!TARGET_PORT!"
+call :LOG [CRM] Spawn preflight NODE_EXE="!NODE_EXE!"
+call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
+call :LOG [CRM] Spawn preflight PORT="!SPAWN_PORT!"
+call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !SPAWN_PORT!
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; if ([string]::IsNullOrWhiteSpace($env:NODE_EXE)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_SCRIPT)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($env:SPAWN_PORT)) { throw 'PORT empty' }; $args = @($env:SERVER_SCRIPT, '--port', $env:SPAWN_PORT); if ($args.Count -ne 3) { throw 'ArgumentList length invalid' }; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList $args -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
   if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
 )
 if not defined STARTED_NODE_PID (
@@ -259,13 +296,15 @@ for /l %%P in (8080,1,8100) do (
 exit /b 2
 
 :is_port_free
-set "PORT=%~1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $listener=New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Parse('127.0.0.1'), !PORT!); $listener.Start(); $listener.Stop(); exit 0 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
+set "TEST_PORT=%~1"
+if not defined TEST_PORT exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $listener=New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Parse('127.0.0.1'), !TEST_PORT!); $listener.Start(); $listener.Stop(); exit 0 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
 exit /b %errorlevel%
 
 :is_crm_alive
-set "PORT=%~1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!PORT!/health'); $req.Method='GET'; $req.Timeout=1500; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
+set "HEALTH_PORT=%~1"
+if not defined HEALTH_PORT exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!HEALTH_PORT!/health'); $req.Method='GET'; $req.Timeout=1500; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
 exit /b %errorlevel%
 
 :open_browser

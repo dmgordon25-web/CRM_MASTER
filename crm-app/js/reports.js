@@ -115,6 +115,45 @@ import dashboardState from './state/dashboard_state.js';
     }
   }
 
+  function hasPriorityActionOpener(){
+    return typeof window.openContactModal === 'function' || typeof window.openContactEditor === 'function';
+  }
+
+  function ensureNeedsAttentionClickBinding(){
+    const priorityCard = document.getElementById('priority-actions-card');
+    const needsAttentionList = $('#needs-attn', priorityCard || document);
+    const bindTarget = priorityCard || needsAttentionList;
+    if (!bindTarget || bindTarget.__crmPriorityActionsBound) return;
+    bindTarget.__crmPriorityActionsBound = true;
+
+    const deferPriorityContactOpen = (fn) => {
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(fn);
+        return;
+      }
+      Promise.resolve().then(fn).catch(() => {});
+    };
+
+    bindTarget.addEventListener('click', (event) => {
+      if (!event || event.defaultPrevented) return;
+      const row = event.target && event.target.closest
+        ? event.target.closest('li[data-contact-id],li[data-id]')
+        : null;
+      if (!row) return;
+      const listHost = document.getElementById('needs-attn');
+      if (!listHost || !listHost.contains(row)) return;
+      const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
+      if (!contactId) return;
+      if (!hasPriorityActionOpener()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      deferPriorityContactOpen(() => {
+        openPriorityActionContact(contactId);
+      });
+      return;
+    });
+  }
+
   function polishBeacon(area){
     try{
       if(!window.__VIS_POLISH__) window.__VIS_POLISH__ = {};
@@ -421,31 +460,7 @@ import dashboardState from './state/dashboard_state.js';
       }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
     }
 
-    const needsAttentionList = $('#needs-attn');
-    const deferPriorityContactOpen = (fn) => {
-      if (typeof queueMicrotask === 'function') {
-        queueMicrotask(fn);
-        return;
-      }
-      Promise.resolve().then(fn).catch(() => {});
-    };
-    if (needsAttentionList && !needsAttentionList.__crmPriorityActionsBound) {
-      needsAttentionList.__crmPriorityActionsBound = true;
-      needsAttentionList.addEventListener('click', (event) => {
-        if (!event || event.defaultPrevented) return;
-        const row = event.target && event.target.closest
-          ? event.target.closest('li[data-contact-id],li[data-id]')
-          : null;
-        if (!row || !needsAttentionList.contains(row)) return;
-        const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
-        event.preventDefault();
-        event.stopPropagation();
-        deferPriorityContactOpen(() => {
-          openPriorityActionContact(contactId);
-        });
-        return;
-      });
-    }
+    ensureNeedsAttentionClickBinding();
 
     const timeline = openTasks.filter(task=> task.status!=='overdue').slice(0,6);
     if (allowLegacyDashboardWrites) {
