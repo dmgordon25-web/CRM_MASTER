@@ -295,7 +295,7 @@ function ensurePartnersBoot(ctx) {
   function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 
   function closePartnerRouteDialogs() {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined' || !document || typeof document.querySelectorAll !== 'function') return;
     document.querySelectorAll('dialog[open]').forEach(dialog => {
       let allowed = false;
       try {

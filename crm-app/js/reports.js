@@ -117,44 +117,56 @@ import dashboardState from './state/dashboard_state.js';
 
   function ensureNeedsAttentionClickBinding(){
     const needsAttentionList = document.getElementById('needs-attn');
-    if (!needsAttentionList || needsAttentionList.__crmPriorityActionsBound) return;
-    needsAttentionList.__crmPriorityActionsBound = true;
+    if (!needsAttentionList) return;
+    if (needsAttentionClickBoundEl === needsAttentionList && needsAttentionList.__crmPriorityActionsBound) return;
+    if (!needsAttentionList.__crmPriorityActionsBound) {
+      needsAttentionList.__crmPriorityActionsBound = true;
 
-    const priorityClickLog = (event, contactId) => {
-      if (typeof fetch !== 'function') return;
-      fetch('/__log', {
-        method: 'POST',
-        headers: {'content-type':'application/json'},
-        body: JSON.stringify({event, contactId: String(contactId || '')})
-      }).catch(() => {});
-    };
+      const priorityClickLog = (event, contactId) => {
+        if (typeof fetch !== 'function') return;
+        fetch('/__log', {
+          method: 'POST',
+          headers: {'content-type':'application/json'},
+          body: JSON.stringify({event, contactId: String(contactId || '')})
+        }).catch(() => {});
+      };
 
-    const deferPriorityContactOpen = (fn) => {
-      if (typeof queueMicrotask === 'function') {
-        queueMicrotask(fn);
-        return;
-      }
-      Promise.resolve().then(fn).catch(() => {});
-    };
+      const deferPriorityContactOpen = (fn) => {
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(fn);
+          return;
+        }
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => {
+            fn();
+          });
+          return;
+        }
+        Promise.resolve().then(fn).catch(() => {});
+      };
 
-    needsAttentionList.addEventListener('click', (event) => {
-      if (!event || event.defaultPrevented) return;
-      const row = event.target && event.target.closest
-        ? event.target.closest('li[data-contact-id], li[data-id]')
-        : null;
-      if (!row || !needsAttentionList.contains(row)) return;
-      const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
-      if (!contactId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      priorityClickLog('priority-actions-click-fired', contactId);
-      priorityClickLog('priority-actions-contact-resolved', contactId);
-      deferPriorityContactOpen(() => {
-        priorityClickLog('priority-actions-open-invoked', contactId);
-        openPriorityActionContact(contactId);
+      needsAttentionList.addEventListener('click', (event) => {
+        if (!event) return;
+        const row = event.target && event.target.closest
+          ? event.target.closest('li[data-contact-id], li[data-id]')
+          : null;
+        if (!row || !needsAttentionList.contains(row)) return;
+        const contactId = row.getAttribute('data-contact-id') || row.getAttribute('data-id') || '';
+        if (!contactId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        priorityClickLog('priority-actions-click-fired', contactId);
+        priorityClickLog('priority-actions-contact-resolved', contactId);
+        deferPriorityContactOpen(() => {
+          priorityClickLog('priority-actions-open-invoked', contactId);
+          openPriorityActionContact(contactId);
+        });
       });
-    });
+    }
+
+    needsAttentionClickBoundEl = needsAttentionList;
   }
+
 
   function polishBeacon(area){
     try{
@@ -177,6 +189,7 @@ import dashboardState from './state/dashboard_state.js';
   let reportsGridstack = null;
   let reportsGridstackLibPromise = null;
   let reportsComputeVersion = 0;
+  let needsAttentionClickBoundEl = null;
 
   function loadReportsGridstackLib(){
     if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
@@ -436,7 +449,7 @@ import dashboardState from './state/dashboard_state.js';
 
     const modernDashboard = typeof window.renderDashboardView === 'function' || typeof window.renderAll === 'function';
     const legacyDashboardWritesEnabled = window.__CRM_LEGACY_DASHBOARD__ === true;
-    const allowLegacyDashboardWrites = legacyDashboardWritesEnabled && !modernDashboard;
+    const allowLegacyDashboardWrites = legacyDashboardWritesEnabled && !modernDashboard && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true;
     const attention = openTasks.filter(task=> task.status==='overdue' || task.status==='soon').slice(0,6);
     if (allowLegacyDashboardWrites) {
       html($('#needs-attn'), attention.length ? attention.map(task=>{
