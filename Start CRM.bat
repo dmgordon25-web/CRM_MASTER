@@ -5,6 +5,8 @@ title CRM Launcher
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
 set "LOGFILE=%~dp0launcher.log"
+set "SERVER_LOGFILE=%~dp0launcher-server.log"
+set "SERVER_ERR_LOGFILE=%~dp0launcher-server.err.log"
 set "CRM_EXITCODE=0"
 set "FATAL_MSG="
 set "NODE=%ROOT%node\node.exe"
@@ -16,6 +18,9 @@ set "STARTED_NODE_PID="
 >>"!LOGFILE!" echo [CRM] Starting CRM launcher at %DATE% %TIME%
 >>"!LOGFILE!" echo [CRM] Root: "!ROOT!"
 >>"!LOGFILE!" echo [CRM] ==============================================
+
+>"!SERVER_LOGFILE!" echo [CRM] Server stdout log started at %DATE% %TIME%
+>"!SERVER_ERR_LOGFILE!" echo [CRM] Server stderr log started at %DATE% %TIME%
 
 echo [CRM] ==============================================
 echo [CRM] Starting CRM launcher at %DATE% %TIME%
@@ -129,6 +134,10 @@ call :require_label wait_health
 if not "!errorlevel!"=="0" exit /b 2
 call :require_label open_browser
 if not "!errorlevel!"=="0" exit /b 2
+call :require_label is_pid_alive
+if not "!errorlevel!"=="0" exit /b 2
+call :require_label log_server_tail
+if not "!errorlevel!"=="0" exit /b 2
 call :LOG [CRM] Required labels verified.
 exit /b 0
 
@@ -156,9 +165,25 @@ if not "!errorlevel!"=="0" (
   exit /b 2
 )
 
+call :probe_spawned_server
+if not "!errorlevel!"=="0" (
+  call :stop_spawned_server
+  if !SPAWN_ATTEMPT! GEQ !MAX_SPAWN_ATTEMPTS! (
+    set "FATAL_MSG=[CRM][ERROR] CRM server exited before health checks after !MAX_SPAWN_ATTEMPTS! launch attempts. See launcher.log and launcher-server logs."
+    exit /b 2
+  )
+  call :select_next_free_port "!PORT!"
+  if not "!errorlevel!"=="0" (
+    set "FATAL_MSG=[CRM][ERROR] Unable to find an alternate free port in range 8080-8100 after early server exit."
+    exit /b 2
+  )
+  goto :spawn_retry_loop
+)
+
 call :wait_health "!PORT!" "20"
 if not "!errorlevel!"=="0" (
   call :LOG [CRM][WARN] Health endpoint did not respond on attempt !SPAWN_ATTEMPT! for port !PORT!.
+  call :log_server_tail
   call :stop_spawned_server
   if !SPAWN_ATTEMPT! GEQ !MAX_SPAWN_ATTEMPTS! (
     set "FATAL_MSG=[CRM][ERROR] CRM server did not become healthy after !MAX_SPAWN_ATTEMPTS! launch attempts."
@@ -179,6 +204,16 @@ if not "!errorlevel!"=="0" (
 )
 
 exit /b 0
+
+
+:probe_spawned_server
+if not defined STARTED_NODE_PID exit /b 2
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Milliseconds 700" >> "!LOGFILE!" 2>&1
+call :is_pid_alive "!STARTED_NODE_PID!"
+if "!errorlevel!"=="0" exit /b 0
+call :LOG [CRM][WARN] Spawned Node process PID !STARTED_NODE_PID! exited before health checks.
+call :log_server_tail
+exit /b 2
 
 :resolve_node
 if exist "!ROOT!node\node.exe" (
@@ -252,11 +287,14 @@ if not exist "!SERVER_SCRIPT!" (
   exit /b 2
 )
 set "SPAWN_PORT=!TARGET_PORT!"
+call :LOG [CRM] Child working directory: "!SERVER_ROOT!"
+call :LOG [CRM] Child output log path: "!SERVER_LOGFILE!"
+call :LOG [CRM] Child error log path: "!SERVER_ERR_LOGFILE!"
 call :LOG [CRM] Spawn preflight NODE_EXE="!NODE_EXE!"
 call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
 call :LOG [CRM] Spawn preflight PORT="!SPAWN_PORT!"
 call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !SPAWN_PORT!
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; if ([string]::IsNullOrWhiteSpace($env:NODE_EXE)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_SCRIPT)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($env:SPAWN_PORT)) { throw 'PORT empty' }; $args = @($env:SERVER_SCRIPT, '--port', $env:SPAWN_PORT); if ($args.Count -ne 3) { throw 'ArgumentList length invalid' }; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList $args -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; if ([string]::IsNullOrWhiteSpace($env:NODE_EXE)) { throw 'NODE_EXE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_SCRIPT)) { throw 'SERVER_SCRIPT empty' }; if ([string]::IsNullOrWhiteSpace($env:SPAWN_PORT)) { throw 'PORT empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_ROOT)) { throw 'SERVER_ROOT empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_LOGFILE)) { throw 'SERVER_LOGFILE empty' }; if ([string]::IsNullOrWhiteSpace($env:SERVER_ERR_LOGFILE)) { throw 'SERVER_ERR_LOGFILE empty' }; $args = @($env:SERVER_SCRIPT, '--port', $env:SPAWN_PORT); if ($args.Count -ne 3) { throw 'ArgumentList length invalid' }; $p = Start-Process -FilePath $env:NODE_EXE -ArgumentList $args -WorkingDirectory $env:SERVER_ROOT -PassThru -WindowStyle Hidden -RedirectStandardOutput $env:SERVER_LOGFILE -RedirectStandardError $env:SERVER_ERR_LOGFILE; if ($null -eq $p -or $null -eq $p.Id) { throw 'Failed to capture process id' }; Write-Output $p.Id" 2^>^> "!LOGFILE!"`) do (
   if not defined STARTED_NODE_PID set "STARTED_NODE_PID=%%I"
 )
 if not defined STARTED_NODE_PID (
@@ -306,6 +344,18 @@ set "HEALTH_PORT=%~1"
 if not defined HEALTH_PORT exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:!HEALTH_PORT!/health'); $req.Method='GET'; $req.Timeout=1500; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >> "!LOGFILE!" 2>&1
 exit /b %errorlevel%
+
+
+:is_pid_alive
+set "CHECK_PID=%~1"
+if not defined CHECK_PID exit /b 1
+tasklist /FI "PID eq !CHECK_PID!" /FO CSV /NH | findstr /I /C:""!CHECK_PID!"" >nul 2>&1
+exit /b %errorlevel%
+
+:log_server_tail
+if exist "!SERVER_LOGFILE!" powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path $env:SERVER_LOGFILE){ Get-Content -Path $env:SERVER_LOGFILE -Tail 40 | ForEach-Object { '[CRM][SERVER][OUT] ' + $_ } | Tee-Object -FilePath $env:LOGFILE -Append }"
+if exist "!SERVER_ERR_LOGFILE!" powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; if(Test-Path $env:SERVER_ERR_LOGFILE){ Get-Content -Path $env:SERVER_ERR_LOGFILE -Tail 40 | ForEach-Object { '[CRM][SERVER][ERR] ' + $_ } | Tee-Object -FilePath $env:LOGFILE -Append }"
+exit /b 0
 
 :open_browser
 echo [CRM] Step: open_browser
