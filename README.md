@@ -16,10 +16,11 @@ CRM Master is a single-user mortgage CRM demo that runs entirely in the browser 
 ## Client handoff packaging (canonical)
 - Canonical command: `npm run build:client-handoff`
 - Canonical artifact path: `release/CLIENT_TO_SEND/CRM Tool Client.zip`
-- Canonical unzipped root: `Install CRM Tool.bat`, `_payload/`, optional `README.txt`
+- Canonical unzipped root: `RUN ME FIRST - Install CRM Tool.bat`, `BEGIN HERE.txt`, `_payload/`
 
 Packaging output prints:
 - `CLIENT HANDOFF ARTIFACT: <path>`
+- `Repo root is developer source. Client should not use this folder.`
 - `FINAL ROOT ENTRIES: <entries>`
 - `DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.`
 

@@ -314,6 +314,38 @@ function createDistributionZip() {
   }
 }
 
+function assertZipRootClean() {
+  const pythonScript = [
+    'import json',
+    'import os',
+    'import zipfile',
+    `target = r'''${handoffZipPath}'''`,
+    'roots = set()',
+    "with zipfile.ZipFile(target, 'r') as zf:",
+    '    for info in zf.infolist():',
+    "        name = info.filename.replace('\\\\', '/')",
+    "        if not name or name.endswith('/'):",
+    '            continue',
+    "        roots.add(name.split('/', 1)[0])",
+    "print(json.dumps(sorted(roots)))"
+  ].join('\n');
+
+  const pythonCmd = os.platform() === 'win32' ? 'python' : 'python3';
+  const result = spawnSync(pythonCmd, ['-c', pythonScript], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    const stderr = (result.stderr || '').trim();
+    throw new Error(`Failed to verify distribution zip root with ${pythonCmd}: ${stderr}`);
+  }
+
+  const zipRoots = JSON.parse((result.stdout || '').trim() || '[]');
+  const requiredSorted = [...requiredHandoffRootEntries].sort((a, b) => a.localeCompare(b));
+  const zipSorted = [...zipRoots].sort((a, b) => a.localeCompare(b));
+  if (zipSorted.length !== requiredSorted.length || zipSorted.join('|') !== requiredSorted.join('|')) {
+    throw new Error(`Client distribution zip root must contain exactly: ${requiredSorted.join(', ')}. Found: ${zipSorted.join(', ')}`);
+  }
+  console.log(`Zip root assertion passed. Entries: ${zipSorted.join(', ')}`);
+}
+
 function copyRelative(relativePath) {
   const sourcePath = path.join(repoRoot, relativePath);
   const targetPath = path.join(releaseRuntimeRoot, relativePath);
@@ -519,6 +551,8 @@ function assertHandoffRootClean() {
 }
 
 function buildReleaseArtifact() {
+  console.log('Repo root is developer source. Client should not use this folder.');
+  console.log(`Clearing stale client artifacts under: ${clientToSendRoot}`);
   fs.rmSync(clientToSendRoot, { recursive: true, force: true });
   ensureDir(clientToSendRoot);
   fs.rmSync(releaseRuntimeRoot, { recursive: true, force: true });
@@ -534,13 +568,14 @@ function buildReleaseArtifact() {
   const nodeMessage = copyPortableNode();
   const maps = buildClientHandoff();
   createDistributionZip();
+  assertZipRootClean();
 
   console.log(`Release runtime created at: ${releaseRuntimeRoot}`);
   console.log(`Client distribution staging folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
   console.log(`FINAL ROOT ENTRIES: ${fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b)).join(', ')}`);
-  console.log('DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.');
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
+  console.log('DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.');
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
   console.log('\nBefore-install folder map (for handoff):');
