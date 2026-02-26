@@ -36,6 +36,11 @@ const handoffRootKeepList = new Set([
   'README.txt'
 ]);
 
+const requiredHandoffRootEntries = [
+  'Install CRM Tool.bat',
+  '_payload'
+];
+
 const excludedCategoryNotes = [
   'tests',
   'docs',
@@ -438,7 +443,11 @@ function buildClientHandoff() {
 
 function assertHandoffRootClean() {
   const entries = fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b));
+  const missingRequired = requiredHandoffRootEntries.filter((entry) => !entries.includes(entry));
   const unexpectedEntries = entries.filter((entry) => !handoffRootKeepList.has(entry));
+  if (missingRequired.length > 0) {
+    throw new Error(`Client distribution root is missing required entries: ${missingRequired.join(', ')}`);
+  }
   if (unexpectedEntries.length > 0) {
     throw new Error(`Client distribution root contains unexpected entries: ${unexpectedEntries.join(', ')}`);
   }
@@ -466,7 +475,7 @@ function buildReleaseArtifact() {
   console.log(`Client distribution staging folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
   console.log(`FINAL ROOT ENTRIES: ${fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b)).join(', ')}`);
-  console.log('DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.');
+  console.log('DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.');
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);

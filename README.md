@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File tools/restore_exe.ps1
 Packaging output prints:
 - `CLIENT HANDOFF ARTIFACT: <path>`
 - `FINAL ROOT ENTRIES: <entries>`
-- `DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.`
+- `DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.`
 
 The handoff root is hard-validated and build-fails unless root entries are limited to:
 - `Install CRM Tool.bat`

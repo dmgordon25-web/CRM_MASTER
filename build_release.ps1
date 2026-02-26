@@ -650,6 +650,17 @@ function Assert-HandoffRootClean {
     }
   }
 
+  $missingRequired = @()
+  foreach ($requiredEntry in @('Install CRM Tool.bat', '_payload')) {
+    if ($entries -notcontains $requiredEntry) {
+      $missingRequired += $requiredEntry
+    }
+  }
+
+  if ($missingRequired.Count -gt 0) {
+    throw ("Client distribution root is missing required entries: {0}" -f ($missingRequired -join ', '))
+  }
+
   if ($invalid.Count -gt 0) {
     throw ("Client distribution root contains unexpected entries: {0}" -f ($invalid -join ', '))
   }
@@ -774,7 +785,7 @@ Write-Host 'Release validation passed.'
 Write-Host "Client handoff package created: $handoffRoot"
 Write-Host "Client handoff zip created: $handoffZipPath"
 Write-Host ("FINAL ROOT ENTRIES: {0}" -f ((Get-ChildItem -LiteralPath $handoffRoot -Force | Select-Object -ExpandProperty Name | Sort-Object) -join ', '))
-Write-Host 'DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.'
+Write-Host 'DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.'
 Write-Host "CLIENT HANDOFF ARTIFACT: $handoffZipPath"
 Write-Host ("Excluded categories from client distribution: {0}" -f ($excludedCategoryNotes -join ', '))
 
