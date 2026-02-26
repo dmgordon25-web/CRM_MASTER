@@ -30,15 +30,10 @@ const prunePaths = [
   'crm-app/js/render_fixed.js.bak'
 ];
 
-const handoffRootKeepList = new Set([
-  'Install CRM Tool.bat',
-  '_payload',
-  'BEGIN HERE.txt',
-  'README.txt'
-]);
+const handoffLauncherName = 'RUN ME FIRST - Install CRM Tool.bat';
 
 const requiredHandoffRootEntries = [
-  'Install CRM Tool.bat',
+  handoffLauncherName,
   'BEGIN HERE.txt',
   '_payload'
 ];
@@ -85,8 +80,8 @@ echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\\CRM_Tool_Install.log.
 
 echo.
 echo ✅ Install complete
-echo Use the Desktop shortcut "CRM Tool" from now on.
-echo You do NOT need to open the _payload folder.
+echo Use the Desktop shortcut "CRM Tool" from now on
+echo You do NOT need to open the _payload folder
 exit /b 0
 `;
 
@@ -118,10 +113,7 @@ try {
     throw "Missing runtime payload at $runtimeSource"
   }
 
-  Write-InstallLog 'Starting CRM Tool install.'
-  Write-InstallLog "Runtime source: $runtimeSource"
-  Write-InstallLog "Install destination: $InstallRoot"
-
+  Write-InstallLog 'Starting CRM Tool install...'
   if (Test-Path -LiteralPath $InstallRoot) {
     Write-InstallLog 'Removing previous install folder.'
     Remove-Item -LiteralPath $InstallRoot -Recurse -Force
@@ -149,9 +141,17 @@ try {
   $shortcut.IconLocation = "$env:SystemRoot\\System32\\SHELL32.dll,220"
   $shortcut.Save()
 
-  Write-InstallLog "Desktop shortcut created: $shortcutPath"
+  Write-InstallLog 'Created Desktop shortcut: CRM Tool.'
   Write-InstallLog "Shortcut target: $launcherPath"
-  Write-InstallLog 'Installation completed successfully.'
+  Write-InstallLog 'Install complete.'
+
+  $openAnswer = Read-Host 'Open CRM now? (Y/N)'
+  if ($openAnswer -match '^(?i)y(?:es)?$') {
+    Start-Process -FilePath $launcherPath | Out-Null
+    Write-InstallLog 'CRM Tool launched from installer.'
+  } else {
+    Write-InstallLog 'CRM Tool launch skipped by user choice.'
+  }
 }
 catch {
   $detail = $_.Exception.Message
@@ -416,7 +416,7 @@ function buildClientHandoff() {
   ensureDir(path.join(handoffPayloadRoot, 'scripts'));
 
   fs.cpSync(releaseRuntimeRoot, handoffRuntimeRoot, { recursive: true });
-  fs.writeFileSync(path.join(handoffRoot, 'Install CRM Tool.bat'), handoffInstallBat, 'ascii');
+  fs.writeFileSync(path.join(handoffRoot, handoffLauncherName), handoffInstallBat, 'ascii');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
 
   const payloadMap = createTreeLines(handoffPayloadRoot, 2, '_payload');
@@ -441,28 +441,38 @@ function buildClientHandoff() {
 
 WHAT TO CLICK
 -------------
-Run this file now: Install CRM Tool.bat
+Double-click RUN ME FIRST - Install CRM Tool.bat
 
 WHAT THE OTHER FOLDER IS (_payload)
 ------------------------------------
-_payload contains installer support files and the app runtime files.
-You do NOT need to open or run anything in _payload.
+_payload contains support files used by the installer.
+Do not open the _payload folder.
 
 WHAT HAPPENS WHEN YOU RUN INSTALLER
 -----------------------------------
-1) The installer copies CRM Tool into: %LOCALAPPDATA%/CRM Tool
-2) It creates a Desktop shortcut named: CRM Tool
-3) It shows a success message when complete
+1) You double-click RUN ME FIRST - Install CRM Tool.bat
+2) The installer copies CRM Tool into: %LOCALAPPDATA%/CRM Tool
+3) It creates a Desktop shortcut named: CRM Tool
+4) It shows a clear completion message
 
 HOW TO OPEN CRM AFTER INSTALL
 ------------------------------
-Use the Desktop shortcut: CRM Tool
-(You do not need to run Install CRM Tool.bat again unless reinstalling.)
+After install, use the Desktop shortcut: CRM Tool
+(You do not need to run RUN ME FIRST - Install CRM Tool.bat again unless reinstalling.)
 
 TROUBLESHOOTING
 ---------------
 - If install fails, open: %TEMP%/CRM_Tool_Install.log
-- If CRM does not launch later, reinstall by running Install CRM Tool.bat again
+- If CRM does not launch later, reinstall by running RUN ME FIRST - Install CRM Tool.bat again
+
+WHAT EACH VISIBLE ITEM IS
+-------------------------
+- RUN ME FIRST - Install CRM Tool.bat
+  This is the only file to double-click first.
+- BEGIN HERE.txt
+  This instruction file.
+- _payload
+  Support files used by installer. Do not open this folder.
 
 BEFORE INSTALL FOLDER MAP
 -------------------------
@@ -493,13 +503,17 @@ ${indentLines(afterInstallMap)}
 
 function assertHandoffRootClean() {
   const entries = fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b));
+  const requiredSorted = [...requiredHandoffRootEntries].sort((a, b) => a.localeCompare(b));
   const missingRequired = requiredHandoffRootEntries.filter((entry) => !entries.includes(entry));
-  const unexpectedEntries = entries.filter((entry) => !handoffRootKeepList.has(entry));
+  const unexpectedEntries = entries.filter((entry) => !requiredHandoffRootEntries.includes(entry));
   if (missingRequired.length > 0) {
     throw new Error(`Client distribution root is missing required entries: ${missingRequired.join(', ')}`);
   }
   if (unexpectedEntries.length > 0) {
     throw new Error(`Client distribution root contains unexpected entries: ${unexpectedEntries.join(', ')}`);
+  }
+  if (entries.length !== requiredHandoffRootEntries.length || entries.join('|') !== requiredSorted.join('|')) {
+    throw new Error(`Client distribution root must contain exactly: ${requiredSorted.join(', ')}. Found: ${entries.join(', ')}`);
   }
   console.log(`Handoff root assertion passed. Entries: ${entries.join(', ')}`);
 }
