@@ -7,7 +7,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
-$handoffRoot = Join-Path $releaseRoot 'CRM_Client_Distribution'
+$clientToSendRoot = Join-Path $releaseRoot 'CLIENT_TO_SEND'
+$handoffRoot = Join-Path $clientToSendRoot 'CRM Tool Client'
 $handoffPayloadRoot = Join-Path $handoffRoot '_payload'
 $handoffRuntimeRoot = Join-Path $handoffPayloadRoot 'runtime'
 $cacheRoot = Join-Path $repoRoot '.cache'
@@ -622,7 +623,7 @@ function New-ClientDistributionZip {
     [Parameter(Mandatory = $true)][string]$ReleaseRootPath
   )
 
-  $zipPath = Join-Path $ReleaseRootPath 'CRM_Client_Distribution.zip'
+  $zipPath = Join-Path $ReleaseRootPath 'CRM Tool Client.zip'
   if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
   }
@@ -671,6 +672,12 @@ $startScriptReferences = @(
 if (-not (Test-Path -LiteralPath $releaseRoot)) {
   New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 }
+
+if (Test-Path -LiteralPath $clientToSendRoot) {
+  Remove-Item -LiteralPath $clientToSendRoot -Recurse -Force
+}
+
+New-Item -ItemType Directory -Path $clientToSendRoot -Force | Out-Null
 
 if (Test-Path -LiteralPath $releaseCrm) {
   Remove-Item -LiteralPath $releaseCrm -Recurse -Force
@@ -733,7 +740,7 @@ Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
 Write-RuntimeFileMap -ReleaseCrmPath $releaseCrm
 New-ClientHandoff -ReleaseCrmPath $releaseCrm -HandoffRootPath $handoffRoot -HandoffPayloadPath $handoffPayloadRoot -HandoffRuntimePath $handoffRuntimeRoot
 Assert-HandoffRootClean -HandoffRootPath $handoffRoot
-$handoffZipPath = New-ClientDistributionZip -HandoffRootPath $handoffRoot -ReleaseRootPath $releaseRoot
+$handoffZipPath = New-ClientDistributionZip -HandoffRootPath $handoffRoot -ReleaseRootPath $clientToSendRoot
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
@@ -766,10 +773,10 @@ if ($missing.Count -gt 0) {
 Write-Host 'Release validation passed.'
 Write-Host "Client handoff package created: $handoffRoot"
 Write-Host "Client handoff zip created: $handoffZipPath"
+Write-Host ("FINAL ROOT ENTRIES: {0}" -f ((Get-ChildItem -LiteralPath $handoffRoot -Force | Select-Object -ExpandProperty Name | Sort-Object) -join ', '))
+Write-Host 'DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.'
 Write-Host "CLIENT HANDOFF ARTIFACT: $handoffZipPath"
-Write-Host "CLIENT HANDOFF FOLDER: $handoffRoot"
 Write-Host ("Excluded categories from client distribution: {0}" -f ($excludedCategoryNotes -join ', '))
 
-Write-CompactTree -RootPath $handoffRoot -Label 'Client Distribution Root Tree' -MaxDepth 2
-Write-CompactTree -RootPath $handoffPayloadRoot -Label 'Client Distribution Payload Tree' -MaxDepth 3
-Write-CompactTree -RootPath $handoffRuntimeRoot -Label 'Expected Installed Runtime Tree' -MaxDepth 3
+Write-CompactTree -RootPath $handoffRoot -Label 'Client Distribution Staging Root Tree' -MaxDepth 2
+Write-CompactTree -RootPath $handoffPayloadRoot -Label 'Client Distribution _payload Tree' -MaxDepth 3
