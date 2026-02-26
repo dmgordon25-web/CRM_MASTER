@@ -190,16 +190,73 @@ function Invoke-PatchBundleBuild {
 
 function Remove-ReleaseClutter {
   param(
-    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath,
+    [Parameter(Mandatory = $true)][System.Collections.Generic.HashSet[string]]$ManifestReferencedPaths
   )
 
   foreach ($relativePath in $releasePrunePaths) {
     $targetPath = Join-Path $ReleaseCrmPath $relativePath
     if (Test-Path -LiteralPath $targetPath) {
+      $candidateFullPath = (Get-Item -LiteralPath $targetPath).FullName
+      $candidateRelative = [System.IO.Path]::GetRelativePath($ReleaseCrmPath, $candidateFullPath).Replace('\\', '/')
+      if ($ManifestReferencedPaths.Contains($candidateRelative)) {
+        Write-Host ("Skipped prune (manifest-referenced): {0}" -f $candidateRelative)
+        continue
+      }
+
       Remove-Item -LiteralPath $targetPath -Recurse -Force
       Write-Host ("Pruned release-only clutter: {0}" -f $relativePath)
     }
   }
+}
+
+function Get-ManifestReferencedReleasePaths {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
+  )
+
+  $referencedPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+  $releaseAppRoot = Join-Path $ReleaseCrmPath 'crm-app'
+  $releaseJsRoot = Join-Path $releaseAppRoot 'js'
+  $releasePatchManifestPath = Join-Path $releaseAppRoot 'patches/manifest.json'
+
+  if (-not (Test-Path -LiteralPath $releasePatchManifestPath)) {
+    return $referencedPaths
+  }
+
+  $manifestRaw = Get-Content -LiteralPath $releasePatchManifestPath -Raw -Encoding UTF8
+  $manifestObj = $manifestRaw | ConvertFrom-Json
+  if (-not ($manifestObj.PSObject.Properties.Name -contains 'patches') -or -not ($manifestObj.patches -is [System.Array])) {
+    throw "Invalid patch manifest format at $releasePatchManifestPath"
+  }
+
+  foreach ($patchSpec in @($manifestObj.patches)) {
+    if (-not ($patchSpec -is [string]) -or [string]::IsNullOrWhiteSpace($patchSpec)) {
+      throw "Invalid patch spec in manifest: $patchSpec"
+    }
+
+    $normalizedSpec = $patchSpec.Trim()
+    $hasSupportedPrefix = $normalizedSpec.StartsWith('./') -or $normalizedSpec.StartsWith('../')
+    if (-not $hasSupportedPrefix) {
+      throw "Unsupported patch spec format in manifest: $normalizedSpec"
+    }
+
+    $absolutePatchPath = Join-Path $releaseJsRoot $normalizedSpec
+    $resolvedPatchPath = $null
+    try {
+      $resolvedPatchPath = (Resolve-Path -LiteralPath $absolutePatchPath).ProviderPath
+    }
+    catch {
+      $resolvedPatchPath = $null
+    }
+
+    if ($resolvedPatchPath -and (Test-Path -LiteralPath $resolvedPatchPath)) {
+      $resolvedRelative = [System.IO.Path]::GetRelativePath($ReleaseCrmPath, $resolvedPatchPath).Replace('\\', '/')
+      [void]$referencedPaths.Add($resolvedRelative)
+    }
+  }
+
+  return $referencedPaths
 }
 
 function Write-RuntimeFileMap {
@@ -498,7 +555,8 @@ foreach ($relativePath in $requiredPaths) {
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
-Remove-ReleaseClutter -ReleaseCrmPath $releaseCrm
+$manifestReferencedPaths = Get-ManifestReferencedReleasePaths -ReleaseCrmPath $releaseCrm
+Remove-ReleaseClutter -ReleaseCrmPath $releaseCrm -ManifestReferencedPaths $manifestReferencedPaths
 
 Install-PortableNode -DestinationRoot $releaseCrm -DryRunInstall:$DryRun
 Assert-ReleaseNodePresent -ReleaseCrmPath $releaseCrm
