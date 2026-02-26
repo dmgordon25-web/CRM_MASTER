@@ -115,6 +115,26 @@ import dashboardState from './state/dashboard_state.js';
     }
   }
 
+  function isModernPriorityActionsSurface(){
+    const card = document.getElementById('priority-actions-card');
+    const needsAttention = document.getElementById('needs-attn');
+    const upcoming = document.getElementById('upcoming');
+    if (card) return true;
+    if (needsAttention && card && card.contains(needsAttention)) return true;
+    if (upcoming && card && card.contains(upcoming)) return true;
+    if (needsAttention && needsAttention.getAttribute('data-widget-id') === 'priorityActions') return true;
+    if (typeof window.renderDashboardView === 'function') return true;
+    if (typeof window.renderDashboard === 'function') return true;
+    if (typeof window.renderAll === 'function') return true;
+    return false;
+  }
+
+  function shouldAllowLegacyDashboardListWrites(){
+    if (isModernPriorityActionsSurface()) return false;
+    return window.__CRM_LEGACY_DASHBOARD__ === true
+      && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true;
+  }
+
   function ensureNeedsAttentionClickBinding(){
     const needsAttentionList = document.getElementById('needs-attn');
     if (!needsAttentionList) return;
@@ -429,14 +449,7 @@ import dashboardState from './state/dashboard_state.js';
       return ad-bd;
     });
 
-    const modernDashboard = typeof window.renderDashboardView === 'function'
-      || typeof window.renderAll === 'function'
-      || typeof window.renderDashboard === 'function'
-      || !!document.querySelector('#priority-actions-card')
-      || !!document.querySelector('#needs-attn[data-widget-id="priorityActions"]');
-    const allowLegacyDashboardWrites = window.__CRM_LEGACY_DASHBOARD__ === true
-      && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true
-      && !modernDashboard;
+    const allowLegacyDashboardWrites = shouldAllowLegacyDashboardListWrites();
     const attention = openTasks.filter(task=> task.status==='overdue' || task.status==='soon').slice(0,6);
     if (allowLegacyDashboardWrites) {
       html($('#needs-attn'), attention.length ? attention.map(task=>{
