@@ -51,6 +51,29 @@ $portableNodeZipName = "node-$portableNodeVersion-win-x64.zip"
 $portableNodeFolderName = "node-$portableNodeVersion-win-x64"
 $portableNodeUrl = "https://nodejs.org/dist/$portableNodeVersion/$portableNodeZipName"
 
+function Get-RelativePathPortable {
+  param(
+    [Parameter(Mandatory = $true)][string]$BasePath,
+    [Parameter(Mandatory = $true)][string]$TargetPath
+  )
+
+  # Windows PowerShell 5.1 does not provide [System.IO.Path]::GetRelativePath.
+  $baseFullPath = [System.IO.Path]::GetFullPath($BasePath)
+  $targetFullPath = [System.IO.Path]::GetFullPath($TargetPath)
+
+  $baseSeparator = [System.IO.Path]::DirectorySeparatorChar
+  if (-not $baseFullPath.EndsWith($baseSeparator)) {
+    $baseFullPath += $baseSeparator
+  }
+
+  $baseUri = [System.Uri]::new($baseFullPath)
+  $targetUri = [System.Uri]::new($targetFullPath)
+  $relativeUri = $baseUri.MakeRelativeUri($targetUri)
+  $relativePath = [System.Uri]::UnescapeDataString($relativeUri.ToString())
+
+  return $relativePath.Replace('\\', '/').Replace('\', '/')
+}
+
 function Invoke-PatchBundleBuild {
   param(
     [Parameter(Mandatory = $true)][string]$ReleaseCrmPath
@@ -198,7 +221,7 @@ function Remove-ReleaseClutter {
     $targetPath = Join-Path $ReleaseCrmPath $relativePath
     if (Test-Path -LiteralPath $targetPath) {
       $candidateFullPath = (Get-Item -LiteralPath $targetPath).FullName
-      $candidateRelative = [System.IO.Path]::GetRelativePath($ReleaseCrmPath, $candidateFullPath).Replace('\\', '/')
+      $candidateRelative = Get-RelativePathPortable -BasePath $ReleaseCrmPath -TargetPath $candidateFullPath
       if ($ManifestReferencedPaths.Contains($candidateRelative)) {
         Write-Host ("Skipped prune (manifest-referenced): {0}" -f $candidateRelative)
         continue
@@ -251,7 +274,7 @@ function Get-ManifestReferencedReleasePaths {
     }
 
     if ($resolvedPatchPath -and (Test-Path -LiteralPath $resolvedPatchPath)) {
-      $resolvedRelative = [System.IO.Path]::GetRelativePath($ReleaseCrmPath, $resolvedPatchPath).Replace('\\', '/')
+      $resolvedRelative = Get-RelativePathPortable -BasePath $ReleaseCrmPath -TargetPath $resolvedPatchPath
       [void]$referencedPaths.Add($resolvedRelative)
     }
   }
