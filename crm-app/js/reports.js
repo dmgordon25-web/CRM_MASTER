@@ -123,13 +123,11 @@ import dashboardState from './state/dashboard_state.js';
       needsAttentionList.__crmPriorityActionsBound = true;
 
       const deferPriorityContactOpen = (fn) => {
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => {
-            fn();
-          });
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(fn);
           return;
         }
-        setTimeout(fn, 0);
+        Promise.resolve().then(fn);
       };
 
       needsAttentionList.addEventListener('click', (event) => {
@@ -433,9 +431,12 @@ import dashboardState from './state/dashboard_state.js';
 
     const modernDashboard = typeof window.renderDashboardView === 'function'
       || typeof window.renderAll === 'function'
-      || !!document.querySelector('#priority-actions-card');
-    const legacyDashboardWritesEnabled = window.__CRM_LEGACY_DASHBOARD__ === true;
-    const allowLegacyDashboardWrites = legacyDashboardWritesEnabled && !modernDashboard && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true;
+      || typeof window.renderDashboard === 'function'
+      || !!document.querySelector('#priority-actions-card')
+      || !!document.querySelector('#needs-attn[data-widget-id="priorityActions"]');
+    const allowLegacyDashboardWrites = window.__CRM_LEGACY_DASHBOARD__ === true
+      && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true
+      && !modernDashboard;
     const attention = openTasks.filter(task=> task.status==='overdue' || task.status==='soon').slice(0,6);
     if (allowLegacyDashboardWrites) {
       html($('#needs-attn'), attention.length ? attention.map(task=>{
