@@ -35,6 +35,11 @@ $releasePrunePaths = @(
   'crm-app/js/render_fixed.js.bak'
 )
 
+$handoffRootKeepList = @(
+  'Install CRM Tool.bat',
+  'Package'
+)
+
 $runtimeFileMap = @(
   @{ Path = 'Start CRM.bat'; Why = 'Primary launcher used by client handoff.' },
   @{ Path = 'Create Desktop Shortcut.bat'; Why = 'One-click helper to create a desktop shortcut.' },
@@ -472,44 +477,53 @@ function Write-InstallLog {
   Add-Content -LiteralPath $logPath -Value $line
 }
 
-if (-not (Test-Path -LiteralPath $runtimeSource)) {
-  throw "Missing runtime payload at $runtimeSource"
-}
-
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
-Write-InstallLog 'Starting CRM Tool install.'
-Write-InstallLog "Runtime source: $runtimeSource"
-Write-InstallLog "Install destination: $InstallRoot"
 
-if (Test-Path -LiteralPath $InstallRoot) {
-  Write-InstallLog 'Removing previous install folder.'
-  Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+try {
+  if (-not (Test-Path -LiteralPath $runtimeSource)) {
+    throw "Missing runtime payload at $runtimeSource"
+  }
+
+  Write-InstallLog 'Starting CRM Tool install.'
+  Write-InstallLog "Runtime source: $runtimeSource"
+  Write-InstallLog "Install destination: $InstallRoot"
+
+  if (Test-Path -LiteralPath $InstallRoot) {
+    Write-InstallLog 'Removing previous install folder.'
+    Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+  }
+
+  New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
+  Write-InstallLog 'Runtime files copied.'
+
+  if (-not (Test-Path -LiteralPath $launcherPath)) {
+    throw "Expected launcher missing after copy: $launcherPath"
+  }
+
+  $desktopPath = [Environment]::GetFolderPath('Desktop')
+  if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+    throw 'Unable to resolve Desktop path for shortcut creation.'
+  }
+
+  $shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
+  $wshShell = New-Object -ComObject WScript.Shell
+  $shortcut = $wshShell.CreateShortcut($shortcutPath)
+  $shortcut.TargetPath = $launcherPath
+  $shortcut.WorkingDirectory = $InstallRoot
+  $shortcut.Description = 'Launch CRM Tool'
+  $shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
+  $shortcut.Save()
+
+  Write-InstallLog "Desktop shortcut created: $shortcutPath"
+  Write-InstallLog "Shortcut target: $launcherPath"
+  Write-InstallLog 'Installation completed successfully.'
 }
-
-New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
-Write-InstallLog 'Runtime files copied.'
-
-if (-not (Test-Path -LiteralPath $launcherPath)) {
-  throw "Expected launcher missing after copy: $launcherPath"
+catch {
+  $detail = $_.Exception.Message
+  Write-InstallLog "Installation failed: $detail"
+  throw
 }
-
-$desktopPath = [Environment]::GetFolderPath('Desktop')
-if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-  throw 'Unable to resolve Desktop path for shortcut creation.'
-}
-
-$shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
-$wshShell = New-Object -ComObject WScript.Shell
-$shortcut = $wshShell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $launcherPath
-$shortcut.WorkingDirectory = $InstallRoot
-$shortcut.Description = 'Launch CRM Tool'
-$shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
-$shortcut.Save()
-
-Write-InstallLog "Desktop shortcut created: $shortcutPath"
-Write-InstallLog 'Installation completed successfully.'
 "@
 
   $clientReadmePath = Join-Path $payloadDocs 'CLIENT_README.txt'
@@ -540,6 +554,13 @@ Troubleshooting
   Set-Content -LiteralPath $installerScriptPath -Value $installerScriptContent -Encoding ASCII
   Set-Content -LiteralPath $installerPsPath -Value $installerPsContent -Encoding UTF8
   Set-Content -LiteralPath $clientReadmePath -Value $clientReadmeContent -Encoding UTF8
+
+  $handoffEntries = Get-ChildItem -LiteralPath $HandoffRootPath -Force | Select-Object -ExpandProperty Name
+  foreach ($entry in $handoffEntries) {
+    if ($handoffRootKeepList -notcontains $entry) {
+      throw "Unexpected client-facing handoff root entry: $entry"
+    }
+  }
 }
 
 $startScriptReferences = @(
