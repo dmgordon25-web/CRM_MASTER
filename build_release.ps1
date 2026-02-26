@@ -7,6 +7,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
+$handoffRoot = Join-Path $releaseRoot 'CRM_Client_Handoff'
+$handoffPayloadRoot = Join-Path $handoffRoot 'Package'
+$handoffRuntimeRoot = Join-Path $handoffPayloadRoot 'runtime'
 $cacheRoot = Join-Path $repoRoot '.cache'
 $cacheNodeRoot = Join-Path $cacheRoot 'node'
 
@@ -320,6 +323,145 @@ function Assert-ReleaseNodePresent {
   Write-Host "Verified bundled Node runtime: $releaseNodeExe"
 }
 
+function New-ClientHandoff {
+  param(
+    [Parameter(Mandatory = $true)][string]$ReleaseCrmPath,
+    [Parameter(Mandatory = $true)][string]$HandoffRootPath,
+    [Parameter(Mandatory = $true)][string]$HandoffPayloadPath,
+    [Parameter(Mandatory = $true)][string]$HandoffRuntimePath
+  )
+
+  if (Test-Path -LiteralPath $HandoffRootPath) {
+    Remove-Item -LiteralPath $HandoffRootPath -Recurse -Force
+  }
+
+  New-Item -ItemType Directory -Path $HandoffRuntimePath -Force | Out-Null
+
+  Copy-Item -LiteralPath (Join-Path $ReleaseCrmPath '*') -Destination $HandoffRuntimePath -Recurse -Force
+
+  $installerScriptPath = Join-Path $HandoffRootPath 'Install CRM Tool.bat'
+  $installerScriptContent = @"
+@echo off
+setlocal
+
+set "HANDOFF_ROOT=%~dp0"
+set "INSTALLER_PS=%HANDOFF_ROOT%Package\scripts\Install-CRM-Tool.ps1"
+
+if not exist "%INSTALLER_PS%" (
+  echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
+  exit /b 1
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%"
+set "INSTALL_EXIT=%ERRORLEVEL%"
+if not "%INSTALL_EXIT%"=="0" (
+  echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\CRM_Tool_Install.log.
+  exit /b %INSTALL_EXIT%
+)
+
+echo [OK] CRM Tool installed successfully.
+echo [OK] Use desktop shortcut "CRM Tool" to launch.
+exit /b 0
+"@
+
+  $payloadScripts = Join-Path $HandoffPayloadPath 'scripts'
+  $payloadDocs = Join-Path $HandoffPayloadPath 'docs'
+  New-Item -ItemType Directory -Path $payloadScripts -Force | Out-Null
+  New-Item -ItemType Directory -Path $payloadDocs -Force | Out-Null
+
+  $installerPsPath = Join-Path $payloadScripts 'Install-CRM-Tool.ps1'
+  $installerPsContent = @"
+param(
+  [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'CRM Tool')
+)
+
+$ErrorActionPreference = 'Stop'
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$handoffPayloadRoot = Split-Path -Parent $scriptRoot
+$runtimeSource = Join-Path $handoffPayloadRoot 'runtime'
+$launcherRelativePath = 'Start CRM.bat'
+$launcherPath = Join-Path $InstallRoot $launcherRelativePath
+$logPath = Join-Path $env:TEMP 'CRM_Tool_Install.log'
+
+function Write-InstallLog {
+  param([string]$Message)
+  $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+  $line = "[$timestamp] $Message"
+  Write-Host $line
+  Add-Content -LiteralPath $logPath -Value $line
+}
+
+if (-not (Test-Path -LiteralPath $runtimeSource)) {
+  throw "Missing runtime payload at $runtimeSource"
+}
+
+Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+Write-InstallLog 'Starting CRM Tool install.'
+Write-InstallLog "Runtime source: $runtimeSource"
+Write-InstallLog "Install destination: $InstallRoot"
+
+if (Test-Path -LiteralPath $InstallRoot) {
+  Write-InstallLog 'Removing previous install folder.'
+  Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+}
+
+New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
+Write-InstallLog 'Runtime files copied.'
+
+if (-not (Test-Path -LiteralPath $launcherPath)) {
+  throw "Expected launcher missing after copy: $launcherPath"
+}
+
+$desktopPath = [Environment]::GetFolderPath('Desktop')
+if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+  throw 'Unable to resolve Desktop path for shortcut creation.'
+}
+
+$shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
+$wshShell = New-Object -ComObject WScript.Shell
+$shortcut = $wshShell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $launcherPath
+$shortcut.WorkingDirectory = $InstallRoot
+$shortcut.Description = 'Launch CRM Tool'
+$shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
+$shortcut.Save()
+
+Write-InstallLog "Desktop shortcut created: $shortcutPath"
+Write-InstallLog 'Installation completed successfully.'
+"@
+
+  $clientReadmePath = Join-Path $payloadDocs 'CLIENT_README.txt'
+  $clientReadmeContent = @"
+CRM Tool - Client Install & Run Guide
+=====================================
+
+Install (one time)
+------------------
+1) In this handoff folder, double-click: Install CRM Tool.bat
+2) Wait for the installer success message.
+3) Confirm a desktop shortcut named "CRM Tool" appears.
+
+Run CRM Tool
+------------
+1) Double-click the desktop shortcut: CRM Tool
+2) Wait a few seconds for the local launcher to start.
+3) Your browser opens CRM Tool automatically.
+
+Troubleshooting
+---------------
+- If install fails, open: %TEMP%\CRM_Tool_Install.log
+- If launch fails later, open launcher.log in:
+  %LOCALAPPDATA%\CRM Tool
+- If needed, run Install CRM Tool.bat again to reinstall cleanly.
+"@
+
+  Set-Content -LiteralPath $installerScriptPath -Value $installerScriptContent -Encoding ASCII
+  Set-Content -LiteralPath $installerPsPath -Value $installerPsContent -Encoding UTF8
+  Set-Content -LiteralPath $clientReadmePath -Value $clientReadmeContent -Encoding UTF8
+}
+
 $startScriptReferences = @(
   'Start CRM.bat',
   'Create Desktop Shortcut.bat',
@@ -393,6 +535,7 @@ If launch fails
 "@
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
 Write-RuntimeFileMap -ReleaseCrmPath $releaseCrm
+New-ClientHandoff -ReleaseCrmPath $releaseCrm -HandoffRootPath $handoffRoot -HandoffPayloadPath $handoffPayloadRoot -HandoffRuntimePath $handoffRuntimeRoot
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
@@ -423,3 +566,4 @@ if ($missing.Count -gt 0) {
 }
 
 Write-Host 'Release validation passed.'
+Write-Host "Client handoff package created: $handoffRoot"
