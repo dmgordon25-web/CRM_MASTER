@@ -652,6 +652,9 @@ function Assert-HandoffRootClean {
   if ($invalid.Count -gt 0) {
     throw ("Client distribution root contains unexpected entries: {0}" -f ($invalid -join ', '))
   }
+
+  $sortedEntries = $entries | Sort-Object
+  Write-Host ("Handoff root assertion passed. Entries: {0}" -f ($sortedEntries -join ', '))
 }
 
 $startScriptReferences = @(
@@ -763,6 +766,8 @@ if ($missing.Count -gt 0) {
 Write-Host 'Release validation passed.'
 Write-Host "Client handoff package created: $handoffRoot"
 Write-Host "Client handoff zip created: $handoffZipPath"
+Write-Host "CLIENT HANDOFF ARTIFACT: $handoffZipPath"
+Write-Host "CLIENT HANDOFF FOLDER: $handoffRoot"
 Write-Host ("Excluded categories from client distribution: {0}" -f ($excludedCategoryNotes -join ', '))
 
 Write-CompactTree -RootPath $handoffRoot -Label 'Client Distribution Root Tree' -MaxDepth 2

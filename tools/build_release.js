@@ -432,11 +432,16 @@ function buildClientHandoff() {
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'docs', 'CLIENT_README.txt'), clientReadmeText, 'utf8');
 
-  for (const entry of fs.readdirSync(handoffRoot)) {
-    if (!handoffRootKeepList.has(entry)) {
-      throw new Error(`Unexpected client-facing handoff root entry: ${entry}`);
-    }
+  assertHandoffRootClean();
+}
+
+function assertHandoffRootClean() {
+  const entries = fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b));
+  const unexpectedEntries = entries.filter((entry) => !handoffRootKeepList.has(entry));
+  if (unexpectedEntries.length > 0) {
+    throw new Error(`Client distribution root contains unexpected entries: ${unexpectedEntries.join(', ')}`);
   }
+  console.log(`Handoff root assertion passed. Entries: ${entries.join(', ')}`);
 }
 
 function buildReleaseArtifact() {
@@ -457,6 +462,8 @@ function buildReleaseArtifact() {
   console.log(`Release runtime created at: ${releaseRuntimeRoot}`);
   console.log(`Client distribution folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
+  console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
+  console.log(`CLIENT HANDOFF FOLDER: ${handoffRoot}`);
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
   printTree(handoffRoot, 'Client distribution root tree (max depth 2):', 2);
