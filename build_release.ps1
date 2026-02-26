@@ -37,7 +37,17 @@ $releasePrunePaths = @(
 
 $handoffRootKeepList = @(
   'Install CRM Tool.bat',
-  '_payload'
+  '_payload',
+  'README.txt'
+)
+
+$excludedCategoryNotes = @(
+  'tests',
+  'docs',
+  'CI config',
+  'backup artifacts',
+  'devtools',
+  'legacy launch scripts'
 )
 
 $runtimeFileMap = @(
@@ -445,7 +455,7 @@ if not "%INSTALL_EXIT%"=="0" (
 )
 
 echo [OK] CRM Tool installed successfully.
-echo [OK] Use the CRM Tool desktop shortcut from now on.
+echo [OK] Use the Desktop shortcut "CRM Tool" from now on.
 exit /b 0
 "@
 
@@ -551,15 +561,96 @@ Troubleshooting
 - If needed, run Install CRM Tool.bat again to reinstall cleanly.
 "@
 
+  $handoffReadmePath = Join-Path $HandoffRootPath 'README.txt'
+  $handoffReadmeContent = @"
+CRM Tool Client Distribution
+============================
+
+Only one action is required:
+- Double-click "Install CRM Tool.bat"
+
+After install succeeds, use the Desktop shortcut "CRM Tool" from now on.
+The _payload folder contains installer/runtime files and is not a launch entrypoint.
+"@
+
   Set-Content -LiteralPath $installerScriptPath -Value $installerScriptContent -Encoding ASCII
   Set-Content -LiteralPath $installerPsPath -Value $installerPsContent -Encoding UTF8
   Set-Content -LiteralPath $clientReadmePath -Value $clientReadmeContent -Encoding UTF8
+  Set-Content -LiteralPath $handoffReadmePath -Value $handoffReadmeContent -Encoding UTF8
 
   $handoffEntries = Get-ChildItem -LiteralPath $HandoffRootPath -Force | Select-Object -ExpandProperty Name
   foreach ($entry in $handoffEntries) {
     if ($handoffRootKeepList -notcontains $entry) {
       throw "Unexpected client-facing handoff root entry: $entry"
     }
+  }
+}
+
+function Write-CompactTree {
+  param(
+    [Parameter(Mandatory = $true)][string]$RootPath,
+    [Parameter(Mandatory = $true)][string]$Label,
+    [Parameter(Mandatory = $false)][int]$MaxDepth = 3
+  )
+
+  if (-not (Test-Path -LiteralPath $RootPath)) {
+    Write-Host ("=== {0} ===" -f $Label)
+    Write-Host "<missing>"
+    return
+  }
+
+  Write-Host ("=== {0} ===" -f $Label)
+  Write-Host '.'
+  Get-ChildItem -LiteralPath $RootPath -Force -Recurse |
+    ForEach-Object {
+      $relative = Get-RelativePathPortable -BasePath $RootPath -TargetPath $_.FullName
+      $depth = ($relative -split '/').Count
+      if ($depth -le $MaxDepth) {
+        if ($_.PSIsContainer) {
+          Write-Host ("./{0}/" -f $relative)
+        }
+        else {
+          Write-Host ("./{0}" -f $relative)
+        }
+      }
+    }
+}
+
+function New-ClientDistributionZip {
+  param(
+    [Parameter(Mandatory = $true)][string]$HandoffRootPath,
+    [Parameter(Mandatory = $true)][string]$ReleaseRootPath
+  )
+
+  $zipPath = Join-Path $ReleaseRootPath 'CRM_Client_Distribution.zip'
+  if (Test-Path -LiteralPath $zipPath) {
+    Remove-Item -LiteralPath $zipPath -Force
+  }
+
+  Compress-Archive -Path (Join-Path $HandoffRootPath '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
+  return $zipPath
+}
+
+function Assert-HandoffRootClean {
+  param(
+    [Parameter(Mandatory = $true)][string]$HandoffRootPath
+  )
+
+  $allowed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+  foreach ($entry in $handoffRootKeepList) {
+    [void]$allowed.Add($entry)
+  }
+
+  $invalid = @()
+  $entries = Get-ChildItem -LiteralPath $HandoffRootPath -Force | Select-Object -ExpandProperty Name
+  foreach ($entry in $entries) {
+    if (-not $allowed.Contains($entry)) {
+      $invalid += $entry
+    }
+  }
+
+  if ($invalid.Count -gt 0) {
+    throw ("Client distribution root contains unexpected entries: {0}" -f ($invalid -join ', '))
   }
 }
 
@@ -638,6 +729,8 @@ If launch fails
 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
 Write-RuntimeFileMap -ReleaseCrmPath $releaseCrm
 New-ClientHandoff -ReleaseCrmPath $releaseCrm -HandoffRootPath $handoffRoot -HandoffPayloadPath $handoffPayloadRoot -HandoffRuntimePath $handoffRuntimeRoot
+Assert-HandoffRootClean -HandoffRootPath $handoffRoot
+$handoffZipPath = New-ClientDistributionZip -HandoffRootPath $handoffRoot -ReleaseRootPath $releaseRoot
 
 Write-Host "Release artifact created: $releaseCrm"
 Write-Host 'Top-level files/folders copied:'
@@ -669,3 +762,9 @@ if ($missing.Count -gt 0) {
 
 Write-Host 'Release validation passed.'
 Write-Host "Client handoff package created: $handoffRoot"
+Write-Host "Client handoff zip created: $handoffZipPath"
+Write-Host ("Excluded categories from client distribution: {0}" -f ($excludedCategoryNotes -join ', '))
+
+Write-CompactTree -RootPath $handoffRoot -Label 'Client Distribution Root Tree' -MaxDepth 2
+Write-CompactTree -RootPath $handoffPayloadRoot -Label 'Client Distribution Payload Tree' -MaxDepth 3
+Write-CompactTree -RootPath $handoffRuntimeRoot -Label 'Expected Installed Runtime Tree' -MaxDepth 3

@@ -31,8 +31,18 @@ const prunePaths = [
 
 const handoffRootKeepList = new Set([
   'Install CRM Tool.bat',
-  '_payload'
+  '_payload',
+  'README.txt'
 ]);
+
+const excludedCategoryNotes = [
+  'tests',
+  'docs',
+  'CI config',
+  'backup artifacts',
+  'devtools',
+  'legacy scripts'
+];
 
 const runtimeFileMap = [
   { path: 'Start CRM.bat', why: 'Primary launcher used by installed shortcut.' },
@@ -66,8 +76,18 @@ if not "%INSTALL_EXIT%"=="0" (
 )
 
 echo [OK] CRM Tool installed successfully.
-echo [OK] Use the CRM Tool desktop shortcut from now on.
+echo [OK] Use the Desktop shortcut "CRM Tool" from now on.
 exit /b 0
+`;
+
+const handoffRootReadmeText = `CRM Tool Client Distribution
+============================
+
+Only one action is required:
+- Double-click "Install CRM Tool.bat"
+
+After install succeeds, use the Desktop shortcut "CRM Tool" from now on.
+The _payload folder contains installer/runtime files and is not a launch entrypoint.
 `;
 
 const handoffInstallPs1 = `param(
@@ -408,6 +428,7 @@ function buildClientHandoff() {
 
   fs.cpSync(releaseRuntimeRoot, handoffRuntimeRoot, { recursive: true });
   fs.writeFileSync(path.join(handoffRoot, 'Install CRM Tool.bat'), handoffInstallBat, 'ascii');
+  fs.writeFileSync(path.join(handoffRoot, 'README.txt'), handoffRootReadmeText, 'utf8');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'docs', 'CLIENT_README.txt'), clientReadmeText, 'utf8');
 
@@ -437,9 +458,10 @@ function buildReleaseArtifact() {
   console.log(`Client distribution folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
   console.log(nodeMessage);
+  console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
   printTree(handoffRoot, 'Client distribution root tree (max depth 2):', 2);
   printTree(handoffPayloadRoot, 'Payload tree (max depth 2):', 2);
-  printTree(releaseRuntimeRoot, 'Installed runtime tree (expected, max depth 2):', 2);
+  printTree(handoffRuntimeRoot, 'Installed runtime tree (expected, max depth 2):', 2);
 }
 
 buildReleaseArtifact();
