@@ -26,6 +26,11 @@ const prunePaths = [
   'crm-app/js/render_fixed.js.bak'
 ];
 
+const handoffRootKeepList = new Set([
+  'Install CRM Tool.bat',
+  'Package'
+]);
+
 const runtimeFileMap = [
   { path: 'Start CRM.bat', why: 'Primary launcher used by installed shortcut.' },
   { path: 'Create Desktop Shortcut.bat', why: 'Manual fallback helper to create desktop shortcut.' },
@@ -83,44 +88,53 @@ function Write-InstallLog {
   Add-Content -LiteralPath $logPath -Value $line
 }
 
-if (-not (Test-Path -LiteralPath $runtimeSource)) {
-  throw "Missing runtime payload at $runtimeSource"
-}
-
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
-Write-InstallLog 'Starting CRM Tool install.'
-Write-InstallLog "Runtime source: $runtimeSource"
-Write-InstallLog "Install destination: $InstallRoot"
 
-if (Test-Path -LiteralPath $InstallRoot) {
-  Write-InstallLog 'Removing previous install folder.'
-  Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+try {
+  if (-not (Test-Path -LiteralPath $runtimeSource)) {
+    throw "Missing runtime payload at $runtimeSource"
+  }
+
+  Write-InstallLog 'Starting CRM Tool install.'
+  Write-InstallLog "Runtime source: $runtimeSource"
+  Write-InstallLog "Install destination: $InstallRoot"
+
+  if (Test-Path -LiteralPath $InstallRoot) {
+    Write-InstallLog 'Removing previous install folder.'
+    Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+  }
+
+  New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
+  Write-InstallLog 'Runtime files copied.'
+
+  if (-not (Test-Path -LiteralPath $launcherPath)) {
+    throw "Expected launcher missing after copy: $launcherPath"
+  }
+
+  $desktopPath = [Environment]::GetFolderPath('Desktop')
+  if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+    throw 'Unable to resolve Desktop path for shortcut creation.'
+  }
+
+  $shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
+  $wshShell = New-Object -ComObject WScript.Shell
+  $shortcut = $wshShell.CreateShortcut($shortcutPath)
+  $shortcut.TargetPath = $launcherPath
+  $shortcut.WorkingDirectory = $InstallRoot
+  $shortcut.Description = 'Launch CRM Tool'
+  $shortcut.IconLocation = "$env:SystemRoot\\System32\\SHELL32.dll,220"
+  $shortcut.Save()
+
+  Write-InstallLog "Desktop shortcut created: $shortcutPath"
+  Write-InstallLog "Shortcut target: $launcherPath"
+  Write-InstallLog 'Installation completed successfully.'
 }
-
-New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
-Write-InstallLog 'Runtime files copied.'
-
-if (-not (Test-Path -LiteralPath $launcherPath)) {
-  throw "Expected launcher missing after copy: $launcherPath"
+catch {
+  $detail = $_.Exception.Message
+  Write-InstallLog "Installation failed: $detail"
+  throw
 }
-
-$desktopPath = [Environment]::GetFolderPath('Desktop')
-if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-  throw 'Unable to resolve Desktop path for shortcut creation.'
-}
-
-$shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
-$wshShell = New-Object -ComObject WScript.Shell
-$shortcut = $wshShell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $launcherPath
-$shortcut.WorkingDirectory = $InstallRoot
-$shortcut.Description = 'Launch CRM Tool'
-$shortcut.IconLocation = "$env:SystemRoot\\System32\\SHELL32.dll,220"
-$shortcut.Save()
-
-Write-InstallLog "Desktop shortcut created: $shortcutPath"
-Write-InstallLog 'Installation completed successfully.'
 `;
 
 const clientReadmeText = `CRM Tool - Client Install & Run Guide
@@ -161,13 +175,50 @@ function copyRelative(relativePath) {
 }
 
 function pruneReleaseClutter() {
+  const manifestReferenced = getManifestReferencedReleasePaths();
   for (const relativePath of prunePaths) {
     const targetPath = path.join(releaseRuntimeRoot, relativePath);
     if (fs.existsSync(targetPath)) {
+      const candidateRelative = path.relative(releaseRuntimeRoot, targetPath).replace(/\\/g, '/');
+      if (manifestReferenced.has(candidateRelative)) {
+        console.log(`Skipped prune (manifest-referenced): ${candidateRelative}`);
+        continue;
+      }
       fs.rmSync(targetPath, { recursive: true, force: true });
       console.log(`Pruned release-only clutter: ${relativePath}`);
     }
   }
+}
+
+function getManifestReferencedReleasePaths() {
+  const referenced = new Set();
+  const manifestPath = path.join(releaseRuntimeRoot, 'crm-app', 'patches', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    return referenced;
+  }
+
+  const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const patches = Array.isArray(parsed) ? parsed : parsed.patches;
+  if (!Array.isArray(patches)) {
+    throw new Error(`Invalid patch manifest format at ${manifestPath}`);
+  }
+
+  const releaseJsRoot = path.join(releaseRuntimeRoot, 'crm-app', 'js');
+  for (const patchSpec of patches) {
+    if (typeof patchSpec !== 'string' || patchSpec.trim().length === 0) {
+      throw new Error(`Invalid patch spec in manifest: ${patchSpec}`);
+    }
+    const normalized = patchSpec.trim();
+    if (!normalized.startsWith('./') && !normalized.startsWith('../')) {
+      throw new Error(`Unsupported patch spec format in manifest: ${normalized}`);
+    }
+    const resolved = path.resolve(releaseJsRoot, normalized);
+    if (fs.existsSync(resolved)) {
+      referenced.add(path.relative(releaseRuntimeRoot, resolved).replace(/\\/g, '/'));
+    }
+  }
+
+  return referenced;
 }
 
 function copyPortableNode() {
@@ -219,6 +270,12 @@ function buildClientHandoff() {
   fs.writeFileSync(path.join(handoffRoot, 'Install CRM Tool.bat'), handoffInstallBat, 'ascii');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'docs', 'CLIENT_README.txt'), clientReadmeText, 'utf8');
+
+  for (const entry of fs.readdirSync(handoffRoot)) {
+    if (!handoffRootKeepList.has(entry)) {
+      throw new Error(`Unexpected client-facing handoff root entry: ${entry}`);
+    }
+  }
 }
 
 function buildReleaseArtifact() {
