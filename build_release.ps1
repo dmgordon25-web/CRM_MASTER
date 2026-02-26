@@ -7,8 +7,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $releaseRoot = Join-Path $repoRoot 'release'
 $releaseCrm = Join-Path $releaseRoot 'CRM'
-$handoffRoot = Join-Path $releaseRoot 'CRM_Client_Handoff'
-$handoffPayloadRoot = Join-Path $handoffRoot 'Package'
+$handoffRoot = Join-Path $releaseRoot 'CRM_Client_Distribution'
+$handoffPayloadRoot = Join-Path $handoffRoot '_payload'
 $handoffRuntimeRoot = Join-Path $handoffPayloadRoot 'runtime'
 $cacheRoot = Join-Path $repoRoot '.cache'
 $cacheNodeRoot = Join-Path $cacheRoot 'node'
@@ -37,7 +37,7 @@ $releasePrunePaths = @(
 
 $handoffRootKeepList = @(
   'Install CRM Tool.bat',
-  'Package'
+  '_payload'
 )
 
 $runtimeFileMap = @(
@@ -430,7 +430,7 @@ function New-ClientHandoff {
 setlocal
 
 set "HANDOFF_ROOT=%~dp0"
-set "INSTALLER_PS=%HANDOFF_ROOT%Package\scripts\Install-CRM-Tool.ps1"
+set "INSTALLER_PS=%HANDOFF_ROOT%_payload\scripts\Install-CRM-Tool.ps1"
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
@@ -445,7 +445,7 @@ if not "%INSTALL_EXIT%"=="0" (
 )
 
 echo [OK] CRM Tool installed successfully.
-echo [OK] Use desktop shortcut "CRM Tool" to launch.
+echo [OK] Use the CRM Tool desktop shortcut from now on.
 exit /b 0
 "@
 

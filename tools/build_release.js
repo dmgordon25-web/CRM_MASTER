@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { spawnSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 const releaseRoot = path.join(repoRoot, 'release');
 const releaseRuntimeRoot = path.join(releaseRoot, 'CRM');
-const handoffRoot = path.join(releaseRoot, 'CRM_Client_Handoff');
-const handoffPayloadRoot = path.join(handoffRoot, 'Package');
+const handoffRoot = path.join(releaseRoot, 'CRM_Client_Distribution');
+const handoffZipPath = path.join(releaseRoot, 'CRM_Client_Distribution.zip');
+const handoffPayloadRoot = path.join(handoffRoot, '_payload');
 const handoffRuntimeRoot = path.join(handoffPayloadRoot, 'runtime');
 
 const runtimePaths = [
@@ -28,7 +31,7 @@ const prunePaths = [
 
 const handoffRootKeepList = new Set([
   'Install CRM Tool.bat',
-  'Package'
+  '_payload'
 ]);
 
 const runtimeFileMap = [
@@ -48,7 +51,7 @@ const handoffInstallBat = `@echo off
 setlocal
 
 set "HANDOFF_ROOT=%~dp0"
-set "INSTALLER_PS=%HANDOFF_ROOT%Package\\scripts\\Install-CRM-Tool.ps1"
+set "INSTALLER_PS=%HANDOFF_ROOT%_payload\\scripts\\Install-CRM-Tool.ps1"
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
@@ -63,7 +66,7 @@ if not "%INSTALL_EXIT%"=="0" (
 )
 
 echo [OK] CRM Tool installed successfully.
-echo [OK] Use desktop shortcut "CRM Tool" to launch.
+echo [OK] Use the CRM Tool desktop shortcut from now on.
 exit /b 0
 `;
 
@@ -158,10 +161,147 @@ Troubleshooting
 - If launch fails later, open launcher.log in:
   %LOCALAPPDATA%\\CRM Tool
 - If needed, run Install CRM Tool.bat again to reinstall cleanly.
+
+Important
+---------
+- Ignore the _payload folder; it is installer support data.
 `;
+
+const runtimeExcludeContains = [
+  '/.github/',
+  '/archive/',
+  '/backups/',
+  '/tests/',
+  '/test/',
+  '/docs/',
+  '/fixtures/',
+  '/__tests__/',
+  '/.husky/',
+  '/.vscode/',
+  '/.idea/'
+];
+
+const runtimeExcludeFileNames = new Set([
+  '.ds_store',
+  'thumbs.db',
+  '.eslintcache',
+  'npm-debug.log'
+]);
+
+const runtimeExcludeSuffixes = [
+  '.bak',
+  '.tmp',
+  '.orig',
+  '.rej',
+  '.swp'
+];
 
 function ensureDir(targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
+}
+
+function toPosix(relativePath) {
+  return relativePath.replace(/\\/g, '/');
+}
+
+function shouldExcludeRuntimePath(relativePath, isDirectory) {
+  const normalized = `/${toPosix(relativePath).toLowerCase()}`;
+
+  for (const marker of runtimeExcludeContains) {
+    if (normalized.includes(marker)) {
+      return true;
+    }
+  }
+
+  const baseName = path.basename(normalized);
+  if (!isDirectory && runtimeExcludeFileNames.has(baseName)) {
+    return true;
+  }
+
+  if (!isDirectory) {
+    for (const suffix of runtimeExcludeSuffixes) {
+      if (normalized.endsWith(suffix)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function pruneRuntimeNoise(targetRoot) {
+  const walk = (currentDir) => {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = path.relative(targetRoot, fullPath);
+      const isDirectory = entry.isDirectory();
+      if (shouldExcludeRuntimePath(relativePath, isDirectory)) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        console.log(`Pruned runtime noise: ${toPosix(relativePath)}`);
+        continue;
+      }
+      if (isDirectory) {
+        walk(fullPath);
+      }
+    }
+  };
+
+  walk(targetRoot);
+}
+
+function printTree(rootPath, headerLabel, maxDepth = 2) {
+  console.log(`\n${headerLabel}`);
+  console.log(toPosix(path.relative(repoRoot, rootPath) || '.'));
+
+  const walk = (dirPath, prefix, depth) => {
+    if (depth >= maxDepth) {
+      return;
+    }
+
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    entries.forEach((entry, index) => {
+      const isLast = index === entries.length - 1;
+      const branch = isLast ? '└─ ' : '├─ ';
+      const nextPrefix = prefix + (isLast ? '   ' : '│  ');
+      const suffix = entry.isDirectory() ? '/' : '';
+      console.log(`${prefix}${branch}${entry.name}${suffix}`);
+      if (entry.isDirectory()) {
+        walk(path.join(dirPath, entry.name), nextPrefix, depth + 1);
+      }
+    });
+  };
+
+  walk(rootPath, '', 0);
+}
+
+function createDistributionZip() {
+  if (fs.existsSync(handoffZipPath)) {
+    fs.rmSync(handoffZipPath, { force: true });
+  }
+
+  const pythonScript = [
+    'import os',
+    'import zipfile',
+    `source = r'''${handoffRoot}'''`,
+    `target = r'''${handoffZipPath}'''`,
+    "with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED) as zf:",
+    '    for root, _, files in os.walk(source):',
+    '        files.sort()',
+    '        for filename in files:',
+    '            full = os.path.join(root, filename)',
+    '            arcname = os.path.relpath(full, source)',
+    '            zf.write(full, arcname)',
+    "print('created', target)"
+  ].join('\n');
+
+  const pythonCmd = os.platform() === 'win32' ? 'python' : 'python3';
+  const zipResult = spawnSync(pythonCmd, ['-c', pythonScript], { encoding: 'utf8' });
+  if (zipResult.status !== 0) {
+    const stderr = (zipResult.stderr || '').trim();
+    throw new Error(`Failed to create distribution zip with ${pythonCmd}: ${stderr}`);
+  }
 }
 
 function copyRelative(relativePath) {
@@ -287,13 +427,19 @@ function buildReleaseArtifact() {
   }
 
   pruneReleaseClutter();
+  pruneRuntimeNoise(releaseRuntimeRoot);
   writeRuntimeMetadata();
   const nodeMessage = copyPortableNode();
   buildClientHandoff();
+  createDistributionZip();
 
   console.log(`Release runtime created at: ${releaseRuntimeRoot}`);
-  console.log(`Client handoff package created at: ${handoffRoot}`);
+  console.log(`Client distribution folder created at: ${handoffRoot}`);
+  console.log(`Client distribution zip created at: ${handoffZipPath}`);
   console.log(nodeMessage);
+  printTree(handoffRoot, 'Client distribution root tree (max depth 2):', 2);
+  printTree(handoffPayloadRoot, 'Payload tree (max depth 2):', 2);
+  printTree(releaseRuntimeRoot, 'Installed runtime tree (expected, max depth 2):', 2);
 }
 
 buildReleaseArtifact();
