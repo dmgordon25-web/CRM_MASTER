@@ -101,19 +101,9 @@ goto :start_or_reuse_spawn
 
 :start_or_reuse_reuse_existing
 call :wait_health "!PORT!" "!HEALTH_WAIT_MAX_ATTEMPTS!"
-if "!errorlevel!"=="0" goto :start_or_reuse_open
+if "!errorlevel!"=="0" goto :start_or_reuse_health_ok
 set "FATAL_MSG=[CRM][ERROR] Existing CRM server at port !PORT! did not respond within startup timeout."
 exit /b 2
-
-:start_or_reuse_open
-call :open_browser "!PORT!"
-if "!errorlevel!"=="0" goto :start_or_reuse_reused_ok
-set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:!PORT!/#/labs."
-exit /b 2
-
-:start_or_reuse_reused_ok
-call :LOG [CRM] Launcher complete (existing server reused).
-exit /b 0
 
 :start_or_reuse_spawn
 echo [CRM] Step: start_or_reuse_spawn
@@ -123,7 +113,23 @@ if not defined PORT (
   exit /b 2
 )
 call :spawn_server
+if "!errorlevel!"=="0" goto :start_or_reuse_health_ok
 exit /b !errorlevel!
+
+:start_or_reuse_health_ok
+call :LOG [CRM] Health success event confirmed for port !PORT!.
+call :open_browser "!PORT!"
+if "!errorlevel!"=="0" goto :start_or_reuse_done
+set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:!PORT!/#/labs."
+exit /b 2
+
+:start_or_reuse_done
+if "!REUSE_SERVER!"=="1" (
+  call :LOG [CRM] Launcher complete (existing server reused).
+) else (
+  call :LOG [CRM] Launcher complete (server spawned).
+)
+exit /b 0
 
 :verify_required_labels
 for %%L in (LOG require_label verify_required_labels resolve_node is_port_free is_crm_alive wait_health wait_for_health start_or_reuse start_or_reuse_spawn start_server spawn_server probe_spawned_server stop_spawned_server select_next_free_port is_pid_alive log_server_tail open_browser) do (
@@ -192,12 +198,6 @@ if not "!errorlevel!"=="0" (
     exit /b 2
   )
   goto :spawn_retry_loop
-)
-
-call :open_browser "!PORT!"
-if not "!errorlevel!"=="0" (
-  set "FATAL_MSG=[CRM][ERROR] Failed to launch browser for http://127.0.0.1:!PORT!/#/labs."
-  exit /b 2
 )
 
 exit /b 0
