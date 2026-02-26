@@ -7,8 +7,9 @@ const { spawnSync } = require('child_process');
 const repoRoot = path.resolve(__dirname, '..');
 const releaseRoot = path.join(repoRoot, 'release');
 const releaseRuntimeRoot = path.join(releaseRoot, 'CRM');
-const handoffRoot = path.join(releaseRoot, 'CRM_Client_Distribution');
-const handoffZipPath = path.join(releaseRoot, 'CRM_Client_Distribution.zip');
+const clientToSendRoot = path.join(releaseRoot, 'CLIENT_TO_SEND');
+const handoffRoot = path.join(clientToSendRoot, 'CRM Tool Client');
+const handoffZipPath = path.join(clientToSendRoot, 'CRM Tool Client.zip');
 const handoffPayloadRoot = path.join(handoffRoot, '_payload');
 const handoffRuntimeRoot = path.join(handoffPayloadRoot, 'runtime');
 
@@ -445,6 +446,8 @@ function assertHandoffRootClean() {
 }
 
 function buildReleaseArtifact() {
+  fs.rmSync(clientToSendRoot, { recursive: true, force: true });
+  ensureDir(clientToSendRoot);
   fs.rmSync(releaseRuntimeRoot, { recursive: true, force: true });
   ensureDir(releaseRuntimeRoot);
 
@@ -460,15 +463,15 @@ function buildReleaseArtifact() {
   createDistributionZip();
 
   console.log(`Release runtime created at: ${releaseRuntimeRoot}`);
-  console.log(`Client distribution folder created at: ${handoffRoot}`);
+  console.log(`Client distribution staging folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
+  console.log(`FINAL ROOT ENTRIES: ${fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b)).join(', ')}`);
+  console.log('DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.');
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
-  console.log(`CLIENT HANDOFF FOLDER: ${handoffRoot}`);
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
-  printTree(handoffRoot, 'Client distribution root tree (max depth 2):', 2);
-  printTree(handoffPayloadRoot, 'Payload tree (max depth 2):', 2);
-  printTree(handoffRuntimeRoot, 'Installed runtime tree (expected, max depth 2):', 2);
+  printTree(handoffRoot, 'Client distribution staging root tree (max depth 2):', 2);
+  printTree(handoffPayloadRoot, 'Client distribution _payload tree (max depth 2):', 2);
 }
 
 buildReleaseArtifact();

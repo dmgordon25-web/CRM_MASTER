@@ -39,12 +39,13 @@ powershell -ExecutionPolicy Bypass -File tools/restore_exe.ps1
 
 ## Client handoff packaging (canonical)
 - Canonical command: `npm run build:client-handoff`
-- Canonical artifact path: `release/CRM_Client_Distribution.zip`
-- Canonical unzipped root: `release/CRM_Client_Distribution/`
+- Canonical artifact path: `release/CLIENT_TO_SEND/CRM Tool Client.zip`
+- Canonical unzipped root: `release/CLIENT_TO_SEND/CRM Tool Client/`
 
 Packaging output prints:
 - `CLIENT HANDOFF ARTIFACT: <path>`
-- `CLIENT HANDOFF FOLDER: <path>`
+- `FINAL ROOT ENTRIES: <entries>`
+- `DO NOT ZIP THE REPO ROOT. SEND THE CLIENT HANDOFF ARTIFACT ABOVE.`
 
 The handoff root is hard-validated and build-fails unless root entries are limited to:
 - `Install CRM Tool.bat`
