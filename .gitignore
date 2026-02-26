@@ -7,3 +7,9 @@ proofs/
 test-results/
 release/CRM/
 .cache/node/
+
+launcher.log
+smoke-test-results.json
+test_log.txt
+
+release/CLIENT_TO_SEND/
