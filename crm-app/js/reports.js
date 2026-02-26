@@ -122,27 +122,14 @@ import dashboardState from './state/dashboard_state.js';
     if (!needsAttentionList.__crmPriorityActionsBound) {
       needsAttentionList.__crmPriorityActionsBound = true;
 
-      const priorityClickLog = (event, contactId) => {
-        if (typeof fetch !== 'function') return;
-        fetch('/__log', {
-          method: 'POST',
-          headers: {'content-type':'application/json'},
-          body: JSON.stringify({event, contactId: String(contactId || '')})
-        }).catch(() => {});
-      };
-
       const deferPriorityContactOpen = (fn) => {
-        if (typeof queueMicrotask === 'function') {
-          queueMicrotask(fn);
-          return;
-        }
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => {
             fn();
           });
           return;
         }
-        Promise.resolve().then(fn).catch(() => {});
+        setTimeout(fn, 0);
       };
 
       needsAttentionList.addEventListener('click', (event) => {
@@ -155,10 +142,7 @@ import dashboardState from './state/dashboard_state.js';
         if (!contactId) return;
         event.preventDefault();
         event.stopPropagation();
-        priorityClickLog('priority-actions-click-fired', contactId);
-        priorityClickLog('priority-actions-contact-resolved', contactId);
         deferPriorityContactOpen(() => {
-          priorityClickLog('priority-actions-open-invoked', contactId);
           openPriorityActionContact(contactId);
         });
       });
@@ -447,7 +431,9 @@ import dashboardState from './state/dashboard_state.js';
       return ad-bd;
     });
 
-    const modernDashboard = typeof window.renderDashboardView === 'function' || typeof window.renderAll === 'function';
+    const modernDashboard = typeof window.renderDashboardView === 'function'
+      || typeof window.renderAll === 'function'
+      || !!document.querySelector('#priority-actions-card');
     const legacyDashboardWritesEnabled = window.__CRM_LEGACY_DASHBOARD__ === true;
     const allowLegacyDashboardWrites = legacyDashboardWritesEnabled && !modernDashboard && window.__CRM_REPORTS_ALLOW_LEGACY_LIST_WRITES__ === true;
     const attention = openTasks.filter(task=> task.status==='overdue' || task.status==='soon').slice(0,6);
