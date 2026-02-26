@@ -33,11 +33,13 @@ const prunePaths = [
 const handoffRootKeepList = new Set([
   'Install CRM Tool.bat',
   '_payload',
+  'BEGIN HERE.txt',
   'README.txt'
 ]);
 
 const requiredHandoffRootEntries = [
   'Install CRM Tool.bat',
+  'BEGIN HERE.txt',
   '_payload'
 ];
 
@@ -77,23 +79,15 @@ if not exist "%INSTALLER_PS%" (
 powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%"
 set "INSTALL_EXIT=%ERRORLEVEL%"
 if not "%INSTALL_EXIT%"=="0" (
-  echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\\CRM_Tool_Install.log.
+echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\\CRM_Tool_Install.log.
   exit /b %INSTALL_EXIT%
 )
 
-echo [OK] CRM Tool installed successfully.
-echo [OK] Use the Desktop shortcut "CRM Tool" from now on.
+echo.
+echo ✅ Install complete
+echo Use the Desktop shortcut "CRM Tool" from now on.
+echo You do NOT need to open the _payload folder.
 exit /b 0
-`;
-
-const handoffRootReadmeText = `CRM Tool Client Distribution
-============================
-
-Only one action is required:
-- Double-click "Install CRM Tool.bat"
-
-After install succeeds, use the Desktop shortcut "CRM Tool" from now on.
-The _payload folder contains installer/runtime files and is not a launch entrypoint.
 `;
 
 const handoffInstallPs1 = `param(
@@ -166,32 +160,6 @@ catch {
 }
 `;
 
-const clientReadmeText = `CRM Tool - Client Install & Run Guide
-=====================================
-
-Install (one time)
-------------------
-1) In this handoff folder, double-click: Install CRM Tool.bat
-2) Wait for the installer success message.
-3) Confirm a desktop shortcut named "CRM Tool" appears.
-
-Run CRM Tool
-------------
-1) Double-click the desktop shortcut: CRM Tool
-2) Wait a few seconds for the local launcher to start.
-3) Your browser opens CRM Tool automatically.
-
-Troubleshooting
----------------
-- If install fails, open: %TEMP%\\CRM_Tool_Install.log
-- If launch fails later, open launcher.log in:
-  %LOCALAPPDATA%\\CRM Tool
-- If needed, run Install CRM Tool.bat again to reinstall cleanly.
-
-Important
----------
-- Ignore the _payload folder; it is installer support data.
-`;
 
 const runtimeExcludeContains = [
   '/.github/',
@@ -277,7 +245,17 @@ function pruneRuntimeNoise(targetRoot) {
 
 function printTree(rootPath, headerLabel, maxDepth = 2) {
   console.log(`\n${headerLabel}`);
-  console.log(toPosix(path.relative(repoRoot, rootPath) || '.'));
+  const relative = toPosix(path.relative(repoRoot, rootPath) || '.');
+  console.log(relative);
+
+  const treeLines = createTreeLines(rootPath, maxDepth, relative);
+  for (const line of treeLines.slice(1)) {
+    console.log(line);
+  }
+}
+
+function createTreeLines(rootPath, maxDepth = 2, headerLabel = toPosix(path.relative(repoRoot, rootPath) || '.')) {
+  const lines = [headerLabel];
 
   const walk = (dirPath, prefix, depth) => {
     if (depth >= maxDepth) {
@@ -292,7 +270,7 @@ function printTree(rootPath, headerLabel, maxDepth = 2) {
       const branch = isLast ? '└─ ' : '├─ ';
       const nextPrefix = prefix + (isLast ? '   ' : '│  ');
       const suffix = entry.isDirectory() ? '/' : '';
-      console.log(`${prefix}${branch}${entry.name}${suffix}`);
+      lines.push(`${prefix}${branch}${entry.name}${suffix}`);
       if (entry.isDirectory()) {
         walk(path.join(dirPath, entry.name), nextPrefix, depth + 1);
       }
@@ -300,6 +278,12 @@ function printTree(rootPath, headerLabel, maxDepth = 2) {
   };
 
   walk(rootPath, '', 0);
+  return lines;
+}
+
+function indentLines(lines, spaces = 2) {
+  const prefix = ' '.repeat(spaces);
+  return lines.map((line) => `${prefix}${line}`).join('\n');
 }
 
 function createDistributionZip() {
@@ -430,15 +414,81 @@ function buildClientHandoff() {
   fs.rmSync(handoffRoot, { recursive: true, force: true });
   ensureDir(path.join(handoffPayloadRoot, 'runtime'));
   ensureDir(path.join(handoffPayloadRoot, 'scripts'));
-  ensureDir(path.join(handoffPayloadRoot, 'docs'));
 
   fs.cpSync(releaseRuntimeRoot, handoffRuntimeRoot, { recursive: true });
   fs.writeFileSync(path.join(handoffRoot, 'Install CRM Tool.bat'), handoffInstallBat, 'ascii');
-  fs.writeFileSync(path.join(handoffRoot, 'README.txt'), handoffRootReadmeText, 'utf8');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
-  fs.writeFileSync(path.join(handoffPayloadRoot, 'docs', 'CLIENT_README.txt'), clientReadmeText, 'utf8');
+
+  const payloadMap = createTreeLines(handoffPayloadRoot, 2, '_payload');
+  const afterInstallMap = [
+    '%LOCALAPPDATA%/CRM Tool/',
+    '├─ Start CRM.bat',
+    '├─ Create Desktop Shortcut.bat',
+    '├─ Create Desktop Shortcut.ps1',
+    '├─ server.js',
+    '├─ crm-app/',
+    '├─ node/ (if bundled)',
+    '├─ README.txt',
+    '└─ RUNTIME_FILE_MAP.txt',
+    '',
+    'Desktop shortcut:',
+    '└─ %USERPROFILE%/Desktop/CRM Tool.lnk -> %LOCALAPPDATA%/CRM Tool/Start CRM.bat'
+  ];
+
+  const beforeInstallPlaceholder = '__BEFORE_INSTALL_MAP__';
+  const beginHereTemplate = `BEGIN HERE - CRM Tool
+=====================
+
+WHAT TO CLICK
+-------------
+Run this file now: Install CRM Tool.bat
+
+WHAT THE OTHER FOLDER IS (_payload)
+------------------------------------
+_payload contains installer support files and the app runtime files.
+You do NOT need to open or run anything in _payload.
+
+WHAT HAPPENS WHEN YOU RUN INSTALLER
+-----------------------------------
+1) The installer copies CRM Tool into: %LOCALAPPDATA%/CRM Tool
+2) It creates a Desktop shortcut named: CRM Tool
+3) It shows a success message when complete
+
+HOW TO OPEN CRM AFTER INSTALL
+------------------------------
+Use the Desktop shortcut: CRM Tool
+(You do not need to run Install CRM Tool.bat again unless reinstalling.)
+
+TROUBLESHOOTING
+---------------
+- If install fails, open: %TEMP%/CRM_Tool_Install.log
+- If CRM does not launch later, reinstall by running Install CRM Tool.bat again
+
+BEFORE INSTALL FOLDER MAP
+-------------------------
+${beforeInstallPlaceholder}
+
+PAYLOAD FOLDER (ONE-LEVEL SUMMARY)
+----------------------------------
+${indentLines(payloadMap)}
+
+AFTER INSTALL FOLDER MAP
+------------------------
+${indentLines(afterInstallMap)}
+`;
+
+  fs.writeFileSync(path.join(handoffRoot, 'BEGIN HERE.txt'), beginHereTemplate, 'utf8');
+  const beforeInstallMap = createTreeLines(handoffRoot, 2, 'CRM Tool Client (unzipped root)');
+  const beginHereText = beginHereTemplate.replace(beforeInstallPlaceholder, indentLines(beforeInstallMap));
+  fs.writeFileSync(path.join(handoffRoot, 'BEGIN HERE.txt'), beginHereText, 'utf8');
 
   assertHandoffRootClean();
+
+  return {
+    beforeInstallMap,
+    payloadMap,
+    afterInstallMap
+  };
 }
 
 function assertHandoffRootClean() {
@@ -468,7 +518,7 @@ function buildReleaseArtifact() {
   pruneRuntimeNoise(releaseRuntimeRoot);
   writeRuntimeMetadata();
   const nodeMessage = copyPortableNode();
-  buildClientHandoff();
+  const maps = buildClientHandoff();
   createDistributionZip();
 
   console.log(`Release runtime created at: ${releaseRuntimeRoot}`);
@@ -479,6 +529,18 @@ function buildReleaseArtifact() {
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
+  console.log('\nBefore-install folder map (for handoff):');
+  for (const line of maps.beforeInstallMap) {
+    console.log(line);
+  }
+  console.log('\nPayload folder map (for handoff):');
+  for (const line of maps.payloadMap) {
+    console.log(line);
+  }
+  console.log('\nAfter-install expected folder map (for handoff):');
+  for (const line of maps.afterInstallMap) {
+    console.log(line);
+  }
   printTree(handoffRoot, 'Client distribution staging root tree (max depth 2):', 2);
   printTree(handoffPayloadRoot, 'Client distribution _payload tree (max depth 2):', 2);
 }
