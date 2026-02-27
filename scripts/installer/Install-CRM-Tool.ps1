@@ -1,33 +1,46 @@
 param(
-  [Parameter(Mandatory=$true)][string]$RepoRoot
+  [Parameter(Mandatory=$true)][string]$RepoRoot,
+  [Parameter(Mandatory=$true)][string]$PsLogPath
 )
 
 $ErrorActionPreference = 'Stop'
 
-$repo = (Resolve-Path $RepoRoot).Path
-$startBat = Join-Path $repo 'Start CRM.bat'
-if (-not (Test-Path $startBat)) { throw "Missing Start CRM.bat at: $startBat" }
+function Log([string]$msg) {
+  $line = ("[{0}] {1}" -f (Get-Date).ToString("s"), $msg)
+  try { Add-Content -Path $PsLogPath -Value $line -Encoding UTF8 } catch {}
+  Write-Host $msg
+}
 
-# Desktop path (works for most users)
-$desktop = [Environment]::GetFolderPath('Desktop')
-if (-not $desktop) { throw "Could not resolve Desktop folder." }
+try {
+  Log "Starting installer. RepoRoot=$RepoRoot"
+  Log "PS log path=$PsLogPath"
 
-$lnkPath = Join-Path $desktop 'CRM Tool.lnk'
+  $repo = (Resolve-Path $RepoRoot).Path
+  $startBat = Join-Path $repo 'Start CRM.bat'
+  if (-not (Test-Path $startBat)) { throw "Missing Start CRM.bat at: $startBat" }
 
-$wsh = New-Object -ComObject WScript.Shell
-$sc = $wsh.CreateShortcut($lnkPath)
+  $desktop = [Environment]::GetFolderPath('Desktop')
+  if (-not $desktop) { throw "Could not resolve Desktop folder." }
 
-# Launch via cmd so .bat works reliably
-$sc.TargetPath = "$env:WINDIR\System32\cmd.exe"
-$sc.Arguments  = "/c `"$startBat`""
-$sc.WorkingDirectory = $repo
-$sc.WindowStyle = 1
-$sc.Description = "CRM Tool"
-$sc.Save()
+  $lnkPath = Join-Path $desktop 'CRM Tool.lnk'
+  Log "Creating shortcut: $lnkPath"
 
-if (-not (Test-Path $lnkPath)) { throw "Shortcut creation failed: $lnkPath" }
+  $wsh = New-Object -ComObject WScript.Shell
+  $sc = $wsh.CreateShortcut($lnkPath)
+  $sc.TargetPath = "$env:WINDIR\System32\cmd.exe"
+  $sc.Arguments  = "/c `"$startBat`""
+  $sc.WorkingDirectory = $repo
+  $sc.WindowStyle = 1
+  $sc.Description = "CRM Tool"
+  $sc.Save()
 
-# Optional: launch once after creation
-Start-Process -FilePath "$env:WINDIR\System32\cmd.exe" -ArgumentList "/c `"$startBat`"" -WorkingDirectory $repo
+  if (-not (Test-Path $lnkPath)) { throw "Shortcut creation failed: $lnkPath" }
 
-exit 0
+  Log "Shortcut created successfully."
+  exit 0
+}
+catch {
+  Log ("ERROR: " + $_.Exception.Message)
+  Log ($_.ScriptStackTrace)
+  exit 1
+}
