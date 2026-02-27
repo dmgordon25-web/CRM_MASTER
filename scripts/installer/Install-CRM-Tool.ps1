@@ -1,59 +1,81 @@
 param(
-  [string]$RepoRoot
+  [Parameter(Mandatory=$true)][string]$RepoRoot,
+  [Parameter(Mandatory=$true)][string]$PsLogPath
 )
 
 $ErrorActionPreference = 'Stop'
-$psLogPath = Join-Path $env:TEMP 'CRMTool-Install-ps.log'
 $transcriptStarted = $false
 
-function Write-InstallMessage {
+function Write-InstallLog {
   param([string]$Message)
 
   $line = "[CRM INSTALL] $Message"
   Write-Host $line
   try {
-    Add-Content -LiteralPath $psLogPath -Value $line -Encoding UTF8
+    Add-Content -LiteralPath $PsLogPath -Value $line -Encoding UTF8
   } catch {
-    Write-Host '[CRM INSTALL] Warning: unable to append to PS log file.'
+    Write-Host '[CRM INSTALL] Warning: unable to write to PS log path.'
   }
 }
 
-try {
-  try {
-    if (Test-Path -LiteralPath $psLogPath) {
-      Remove-Item -LiteralPath $psLogPath -Force
+function Resolve-NeededRuntimePaths {
+  param(
+    [string]$StartBatPath,
+    [string]$ResolvedRepoRoot
+  )
+
+  $needed = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+  foreach ($must in @('Start CRM.bat', 'server.js', 'crm-app')) {
+    [void]$needed.Add($must)
+  }
+
+  $content = Get-Content -LiteralPath $StartBatPath -Raw
+  $matches = [regex]::Matches($content, '(?i)(?:!ROOT!|%ROOT%)([^"\r\n\s]+)')
+  foreach ($match in $matches) {
+    $candidate = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $candidate = $candidate -replace '/', '\\'
+    if ($candidate.StartsWith('\\')) { $candidate = $candidate.Substring(1) }
+    if ($candidate.Contains('..')) { continue }
+
+    $candidatePath = Join-Path $ResolvedRepoRoot $candidate
+    if (Test-Path -LiteralPath $candidatePath) {
+      [void]$needed.Add($candidate)
     }
-    New-Item -ItemType File -Path $psLogPath -Force | Out-Null
+  }
+
+  return @($needed)
+}
+
+try {
+  Write-Host "PS log: $PsLogPath"
+  try {
+    if (Test-Path -LiteralPath $PsLogPath) {
+      Remove-Item -LiteralPath $PsLogPath -Force
+    }
+    New-Item -ItemType File -Path $PsLogPath -Force | Out-Null
   } catch {
-    Write-Host "[CRM INSTALL] Warning: unable to reset PS log at $psLogPath"
+    Write-Host "[CRM INSTALL] Warning: unable to initialize PS log at $PsLogPath"
   }
 
   try {
-    Start-Transcript -LiteralPath $psLogPath -Append | Out-Null
+    Start-Transcript -Path $PsLogPath -Append | Out-Null
     $transcriptStarted = $true
   } catch {
-    Write-Host "[CRM INSTALL] Warning: transcript could not start at $psLogPath"
+    Write-InstallLog "Warning: Start-Transcript failed for $PsLogPath"
   }
 
-  if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
-    throw 'RepoRoot parameter is required.'
-  }
+  Write-InstallLog "PS log: $PsLogPath"
 
   $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
-  $appEntry = Join-Path $resolvedRepoRoot 'crm-app\index.html'
-  if (-not (Test-Path -LiteralPath $appEntry)) {
-    throw "Missing required runtime entry: $appEntry"
+  $requiredIndex = Join-Path $resolvedRepoRoot 'crm-app\index.html'
+  $requiredStart = Join-Path $resolvedRepoRoot 'Start CRM.bat'
+
+  if (-not (Test-Path -LiteralPath $requiredIndex)) {
+    throw "Missing required file: $requiredIndex"
   }
-
-  $sourceStartBat = Join-Path $resolvedRepoRoot 'Start CRM.bat'
-  $sourceServerJs = Join-Path $resolvedRepoRoot 'server.js'
-  $sourceCrmApp = Join-Path $resolvedRepoRoot 'crm-app'
-  $sourceNodeFolder = Join-Path $resolvedRepoRoot 'node'
-
-  foreach ($requiredPath in @($sourceStartBat, $sourceServerJs, $sourceCrmApp)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-      throw "Missing required runtime item: $requiredPath"
-    }
+  if (-not (Test-Path -LiteralPath $requiredStart)) {
+    throw "Missing required file: $requiredStart"
   }
 
   $InstallRoot = Join-Path $env:LOCALAPPDATA 'CRM Tool'
@@ -62,71 +84,71 @@ try {
     throw 'Desktop path could not be resolved.'
   }
 
-  $launcherPath = Join-Path $InstallRoot 'Start CRM Tool.bat'
-  $installedStartBat = Join-Path $InstallRoot 'Start CRM.bat'
-  $shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
-
-  Write-InstallMessage "Repo root: $resolvedRepoRoot"
-  Write-InstallMessage "Install root: $InstallRoot"
+  Write-InstallLog "Repo root: $resolvedRepoRoot"
+  Write-InstallLog "Install root: $InstallRoot"
 
   if (Test-Path -LiteralPath $InstallRoot) {
-    Write-InstallMessage 'Removing existing install folder.'
     Remove-Item -LiteralPath $InstallRoot -Recurse -Force
   }
   New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 
-  Write-InstallMessage 'Copying runtime files.'
-  Copy-Item -LiteralPath $sourceStartBat -Destination $InstallRoot -Force
-  Copy-Item -LiteralPath $sourceServerJs -Destination $InstallRoot -Force
-  Copy-Item -LiteralPath $sourceCrmApp -Destination $InstallRoot -Recurse -Force
+  $pathsToCopy = Resolve-NeededRuntimePaths -StartBatPath $requiredStart -ResolvedRepoRoot $resolvedRepoRoot
+  Write-InstallLog ('Copy set: ' + ($pathsToCopy -join ', '))
 
-  if (Test-Path -LiteralPath $sourceNodeFolder) {
-    Write-InstallMessage 'Copying bundled node runtime.'
-    Copy-Item -LiteralPath $sourceNodeFolder -Destination $InstallRoot -Recurse -Force
-  } else {
-    Write-InstallMessage 'Bundled node runtime not found; installed launcher will use system Node.js if available.'
+  foreach ($relativePath in $pathsToCopy) {
+    $sourcePath = Join-Path $resolvedRepoRoot $relativePath
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+      throw "Referenced runtime path missing: $sourcePath"
+    }
+
+    $destinationPath = Join-Path $InstallRoot $relativePath
+    $destinationParent = Split-Path -Path $destinationPath -Parent
+    if (-not [string]::IsNullOrWhiteSpace($destinationParent)) {
+      New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+
+    if ((Get-Item -LiteralPath $sourcePath).PSIsContainer) {
+      Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
+    } else {
+      Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
+    }
   }
 
-  $launcherContent = @(
-    '@echo off',
-    'setlocal EnableExtensions',
-    'cd /d "%~dp0"',
-    'call "%~dp0Start CRM.bat"'
-  )
-  Set-Content -LiteralPath $launcherPath -Value $launcherContent -Encoding ASCII
-
+  $installedStartBat = Join-Path $InstallRoot 'Start CRM.bat'
   if (-not (Test-Path -LiteralPath $installedStartBat)) {
-    throw "Installed runtime launcher missing: $installedStartBat"
+    throw "Installed launcher missing: $installedStartBat"
   }
 
+  $shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
   $wshShell = New-Object -ComObject WScript.Shell
   $shortcut = $wshShell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = $launcherPath
+  $shortcut.TargetPath = 'cmd.exe'
+  $shortcut.Arguments = "/c ""$installedStartBat"""
   $shortcut.WorkingDirectory = $InstallRoot
   $shortcut.Description = 'Launch CRM Tool'
-  $shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
   $shortcut.Save()
 
-  Write-InstallMessage "Desktop shortcut created: $shortcutPath"
-  Write-InstallMessage "Desktop shortcut target: $launcherPath"
+  Write-InstallLog "Desktop shortcut created: $shortcutPath"
+  Write-InstallLog "Desktop shortcut target: cmd.exe $($shortcut.Arguments)"
 
-  Start-Process -FilePath $launcherPath -WorkingDirectory $InstallRoot | Out-Null
-  Write-InstallMessage 'Installed launcher started.'
+  Start-Process -FilePath $installedStartBat -WorkingDirectory $InstallRoot
+  Write-InstallLog 'Installed launcher started.'
 
   exit 0
 }
 catch {
-  $message = $_.Exception.Message
-  Write-InstallMessage "ERROR: $message"
+  Write-InstallLog "ERROR: $($_.Exception.Message)"
+  Write-InstallLog "STACK: $($_.ScriptStackTrace)"
+  Write-Host "PS log: $PsLogPath"
   exit 1
 }
 finally {
-  Write-InstallMessage "PowerShell log: $psLogPath"
+  Write-Host "PS log: $PsLogPath"
   if ($transcriptStarted) {
     try {
       Stop-Transcript | Out-Null
     } catch {
-      Write-Host '[CRM INSTALL] Warning: transcript stop failed.'
+      Write-Host '[CRM INSTALL] Warning: Stop-Transcript failed.'
     }
   }
 }

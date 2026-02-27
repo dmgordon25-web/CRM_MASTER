@@ -5,31 +5,37 @@ cd /d "%~dp0"
 set "BATCH_LOG=%TEMP%\CRMTool-Install-batch.log"
 set "PS_LOG=%TEMP%\CRMTool-Install-ps.log"
 
-if exist "%BATCH_LOG%" del /f /q "%BATCH_LOG%" >nul 2>&1
-if exist "%PS_LOG%" del /f /q "%PS_LOG%" >nul 2>&1
+echo Batch log: %BATCH_LOG%
+echo PS log: %PS_LOG%
+
+del /q "%BATCH_LOG%" 2>nul
+del /q "%PS_LOG%" 2>nul
 
 if not exist "%~dp0scripts\installer\Install-CRM-Tool.ps1" (
-  echo [CRM INSTALL][FAIL] Missing installer script:
-  echo   %~dp0scripts\installer\Install-CRM-Tool.ps1
-  echo Logs:
-  echo   %BATCH_LOG%
-  echo   %PS_LOG%
+  echo FAIL: Missing scripts\installer\Install-CRM-Tool.ps1
+  echo Batch log: %BATCH_LOG%
+  echo PS log: %PS_LOG%
   pause
   exit /b 1
 )
 
-echo [CRM INSTALL] Running installer...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\installer\Install-CRM-Tool.ps1" -RepoRoot "%~dp0" 1>>"%BATCH_LOG%" 2>>&1
-set "EXIT_CODE=%ERRORLEVEL%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass ^
+  -File "%~dp0scripts\installer\Install-CRM-Tool.ps1" ^
+  -RepoRoot "%~dp0" ^
+  -PsLogPath "%PS_LOG%" ^
+  1>>"%BATCH_LOG%" 2>>&1
 
-if not "%EXIT_CODE%"=="0" (
-  echo [CRM INSTALL][FAIL] Installer failed with exit code %EXIT_CODE%.
-  echo Review logs:
-  echo   %BATCH_LOG%
-  echo   %PS_LOG%
+set "EC=%ERRORLEVEL%"
+
+if not "%EC%"=="0" (
+  echo.
+  echo FAIL: Install failed with exit code %EC%
+  echo Batch log: %BATCH_LOG%
+  echo PS log: %PS_LOG%
   pause
-  exit /b 1
+  exit /b %EC%
 )
 
-echo [CRM INSTALL][OK] Installation completed successfully.
+echo.
+echo SUCCESS: Installed CRM Tool. Use the Desktop shortcut: "CRM Tool"
 exit /b 0
