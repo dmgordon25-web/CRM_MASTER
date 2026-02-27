@@ -68,22 +68,25 @@ const runtimeFileMap = [
 const runtimeReadmeText = `CRM Tool (Installed Runtime)\n============================\n\nStart\n-----\n- Double-click Start CRM.bat to launch CRM Tool.\n\nDesktop Shortcut\n----------------\n- Desktop shortcut should already exist as "CRM Tool" after install.\n- If needed, run Create Desktop Shortcut.bat from this folder.\n\nTroubleshooting\n---------------\n- Check launcher.log in this folder for launcher failures.\n- If node folder is missing/corrupt, reinstall from the handoff package.\n`;
 
 const handoffInstallBat = `@echo off
-setlocal
+setlocal EnableExtensions
+cd /d "%~dp0"
 
 set "HANDOFF_ROOT=%~dp0"
 set "INSTALLER_PS=%HANDOFF_ROOT%_payload\\scripts\\Install-CRM-Tool.ps1"
+set "INSTALL_LOG=%TEMP%\\CRM_Tool_Install.log"
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
+  echo [FAIL] Cannot continue. Ensure the ZIP was fully extracted.
   pause
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%" -LogPath "%INSTALL_LOG%"
 set "INSTALL_EXIT=%ERRORLEVEL%"
 if not "%INSTALL_EXIT%"=="0" (
   echo [FAIL] CRM Tool installation failed.
-  echo [FAIL] Review log: %%TEMP%%\\CRM_Tool_Install.log
+  echo [FAIL] Review log: "%INSTALL_LOG%"
   pause
   exit /b %INSTALL_EXIT%
 )
@@ -96,7 +99,8 @@ exit /b 0
 `;
 
 const handoffInstallPs1 = `param(
-  [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'CRM Tool')
+  [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'CRM Tool'),
+  [string]$LogPath = (Join-Path $env:TEMP 'CRM_Tool_Install.log')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,21 +110,37 @@ $handoffPayloadRoot = Split-Path -Parent $scriptRoot
 $runtimeSource = Join-Path $handoffPayloadRoot 'runtime'
 $launcherRelativePath = 'Start CRM.bat'
 $launcherPath = Join-Path $InstallRoot $launcherRelativePath
-$logPath = Join-Path $env:TEMP 'CRM_Tool_Install.log'
+$requiredRuntimePaths = @(
+  'Start CRM.bat',
+  'server.js',
+  'crm-app'
+)
 
 function Write-InstallLog {
   param([string]$Message)
   $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
   $line = "[$timestamp] $Message"
   Write-Host $line
-  Add-Content -LiteralPath $logPath -Value $line
+  Add-Content -LiteralPath $LogPath -Value $line
 }
 
-Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+Set-Content -LiteralPath $LogPath -Value '' -Encoding UTF8
+Write-Host "Install log: $LogPath"
 
 try {
+  if (-not (Test-Path -LiteralPath $handoffPayloadRoot)) {
+    throw "Missing installer payload root at $handoffPayloadRoot"
+  }
+
   if (-not (Test-Path -LiteralPath $runtimeSource)) {
     throw "Missing runtime payload at $runtimeSource"
+  }
+
+  foreach ($requiredPath in $requiredRuntimePaths) {
+    $fullRequiredPath = Join-Path $runtimeSource $requiredPath
+    if (-not (Test-Path -LiteralPath $fullRequiredPath)) {
+      throw "Missing required runtime path: $fullRequiredPath"
+    }
   }
 
   Write-InstallLog 'Starting CRM Tool install...'
@@ -162,11 +182,15 @@ try {
   } else {
     Write-InstallLog 'CRM Tool launch skipped by user choice.'
   }
+
+  Write-InstallLog 'Installer exiting with code 0.'
+  exit 0
 }
 catch {
   $detail = $_.Exception.Message
   Write-InstallLog "Installation failed: $detail"
-  throw
+  Write-Host "[FAIL] Installation failed. Review log: $LogPath"
+  exit 1
 }
 `;
 
