@@ -14,11 +14,17 @@ const handoffPayloadRoot = path.join(handoffRoot, '_payload');
 const handoffRuntimeRoot = path.join(handoffPayloadRoot, 'runtime');
 
 const runtimePaths = [
-  'crm-app',
-  'server.js',
-  'Start CRM.bat',
-  'Create Desktop Shortcut.bat',
-  'Create Desktop Shortcut.ps1'
+  { source: 'crm-app', destination: 'crm-app' },
+  { source: 'server.js', destination: 'server.js' },
+  { source: 'Start CRM.bat', destination: 'Start CRM.bat' },
+  {
+    source: 'scripts/devtools/legacy-root/Create Desktop Shortcut.bat',
+    destination: 'Create Desktop Shortcut.bat'
+  },
+  {
+    source: 'scripts/devtools/legacy-root/Create Desktop Shortcut.ps1',
+    destination: 'Create Desktop Shortcut.ps1'
+  }
 ];
 
 const prunePaths = [
@@ -346,11 +352,11 @@ function assertZipRootClean() {
   console.log(`Zip root assertion passed. Entries: ${zipSorted.join(', ')}`);
 }
 
-function copyRelative(relativePath) {
-  const sourcePath = path.join(repoRoot, relativePath);
-  const targetPath = path.join(releaseRuntimeRoot, relativePath);
+function copyRuntimePath(runtimePath) {
+  const sourcePath = path.join(repoRoot, runtimePath.source);
+  const targetPath = path.join(releaseRuntimeRoot, runtimePath.destination);
   if (!fs.existsSync(sourcePath)) {
-    throw new Error(`Missing required runtime path: ${relativePath}`);
+    throw new Error(`Missing required runtime path: ${runtimePath.source}`);
   }
   ensureDir(path.dirname(targetPath));
   fs.cpSync(sourcePath, targetPath, { recursive: true });
@@ -548,7 +554,7 @@ function buildReleaseArtifact() {
   ensureDir(releaseRuntimeRoot);
 
   for (const runtimePath of runtimePaths) {
-    copyRelative(runtimePath);
+    copyRuntimePath(runtimePath);
   }
 
   pruneReleaseClutter();
