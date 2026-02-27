@@ -73,43 +73,58 @@ cd /d "%~dp0"
 
 set "HANDOFF_ROOT=%~dp0"
 set "INSTALLER_PS=%HANDOFF_ROOT%_payload\\scripts\\Install-CRM-Tool.ps1"
-set "INSTALL_LOG=%TEMP%\\CRM_Tool_Install.log"
+set "BATCH_LOG=%TEMP%\\CRMTool-Install-batch.log"
+set "PS_LOG=%TEMP%\\CRMTool-Install-ps.log"
+set "SUCCESS_MARKER=%TEMP%\\CRMTool-Install.success"
+
+if exist "%BATCH_LOG%" del /f /q "%BATCH_LOG%" >nul 2>&1
+if exist "%SUCCESS_MARKER%" del /f /q "%SUCCESS_MARKER%" >nul 2>&1
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
+  echo [FAIL] Batch log: "%BATCH_LOG%"
+  echo [FAIL] PowerShell log: "%PS_LOG%"
   echo [FAIL] Cannot continue. Ensure the ZIP was fully extracted.
   pause
   exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%" -LogPath "%INSTALL_LOG%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%" >>"%BATCH_LOG%" 2>&1
 set "INSTALL_EXIT=%ERRORLEVEL%"
 if not "%INSTALL_EXIT%"=="0" (
   echo [FAIL] CRM Tool installation failed.
-  echo [FAIL] Review log: "%INSTALL_LOG%"
+  echo [FAIL] Batch log: "%BATCH_LOG%"
+  echo [FAIL] PowerShell log: "%PS_LOG%"
   pause
   exit /b %INSTALL_EXIT%
 )
 
+if not exist "%SUCCESS_MARKER%" (
+  echo [FAIL] Installer reported success but marker file was not created.
+  echo [FAIL] Batch log: "%BATCH_LOG%"
+  echo [FAIL] PowerShell log: "%PS_LOG%"
+  pause
+  exit /b 1
+)
+
 echo.
-echo Install complete
+echo Install complete.
 echo Use the Desktop shortcut "CRM Tool" from now on
 echo You do NOT need to open the _payload folder
 exit /b 0
 `;
 
-const handoffInstallPs1 = `param(
-  [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'CRM Tool'),
-  [string]$LogPath = (Join-Path $env:TEMP 'CRM_Tool_Install.log')
-)
-
+const handoffInstallPs1 = `
 $ErrorActionPreference = 'Stop'
 
+$installRoot = Join-Path $env:LOCALAPPDATA 'CRM Tool'
+$logPath = Join-Path $env:TEMP 'CRMTool-Install-ps.log'
+$successMarkerPath = Join-Path $env:TEMP 'CRMTool-Install.success'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $handoffPayloadRoot = Split-Path -Parent $scriptRoot
 $runtimeSource = Join-Path $handoffPayloadRoot 'runtime'
 $launcherRelativePath = 'Start CRM.bat'
-$launcherPath = Join-Path $InstallRoot $launcherRelativePath
+$launcherPath = Join-Path $installRoot $launcherRelativePath
 $requiredRuntimePaths = @(
   'Start CRM.bat',
   'server.js',
@@ -121,13 +136,21 @@ function Write-InstallLog {
   $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
   $line = "[$timestamp] $Message"
   Write-Host $line
-  Add-Content -LiteralPath $LogPath -Value $line
+  Add-Content -LiteralPath $logPath -Value $line
 }
 
-Set-Content -LiteralPath $LogPath -Value '' -Encoding UTF8
-Write-Host "Install log: $LogPath"
+Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+Write-Host "PowerShell install log: $logPath"
 
 try {
+  if (Test-Path -LiteralPath $successMarkerPath) {
+    Remove-Item -LiteralPath $successMarkerPath -Force
+  }
+
+  if ([string]::IsNullOrWhiteSpace($scriptRoot) -or -not (Test-Path -LiteralPath $scriptRoot)) {
+    throw "Missing script root at $scriptRoot"
+  }
+
   if (-not (Test-Path -LiteralPath $handoffPayloadRoot)) {
     throw "Missing installer payload root at $handoffPayloadRoot"
   }
@@ -144,13 +167,13 @@ try {
   }
 
   Write-InstallLog 'Starting CRM Tool install...'
-  if (Test-Path -LiteralPath $InstallRoot) {
+  if (Test-Path -LiteralPath $installRoot) {
     Write-InstallLog 'Removing previous install folder.'
-    Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+    Remove-Item -LiteralPath $installRoot -Recurse -Force
   }
 
-  New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-  Copy-Item -Path (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
+  New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
+  Copy-Item -Path (Join-Path $runtimeSource '*') -Destination $installRoot -Recurse -Force
   Write-InstallLog 'Runtime files copied.'
 
   if (-not (Test-Path -LiteralPath $launcherPath)) {
@@ -166,30 +189,39 @@ try {
   $wshShell = New-Object -ComObject WScript.Shell
   $shortcut = $wshShell.CreateShortcut($shortcutPath)
   $shortcut.TargetPath = $launcherPath
-  $shortcut.WorkingDirectory = $InstallRoot
+  $shortcut.WorkingDirectory = $installRoot
   $shortcut.Description = 'Launch CRM Tool'
   $shortcut.IconLocation = "$env:SystemRoot\\System32\\SHELL32.dll,220"
   $shortcut.Save()
 
+  if (-not (Test-Path -LiteralPath $shortcutPath)) {
+    throw "Desktop shortcut was not created: $shortcutPath"
+  }
+
   Write-InstallLog 'Created Desktop shortcut: CRM Tool.'
   Write-InstallLog "Shortcut target: $launcherPath"
+
+  Set-Content -LiteralPath $successMarkerPath -Value (Get-Date -Format o) -Encoding UTF8
+  if (-not (Test-Path -LiteralPath $successMarkerPath)) {
+    throw "Failed to create success marker at $successMarkerPath"
+  }
+
+  Write-InstallLog "Success marker created: $successMarkerPath"
   Write-InstallLog 'Install complete.'
 
-  $openAnswer = Read-Host 'Open CRM now? (Y/N)'
-  if ($openAnswer -match '^(?i)y(?:es)?$') {
-    Start-Process -FilePath $launcherPath | Out-Null
-    Write-InstallLog 'CRM Tool launched from installer.'
-  } else {
-    Write-InstallLog 'CRM Tool launch skipped by user choice.'
-  }
+  Start-Process -FilePath $launcherPath | Out-Null
+  Write-InstallLog 'CRM Tool launched from installer.'
 
   Write-InstallLog 'Installer exiting with code 0.'
   exit 0
 }
 catch {
   $detail = $_.Exception.Message
-  Write-InstallLog "Installation failed: $detail"
-  Write-Host "[FAIL] Installation failed. Review log: $LogPath"
+  $exceptionText = $_ | Out-String
+  Write-Host "[FAIL] Installation failed: $detail"
+  Write-Host "[FAIL] PowerShell log: $logPath"
+  Add-Content -LiteralPath $logPath -Value "[FAIL] Installation failed: $detail"
+  Add-Content -LiteralPath $logPath -Value $exceptionText
   exit 1
 }
 `;
@@ -535,7 +567,7 @@ ${indentLines(afterInstallMap)}
 
 TROUBLESHOOTING
 ---------------
-- If install fails, open: %TEMP%/CRM_Tool_Install.log
+- If install fails, open: %TEMP%/CRMTool-Install-batch.log and %TEMP%/CRMTool-Install-ps.log
 - If CRM does not launch later, run RUN ME FIRST - Install CRM Tool.bat again.
 `;
 
