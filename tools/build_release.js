@@ -75,13 +75,16 @@ set "INSTALLER_PS=%HANDOFF_ROOT%_payload\\scripts\\Install-CRM-Tool.ps1"
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
+  pause
   exit /b 1
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%"
 set "INSTALL_EXIT=%ERRORLEVEL%"
 if not "%INSTALL_EXIT%"=="0" (
-echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\\CRM_Tool_Install.log.
+  echo [FAIL] CRM Tool installation failed.
+  echo [FAIL] Review log: %%TEMP%%\\CRM_Tool_Install.log
+  pause
   exit /b %INSTALL_EXIT%
 )
 
@@ -127,7 +130,7 @@ try {
   }
 
   New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-  Copy-Item -LiteralPath (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
+  Copy-Item -Path (Join-Path $runtimeSource '*') -Destination $InstallRoot -Recurse -Force
   Write-InstallLog 'Runtime files copied.'
 
   if (-not (Test-Path -LiteralPath $launcherPath)) {
