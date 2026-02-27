@@ -1,86 +1,154 @@
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$SourceRoot,
-  [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'CRM Tool')
+  [Parameter(Mandatory=$true)][string]$RepoRoot,
+  [Parameter(Mandatory=$true)][string]$PsLogPath
 )
 
 $ErrorActionPreference = 'Stop'
-
-$logPath = Join-Path $env:TEMP 'CRM_Tool_Install.log'
-Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+$transcriptStarted = $false
 
 function Write-InstallLog {
   param([string]$Message)
-  $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-  $line = "[$timestamp] $Message"
+
+  $line = "[CRM INSTALL] $Message"
   Write-Host $line
-  Add-Content -LiteralPath $logPath -Value $line
-}
-
-$sourceRootResolved = (Resolve-Path -LiteralPath $SourceRoot).Path
-$requiredEntries = @(
-  'Start CRM.bat',
-  'server.js',
-  'crm-app'
-)
-
-foreach ($entry in $requiredEntries) {
-  $entryPath = Join-Path $sourceRootResolved $entry
-  if (-not (Test-Path -LiteralPath $entryPath)) {
-    throw "Missing required source item: $entryPath"
+  try {
+    Add-Content -LiteralPath $PsLogPath -Value $line -Encoding UTF8
+  } catch {
+    Write-Host '[CRM INSTALL] Warning: unable to write to PS log path.'
   }
 }
 
-$launcherPath = Join-Path $InstallRoot 'Start CRM.bat'
-$nodeSource = Join-Path $sourceRootResolved 'node'
-$desktopPath = [Environment]::GetFolderPath('Desktop')
-if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-  throw 'Unable to resolve Desktop path.'
+function Resolve-NeededRuntimePaths {
+  param(
+    [string]$StartBatPath,
+    [string]$ResolvedRepoRoot
+  )
+
+  $needed = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+  foreach ($must in @('Start CRM.bat', 'server.js', 'crm-app')) {
+    [void]$needed.Add($must)
+  }
+
+  $content = Get-Content -LiteralPath $StartBatPath -Raw
+  $matches = [regex]::Matches($content, '(?i)(?:!ROOT!|%ROOT%)([^"\r\n\s]+)')
+  foreach ($match in $matches) {
+    $candidate = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $candidate = $candidate -replace '/', '\\'
+    if ($candidate.StartsWith('\\')) { $candidate = $candidate.Substring(1) }
+    if ($candidate.Contains('..')) { continue }
+
+    $candidatePath = Join-Path $ResolvedRepoRoot $candidate
+    if (Test-Path -LiteralPath $candidatePath) {
+      [void]$needed.Add($candidate)
+    }
+  }
+
+  return @($needed)
 }
-$shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
 
 try {
-  Write-InstallLog "Source root: $sourceRootResolved"
+  Write-Host "PS log: $PsLogPath"
+  try {
+    if (Test-Path -LiteralPath $PsLogPath) {
+      Remove-Item -LiteralPath $PsLogPath -Force
+    }
+    New-Item -ItemType File -Path $PsLogPath -Force | Out-Null
+  } catch {
+    Write-Host "[CRM INSTALL] Warning: unable to initialize PS log at $PsLogPath"
+  }
+
+  try {
+    Start-Transcript -Path $PsLogPath -Append | Out-Null
+    $transcriptStarted = $true
+  } catch {
+    Write-InstallLog "Warning: Start-Transcript failed for $PsLogPath"
+  }
+
+  Write-InstallLog "PS log: $PsLogPath"
+
+  $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
+  $requiredIndex = Join-Path $resolvedRepoRoot 'crm-app\index.html'
+  $requiredStart = Join-Path $resolvedRepoRoot 'Start CRM.bat'
+
+  if (-not (Test-Path -LiteralPath $requiredIndex)) {
+    throw "Missing required file: $requiredIndex"
+  }
+  if (-not (Test-Path -LiteralPath $requiredStart)) {
+    throw "Missing required file: $requiredStart"
+  }
+
+  $InstallRoot = Join-Path $env:LOCALAPPDATA 'CRM Tool'
+  $desktopPath = [Environment]::GetFolderPath('Desktop')
+  if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+    throw 'Desktop path could not be resolved.'
+  }
+
+  Write-InstallLog "Repo root: $resolvedRepoRoot"
   Write-InstallLog "Install root: $InstallRoot"
 
   if (Test-Path -LiteralPath $InstallRoot) {
-    Write-InstallLog 'Removing previous install folder.'
     Remove-Item -LiteralPath $InstallRoot -Recurse -Force
   }
-
   New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 
-  Copy-Item -LiteralPath (Join-Path $sourceRootResolved 'Start CRM.bat') -Destination $InstallRoot -Force
-  Copy-Item -LiteralPath (Join-Path $sourceRootResolved 'server.js') -Destination $InstallRoot -Force
-  Copy-Item -LiteralPath (Join-Path $sourceRootResolved 'crm-app') -Destination $InstallRoot -Recurse -Force
+  $pathsToCopy = Resolve-NeededRuntimePaths -StartBatPath $requiredStart -ResolvedRepoRoot $resolvedRepoRoot
+  Write-InstallLog ('Copy set: ' + ($pathsToCopy -join ', '))
 
-  if (Test-Path -LiteralPath $nodeSource) {
-    Write-InstallLog 'Bundled node runtime detected; copying node folder.'
-    Copy-Item -LiteralPath $nodeSource -Destination $InstallRoot -Recurse -Force
-  } else {
-    Write-InstallLog 'Bundled node runtime not found; launcher will use system Node.js.'
+  foreach ($relativePath in $pathsToCopy) {
+    $sourcePath = Join-Path $resolvedRepoRoot $relativePath
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+      throw "Referenced runtime path missing: $sourcePath"
+    }
+
+    $destinationPath = Join-Path $InstallRoot $relativePath
+    $destinationParent = Split-Path -Path $destinationPath -Parent
+    if (-not [string]::IsNullOrWhiteSpace($destinationParent)) {
+      New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+
+    if ((Get-Item -LiteralPath $sourcePath).PSIsContainer) {
+      Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
+    } else {
+      Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
+    }
   }
 
-  if (-not (Test-Path -LiteralPath $launcherPath)) {
-    throw "Launcher missing after copy: $launcherPath"
+  $installedStartBat = Join-Path $InstallRoot 'Start CRM.bat'
+  if (-not (Test-Path -LiteralPath $installedStartBat)) {
+    throw "Installed launcher missing: $installedStartBat"
   }
 
+  $shortcutPath = Join-Path $desktopPath 'CRM Tool.lnk'
   $wshShell = New-Object -ComObject WScript.Shell
   $shortcut = $wshShell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = $launcherPath
+  $shortcut.TargetPath = 'cmd.exe'
+  $shortcut.Arguments = "/c ""$installedStartBat"""
   $shortcut.WorkingDirectory = $InstallRoot
   $shortcut.Description = 'Launch CRM Tool'
-  $shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
   $shortcut.Save()
 
   Write-InstallLog "Desktop shortcut created: $shortcutPath"
-  Write-InstallLog "Shortcut target: $launcherPath"
+  Write-InstallLog "Desktop shortcut target: cmd.exe $($shortcut.Arguments)"
 
-  Start-Process -FilePath $launcherPath | Out-Null
-  Write-InstallLog 'CRM Tool launched from installer.'
+  Start-Process -FilePath $installedStartBat -WorkingDirectory $InstallRoot
+  Write-InstallLog 'Installed launcher started.'
+
+  exit 0
 }
 catch {
-  $detail = $_.Exception.Message
-  Write-InstallLog "Installation failed: $detail"
-  throw
+  Write-InstallLog "ERROR: $($_.Exception.Message)"
+  Write-InstallLog "STACK: $($_.ScriptStackTrace)"
+  Write-Host "PS log: $PsLogPath"
+  exit 1
+}
+finally {
+  Write-Host "PS log: $PsLogPath"
+  if ($transcriptStarted) {
+    try {
+      Stop-Transcript | Out-Null
+    } catch {
+      Write-Host '[CRM INSTALL] Warning: Stop-Transcript failed.'
+    }
+  }
 }

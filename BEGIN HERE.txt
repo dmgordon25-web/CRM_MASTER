@@ -1,0 +1,7 @@
+Step 1: Unzip the downloaded folder.
+Step 2: Double-click RUN ME FIRST - Install CRM Tool.bat.
+Step 3: After that, ONLY use Desktop shortcut "CRM Tool".
+
+If install fails: logs are in %TEMP%:
+CRMTool-Install-batch.log
+CRMTool-Install-ps.log
