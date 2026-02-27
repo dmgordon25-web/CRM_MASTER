@@ -13,6 +13,7 @@ const handoffZipPath = path.join(clientToSendRoot, 'CRM Tool Client.zip');
 const handoffZipRelativePath = toPosix(path.relative(repoRoot, handoffZipPath));
 const handoffPayloadRoot = path.join(handoffRoot, '_payload');
 const handoffRuntimeRoot = path.join(handoffPayloadRoot, 'runtime');
+const handoffMarkerName = '.client-handoff.marker';
 
 const runtimePaths = [
   { source: 'crm-app', destination: 'crm-app' },
@@ -73,16 +74,38 @@ cd /d "%~dp0"
 
 set "HANDOFF_ROOT=%~dp0"
 set "INSTALLER_PS=%HANDOFF_ROOT%_payload\\scripts\\Install-CRM-Tool.ps1"
+set "HANDOFF_MARKER=%HANDOFF_ROOT%_payload\\.client-handoff.marker"
 set "BATCH_LOG=%TEMP%\\CRMTool-Install-batch.log"
 set "PS_LOG=%TEMP%\\CRMTool-Install-ps.log"
 set "SUCCESS_MARKER=%TEMP%\\CRMTool-Install.success"
 
 if exist "%BATCH_LOG%" del /f /q "%BATCH_LOG%" >nul 2>&1
+if exist "%PS_LOG%" del /f /q "%PS_LOG%" >nul 2>&1
 if exist "%SUCCESS_MARKER%" del /f /q "%SUCCESS_MARKER%" >nul 2>&1
 echo [INFO] CRM Tool install wrapper started. >"%BATCH_LOG%"
 echo [INFO] Batch log: %BATCH_LOG%>>"%BATCH_LOG%"
 echo [INFO] PowerShell log: %PS_LOG%>>"%BATCH_LOG%"
 echo [INFO] Using payload installer: %INSTALLER_PS%>>"%BATCH_LOG%"
+echo [INFO] Batch log: "%BATCH_LOG%"
+echo [INFO] PowerShell log: "%PS_LOG%"
+
+if not exist "%HANDOFF_MARKER%" (
+  if exist "%HANDOFF_ROOT%crm-app" (
+    if exist "%HANDOFF_ROOT%tools" (
+      if exist "%HANDOFF_ROOT%.github" (
+        if exist "%HANDOFF_ROOT%package.json" (
+          echo [FAIL] You are running from the source repo, not the client handoff folder.
+          echo [FAIL] Use release/CLIENT_TO_SEND/CRM Tool Client.zip
+          echo [FAIL] Source repo fingerprint detected and handoff marker missing.>>"%BATCH_LOG%"
+          echo [FAIL] Batch log: "%BATCH_LOG%"
+          echo [FAIL] PowerShell log: "%PS_LOG%"
+          pause
+          exit /b 1
+        )
+      )
+    )
+  )
+)
 
 if not exist "%INSTALLER_PS%" (
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%">>"%BATCH_LOG%"
@@ -90,6 +113,16 @@ if not exist "%INSTALLER_PS%" (
   echo [FAIL] Batch log: "%BATCH_LOG%"
   echo [FAIL] PowerShell log: "%PS_LOG%"
   echo [FAIL] Cannot continue. Ensure the ZIP was fully extracted.
+  pause
+  exit /b 1
+)
+
+if not exist "%HANDOFF_MARKER%" (
+  echo [FAIL] Missing handoff marker: "%HANDOFF_MARKER%">>"%BATCH_LOG%"
+  echo [FAIL] Missing handoff marker: "%HANDOFF_MARKER%"
+  echo [FAIL] Batch log: "%BATCH_LOG%"
+  echo [FAIL] PowerShell log: "%PS_LOG%"
+  echo [FAIL] Cannot continue. Use the extracted client handoff ZIP.
   pause
   exit /b 1
 )
@@ -131,6 +164,7 @@ $logPath = Join-Path $env:TEMP 'CRMTool-Install-ps.log'
 $successMarkerPath = Join-Path $env:TEMP 'CRMTool-Install.success'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $handoffPayloadRoot = Split-Path -Parent $scriptRoot
+$handoffMarkerPath = Join-Path $handoffPayloadRoot '.client-handoff.marker'
 $runtimeSource = Join-Path $handoffPayloadRoot 'runtime'
 $launcherRelativePath = 'Start CRM.bat'
 $launcherPath = Join-Path $installRoot $launcherRelativePath
@@ -151,7 +185,18 @@ function Write-InstallLog {
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
 Write-Host "PowerShell install log: $logPath"
 
+$transcriptActive = $false
+
 try {
+  try {
+    Start-Transcript -Path $logPath -Append -ErrorAction Stop | Out-Null
+    $transcriptActive = $true
+  }
+  catch {
+    Write-Host "[WARN] Start-Transcript unavailable, continuing with explicit file logging."
+    Add-Content -LiteralPath $logPath -Value '[WARN] Start-Transcript unavailable, continuing with explicit file logging.'
+  }
+
   if (Test-Path -LiteralPath $successMarkerPath) {
     Remove-Item -LiteralPath $successMarkerPath -Force
   }
@@ -162,6 +207,10 @@ try {
 
   if (-not (Test-Path -LiteralPath $handoffPayloadRoot)) {
     throw "Missing installer payload root at $handoffPayloadRoot"
+  }
+
+  if (-not (Test-Path -LiteralPath $handoffMarkerPath)) {
+    throw "Missing client handoff marker at $handoffMarkerPath"
   }
 
   if (-not (Test-Path -LiteralPath $runtimeSource)) {
@@ -225,6 +274,14 @@ try {
   Write-InstallLog 'CRM Tool launched from installer.'
 
   Write-InstallLog 'Installer exiting with code 0.'
+  if ($transcriptActive) {
+    try {
+      Stop-Transcript | Out-Null
+    }
+    catch {
+      Add-Content -LiteralPath $logPath -Value '[WARN] Failed to stop transcript cleanly.'
+    }
+  }
   exit 0
 }
 catch {
@@ -234,6 +291,14 @@ catch {
   Write-Host "[FAIL] PowerShell log: $logPath"
   Add-Content -LiteralPath $logPath -Value "[FAIL] Installation failed: $detail"
   Add-Content -LiteralPath $logPath -Value $exceptionText
+  if ($transcriptActive) {
+    try {
+      Stop-Transcript | Out-Null
+    }
+    catch {
+      Add-Content -LiteralPath $logPath -Value '[WARN] Failed to stop transcript cleanly after error.'
+    }
+  }
   exit 1
 }
 `;
@@ -526,6 +591,7 @@ function buildClientHandoff() {
   ensureDir(path.join(handoffPayloadRoot, 'scripts'));
 
   fs.cpSync(releaseRuntimeRoot, handoffRuntimeRoot, { recursive: true });
+  fs.writeFileSync(path.join(handoffPayloadRoot, handoffMarkerName), 'CRM Tool Client Handoff\n', 'utf8');
   fs.writeFileSync(path.join(handoffRoot, handoffLauncherName), handoffInstallBat, 'ascii');
   fs.writeFileSync(path.join(handoffPayloadRoot, 'scripts', 'Install-CRM-Tool.ps1'), handoffInstallPs1, 'utf8');
 
@@ -552,11 +618,17 @@ function buildClientHandoff() {
 WHAT TO CLICK FIRST
 -------------------
 Only click RUN ME FIRST - Install CRM Tool.bat
+Do not use the repo/source ZIP.
 
 WHAT THE OTHER FOLDER IS
 ------------------------
 The _payload folder contains installer support files only.
 Do not open anything in the _payload folder.
+
+HANDOFF PACKAGE RULE
+--------------------
+SEND ONLY: release/CLIENT_TO_SEND/CRM Tool Client.zip
+DO NOT SEND REPO/SOURCE ZIP
 
 WHAT HAPPENS DURING INSTALL
 ---------------------------
@@ -579,7 +651,8 @@ ${indentLines(afterInstallMap)}
 
 TROUBLESHOOTING
 ---------------
-- If install fails, open: %TEMP%/CRMTool-Install-batch.log and %TEMP%/CRMTool-Install-ps.log
+- If installer shows an error, read the on-screen message and logs in %TEMP%:
+  %TEMP%/CRMTool-Install-batch.log and %TEMP%/CRMTool-Install-ps.log
 - If CRM does not launch later, run RUN ME FIRST - Install CRM Tool.bat again.
 `;
 
@@ -644,7 +717,8 @@ function buildReleaseArtifact() {
   console.log(`release/CLIENT_TO_SEND/CRM Tool Client.zip`);
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
   console.log(`CLIENT HANDOFF ARTIFACT (repo-relative): ${handoffZipRelativePath}`);
-  console.log('WARNING: THE REPO/SOURCE ZIP IS NOT THE CLIENT HANDOFF ARTIFACT AND MUST NOT BE SENT TO THE CLIENT.');
+  console.log('DO NOT SEND REPO/SOURCE ZIP');
+  console.log('SEND ONLY: release/CLIENT_TO_SEND/CRM Tool Client.zip');
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
   console.log('\nBefore-install folder map (for handoff):');
