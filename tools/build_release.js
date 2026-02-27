@@ -10,6 +10,7 @@ const releaseRuntimeRoot = path.join(releaseRoot, 'CRM');
 const clientToSendRoot = path.join(releaseRoot, 'CLIENT_TO_SEND');
 const handoffRoot = path.join(clientToSendRoot, 'CRM Tool Client');
 const handoffZipPath = path.join(clientToSendRoot, 'CRM Tool Client.zip');
+const handoffZipRelativePath = toPosix(path.relative(repoRoot, handoffZipPath));
 const handoffPayloadRoot = path.join(handoffRoot, '_payload');
 const handoffRuntimeRoot = path.join(handoffPayloadRoot, 'runtime');
 
@@ -569,8 +570,10 @@ function buildReleaseArtifact() {
   console.log(`Client distribution staging folder created at: ${handoffRoot}`);
   console.log(`Client distribution zip created at: ${handoffZipPath}`);
   console.log(`FINAL ROOT ENTRIES: ${fs.readdirSync(handoffRoot).sort((a, b) => a.localeCompare(b)).join(', ')}`);
+  console.log(`release/CLIENT_TO_SEND/CRM Tool Client.zip`);
   console.log(`CLIENT HANDOFF ARTIFACT: ${handoffZipPath}`);
-  console.log('DO NOT SEND THE REPO ZIP. SEND ONLY THE CLIENT HANDOFF ARTIFACT ABOVE.');
+  console.log(`CLIENT HANDOFF ARTIFACT (repo-relative): ${handoffZipRelativePath}`);
+  console.log('WARNING: THE REPO/SOURCE ZIP IS NOT THE CLIENT HANDOFF ARTIFACT AND MUST NOT BE SENT TO THE CLIENT.');
   console.log(nodeMessage);
   console.log(`Excluded categories from client payload/runtime: ${excludedCategoryNotes.join(', ')}`);
   console.log('\nBefore-install folder map (for handoff):');
