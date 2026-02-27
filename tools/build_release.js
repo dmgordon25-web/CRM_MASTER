@@ -79,8 +79,13 @@ set "SUCCESS_MARKER=%TEMP%\\CRMTool-Install.success"
 
 if exist "%BATCH_LOG%" del /f /q "%BATCH_LOG%" >nul 2>&1
 if exist "%SUCCESS_MARKER%" del /f /q "%SUCCESS_MARKER%" >nul 2>&1
+echo [INFO] CRM Tool install wrapper started. >"%BATCH_LOG%"
+echo [INFO] Batch log: %BATCH_LOG%>>"%BATCH_LOG%"
+echo [INFO] PowerShell log: %PS_LOG%>>"%BATCH_LOG%"
+echo [INFO] Using payload installer: %INSTALLER_PS%>>"%BATCH_LOG%"
 
 if not exist "%INSTALLER_PS%" (
+  echo [FAIL] Missing installer payload: "%INSTALLER_PS%">>"%BATCH_LOG%"
   echo [FAIL] Missing installer payload: "%INSTALLER_PS%"
   echo [FAIL] Batch log: "%BATCH_LOG%"
   echo [FAIL] PowerShell log: "%PS_LOG%"
@@ -91,7 +96,9 @@ if not exist "%INSTALLER_PS%" (
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PS%" >>"%BATCH_LOG%" 2>&1
 set "INSTALL_EXIT=%ERRORLEVEL%"
+echo [INFO] PowerShell exit code: %INSTALL_EXIT%>>"%BATCH_LOG%"
 if not "%INSTALL_EXIT%"=="0" (
+  echo [FAIL] CRM Tool installation failed.>>"%BATCH_LOG%"
   echo [FAIL] CRM Tool installation failed.
   echo [FAIL] Batch log: "%BATCH_LOG%"
   echo [FAIL] PowerShell log: "%PS_LOG%"
@@ -100,6 +107,7 @@ if not "%INSTALL_EXIT%"=="0" (
 )
 
 if not exist "%SUCCESS_MARKER%" (
+  echo [FAIL] Success marker missing at "%SUCCESS_MARKER%".>>"%BATCH_LOG%"
   echo [FAIL] Installer reported success but marker file was not created.
   echo [FAIL] Batch log: "%BATCH_LOG%"
   echo [FAIL] PowerShell log: "%PS_LOG%"
@@ -111,6 +119,7 @@ echo.
 echo Install complete.
 echo Use the Desktop shortcut "CRM Tool" from now on
 echo You do NOT need to open the _payload folder
+echo [INFO] Install complete.>>"%BATCH_LOG%"
 exit /b 0
 `;
 
@@ -173,7 +182,10 @@ try {
   }
 
   New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
-  Copy-Item -Path (Join-Path $runtimeSource '*') -Destination $installRoot -Recurse -Force
+  $runtimeEntries = Get-ChildItem -LiteralPath $runtimeSource -Force
+  foreach ($runtimeEntry in $runtimeEntries) {
+    Copy-Item -LiteralPath $runtimeEntry.FullName -Destination $installRoot -Recurse -Force
+  }
   Write-InstallLog 'Runtime files copied.'
 
   if (-not (Test-Path -LiteralPath $launcherPath)) {
@@ -539,12 +551,12 @@ function buildClientHandoff() {
 
 WHAT TO CLICK FIRST
 -------------------
-Double-click RUN ME FIRST - Install CRM Tool.bat
+Only click RUN ME FIRST - Install CRM Tool.bat
 
 WHAT THE OTHER FOLDER IS
 ------------------------
 The _payload folder contains installer support files only.
-Do not open the _payload folder.
+Do not open anything in the _payload folder.
 
 WHAT HAPPENS DURING INSTALL
 ---------------------------
