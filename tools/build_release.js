@@ -79,7 +79,7 @@ echo [FAIL] CRM Tool installation failed. Check %%TEMP%%\\CRM_Tool_Install.log.
 )
 
 echo.
-echo ✅ Install complete
+echo Install complete
 echo Use the Desktop shortcut "CRM Tool" from now on
 echo You do NOT need to open the _payload folder
 exit /b 0
@@ -471,52 +471,38 @@ function buildClientHandoff() {
   const beginHereTemplate = `BEGIN HERE - CRM Tool
 =====================
 
-WHAT TO CLICK
--------------
+WHAT TO CLICK FIRST
+-------------------
 Double-click RUN ME FIRST - Install CRM Tool.bat
 
-WHAT THE OTHER FOLDER IS (_payload)
-------------------------------------
-_payload contains support files used by the installer.
+WHAT THE OTHER FOLDER IS
+------------------------
+The _payload folder contains installer support files only.
 Do not open the _payload folder.
 
-WHAT HAPPENS WHEN YOU RUN INSTALLER
------------------------------------
-1) You double-click RUN ME FIRST - Install CRM Tool.bat
-2) The installer copies CRM Tool into: %LOCALAPPDATA%/CRM Tool
-3) It creates a Desktop shortcut named: CRM Tool
-4) It shows a clear completion message
+WHAT HAPPENS DURING INSTALL
+---------------------------
+1) The installer copies CRM Tool into: %LOCALAPPDATA%/CRM Tool
+2) It creates a Desktop shortcut named: CRM Tool
+3) It prints an install complete message and what to do next
 
 HOW TO OPEN CRM AFTER INSTALL
-------------------------------
-After install, use the Desktop shortcut: CRM Tool
-(You do not need to run RUN ME FIRST - Install CRM Tool.bat again unless reinstalling.)
-
-TROUBLESHOOTING
----------------
-- If install fails, open: %TEMP%/CRM_Tool_Install.log
-- If CRM does not launch later, reinstall by running RUN ME FIRST - Install CRM Tool.bat again
-
-WHAT EACH VISIBLE ITEM IS
--------------------------
-- RUN ME FIRST - Install CRM Tool.bat
-  This is the only file to double-click first.
-- BEGIN HERE.txt
-  This instruction file.
-- _payload
-  Support files used by installer. Do not open this folder.
+-----------------------------
+Use the Desktop shortcut "CRM Tool" after install.
+You do not need to open the _payload folder.
 
 BEFORE INSTALL FOLDER MAP
 -------------------------
 ${beforeInstallPlaceholder}
 
-PAYLOAD FOLDER (ONE-LEVEL SUMMARY)
-----------------------------------
-${indentLines(payloadMap)}
-
 AFTER INSTALL FOLDER MAP
 ------------------------
 ${indentLines(afterInstallMap)}
+
+TROUBLESHOOTING
+---------------
+- If install fails, open: %TEMP%/CRM_Tool_Install.log
+- If CRM does not launch later, run RUN ME FIRST - Install CRM Tool.bat again.
 `;
 
   fs.writeFileSync(path.join(handoffRoot, 'BEGIN HERE.txt'), beginHereTemplate, 'utf8');
@@ -538,11 +524,14 @@ function assertHandoffRootClean() {
   const requiredSorted = [...requiredHandoffRootEntries].sort((a, b) => a.localeCompare(b));
   const missingRequired = requiredHandoffRootEntries.filter((entry) => !entries.includes(entry));
   const unexpectedEntries = entries.filter((entry) => !requiredHandoffRootEntries.includes(entry));
-  if (missingRequired.length > 0) {
-    throw new Error(`Client distribution root is missing required entries: ${missingRequired.join(', ')}`);
-  }
-  if (unexpectedEntries.length > 0) {
-    throw new Error(`Client distribution root contains unexpected entries: ${unexpectedEntries.join(', ')}`);
+  if (missingRequired.length > 0 || unexpectedEntries.length > 0) {
+    if (missingRequired.length > 0) {
+      console.error(`Missing required root entries: ${missingRequired.join(', ')}`);
+    }
+    if (unexpectedEntries.length > 0) {
+      console.error(`Unexpected root entries: ${unexpectedEntries.join(', ')}`);
+    }
+    throw new Error('Client distribution root entries failed allowlist assertion.');
   }
   if (entries.length !== requiredHandoffRootEntries.length || entries.join('|') !== requiredSorted.join('|')) {
     throw new Error(`Client distribution root must contain exactly: ${requiredSorted.join(', ')}. Found: ${entries.join(', ')}`);
