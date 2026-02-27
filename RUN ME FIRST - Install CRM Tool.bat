@@ -26,11 +26,8 @@ if not exist "%~dp0scripts\installer\Install-CRM-Tool.ps1" (
   exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass ^
-  -File "%~dp0scripts\installer\Install-CRM-Tool.ps1" ^
-  -RepoRoot "%~dp0" ^
-  -PsLogPath "%PS_LOG%" ^
-  1>>"%BATCH_LOG%" 2>>&1
+echo Using installer script: "%~dp0scripts\installer\Install-CRM-Tool.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\installer\Install-CRM-Tool.ps1" -RepoRoot "%~dp0" 1>>"%BATCH_LOG%" 2>>&1
 
 set "EC=%ERRORLEVEL%"
 if not "%EC%"=="0" (
