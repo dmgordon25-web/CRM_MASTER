@@ -17,6 +17,7 @@ set "PORT_PROBE_TIMEOUT_MS=250"
 set "HEALTH_WAIT_MAX_ATTEMPTS=8"
 set "HEALTH_PROBE_TIMEOUT_MS=700"
 set "BROWSER_OPENED=0"
+set "SUPPRESS_FATAL_NOTEPAD=0"
 
 >"!LOGFILE!" echo [CRM] ==============================================
 >>"!LOGFILE!" echo [CRM] Starting CRM launcher at %DATE% %TIME%
@@ -48,11 +49,12 @@ if not exist "!ROOT!crm-app\index.html" (
 
 echo [CRM] Step: resolve node runtime
 call :resolve_node
-if not defined NODE_EXE (
-  set "FATAL_MSG=[CRM][ERROR] Node.js runtime was not found. Install Node.js LTS or ship !ROOT!node\node.exe."
-  goto :fatal
+if defined NODE_EXE if exist "!NODE_EXE!" (
+  call :LOG [CRM] Using Node executable: "!NODE_EXE!"
+) else (
+  set "NODE_EXE="
+  call :LOG [CRM][WARN] Node.js runtime was not found during startup. Reuse checks will continue; spawn will be skipped if node.exe is unavailable.
 )
-call :LOG [CRM] Using Node executable: "!NODE_EXE!"
 
 echo [CRM] Step: select port
 call :LOG [CRM] Selecting port...
@@ -112,9 +114,22 @@ if not defined PORT (
   set "FATAL_MSG=[CRM][ERROR] Cannot start server because selected PORT is empty."
   exit /b 2
 )
+if not defined NODE_EXE goto :start_or_reuse_spawn_node_missing
+if not exist "!NODE_EXE!" goto :start_or_reuse_spawn_node_missing
 call :spawn_server
 if "!errorlevel!"=="0" goto :start_or_reuse_health_ok
 exit /b !errorlevel!
+
+:start_or_reuse_spawn_node_missing
+call :LOG [CRM][WARN] node.exe not found; skipping spawn; attempting reuse.
+echo [CRM][WARN] node.exe not found; skipping spawn; attempting reuse.
+call :try_reuse_existing_server
+if "!errorlevel!"=="0" goto :start_or_reuse_reuse_existing
+set "SUPPRESS_FATAL_NOTEPAD=1"
+set "FATAL_MSG=[CRM][ERROR] node.exe is missing and no running CRM server was found. Install Node.js LTS or add !ROOT!node\node.exe, then relaunch."
+echo !FATAL_MSG!
+pause
+exit /b 2
 
 :start_or_reuse_health_ok
 call :LOG [CRM] Health success event confirmed for port !PORT!.
@@ -132,7 +147,7 @@ if "!REUSE_SERVER!"=="1" (
 exit /b 0
 
 :verify_required_labels
-for %%L in (LOG require_label verify_required_labels resolve_node is_port_free is_crm_alive wait_health wait_for_health start_or_reuse start_or_reuse_spawn start_server spawn_server probe_spawned_server stop_spawned_server select_next_free_port is_pid_alive log_server_tail open_browser) do (
+for %%L in (LOG require_label verify_required_labels resolve_node is_port_free is_crm_alive wait_health wait_for_health start_or_reuse start_or_reuse_spawn try_reuse_existing_server start_server spawn_server probe_spawned_server stop_spawned_server select_next_free_port is_pid_alive log_server_tail open_browser) do (
   call :require_label %%L
   if not "!errorlevel!"=="0" exit /b 2
 )
@@ -259,6 +274,18 @@ if !WAIT_COUNT! GEQ !WAIT_MAX! (
 )
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 1" >> "!LOGFILE!" 2>&1
 goto :wait_health_loop
+
+:try_reuse_existing_server
+for /l %%P in (8080,1,8100) do (
+  call :is_crm_alive %%P "!PORT_PROBE_TIMEOUT_MS!"
+  if "!errorlevel!"=="0" (
+    set "PORT=%%P"
+    set "REUSE_SERVER=1"
+    call :LOG [CRM] Reuse fallback found existing CRM server at http://127.0.0.1:%%P/
+    exit /b 0
+  )
+)
+exit /b 1
 
 :start_server
 set "TARGET_PORT=%~1"
@@ -438,5 +465,5 @@ if not defined FATAL_MSG set "FATAL_MSG=[CRM][ERROR] Launcher failed with an unk
 echo !FATAL_MSG!
 >>"!LOGFILE!" echo [%DATE% %TIME%] !FATAL_MSG!
 >>"!LOGFILE!" echo [%DATE% %TIME%] [CRM][ERROR] Action: Review launcher.log for diagnostics and rerun Start CRM.bat.
-start "" notepad "!LOGFILE!"
+if not "!SUPPRESS_FATAL_NOTEPAD!"=="1" start "" notepad "!LOGFILE!"
 exit /b 1
