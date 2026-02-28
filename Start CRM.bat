@@ -9,12 +9,13 @@ set "SERVER_LOGFILE=%~dp0launcher-server.log"
 set "SERVER_ERR_LOGFILE=%~dp0launcher-server.err.log"
 set "CRM_EXITCODE=0"
 set "FATAL_MSG="
-set "NODE_EXE=%ROOT%node\node.exe"
+set "BUNDLED_NODE=%ROOT%node\node.exe"
+set "NODE_EXE="
 set "MAX_SPAWN_ATTEMPTS=2"
 set "SPAWN_ATTEMPT=0"
 set "STARTED_NODE_PID="
 set "PORT_PROBE_TIMEOUT_MS=250"
-set "HEALTH_WAIT_MAX_ATTEMPTS=8"
+set "HEALTH_WAIT_MAX_ATTEMPTS=12"
 set "HEALTH_PROBE_TIMEOUT_MS=700"
 set "BROWSER_OPENED=0"
 set "SUPPRESS_FATAL_NOTEPAD=0"
@@ -52,8 +53,8 @@ call :resolve_node
 if defined NODE_EXE if exist "!NODE_EXE!" (
   call :LOG [CRM] Using Node executable: "!NODE_EXE!"
 ) else (
-  set "NODE_EXE="
-  call :LOG [CRM][WARN] Node.js runtime was not found during startup. Reuse checks will continue; spawn will be skipped if node.exe is unavailable.
+  set "FATAL_MSG=[CRM][ERROR] Node runtime resolution failed. Install Node.js or include !BUNDLED_NODE!."
+  goto :fatal
 )
 
 echo [CRM] Step: select port
@@ -231,7 +232,8 @@ call :log_server_tail
 exit /b 2
 
 :resolve_node
-if exist "!ROOT!node\node.exe" (
+if exist "!BUNDLED_NODE!" (
+  set "NODE_EXE=!BUNDLED_NODE!"
   echo [CRM] Step: resolve_node bundled check
   call :LOG [CRM] Found bundled Node runtime.
   exit /b 0
@@ -239,14 +241,16 @@ if exist "!ROOT!node\node.exe" (
 echo [CRM] Step: resolve_node PATH lookup
 call :LOG [CRM] Bundled Node runtime not found. Checking PATH for node.exe.
 set "NODE_EXE="
-for /f "delims=" %%I in ('where node.exe 2^>^&1') do (
-  if not defined NODE_EXE if exist "%%~fI" set "NODE_EXE=%%~fI"
+where node >nul 2>&1 || (
+  call :LOG [CRM][ERROR] Node not found. Install Node.js or include bundled node.
+  exit /b 2
 )
-if defined NODE_EXE (
-  call :LOG [CRM] Found node.exe on PATH.
-) else (
-  call :LOG [CRM] Node runtime discovery failed.
+for /f "delims=" %%I in ('where node') do (
+  set "NODE_EXE=%%~fI"
+  goto :node_ok
 )
+:node_ok
+call :LOG [CRM] Found node.exe on PATH: "!NODE_EXE!"
 exit /b 0
 
 :wait_health
@@ -324,17 +328,13 @@ if not exist "!ROOT_DIR!" (
 call :LOG [CRM] Child working directory: "!ROOT_DIR!"
 call :LOG [CRM] Child output log path: "!SERVER_LOGFILE!"
 call :LOG [CRM] Child error log path: "!SERVER_ERR_LOGFILE!"
-call :LOG [CRM] Spawn preflight NODE_EXE="!NODE_EXE!"
-call :LOG [CRM] Spawn preflight SERVER_SCRIPT="!SERVER_SCRIPT!"
-call :LOG [CRM] Spawn preflight PORT="!LAUNCH_PORT!"
-call :LOG [CRM] Spawn preflight ROOT="!ROOT_DIR!"
 call :LOG [CRM] Spawn command: "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT!
 pushd "!ROOT_DIR!" >> "!LOGFILE!" 2>&1
 if not "!errorlevel!"=="0" (
   call :LOG [CRM][ERROR] Failed to enter launch root "!ROOT_DIR!".
   exit /b 2
 )
-start "" /b "!NODE_EXE!" "!ROOT!server.js" --port !LAUNCH_PORT! 1>>"!SERVER_LOGFILE!" 2>>"!SERVER_ERR_LOGFILE!"
+start "" /b "!NODE_EXE!" "!SERVER_SCRIPT!" --port !LAUNCH_PORT! 1>>"!SERVER_LOGFILE!" 2>>"!SERVER_ERR_LOGFILE!"
 set "START_EXIT=!errorlevel!"
 popd >> "!LOGFILE!" 2>&1
 if not "!START_EXIT!"=="0" (
@@ -346,22 +346,24 @@ call :LOG [CRM] Server process spawned via start /b (no PID capture mode).
 exit /b 0
 
 :stop_spawned_server
-if not defined STARTED_NODE_PID (
-  call :LOG [CRM] No spawned server PID recorded; skip cleanup.
-  exit /b 0
-)
+if not defined STARTED_NODE_PID goto :skip_kill
 echo(!STARTED_NODE_PID!| findstr /R "^[0-9][0-9]*$" >nul
-if not "!errorlevel!"=="0" (
-  call :LOG [CRM][WARN] Spawned server PID value is invalid ('!STARTED_NODE_PID!'); skip cleanup.
-  set "STARTED_NODE_PID="
-  exit /b 0
-)
+if not "!errorlevel!"=="0" goto :skip_kill
 call :LOG [CRM] Stopping spawned Node process PID !STARTED_NODE_PID!.
 taskkill /PID !STARTED_NODE_PID! /T /F >> "!LOGFILE!" 2>&1
 if "!errorlevel!"=="0" (
   call :LOG [CRM] Cleanup succeeded for PID !STARTED_NODE_PID!.
 ) else (
   call :LOG [CRM][WARN] Cleanup taskkill returned !errorlevel! for PID !STARTED_NODE_PID!.
+)
+set "STARTED_NODE_PID="
+exit /b 0
+
+:skip_kill
+if not defined STARTED_NODE_PID (
+  call :LOG [CRM] No spawned server PID recorded; skip cleanup.
+ ) else (
+  call :LOG [CRM][WARN] Spawned server PID value is invalid ('!STARTED_NODE_PID!'); skip cleanup.
 )
 set "STARTED_NODE_PID="
 exit /b 0
