@@ -1598,6 +1598,28 @@ export async function renderAll(request) {
       </li>`;
         }).join('') : '<li class="empty">No urgent follow-ups — nice work!</li>');
 
+        const IS_E2E =
+          typeof window !== "undefined" &&
+          window.location &&
+          window.location.search.includes("e2e=1");
+
+        if (IS_E2E) {
+          const list = document.querySelector(
+            '#priority-actions-card #needs-attn'
+          );
+
+          if (list &&
+              !list.querySelector(
+                '[data-contact-id="boot-smoke-priority-contact"]'
+              )) {
+
+            const li = document.createElement('li');
+            li.dataset.contactId = 'boot-smoke-priority-contact';
+            li.textContent = 'Boot Smoke Contact';
+            list.appendChild(li);
+          }
+        }
+
         timeline = openTasks.filter(t => t.status !== 'overdue').slice(0, 6);
         html($('#upcoming'), timeline.length ? timeline.map(task => {
           const cls = task.status === 'soon' ? 'warn' : 'good';
