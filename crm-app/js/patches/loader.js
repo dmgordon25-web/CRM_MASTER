@@ -17,6 +17,16 @@ window.CRM.ctx = window.CRM.ctx || {
 };
 
 (async function boot() {
+  let bootDoneEmitted = false;
+  const emitBootDoneOnce = (extra = {}) => {
+    if (bootDoneEmitted) return;
+    bootDoneEmitted = true;
+    const bootSuccess = { fatal: false, at: Date.now(), phases: true, ...extra };
+    try {
+      window.__BOOT_DONE__ = bootSuccess;
+      document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
+    } catch (_) { }
+  };
   const coreOut = await ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   const ctx = window.CRM.ctx;
 
@@ -82,33 +92,21 @@ window.CRM.ctx = window.CRM.ctx || {
   try {
     import('../boot/splash_sequence.js').then(module => {
       if (module && typeof module.runSplashSequence === 'function') {
-        // Give dashboard time to render before starting sequence
-        setTimeout(() => {
-          module.runSplashSequence();
-
-          // Signal boot/phases completion (delayed to match splash/dashboard ready)
-          // This delay effectively replaces the explicit waitForDashboardReady() from boot_hardener
-          const bootSuccess = { fatal: false, at: Date.now(), phases: true };
-          try {
-            window.__BOOT_DONE__ = bootSuccess;
-            document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
-          } catch (_) { }
-        }, 500);
+        module.runSplashSequence();
+        emitBootDoneOnce();
       }
     }).catch(err => {
       console.warn('[loader] Failed to load splash sequence', err);
       // Fallback: hide splash if sequence fails to load
       const splash = document.getElementById('diagnostics-splash');
       if (splash) splash.style.display = 'none';
-
-      const bootSuccess = { fatal: false, at: Date.now(), phases: true, fallback: true };
-      window.__BOOT_DONE__ = bootSuccess;
-      document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
+      emitBootDoneOnce({ fallback: true });
     });
   } catch (err) {
     console.warn('[loader] Failed to import splash sequence', err);
     // Fallback: hide splash if import fails
     const splash = document.getElementById('diagnostics-splash');
     if (splash) splash.style.display = 'none';
+    emitBootDoneOnce({ fallback: true, importFallback: true });
   }
 })();

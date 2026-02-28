@@ -4,7 +4,6 @@ cd /d "%~dp0"
 
 set "BATCH_LOG=%TEMP%\CRMTool-Install-batch.log"
 set "PS_LOG=%TEMP%\CRMTool-Install-ps.log"
-set "LNK=%USERPROFILE%\Desktop\CRM Tool.lnk"
 
 del /q "%BATCH_LOG%" 2>nul
 del /q "%PS_LOG%" 2>nul
@@ -38,16 +37,21 @@ if not "%EC%"=="0" (
   exit /b %EC%
 )
 
-if not exist "%LNK%" (
-  echo FAIL: Shortcut was not created: %LNK%>>"%BATCH_LOG%"
-  echo FAIL: Shortcut was not created: %LNK%
-  echo See: %BATCH_LOG%
-  echo See: %PS_LOG%
-  pause
-  exit /b 2
-)
+set "LNK1=%USERPROFILE%\Desktop\CRM Tool.lnk"
+set "LNK2="
+if not "%OneDrive%"=="" set "LNK2=%OneDrive%\Desktop\CRM Tool.lnk"
 
-echo SUCCESS: Shortcut created: %LNK%
-echo Launching CRM Tool...
-"%LNK%"
+if exist "%LNK1%" goto OK
+if not "%LNK2%"=="" if exist "%LNK2%" goto OK
+
+echo FAIL: Shortcut was not created on Desktop.
+echo Checked: %LNK1%
+if not "%LNK2%"=="" echo Checked: %LNK2%
+echo See: %BATCH_LOG%
+pause
+exit /b 2
+
+:OK
+echo SUCCESS: Shortcut created. Launching...
+if exist "%LNK1%" "%LNK1%" else "%LNK2%"
 exit /b 0

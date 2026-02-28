@@ -23,6 +23,7 @@ import { helpSystem } from '../utils/help_system.js';
 
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
+
 const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
 let releaseDashboardRouteToken = null;
 
