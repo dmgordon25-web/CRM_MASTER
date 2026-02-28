@@ -149,12 +149,21 @@ if errorlevel 1 (
 >>"%LOGFILE%" echo [CRM] Launcher complete.
 exit /b 0
 
-:is_port_free
-set "TEST_PORT=%~1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $listener=New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Parse('127.0.0.1'), %TEST_PORT%); $listener.Start(); $listener.Stop(); exit 0 } catch { exit 1 }" >nul 2>&1
-exit /b %errorlevel%
-
 :is_crm_alive
 set "HEALTH_PORT=%~1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $req=[System.Net.HttpWebRequest]::Create('http://127.0.0.1:%HEALTH_PORT%/health'); $req.Method='GET'; $req.Timeout=700; $res=$req.GetResponse(); if([int]$res.StatusCode -eq 200){ $res.Close(); exit 0 }; $res.Close(); exit 1 } catch { exit 1 }" >nul 2>&1
 exit /b %errorlevel%
+
+:is_port_free
+REM Checks whether %1 port is free
+REM returns ERRORLEVEL 0 = free, 1 = in use
+
+setlocal
+set "CHECK_PORT=%~1"
+
+netstat -ano | findstr /r /c:":%CHECK_PORT% " >nul
+if %errorlevel%==0 (
+endlocal & exit /b 1
+) else (
+endlocal & exit /b 0
+)
