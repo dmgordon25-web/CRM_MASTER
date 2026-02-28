@@ -24,21 +24,6 @@ import { helpSystem } from '../utils/help_system.js';
 const doc = typeof document === 'undefined' ? null : document;
 const win = typeof window === 'undefined' ? null : window;
 
-function emitBootSmokeReadyOnce() {
-  if (!win || !doc) return;
-  if (win.__bootSmokeReady === true) return;
-  try {
-    win.__bootSmokeReady = true;
-  } catch (_err) {
-    return;
-  }
-  try {
-    if (typeof win.__emitBootDoneFromDashboard === 'function') {
-      win.__emitBootDoneFromDashboard();
-    }
-  } catch (_err) { }
-}
-
 const dashboardStateApi = dashboardState || (win && win.dashboardState) || null;
 let releaseDashboardRouteToken = null;
 
@@ -4834,7 +4819,6 @@ export function initDashboard(options = {}) {
         doc.dispatchEvent(readyEvent);
       } catch (_) { }
     }
-    emitBootSmokeReadyOnce();
     return true;
   })().then(result => {
     dashboardInitialized = true;

@@ -27,8 +27,6 @@ window.CRM.ctx = window.CRM.ctx || {
       document.dispatchEvent(new CustomEvent('boot:done', { detail: bootSuccess }));
     } catch (_) { }
   };
-  window.__emitBootDoneFromDashboard = emitBootDoneOnce;
-
   const coreOut = await ensureCoreThenPatches({ CORE, PATCHES, REQUIRED });
   const ctx = window.CRM.ctx;
 
@@ -95,7 +93,7 @@ window.CRM.ctx = window.CRM.ctx || {
     import('../boot/splash_sequence.js').then(module => {
       if (module && typeof module.runSplashSequence === 'function') {
         module.runSplashSequence();
-        if (window.__bootSmokeReady === true) emitBootDoneOnce();
+        emitBootDoneOnce();
       }
     }).catch(err => {
       console.warn('[loader] Failed to load splash sequence', err);
